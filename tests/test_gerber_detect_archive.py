@@ -150,9 +150,8 @@ def test_declared_size_limit(monkeypatch):
     with pytest.raises(G.UnsafeArchiveError, match="uncompressed bytes"):
         G.GerberArchive(make_zip({"a.gbr": "a" * 700 + str(list(range(200))), "b.gbr": "b" * 700 + str(list(range(200)))}))
     monkeypatch.setattr(archive, "MAX_UNCOMPRESSED_BYTES", 2 * 1024 ** 3)
-    monkeypatch.setattr(archive, "MAX_MEMBER_BYTES", 500)
     with pytest.raises(G.UnsafeArchiveError, match="declares"):
-        G.GerberArchive(make_zip({"a.gbr": "a" * 700 + str(list(range(200)))}))
+        G.GerberArchive(make_zip({"a.gbr": "a" * 700 + str(list(range(200)))}), max_member_bytes=500)
     assert archive.MAX_UNCOMPRESSED_BYTES == 2 * 1024 ** 3                       # the declared limit stated for the import
 
 

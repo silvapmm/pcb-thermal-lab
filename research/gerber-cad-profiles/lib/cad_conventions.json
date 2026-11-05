@@ -1,0 +1,94 @@
+{
+  "_comment": "Proposed conventions of each CAD profile (the second half of the table that would become pcbthermal/data/cad_profiles.json). Every field is a default that the import window shows and the user can change. 'seen' = measured in the sample sets (README 3.4, 4, 5, 6); 'M' = from memory, not seen. A field the study could not measure is left out rather than guessed.",
+  "generic": {
+    "layer_function": "X2 FileFunction, then Excellon header, then the file name rules of pcbthermal.gerber.functions",
+    "drill": {"plated_from": "x2 comment, ;TYPE=, file name"},
+    "placement": {"bottom_x": "detect from the paste openings"}
+  },
+  "kicad": {
+    "x2": "file_function_always", "format_seen": "mm 4.6 (every file of 187)", "units": "MM",
+    "layer_rules": [["-(f|b)[._]cu\\.", "copper", "side from f/b"], ["-in(\\d+)[._]cu\\.", "copper", "inner"], ["[-_.]edge[._]cuts", "outline", null]],
+    "outline": {"source": "Edge.Cuts file, X2 Profile,NP", "closed_contour": "yes in every KiCad set"},
+    "drill": {"dialect": "Excellon with FMAT,2 and comment header", "plated_from": "x2 comment (31 of 32), merged file = MixedPlating (b-parasite, KiCad 7.0.1), PTH/NPTH in the name", "unit": "inch or mm by plot option (20 / 12)"},
+    "paste": {"present": "yes (F_Paste, B_Paste)", "to_c": "only with the plot option 'include netlist attributes' (present in 47 of 187 files; absent in the sets of KiCad 5.1.5, 7.0.1, 7.0.6, 7.0.9 and 9.0.0, present in 5.1.6, 5.1.7, 5.1.8, 8.0.4, 8.99 and 9.0.1: the plot option, not the version, decides)"},
+    "placement": {"columns": "Ref,Val,Package,PosX,PosY,Rot,Side (csv) or the .pos text report", "units": "mm", "bottom_x": "per file: as is (cmm2) or negated (isastm) in the same 5.1.x; detect, never preset", "origin": "drill/place file origin option"},
+    "x3": "component layer (Component,L1,Top) seen in KiCad 8.99 (StickHub)", "odb": "ODB_SOURCE=KiCad EDA, SAVE_APP=KiCad EDA 9.0.3 in misc/info (seen)"
+  },
+  "altium": {
+    "x2": "generation_only", "format_seen": "in 2.5 (56 of 95), mm 4.4 (25)", "units": "IN or MM by the project",
+    "layer_rules": [["\\.gtl$", "copper", "top"], ["\\.gbl$", "copper", "bottom"], ["\\.g(\\d+)$", "copper", "inner (G1 = L2)"], ["\\.gp(\\d+)$", "copper", "inner plane"],
+                    ["\\.gtp$", "paste", "top"], ["\\.gbp$", "paste", "bottom"], ["\\.gts$", "soldermask", "top"], ["\\.gbs$", "soldermask", "bottom"],
+                    ["\\.gto$", "silkscreen", "top"], ["\\.gbo$", "silkscreen", "bottom"], ["\\.(gko|gm1)$", "outline", null], ["\\.(gm\\d+|gd\\d+|gg\\d+)$", "other", null]],
+    "layer_order": "G04 Layer_Physical_Order=n gives the stack position (32 files of the sets carry it: the copper layers of the newer versions)",
+    "outline": {"source": ".GKO (keep-out) and/or .GM1 (mechanical 1); both may hold stubs and dimension marks", "closed_contour": "failed at 0.01 mm in 5 of the Altium/CircuitMaker outline files; pruning dangling segments gave a closed contour of the board's size in 3 (linkcard GM1, simplefoc GM1, hydro GKO), a wrong tiny box in 1 (hydro GM1, a mechanical layer with other drawings) and nothing in 1 (LimeSDR GM1) (README 5.1)"},
+    "drill": {"dialect": "Excellon, header ;FILE_FORMAT=a:b, ;TYPE=PLATED|NON_PLATED, ;Layer_Color=, T1F00S00C..., INCH,LZ or METRIC,LZ|TZ", "plated_from": ";TYPE= (9 of 9)", "files": "separate RoundHoles / SlotHoles .TXT"},
+    "paste": {"present": "yes (GTP, GBP)", "to_c": "no (0 of 95)"},
+    "placement": {"M": "Pick Place file with Mid X / Mid Y and unit suffixes (not seen in the sets)"}
+  },
+  "circuitmaker": {"inherits": "altium", "x2": "generation_only"},
+  "eagle": {
+    "x2": "file_function from 9.0 (28 of 60 files; the 'RS-274X export' files of older versions and of Fusion Electronics have none)", "format_seen": "mm 3.4 (50 of 60), in 3.6 (8)", "units": "MM or IN",
+    "layer_rules": [["copper_top|\\.cmp$", "copper", "top"], ["copper_bottom|\\.sol$", "copper", "bottom"], ["copper_inner|\\.ly\\d+$", "copper", "inner"],
+                    ["solderpaste_top|\\.crc$", "paste", "top"], ["solderpaste_bottom|\\.crs$", "paste", "bottom"], ["soldermask_top|\\.stc$", "soldermask", "top"],
+                    ["soldermask_bottom|\\.sts$", "soldermask", "bottom"], ["silkscreen_top|\\.plc$", "silkscreen", "top"], ["silkscreen_bottom|\\.pls$", "silkscreen", "bottom"],
+                    ["profile|\\.(dim|oln)$", "outline", null]],
+    "outline": {"source": "profile.gbr / boardoutline.ger (X2 Profile,NP)", "closed_contour": "yes in every EAGLE set"},
+    "drill": {"dialect": "Excellon .xln with ;GenerationSoftware,Autodesk,EAGLE comments, FMAT,2, ICI,OFF, METRIC,TZ or INCH,TZ", "plated_from": "file name only (drills.xln, nonplated.drills.xln)"},
+    "paste": {"present": "yes", "to_c": "no (0 of 60)"}, "gbrjob": "Fusion Electronics names itself in gerber_job.gbrjob (Application: Fusion Electronics) while the Gerber files carry the EAGLE banner"
+  },
+  "allegro": {
+    "x2": "none", "format_seen": "in 2.5 (66 of 95), 4.5 (13), 2.3 (11)", "units": "IN",
+    "layer_rules": [["assy|assem|fab|drawing", "other", null], ["paste|_sp[cst]|sp[tb]\\.art", "paste", "from the name (TOP/BOT, PRM/SEC)"], ["mask|solder_|sm[ct]|sm[sb]", "soldermask", "idem"],
+                    ["silk|slk|ss[tb]\\.art", "silkscreen", "idem"], ["^(top|bot|bottom)\\.art|gnd|pwr|lyr\\d+|layer_\\d+", "copper", "TOP/BOTTOM, else inner"]],
+    "layer_told_by": "G04 Film Name: <name> in the identification record (the film names are the user's: TOP, GND2, lyr3, l1_primary)",
+    "outline": {"source": "no outline file in the 6 sets (the outline is drawn on the film layers or is the .rou file); the program has no outline then", "closed_contour": "n/a"},
+    "drill": {"dialect": "Excellon, ;LEADER/;HEADER/;CODE comments, per-tool comments with Holesize and Quantity (declared counts 287 and 1991 = holes read), METRIC or INCH; a file can omit M48 and the T codes (BeagleBone AI: coordinates only)", "plated_from": "per-tool comment (PLATED / NON_PLATED)"},
+    "gerber": {"mirror": "assembly films carry %MIA1B0*% (image mirror): refused by the program; they are not needed", "g54": "G54D<n> aperture selection (91 of 95 files)"},
+    "paste": {"present": "yes (PASTE_TOP, SPT, SPB)", "to_c": "no"}
+  },
+  "xpedition": {
+    "x2": "none", "format_seen": "in 2.4 (64 of 81), 2.6 (17)", "units": "IN (the output definition of the samples)",
+    "layer_rules": [["etchlayer(top|_top|1top)|l01_top|^layer1\\.gdo", "copper", "top"], ["etchlayer(bottom|_bot)|l12_bottom", "copper", "bottom"], ["etchlayer\\d|_l\\d\\d|^layer\\d\\.gdo", "copper", "inner"],
+                    ["solderpaste.*(top|1)", "paste", "top"], ["solderpaste.*(bottom|2)", "paste", "bottom"], ["soldermask.*(top|1)", "soldermask", "top"],
+                    ["soldermask.*(bottom|2)", "soldermask", "bottom"], ["silkscreen.*(top|1)", "silkscreen", "top"], ["silkscreen.*(bottom|2)", "silkscreen", "bottom"],
+                    ["boardoutl+ine", "outline", null], ["drilldrawing|^drill\\.gdo", "other (a drawing of the holes, not a drill file)"], ["\\.ncd$", "drill", null]],
+    "outline": {"source": "BoardOutlline.gdo (sic, two l) or BoardOutline.gdo in 4 of 8 sets; 4 sets have none", "closed_contour": "yes where present"},
+    "drill": {"dialect": "Excellon .ncd: ; Version : LOCAL, ; Format : 3.3 / Absolute / MM / Leading (the word names the SUPPRESSED zeros), METRIC,TZ or INCH,LZ, FMAT,2, ICI,OFF, M71, G90 and a G93X0Y0 line in all 17 files", "adjust": "G93X0Y0 is a zero origin shift: ignore it (the program refuses the whole file: 17 of 17); a punch file (ThruHolePunchPlated.ncd) has tools without a diameter and stays refused", "plated_from": "file name (ThruHolePlated, ThruHoleNonPlated, ContourPlated)"},
+    "paste": {"present": "yes (SolderPasteTop/Bottom; the top only on some boards)", "to_c": "no"},
+    "support": ".gpf plot setup says 'Xpedition Layout Gerber Output'; the PADS Pro / Xpedition Enterprise newer outputs were not seen"
+  },
+  "pads": {
+    "x2": "none", "format_seen": "in 3.5 (13 of 14)", "units": "IN",
+    "layer_rules": [["^top\\.pho|top-art", "copper", "top"], ["^bottom\\.pho|bot-art", "copper", "bottom"], ["^layer\\d\\.pho", "copper", "inner"], ["^smt|top-sm", "soldermask (M: SM = solder mask)", "top"],
+                    ["^smb|bot-sm", "soldermask", "bottom"], ["^sst|top-ss", "silkscreen (M: SS = silkscreen)", "top"], ["^ssb", "silkscreen", "bottom"]],
+    "drill": {"dialect": "Excellon with a leading % line before T codes (Drill.drl)"}, "M": "the SM/SS meaning of the names is from the layout of the files, no PADS document opened"
+  },
+  "easyeda": {
+    "x2": "none", "format_seen": "mm 4.5 (25 of 32), in 3.6 (7)", "units": "MM or IN",
+    "layer_rules": [["toplayer", "copper", "top"], ["bottomlayer", "copper", "bottom"], ["boardoutline", "outline", null], ["toppastemask", "paste", "top"], ["topsoldermask", "soldermask", "top"], ["topsilk", "silkscreen", "top"]],
+    "outline": {"source": "Gerber_BoardOutline.GKO / ..OutlineLayer.GKO", "closed_contour": "failed at 0.01 mm in 2 of 5 sets (datenzwerg, simplefoc); pruning closed one (simplefoc), the other is an open contour"},
+    "drill": {"dialect": "Excellon mimicking Altium: ;FILE_FORMAT=2:4, ;TYPE=PLATED|NON_PLATED, ;EasyEDA v...", "plated_from": ";TYPE= (9 of 9)"}
+  },
+  "diptrace": {
+    "x2": "FileFunction on 17 of 31 files (newer versions)", "format_seen": "in 2.6, 4.4, 5.3 (three versions)", "layer_rules": [["top\\.gbr|^1 - top", "copper", "top"], ["bottom\\.gbr|^2 - bottom", "copper", "bottom"], ["(top|bottom)mask", "soldermask", null], ["(top|bottom)silk", "silkscreen", null], ["(top|bottom)paste", "paste", null], ["boardoutline|^border", "outline", null]],
+    "drill": {"dialect": "plain Excellon, no comments, INCH or METRIC,000.00", "plated_from": "none (PTH and NPTH are not told apart in the 5 files)"}
+  },
+  "proteus": {"x2": "file_function_always", "format_seen": "mm 4.5", "layer_rules": [[" - CADCAM Top Copper", "copper", "top"], [" - CADCAM Top SMT Paste", "paste", "top"], [" - CADCAM Top Solder Resist", "soldermask", "top"]], "support": "CADCAM READ-ME.TXT names the program; drill files are written as Gerber X2 (.GBR, Plated)"},
+  "pulsonix": {"x2": "file_function on 44 of 51", "format_seen": "in/mm 3.5", "drill": {"dialect": "Excellon FMAT,1 (G81 drill commands), no plating information"},
+               "placement": {"columns": "Ref,Part Name,Side,X,Y,Rotation with four preamble lines (title, date, Units,mm, blank); the program's parser refuses the file (README 6); Part Name is not a KiCad footprint name, so the envelope rule finds 8 of 86 parts"}},
+  "designspark": {"x2": "partial (13 of 16)", "format_seen": "in 3.5", "layer_rules": [["board outline", "outline", null], ["bottom copper", "copper", "bottom"]]},
+  "librepcb": {"x2": "file_function on 9 of 25", "format_seen": "mm 6.6", "drill": {"dialect": "Excellon FMAT,2 METRIC,TZ; DRILLS-PTH / DRILLS-NPTH in the name", "plated_from": "x2 comment or file name"}, "paste": {"to_c": "yes (8 files)"}},
+  "pcad": {"x2": "none", "format_seen": "mm 4.4", "layer_rules": [["\\.gtl$", "copper", "top"], ["\\.gko$", "outline", null]], "outline": {"closed_contour": "failed at 0.01 mm, closes at 0.1 mm (the ends are 0.01 to 0.1 mm apart)"}},
+  "pcbrnd": {"x2": "none", "layer_rules": [["\\.(asb|ast|fab)$", "other", null]], "adjust": "a project name such as 'power-art' made the program's name rules read assembly and fab files as copper (the word 'power')"},
+  "geda": {"x2": "none", "layer_rules": [["\\.group(\\d+)\\.gbr", "copper", "inner"]], "drill": {"dialect": ".cnc plain Excellon INCH"}},
+  "fritzing": {"x2": "none", "layer_rules": [["\\.gm1$|\\.gko$", "outline", null], ["\\.txt$", "drill", null]], "drill": {"dialect": "plain Excellon with a leading % line before M48 (the program's header detector needs M48 first)"}},
+  "upverter": {"x2": "none", "format_seen": "mm 3.3", "gerber": {"macro_names": "names with a hyphen (AMRect-W1650000-H1650000-RO1.500); not allowed by the specification; the program refuses 5 files, renaming the macros reads all with the area within 0.24 % of gerbonara"},
+               "drill": {"dialect": "M71,TZ header (the program refuses: no unit; METRIC,TZ reads 63 holes)"}},
+  "target3001": {"x2": "none", "format_seen": "in 3.5", "layer_rules": [["\\.top$", "copper", "top"], ["\\.bot$", "copper", "bottom"], ["\\.outline$", "outline", null], ["\\.pastetop$", "paste", "top"], ["\\.stoptop$", "soldermask", "top"], ["\\.positop$", "silkscreen", "top"]],
+                 "outline": {"closed_contour": "failed at 0.01 mm; pruning one stub closes it"}, "support": ".Info file 'CAM output for current project'", "placement": {"M": ".PosiTop / .PosiBot are Gerber placement-print layers (silkscreen), not coordinate lists"}},
+  "zuken": {"x2": "none", "units": "MM", "layer_rules": [["conductive-(\\d)", "copper", "1 top, 2 bottom"], ["metalmask-(a|b)", "paste", "a top, b bottom"], ["resist-(a|b)", "soldermask", "a top, b bottom"], ["symbol-(a|b)", "silkscreen", "a top, b bottom"]],
+            "gerber": {"quirks": "no comments, G54D<n> before every aperture selection, D02 then G55D03 for flashes, M00 end of file, one long line (README 3.5); all from the gerbonara emulation script, not from a real CR-8000 file"},
+            "drill": {"dialect": ".fdr: INCH,LZ ICI,OFF VER,1 FMAT,2 DETECT,ON ATC,ON; .fdl drill list ('***** DRILL LIST *****')"}, "status": "emulation only: no real Zuken CR-8000, CR-5000 or CADSTAR file was obtained"},
+  "cam350": {"note": "a CAM tool: the original program is not known; apertures can be used before they are defined (the .apr wheel is separate), the program refuses 3 of 11 files"},
+  "ucamx": {"note": "a CAM tool; X2 complete (FileFunction, TO, TA)"}
+}
