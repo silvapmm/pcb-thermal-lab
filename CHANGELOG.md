@@ -3,15 +3,6 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
-## [Unreleased]
-
-### Fixed
-- **Picking a via on the editor canvas**: the click area of a via was its outline stroked with the 2 mm cosmetic pen, so on an imported board (hundreds of vias) a click selected the neighbouring via. The area is now the drawn disc, and a press within 6 screen pixels of a via centre (or its drawn radius, whichever is larger) selects the via whose centre is nearest, before any zone or part below it; Ctrl-click and dragging are unchanged. Test `tests/test_via_pick.py`.
-- **Warnings that tell you to use another cell size now say where**: the Cell size box of the Simulation settings, or the Auto button (and `--cell-mm` on the command line).
-
-### Changed
-- The Gerber import window no longer has tooltips on its obvious controls (file list and its function boxes, preview and view switches, file buttons, part-ticking buttons, Back / Next / Import now); those that explain a parameter or a rule stay.
-
 ## [2.5.0] - 2026-11-05
 
 ### 2.5.0 summary
@@ -25,6 +16,11 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **CAD tool recognition**: the program that wrote the set is recognised from the names and headers (fifteen eCAD programs tested on real sets) and used as a default, never as an authority; the line is shown in the alert colour when a check is needed.
 - **Imported copper**: the copper of each layer from the files replaces the zones of that layer in every model; the FVM and FDM read it through flow-based face conductances on the laminate-reduced sheet. The editor draws it (View - Imported copper) and names the parts (View - Element names).
 - **Parts from the paste layers, the placement file and X3 component layers**: heat-source polygons per part, the exposed pad or tab when the paste has one (QFN, DFN, SOT-223, DPAK), the hull of the openings otherwise; frame check of the placement file, bottom side, a shape you choose is kept by a re-import.
+
+**Fixed: import window, canvas and cell hints**
+- **Picking a via on the editor canvas**: the click area of a via was its outline stroked with the 2 mm cosmetic pen, so on an imported board (hundreds of vias) a click selected the neighbouring via. The area is now the drawn disc, and a press within 6 screen pixels of a via centre (or its drawn radius, whichever is larger) selects the via whose centre is nearest, before any zone or part below it; Ctrl-click and dragging are unchanged. Test `tests/test_via_pick.py`.
+- **Warnings that tell you to use another cell size now say where**: the Cell size box of the Simulation settings, or the Auto button (and `--cell-mm` on the command line).
+- The Gerber import window no longer has tooltips on its obvious controls (file list and its function boxes, preview and view switches, file buttons, part-ticking buttons, Back / Next / Import now); those that explain a parameter or a rule stay.
 
 **Fixed: warning texts**
 - The Lumped warning for vias outside every footprint no longer quotes internal branch and study names; it says the evidence in plain words (29 boards and 17 more against the FVM at 0.25 mm, a sample, not a bound). Text only; a test scans the warnings of a board with vias, a heatsink and imported copper for such names.
