@@ -15,6 +15,10 @@ import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
+# Neutral configuration folder: Preferences shows the path of user_defaults.json, which must never be a personal path in a committed picture
+NEUTRAL_CONFIG = "/tmp/pcbthermal-config"
+os.makedirs(NEUTRAL_CONFIG, exist_ok=True)
+os.environ["PCBTHERMAL_CONFIG"] = NEUTRAL_CONFIG
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtCore import QSettings, Qt                                        # noqa: E402
@@ -27,6 +31,17 @@ from pcbthermal.gui.calculator import PowerCalculator                      # noq
 from pcbthermal.gui.main_window import TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow   # noqa: E402
 
 
+def _assert_neutral(path):
+    """!
+    @brief Refuse to save a picture while the configuration folder is not the neutral one.
+    @param path Path of the picture about to be written (used in the message).
+    @return None
+    @throws RuntimeError If PCBTHERMAL_CONFIG is not the neutral folder.
+    """
+    if os.environ.get("PCBTHERMAL_CONFIG") != NEUTRAL_CONFIG:
+        raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
+
+
 def shrink(path, max_width=1400):
     """!
     @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth).
@@ -35,6 +50,8 @@ def shrink(path, max_width=1400):
     @return None
     """
     from PIL import Image                                                    # Pillow comes with Matplotlib
+
+    _assert_neutral(path)
 
     im = Image.open(path).convert("RGB")
     if im.width > max_width:
@@ -48,6 +65,7 @@ def main(out_dir):
     @param out_dir Folder that receives the PNG files.
     @return List of written file paths.
     """
+    _assert_neutral(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     app = QApplication.instance() or QApplication([])
     settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
@@ -186,6 +204,7 @@ def main_import(out_dir, board_dir):
     from pcbthermal.gui.import_window import ImportBoardWindow, ReimportDialog
     from pcbthermal.gui.preferences import PreferencesDialog
 
+    _assert_neutral(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     app = QApplication.instance() or QApplication([])
     # A copy of the files under a neutral name, so that no path of this machine can appear in a picture

@@ -344,6 +344,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **No personal path in a committed screenshot** (maintainer): `examples/make_screenshots.py` sets `PCBTHERMAL_CONFIG=/tmp/pcbthermal-config` before anything is drawn (Preferences prints the path of `user_defaults.json`) and refuses to save a picture otherwise (`_assert_neutral`); the 74 pictures of `docs/images` and the help folder were checked by eye, only `preferences_solver_gerber.png` showed a user path and was regenerated.
+
 - **Toolbar icons from the theme** (`fix/dark-toolbar-icons`): the Matplotlib toolbar of the result plots took pure white icons in the dark theme; `results_view.recolour_toolbar` fills the icon shapes with the `text` token (contrast with the window at least 3.0) and is re-applied by `PlotTab.set_theme`; canvases are untouched.
 
 - **Preferences: Solver and Gerber import are sections of their own** (`fix/preferences-solver-gerber-order`): they were boxes at the bottom of the long Defaults page; now two entries of the list of sections with a header line (machine preference, not saved in projects); every key and file format is unchanged.
