@@ -40,7 +40,7 @@ def main(argv=None):
     @return None.
     """
     ap = argparse.ArgumentParser()
-    ap.add_argument("--h-side", type=float, nargs="+", default=[0.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6])
+    ap.add_argument("--h-side", type=float, nargs="+", default=[0.0, 10.0, 100.0, 1e3, 1e4, 1e5])  # Board.validate refuses h_side above 1e5 W/m2K (the 1e6 row of the earlier version is gone)
     ap.add_argument("--cells", type=float, nargs="+", default=[1.0, 0.5, 0.25])
     ap.add_argument("--distances", type=float, nargs="+", default=[0.16, 0.3, 0.5, 1.0, 2.0, 4.0])
     ap.add_argument("--modes", nargs="+", default=["none", "program", "mirror", "robin"])           # "none": the program without its image (before the adoption)
