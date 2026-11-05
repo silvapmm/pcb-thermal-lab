@@ -689,9 +689,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
         limit = min(f[5] for f in group)
         if model == "layered":
             s_max, n_max = laminate.parameters()
-            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller laminate_s_max_mm (now {num(s_max * 1e3, 2)} mm) "
-                    f"or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
-            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce laminate_s_max_mm"
+            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller 'Laminate sub-gap' (--laminate-s-max-mm, now {num(s_max * 1e3, 2)} mm) "
+                    f"or a larger 'Laminate sub-gaps' (--laminate-n-max, now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
+            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce the Laminate sub-gap"
         else:
             what = "the 3D solid, with four slabs per insulating layer, reads them too hot (up to +20 % bare and +27 % over a pad on 3.2 mm laminate)"
             short_what = "the 3D solid reads them too hot (up to +27 %)"
@@ -707,11 +707,11 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
             over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
             _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
                        f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
-                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller laminate_s_max_mm (now "
-                       f"{num(s_max * 1e3, 2)} mm) or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller 'Laminate sub-gap' (--laminate-s-max-mm, now "
+                       f"{num(s_max * 1e3, 2)} mm) or a larger 'Laminate sub-gaps' (--laminate-n-max, now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
                        "The 3D solid, with its four slabs per insulating layer, reads such a part too hot instead, so it is not the answer here.",
                  f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
-                 "reduce laminate_s_max_mm.")
+                 "reduce the Laminate sub-gap.")
         else:
             _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, four per insulating layer, ratio {ratio:.2f} "
                        f"above {limit:.2f}); the solid reads it too hot: measured up to +20 % bare and +27 % over a pad on 3.2 mm laminate under a 2 mm part at 0.25 mm "
