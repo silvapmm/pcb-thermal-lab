@@ -64,6 +64,11 @@ def test_guide_gerber_walkthrough_glossary_and_validity():
         assert word in html, word
     # The picture of the walkthrough ships beside the guide
     assert (GUIDE.parent / "heater_shapes_rp2040.png").exists()
+    # Every picture the guide points to ships beside it, and the README pictures exist in docs/images
+    for name in re.findall(r'<img src="([^"]+)"', html):
+        assert (GUIDE.parent / name).exists(), name
+    for name in ("import_step1", "import_step2", "import_step3", "import_reimport", "editor_imported", "editor_warnings", "preferences_solver_gerber"):
+        assert 'src="%s.png"' % name in html, name
 
 
 def test_guide_window_about_and_menu(qtbot, tmp_path, monkeypatch):

@@ -31,6 +31,16 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Editor](docs/images/editor.png)
 
+![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
+
+![The imported RP2040 board in the editor, with the copper drawn and the live warnings under Run](docs/images/editor_warnings.png)
+
+![The imported board in the dark theme](docs/images/editor_imported_dark.png)
+
+![Temperature of the imported board (FVM, dark theme)](docs/images/results_temperature_imported_dark.png)
+
+*The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
+
 ![Stack-up](docs/images/stackup.png)
 
 ![Stack-up with the inner copper set to 1 oz](docs/images/stackup_inner_copper.png)
@@ -94,6 +104,8 @@ sim.save("results")               # report, JSON, CSV fields, figures
 ```
 
 ![Summary](docs/images/results_summary.png)
+
+![Summary of an imported board, with its notes and warnings](docs/images/results_summary_imported.png)
 
 ![Power profile](docs/images/power_profile.png)
 
