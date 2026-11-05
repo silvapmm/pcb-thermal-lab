@@ -7,7 +7,7 @@
          with the fitted line (study_time_memory), fig_06 the step response of the heater by cell size (study_transient_fine), fig_07 the fine-copper indicator against the error of the cell model with
          the threshold (study_fine_copper_warning). Every number in a figure comes from the printed results; a curve that is only illustrative is not drawn here.
          fig_14 to fig_16 the 30 parts of the RP2040 board against the prototype's group rule and the envelope rule (lib/component_match.py, lib/component_views.py), fig_17 box or hull as the heat-source shape,
-         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_22 and fig_23 the heat-source shapes of the parts (study_heater_shape.py; `--sheets DIR` adds one contact sheet per part, `--only-heater-shapes` draws only these); fig_21 statistics of the X3 samples (needs out/x3_components.json from study_x3_components.py; no board geometry); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
+         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_22 and fig_23 the heat-source shapes of the parts (study_heater_shape.py; `--sheets DIR` adds one contact sheet per part, `--only-heater-shapes` draws only these); fig_24 a margin around the heat-source polygon (study_heater_margin.py); fig_21 statistics of the X3 samples (needs out/x3_components.json from study_x3_components.py; no board geometry); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
          Run (from the repository root): .venv/bin/python research/gerber-real-boards/scripts/make_figures.py   (matplotlib and NumPy only)
 """
 
@@ -546,6 +546,72 @@ def fig_heater_shapes(sheets_dir=None):
             print("contact sheet:", p.resolve())
 
 
+def fig_heater_margin():
+    """!
+    @brief Figure 24: a margin around the heat-source polygon (study_heater_margin.py). Left, the RP2040 SOT-223 (U1) and QFN-56 (U3) with the hull, the hull grown by 0.3 mm, the envelope
+           from the package name, the exposed pad and the exposed pad grown by 0.3 mm (BSD-3-Clause board, drawn); right, the hottest point under the part against the margin for the
+           five exposed-pad or tab parts (numbers only, no geometry of the GPL-3.0 boards).
+    @return None
+    """
+    res = load("heater_margin.json")
+    if res is None:
+        return
+    from matplotlib.patches import Polygon as Poly
+    fig = plt.figure(figsize=(13, 4.6))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 1.5])
+    styles = (("hull+0.0", "#2ca02c", "-", "hull (A)"), ("hull+0.3", "#2ca02c", ":", "hull + 0.3 mm"), ("envelope", "#9467bd", "-", "envelope from the name (C)"),
+              ("exposed+0.0", "#1f77b4", "-", "exposed pad (D')"), ("exposed+0.3", "#1f77b4", ":", "exposed pad + 0.3 mm"), ("ep_pad", "#17becf", "--", "pad from the name (D'')"))
+    have = (ROOT / "data" / "rp2040" / "pos.csv").exists()
+    rows = {r["ref"]: r for r in res["parts"] if r["board"] == "rp2040"}
+    for k, ref in enumerate(("U1", "U3")):
+        ax = fig.add_subplot(gs[0, k])
+        r = rows.get(ref)
+        if r is None:
+            ax.axis("off")
+            continue
+        if have:
+            cov, ext = _top_copper("rp2040")
+            ax.imshow(cov, extent=ext, origin="upper", cmap=matplotlib.colors.ListedColormap(["#f3efe4", "#d9a35b"]), vmin=0, vmax=255, interpolation="nearest")
+        for o in r["openings_xy"]:
+            ax.add_patch(Poly(np.asarray(o), closed=True, facecolor="#9e9e9e", edgecolor="#424242", linewidth=0.5, alpha=0.9))
+        for name, col, ls, lab in styles:
+            if name in r["polygons"]:
+                ax.add_patch(Poly(np.asarray(r["polygons"][name]), closed=True, fill=False, edgecolor=col, linestyle=ls, linewidth=1.6,
+                                  label=f"{lab}: {r['runs'][name]['t_max']:.1f} K/W"))
+        allp = np.vstack([np.asarray(p) for p in r["polygons"].values()])
+        (xa, ya), (xb, yb) = allp.min(axis=0) - 0.8, allp.max(axis=0) + 0.8
+        ax.set_xlim(xa, xb)
+        ax.set_ylim(ya, yb)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(f"RP2040 {ref}: {r['package']}", fontsize=8)
+        ax.legend(fontsize=6, loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False)
+    ax = fig.add_subplot(gs[0, 2])
+    cols = {"U1": "#d62728", "U5": "#ff7f0e", "U3": "#1f77b4", "U15": "#2ca02c", "U4": "#9467bd"}
+    for r in res["parts"]:
+        h0 = r["runs"]["hull+0.0"]["t_max"]
+        ms = list(res["margins"])
+        for kind, ls in (("hull", "-"), ("exposed", "--")):
+            ax.plot(ms, [100 * (r["runs"][f"{kind}+{m:.1f}"]["t_max"] / h0 - 1) for m in ms], ls, marker="o", ms=3, color=cols.get(r["ref"], "k"),
+                    label=f"{r['board']} {r['ref']} ({r['class'].split(',')[0]})" if kind == "hull" else None)
+        ax.plot([-0.08], [100 * (r["runs"]["envelope"]["t_max"] / h0 - 1)], "s", color=cols.get(r["ref"], "k"), ms=5)
+        if "ep_pad" in r["runs"]:
+            ax.plot([-0.08], [100 * (r["runs"]["ep_pad"]["t_max"] / h0 - 1)], "^", color=cols.get(r["ref"], "k"), ms=5)
+    ax.axhline(0, color="k", linewidth=0.8)
+    ax.plot([], [], "s", color="grey", label="envelope from the name (C)")
+    ax.plot([], [], "^", color="grey", label="pad from the name (D'')")
+    ax.set_xlabel("margin added around the polygon (mm)")
+    ax.set_ylabel("hottest point under the part vs the hull (%)")
+    ax.set_title("solid: hull + margin; dashed: exposed pad + margin\n(1 W, FVM 0.5 mm, h 10 W/m2K)", fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.xaxis.label.set_size(7)
+    ax.legend(fontsize=6.5, loc="upper right")
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_24_heater_margin.png", dpi=110)
+    plt.close(fig)
+
+
 def main(sheets_dir=None):
     """!
     @brief Draw every figure whose results exist.
@@ -556,12 +622,14 @@ def main(sheets_dir=None):
     for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift, fig_network_split, fig_components, fig_window, fig_x3_real):
         f()
     fig_heater_shapes(sheets_dir)
+    fig_heater_margin()
 
 
 if __name__ == "__main__":
     if "--only-heater-shapes" in sys.argv:
         FIG.mkdir(parents=True, exist_ok=True)
         fig_heater_shapes(sys.argv[sys.argv.index("--sheets") + 1] if "--sheets" in sys.argv else None)
+        fig_heater_margin()
     else:
         main(sys.argv[sys.argv.index("--sheets") + 1] if "--sheets" in sys.argv else None)
     sys.exit(0)

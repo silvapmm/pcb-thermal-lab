@@ -618,6 +618,12 @@ The hull moves the hottest cell by 0 to 1.3 % on these four (the earlier review'
 
 *Figure 23: `figures/fig_23_heater_shape_change.png`, the change of the hottest point against the hull for the eleven parts (numbers only).*
 
+**Adopted and a second follow-up.** The exposed pad is the default shape since `feature/exposed-pad-heater` (rule corrected by its review on 875 parts of eight boards: hull limit 0.75 and a fill and gap test, `docs/theory.md` 1.8). Heat-source modes for the user (`scripts/study_heater_margin.py`, opinion and design in [docs/heater-modes-for-the-user.md](docs/heater-modes-for-the-user.md)): a margin of 0.2 to 1.0 mm around the hull or the exposed pad of the five exposed-pad parts makes the hottest point read cooler (exposed pad 0 to -13 % at 0.2 to 0.5 mm, -10 to -22 % at 1 mm); the hull + 0.3 mm is within 0.8 to 1.6 points of the envelope from the name on the two SOT-223, and the box within 0.7 %; the exposed pad from the paste reads 0.6 to 8.2 % hotter than the pad of the footprint name. Recommended for 2.6.0: a combo of the kinds valid for the part and a margin spin box with default 0, no library of exposed-pad sizes.
+
+![a margin around the heat-source polygon](figures/fig_24_heater_margin.png)
+
+*Figure 24: `figures/fig_24_heater_margin.png`, the RP2040 SOT-223 and QFN-56 with the hull, the hull + 0.3 mm, the envelope from the name, the exposed pad, the exposed pad + 0.3 mm and the pad from the name; right, the hottest point against the margin for the five exposed-pad parts (numbers only for the GPL-3.0 boards).*
+
 ### 11.6 What was not verified
 
 * The envelopes come from footprint names (a few lines of regular expressions), not from KiCad footprints; "the part count found" is not "the right shape of the heat source", and the 20 TSOP openings and the unknown envelopes are misses.
