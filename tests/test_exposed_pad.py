@@ -289,7 +289,7 @@ def test_the_session_proposes_the_pad_and_remembers_only_a_choice_that_differs_f
     sx = _session(tmp_path)
     u2, u1 = sx.part("U2"), sx.part("U1")
     assert u2.shape == "exposed" and sx.default_shape(u2) == "exposed" and u1.shape == "hull"
-    assert sx.shapes_of(u2) == ["hull", "box", "exposed", "largest"] and sx.shapes_of(u1) == ["hull", "box"]
+    assert sx.shapes_of(u2) == ["hull", "box", "exposed"] and sx.shapes_of(u1) == ["hull", "box"]
     assert sx.shape_note(u2) == "exposed pad (proposed)" and sx.shape_note(u1) == "convex hull (proposed)"
     assert sx.part_hull(u2) is not None and sx.part_hull(u1) is None
     assert polygon_area(sx.part_hull(u2)) > 3 * polygon_area(u2.polygon_mm)
@@ -346,7 +346,7 @@ def test_the_parts_page_has_the_exposed_radio_the_dashed_hull_and_the_source_not
     assert "exposed" not in pg.table.item(rows.index("U1"), 3).text()
     assert pg.radios["exposed"].toolTip() and "Exposed pad" in pg.radios["exposed"].text()
     pg.table.selectRow(r2)
-    assert pg.selected == "U2" and pg.radios["exposed"].isEnabled() and pg.radios["exposed"].isChecked() and "exposed pad or a tab" in pg.suggest.text()
+    assert pg.selected == "U2" and pg.radios["exposed"].isEnabled() and pg.radios["exposed"].isChecked() and "exposed pad" in pg.suggest.text() and len(pg.suggest.text()) < 90
     pg.preview.resize(500, 400)
     assert pg.preview.grab().toImage().width() > 0
     pg.radios["hull"].setChecked(True)
@@ -358,3 +358,138 @@ def test_the_parts_page_has_the_exposed_radio_the_dashed_hull_and_the_source_not
     assert w.do_import() is True
     assert [h.name for h in w.problem.heaters] == ["U2"]
     assert w.record.parts[[p.designator for p in w.record.parts].index("U2")].shape == "hull"
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- the retired 'largest opening' shape
+def _session_by_position(tmp_path):
+    """!
+    @brief The session of `_session` with the `TO.C` of every opening removed, so that the openings are owned by the place of the parts (as on a board whose paste names no part).
+    @param tmp_path Temporary folder.
+    @return ImportSession.
+    """
+    sx = _session(tmp_path)
+    for o in sx.openings():
+        o.ref = None
+    sx._owner_cache = None
+    return sx
+
+
+def test_a_retired_largest_shape_takes_the_proposal_and_the_part_keeps_all_its_openings(tmp_path):
+    """!@brief Regression (red '?' on a pad of the part): with 'largest' the polygon was one opening, the openings owned by position were then only that one and the others turned red for good
+    (a hull chosen afterwards was the hull of one opening). Now `set_shape("largest")` (and an unknown name) gives the proposed shape, clears only the user's mark, keeps the power, the tick and the
+    role, and every opening stays owned. Fails on the code before the fix (the shape stayed 'largest' and 27 of the 28 openings of U2 went red)."""
+    sx = _session_by_position(tmp_path)
+    u2 = sx.part("U2")
+    sx.set_part("U2", power=1.2, use=True, role="Source")
+    sx.set_shape("U2", "hull")
+    assert u2.edits["shape_user"] is True
+    for kind in ("largest", "no such shape"):
+        sx.set_shape("U2", kind)
+        assert u2.shape == "exposed" and u2.edits["shape_user"] is False
+        assert u2.power == 1.2 and u2.edits["use"] and u2.edits["role"] == "Source"
+        assert len(sx._openings_of(u2)) == 28 and sx.owned_indices() == set(range(len(sx.openings())))
+    assert "largest" not in sx.shapes_of(u2)
+    # the study function keeps the kind
+    assert polygon_area(P.shape_polygon(sx._openings_of(u2), "largest")) == pytest.approx(max(o.area for o in sx._openings_of(u2)), rel=1e-6)
+
+
+def test_the_dashed_outline_is_given_for_the_pad_and_the_box_ticked_or_not_and_not_for_the_hull(tmp_path):
+    """!@brief `part_hull` is the hull of all the openings for the exposed pad and the box, whether the part is ticked or not, and None for the hull (the heat source is then that outline)."""
+    sx = _session_by_position(tmp_path)
+    u2 = sx.part("U2")
+    assert not sx.is_source(u2)
+    full = polygon_area(P.shape_polygon(sx._openings_of(u2), "hull"))
+    for kind in ("exposed", "box"):
+        sx.set_shape("U2", kind)
+        assert polygon_area(sx.part_hull(u2)) == pytest.approx(full, rel=1e-9)
+    sx.set_part("U2", power=1.0)
+    assert sx.is_source(u2) and sx.part_hull(u2) is not None
+    sx.set_shape("U2", "hull")
+    assert sx.part_hull(u2) is None
+
+
+def test_a_reimport_takes_a_stored_largest_to_the_proposal_on_every_path(tmp_path):
+    """!@brief `merge_parts`: a stored 'largest' part matched by name, and one picked by hand (matched by position through its openings), take the proposed shape, keep their power and other
+    edits, lose only the user's mark, and the re-import line says so; the hand part's line says that only one of its two openings was found (its stored polygon was that one opening)."""
+    sx = _session(tmp_path)
+    old = [P.part_from_openings("U2", sx._openings_of(sx.part("U2")), "largest", "paste TO.C + placement")]
+    old[0].power, old[0].edits = 0.8, {"use": True, "role": "Source", "shape_user": True, "tj_max": 110.0}
+    res = P.merge_parts(old, sx.parts(), sx._res.shapes, openings=sx.openings())
+    q = next(p for p in res.parts if p.designator == "U2")
+    assert q.shape == "exposed" and q.power == 0.8 and q.edits == {"use": True, "role": "Source", "shape_user": False, "tj_max": 110.0}
+    assert any("U2: the shape 'largest opening' is no longer offered" in c and "'exposed'" in c for c in res.changes)
+    # a hand part over two openings that no new part takes
+    two = [o for o in sx._openings_of(sx.part("U2")) if o.area < 0.5][:2]
+    h = P.part_from_openings("H1", two, "largest", "paste only", grouping="hand")
+    h.power, h.edits = 0.4, {"use": True, "role": "Source", "shape_user": True}
+    res = P.merge_parts([h], [p for p in sx.parts() if p.designator != "U2"], sx._res.shapes, openings=sx.openings())
+    q = next(p for p in res.parts if p.designator == "H1")
+    assert q.shape == "hull" and q.power == 0.4 and q.edits["shape_user"] is False and q.edits["use"]
+    assert any("H1: the shape 'largest opening' is no longer offered" in c and "1 of its 2 openings found" in c for c in res.changes)
+
+
+def test_ctrl_click_on_a_part_with_a_retired_shape_gives_it_the_proposal(tmp_path):
+    """!@brief Adding a red opening to a part whose shape is a retired 'largest' redraws it with the proposed shape AND names that shape (the first version kept the name 'largest' over a
+    hull polygon), clearing only the user's mark."""
+    sx = _session(tmp_path)
+    pins = [o for o in sx.openings() if o.ref == "U2" and o.area < 0.5]
+    for o in sx.openings():
+        o.ref = None
+    sx._parts = [p for p in sx._parts if p.designator != "U2"]            # the QFN's openings are now red
+    sx._owner_cache = None
+    a, b = pins[0], pins[6]
+    h = sx.click(a.x, a.y, side="top")
+    p = sx.part(h)
+    p.shape, p.edits["shape_user"] = "largest", True
+    assert sx.click(b.x, b.y, add=True, selected=h, side="top") == h
+    assert p.shape == "hull" and p.edits["shape_user"] is False and p.from_file["n_openings"] == 2 and len(sx._openings_of(p)) == 2
+
+
+def test_the_preview_draws_the_dashed_outline_of_an_unticked_part_for_the_box_and_not_for_the_hull(qtbot, tmp_path):
+    """!@brief Pixel check of the preview: with U2 selected and NOT ticked, the dashed outline (text colour, 4 px out of the hull of its pads) puts text-coloured pixels in a band just outside the
+    pads for the box and the exposed pad, and none for the hull."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QColor
+    from pcbthermal.gui import theme as th
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda title, text: pytest.fail(f"{title}: {text}")
+    w.open_path(str(make_board(tmp_path / "fab", inner=0, qfn=True)))
+    w.go(1)
+    pg, sx = w.page2, w.session
+    pv = pg.preview
+    pv.show_layers["labels"] = False
+    pv.resize(600, 500)
+    rows = [pg.table.item(r, 1).text() for r in range(pg.table.rowCount())]
+    pg.table.selectRow(rows.index("U2"))
+    assert pv.selected_part == "U2" and not sx.is_source(sx.part("U2"))
+    pv.zoom = 3.0
+    c0 = pv.to_px(20.0, 22.0)                                                 # centre U2 in the widget
+    pv.pan = pv.pan + QPointF(pv.width() / 2 - c0.x(), pv.height() / 2 - c0.y())
+    text = QColor(th.colors(th.current_name())["text"]).rgb() & 0xFFFFFF
+    hull = P.shape_polygon(sx._openings_of(sx.part("U2")), "hull")
+
+    def band_pixels():
+        """!@brief Number of text-coloured pixels 2 to 7 px outside the box of the pads of U2 (where only the dashed outline is drawn). @return int"""
+        img = pv.grab().toImage()
+        x0, y0 = min(x for x, _ in hull), min(y for _, y in hull)
+        x1, y1 = max(x for x, _ in hull), max(y for _, y in hull)
+        a, b = pv.to_px(x0, y1), pv.to_px(x1, y0)
+        n = 0
+        for px in range(int(a.x()) - 7, int(b.x()) + 8):
+            for py in range(int(a.y()) - 7, int(b.y()) + 8):
+                inside = a.x() - 2 <= px <= b.x() + 2 and a.y() - 2 <= py <= b.y() + 2
+                if not inside and 0 <= px < img.width() and 0 <= py < img.height() and (img.pixel(px, py) & 0xFFFFFF) == text:
+                    n += 1
+        return n
+
+    counts = {}
+    for kind in ("box", "exposed", "hull"):
+        pg.radios[kind].setChecked(True)
+        assert sx.part("U2").shape == kind
+        counts[kind] = band_pixels()
+    assert counts["box"] > 20 and counts["exposed"] > 20 and counts["hull"] == 0, counts
