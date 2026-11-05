@@ -45,6 +45,14 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
+## What is new in 2.5.0 (next release, on `develop`)
+
+The next version, 2.5.0, is a candidate and the version number above changes only at the release. It adds the **import of Gerber boards** (File - Import Gerber board: files and layers, parts, model), the **imported copper** in the finite-volume and finite-difference models, **parts from the paste layers** with the exposed pad as the heat source, the **memory guard**, a much faster direct solver for boards with many vias, a **zonal Lumped model** for parts over groups of vias, the convective board edge in the Analytic model, the mirror image of a board edge for vias, laminate options, more live warnings and a softer, more legible interface. The list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
+
+* **First version of the Gerber import and of the imported copper**: they were checked against independent references and on real sets of files from open boards, **not against a measured board**.
+* **Project format 2**: a project with an imported board opens as an error ("Cannot open file") in 2.4.x, which never overwrites it; projects without imports are unchanged.
+* **Known limits**: a numerical cold spot under a via whose plane has copper over only part of the footprint (warned), the Analytic time simulation with a heatsink (warned, fix planned), convection laws not compared with a measured board, and the Lumped and Analytic models that cannot read imported copper well (they warn).
+
 ## Which model should I use?
 
 | Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
@@ -149,6 +157,6 @@ The results are a design aid and have not been validated against measurements of
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |
 
-The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`).
+The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`). The developer tool `tools/ocr/` (not part of the program, never imported by `pcbthermal`) uses the standard library for its providers (Gemini, Anthropic and OpenRouter over HTTPS, key in the environment or `.ocr_keys`); only its `assemble` command imports PyMuPDF, which is not in `requirements.txt` and not installed in the project environments: **its licence must be read from the installed package before anyone runs that command** (PyMuPDF is distributed under the AGPL-3.0 or a commercial licence, from memory, not verified here; it is imported, never copied into the repository).
 
 The MIT licence of this project and these licences are compatible: the code here only imports the libraries. If you **distribute a bundled application** that contains PySide 6 and Qt (for example a frozen executable), the LGPL conditions of Qt apply to that bundle (include the LGPL text and the notices, allow the Qt libraries to be replaced, and provide or offer the Qt source); this repository does not bundle them. This is not legal advice. The studies in `research/` may also use scikit-fem (BSD) as an offline cross-check; downloaded boards are never committed and keep their own licences.

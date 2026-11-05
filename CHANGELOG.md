@@ -3,7 +3,46 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
-## [Unreleased]
+## [Unreleased] (candidate for 2.5.0)
+
+### 2.5.0 summary (candidate; the bump commit turns this heading into `## [2.5.0] - <date>` and keeps the detailed entries below)
+
+**Honest note.** 2.5.0 is the **first version of the Gerber import and of the imported copper**. They are checked against independent references (an exact vector geometry of the files, a resolved 3D solid, datasheet cases) and on real sets of files from open boards, **not against a measured physical board**. As for every version, no model has been compared with a measurement of a board.
+
+**Compatibility.** A project that holds an imported board is saved as **project format 2**, which the released 2.4.x answers with "Cannot open file" (it never overwrites the file). Projects without imports stay format 1, byte-identical to 2.4.x. A newer format is refused naming the version that wrote it.
+
+**New: Gerber import and imported copper**
+- **File - Import Gerber board** (our own reader, no new dependency): RS-274X with X2, Excellon, XNC and X2 drill files, the outline, ZIP sets read in memory, the function of every file detected and editable, hostile files and ZIPs refused with a message. A window in three steps (files and layers, parts, model), Back / Next / Import now, and a re-import that keeps what you drew in the editor.
+- **CAD tool recognition**: the program that wrote the set is recognised from the names and headers (fifteen eCAD programs tested on real sets) and used as a default, never as an authority; the line is shown in the alert colour when a check is needed.
+- **Imported copper**: the copper of each layer from the files replaces the zones of that layer in every model; the FVM and FDM read it through flow-based face conductances on the laminate-reduced sheet. The editor draws it (View - Imported copper) and names the parts (View - Element names).
+- **Parts from the paste layers, the placement file and X3 component layers**: heat-source polygons per part, the exposed pad or tab when the paste has one (QFN, DFN, SOT-223, DPAK), the hull of the openings otherwise; frame check of the placement file, bottom side, a shape you choose is kept by a re-import.
+
+**New: memory, speed and the models**
+- **Memory guard**: the peak memory of the FVM, FDM and 3D solid is estimated from the unknown count before anything is allocated and a run above the limit (Preferences, 60 % of the physical memory by default) is refused with the cell that fits; command line exit code 3.
+- **Symmetric LU**: the direct solver runs SuperLU in its symmetric mode with a checked fallback; boards with dense via arrays solve 8 to 60 times faster with 3 to 5 times less memory, temperatures unchanged (1e-11 K). The Power Calculator reuses one factorisation (about 3.8 times faster, same results).
+- **Zonal Lumped model**: a part over a dense group of vias has the footprint in two nodes (core and rest), with a 0.5 mm raster for such a board; the step response and power profiles follow.
+- **Analytic model with a convective board edge** (Robin eigenfunctions): a board with an edge coefficient no longer reads hot (+3 to +22 % of the rise on small boards before).
+- **Vias near a board edge** get the mirror image of the edge in the FVM (+14.5 % to +0.7 % for a via 0.16 mm from the edge at a 1 mm cell).
+- **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate rule are options of the run (Simulation panel, `--laminate-s-max-mm`, `--laminate-n-max`); the profile curves of a part over bare laminate include the face.
+- **Natural convection**: new projects use the `laminar` form for vertical boards (old files keep `general`, same numbers); the Results summary says, once per run with computed coefficients, that the coefficients have not been compared with a measured copper board.
+
+**New: warnings (text only, no number moves)**
+- Live under Run, one line each with the full text on hover: the model limits and via warnings, **a via with copper over only part of its footprint**, **a small part over a thick laminate**, the Lumped via groups that read too cool, the Analytic time simulation with a heatsink, a low face Rayleigh number. Parts, zones and blocks are judged by exact geometry, which removed the false "outside the board" and "overlap" warnings; the live check is up to about 37 times faster on boards with hundreds of parts.
+
+**Interface**
+- Softer accent palette and amber alerts, a readable dark theme (visible indicators, dimmed disabled text, readable links), Preferences pages that never scroll sideways, Delete also on Backspace, docks titled "Board settings" and "Simulation settings", no lone letters as shortcut hints on macOS, no key bound to two actions (tested), Lumped and Analytic maps on the equivalent rectangle as solved, atomic project saving with `.bak` copies.
+
+**Documents**: `docs/theory.md` reviewed against the code (convection sources, Robin edge, memory law), `docs/validation.md` 26 to 30, `docs/version-comparison.md` (the same 17 boards on every version).
+
+**Known limits (stated in the program and the documents)**
+- A plane whose copper covers only part of a via footprint has a numerical **cold spot** under the barrel and the via effect may be misread, higher or lower (warned live; a finer cell or the 3D solid; the fix is planned).
+- The **Analytic time simulation with a heatsink** can be far from the FVM (time to 63 % from -66 % to +84 % on a sample, +175 % on one board; warned; the fix is planned for 2.6.0).
+- The **convection laws are not measured**: the horizontal-face laws are textbook forms (the face turned down has exponent 1/4 against 1/5 of the published forms); the Results summary says so.
+- The **Lumped and Analytic models cannot read imported copper** well (they warn; 1 to 16 % cool) and the 3D solid reads the fill only; the FVM and FDM read it at a cell of 1 mm or finer (Auto caps at 1 mm; above it the result is a screening estimate, 7 to 10 % too hot at 2 mm on 24 mm windows of two-layer boards).
+- The FDM and the 3D solid have no image of a board edge for vias; the heat-source shape rule was set on eleven parts and checked on 875 parts of eight open boards, not on a physical board.
+
+### Detailed entries by branch
+
 
 ### Tests (CAD tool line colour, `fix/cad-line-colour`; no code change)
 - A test per confidence level (high, mixed, medium, low, declared, unknown) in both themes holds that the CAD tool line of the Gerber import window uses the alert colour for every detection that needs a check and the text colour only for a plain high one.
