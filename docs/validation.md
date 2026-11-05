@@ -1169,7 +1169,22 @@ Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The impor
 
 ### 27.6 What was not verified
 
-Nothing was compared with a measurement of a physical board. Plated holes are left out of the tables (the primary run isolates the mapping); heaters other than a 4 to 4.8 mm square on the top layer; copper other than 35 micrometres; the transient of an imported board at the program's cells (the earlier study 4.3 ran it at a fine cell only); the 3D solid and the Lumped and Analytic models on imported copper only through the warnings and the tests of `tests/test_imported_copper.py` (the 1 to 16 % of the warning is the earlier study of 24 windows, README 4.5, not re-run here). The 24 mm windows of the four-layer boards need 8.4 GB for the pixel network (the script's header) and were not run.
+Nothing was compared with a measurement of a physical board. Plated holes are left out of the tables (the primary run isolates the mapping); heaters other than a 4 to 4.8 mm square on the top layer; copper other than 35 micrometres; the transient of an imported board at the program's cells (the earlier study 4.3 ran it at a fine cell only); the 3D solid and the Lumped and Analytic models on imported copper only through the warnings and the tests of `tests/test_imported_copper.py` (the 1 to 16 % of the warning is the earlier study of 24 windows, README 4.5, not re-run here; the whole board is 27.7). The 24 mm windows of the four-layer boards need 8.4 GB for the pixel network (the script's header) and were not run.
+
+### 27.7 The Lumped and Analytic models on a whole imported board (RP2040, 52 x 51 mm)
+
+The warning for the reduced models used to quote only the study of 24 mm windows (1 to 16 % too cool, 6 % on average, README 4.5 of `research/gerber-real-boards`, heater 6 mm, cell 1 mm, against the pixel network); the final review measured the whole board and found it far outside that range. Measured on the program (typical stack-up, default convection, 1 W in one part, the exposed pad of the QFN as proposed, FVM on the faces of the imported copper; rise of the hottest copper node; percentages are model against FVM):
+
+| Part | Cell (mm) | FVM rise (K) | Lumped | Analytic |
+| :-- | --: | --: | --: | --: |
+| U3 (RP2040 QFN-56, 60 openings, pad) | 1 | 53.9 | -27.2 % | -15.5 % |
+| U3 | 0.5 | 60.0 | -31.2 % | -21.6 % |
+| U3 | 0.25 | 56.5 | -26.8 % | -16.6 % |
+| U1 (4 openings, pad) | 0.5 | 78.9 | -41.6 % | -33.6 % |
+| U1 | 0.25 | 80.0 | -42.4 % | -34.6 % |
+| all 27 heat sources, one at a time | 0.5 | 52.6 to 251.9 | -31 to -74 % | -22 to -75 % |
+
+Both models are cool in every case. The largest errors belong to the small passives (a 1 W capacitor or resistor is a 0.4 to 1 mm source, far from the rectangle of uniform sheets the two models assume). The FVM itself moves with the cell for a pad source (U3: 53.9, 60.0, 56.5 K at 1, 0.5, 0.25 mm; the hull of the openings instead of the pad: 39.3, 41.8, 40.6 K), so the percentages carry that uncertainty (a few points); the reduced models do not change with the cell (clamped to 0.5 to 1 mm). This is one board and one power per part: a sample, not a bound, and it is why the warning quotes both cases. Nothing here was compared with a physical board. Command (library of boards linked by `pcb-library/scripts/link_env.sh`): `.venv/bin/python research/gerber-real-boards/scripts/study_whole_board_reduced_models.py 0.25 <path to rp2040/gerber> U1,U3` (the cell, the folder and the designators; without designators every part; peak memory 0.5 GB at 0.5 mm and 1.4 GB at 0.25 mm).
 
 ## 28. The via near a board edge: the mirror image in the well (FVM)
 
