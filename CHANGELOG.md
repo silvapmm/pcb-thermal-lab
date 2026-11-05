@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed (convection text, `docs/convection-theory-fixes`; no number moves)
+- `docs/theory.md` 8 no longer claims that the horizontal-face laws are read in Lienhard (they are textbook forms from memory; Lienhard prints Raithby-Hollands for the face up and 1/5 laws for the face down) nor that Example 8.1 confirms the general form of the vertical plate (it is worked with the laminar form). It states the limit of the face turned down (exponent 1/4 against the 1/5 of the published forms, on the hot side) and the checks against Lienhard Example 6.5 and Table A.6; `docs/models.md` and the user guide say the same.
+- The Results summary and the user guide say, once per run and only with computed coefficients, that the heat transfer coefficients have not been compared with a measured copper board.
+
 ### Fixed (live check speed, `fix/live-check-speed`)
 - The live input check no longer tests every pair of parts and of metal blocks for overlap: a bounding-box sweep (`geometry.bbox_overlap_pairs`) selects the pairs that can overlap and the exact overlap runs on those only, and the zone-model test of each part no longer scans every via again (`lumped.will_be_zoned(..., prepared=True)`), and the distance of the vias to the parts (`viaconstriction.heater_distance`, also used by the Analytic and Lumped runs, bit-identical) skips the vias that a part's bounding box cannot bring closer. 300 small parts: 0.77 s to 0.05 s; 1000: 9.6 s to 0.26 s; 500 parts with 8000 vias: 2.4 s to about 0.45 s. The warnings are identical (same texts, order and tags; checked by the review on 562 random and real imported boards against the previous code).
 
