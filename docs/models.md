@@ -416,7 +416,7 @@ Measured PCB studies show that the orientation effect also depends on the compon
 
 ## 19. Gerber reader (theory 1.6)
 
-`pcbthermal/gerber/` reads the fabrication files of a board and turns the copper of a layer into a coverage raster. It is a package with no GUI and no third-party dependency (NumPy and SciPy only); **this version has no interface and no import into a project yet** (the imported-copper element, the project format that stores it and the import dialog are later branches of `docs/versions.md` 'Planned'). The reader is a port of the research prototype `research/gerber-import/lib/native_gerber.py`, written from the public Ucamco specification.
+`pcbthermal/gerber/` reads the fabrication files of a board and turns the copper of a layer into a coverage raster. It is a package with no GUI and no third-party dependency (NumPy and SciPy only); the import into a project is the import window of 19.4 (File - Import Gerber board), which keeps the copper as imported copper (19.1) in project format 2. The reader is a port of the research prototype `research/gerber-import/lib/native_gerber.py`, written from the public Ucamco specification.
 
 **Supported.**
 - **RS-274X with the X2 attributes**: units, coordinate formats (leading or trailing zeros omitted), the standard apertures C, R, O and P with a hole, draws and flashes, arcs G02/G03 in single and multi quadrant mode (G74/G75), regions (G36/G37), dark and clear polarity (LPD/LPC), image polarity, step and repeat (SR).
@@ -437,7 +437,7 @@ Measured PCB studies show that the orientation effect also depends on the compon
 
 **Tolerances** (`fix/gerber-reader-tolerances`; theory 1.6): `G93X0Y0`, `M71,TZ` / `M72,LZ` (the unit; coordinates without a decimal point after the suffix are refused), a stray `%` before `M48` and hyphenated macro names (one warning per name) are read; the detector gives names at most low confidence, does not take masks, paste, assembly drawings or a file that is not Gerber for copper, orders numbered copper over the set and does not take a stroked Gerber drawing for a drill file.
 
-**Parts (heat sources) from the files: `pcbthermal/gerber/parts.py` and `components.py`, no interface yet.** See "19.2" below.
+**Parts (heat sources) from the files: `pcbthermal/gerber/parts.py` and `components.py`, shown and edited in step 2 of the import window (19.4).** See "19.2" below.
 
 **Tested**: `tests/test_gerber_reader.py`, `test_gerber_spec.py` (the Ucamco examples), `test_gerber_conformance.py`, `test_gerber_drill_outline.py`, `test_gerber_detect_archive.py`. In the review, **0 raw errors in 1100 mutated files and 300 damaged ZIPs** (every one ended in a `GerberError` or was read), the copper areas of 109 files are within -0.026 % to +0.18 % of the exact vector areas, and the drills are identical hole by hole on 6 boards. Not verified: the suggested pixel at half the thinnest feature (a quarter would halve the worst case at four times the pixels): both wait for the maintainer.
 
@@ -476,7 +476,7 @@ Not a model: the way a part (a heat source with a polygon, to which the user giv
 
 **Re-import (`merge_parts`).** The designator is the key: the power and the edits of a part that is still in the files are kept, its `from_file` is rewritten, a part that left the files is kept with `orphan` True. A part with a name the files do not give (`H<n>` picked by hand, `P<n>` from the proximity fallback; `grouping` "hand" or "proximity") is paired with the new parts by **position** (`move_mm` = 0.3 mm), so that a renumbered group keeps its power.
 
-**Limits.** The envelope table is small; an origin offset beyond 10 mm, or a rotated, mirrored or inch placement file, is not corrected, only reported; the proximity grouping is a marked fallback; no interface yet. Tested: `tests/test_gerber_parts.py`, `tests/test_gerber_components.py`. Design and numbers: `research/gerber-real-boards` 9 to 12.
+**Limits.** The envelope table is small; an origin offset beyond 10 mm, or a rotated, mirrored or inch placement file, is not corrected, only reported; the proximity grouping is a marked fallback. Tested: `tests/test_gerber_parts.py`, `tests/test_gerber_components.py`. Design and numbers: `research/gerber-real-boards` 9 to 12.
 
 ### 19.3 CAD profiles: which program wrote the files
 

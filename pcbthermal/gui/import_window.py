@@ -18,14 +18,15 @@ import threading
 
 import numpy as np
 from PySide6.QtCore import QEvent, QEventLoop, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPolygonF
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QStackedWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget)
 
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, ROLES, UNIQUE, ImportSession
+from ..gerber import parts as parts_mod
 from .panels import WarningList
 
 STEP_TITLES = ["Files and layers", "Parts", "Model"]
@@ -44,6 +45,16 @@ def _plain_box(parent, icon, title, text, buttons):
     box = QMessageBox(icon, title, text, buttons, parent)
     box.setTextFormat(Qt.PlainText)
     return box.exec()
+
+
+def _plain_tip(text):
+    """!
+    @brief A tooltip that shows text from the files as it is: Qt reads a tooltip that looks like markup as rich text, so a designator or a package name such as `<b>` or
+           `<img src=...>` would be rendered; the text is escaped and its line breaks kept.
+    @param text Plain text (may hold line breaks).
+    @return str rich-text tooltip that displays exactly `text`.
+    """
+    return "<p style='white-space:pre'>" + html.escape(str(text)) + "</p>"
 
 
 class _Cancelled(Exception):
@@ -67,7 +78,9 @@ class Preview(QWidget):
         super().__init__()
         self.session, self.mode = session, mode
         self.side, self.cell, self.selected_part = "top", 0.0, None
-        self.show_layers = {"copper": True, "outline": True, "holes": True, "paste": True, "sources": True}
+        self.show_layers = {"copper": True, "outline": True, "holes": True, "paste": True, "sources": True, "labels": True}
+        self.hover = None                                            # Designator of the part under the pointer (step 2)
+        self.setMouseTracking(True)
         self.selected = COPPER_TOP                                   # Role of the layer drawn at full strength
         self.zoom, self.pan, self._press, self._moved, self._last = 1.0, QPointF(0, 0), None, False, None
         self._images = {}                                            # (role, theme name, id of the array) -> QImage
@@ -116,8 +129,39 @@ class Preview(QWidget):
         @return tuple (scale, ox, oy).
         """
         b = self.session.board()
-        s = min((self.width() - 20) / b.width, (self.height() - 20) / b.height) * self.zoom
-        return s, (self.width() - b.width * s) / 2 + self.pan.x(), (self.height() - b.height * s) / 2 + self.pan.y()
+        strip = self._legend_height()                                # The drill legend has a strip of its own under the board, so it never covers it when the whole board is shown
+        s = min((self.width() - 20) / b.width, (self.height() - 20 - strip) / b.height) * self.zoom
+        return s, (self.width() - b.width * s) / 2 + self.pan.x(), (self.height() - strip - b.height * s) / 2 + self.pan.y()
+
+    def _legend_rows(self):
+        """!
+        @brief The drill legend as rows of entries that fit the width of the preview (the entries run left to right and wrap).
+        @return list of rows; a row is a list of (kind, text, width_px). Empty when the legend is off or the board has no holes.
+        """
+        if self.mode != "parts" or not self.show_layers.get("holes") or self.session.board() is None:
+            return []
+        classes = self.hole_classes()
+        f = QFont(self.font())
+        f.setPixelSize(11)
+        fm = QFontMetricsF(f)
+        items = [(k, f"{d:.2f} mm {k} x{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
+        rows, row, used = [], [], 0.0
+        for kind, text in items:
+            w = fm.horizontalAdvance(text) + 24
+            if row and used + w > self.width() - 16:
+                rows.append(row)
+                row, used = [], 0.0
+            row.append((kind, text, w))
+            used += w
+        return rows + ([row] if row else [])
+
+    def _legend_height(self) -> int:
+        """!
+        @brief Height (pixels) of the strip under the board that the legend takes (0 without a legend).
+        @return int
+        """
+        rows = self._legend_rows()
+        return 17 * len(rows) + 8 + 14 if rows else 0
 
     def to_px(self, x: float, y: float) -> QPointF:
         """!
@@ -187,6 +231,8 @@ class Preview(QWidget):
                 p.drawEllipse(self.to_px(h.x, h.y), r, r)
         if self.mode == "parts":
             self._paint_parts(p, c)
+            if self.show_layers["holes"]:
+                self._paint_legend(p, c)
         p.setPen(QColor(c["muted"]))
         p.drawText(10, self.height() - 8, f"{b.width:.1f} x {b.height:.1f} mm   zoom {self.zoom:.1f}x")
         p.end()
@@ -228,12 +274,215 @@ class Preview(QWidget):
             p.setPen(QPen(QColor(c["accent"]), 2.2))
             p.setBrush(fill)
             p.drawPolygon(QPolygonF([self.to_px(x, y) for x, y in sel.polygon_mm]))
+        hov = sx.part(self.hover) if self.hover and self.hover != self.selected_part else None
+        if hov is not None and hov.polygon_mm:
+            p.setPen(QPen(QColor(c["accent"]), 1.2, Qt.DotLine))
+            p.setBrush(Qt.NoBrush)
+            p.drawPolygon(QPolygonF([self.to_px(x, y) for x, y in hov.polygon_mm]))
+        if self.show_layers["labels"] and self.session.board() is not None:
+            self._paint_labels(p, c)
+
+    # -- labels, legend and hover of step 2
+    LABEL_MIN_PX, LABEL_MAX_PX = 7.0, 14.0
+
+    def label_pixels(self, text: str, width_px: float, height_px: float):
+        """!
+        @brief The pixel size of the label of a part, or None when it does not fit.
+        @details The text is scaled to the part: as large as the width and the height of the part allow, at most `LABEL_MAX_PX`, so it grows with the zoom; below `LABEL_MIN_PX` it is hidden.
+        @param text Designator.
+        @param width_px Width of the part on the screen (pixels).
+        @param height_px Height of the part on the screen (pixels).
+        @return float pixel height of the font, or None.
+        """
+        f = QFont(self.font())
+        f.setPixelSize(10)
+        w10 = max(QFontMetricsF(f).horizontalAdvance(text), 1.0)
+        size = min(self.LABEL_MAX_PX, 10.0 * width_px / w10, height_px / 1.15)
+        return size if size >= self.LABEL_MIN_PX else None
+
+    def hole_classes(self) -> list:
+        """!
+        @brief The drill classes of the board for the legend: kind (via, component hole or non-plated), diameter (mm) and how many.
+        @return list of (kind, diameter, count), vias first, then component holes, then non-plated, by diameter.
+        """
+        b = self.session.board()
+        out = {}
+        for h in (b.holes if b else []):
+            kind = "non-plated" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "component hole"
+            out[(kind, round(h.diameter, 2))] = out.get((kind, round(h.diameter, 2)), 0) + 1
+        order = {"via": 0, "component hole": 1, "non-plated": 2}
+        return [(k, d, n) for (k, d), n in sorted(out.items(), key=lambda kv: (order[kv[0][0]], kv[0][1]))]
+
+    def part_at(self, x: float, y: float):
+        """!
+        @brief What lies under a point of the board: the part of a paste opening, a red opening, or a part whose heat-source polygon holds the point.
+        @param x X (mm, Gerber frame).
+        @param y Y (mm).
+        @return tuple ("part", designator), ("unmatched", None) or None.
+        """
+        sx = self.session
+        i = parts_mod.opening_at(sx.openings(), x, y, self.side)
+        if i is not None:
+            des = sx.owner_of_opening(i)
+            return ("part", des) if des else ("unmatched", None)
+        best = None
+        for q in sx.parts():
+            if q.side == self.side and q.polygon_mm:
+                xs, ys = [a[0] for a in q.polygon_mm], [a[1] for a in q.polygon_mm]
+                area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+                if min(xs) <= x <= max(xs) and min(ys) <= y <= max(ys) and (best is None or area < best[0]):
+                    best = (area, q.designator)
+        return ("part", best[1]) if best else None
+
+    def hover_text(self, x: float, y: float):
+        """!
+        @brief The tooltip of the object under a point: designator, package, source and power of a part, the meaning of a red opening, or the kind and diameter of a hole.
+        @param x X (mm, Gerber frame).
+        @param y Y (mm).
+        @return str or None when nothing is there.
+        """
+        sx = self.session
+        hit = self.part_at(x, y)
+        if hit and hit[0] == "part":
+            q = sx.part(hit[1])
+            if q is not None:
+                pkg = q.footprint or q.from_file.get("package", "") or "-"
+                state = "heat source" if sx.is_source(q) else "not a heat source"
+                return f"{q.designator}\nPackage: {pkg}\nSource: {sx.source_label(q)}\nPower: {q.power:g} W ({state})"
+        if hit and hit[0] == "unmatched":
+            return "Paste opening that matches no part.\nClick it to make a heat source; Ctrl+click adds it to the selected part."
+        if self.show_layers["holes"] and self.session.board() is not None:
+            s = self._geometry()[0]
+            for h in self.session.board().holes:
+                if (h.x - x) ** 2 + (h.y - y) ** 2 <= max(h.diameter / 2, 4.0 / s) ** 2:
+                    kind = "non-plated hole" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "component hole"
+                    return f"{kind}, drill {h.diameter:.2f} mm"
+        return None
+
+    def _paint_legend(self, p, c):
+        """!
+        @brief The drill legend in a strip above the zoom text, under the board: a ring in the colour of the class, the diameter, the kind and the count, in rows that wrap with the width.
+        @param p QPainter.
+        @param c Colour table of the theme.
+        @return None
+        """
+        rows = self._legend_rows()
+        if not rows:
+            return
+        f = QFont(self.font())
+        f.setPixelSize(11)
+        p.setFont(f)
+        top = self.height() - 22 - (17 * len(rows) + 8) + 8
+        for r, row in enumerate(rows):
+            x, y = 8.0, top + 17 * r + 8.5
+            for kind, text, w in row:
+                if kind:
+                    tone = "muted" if kind == "non-plated" else "via" if kind == "via" else "warn"
+                    p.setPen(QPen(QColor(c[tone]), 1.4))
+                    p.setBrush(Qt.NoBrush)
+                    p.drawEllipse(QPointF(x + 4, y), 4, 4)
+                p.setPen(QColor(c["text"]))
+                p.drawText(QPointF(x + 12, y + 4), text)
+                x += w
+
+    def _paint_labels(self, p, c):
+        """!
+        @brief The designators of all the parts of the side shown (centred on the part, scaled with the zoom, larger parts first, a label that overlaps one already drawn or does not fit is left out),
+               a "?" on the paste openings that match no part, and the diameter of the holes that are large enough on the screen; the selected and the hovered part are always labelled.
+        @param p QPainter.
+        @param c Colour table of the theme.
+        @return None
+        """
+        sx = self.session
+        taken = []
+        bg = QColor(c["canvas"])
+        bg.setAlpha(150)
+
+        def put(text, cx, cy, size, tone, bold=False, force=False):
+            """!
+            @brief Draw one centred label unless it collides with an earlier one.
+            @param text Label.
+            @param cx Centre x (pixels).
+            @param cy Centre y (pixels).
+            @param size Font pixel size.
+            @param tone Colour token.
+            @param bold True for the selected part.
+            @param force True to draw even over another label.
+            @return None
+            """
             f = QFont(self.font())
-            f.setBold(True)
+            f.setPixelSize(max(int(round(size)), 6))
+            f.setBold(bold)
+            fm = QFontMetricsF(f)
+            r = QRectF(cx - fm.horizontalAdvance(text) / 2 - 1, cy - fm.height() / 2, fm.horizontalAdvance(text) + 2, fm.height())
+            if not force and any(r.intersects(t) for t in taken):
+                return
+            taken.append(r)
             p.setFont(f)
-            p.setPen(QColor(c["text"]))
-            top = max(sel.polygon_mm, key=lambda q: q[1])
-            p.drawText(self.to_px(top[0], top[1]) + QPointF(-4, -6), sel.designator)
+            p.fillRect(r, bg)
+            p.setPen(QColor(c[tone]))
+            p.drawText(r, Qt.AlignCenter, text)
+
+        entries = []
+        for q in sx.parts():
+            if q.side != self.side or not q.polygon_mm:
+                continue
+            xs, ys = [a[0] for a in q.polygon_mm], [a[1] for a in q.polygon_mm]
+            entries.append(((max(xs) - min(xs)) * (max(ys) - min(ys)), q, (min(xs), min(ys), max(xs), max(ys))))
+        entries.sort(key=lambda t: -t[0])
+        special = []
+        for _, q, bb in entries:
+            tl, br = self.to_px(bb[0], bb[3]), self.to_px(bb[2], bb[1])
+            cx, cy = (tl.x() + br.x()) / 2, (tl.y() + br.y()) / 2
+            if q.designator in (self.selected_part, self.hover):
+                special.append((q, cx, cy, br.x() - tl.x(), br.y() - tl.y()))
+                continue
+            size = self.label_pixels(q.designator, br.x() - tl.x(), br.y() - tl.y())
+            if size is not None:
+                put(q.designator, cx, cy, size, "text")
+        owned = sx.owned_indices()
+        for i, o in enumerate(sx.openings()):
+            if o.side == self.side and i not in owned:
+                tl, br = self.to_px(o.bbox[0], o.bbox[3]), self.to_px(o.bbox[2], o.bbox[1])
+                if self.label_pixels("?", br.x() - tl.x(), br.y() - tl.y()) is not None:
+                    put("?", (tl.x() + br.x()) / 2, (tl.y() + br.y()) / 2, 9, "bad")
+        if self.show_layers["holes"]:
+            s = self._geometry()[0]
+            for h in self.session.board().holes:
+                if h.diameter * s / 2 >= 11:                        # Only when the ring is large enough to carry its diameter
+                    pt = self.to_px(h.x, h.y)
+                    put(f"{h.diameter:.2f}", pt.x(), pt.y(), 9, "muted")
+        for q, cx, cy, w, h in special:                             # The selected and the hovered part: always, on top
+            put(q.designator, cx, cy, max(self.label_pixels(q.designator, w, h) or 0.0, 11.0), "text", bold=q.designator == self.selected_part, force=True)
+
+    def hover_at(self, ev):
+        """!
+        @brief Hover in step 2: highlight the part under the pointer and show its tooltip.
+        @param ev Mouse move event.
+        @return None
+        """
+        x, y = self.from_px(ev.position())
+        hit = self.part_at(x, y)
+        now = hit[1] if hit and hit[0] == "part" else None
+        if now != self.hover:
+            self.hover = now
+            self.update()
+        text = self.hover_text(x, y)
+        if text:
+            QToolTip.showText(ev.globalPosition().toPoint(), _plain_tip(text), self)     # designators and packages come from the files: never rich text
+        else:
+            QToolTip.hideText()
+
+    def leaveEvent(self, ev):
+        """!
+        @brief The pointer left the preview: drop the hover highlight.
+        @param ev Leave event.
+        @return None
+        """
+        if self.hover is not None:
+            self.hover = None
+            self.update()
+        super().leaveEvent(ev)
 
     def wheelEvent(self, ev):
         """!
@@ -263,6 +512,9 @@ class Preview(QWidget):
         @param ev Mouse event.
         @return None
         """
+        if self.mode == "parts" and not (ev.buttons() & Qt.LeftButton) and self.session.board() is not None:
+            self.hover_at(ev)
+            return
         if self._press is None or not (ev.buttons() & Qt.LeftButton):
             return
         if (ev.position() - self._press).manhattanLength() > 4:
@@ -633,6 +885,7 @@ class Step2Page(QWidget):
     """
 
     COLS = ["Heat source", "Part", "Package", "Source", "Openings", "Size (mm)", "Position (mm)", "Power", "Tj max", "Role"]
+    HEADERS = ["Heat\nsource", "Part", "Package", "Source", "Open-\nings", "Size\n(mm)", "Position\n(mm)", "Power\n(W)", "Tj max\n(°C)", "Role"]
 
     def __init__(self, win: "ImportBoardWindow"):
         """!
@@ -665,12 +918,12 @@ class Step2Page(QWidget):
         fl.addLayout(row)
         left.addWidget(self.frame_box)
         self.table = QTableWidget(0, len(self.COLS))
-        self.table.setHorizontalHeaderLabels(self.COLS)
+        self.table.setHorizontalHeaderLabels(self.HEADERS)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setToolTip("The parts of the files. Tick a part to make it a heat source and give it a power in W. The Source column says how the part was found: X3 component layer, "
-                              "paste TO.C + placement, placement by position (approximate), paste only, or placement only (no opening). Click a row, or a paste opening in the preview, to select a part.")
+                              "paste TO.C + placement, by position (approx.), paste only, or placement only (no opening); hold the pointer on the Source cell for what it means. Click a row, or a part or paste opening in the preview, to select it.")
         self.table.itemSelectionChanged.connect(self._row)
         self.table.cellChanged.connect(self._tick)
         left.addWidget(self.table, 1)
@@ -702,22 +955,26 @@ class Step2Page(QWidget):
             b.clicked.connect(fn)
             row.addWidget(b)
         left.addLayout(row)
-        lay.addLayout(left, 13)
+        lay.addLayout(left, 16)
         right = QVBoxLayout()
-        bar = QHBoxLayout()
+        bar = QGridLayout()                                          # Two rows of three, so that the right column stays narrow and the table gets the width
         self.preview = Preview(self.session, "parts")
         self.side = QComboBox()
         self.side.addItems(["Top side", "Bottom side"])
         self.side.setToolTip("Which side's paste openings are shown and clickable.")
         self.side.currentIndexChanged.connect(lambda i: (setattr(self.preview, "side", "top" if i == 0 else "bottom"), self.preview.update()))
-        bar.addWidget(self.side)
-        for key, label in (("copper", "Copper"), ("paste", "Paste openings"), ("sources", "Heat sources")):
+        bar.addWidget(self.side, 0, 0)
+        for n, (key, label, tip) in enumerate((("copper", "Copper", "Show or hide: copper."), ("paste", "Paste openings", "Show or hide: paste openings."),
+                                ("sources", "Heat sources", "Show or hide: heat sources."),
+                                ("labels", "Labels", "Write the designator on every part that is large enough on the screen (larger when you zoom in), a ? on the paste openings that match no part, "
+                                                     "and the drill diameter on the large holes. Hold the pointer on a part for its package, source and power."),
+                                ("holes", "Holes", "Draw the drilled holes (vias in the via colour, component holes in the warning colour, non-plated ones muted) and a legend with the diameter classes and how many of each."))):
             c = QCheckBox(label)
             c.setChecked(True)
-            c.setToolTip(f"Show or hide: {label.lower()}.")
+            c.setToolTip(tip)
             c.toggled.connect(lambda on, k=key: (self.preview.show_layers.__setitem__(k, on), self.preview.update()))
-            bar.addWidget(c)
-        bar.addStretch(1)
+            bar.addWidget(c, (n + 1) // 3, (n + 1) % 3)
+        bar.setColumnStretch(3, 1)
         right.addLayout(bar)
         right.addWidget(self.preview, 1)
         cap = QLabel("White squares are matched paste openings, <b>red ones match no part</b>. Click an opening to select its part; click a red one to create a heat source from it; "
@@ -727,7 +984,7 @@ class Step2Page(QWidget):
         right.addWidget(cap)
         self.warn = QLabel("")
         self.warn.setWordWrap(True)
-        self.warn.setToolTip("What the matching found about the files: a placement file that does not fit, parts matched by position only, differences between the X3 layer and the placement file.")
+        self.warn.setToolTip("What the matching found about the files: a placement file that does not fit, parts matched by position (the paste file gives no designators), differences between the X3 layer and the placement file.")
         right.addWidget(self.warn)
         lay.addLayout(right, 9)
         self.preview.clicked.connect(self._clicked)
@@ -760,8 +1017,8 @@ class Step2Page(QWidget):
                 size = f"{max(xs) - min(xs):.1f} x {max(ys) - min(ys):.1f}"
             pos = p.from_file.get("position_mm") or ([sum(q[0] for q in p.polygon_mm) / len(p.polygon_mm), sum(q[1] for q in p.polygon_mm) / len(p.polygon_mm)] if has else None)
             nop = len(sx._openings_of(p))
-            vals = {1: p.designator, 2: (p.footprint or p.from_file.get("package", ""))[:24], 3: sx.source_label(p), 4: str(nop or p.from_file.get("n_openings", 0)), 5: size,
-                    6: f"{pos[0]:.2f}, {pos[1]:.2f}" if pos else "-"}
+            vals = {1: p.designator, 2: (p.footprint or p.from_file.get("package", "")), 3: sx.source_label(p), 4: str(nop or p.from_file.get("n_openings", 0)), 5: size,
+                    6: f"{pos[0]:.0f}, {pos[1]:.0f}" if pos else "-"}
             if p.from_file.get("heat_source") is False:
                 vals[3] += f" ({p.from_file.get('mount', 'not SMD')})"
             for col, text in vals.items():
@@ -769,22 +1026,37 @@ class Step2Page(QWidget):
                 item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 if not has or orphan:
                     item.setForeground(QColor(c["muted"]))
+                if col == 6 and pos:                                 # The column shows whole millimetres to stay narrow; the tooltip has the exact position
+                    item.setToolTip(f"Centre of the part: x {pos[0]:.2f} mm, y {pos[1]:.2f} mm (Gerber frame)")
+                if col in (2, 3):                                    # These two columns share the spare width and may be cut: the full text is in the tooltip
+                    item.setToolTip(_plain_tip(sx.source_explanation(p) if col == 3 else text))      # the package name comes from the files
                 t.setItem(k, col, item)
             sp = _spin(0, 1000, p.power, 3, "W", "Power the part dissipates, in W. Worst case: all of it enters the board. From the datasheet or the Power Calculator.")
+            sp.setSuffix("")                                         # The unit is in the header, so the column can be narrow
+            sp.setFixedWidth(sp.minimumSizeHint().width())          # As narrow as the widest value (1000.000) in the font of the platform: a fixed 76 px cut it with the 13 px macOS font
             sp.setEnabled(has and not orphan)
             sp.valueChanged.connect(lambda v, d=p.designator: self._set(d, power=v))
             t.setCellWidget(k, 7, sp)
             tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Highest junction temperature of the datasheet (0: none). The result reports the margin.")
+            tj.setSuffix("")
+            tj.setFixedWidth(tj.minimumSizeHint().width())
             tj.valueChanged.connect(lambda v, d=p.designator: self._set(d, tj_max=v))
             t.setCellWidget(k, 8, tj)
             cb = QComboBox()
             cb.addItems(["Component", "Source"])
+            cb.setFixedWidth(int(cb.fontMetrics().horizontalAdvance("Component")) + 36)    # The text and the arrow, in the font of the platform; the combo's own size hint is 40 px wider
             cb.setCurrentText(p.edits.get("role", "Component"))
             cb.setToolTip("Component: a package with a junction (theta, Tj limit, optional heatsink on top). Source: only a heated area on the board.")
             cb.currentTextChanged.connect(lambda v, d=p.designator: self._set(d, role=v))
             t.setCellWidget(k, 9, cb)
+        # Fit the table to the window: the package and the source take the spare width, the numeric columns are as narrow as their content, and the horizontal scroll bar
+        # appears only when even that does not fit (a window narrower than about 900 pixels)
         hh = t.horizontalHeader()
-        hh.setSectionResizeMode(QHeaderView.ResizeToContents)
+        hh.setMinimumSectionSize(44)
+        hh.setStretchLastSection(False)
+        for col in range(len(self.COLS)):
+            hh.setSectionResizeMode(col, QHeaderView.Stretch if col in (2, 3) else QHeaderView.ResizeToContents)
+        t.setTextElideMode(Qt.ElideRight)
         self._building = False
         counts = sx.parts_info().get("counts", {})
         n_open = len(sx.openings())
@@ -949,6 +1221,9 @@ class Step2Page(QWidget):
         @return None
         """
         des = self.session.click(x, y, ctrl, self.selected, self.preview.side)
+        if des is None:                                              # Not on an opening: a click inside the outline of a part also selects it
+            hit = self.preview.part_at(x, y)
+            des = hit[1] if hit and hit[0] == "part" else None
         if des is not None:
             self.selected = des
             self.refresh()
