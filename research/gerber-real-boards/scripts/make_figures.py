@@ -141,54 +141,96 @@ def fig_fine():
 
 def fig_paste_window():
     """!
-    @brief fig_08: a window of the ISASTM top paste layer with the groups of TO.C (one box per part), the groups by proximity (link 1.0 mm, dashed) and the placement origins (crosses); needs the board in data/ and the research environment (the reader), skipped otherwise.
+    @brief fig_08: a synthetic board of our own (lib/synth_paste_board.py) read by the program's parsers: (a) without TO.C the groups by proximity break the QFN and fuse parts, (b) with TO.C every part is one set of openings and the QFN gets its exposed pad, (c) a placement file shifted by (3, -2) mm and the offset the frame check proposes, (d) the bottom side with the X of the placement file negated.
     @return None.
     """
-    try:
-        sys.path.insert(0, str(ROOT / "scripts"))
-        import _bootstrap  # noqa: F401
-        import native_gerber as ng
-        import paste
-        import pnp
-        import registry
-        r = registry.roles("isastm")
-    except Exception as exc:                                       # no data or no reader: skip, as for the missing results
-        print(f"skipped fig_08: {exc}")
-        return
-    refs = paste.by_reference(r["paste_top"])
-    box = ng.layer_bbox(r["outline"])
-    groups = paste.by_proximity(r["paste_top"], box, pix=0.05, link_mm=1.0)
-    parts = {q["ref"]: q for q in pnp.read_placement(r["placement"]) if q["side"] == "top"}
-    cx, cy, w = 60.0, -90.0, 22.0                                 # a dense window under the large chips (the paste of the big parts and of their capacitors)
-    fig, ax = plt.subplots(figsize=(8.5, 8.5))
-    layer = ng.Layer(r["paste_top"].read_text(errors="replace"))
-    x0, y1 = cx - w / 2, cy + w / 2
-    cv = ng.Canvas(x0, y1, w, w, 0.05)
-    layer.draw(cv)
-    ax.imshow(cv.mask, extent=(x0, x0 + w, y1 - w, y1), cmap="Greys", alpha=0.55)
-    rng = np.random.default_rng(2)
-    for k, g in refs.items():
-        b = g["bbox"]
-        if b[2] < x0 or b[0] > x0 + w or b[3] < y1 - w or b[1] > y1:
-            continue
-        col = plt.cm.tab20(rng.integers(0, 20))
-        ax.add_patch(plt.Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], fill=False, ec=col, lw=1.6))
-        if k in parts:
-            ax.plot(parts[k]["x"], parts[k]["y"], "+", color=col, ms=9, mew=1.8)
-        if b[2] - b[0] > 1.5:
-            ax.text(b[0], b[3] + 0.1, k, fontsize=7, color=col)
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import _bootstrap  # noqa: F401
+    import synth_paste_board as S
+    from pcbthermal.gerber import parse_layer
+    from pcbthermal.gerber import parts as P
+
+    top_ref = parse_layer(S.paste_text(S.TOP, "top", True))
+    top_plain = parse_layer(S.paste_text(S.TOP, "top", False))
+    bot_plain = parse_layer(S.paste_text(S.BOTTOM, "bottom", False))
+    pl_shift = P.parse_placement(S.placement_text(S.TOP, shift=S.SHIFT))
+    pl_bot = P.parse_placement(S.placement_text([], S.BOTTOM, negate_bottom_x=True))
+
+    def rect(ax, b, **kw):
+        """!@brief Draw a box. @param ax Axes. @param b (xmin, ymin, xmax, ymax) in mm. @param kw Patch options. @return None."""
+        ax.add_patch(plt.Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], fill=False, **kw))
+
+    def openings(ax, ops):
+        """!@brief Draw the paste openings in grey. @param ax Axes. @param ops List of Opening. @return None."""
+        for o in ops:
+            ax.add_patch(plt.Polygon(o.hull, closed=True, fc="0.55", ec="0.35", lw=0.4))
+
+    def frame(ax, title, xlim, ylim):
+        """!@brief Common axes settings. @param ax Axes. @param title Title. @param xlim X range (mm). @param ylim Y range (mm). @return None."""
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        ax.set_aspect("equal")
+        ax.set_xlabel("x (mm)")
+        ax.set_ylabel("y (mm)")
+        ax.set_title(title, fontsize=8)
+
+    fig, axs = plt.subplots(2, 2, figsize=(13, 10))
+    # (a) no TO.C: the openings, then the groups by proximity (0.6 mm link, the program's fallback)
+    ax = axs[0, 0]
+    ops = P.read_openings(top_plain, "top", by_ref=False)
+    groups = P.proximity_groups(ops, 0.6)
+    openings(ax, ops)
     for g in groups:
-        b = g["bbox"]
-        if b[2] < x0 or b[0] > x0 + w or b[3] < y1 - w or b[1] > y1:
+        bx = [ops[i].bbox for i in g]
+        rect(ax, (min(b[0] for b in bx), min(b[1] for b in bx), max(b[2] for b in bx), max(b[3] for b in bx)), ec="C3", lw=1.2, ls="--")
+    for p in S.TOP:
+        ax.plot(p[3], p[4], "k+", ms=8)
+        ax.text(p[3] + 0.4, p[4] + 0.4, p[0], fontsize=8)
+    frame(ax, f"(a) no TO.C: {len(S.TOP) - 1} SMD parts, {len(ops)} openings, {len(groups)} groups by proximity (dashed)", (0, 30), (0, 22))
+    ax.annotate("QFN: five groups", (11, 8.6), (13.5, 7.0), fontsize=8, color="C3", arrowprops=dict(arrowstyle="->", color="C3"))
+    ax.annotate("C2 + C3 touch:\nopenings fuse", (6.3, 3.4), (1.0, 1.0), fontsize=8, color="C3", arrowprops=dict(arrowstyle="->", color="C3"))
+    ax.annotate("C1 joins the\npins of U2", (22, 11.0), (24, 9.0), fontsize=8, color="C3", arrowprops=dict(arrowstyle="->", color="C3"))
+    # (b) with TO.C: one part per designator, shape by the program
+    ax = axs[0, 1]
+    res = P.build_parts(paste={"top": top_ref}, placement=P.parse_placement(S.placement_text(S.TOP)))
+    openings(ax, res.openings)
+    for part in res.parts:
+        poly = np.array(part.polygon_mm)
+        ax.add_patch(plt.Polygon(poly, closed=True, fill=False, ec="C0", lw=2.0 if part.shape == "exposed" else 1.2))
+        c = poly.mean(axis=0)
+        ax.text(c[0], c[1] + (2.6 if part.shape == "exposed" else 0.7), part.designator, fontsize=8, color="C0", ha="center")
+    for part in res.listed:
+        px, py = part.from_file["position_mm"]
+        lx, ly, ox, oy = P.envelope(part.from_file["package"])[:4]
+        rect(ax, (px + ox - lx / 2, py + oy - ly / 2, px + ox + lx / 2, py + oy + ly / 2), ec="0.4", lw=1.0, ls=":")
+        ax.text(px + 1.2, py, f"{part.designator}: no paste,\nlisted only", fontsize=8, color="0.3")
+    frame(ax, f"(b) with TO.C: {len(res.parts)} parts, the QFN heat source is its exposed pad (thick), C2 and C3 stay two", (0, 30), (0, 22))
+    # (c) placement shifted by SHIFT: envelopes as written and after the proposed offset
+    ax = axs[1, 0]
+    r0 = P.build_parts(paste={"top": top_plain}, placement=pl_shift, use_refs=False)
+    fr = r0.info["frame"]
+    r1 = P.build_parts(paste={"top": top_plain}, placement=pl_shift, use_refs=False, offset=(fr["dx"], fr["dy"]))
+    openings(ax, r0.openings)
+    for p in pl_shift:
+        if P.envelope(p["package"])[4] != "smd":
             continue
-        ax.add_patch(plt.Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], fill=False, ec="k", lw=1.0, ls="--"))
-    ax.set_xlim(x0, x0 + w)
-    ax.set_ylim(y1 - w, y1)
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_title("ISASTM top paste: boxes by TO.C (colour), proximity 1.0 mm (dashed), placement (+)")
+        ax.add_patch(plt.Polygon(P.part_envelope_polygon(p, 0.3), closed=True, fill=False, ec="C3", lw=0.9, ls="--"))
+        ax.add_patch(plt.Polygon(P.part_envelope_polygon(dict(p, x=p["x"] + fr["dx"], y=p["y"] + fr["dy"]), 0.3), closed=True, fill=False, ec="C2", lw=1.0))
+    frame(ax, f"(c) file shifted by ({S.SHIFT[0]:+.0f}, {S.SHIFT[1]:+.0f}) mm: as written (red) {fr['given']:.0%} of the parts fit; offset ({fr['dx']:+.1f}, {fr['dy']:+.1f}) mm proposed (green) {fr['best']:.0%}", (0, 33), (-2, 22))
+    ax.text(0.5, -1.4, f"matched by position: {r0.info['counts']['placement by position']} parts as written, {r1.info['counts']['placement by position']} with the offset", fontsize=8)
+    # (d) bottom side, X negated in the file
+    ax = axs[1, 1]
+    rb = P.build_parts(paste={"bottom": bot_plain}, placement=pl_bot, use_refs=False)
+    openings(ax, rb.openings)
+    for p in pl_bot:
+        ax.plot(p["x"], p["y"], "x", color="C3", ms=7)
+        ax.text(p["x"] + 0.4, p["y"] + 0.4, p["ref"] + " (file)", fontsize=8, color="C3")
+    for part in rb.parts:
+        ax.add_patch(plt.Polygon(np.array(part.polygon_mm), closed=True, fill=False, ec="C0", lw=1.2))
+    frame(ax, f"(d) bottom side, X negated in the file (red x): detected '{rb.info['convention']}', {len(rb.parts)} of {len(S.BOTTOM)} parts found (blue)", (-30, 30), (0, 22))
+    fig.suptitle("Synthetic board of our own (lib/synth_paste_board.py), read by pcbthermal.gerber", fontsize=10)
     fig.tight_layout()
-    fig.savefig(FIG / "fig_08_paste_groups_window.png", dpi=105)
+    fig.savefig(FIG / "fig_08_paste_groups_synthetic.png", dpi=105)
     plt.close(fig)
 
 
