@@ -2,6 +2,8 @@
 
 **Recommendation: adopt the mirror image (insulated or convective edge, FVM) in 2.5.0 on a `feature/via-edge-image` branch; do not adopt the Robin image.** Evidence: `README.md` 3 and 4. The text for the project documents is in `docs/theory-text.md`.
 
+**Status after the review (README 7).** Implemented on `feature/via-edge-image` (reviewed there; `docs/validation.md` 28 on that branch) with one change of design this file did not foresee: no image within 0.6 cells of a reflex vertex or of a short or slanted side, and no wall behind such a feature (`viawell.image_walls`), because the image of the full mirror put a via near the reflex corner of a T at -13.5 % against -2.9 % without it. With that guard the frozen shift of section 3 is -0.0103 K at 2 mm and -0.0001 K at 1 mm, not -0.196 / -0.0024 K (the prototype of this folder gave a wall to vias beyond the end of an outline side). Sections 1 to 5 below are the design as proposed, kept as the record.
+
 ## 1. What changes (`pcbthermal/viawell.py` only, plus `checks.py` text)
 
 The candidate code is `lib/edge_hook.py` (the `mirror` path); the Robin path (`phi_*` with `ell`, `_GL_X`, `_GL_W`) is **not** carried over. The change in the program:
@@ -36,7 +38,7 @@ All on the board of `research/via-real-board/lib/edge_reference.py` (`edge_board
 
 ## 3. Impact on the frozen numbers
 
-`example_cut_to_T` moves in the FVM by **-0.196 K at 2 mm, -0.0024 K at 1 mm**, 0 at 0.5 mm (`out/impact.txt`); the four other boards with vias (`example_board`, `profile_board`, `plate_vias`, `plate_lone_via`) do not move (bit-identical). The Lumped, Analytic, FDM and 3D records do not move. A pending shift (`tests/regression/make_pending.py`) is needed for the FVM `example_cut_to_T` records at 2 and 1 mm, folded at the refreeze. The validation tables that hold a via near an edge (none of the example boards) are not known to move; `docs/validation.md` 2.1 and 18 use vias away from the edges.
+`example_cut_to_T` moves in the FVM by **-0.196 K at 2 mm, -0.0024 K at 1 mm**, 0 at 0.5 mm with the prototype (`out/impact.txt`; **superseded**: the program with the reflex guard moves it -0.0103 K at 2 mm and -0.0001 K at 1 mm, `tests/regression/data/pending/via-edge-image.json` on `feature/via-edge-image`); the four other boards with vias (`example_board`, `profile_board`, `plate_vias`, `plate_lone_via`) do not move (bit-identical). The Lumped, Analytic, FDM and 3D records do not move. A pending shift (`tests/regression/make_pending.py`) is needed for the FVM `example_cut_to_T` records at 2 and 1 mm, folded at the refreeze. The validation tables that hold a via near an edge (none of the example boards) are not known to move; `docs/validation.md` 2.1 and 18 use vias away from the edges.
 
 ## 4. Risks
 

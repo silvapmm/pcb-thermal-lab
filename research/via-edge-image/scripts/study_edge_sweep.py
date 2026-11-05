@@ -43,7 +43,7 @@ def main(argv=None):
     ap.add_argument("--h-side", type=float, nargs="+", default=[0.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6])
     ap.add_argument("--cells", type=float, nargs="+", default=[1.0, 0.5, 0.25])
     ap.add_argument("--distances", type=float, nargs="+", default=[0.16, 0.3, 0.5, 1.0, 2.0, 4.0])
-    ap.add_argument("--modes", nargs="+", default=["program", "mirror", "robin"])
+    ap.add_argument("--modes", nargs="+", default=["none", "program", "mirror", "robin"])           # "none": the program without its image (before the adoption)
     ap.add_argument("--corner", action="store_true")
     a = ap.parse_args(argv)
     logging.disable(logging.WARNING)

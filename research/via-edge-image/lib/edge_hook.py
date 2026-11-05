@@ -269,15 +269,23 @@ def build_edge(problem, d, S, cover, dx, dy, nx, ny, origin, active, mode="mirro
 def patched(mode="mirror", **kw):
     """!
     @brief Install `build_edge` in place of `viawell.build` for the FVM and FDM networks built inside the block.
-    @param mode "program" (no change), "mirror" or "robin".
+    @param mode "program" (no change: since `feature/via-edge-image` the program has the mirror image), "none" (the program with the reach of its image set to
+                zero, i.e. the program before the adoption), "mirror" or "robin" (the prototypes of this folder).
     @param kw Further keywords of `build_edge` (reach_cells).
     @return Context manager; the counters of the last block are in STATS.
     """
     original = viawell.build
+    old_reach = getattr(viawell, "EDGE_REACH_CELLS", None)
     STATS.update(vias=0, edge_vias=0, enlarged=0, inf_wells=0)
-    if mode != "program":
+    if mode == "none":
+        # The image of the program is switched off by its reach (the attribute exists only after the adoption; before it the program had no image)
+        if old_reach is not None:
+            viawell.EDGE_REACH_CELLS = 0.0
+    elif mode != "program":
         viawell.build = lambda *a, **k: build_edge(*a, mode=mode, **kw)
     try:
         yield
     finally:
         viawell.build = original
+        if old_reach is not None:
+            viawell.EDGE_REACH_CELLS = old_reach

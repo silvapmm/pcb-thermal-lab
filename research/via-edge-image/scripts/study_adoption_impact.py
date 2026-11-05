@@ -34,20 +34,25 @@ def board_impact():
     @brief Table of the frozen boards with vias: vias near a wall and the change of T_max with the image.
     @return None.
     """
-    print("| board | vias | vias with a wall within 6 cells (2 / 1 / 0.5 mm) | change of FVM T_max with the image (2 / 1 / 0.5 mm) |")
-    print("| :-- | --: | :-- | :-- |")
+    # Since feature/via-edge-image the program has the image: the baseline is the program with its reach set to zero ("none"), the change is that of the
+    # program's image ("program") and, for the record, of this folder's prototype ("mirror", which also images a side beyond its end)
+    print("| board | vias | vias with a wall within 6 cells, prototype rule (2 / 1 / 0.5 mm) | change of FVM T_max, program's image (2 / 1 / 0.5 mm) | the same, prototype |")
+    print("| :-- | --: | :-- | :-- | :-- |")
     for name in rbd.board_names():
         p = rbd.build(name)
         if not p.vias:
             continue
-        near, dts = [], []
+        near, dts, dps = [], [], []
         for c in (2.0, 1.0, 0.5):
             near.append(sum(1 for v in p.vias if eh.walls_for(p, v, 6 * c * 1e-3)))
-            a = simulate(p, SolverOptions(models=("fvm",), cell_mm=c)).results["fvm"].T.max()
+            with eh.patched("none"):
+                a = simulate(p, SolverOptions(models=("fvm",), cell_mm=c)).results["fvm"].T.max()
+            b = simulate(p, SolverOptions(models=("fvm",), cell_mm=c)).results["fvm"].T.max()
             with eh.patched("mirror"):
-                b = simulate(p, SolverOptions(models=("fvm",), cell_mm=c)).results["fvm"].T.max()
+                m = simulate(p, SolverOptions(models=("fvm",), cell_mm=c)).results["fvm"].T.max()
             dts.append(f"{b - a:+.4f} K")
-        print(f"| {name} | {len(p.vias)} | {' / '.join(map(str, near))} | {' / '.join(dts)} |", flush=True)
+            dps.append(f"{m - a:+.4f} K")
+        print(f"| {name} | {len(p.vias)} | {' / '.join(map(str, near))} | {' / '.join(dts)} | {' / '.join(dps)} |", flush=True)
 
 
 def matrix_checks():
@@ -56,7 +61,7 @@ def matrix_checks():
     @return None.
     """
     p = er.edge_board(0.16, True, None, 10.0)
-    for mode in ("program", "mirror"):
+    for mode in ("none", "program"):
         with eh.patched(mode):
             r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
             net = fvm.Network(p, 10, 10)
@@ -65,7 +70,7 @@ def matrix_checks():
         off = K - __import__("scipy.sparse", fromlist=["diags"]).diags(K.diagonal())
         # The via part alone has zero row sum: compare the row sums with and without vias (the ambient conductance is the only other term)
         q = er.deepcopy_without_via(p)
-        with eh.patched("program"):
+        with eh.patched("none"):
             K0 = fvm.Network(q, 10, 10).K.tocsr()
         rowdiff = abs(np.asarray((K - K0).sum(axis=1)).ravel()).max()
         print(f"{mode}: T_max {r.T.max():.4f} degC, max |K - K^T| {asym:.1e}, max |row sum(K) - row sum(K without vias)| {rowdiff:.1e} W/K, "

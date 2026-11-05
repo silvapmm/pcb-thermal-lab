@@ -99,7 +99,8 @@ def test_no_wall_no_change():
 
 def test_mirror_removes_the_excess_at_the_nearest_via():
     """!
-    @brief The via effect of the via 0.16 mm from the edge on 1 mm cells: the program is about 14 % high, the mirror image within 2 % of the resolved reference.
+    @brief The via effect of the via 0.16 mm from the edge on 1 mm cells: the program without its image is about 14 % high, the mirror prototype and the
+           program (which has the image since `feature/via-edge-image`) within 2 % of the resolved reference, and equal to each other.
     @return None.
     """
     logging.disable(logging.WARNING)
@@ -109,10 +110,14 @@ def test_mirror_removes_the_excess_at_the_nearest_via():
     q = er.deepcopy_without_via(p)
     base = pc.max_rise(q, "fvm", 1.0)
     e_prog = base - pc.max_rise(p, "fvm", 1.0)
+    with eh.patched("none"):
+        e_none = base - pc.max_rise(p, "fvm", 1.0)
     with eh.patched("mirror"):
         e_img = base - pc.max_rise(p, "fvm", 1.0)
-    assert e_prog / ref - 1.0 > 0.12
+    assert e_none / ref - 1.0 > 0.12
     assert abs(e_img / ref - 1.0) < 0.02
+    # The implementation in the program equals the prototype on a box edge (the reflex-corner guard of the program does not act here)
+    assert abs(e_prog - e_img) < 1e-6 * ref
 
 
 def test_kernel_is_exact_at_integers_and_continuous():
