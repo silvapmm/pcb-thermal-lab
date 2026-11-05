@@ -40,11 +40,10 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
 from . import fdm, fvm, laminate
-from .fvm import ORDERING
+from .fvm import lu_factor
 from .numfmt import num
 
 
@@ -668,7 +667,7 @@ class _FVMAdapter:
         @param problem A Problem.
         """
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
-        steady = spla.splu(self.net.K.tocsc(), permc_spec=ORDERING)
+        steady = lu_factor(self.net.K)
         self.th_avg = steady.solve(self.net.Qw_matrix @ self.p_avg)
         p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
         self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else steady.solve(self.net.Qw_matrix @ p_init)
@@ -720,7 +719,7 @@ class _FVMAdapter:
         """
         self.dt = dt
         Cd, K = self.net.C.ravel(), self.net.K
-        self.lu = spla.splu((sp.diags(Cd / dt) + self.theta * K).tocsc(), permc_spec=ORDERING)
+        self.lu = lu_factor(sp.diags(Cd / dt) + self.theta * K)
         self.B = (sp.diags(Cd / dt) - (1.0 - self.theta) * K).tocsr()
 
     def begin(self, options):

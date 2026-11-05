@@ -13,6 +13,10 @@
 
          with N the unknowns, t = N / (nx ny) the nodes per plan cell and t_eff = min(t, cells / t) (a board that is very thick in layers is also thin in plan),
          `safety` the safety factor of the model and `factor` that of a time simulation or a profile run (1 for a steady solve).
+         The vias of the FVM and FDM add a factor `1 + VIA_GAIN (1 - exp(-F / VIA_CELLS_REF))` on the allocated part, F the cells of their footprints (`via_cells`): the
+         mean-potential couplings of viawell.py join the copper layers across the laminate nodes, and the factorisation of a board with vias took up to 1.6 times the memory
+         of the same board without them in SuperLU's default mode (CO60 at 0.5 mm, 769 vias); in the symmetric mode that the solver now uses the excess is 0.82 to 1.09 times, and the gain is
+         the small VIA_GAIN = 0.10 (if the solver ever falls back to the default mode the law does not cover the peaks of up to 4.75 times). A board without vias is unchanged.
          `base` is the resident size of the process when the check is made (not multiplied by the factors: it is measured, not estimated). The coefficients are bytes of the algorithm, mostly independent of the machine, but they were
          measured on one machine and are logged against the measured peak after each run so that other machines can check them.
 
@@ -42,6 +46,8 @@ TRANSIENT_FACTOR = 2.0              # Time simulation and animation: one factor 
 PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measured)
 SOR_BLOCK_SHARE = 0.25              # Share of the limit one dense SOR block may take
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
+VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
+VIA_CELLS_REF = 500.0               # Footprint cells at which the via term reaches 63 % of its gain (25 vias of 0.3 mm at 0.5 mm are 100 cells and measured nothing; CO60 is 1 500 to 5 400)
 MEMORY_ENV = "PCBTHERMAL_MEMORY_BYTES"   # Environment variable that states the physical memory in bytes (tests, containers whose limit is not visible)
 
 # CONTINUOUS law of the review: model -> (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety factor)
@@ -272,7 +278,7 @@ def limit_bytes(fraction: Optional[float] = None, ram: Optional[int] = None) -> 
     return float(r) * f if r else FALLBACK_LIMIT
 
 
-def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[float] = None, factor: float = 1.0) -> float:
+def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[float] = None, factor: float = 1.0, via_footprint_cells: float = 0.0) -> float:
     """!
     @brief Estimated peak memory of a solve, with the safety factor of the model.
     @details peak = base + safety * factor * k1 t_eff^a N (N / N_REF)^(p - 1). The safety and time factors multiply the part that the solve allocates, not the
@@ -283,6 +289,7 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     @param cells Cells of the plan grid, nx * ny (the nodes of one layer for the FDM), count.
     @param base Resident bytes of the process (None: resident_bytes()).
     @param factor Multiplier of a time simulation or profile run (TRANSIENT_FACTOR, PROFILE_FACTOR); 1 for a steady solve.
+    @param via_footprint_cells Cells of the via footprints of the FVM or FDM (via_cells), count; 0 for no vias, which leaves the estimate unchanged. Ignored by the 3D solid.
     @return Bytes.
     @throws KeyError If the model has no law (lumped, analytic).
     """
@@ -291,7 +298,79 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     t = n / max(float(cells), 1.0)
     t_eff = max(min(t, float(cells) / t), 1.0)
     b = resident_bytes() if base is None else base
-    return b + k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0) * safety * factor
+    return b + k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0) * safety * factor * via_gain(model, via_footprint_cells)
+
+
+def via_gain(model: str, via_footprint_cells: float) -> float:
+    """!
+    @brief Multiplier of the allocated memory for the via couplings of the FVM and FDM (1 for no vias and for the 3D solid).
+    @details 1 + VIA_GAIN (1 - exp(-F / VIA_CELLS_REF)): continuous, zero at no vias, saturating, so one via costs nothing and a board with thousands costs VIA_GAIN more.
+             Fitted on boards whose vias are scattered (CO60) and checked on regular arrays; a regular array whose pitch is commensurate with the cell can need more
+             (up to 4.2 times the law without vias in the study, research/memory-guard README), which no function of the via count predicts (see docs/theory.md 2.7).
+    @param model "fvm", "fdm" or "solid3d".
+    @param via_footprint_cells Cells of the via footprints, count.
+    @return Multiplier, at least 1.
+    """
+    if model == "solid3d" or via_footprint_cells <= 0.0:
+        return 1.0
+    return 1.0 + VIA_GAIN * (1.0 - math.exp(-float(via_footprint_cells) / VIA_CELLS_REF))
+
+
+def via_cells(problem, cell_mm: float) -> float:
+    """!
+    @brief Cells of the via footprints of a problem at a cell size, counted without building the network.
+    @details The footprint of a via (viawell.footprint) depends on its drill and on the cell, and on where its centre falls in the cell: the count is the mean over six offsets
+             of a drill disc on a plane of full cover, cached by (drill, cell). Vias with the centre outside the board box are left out. Overlapping footprints are counted
+             once per via (the sum, not the union: the two differ by less than a factor of 1.7 on the boards studied and the term saturates).
+    @param problem A Problem.
+    @param cell_mm Cell size in mm (the grid is round(size / cell) cells, as the models build it).
+    @return Cells, a float (0 when the problem has no via).
+    """
+    vias = problem.vias
+    if not vias:
+        return 0.0
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    dx, dy = b.width / nx, b.height / ny
+    counts = {}
+    for v in vias:
+        # A via outside the board box conducts nothing (viawell.build skips it); the box test is a cheap upper bound of the exact test
+        if 0.0 <= v.x <= b.width and 0.0 <= v.y <= b.height:
+            key = round(v.diameter, 6)
+            counts[key] = counts.get(key, 0) + 1
+    return float(sum(n * _footprint_mean(d, dx, dy) for d, n in counts.items()))
+
+
+_FOOTPRINT_CACHE = {}
+
+
+def _footprint_mean(diameter: float, dx: float, dy: float) -> float:
+    """!
+    @brief Mean number of cells of the footprint of a via of a drill on a cell size, over six positions of its centre in the cell.
+    @param diameter Drill diameter in m.
+    @param dx Cell size along x in m.
+    @param dy Cell size along y in m.
+    @return Cells, a float (at least 1).
+    """
+    key = (round(diameter, 6), round(dx, 7), round(dy, 7))
+    hit = _FOOTPRINT_CACHE.get(key)
+    if hit is not None:
+        return hit
+    import numpy as np
+    from . import viawell
+    # A plane of full cover large enough for the enlarged footprint (the radius grows until the lattice radius is 0.78 r_via; 25 cells each way is far beyond it)
+    cover = np.ones((50, 50))
+    total, k = 0.0, 0
+    for fx in (0.0, 0.25, 0.5):
+        for fy in (0.0, 0.5):
+            w, _r, _t = viawell.footprint((25.0 + fx) * dx, (25.0 + fy) * dy, diameter / 2.0, dx, 0.0, cover, dy, 0.0)
+            total += max(len(w), 1)
+            k += 1
+    if len(_FOOTPRINT_CACHE) > 4096:
+        _FOOTPRINT_CACHE.clear()
+    _FOOTPRINT_CACHE[key] = total / k
+    return total / k
 
 
 def estimate_seconds(model: str, unknowns: float, cells: float) -> float:
@@ -322,7 +401,7 @@ def verdict(estimate: float, limit: float, seconds: float = 0.0) -> str:
     return "slow" if seconds > SLOW_SECONDS else "ok"
 
 
-def largest_unknowns(model: str, cells: float, limit: float, base: Optional[float] = None, factor: float = 1.0) -> int:
+def largest_unknowns(model: str, cells: float, limit: float, base: Optional[float] = None, factor: float = 1.0, via_footprint_cells: float = 0.0) -> int:
     """!
     @brief Largest unknown count whose estimate stays within a limit, at a given plan grid (bisection; the estimate grows with N).
     @param model "fvm", "fdm" or "solid3d".
@@ -330,15 +409,16 @@ def largest_unknowns(model: str, cells: float, limit: float, base: Optional[floa
     @param limit Limit in bytes.
     @param base Resident bytes of the process (None: read).
     @param factor Multiplier of a time simulation.
+    @param via_footprint_cells Cells of the via footprints, count (0 for no vias).
     @return Unknown count (0 if even the base is above the limit).
     """
     b = resident_bytes() if base is None else base
-    if estimate_bytes(model, cells, cells, b, factor) > limit:
+    if estimate_bytes(model, cells, cells, b, factor, via_footprint_cells) > limit:
         return 0
     lo, hi = float(cells), 1.0e10
     for _ in range(100):
         mid = math.sqrt(lo * hi)
-        if estimate_bytes(model, mid, cells, b, factor) <= limit:
+        if estimate_bytes(model, mid, cells, b, factor, via_footprint_cells) <= limit:
             lo = mid
         else:
             hi = mid
@@ -347,7 +427,7 @@ def largest_unknowns(model: str, cells: float, limit: float, base: Optional[floa
 
 def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit: float, cell_mm: float, base: Optional[float] = None,
                    factor: float = 1.0, cell_max: float = 50.0, max_unknowns: Optional[float] = None,
-                   bound: Optional[Callable[[float], Tuple[int, int]]] = None) -> Optional[float]:
+                   bound: Optional[Callable[[float], Tuple[int, int]]] = None, vias: Optional[Callable[[float], float]] = None) -> Optional[float]:
     """!
     @brief Smallest cell, grown in steps of 10 % and rounded up to 0.1 mm, not finer than cell_mm, whose model fits a limit (the refusal message and the Auto suggestion).
     @param count Function cell_mm -> (unknowns, plan cells), both counts.
@@ -359,7 +439,8 @@ def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit:
     @param cell_max Largest cell tried, in mm.
     @param max_unknowns Also require at most this many unknowns (the ceiling of the 3D solid); None for no such bound.
     @param bound Optional cheap function cell_mm -> (lower bound of the unknowns, plan cells); a cell whose bound is already above the limit is skipped without the
-                 exact count (which samples the copper of every cell and costs about 300 bytes per plan cell).
+                 exact count (which samples the copper of every cell and costs about 300 bytes per plan cell). The bound has no via term (a lower bound stays one).
+    @param vias Optional function cell_mm -> cells of the via footprints (via_cells), applied to the exact estimate only; None for no vias.
     @return Cell in mm, or None if even cell_max does not fit.
     """
     b = resident_bytes() if base is None else base
@@ -371,7 +452,7 @@ def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit:
                 c = math.ceil(c * 1.1 * 10.0) / 10.0
                 continue
         n, cells = count(c)
-        if estimate_bytes(model, n, cells, b, factor) <= limit and (max_unknowns is None or n <= max_unknowns):
+        if estimate_bytes(model, n, cells, b, factor, vias(c) if vias is not None else 0.0) <= limit and (max_unknowns is None or n <= max_unknowns):
             return c
         c = math.ceil(c * 1.1 * 10.0) / 10.0              # Grow 10 % and round up to 0.1 mm: the count is not smooth in the cell
     return None
@@ -668,7 +749,8 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
         if accepted is not None or estimate_bytes(model, n, cells, base, mult) <= limit:
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
-        est = estimate_bytes(model, n, cells, base, mult)
+        vc = via_cells(problem, cell_mm) if model != "solid3d" and exact else 0.0         # The via term goes with the exact count; the bound stays a lower bound
+        est = estimate_bytes(model, n, cells, base, mult, vc)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
             v, why = "refuse", "ceiling"
@@ -679,7 +761,8 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             v = verdict(est, limit, secs)
             why = v
         fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, mult, max_unknowns=accepted if accepted is not None else
-                              (CEILING_3D if model == "solid3d" else None), bound=bound)
+                              (CEILING_3D if model == "solid3d" else None), bound=bound,
+                              vias=(lambda c, _p=problem: via_cells(_p, c)) if model != "solid3d" else None)
                if v == "refuse" else None)
         msg = "" if v == "ok" else _message(model, n, est, limit, r, f, fit, cell_mm, why, exact)
         low = avail is not None and est > avail and v != "refuse"

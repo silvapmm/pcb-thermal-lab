@@ -789,7 +789,7 @@ def _heater_network(net, cov, layer, power, rings, vias=None, zone_ok=None):
     return _one_node_network(net, cov, layer, power, rings, vias)
 
 
-def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None):
+def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None, prepared=False):
     """!
     @brief Whether the zone model will split the footprint of a heater, decided before the Lumped grid exists (the count of the fine grid only).
     @details The count is made on the fine grid of the fixed raster cell_mm, so the decision does not depend on the cell of the run. A board with an outline is decided on its
@@ -798,16 +798,20 @@ def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None):
     @param heater The Heater (one of problem.heaters).
     @param cell_mm Lumped raster on which the footprint and the core are drawn, in mm (ZONE_CELL_MM: the one the zone model uses).
     @param vias ViaSet of the problem when the caller already has it (solve_steady), or None to build it.
+    @param prepared True when the caller already made the problem the one the Lumped model solves (the equivalent rectangle of an outline, the vias with no board under them
+           dropped) and heater is one of its heaters: the per-call copy and the scan of every via are skipped (a board with hundreds of parts and thousands of vias paid
+           them for every part in the live check). The answer is the same as for the problem it was made from.
     @return bool: True when the footprint holds a group of two or more vias and the core covers at most MAX_CORE of it on the fine grid.
     """
     if not ZONES or len(problem.vias) < 2 or problem.board.layers < 2:
         return False
-    if problem.board.has_outline():
-        # The Lumped model solves the rectangle of the same area: decide on the heater as it is placed there
-        k = next(i for i, h in enumerate(problem.heaters) if h is heater)
-        problem, _ = problem.equivalent_rectangle()
-        heater, vias = problem.heaters[k], None
-    problem = problem.drop_off_board_vias()
+    if not prepared:
+        if problem.board.has_outline():
+            # The Lumped model solves the rectangle of the same area: decide on the heater as it is placed there
+            k = next(i for i, h in enumerate(problem.heaters) if h is heater)
+            problem, _ = problem.equivalent_rectangle()
+            heater, vias = problem.heaters[k], None
+        problem = problem.drop_off_board_vias()
     if len(problem.vias) < 2:
         return False
     b = problem.board

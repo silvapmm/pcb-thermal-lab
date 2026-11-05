@@ -10,6 +10,8 @@
          - drills: `read_drill(text, name)` / `read_drill_file(path)` -> `DrillFile` of `Hole` (plated or not, slots).
          - outline: `read_outline(text, name)` / `outline_from_layer(layer)` -> `Outline` of polygons with holes, or `OutlineError`.
          - what is it: `detect_function(name, head)` / `detect_file(path)` -> `LayerFunction` (with a `confidence`: names alone are "low"), `detect_set(items)` (numbered copper layers resolved over the set); `order_copper_layers`.
+         - which program wrote it: `profiles.py` (`detect_profile(heads)` -> `ProfileResult`, `choose`, `public_evidence`, `rules_for`; table `pcbthermal/data/cad_profiles.json`):
+           a CAD profile only supplies the name rules of `detect_function(name, head, profile)` below X2 and the Excellon header; the user can always change it.
          - parts: `components.py` (the X3 component layer, `parse_components`, `link_paste`, `link_copper`, `heat_polygon`) and `parts.py` (paste openings, placement files, the envelope
            matching rule, `build_parts` -> `PartsResult` of `ImportPart`); imported as submodules (`parts` needs the project model).
          - archives: `GerberArchive(path)` / `inspect_archive(path)` (zip-slip guard, 2 GB declared limit, 256 MB per member by default, headers only for the detection).
@@ -28,13 +30,14 @@ from .excellon import DrillFile, Hole, drill_function, read_drill, read_drill_fi
 from .functions import LayerFunction, detect_file, detect_function, detect_set, order_copper_layers
 from .outline import Outline, OutlinePolygon, outline_from_layer, read_outline
 from .parser import Flash, Layer, ObjectAttrs
+from .profiles import ProfileChoice, ProfileResult, detect_profile
 from .raster import (DEFAULT_SUPERSAMPLE, RasterEstimate, Window, check_sample_spacing, coverage_area_mm2, estimate_raster_bytes,
                      pixel_counts, rasterize, suggest_pixel_mm, window_of)
 
 __all__ = [
     "ArchiveMember", "DEFAULT_SUPERSAMPLE", "DrillFile", "Flash", "GerberArchive", "GerberError", "Hole", "Layer", "LayerFunction", "ObjectAttrs", "Outline",
-    "OutlineError", "OutlinePolygon", "RasterEstimate", "UnsafeArchiveError", "UnsupportedFeatureError", "Window", "check_sample_spacing", "coverage_area_mm2",
-    "detect_file", "detect_function", "detect_set", "drill_function", "estimate_raster_bytes", "inspect_archive", "order_copper_layers", "outline_from_layer", "parse_layer",
+    "OutlineError", "OutlinePolygon", "ProfileChoice", "ProfileResult", "RasterEstimate", "UnsafeArchiveError", "UnsupportedFeatureError", "Window", "check_sample_spacing", "coverage_area_mm2",
+    "detect_file", "detect_function", "detect_profile", "detect_set", "drill_function", "estimate_raster_bytes", "inspect_archive", "order_copper_layers", "outline_from_layer", "parse_layer",
     "pixel_counts", "rasterize", "read_drill", "read_drill_file", "read_layer", "read_outline", "suggest_pixel_mm", "window_of",
 ]
 

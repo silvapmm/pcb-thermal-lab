@@ -7,7 +7,7 @@
 @details The ledger is a JSON list, one entry per page attempt: date, provider, model, file, page, ok, seconds,
 words, requests, note. It is the same file the first scripts wrote (older entries have no provider or requests:
 they count as "gemini" and one request). The queue is the Markdown table `| # | file | page | why |` of
-`papers/gemini/QUEUE.md`; lines `file.pdf page` or `file.pdf:page` are accepted too.
+`papers/ocr/QUEUE.md`; lines `file.pdf page` or `file.pdf:page` are accepted too.
 """
 
 from __future__ import annotations
