@@ -40,7 +40,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
 from . import fdm, fvm, laminate

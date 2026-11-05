@@ -61,12 +61,16 @@ def lu_factor(A):
              `diag_pivot_thresh=0` with `SymmetricMode` keeps the symmetric ordering (no row exchanges), which gives the same fill with far less work and
              workspace. The mode is used only after a cheap check (positive diagonal, symmetric values) and is kept only if a probe solve has a relative
              residual below SYMMETRIC_LU_TOLERANCE; if the check fails, the factorisation raises, or the residual is worse, the default mode is used
-             instead (never a silent wrong answer).
+             instead (never a silent wrong answer). The probe measures the backward error of the factor (a pivot that breaks down, as on an indefinite
+             matrix with a tiny diagonal, is caught: [[1e-14, 1], [1, 1e-14]] gives 7e-3); it does not measure the conditioning, so a nearly singular matrix
+             (a board almost without a path to ambient) is solved as badly as by the default mode, which has no such check either. The default mode
+             exchanged no row either on the boards measured (perm_r equal to perm_c): its extra time and memory are SuperLU's pivot search and workspace.
     @param A Square sparse matrix in W/K, any format.
     @return scipy.sparse.linalg.SuperLU object with a solve(b) method.
     """
     A = A.tocsc()
     if SYMMETRIC_LU and A.shape[0] > 0:
+        lu = None
         try:
             scale = float(abs(A).max())
             # Symmetry to rounding (the assembly builds both triangles from the same couplings) and a positive diagonal
@@ -81,6 +85,7 @@ def lu_factor(A):
                 log.warning("Symmetric LU residual %.2e too large; using the default factorisation", rel)
         except (RuntimeError, ValueError, MemoryError) as exc:
             log.warning("Symmetric LU failed (%s); using the default factorisation", exc)
+        lu = None                                  # Release a rejected factor before the default one is built (peak memory of one factorisation)
     return spla.splu(A, permc_spec=ORDERING)
 
 

@@ -119,15 +119,31 @@ def test_thermal_matrices_are_symmetric_positive_definite():
         assert lam > 0.0, (name, lam)
 
 
-def test_fallback_when_the_matrix_is_not_symmetric(caplog):
+def test_fallback_when_the_matrix_is_not_symmetric(monkeypatch):
     """!
-    @brief An asymmetric matrix is factorised in the default mode and solved correctly.
-    @param caplog pytest fixture.
+    @brief An asymmetric matrix is factorised in the default mode only (the symmetric mode is not tried) and solved correctly.
+    @param monkeypatch pytest fixture.
     @return None.
     """
+    real = spla.splu
+    calls = []
+
+    def spy(A, *args, **kw):
+        """!
+        @brief splu that records its keyword arguments.
+        @param A Matrix.
+        @param args Positional arguments.
+        @param kw Keyword arguments.
+        @return SuperLU object.
+        """
+        calls.append(kw)
+        return real(A, *args, **kw)
+
+    monkeypatch.setattr(fvm.spla, "splu", spy)
     A = (_random_spd(200, 1) + sp.diags(np.ones(199) * 0.3, 1)).tocsc()
     b = np.ones(200)
     x = fvm.lu_factor(A).solve(b)
+    assert len(calls) == 1 and not calls[0].get("options")              # the symmetric mode is not even tried
     assert np.linalg.norm(A @ x - b) < 1e-10 * np.linalg.norm(b)
 
 
@@ -197,8 +213,10 @@ def test_transient_step_matrices_agree(monkeypatch):
 
 def test_via_dense_plate_is_fast():
     """!
-    @brief A plate with a dense via array (footprints that overlap) solves in seconds; with the default mode this family took many times longer and several times the memory.
-    @details 60 mm plate, 30 x 30 vias in 40 mm at a 0.5 mm cell: about 0.5 s in the symmetric mode (measured 12 s and 1.6 GB in the default mode for 40 x 40 vias).
+    @brief Smoke test: a plate with a dense via array at a 0.5 mm cell solves in seconds.
+    @details 60 mm plate, 30 x 30 vias in 40 mm at a 0.5 mm cell: about 0.5 s in BOTH modes (review: 0.46 s each; 40 x 40 vias 0.18 s each). The cases where the
+             default mode is slow are larger (150 mm plates, 400 to 1 600 vias in 60 to 90 mm at 0.5 mm: 14 to 214 s against 1.2 to 4.6 s) and too heavy for the battery;
+             that the symmetric mode is actually used is held by test_symmetric_mode_is_used_on_board_matrices.
     @return None.
     """
     p = Problem.new(60, 60, layers=2, thickness_mm=1.6, copper_um=35, h_top=10, h_bottom=15, h_side=10)
@@ -209,3 +227,51 @@ def test_via_dense_plate_is_fast():
     r = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"]
     assert time.perf_counter() - t0 < 20.0
     assert np.isfinite(r.t_max)
+
+
+def test_symmetric_mode_is_used_on_board_matrices(monkeypatch):
+    """!
+    @brief On the board matrices the symmetric factor is the one kept (no fallback), it exchanged no row and all its pivots are positive (an LDL^T certificate that
+           the matrix is positive definite, also with the positive off-diagonals of the via couplings).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    real = spla.splu
+    calls = []
+
+    def spy(A, *args, **kw):
+        """!
+        @brief splu that records its keyword arguments.
+        @param A Matrix.
+        @param args Positional arguments.
+        @param kw Keyword arguments.
+        @return SuperLU object.
+        """
+        calls.append(kw)
+        return real(A, *args, **kw)
+
+    monkeypatch.setattr(fvm.spla, "splu", spy)
+    for name, p in _boards():
+        net = fvm.Network(p, int(round(p.board.width * 1000.0)), int(round(p.board.height * 1000.0)))
+        for A in (net.K, sp.diags(net.C.ravel() / 0.01) + 0.5 * net.K):
+            calls.clear()
+            lu = fvm.lu_factor(A)
+            assert len(calls) == 1 and calls[0].get("options") == {"SymmetricMode": True}, name
+            assert np.array_equal(lu.perm_r, lu.perm_c), name
+            assert lu.U.diagonal().min() > 0.0, name
+
+
+def test_probe_catches_a_breakdown_without_pivoting(caplog):
+    """!
+    @brief A symmetric matrix with a positive but tiny diagonal and large couplings breaks down without pivoting; the probe residual catches it and the default
+           factorisation gives the right answer.
+    @param caplog pytest fixture.
+    @return None.
+    """
+    blk = np.array([[1e-14, 1.0], [1.0, 1e-14]])
+    A = sp.csc_matrix(np.kron(np.eye(50), blk))                      # 50 independent 2 x 2 blocks
+    b = np.arange(1.0, 101.0)
+    with caplog.at_level(logging.WARNING, logger="pcbthermal.fvm"):
+        x = fvm.lu_factor(A).solve(b)
+    assert "residual" in caplog.text
+    assert np.linalg.norm(A @ x - b) < 1e-12 * np.linalg.norm(b)
