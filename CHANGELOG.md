@@ -5,8 +5,6 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [2.5.0] - 2026-11-05
 
-**Fixed (dark toolbar icons).** The navigation toolbar of the result plots drew pure white icons in the dark theme; they are now painted with the `text` token of the theme and recoloured on a theme switch (`tests/test_toolbar_icons.py`).
-
 ### 2.5.0 summary
 
 **Honest note.** 2.5.0 is the **first version of the Gerber import and of the imported copper**. They are checked against independent references (an exact vector geometry of the files, a resolved 3D solid, datasheet cases) and on real sets of files from open boards, **not against a measured physical board**. As for every version, no model has been compared with a measurement of a board.
@@ -48,6 +46,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Detailed entries by branch
 
+### Fixed (dark toolbar icons)
+- The navigation toolbar of the result plots drew pure white icons in the dark theme; they are now painted with the `text` token of the theme and recoloured on a theme switch (`tests/test_toolbar_icons.py`).
+
 ### Changed (Preferences order, `fix/preferences-solver-gerber-order`; interface only, no key or file format moves)
 
 The Solver settings (models, cell, solver, memory limit) and the Gerber import limit are now sections of their own in the list of Preferences (`Solver`, `Gerber import`), each with a header line saying that it is a machine preference not saved in projects, instead of boxes at the bottom of the long `Defaults for new projects` page.
@@ -75,7 +76,7 @@ The Solver settings (models, cell, solver, memory limit) and the Gerber import l
 
 ### Changed (exposed-pad heat source, `feature/exposed-pad-heater`; moves numbers only of imported parts that have an exposed pad)
 - The default heat-source shape of a part imported from the paste layer is the **exposed pad or tab** when the paste has one (QFN, DFN, SOT-223, DPAK: the hull of the dominant group of openings; `parts.dominant_group`, shape `auto`), and the convex hull of all the openings otherwise (passives, SOIC, SOT-23, crystals, connectors). The hull spread the power over a body that does not carry it and read the hottest point 11 to 44 % too cool (eleven parts of three open boards, 1 W; a JEDEC case gives 31.9 K/W with the pad against 32.5 on the datasheet and 40.0 with the body). The whole power goes on the pad (worst case) with theta_JC(bottom). Measured on eleven parts in the program's own FVM, not on a physical board; the thresholds were set on those eleven parts and corrected by the review on every part of eight open boards (875 parts): the group must also fill half of its own hull and lie together as one pad, and its hull may span up to 0.75 of the part (0.5 / 0.25 / 0.75 / 0.5 / 0.5), because the first rule (hull at most 0.5) missed every DPAK and D2PAK and took seven connectors and four switches with two end mounting pads for exposed pads. The thinnest margin (RP2040 QFN-56, 0.32 against 0.25) is held by a test. With the polygon on the pad the ψJB ring and the top-path interface area are those of the pad (on the safe side).
-- Import window, step 2: a radio **Exposed pad or tab**, the heater drawn filled and the hull of the part dashed, the Source column says "exposed pad (proposed)" with the reason in its tooltip; the label of "Largest opening only" says it is for a single tab. In an X3 layer the exposed pad goes before the Body outline. A shape the user chose is kept by a re-import; a part of a project written before the rule (no `from_file["shape_rule"]`) keeps its shape kind at every re-import (drawn from the new openings, so a part moved by a layout revision follows them) until the user chooses the pad, and the re-import says so (review: the first version kept the old coordinates and flipped the part to the pad at the second re-import). The frozen numbers do not move (the change reaches only imported parts).
+- Import window, step 2: a radio **Exposed pad or tab**, the heater drawn filled and the hull of the part dashed, the Source column says "exposed pad (proposed)" with the reason in its tooltip; (the radio "Largest opening only" of this first version was removed later, see "import heater shapes" above). In an X3 layer the exposed pad goes before the Body outline. A shape the user chose is kept by a re-import; a part of a project written before the rule (no `from_file["shape_rule"]`) keeps its shape kind at every re-import (drawn from the new openings, so a part moved by a layout revision follows them) until the user chooses the pad, and the re-import says so (review: the first version kept the old coordinates and flipped the part to the pad at the second re-import). The frozen numbers do not move (the change reaches only imported parts).
 
 ### Documents (heater-shape study, `docs/heater-shape-study`; no code, no number moves)
 - `docs/validation.md` 29 (the heat-source shape of an imported part: the eleven-part table, the JEDEC 2s2p case 31.9 against 32.5 K/W, the rule on eight boards, the margin study) with the figure `docs/images/heater_shape_margin.png`; pointers in theory 1.8 and models 19.2; the planned item 'Heater modes for the user' in `docs/versions.md`.
@@ -365,7 +366,7 @@ First release of the rebuilt program. The original wxPython application (1.0.0) 
 - FDM false convergence (step-size stop rule) and grid-dependent heater power (8.17 W injected for 5.50 W requested on the default grid).
 - Dimensionally wrong Analytic formula and an inconsistent Lumped network (errors of several hundred to tens of thousands of degrees).
 - FDM import failure without Numba.
-Details and evidence: `docs/findings.md`.
+Details and evidence: `docs/findings.md`, which no longer exists (it is in the git history).
 
 ## [1.0.0] - 2025
 
