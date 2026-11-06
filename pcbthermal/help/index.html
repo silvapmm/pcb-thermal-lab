@@ -381,7 +381,7 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 </ul>
 
 <h2 id="warnings">19. Glossary of the warnings</h2>
-<p>Every warning has a one-line form under the Run button (hold the mouse on it for the full text) and the full text in the Results summary. None of them blocks a run; each says what the model cannot be trusted for. Look for the key words in the first column.</p>
+<p>Every warning has a one-line form under the Run button (hold the mouse on it for the full text) and the full text in the Results summary. The texts name the controls of this window (for example Simulation settings, Cell size, or the Auto button); the command line prints the same warnings with its own options instead. None of them blocks a run; each says what the model cannot be trusted for. Look for the key words in the first column.</p>
 <table>
 <tr><th>Warning (key words)</th><th>When it appears</th><th>What it means</th><th>What to do</th></tr>
 <tr><td>Heater outside the board / no copper under a heater / copper edge crosses a heater</td><td>Live</td><td>The input is geometrically doubtful: the power goes to the nearest cell, or the footprint sits on bare laminate or across a copper edge (the edge warning appears only when the Lumped or Analytic model runs, and not on imported copper, which has its own warning).</td><td>Move the part or draw the copper; confirm with the FVM.</td></tr>

@@ -6,6 +6,7 @@
 """
 
 import copy
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -913,7 +914,7 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), ui="gui"))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -1155,7 +1156,7 @@ class MainWindow(QMainWindow):
         if low:
             self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
-        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
+        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)

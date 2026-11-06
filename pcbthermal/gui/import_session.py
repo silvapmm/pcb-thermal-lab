@@ -1240,7 +1240,7 @@ class ImportSession:
         else:
             out.append(copper_mod.FILL_NOTE)
         if self.cell_mm > copper_mod.COARSE_CELL_MM + 1e-9 and self.mapping != "fill":
-            out.append(copper_mod.COARSE_CELL_WARNING)
+            out.append(copper_mod.coarse_cell_warning("gui"))
         pix = self.effective_pixel()
         if self.mapping != "fill" and self.cell_mm / pix < copper_mod.COARSE_RASTER_PIXELS:
             out.append(f"the masks have {self.cell_mm / pix:.1f} pixels per cell ({pix:g} mm pixel, {self.cell_mm:g} mm cell): below about {copper_mod.COARSE_RASTER_PIXELS:g} the face "
