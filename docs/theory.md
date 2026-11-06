@@ -122,7 +122,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 
 #### 1.3.1 Rasterisation
 
-A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for heaters, in all the models that spread a heater over the grid, and for the board outline, 4 for zones, heatsinks and blocks on the plan grid, 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
+A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for a heater only when it cannot be clipped exactly (see 1.3.2), 4 for zones, heatsinks and blocks on the plan grid, 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
 
     Q_i = P c_i / Σ c                                                            (1.5)
 
@@ -130,21 +130,29 @@ so the power is **exact** whatever the grid (the weights sum to 1); if the footp
 
 #### 1.3.2 A part across the board outline (FVM, FDM and 3D solid; `geometry.part_weights`)
 
-A cell cut by the outline has only a fraction `c_b` of board in it, and a part may cover only some of that board. The part and the outline are tested on the *same* `8 × 8` samples (`geometry.BOARD_SAMPLES`): `n_b` samples of the cell are on the board, `n_pb` are in the part *and* on the board, and `c_b = n_b / 64` is the board cover the model uses. The weight of the cell is
+A cell cut by the outline has only a fraction `c_b` of board in it, and a part may cover only some of that board. Since `fix/exact-board-cover` neither is sampled: the **board cover** of a cell is the exact area of the outline polygon in it (`geometry.exact_coverage`, used by `Board.cover` for the FVM and the 3D solid and, averaged on the four cells around a node, by the FDM), and the weight of a cell in the heating of a part is the exact area of the part **on the board** in it over the cell area,
 
-    c_i = (n_pb / n_b) · c_b = n_pb / 64                                          (1.6)
+    c_i = A(part ∩ outline ∩ cell_i) / A(cell_i) = (A(part ∩ outline ∩ cell_i) / A(outline ∩ cell_i)) · c_b                (1.6)
 
-and `Q_i = P c_i / Σ c` as in (1.5), so the power stays exact and the power density on the board part of the cut cell is that of the part in the share `n_pb / n_b` it really covers. Without an outline `c_i` is the plain coverage. Two simpler rules are wrong: the **product** `c_part · c_b` (right only when one of the two covers the whole cell) and an intersection counted on a lattice other than the one that gives `c_b`. The statistics of a result (mean and minimum under a heater or a zone, the ring of `ψJB`) are taken over the cells or nodes on the board only; a cell off the board reads the ambient.
+(the second form is the density rule: the share of the board part of the cell that the part covers, times the board cover the model gives the cell; with exact areas the two are the same number, which the sampled lattices of 2.5.1 could only approximate). `Q_i = P c_i / Σ c` as in (1.5), so the power stays exact and the power density on the board part of the cut cell is that of the part in the share it really covers. Without an outline `c_i` is the plain coverage (sampled 4 x 4, unchanged).
+
+*Exact areas without clipping every cell.* The part is clipped to the outline once (Sutherland-Hodgman, `geometry._part_on_board`: a convex part clips the outline, or a convex outline clips the part; a concave outline cut by the part may leave zero-width bridges, which have no area). The area of a polygon in every cell of the grid then follows from column sums. For a polygon traversed once, the length of the vertical section that lies inside it between two horizontal grid lines `Y_k` is the sum over the edges that the vertical line crosses of `± (clamp(y_e(x), Y_k, Y_{k+1}) − Y_k)`, the sign being that of the direction of the edge; integrated over a grid column, the cell areas are the differences along `k` of `Φ_j(Y) = Σ_e s_e ∫ min(y_e(x), Y) dx` taken over the part of each edge inside column `j`, a piecewise linear function of `Y` per edge piece. A piece contributes `Y · width` below its lowest point and a constant above its highest point (both by cumulative sums over the grid lines) and an explicit trapezoid-minus-triangle value only on the grid lines it crosses, so the work is that of the cut cells, vectorised (a 200 mm board of 1000 vertices on a 0.25 mm grid: 7 ms, the sampled cover took 1.4 s). Cells whose area is within 1e-9 of 0 or 1 are snapped to them, so the cover is exactly the board mask where nothing is cut, and the cells below 0.01 are off the board as before. Two concave polygons, or a polygon that crosses itself (read by the even-odd rule), cannot be clipped; they keep the sampled rule of 2.5.1 (`n_pb / n_b` of the 8 x 8 samples, times the cover of the model). The statistics of a result (mean and minimum under a heater or a zone, the ring of `ψJB`) are taken over the cells or nodes on the board only (the mask is the same exact cover); a cell off the board reads the ambient. Two simpler rules are wrong: the **product** `c_part · c_b` (right only when one of the two covers the whole cell) and an intersection counted on a lattice other than the one that gives `c_b`.
+
+![The exact cover against the sampled one](images/exact_board_cover.png)
+
+*Figure (`images/exact_board_cover.png`, `research/rotated-square-3d/figures/fig_17_exact_cover.png`): left, the cells of a 20 mm square turned 45 degrees at 1 mm coloured by the sampled 8 x 8 cover minus the exact one (an edge along a lattice direction of the samples reads too thick); right, the area of the cover over the polygon area for every turn, sampled and exact (the exact one is the polygon area to rounding).*
+
+The two pictures below explain why the product and the plain intersection fail in a cut cell; they draw the sampled lattice of 2.5.1 for the idea (the shares they show are the exact ones in the program).
 
 ![A cell cut by the outline and by the edge of a part](images/fig_34_part_cut_cell.png)
 
-*Figure 34 (`images/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid blue line) and by the edge of a part (dashed); left, the `8 × 8` samples coloured by what they lie in (orange: part only, blue: board only, green: both); right, the same samples counted as board only, from which the model takes the board cover `c_b`.*
+*Figure 34 (`images/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid blue line) and by the edge of a part (dashed); left, the `8 × 8` samples coloured by what they lie in (orange: part only, blue: board only, green: both); right, the same samples counted as board only, from which the sampled rule took the board cover `c_b` (the program now takes the exact area).*
 
 ![Weight and power density of a cut cell by three rules](images/fig_35_part_weight_rules.png)
 
 *Figure 35 (`images/fig_35_part_weight_rules.png`): the weight of that cell by the product of the covers, the plain intersection and the intersection normalised to the board cover (left), and the power density each puts on the board part of the cell relative to the density of the part (right; the correct value is 1).*
 
-*Limit.* The cut cell still conducts with its cover (a cell with half the board has half the conductance, whatever the part inside it), so a part over a cut edge reads a little hotter at fine cells than with the edge on the grid lines; treating the cut cell by its real shape is an item of the chapter "Planned" of `versions.md`. **Where it is checked**: `validation.md` 23 (`research/rotated-square-3d`, `research/outline`).
+*Limit.* The cut cell still conducts with its cover (a cell with half the board has half the conductance, whatever the part inside it), so a part over a cut edge reads a little hotter at fine cells than with the edge on the grid lines (the exact cover removed the part that came from the area, not the part that comes from the conduction: 0.65 K of scatter of the small T at 1 mm remains); treating the cut cell by its real shape (the cut-cell links) is an item of the chapter "Planned" of `versions.md`. **Where it is checked**: `validation.md` 23 (`research/rotated-square-3d`, `research/outline`).
 
 #### 1.3.3 A board with an outline in the Lumped and Analytic models
 

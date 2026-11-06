@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+- **Exact board cover** (`fix/exact-board-cover`; 2.6.0, step 1 of the cut-cell item; **moves numbers on purpose on boards with an outline**): the board cover of a cell (FVM, 3D solid, FDM node cover) and the weight of a part across the outline are the exact areas of the outline and of the part on the board in the cell (`geometry.exact_coverage`, vectorised, milliseconds on a 1000-vertex outline) instead of the 8 x 8 samples. The sampled cover read the area of a 20 mm square turned 45 degrees 0.64 % high at 1 mm (an edge along a lattice direction of the samples): the turn spread of its hottest point at 1 mm falls from 1.0 to 0.08 K and the edge-shift scatter of the small T at 1 mm from 1.47 to 0.65 K (FVM) and from 2.02 to 1.38 K (FDM); the mean bias of the cut cell (its conduction, step 2) is unchanged. Rectangles and boards without an outline are bit-identical. **Frozen numbers that move**: hottest point of `part_across_outline` -0.55 / -0.45 / +0.12 K (FVM) at 2 / 1 / 0.5 mm, similar in the FDM and 3D solid, `round_outline` +0.005 / +0.010 / +0.005 K, the time to 63 % of both by 0.005 to 0.15 s, and the mean temperature of the parts of `part_across_outline`, `round_outline`, `t_outline` and `example_cut_to_T` read by the Lumped and Analytic (up to 0.23 K); every other record of the 17 boards is unchanged. Evidence `docs/validation.md` 23.1, `research/rotated-square-3d`.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
