@@ -132,7 +132,7 @@ class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
     @details The temperature and gradient tabs have the View combo (Current, Smooth, Terrain), the Show copper box with its Opacity slider and, for
-             the temperature, the Contour step of the Terrain view; they are display only (nothing is solved again) and the two tabs share them
+             both, the Contour step of the Terrain view (in K, or in K/mm with 'auto' on the gradient tab); they are display only (nothing is solved again) and the two tabs share them
              through `view_changed` / `copy_view_from`.
     """
 
@@ -175,10 +175,19 @@ class PlotTab(QWidget):
         self.underlay = UnderlayControls(self)          # None / Copper / Image under the map and the opacity of the map over it
         self.opacity, self.opacity_spin = self.underlay.opacity, self.underlay.opacity_spin
         self.contour = QDoubleSpinBox()
-        self.contour.setRange(0.5, 50.0)
-        self.contour.setDecimals(1)
-        self.contour.setValue(5.0)
-        self.contour.setSuffix(" K")
+        if kind == "gradient":
+            # The gradient map has its own step in K/mm; the lowest value is the special text 'auto': a round step picked from the range of the map
+            self.contour.setRange(0.0, 20.0)
+            self.contour.setDecimals(2)
+            self.contour.setSingleStep(0.1)
+            self.contour.setSpecialValueText("auto")
+            self.contour.setValue(0.0)
+            self.contour.setSuffix(" K/mm")
+        else:
+            self.contour.setRange(0.5, 50.0)
+            self.contour.setDecimals(1)
+            self.contour.setValue(5.0)
+            self.contour.setSuffix(" K")
         self.contour.setKeyboardTracking(False)
         self.contour_label = QLabel("Contour every")
         self.axis = QComboBox()
@@ -196,7 +205,7 @@ class PlotTab(QWidget):
         self.view.setToolTip("How the map is drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic (the solver "
                              "resolution is the cell, nothing finer is computed). Terrain: shaded relief with contour lines. Nothing is solved again.")
         self.contour.setToolTip("Distance between the contour lines of the Terrain view in K; every second line is thicker and labelled with its "
-                                "temperature. The gradient map picks a round step by itself.")
+                                "temperature. On the Gradients tab the step is in K/mm and 'auto' (the lowest value) picks a round one from the range of the map.")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
         self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
@@ -220,7 +229,7 @@ class PlotTab(QWidget):
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
         controls.addStretch(1)
-        # Second row: the controls of the view (copper under the map, its opacity, the Terrain contour step)
+        # Second row: the controls of the view (copper under the map, its opacity, the Terrain contour step of each tab)
         row2 = QHBoxLayout()
         if kind in ("temperature", "gradient"):
             for w in (*self.underlay.widgets(), self.contour_label, self.contour):
@@ -249,9 +258,9 @@ class PlotTab(QWidget):
 
     def _show_view_controls(self):
         """!
-        @brief Show the view controls that apply: the contour step with the Terrain view (temperature only).
+        @brief Show the view controls that apply: the contour step with the Terrain view (temperature and gradient tabs, each with its own value).
         """
-        terrain = self.view.currentData() == "terrain" and self.kind == "temperature"
+        terrain = self.view.currentData() == "terrain" and self.kind in ("temperature", "gradient")
         self.contour_label.setVisible(terrain)
         self.contour.setVisible(terrain)
 
@@ -282,7 +291,7 @@ class PlotTab(QWidget):
         @return plots.MapView.
         """
         mode = self.view.currentData()
-        view = plots.MapView(mode=mode, contour_step=self.contour.value() if self.kind == "temperature" else 0.0)
+        view = plots.MapView(mode=mode, contour_step=self.contour.value() if self.kind in ("temperature", "gradient") else 0.0)
         return self.underlay.apply(view, self.theme)
 
     def set_theme(self, theme):

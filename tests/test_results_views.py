@@ -332,10 +332,30 @@ def test_temperature_and_gradient_tabs_share_the_view(sim):
     assert rv.grad.view.currentData() == "smooth" and (rv.grad.underlay.kind() == "copper") and rv.grad.opacity.value() == 40
     rv.grad.view.setCurrentIndex(rv.grad.view.findData("terrain"))
     assert rv.temp.view.currentData() == "terrain"
-    assert rv.grad.contour.isHidden()                                              # The gradient has no K step: it picks a round one
+    assert not rv.grad.contour.isHidden() and not rv.grad.contour_label.isHidden()   # The gradient tab has its own step control, 'auto' by default
     rv.set_simulation(sim)                                                         # A new result keeps the choice
     assert rv.temp.view.currentData() == "terrain" and rv.temp.opacity.value() == 40
     assert rv.grad.map_view().contour_step == 0.0
+    assert rv.grad.contour.specialValueText() == "auto" and rv.temp.contour.value() == 5.0     # separate values, separate units
+
+
+def test_gradient_tab_has_its_own_contour_step(sim):
+    """!
+    @brief With the Terrain view the Gradients tab shows 'Contour every' (K/mm, 'auto' = a round step); its value reaches the map view and does not touch the temperature step.
+    @param sim Simulation fixture.
+    """
+    QApplication.instance() or QApplication([])
+    rv = ResultsView("dark")
+    rv.set_simulation(sim)
+    assert rv.grad.contour.isHidden()                                              # Hidden outside Terrain, as on the temperature tab
+    rv.grad.view.setCurrentIndex(rv.grad.view.findData("terrain"))
+    assert not rv.grad.contour.isHidden()
+    assert rv.grad.contour.value() == 0.0 and rv.grad.contour.text().startswith("auto")
+    rv.grad.contour.setValue(0.5)
+    assert rv.grad.map_view().contour_step == 0.5 and rv.temp.map_view().contour_step == 5.0
+    assert rv.grad.contour.suffix() == " K/mm"
+    rv.grad.view.setCurrentIndex(rv.grad.view.findData("current"))
+    assert rv.grad.contour.isHidden()
 
 
 def test_redraw_is_fast_on_a_100_by_80_mm_board(sim1):
