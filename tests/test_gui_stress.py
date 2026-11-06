@@ -125,13 +125,13 @@ def walk_results(win, qtbot):
             tab.model.setCurrentIndex(m)
             for mode in range(tab.view.count()):
                 tab.view.setCurrentIndex(mode)
-                for copper_on in (False, True):
-                    tab.copper.setChecked(copper_on)
+                for copper_on in ("none", "copper"):
+                    tab.underlay.combo.setCurrentIndex(tab.underlay.combo.findData(copper_on))
                     for k in range(tab.layer.count()):
                         tab.layer.setCurrentIndex(k)
         tab.opacity_spin.setValue(0)
         tab.opacity.setValue(100)
-        tab.copper.setChecked(False)
+        tab.underlay.combo.setCurrentIndex(0)
         tab.view.setCurrentIndex(0)
     ts = rv.time_sim
     for i in range(ts.model.count()):

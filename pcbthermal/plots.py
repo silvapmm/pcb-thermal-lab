@@ -241,12 +241,29 @@ class MapView:
     """
     mode: str = "current"                       # One of VIEW_MODES
     contour_step: float = 5.0                   # Distance between contour lines in the unit of the field (K); 0 or less picks a round step by itself
-    show_copper: bool = False                   # Draw the copper of the layer under the field
+    show_copper: bool = False                   # Draw an underlay (the copper of the layer, or the image) under the field
+    underlay: str = "copper"                    # What goes under the field when show_copper is on: "copper" or "image"
+    image: object = None                        # UnderlayImage of the project's background image (used by underlay "image")
     opacity: float = 0.7                        # Opacity of the field over the copper when show_copper is on (0 to 1)
     copper_rgb: tuple = (0.75, 0.76, 0.79)      # Colour of the copper under the map (the GUI passes the theme token)
     laminate_rgb: tuple = (0.30, 0.30, 0.30)    # Colour of the bare laminate under the map
     contour_color: str = "#ffffff"              # Colour of the contour lines
     cache: dict = dc_field(default_factory=dict)  # {layer: copper image}; the owner keeps it as long as the problem is the same
+
+
+@dataclass(eq=False)
+class UnderlayImage:
+    """!
+    @brief The background image of a project as a picture for the underlay of a map (display only).
+    @details `rgba` has the rows of the file (row 0 at the top), like the editor; the placement is the one of the editor: the image covers
+             x_mm .. x_mm + w_mm and y_mm .. y_mm + h_mm of the board, y upwards. Compared by identity (`eq=False`): the field-wise equality of a
+             dataclass would compare the pixel arrays and raise (the truth value of an array), which broke the refresh of the controls when the image moved.
+    """
+    rgba: object                                # uint8 array (rows, cols, 4), row 0 at the top
+    x_mm: float = 0.0                           # Left edge on the board in mm
+    y_mm: float = 0.0                           # Bottom edge on the board in mm
+    w_mm: float = 1.0                           # Width in mm
+    h_mm: float = 1.0                           # Height in mm
 
 
 def copper_image(problem, layer, max_px=COPPER_IMAGE_PIXELS):
@@ -422,7 +439,7 @@ def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_
         return ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=lo, vmax=hi)
     alpha = float(view.opacity) if copper_on else None
     if copper_on:
-        _draw_copper(ax, problem, layer, view, solved_view)
+        _draw_underlay(ax, problem, layer, view, solved_view)
     norm = Normalize(lo, hi)
     # The colour bar shows the colours of the map at full opacity (an image drawn with alpha gave a faded bar, different on the two themes)
     mappable = ScalarMappable(norm, cmap)
@@ -451,6 +468,52 @@ def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_
     _clip_to_board(im, ax, problem)
     _contour_lines(ax, z, zx, zy, view, thin=copper_on)
     return mappable
+
+
+def _draw_underlay(ax, problem, layer, view, solved_view):
+    """!
+    @brief Draw what goes under the map: the copper of the layer, or the project's image when `view.underlay` is "image" and an image is set.
+    @param ax Matplotlib axis (coordinates in mm).
+    @param problem The Problem.
+    @param layer 0-based layer.
+    @param view MapView.
+    @param solved_view True for the equivalent rectangle of a Lumped or Analytic result on an outline.
+    @return None.
+    """
+    if view.underlay == "image" and view.image is not None:
+        _draw_image(ax, problem, view, solved_view)
+    else:
+        _draw_copper(ax, problem, layer, view, solved_view)
+
+
+def _draw_image(ax, problem, view, solved_view):
+    """!
+    @brief Draw the background image of the project under a map, at the place and size it has in the editor, on a laminate-coloured board.
+    @details The rows are flipped once (the maps run from the bottom of the board) and kept in `view.cache["image"]`, so a redraw or the next
+             frame of an animation does not convert it again. The axes limits are set by the caller, so an image larger than the board is cut, and on a board
+             with an outline the laminate and the image are clipped to the outline (as the copper underlay).
+    @param ax Matplotlib axis (coordinates in mm).
+    @param problem The Problem.
+    @param view MapView (the image, the laminate colour and the cache).
+    @param solved_view True for the equivalent rectangle: the image is on the real board, so only the laminate and a note are drawn.
+    @return None.
+    """
+    b = problem.board
+    box = [0.0, b.width * 1000.0, 0.0, b.height * 1000.0]
+    base = np.zeros((1, 1, 4), np.float32)
+    base[0, 0] = (*view.laminate_rgb, 1.0)
+    lam = ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
+    if solved_view:
+        ax.text(0.01, 0.01, "image not drawn on the solved rectangle", transform=ax.transAxes, fontsize=6, color=view.contour_color, va="bottom", zorder=6)
+        return
+    img = view.image
+    arr = view.cache.get("image")
+    if arr is None:
+        arr = view.cache["image"] = np.ascontiguousarray(np.asarray(img.rgba)[::-1])
+    im = ax.imshow(arr, origin="lower", extent=[img.x_mm, img.x_mm + img.w_mm, img.y_mm, img.y_mm + img.h_mm], interpolation="antialiased")
+    # Nothing is drawn where there is no board, as with the copper underlay (the editor shows the whole image, for tracing)
+    _clip_to_board(lam, ax, problem)
+    _clip_to_board(im, ax, problem)
 
 
 def _draw_copper(ax, problem, layer, view, solved_view):
@@ -939,7 +1002,7 @@ def frame_spacing(tr, problem):
     return problem.board.width / nx, problem.board.height / ny
 
 
-def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
+def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno", view=None):
     """!
     @brief Animated GIF of the temperature evolution of one layer in physical time.
     @details Frames come from the transient FVM solution (implicit time stepping of the same
@@ -950,6 +1013,7 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
     @param layer 0-based layer shown.
     @param fps Frames per second.
     @param cmap Colormap name.
+    @param view Optional MapView (Smooth, an underlay: copper or image, under every frame); None draws the frames as before.
     """
     from matplotlib.animation import PillowWriter
 
@@ -961,5 +1025,5 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
         for k in range(len(tr.times)):
             draw_field(fig, tr.frames[k, layer], problem, dx, dy, cmap=cmap, vmin=vmin, vmax=vmax,
                        layer=layer, title=f"Layer {layer + 1}  t = {tr.times[k]:.2f} s  "
-                                          f"Tmax = {tr.t_max[k]:.1f} °C")
+                                          f"Tmax = {tr.t_max[k]:.1f} °C", view=view)
             writer.grab_frame()

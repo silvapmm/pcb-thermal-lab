@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayo
 
 from .. import analytic, fdm, fvm, plots
 from .results_view import _mpl_theme, _paint_figure
+from .underlay import UnderlayControls
 
 
 class AnimationTab(QWidget):
@@ -80,6 +81,12 @@ class AnimationTab(QWidget):
         self.fps.setRange(1, 60)
         self.fps.setValue(12)
         self.fps.setSuffix(" fps")
+        self.view = QComboBox()                         # How the frames are drawn: Terrain (relief) makes no sense in motion, so it is not offered
+        for mode in ("current", "smooth"):
+            self.view.addItem(plots.VIEW_LABELS[mode], mode)
+        self.view.setToolTip("How the frames are drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic. "
+                             "The Terrain relief is not offered in the animation. Applies to the playback and to the exported GIF.")
+        self.underlay = UnderlayControls(self)          # None / Copper / Image under every frame and the opacity of the frame over it
         self.layer.setToolTip("Copper layer shown in the animation.")
         self.cmap.setToolTip("Colour scale of the animation.")
         self.slider.setToolTip("Drag to go to a moment of the response.")
@@ -109,6 +116,12 @@ class AnimationTab(QWidget):
             play.addWidget(QLabel(lbl))
             play.addWidget(w)
         play.addWidget(self.export)
+        look = QHBoxLayout()                            # The look of the frames (display only), same controls as the Results maps
+        look.addWidget(QLabel("View"))
+        look.addWidget(self.view)
+        for w in self.underlay.widgets():
+            look.addWidget(w)
+        look.addStretch(1)
 
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
@@ -119,10 +132,13 @@ class AnimationTab(QWidget):
         lay.addLayout(how)
         lay.addWidget(self.status)
         lay.addWidget(self.canvas, 1)
+        lay.addLayout(look)
         lay.addLayout(play)
         self._set_enabled(False)
         self.layer.currentIndexChanged.connect(self._redraw)
         self.cmap.currentIndexChanged.connect(self._redraw)
+        self.view.currentIndexChanged.connect(self._redraw)
+        self.underlay.changed.connect(self._redraw)
         self.fps.valueChanged.connect(lambda v: self.timer.setInterval(int(1000 / v)))
 
     def _set_enabled(self, on):
@@ -130,7 +146,7 @@ class AnimationTab(QWidget):
         @brief Enable the playback controls only when a transient result exists.
         @param on True when a result is available.
         """
-        for w in (self.play, self.slider, self.layer, self.cmap, self.fps, self.export):
+        for w in (self.play, self.slider, self.layer, self.cmap, self.view, self.fps, self.export):
             w.setEnabled(on)
 
     def set_theme(self, theme):
@@ -177,6 +193,7 @@ class AnimationTab(QWidget):
         self.timer.stop()
         self.play.setChecked(False)
         self.tr, self.problem = tr, problem
+        self.underlay.clear_cache()                     # The copper pictures belong to the problem of this animation
         self._updating = True
         self.layer.clear()
         for l in range(problem.board.layers):
@@ -197,6 +214,20 @@ class AnimationTab(QWidget):
         self.slider.setValue(self._frame)
         self._redraw()
 
+    def map_view(self):
+        """!
+        @brief The MapView of the controls (View and Underlay), or None when the frames are drawn as always.
+        @return plots.MapView or None (Current without an underlay: the original picture, call for call).
+        """
+        view = self.underlay.apply(plots.MapView(mode=self.view.currentData(), contour_step=0.0), self.theme)
+        return None if view.mode == "current" and not view.show_copper else view
+
+    def redraw(self):
+        """!
+        @brief Draw the current frame again (the look or the project's underlay changed).
+        """
+        self._redraw()
+
     def _redraw(self, *_):
         """!
         @brief Draw the current frame with a colour scale fixed over the whole animation.
@@ -210,7 +241,7 @@ class AnimationTab(QWidget):
         with _mpl_theme(self.theme):
             plots.draw_field(self.fig, tr.frames[k, l], self.problem, dx, dy, cmap=self.cmap.currentText(),
                              vmin=tr.ambient, vmax=float(tr.frames[:, l].max()), layer=l,
-                             title=f"Layer {l + 1}   t = {tr.times[k]:.2f} s   Tmax = {tr.t_max[k]:.1f} °C")
+                             title=f"Layer {l + 1}   t = {tr.times[k]:.2f} s   Tmax = {tr.t_max[k]:.1f} °C", view=self.map_view())
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()
 
@@ -253,5 +284,5 @@ class AnimationTab(QWidget):
         path, _ = QFileDialog.getSaveFileName(self, "Export animation", "heat_evolution.gif", "GIF (*.gif)")
         if path:
             plots.save_transient_gif(self.tr, self.problem, path, layer=max(self.layer.currentData() or 0, 0),
-                                     fps=self.fps.value(), cmap=self.cmap.currentText())
+                                     fps=self.fps.value(), cmap=self.cmap.currentText(), view=self.map_view())
             self.status.setText(f"Saved {path}")
