@@ -17,7 +17,9 @@ import numpy as np
 from matplotlib import ticker
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import LightSource, Normalize
+from matplotlib import patheffects
+from matplotlib.colors import Normalize
+from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.figure import Figure
 from scipy import ndimage
 
@@ -33,6 +35,8 @@ VIEW_LABELS = {"current": "Current", "smooth": "Smooth", "terrain": "Terrain"}
 COPPER_IMAGE_PIXELS = 640            # Longest side of the copper picture under the map (zones are rasterised on it; masks are reduced to it)
 UPSAMPLE_PIXELS = 1_500_000          # Most pixels of the upsampled field of Terrain and of the contours (the factor shrinks to fit)
 MAX_CONTOURS = 60                    # A contour step that would draw more lines than this is made larger
+TERRAIN_RELIEF = 0.15                # Height of the Terrain relief over the whole range of the field, as a fraction of the longest side of the map
+TERRAIN_STRENGTH = 1.0               # Gain of the illumination change against flat ground (soft light: flat ground keeps the colours of the bar)
 
 
 def engineering_ticks(fig):
@@ -231,7 +235,7 @@ class MapView:
     """!
     @brief How a field map is drawn: the mode of the View combo and its settings (display only, the solver result is never touched).
     @details `mode` "current" is the map exactly as it always was (the cells as solved, nearest neighbour). "smooth" interpolates the cells bicubically
-             (cosmetic: the data below the cell do not exist). "terrain" shades the upsampled field as a relief (matplotlib LightSource) and draws
+             (cosmetic: the data below the cell do not exist). "terrain" lights the upsampled field as a gentle relief (soft light, flat ground keeps the colours of the bar) and draws
              contour lines every `contour_step`, labelled every second one. `show_copper` (any mode) draws the copper of the layer, grey on a darker
              laminate, under the field, which then has `opacity`.
     """
@@ -289,30 +293,73 @@ def _nice_step(span, target=8):
 def _upsampled(field, ext, factor_max=4):
     """!
     @brief The field resampled on a finer lattice (cubic spline) for the relief and the contour lines, with its cell-centre coordinates.
-    @details NaN samples (cells off an outline) are filled with the nearest value before the spline, so they do not spread, and blanked again afterwards.
+    @details NaN samples (cells off an outline) are filled with the nearest value before the spline, so they do not spread. The spline runs in grid
+             mode: the k x k pixels of a cell sit inside that cell (the default mode of `ndimage.zoom` aligns the corner samples, which stretched the
+             picture by up to 0.375 of a cell at the board edges against the outlines and the hotspot contour).
     @param field Array (ny, nx), NaN allowed.
     @param ext Image extent [x0, x1, y0, y1] in mm.
     @param factor_max Largest upsampling factor (the factor shrinks so that the result has at most UPSAMPLE_PIXELS pixels).
-    @return Tuple (z, xs, ys) with z of shape (ny*k, nx*k) (NaN where the source was NaN, values kept inside the range of the field) and the
-            coordinates of its columns and rows in mm.
+    @return Tuple (z, filled, xs, ys): z of shape (ny*k, nx*k) with NaN where the source cell was NaN, `filled` the same without NaN (the nearest
+            value off the board, for the shading), both kept inside the range of the field, and the coordinates of the columns and rows in mm.
     """
     ny, nx = field.shape
     k = int(max(1, min(factor_max, math.sqrt(UPSAMPLE_PIXELS / max(1, nx * ny)))))
     bad = np.isnan(field)
     if bad.all():
         z = np.full((ny * k, nx * k), np.nan)
+        filled = np.zeros_like(z)
     else:
         src = field
         if bad.any():
             idx = ndimage.distance_transform_edt(bad, return_distances=False, return_indices=True)
             src = field[tuple(idx)]
-        z = ndimage.zoom(src, k, order=3 if k > 1 else 0, mode="nearest")
-        z = np.clip(z, np.nanmin(field), np.nanmax(field))         # The spline overshoots the cell values a little: keep the range
+        if k > 1:
+            filled = ndimage.zoom(src, k, order=3, mode="nearest", grid_mode=True)
+        else:
+            filled = np.array(src, dtype=float)
+        filled = np.clip(filled, np.nanmin(field), np.nanmax(field))        # The spline overshoots the cell values a little: keep the range
+        z = filled
         if bad.any():
-            z = np.where(ndimage.zoom(bad.astype(np.uint8), k, order=0) > 0, np.nan, z)
+            z = np.where(np.repeat(np.repeat(bad, k, axis=0), k, axis=1), np.nan, filled)   # Each blank cell blanks its own k x k pixels
     xs = ext[0] + (np.arange(z.shape[1]) + 0.5) * (ext[1] - ext[0]) / z.shape[1]
     ys = ext[2] + (np.arange(z.shape[0]) + 0.5) * (ext[3] - ext[2]) / z.shape[0]
-    return z, xs, ys
+    return z, filled, xs, ys
+
+
+def _relief_intensity(z, ext):
+    """!
+    @brief The illumination of the field seen as a relief, 0.5 on flat ground, for the soft-light blend of the Terrain view.
+    @details The height is the field scaled to TERRAIN_RELIEF of the longest side of the picture over its whole range, so the relief looks the same
+             whatever the unit, the range or the size of the board (Matplotlib's `LightSource.shade` rescales the illumination of every picture to
+             0..1 by its own extremes: flat ground then moved away from 0.5 and the colours left the colour bar, and a ripple of a hundredth of a
+             kelvin on a plateau became a pattern). The light comes from the upper left at 45 degrees; the change of illumination against flat
+             ground, times TERRAIN_STRENGTH, is added to 0.5 and clipped.
+    @param z Array (ny, nx) without NaN, rows from the bottom.
+    @param ext Extent [x0, x1, y0, y1] of the picture in mm.
+    @return Array (ny, nx) of intensities in [0, 1].
+    """
+    lo, hi = float(np.min(z)), float(np.max(z))
+    if not hi > lo or min(z.shape) < 2:
+        return np.full(z.shape, 0.5)
+    w, h = ext[1] - ext[0], ext[3] - ext[2]
+    height = (z - lo) / (hi - lo) * TERRAIN_RELIEF * max(w, h)
+    gy, gx = np.gradient(height, h / z.shape[0], w / z.shape[1])            # Rows run upwards (origin lower)
+    alt = math.radians(45.0)
+    lx, ly, lz = -math.cos(alt) * math.sqrt(0.5), math.cos(alt) * math.sqrt(0.5), math.sin(alt)   # Towards the upper left
+    lit = (-gx * lx - gy * ly + lz) / np.sqrt(1.0 + gx * gx + gy * gy)
+    return np.clip(0.5 + TERRAIN_STRENGTH * (lit - lz), 0.0, 1.0)
+
+
+def _clip_to_board(artist, ax, problem):
+    """!
+    @brief Clip an artist (image or contour set) to the outline of the board, so a smooth picture ends on the outline and not on a cell.
+    @param artist Matplotlib artist.
+    @param ax Its axis (coordinates in mm).
+    @param problem The Problem that gives the frame of the field (no clipping without an outline).
+    @return None.
+    """
+    if problem.board.has_outline():
+        artist.set_clip_path(MplPolygon(np.asarray(problem.board.outline) * 1000.0, closed=True, transform=ax.transData))
 
 
 def _contour_lines(ax, z, xs, ys, view, thin=False):
@@ -336,12 +383,16 @@ def _contour_lines(ax, z, xs, ys, view, thin=False):
     levels = np.arange(math.ceil(lo / step) * step, hi, step)
     if len(levels) == 0:
         return
-    ax.contour(xs, ys, z, levels=levels, colors=view.contour_color, linewidths=0.4 if thin else 0.5, alpha=0.75)
+    halo = [patheffects.withStroke(linewidth=1.6, foreground="black", alpha=0.35)]   # A thin dark edge: white lines stay visible on the hot (white) end of a map
+    minor = ax.contour(xs, ys, z, levels=levels, colors=view.contour_color, linewidths=0.4 if thin else 0.5, alpha=0.75)
+    minor.set_path_effects(halo)
     # Every second line is thicker and carries its value (the multiples of twice the step)
     major = np.array([lv for lv in levels if int(round(lv / step)) % 2 == 0])
     if len(major):
         cs = ax.contour(xs, ys, z, levels=major, colors=view.contour_color, linewidths=0.9)
-        ax.clabel(cs, fmt="%g", fontsize=6, inline=True)
+        cs.set_path_effects(halo)
+        for t in ax.clabel(cs, fmt="%g", fontsize=6.5, inline=True):
+            t.set_path_effects([patheffects.withStroke(linewidth=2.0, foreground="black", alpha=0.8)])
 
 
 def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_view=False):
@@ -372,20 +423,32 @@ def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_
     alpha = float(view.opacity) if copper_on else None
     if copper_on:
         _draw_copper(ax, problem, layer, view, solved_view)
-    if mode == "current":
-        return ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=lo, vmax=hi, alpha=alpha)
-    if mode == "smooth":
-        return ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=lo, vmax=hi, interpolation="bicubic", interpolation_stage="data", alpha=alpha)
-    z, zx, zy = _upsampled(field, ext)
     norm = Normalize(lo, hi)
+    # The colour bar shows the colours of the map at full opacity (an image drawn with alpha gave a faded bar, different on the two themes)
     mappable = ScalarMappable(norm, cmap)
-    # Terrain: hillshade of the cubic upsampling, the field itself is the relief (overlay blend keeps the colour map readable)
-    ls = LightSource(azdeg=315, altdeg=40)
-    zz = np.where(np.isnan(z), 0.0 if np.isnan(z).all() else np.nanmin(z), z)
-    rgb = np.array(ls.shade(zz, cmap=mappable.cmap, norm=norm, blend_mode="overlay", vert_exag=2.5,
-                            dx=(ext[1] - ext[0]) / z.shape[1], dy=(ext[3] - ext[2]) / z.shape[0]))
-    rgb[..., 3] = np.where(np.isnan(z), 0.0, 1.0 if alpha is None else alpha)       # Cells off the outline stay blank
-    ax.imshow(rgb, origin="lower", extent=ext, interpolation="bilinear")
+    if mode == "current":
+        ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=lo, vmax=hi, alpha=alpha)
+        return mappable
+    if mode == "smooth":
+        smooth_src = field
+        if problem.board.has_outline() and np.isnan(field).any() and not np.isnan(field).all():
+            # A NaN cell eats the bicubic kernel of its neighbours (a 1.5-cell blank band along the outline): fill with the nearest value, clip to the outline
+            idx = ndimage.distance_transform_edt(np.isnan(field), return_distances=False, return_indices=True)
+            smooth_src = field[tuple(idx)]
+        im = ax.imshow(smooth_src, origin="lower", cmap=cmap, extent=ext, vmin=lo, vmax=hi, interpolation="bicubic", interpolation_stage="data", alpha=alpha)
+        _clip_to_board(im, ax, problem)
+        return im if alpha is None else mappable
+    z, filled, zx, zy = _upsampled(field, ext)
+    # Terrain: the colours of the bar lit as a relief (soft light: flat ground keeps its colour), drawn from the gap-free field and clipped to the outline
+    rgba = mappable.to_rgba(filled).astype(np.float32)                    # float32: the picture can have 1.5 million pixels per layer
+    shade = _relief_intensity(filled, ext)[..., None].astype(np.float32)
+    rgb = rgba[..., :3]
+    rgba[..., :3] = np.clip(2.0 * shade * rgb + rgb * rgb * (1.0 - 2.0 * shade), 0.0, 1.0)
+    rgba[..., 3] = 1.0 if alpha is None else alpha
+    if np.isnan(z).all():
+        rgba[..., 3] = 0.0
+    im = ax.imshow(rgba, origin="lower", extent=ext, interpolation="bilinear")
+    _clip_to_board(im, ax, problem)
     _contour_lines(ax, z, zx, zy, view, thin=copper_on)
     return mappable
 
