@@ -190,9 +190,38 @@ def test_exact_cover_of_a_big_outline_on_a_fine_grid_is_fast():
     assert c.sum() * (0.25e-3) ** 2 == pytest.approx(polygon_area(disc), rel=1e-12)
 
 
-def test_sampled_fallback_remains_for_two_concave_polygons():
+def test_two_concave_polygons_are_exact_by_triangles():
+    # Review of fix/exact-board-cover: a concave part on a concave outline used to take the sampled rule, so a vertex move that made a convex part
+    # concave changed its weights by the sampling error (a 1e-9 mm move moved the hottest point of a T by 6 K of 520 at 1 mm); the part is now cut
+    # into triangles and every triangle clips the outline
     a = np.array([[0, 0], [10e-3, 0], [10e-3, 10e-3], [5e-3, 4e-3], [0, 10e-3]])
     b = np.array([[2e-3, 1e-3], [12e-3, 1e-3], [8e-3, 6e-3], [12e-3, 11e-3], [2e-3, 11e-3]])
-    assert geometry._part_on_board(b, a) is None
+    assert geometry._part_on_board(b, a) is not None
     w = part_weights(b, a, 12, 12, 1e-3, 1e-3)
-    assert w.sum() * 1e-6 == pytest.approx(polygon_overlap_area(a, b), rel=0.02)
+    assert w.sum() * 1e-6 == pytest.approx(polygon_overlap_area(a, b), rel=0.01)      # the overlap of two concave polygons is sampled there
+    assert w.sum() * 1e-6 == pytest.approx(3.94e-05, rel=1e-12)                        # 39.4 mm2, checked with shapely by the review
+    # Against the overlap of the triangles clipped with every cell (an independent route through clip_polygon on the cell boxes)
+    ref = sum(clip_every_cell(clip_polygon(a, t), 12, 12, 1e-3, 1e-3) for t in geometry._triangulate(b))
+    assert np.allclose(w, ref, atol=1e-12)
+
+
+def test_weights_do_not_jump_when_a_vertex_move_makes_the_part_concave():
+    outline = np.array([[0, 0], [40, 0], [40, 20], [25, 20], [25, 40], [15, 40], [15, 20], [0, 20]]) * 1e-3     # an inverted T, concave
+    convex = np.array([[22.3, 16.3], [28.7, 16.3], [28.7, 23.7], [25.5, 23.7], [22.3, 23.7]]) * 1e-3
+    dented = convex.copy()
+    dented[3, 1] -= 1e-12                                                    # the collinear vertex pushed in: the part is now concave
+    assert geometry._is_convex(convex) and not geometry._is_convex(dented)
+    w0 = part_weights(convex, outline, 40, 40, 1e-3, 1e-3)
+    w1 = part_weights(dented, outline, 40, 40, 1e-3, 1e-3)
+    assert np.abs(w1 - w0).max() < 1e-8
+
+
+def test_repeated_vertex_at_a_reflex_corner_is_not_convex():
+    # Found by the review: a repeated vertex is an edge of no length whose turns read 0, so an L with its inner corner repeated passed as convex and
+    # clipping the outline by it gave the whole box of the L (cell errors of 1.0)
+    ell = np.array([[20, 15], [25, 15], [30, 15], [30, 25], [25, 25], [25, 20], [25, 20], [20, 20]]) * 1e-3
+    assert not geometry._is_convex(ell)
+    outline = np.array([[0, 0], [40, 0], [40, 20], [35, 20], [35, 40], [15, 40], [15, 20], [0, 20]]) * 1e-3   # concave, the L inside it
+    w = part_weights(ell, outline, 40, 40, 1e-3, 1e-3)
+    assert w.sum() * 1e-6 == pytest.approx(polygon_area(ell), rel=1e-12)       # the L lies on the board
+    assert w[22, 22] == 0.0 and w[17, 27] == 1.0                              # the missing quarter of its box is empty

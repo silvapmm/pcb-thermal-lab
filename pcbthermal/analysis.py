@@ -11,7 +11,7 @@ where needed, the Problem that produced it.
 import numpy as np
 from scipy import ndimage
 
-from .geometry import exact_coverage, coverage_fraction, part_weights, points_in_polygon, polygon_centroid
+from .geometry import BOARD_SAMPLES, exact_coverage, part_weights, points_in_polygon, polygon_centroid
 
 
 def _require_field(result):
@@ -116,8 +116,8 @@ def _footprint_stats(result, polygon, layer, outline=None, face=False):
         cov = points_in_polygon(X.ravel(), Y.ravel(), polygon).reshape(X.shape).astype(float)
     else:
         # Share of every cell in the polygon and on the board (the plain coverage without an outline)
-        # Same lattice as the models on an outline; the plain 4 x 4 coverage of a rectangular board is kept (its numbers do not change)
-        cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=4)
+        # Exact with an outline, or the models' lattice in their sampled fallback (a polygon that crosses itself); the plain 4 x 4 coverage of a rectangular board is kept
+        cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
     if on_board is not None:
         cov = cov * on_board
     if cov.sum() <= 0:

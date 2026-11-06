@@ -82,8 +82,8 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
-# Sub-samples per cell side for the sampled rules that remain: the part weights of a pair of polygons that cannot be clipped exactly (two concave
-# ones, or one that crosses itself). The board cover (FVM, FDM, 3D solid) and the weights of the usual part are exact (`exact_coverage`) since
+# Sub-samples per cell side for the sampled rules that remain: the part weights of a pair of polygons that cannot be clipped exactly (a polygon
+# that crosses itself, or a concave part of more than _EAR_MAX_VERTICES vertices on a concave outline). The board cover (FVM, FDM, 3D solid) and the weights of the usual part are exact (`exact_coverage`) since
 # fix/exact-board-cover; before it ONE lattice was shared by the cover and the weights (a 4 x 4 board cover against 8 x 8 part weights gave an
 # edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gave 1.47 K; the exact cover gives about 0.65 K).
 BOARD_SAMPLES = 8
@@ -314,22 +314,88 @@ def _coverage_edge_cells(p, i0, i1, j0, j1, dx, dy, samples):
     return box
 
 
+# Largest concave part that is cut into triangles for the exact weights (ear clipping is quadratic in the vertices); a bigger one is sampled
+_EAR_MAX_VERTICES = 400
+
+
+def _triangulate(poly):
+    """!
+    @brief Cut a simple polygon into triangles (ear clipping), so that a concave polygon can be clipped exactly by convex pieces.
+    @details Collinear and repeated vertices are dropped first (they add no area); a vertex is an ear when its turn has the sign of the polygon and no
+             other vertex lies in or on its triangle. The triangles cover the polygon once, so the sum of their exact cell areas is the exact cell area of
+             the polygon.
+    @param poly Polygon vertices (n, 2) in metres, either orientation, not crossing itself.
+    @return list of numpy.ndarray triangles (3, 2) in metres, counter-clockwise, or None when no ear is found (a degenerate polygon).
+    """
+    p = np.asarray(poly, dtype=float)
+    if polygon_area_signed(p) < 0:
+        p = p[::-1]
+    pts = [tuple(v) for v in p]
+    scale = max(float(np.ptp(p[:, 0])), float(np.ptp(p[:, 1])), 1e-30)
+    tol = 1e-12 * scale * scale
+
+    def cross(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    tris = []
+    guard = 0
+    while len(pts) > 3 and guard < 4 * len(p) * len(p):
+        guard += 1
+        n = len(pts)
+        # Drop a collinear or repeated vertex: it changes nothing in the polygon
+        flat = next((i for i in range(n) if abs(cross(pts[i - 1], pts[i], pts[(i + 1) % n])) <= tol), None)
+        if flat is not None:
+            del pts[flat]
+            continue
+        for i in range(n):
+            a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+            if cross(a, b, c) <= 0.0:
+                continue                                                  # A reflex vertex is never an ear
+            # No other vertex in the triangle or on its sides (a vertex on a side would leave a sliver outside the polygon)
+            if any(cross(a, b, q) >= -tol and cross(b, c, q) >= -tol and cross(c, a, q) >= -tol
+                   for q in pts if q not in (a, b, c)):
+                continue
+            tris.append(np.array([a, b, c]))
+            del pts[i]
+            break
+        else:
+            return None
+    if len(pts) == 3 and abs(cross(*pts)) > tol:
+        tris.append(np.array(pts))
+    return tris
+
+
 def _part_on_board(poly, outline):
     """!
-    @brief The part of a polygon that lies on the board, as one polygon, by exact clipping.
+    @brief The part of a polygon that lies on the board, as polygons, by exact clipping.
     @details Sutherland-Hodgman needs one convex operand: a convex part (every rectangle and drawn footprint) clips the outline, or a convex
-             outline clips the part. A concave outline cut by the part can leave zero-width bridges, which have no area and cancel in `exact_coverage`.
-             Two concave polygons, or a polygon that crosses itself (read by the even-odd rule of the models), are not clipped.
+             outline clips the part. When both are concave the part is cut into triangles (`_triangulate`) and each triangle clips the outline, so
+             the weights stay exact and do not jump when a vertex move makes a part concave. A concave outline cut by a convex piece can leave
+             zero-width bridges, which have no area and cancel in `exact_coverage`. A polygon that crosses itself (read by the even-odd rule of the
+             models) is not clipped.
     @param poly Part polygon vertices (n, 2) in metres.
     @param outline Board outline vertices (m, 2) in metres.
-    @return numpy.ndarray Vertices (k, 2) in metres (k = 0 when nothing is left), or None when the pair cannot be clipped exactly.
+    @return list of numpy.ndarray pieces (k, 2) in metres whose areas add up to the part on the board, or None when the pair cannot be clipped exactly.
     """
     pa, ob = np.asarray(poly, dtype=float), np.asarray(outline, dtype=float)
-    if _is_convex(pa) and not polygon_self_intersects(ob):
-        return clip_polygon(ob, pa)
-    if _is_convex(ob) and not polygon_self_intersects(pa):
-        return clip_polygon(pa, ob)
-    return None
+    if polygon_self_intersects(ob) or polygon_self_intersects(pa):
+        return None
+    if _is_convex(pa):
+        return [clip_polygon(ob, pa)]
+    if _is_convex(ob):
+        return [clip_polygon(pa, ob)]
+    if len(pa) > _EAR_MAX_VERTICES:
+        return None
+    tris = _triangulate(pa)
+    if tris is None:
+        return None
+    # The outline is cut to the box of the part once, so that every triangle clips a short polygon and not the whole outline
+    x0, y0 = pa.min(axis=0)
+    x1, y1 = pa.max(axis=0)
+    local = clip_polygon(ob, np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]))
+    if len(local) < 3:
+        return []
+    return [clip_polygon(local, t) for t in tris]
 
 
 def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=None):
@@ -340,10 +406,10 @@ def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=Non
              the whole cell gets the right weight, but a part edge and the outline in the same cell give part cover x board cover instead of
              the area that is in both).
              With an outline the weight is the exact area of the part on the board in each cell over the area of the cell (the part is clipped to
-             the outline and the result is intersected with the cells by `exact_coverage`). It is also the share of the board part of the cell that
+             the outline (a concave part on a concave outline is cut into triangles first) and the result is intersected with the cells by `exact_coverage`). It is also the share of the board part of the cell that
              the part covers times the exact board cover of the cell (`Board.cover`), so the heat density on the board part of every cell is the
-             part's density, consistently with the board area the model gives the cell. When the pair cannot be clipped (two concave
-             polygons, or one that crosses itself) the older rule is used: the intersection is taken sample by sample on the same points; if the model
+             part's density, consistently with the board area the model gives the cell. When the pair cannot be clipped (a polygon that
+             crosses itself, or a concave part of more than _EAR_MAX_VERTICES vertices on a concave outline) the older rule is used: the intersection is taken sample by sample on the same points; if the model
              represents the board share of the cell by its own cover, the weight is the share of the cell's board samples that are in the part, times
              that cover. The caller normalises the weights so that the total power is exact.
     @param poly Part polygon vertices (n, 2) in metres.
@@ -359,9 +425,13 @@ def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=Non
     """
     if outline is None:
         return coverage_fraction(poly, nx, ny, dx, dy, samples)
-    region = _part_on_board(poly, outline)
-    if region is not None:
-        return exact_coverage(region, nx, ny, dx, dy)
+    pieces = _part_on_board(poly, outline)
+    if pieces is not None:
+        out = np.zeros((ny, nx))
+        for piece in pieces:
+            if len(piece) >= 3:
+                out += exact_coverage(piece, nx, ny, dx, dy)
+        return np.minimum(out, 1.0)
     out = np.zeros((ny, nx))
     got = _sample_mask(poly, nx, ny, dx, dy, samples, clip=outline)
     if got is None:
@@ -452,6 +522,12 @@ def _is_convex(poly):
     @return bool True for a convex polygon.
     """
     p = np.asarray(poly, dtype=float)
+    # A repeated vertex is an edge of no length whose turns read 0 on both sides: at a reflex corner it hid the turn, so an L with its inner
+    # corner repeated was taken as convex and clipping by it gave the whole box (found by the review of fix/exact-board-cover)
+    d1 = np.roll(p, -1, axis=0) - p
+    p = p[np.abs(d1).max(axis=1) > 1e-12 * max(float(np.abs(p).max()), 1e-30)]
+    if len(p) < 3:
+        return False
     d1 = np.roll(p, -1, axis=0) - p
     d2 = np.roll(d1, -1, axis=0)
     cross = d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]

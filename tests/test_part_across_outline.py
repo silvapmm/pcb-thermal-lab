@@ -120,11 +120,12 @@ def test_part_weights_is_the_intersection_not_the_product():
     assert wc[1, 0] == 0.0 and wc[1, 2] == 0.0
 
 
-def test_part_weights_sampled_fallback_for_two_concave_polygons_keeps_the_cover_normalisation():
-    # Two concave polygons cannot be clipped exactly (Sutherland-Hodgman needs one convex operand): the sampled rule stays, with the model's cover
-    # (here 0.6 for the cut cell): the share of the board samples in the part (0.5) times that cover
+def test_part_weights_sampled_fallback_for_a_self_crossing_part_keeps_the_cover_normalisation():
+    # A part whose outline crosses itself (read by the even-odd rule) cannot be clipped: the sampled rule stays, with the model's cover (here 0.6 for
+    # the cut cell): the share of the board samples in the part times that cover. Two concave polygons are exact since the review of
+    # fix/exact-board-cover (the part is cut into triangles)
     outline = np.array([[0, 0], [1.5e-3, 0], [1.5e-3, 3e-3], [0.9e-3, 1.5e-3], [0, 3e-3]])      # A notch on the left side makes it concave
-    part = np.array([[1.25e-3, 0.0], [2.9e-3, 0.0], [2.9e-3, 3e-3], [1.25e-3, 3e-3], [1.5e-3, 1.5e-3]])
+    part = np.array([[1.25e-3, 0.0], [2.9e-3, 3e-3], [2.9e-3, 0.0], [1.25e-3, 3e-3]])           # A bow tie: its outline crosses itself
     from pcbthermal import geometry
     assert geometry._part_on_board(part, outline) is None
     cover = np.ones((3, 3))
