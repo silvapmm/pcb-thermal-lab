@@ -238,10 +238,33 @@ class ImportSession:
         self._owner_cache = None
         self._layer_cache = {}                                # sha256 -> parsed Layer
         self._raster_cache = {}                               # (sha256, window, pixel) -> (coverage, thinnest mm)
+        # Hooks `fn(session, reason)` of the features that must act before the files are released (reason "close" or "new_files"); each runs once and is then dropped
+        self.before_release: List[Callable] = []
 
     # ------------------------------------------------------------------------------------------------------------------------------------ files
-    def close(self):
-        """!@brief Release the archive and the caches."""
+    def run_before_release(self, reason: str = "close"):
+        """!
+        @brief Run the `before_release` hooks once, in registration order, and drop them; an exception of a hook is logged and does not stop the next one or the release.
+        @details Thread rule: the window calls this from the GUI thread BEFORE the reader's worker thread starts (the worker runs with the cyclic garbage collector disabled, because
+                 a collection in that thread destroyed Qt objects and crashed the process), so a hook may touch Qt objects; when a caller reaches `set_files()` without calling it
+                 first, the hooks run in that caller's thread and must not create, touch or drop a Qt object.
+        @param reason "close" (the window closes the session) or "new_files" (other files replace the set).
+        @return None
+        """
+        hooks, self.before_release = self.before_release, []
+        for fn in hooks:
+            try:
+                fn(self, reason)
+            except Exception:                                 # a hook never blocks the release nor the hooks after it
+                log.exception("before_release hook %s failed", getattr(fn, "__name__", fn))
+
+    def close(self, reason: str = "close"):
+        """!
+        @brief Run the `before_release` hooks, then release the archive and the caches.
+        @param reason "close" or "new_files" (what the hooks are told).
+        @return None
+        """
+        self.run_before_release(reason)
         if self._archive is not None:
             self._archive.close()
             self._archive = None
@@ -257,7 +280,7 @@ class ImportSession:
         @throws OSError If a path cannot be read.
         @throws ValueError If the source holds no file.
         """
-        self.close()
+        self.close("new_files")
         self.files, self._board, self._board_error, self.job, self._pending = [], None, "", None, []
         self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
         self.user_profile = self.reuse_profile                # a new set starts from the detection, a re-import from the stored profile

@@ -14,6 +14,7 @@
 
 import gc
 import html
+import logging
 import threading
 
 import numpy as np
@@ -28,6 +29,8 @@ from . import theme as th
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
+
+log = logging.getLogger(__name__)
 
 STEP_TITLES = ["Files and layers", "Parts", "Model"]
 
@@ -1837,6 +1840,8 @@ class ImportBoardWindow(QDialog):
         self._busy = False
         self._close_asked = False
         self._recolour_asked = False
+        # Features that must act before the session is released register here, before exec(): `fn(window, result)`, run once by done(), in order, without a veto
+        self.before_close = []
         # Review: Enter in the path field also pressed the first auto-default button (Folder..., a file chooser), and Enter in a number field of step 3 would press Import.
         # No button of this window acts on Enter; the fields act on it themselves (the path field reads the path)
         for btn in self.findChildren(QPushButton):
@@ -1904,6 +1909,8 @@ class ImportBoardWindow(QDialog):
         @param source Path, or list of paths.
         @return None
         """
+        # The hooks for "new files" run here, in the GUI thread, before the worker starts (the worker has the garbage collector off and must not drop Qt objects)
+        self.session.run_before_release("new_files")
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             # Listing and hashing the files is off the GUI thread too (a folder of thousands of files, a large ZIP)
@@ -2160,7 +2167,7 @@ class ImportBoardWindow(QDialog):
 
     def done(self, result):
         """!
-        @brief Release the archive and the caches when the window closes (never while a call of the session is running).
+        @brief Run the `before_close` hooks, release the archive and the caches when the window closes (never while a call of the session is running).
         @param result Dialog result code.
         @return None
         """
@@ -2168,8 +2175,23 @@ class ImportBoardWindow(QDialog):
             self._close_asked = True
             return
         self._reload_timer.stop()                             # a closed window reads nothing again
+        self.run_before_close(result)
         self.session.close()
         super().done(result)
+
+    def run_before_close(self, result):
+        """!
+        @brief Run the `before_close` hooks once, in registration order, while the session still holds its files; there is no veto.
+        @details An exception of a hook is logged and does not stop the next hook or the close. The unsaved-changes question lives in `MainWindow.closeEvent`, not here.
+        @param result Dialog result code (QDialog.Accepted or Rejected).
+        @return None
+        """
+        hooks, self.before_close = self.before_close, []
+        for fn in hooks:
+            try:
+                fn(self, result)
+            except Exception:
+                log.exception("before_close hook %s failed", getattr(fn, "__name__", fn))
 
 
 __all__ = ["ImportBoardWindow", "Preview", "ReimportDialog", "Stepper"]

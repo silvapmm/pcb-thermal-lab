@@ -668,7 +668,7 @@ def test_stored_sources_feed_a_reimport(window, tmp_path):
 
 def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
     """!
-    @brief The import window closes the session (and a ZIP archive with it) before any signal: the capture wrapped around `session.close` reads the files first, with their roles and kinds.
+    @brief The import window closes the session (and a ZIP archive with it) before any signal: the capture hooked on `before_close` reads the files first, with their roles and kinds.
     @param tmp_path Temporary folder.
     @return None
     """
@@ -682,13 +682,15 @@ def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
         zf.writestr("parts_bom.csv", "Ref,Value\nU1,10k\n")
     session = ImportSession()
     session.set_files(zp)
-    dlg = SimpleNamespace(session=session, record=None)
+    dlg = SimpleNamespace(session=session, record=None, before_close=[])
     cap = pa.capture_on_close(dlg)
-    session.close()                                          # cancelled before a record exists: nothing is read
+    for fn in list(dlg.before_close):
+        fn(dlg, 0)                                           # cancelled before a record exists: nothing is read
     assert cap.files == []
-    session.set_files(zp)
     dlg.record = object()
-    session.close()                                          # what ImportBoardWindow.done does
+    for fn in list(dlg.before_close):
+        fn(dlg, 1)                                           # what ImportBoardWindow.done does, before it releases the session
+    session.close()
     got = {n: (k, fn) for n, _, k, fn, _ in cap.files}
     assert got["top.gtl"][0] == "gerber" and got["pos.csv"][0] == "placement" and got["parts_bom.csv"][0] == "bom"
     assert dict((n, b) for n, b, _, _, _ in cap.files)["top.gtl"] == GBR
