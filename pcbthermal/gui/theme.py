@@ -17,6 +17,8 @@ THEMES = {
         # Notes and warnings: the text and the symbol of an entry take the same token (the Run panel list was link blue with a text-coloured symbol)
         "alert": "#e0a030", "alert_note": "#e0a030", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
+        # Results maps with the copper under the field: grey copper on a darker laminate, white contour lines
+        "map_copper": "#c3c7cd", "map_laminate": "#4d4d4d", "map_contour": "#ffffff",
         "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
         "ok": "#66bb6a", "warn": "#ffb74d", "bad": "#ef5350", "error": "#ef5350",
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
@@ -30,6 +32,7 @@ THEMES = {
         "accent": "#5a7fb0", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "link": "#0000ff",
         "alert": "#8a5a00", "alert_note": "#8a5a00", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
+        "map_copper": "#b9bec5", "map_laminate": "#4d4d4d", "map_contour": "#ffffff",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
         "ok": "#2e7d32", "warn": "#b26a00", "bad": "#c62828", "error": "#c62828",
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
