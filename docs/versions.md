@@ -6,6 +6,7 @@ What was implemented in every version (with the module where it lives and how it
 
 ## 2.5.1 - 2026-11-06: display control, views of the maps, re-import, project-file checks and warning texts
 
+- *How 2.5.1 was tested*: two whole batteries on `develop`; the first found the Display popover deleted-object defect (fixed on `fix/display-popover-deleted`), the second on the final tree gave `2666 passed, 7 skipped, 2 xfailed in 2540.52s (0:42:20)` with the real boards present; the compatibility tests with the v2.4.5 tag (`PCBT_COMPAT_V245=1`) gave 4 passed, and the frozen numbers 317 passed at 2, 1 and 0.5 mm.
 - *Release polish* (`fix/release-polish-251`, from the final review): the click-outside filter of the Display popover is installed on the application only while the popover is open (`MainWindow._toggle_display_popover`, `_close_display_popover`, flag `_popover_filter_on`; test `tests/test_display_control.py::test_the_application_filter_is_installed_only_while_the_popover_is_open`), a test no longer leaves a fake memory baseline to the tests after it, and the 2.5.1 entries of this chapter and of the CHANGELOG describe the controls as released (the per-tab boxes and the Background dialog opacity of the intermediate branches are gone).
 - *Display polish* (`fix/display-polish-251d`): key D for the Display panel, the panel closes on every tab change, the Results control row wraps (`gui/flow.py`); `tests/test_display_control.py`, `tests/test_shortcuts.py`.
 
