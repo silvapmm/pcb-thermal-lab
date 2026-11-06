@@ -2,8 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_underlay_selector.py
-@brief The Underlay selector (None / Copper / Image) and its opacity pair in the Results maps, the Animation tab and the editor overlay: the entries per project
-       type, the pixels of the image underlay (place, scale, flip), the cache, the animation frames and the migration of the stored background opacity.
+@brief The Underlay choice (None / Copper / Image) and the opacity of the shared display state, used by the Results maps, the Animation tab and the editor overlay: the
+       entries per project type, the pixels of the image underlay (place, scale, flip), the cache, the animation frames and the migration of the stored background opacity.
 """
 
 import os
@@ -24,8 +24,8 @@ from pcbthermal.examples import example_board
 from pcbthermal.gui.animation import AnimationTab
 from pcbthermal.gui.document import Document
 from pcbthermal.gui.main_window import MainWindow
+from pcbthermal.gui.display import DisplayState
 from pcbthermal.gui.results_view import PlotTab, ResultsView
-from pcbthermal.gui.underlay import UnderlayControls
 from pcbthermal.model import ImportRecord
 
 RED, GREEN, BLUE, YELLOW = (255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255)
@@ -146,32 +146,36 @@ def test_image_without_picture_falls_back_to_the_copper(sim):
     assert np.array_equal(a, b)
 
 
-def test_controls_entries_and_opacity_pair(qtbot):
+def test_state_entries_and_opacity(qtbot, tmp_path):
     """!
-    @brief The combo lists None and Copper, Image only with a picture and not for an imported project; the pair is 70 %, linked, enabled with an underlay.
+    @brief The state lists None and Copper, Image only with a picture and not for an imported project; the opacity is 70 % and the popover shows the same entries.
     @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
     """
-    u = UnderlayControls()
-    img = plots.UnderlayImage(rgba=_quadrants(), w_mm=10.0, h_mm=10.0)
+    from pcbthermal.gui.display import DisplayPopover
+
+    d = DisplayState()
+    pop = DisplayPopover(d)
+    qtbot.addWidget(pop)
+    cfg = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 10.0, "h_mm": 10.0}
 
     def items():
-        return [u.combo.itemData(i) for i in range(u.combo.count())]
+        return [pop.underlay.itemData(i) for i in range(pop.underlay.count())]
 
-    assert items() == ["none", "copper"] and u.kind() == "none" and u.combo.toolTip()
-    assert u.opacity.value() == u.opacity_spin.value() == 70 and u.opacity_spin.suffix() == " %" and u.opacity.toolTip() and u.opacity_spin.toolTip()
-    assert not u.opacity.isEnabled() and not u.opacity_spin.isEnabled()
-    u.set_source(False, {"path": "x"}, image=img)
+    assert items() == ["none", "copper"] and d.kind == "none" and pop.underlay.toolTip()
+    assert pop.opacity.value() == pop.opacity_spin.value() == d.opacity == 70 and pop.opacity_spin.suffix() == " %" and pop.opacity.toolTip() and pop.opacity_spin.toolTip()
+    assert d.set_source(False, cfg) is True
     assert items() == ["none", "copper", "image"]
-    u.combo.setCurrentIndex(2)
-    assert u.kind() == "image" and u.opacity.isEnabled()
-    u.opacity_spin.setValue(25)
-    u.flush()
-    assert u.opacity.value() == 25 and u.value() == 0.25
-    u.opacity.setValue(90)
-    u.flush()
-    assert u.opacity_spin.value() == 90
-    u.set_source(True, {"path": "x"}, image=img)           # An imported project: Copper only, and the choice that vanished goes back to None
-    assert items() == ["none", "copper"] and u.kind() == "none"
+    pop.underlay.setCurrentIndex(2)
+    assert d.kind == "image"
+    pop.opacity_spin.setValue(25)
+    pop.flush()
+    assert pop.opacity.value() == 25 and d.value() == 0.25
+    pop.opacity.setValue(90)
+    pop.flush()
+    assert pop.opacity_spin.value() == 90 and d.opacity == 90
+    d.set_source(True, cfg)                                  # An imported project: Copper only, and the choice that vanished goes back to None
+    assert items() == ["none", "copper"] and d.kind == "none"
 
 
 def _win(qtbot, tmp_path):
@@ -186,46 +190,42 @@ def _win(qtbot, tmp_path):
     return win
 
 
-def _entries(u):
+def _entries(d):
     """!
-    @brief The data of the entries of a combo.
-    @param u UnderlayControls.
+    @brief The keys of the underlay entries of a display state.
+    @param d DisplayState.
     @return List.
     """
-    return [u.combo.itemData(i) for i in range(u.combo.count())]
+    return [k for _label, k in d.entries()]
 
 
 def test_entries_per_project_type_and_migration_of_the_stored_opacity(qtbot, tmp_path):
     """!
-    @brief Hand-drawn: Copper, and Image once a background is set; its stored opacity becomes the initial opacity of the maps; Gerber: Copper only, also with an old image.
+    @brief Hand-drawn: Copper, and Image once a background is set; its stored opacity becomes the initial opacity of every map; Gerber: Copper only, also with an old image.
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     """
     win = _win(qtbot, tmp_path)
-    r = win.results
-    assert _entries(r.temp.underlay) == _entries(r.grad.underlay) == _entries(r.animation.underlay) == ["none", "copper"]
-    assert _entries(win.editor_underlay) == ["none", "copper"]
+    r, d = win.results, win.display
+    assert r.display is d and r.temp.display is d and r.grad.display is d and r.animation.display is d      # one state for every map
+    assert _entries(d) == ["none", "copper"]
     cfg = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0, "opacity": 0.25}
     win.doc.project.view["background"] = cfg
     win.doc.changed.emit()
-    for u in (r.temp.underlay, r.grad.underlay, r.animation.underlay, win.editor_underlay):
-        assert _entries(u) == ["none", "copper", "image"]
-    assert r.temp.underlay.opacity.value() == r.grad.underlay.opacity.value() == r.animation.underlay.opacity.value() == 25
-    assert win.overlay_opacity.value() == 25
-    r.temp.underlay.opacity.setValue(60)
-    r.temp.underlay.flush()                   # A later choice of the user is not taken back
+    assert _entries(d) == ["none", "copper", "image"] and d.opacity == 25
+    assert [win.display_popover.underlay.itemData(i) for i in range(win.display_popover.underlay.count())] == ["none", "copper", "image"]
+    d.set_opacity(60)                                        # A later choice of the user is not taken back
     win.doc.changed.emit()
-    assert r.temp.underlay.opacity.value() == 60
+    assert d.opacity == 60
     win.doc.project.imports = [ImportRecord(name="b")]
     win.doc.changed.emit()
-    for u in (r.temp.underlay, r.animation.underlay, win.editor_underlay):
-        assert _entries(u) == ["none", "copper"]
+    assert _entries(d) == ["none", "copper"]
     assert win.doc.project.view["background"]["path"] == cfg["path"]      # Kept in the file, only not offered
 
 
 def test_two_maps_share_the_underlay_and_the_editor_follows(qtbot, tmp_path, sim):
     """!
-    @brief Choosing the underlay on the Temperature tab sets it on the Gradients tab and in the editor, and the editor hides the image unless Image is chosen.
+    @brief The underlay chosen in the Display popover is the one of both maps and of the editor, and the editor hides the image unless Image is chosen.
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     @param sim Simulation fixture.
@@ -234,15 +234,15 @@ def test_two_maps_share_the_underlay_and_the_editor_follows(qtbot, tmp_path, sim
     win.doc.project.view["background"] = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0}
     win.doc.changed.emit()
     win.results.set_simulation(sim)
-    r = win.results
-    r.temp.underlay.combo.setCurrentIndex(2)
-    assert r.grad.underlay.kind() == "image" and win.editor_underlay.kind() == "image"
+    pop = win.display_popover
+    pop.underlay.setCurrentIndex(2)
+    assert win.display.kind == "image" and win.results.temp.map_view().underlay == "image" and win.results.grad.map_view().underlay == "image"
     win.canvas.rebuild()
     assert win.canvas._background is not None and win.canvas._background.isVisible()
     win._editor_apply_underlay(True)
     assert win.canvas._background.isVisible()                # Image: shown under the map
-    win.editor_underlay.combo.setCurrentIndex(1)
-    assert r.temp.underlay.kind() == "copper"
+    pop.underlay.setCurrentIndex(1)
+    assert win.display.kind == "copper"
     win._editor_apply_underlay(True)
     assert not win.canvas._background.isVisible()
     win._editor_apply_underlay(False)
@@ -251,7 +251,7 @@ def test_two_maps_share_the_underlay_and_the_editor_follows(qtbot, tmp_path, sim
 
 def test_animation_underlay_view_and_export(qtbot, tmp_path):
     """!
-    @brief The Animation tab has the View combo (no Terrain) and the Underlay pair; None draws the old frame, Copper changes it, the exported GIF includes it.
+    @brief The Animation tab draws the shared View (never Terrain) and Underlay; None draws the old frame, Copper changes it, the exported GIF includes it.
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     """
@@ -260,8 +260,10 @@ def test_animation_underlay_view_and_export(qtbot, tmp_path):
     qtbot.addWidget(tab)
     tr = analytic.solve_transient(p, t_end=30.0, n_out=4, cell_mm=2.0, n_terms=40)
     tab.set_result(tr, p)
-    assert [tab.view.itemData(i) for i in range(tab.view.count())] == ["current", "smooth"] and tab.view.toolTip()
-    assert _entries(tab.underlay) == ["none", "copper"] and tab.underlay.opacity.value() == 70
+    tab.display.set_view("terrain")
+    assert tab.map_view() is None                            # Terrain is not drawn in motion: Current
+    tab.display.set_view("current")
+    assert _entries(tab.display) == ["none", "copper"] and tab.display.opacity == 70
     assert tab.map_view() is None                            # The defaults draw the original frame, call for call
 
     def frame():
@@ -269,42 +271,42 @@ def test_animation_underlay_view_and_export(qtbot, tmp_path):
         return np.array(tab.canvas.buffer_rgba())
 
     base = frame()
-    tab.underlay.combo.setCurrentIndex(1)
+    tab.display.set_kind("copper")
     withcu = frame()
     assert not np.array_equal(base, withcu)
-    assert 0 in tab.underlay.cache                           # Cached once for the whole animation
-    first = tab.underlay.cache[0]
+    assert 0 in tab.display.cache                           # Cached once for the whole animation
+    first = tab.display.cache[0]
     tab.slider.setValue(0)
     frame()
-    assert tab.underlay.cache[0] is first
-    tab.underlay.opacity.setValue(10)
-    tab.underlay.flush()
+    assert tab.display.cache[0] is first
+    tab.display.set_opacity(10)
     assert not np.array_equal(withcu, frame())
     tab.slider.setValue(tab.slider.maximum())
-    tab.underlay.combo.setCurrentIndex(0)
+    tab.display.set_kind("none")
     assert np.array_equal(base, frame())                     # Back to None: the same pixels as the start
     # The export carries the underlay: a GIF with it differs from one without
-    tab.underlay.combo.setCurrentIndex(1)
+    tab.display.set_kind("copper")
     a, b = tmp_path / "a.gif", tmp_path / "b.gif"
     plots.save_transient_gif(tr, p, str(a), fps=5, view=tab.map_view())
     plots.save_transient_gif(tr, p, str(b), fps=5)
     assert a.stat().st_size > 1000 and a.read_bytes() != b.read_bytes()
 
 
-def test_results_tab_has_the_combo_in_place_of_the_checkbox(qtbot, sim):
+def test_results_tab_has_no_display_controls(qtbot, sim):
     """!
-    @brief The temperature tab has the Underlay combo with a tooltip and no Show copper checkbox; None is the default; the Animation tab has one too.
+    @brief The temperature tab has no Underlay, opacity, View, Contour or Colour map control of its own (they are in the Display popover); None is the default.
     @param qtbot pytest-qt fixture.
     @param sim Simulation fixture.
     """
     t = PlotTab("temperature", "dark")
     qtbot.addWidget(t)
     t.set_simulation(sim)
-    assert not hasattr(t, "copper") and t.underlay.kind() == "none" and t.underlay.combo.toolTip()
-    assert t.map_view().show_copper is False
+    for name in ("copper", "underlay", "opacity", "opacity_spin", "view", "contour", "cmap"):
+        assert not hasattr(t, name), name
+    assert t.display.kind == "none" and t.map_view() is None
     rv = ResultsView("dark")
     qtbot.addWidget(rv)
-    assert hasattr(rv.animation, "underlay")
+    assert rv.animation.display is rv.temp.display is rv.grad.display is rv.display
 
 
 def test_loaded_image_owns_its_pixels(qtbot, tmp_path):
@@ -324,26 +326,26 @@ def test_loaded_image_owns_its_pixels(qtbot, tmp_path):
     assert tuple(u.rgba[0, 0]) == RED and tuple(u.rgba[-1, -1]) == YELLOW and len(junk) == 20
 
 
-def test_moving_the_image_refreshes_the_controls(qtbot, tmp_path):
+def test_moving_the_image_refreshes_the_state(qtbot, tmp_path):
     """!
     @brief A second picture (the image moved or was replaced) is taken without an error and empties the picture cache; the review found the
            field-wise equality of the dataclass comparing the pixel arrays and raising, which stopped the refresh after a move of the image.
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     """
-    u = UnderlayControls()
-    a = plots.UnderlayImage(rgba=_quadrants(), w_mm=10.0, h_mm=10.0)
-    b = plots.UnderlayImage(rgba=_quadrants(), x_mm=5.0, w_mm=10.0, h_mm=10.0)
-    u.set_source(False, {"path": "x"}, image=a)
-    u.cache["image"] = "old picture"
-    assert u.set_source(False, {"path": "x"}, image=b) is True
-    assert u.image is b and "image" not in u.cache
+    path = _png(tmp_path / "bg.png", _quadrants())
+    d = DisplayState()
+    d.set_source(False, {"path": path, "x_mm": 0.0, "y_mm": 0.0, "w_mm": 10.0, "h_mm": 10.0})
+    first = d.image
+    d.cache["image"] = "old picture"
+    assert d.set_source(False, {"path": path, "x_mm": 5.0, "y_mm": 0.0, "w_mm": 10.0, "h_mm": 10.0}) is True
+    assert d.image is not first and d.image.x_mm == 5.0 and "image" not in d.cache
     win = _win(qtbot, tmp_path)
-    cfg = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0}
+    cfg = {"path": path, "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0}
     for x in (0.0, 7.5):                                     # Through the window: the same file at another place
         win.doc.project.view["background"] = dict(cfg, x_mm=x)
         win.doc.changed.emit()
-        assert win.results.temp.underlay.image.x_mm == x and win.results.animation.underlay.image.x_mm == x
+        assert win.display.image.x_mm == x
 
 
 def test_reopening_a_project_takes_its_stored_opacity_again(qtbot, tmp_path):
@@ -358,14 +360,13 @@ def test_reopening_a_project_takes_its_stored_opacity_again(qtbot, tmp_path):
     win.doc.changed.emit()
     path = str(tmp_path / "p.pcbt.json")
     win.doc.save(path)
-    assert win.results.temp.underlay.opacity.value() == 90
-    win.results.temp.underlay.opacity.setValue(55)
-    win.results.temp.underlay.flush()
+    assert win.display.opacity == 90
+    win.display.set_opacity(55)
     win.doc.open(path)
     win._after_load()
-    assert win.results.temp.underlay.opacity.value() == win.results.animation.underlay.opacity.value() == win.overlay_opacity.value() == 90
+    assert win.display.opacity == win.display_popover.opacity.value() == 90                   # the old file's opacity is the initial one again
     assert win.doc.project.view["background"]["opacity"] == pytest.approx(0.9)
-    assert _entries(win.results.temp.underlay) == ["none", "copper", "image"]
+    assert _entries(win.display) == ["none", "copper", "image"]
 
 
 def test_default_animation_matches_the_plain_imshow_on_any_matplotlib(qtbot, tmp_path, monkeypatch):
@@ -421,7 +422,7 @@ def test_default_animation_matches_the_plain_imshow_on_any_matplotlib(qtbot, tmp
     assert np.array_equal(new[0], old[0]) and new[1] == old[1]
     # Smooth or an underlay is drawn by the new path, so it is NOT the plain picture (the twin above would not see a change of the default)
     monkeypatch.undo()
-    tab.view.setCurrentIndex(1)
+    tab.display.set_view("smooth")
     assert not np.array_equal(pictures("smooth")[0], old[0])
 
 
@@ -452,13 +453,10 @@ def test_new_project_or_no_stored_opacity_resets_the_pairs_to_70(qtbot, tmp_path
     win.doc.project.view["background"] = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0,
                                           "opacity": 0.9}
     win.doc.changed.emit()
-    win.results.temp.underlay.opacity.setValue(33)
-    win.results.temp.underlay.flush()
+    win.display.set_opacity(33)
     win.doc.new(50.0, 40.0, 2)
     win._after_load()
-    for u in (win.results.temp.underlay, win.results.grad.underlay, win.results.animation.underlay):
-        assert u.opacity.value() == u.opacity_spin.value() == 70
-    assert win.overlay_opacity.value() == 70
+    assert win.display.opacity == win.display_popover.opacity.value() == win.display_popover.opacity_spin.value() == 70
 
 
 def test_editor_draws_the_image_at_full_opacity_under_the_map(qtbot, tmp_path):
@@ -473,7 +471,7 @@ def test_editor_draws_the_image_at_full_opacity_under_the_map(qtbot, tmp_path):
     win.doc.changed.emit()
     win.canvas.rebuild()
     assert win.canvas._background.opacity() == pytest.approx(0.3)
-    win.editor_underlay.combo.setCurrentIndex(win.editor_underlay.combo.findData("image"))
+    win.display.set_kind("image")
     win._editor_apply_underlay(True)
     assert win.canvas._background.opacity() == pytest.approx(1.0) and win.canvas._background.isVisible()
     win.canvas.rebuild()

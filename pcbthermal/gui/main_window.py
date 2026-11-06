@@ -39,7 +39,7 @@ from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
 from .results_view import ResultsView
-from .underlay import ReleaseSync, UnderlayControls
+from .display import OPEN_TIP, DisplayButton, DisplayPopover, DisplayState
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
@@ -217,7 +217,8 @@ class MainWindow(QMainWindow):
         self._edits, self._run_edits = 0, None                 # Edit counter, and its value when the running simulation started
 
         self.canvas = BoardView(self.doc, self.theme_name)
-        self.results = ResultsView(self.theme_name)
+        self.display = DisplayState(self)                  # How the maps are drawn: one choice for the Results maps, the Animation and the board
+        self.results = ResultsView(self.theme_name, display=self.display)
         self._underlay_key = None                          # Path of the image whose stored opacity was already taken as the initial one
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
@@ -490,8 +491,9 @@ class MainWindow(QMainWindow):
         self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
                                  "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
-        self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
-                                   "Paint the last result over the board (T)")
+        self.a_overlay = self._act("Temperature map on the board", self._toggle_overlay, "T", True, False,
+                                   "Show the temperature map of the last result on the board (T)")
+        self.a_overlay.setEnabled(False)                       # Until a result exists; _update_map_button keeps the state and the tooltip
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
@@ -562,7 +564,11 @@ class MainWindow(QMainWindow):
             a.setShortcuts([])
             hidden = QAction(a.text(), self)
             hidden.setShortcuts(keys)
-            hidden.triggered.connect(a.toggle)
+            if a is self.a_overlay:
+                hidden.triggered.connect(self._key_overlay)
+                self._hidden_overlay_key = hidden
+            else:
+                hidden.triggered.connect(a.toggle)
             self.addAction(hidden)                              # Active in the whole window, in no menu
 
     def _build_toolbar(self):
@@ -593,50 +599,32 @@ class MainWindow(QMainWindow):
         self.layer_combo = QComboBox()
         self.layer_combo.currentIndexChanged.connect(self._on_layer_changed)
         tb.addWidget(self.layer_combo)
-        tb.addWidget(QLabel("  Snap "))
+        # The map on the board (on and off) and how it is drawn (Display): Layer, Map, Display | Snap | Run
+        tb.addAction(self.a_overlay)
+        self.display_button = DisplayButton()
+        self.display_button.setToolTip(OPEN_TIP)
+        self.display_button.setObjectName("displayButton")
+        self.display_button.clicked.connect(self._toggle_display_popover)
+        tb.addWidget(self.display_button)
+        self.display_popover = DisplayPopover(self.display, self)
+        self.display_popover.addAction(self._hidden_overlay_key)    # The key T keeps working while the popover is the active window
+        self.display.changed.connect(self._on_display_changed)
+        self.tabs.currentChanged.connect(self._refresh_display_context)
+        self.results.tabs.currentChanged.connect(self._refresh_display_context)
+        QApplication.instance().installEventFilter(self)           # A click outside the popover closes it
+        tb.addSeparator()
+        tb.addWidget(QLabel(" Snap "))
         self.snap_combo = QComboBox()
         for label, v in (("off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
             self.snap_combo.addItem(label, v)
         self.snap_combo.setCurrentIndex(3)
         self.snap_combo.currentIndexChanged.connect(lambda _i: self.canvas.set_snap(self.snap_combo.currentData()))
         tb.addWidget(self.snap_combo)
-        tb.addSeparator()
-        for a in (self.a_fit, self.a_grid, self.a_sgrid, self.a_overlay):
+        for a in (self.a_fit, self.a_grid, self.a_sgrid):
             tb.addAction(a)
-        # What is under the map on the board: the same combo as the Results maps (None / Copper / Image); the editor draws the zones and the imported
-        # copper itself, so here the choice decides whether the background image shows while the map is on
-        self.editor_underlay = UnderlayControls(self)
-        self.editor_underlay.combo.setEnabled(False)
-        self.editor_underlay.combo.setToolTip("What is under the temperature map on the board. None or Copper: the background image is hidden while the map is on (the zones "
-                                              "and the imported copper are always drawn); Image: the background image of the project shows under the map. "
-                                              "The same choice as the Underlay of the Results maps. Active while Temperature on board is on.")
-        tb.addWidget(QLabel(" Underlay "))
-        tb.addWidget(self.editor_underlay.combo)
-        self.editor_underlay.combo.currentIndexChanged.connect(self._editor_underlay_edited)
-        for t in (self.results.temp, self.results.grad):
-            t.view_changed.connect(self._editor_underlay_follow)
-        self.overlay_opacity = QSlider(Qt.Horizontal)
-        self.overlay_opacity.setRange(0, 100)
-        self.overlay_opacity.setValue(70)
-        self.overlay_opacity.setFixedWidth(90)
-        self.overlay_opacity.setEnabled(False)
-        self.overlay_opacity.setToolTip("Opacity of the temperature map over the board, 0 to 100 % (default 70 %): lower it to read the copper and the parts under the colours. "
-                                        "Active while Temperature on board is on.")
-        self.overlay_opacity_box = QSpinBox()
-        self.overlay_opacity_box.setRange(0, 100)
-        self.overlay_opacity_box.setValue(70)
-        self.overlay_opacity_box.setSuffix(" %")
-        self.overlay_opacity_box.setEnabled(False)
-        self.overlay_opacity_box.setToolTip("Opacity of the temperature map over the board in percent, 0 to 100 (default 70): the same value as the slider beside it, typed.")
-        # Slider and box hold one value: each follows the other (blocked signals, so there is one change and one repaint)
-        # The map on the board is repainted once per finished edit (mouse released, Enter, or a pause after keys and the wheel); the box follows a drag live
-        self.overlay_sync = ReleaseSync(self.overlay_opacity, self.overlay_opacity_box, self._overlay_opacity_changed, self)
-        tb.addWidget(self.overlay_opacity)
-        tb.addWidget(self.overlay_opacity_box)
-        # The map on the board follows the Temperature tab: its model, colour map and colour limits (without this the overlay kept the scale of the moment it was switched on)
+        # The map on the board follows the Temperature tab: its model and colour limits (the colour map is the shared display choice)
         t = self.results.temp
-        for w in (t.model, t.cmap):
-            w.currentIndexChanged.connect(self._overlay_follow_results)
+        t.model.currentIndexChanged.connect(self._overlay_follow_results)
         t.auto.toggled.connect(self._overlay_follow_results)
         for w in (t.vmin, t.vmax):
             w.valueChanged.connect(self._overlay_follow_results)
@@ -655,7 +643,11 @@ class MainWindow(QMainWindow):
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
         self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
-        self.a_overlay.setIcon(th.tool_icon("overlay", self.theme_name))
+        self.a_overlay.setIcon(th.tool_icon("map", self.theme_name))
+        self.display_button.set_theme(self.theme_name)
+        self.display_button.set_dot(self.display.active())
+        self.display_popover.apply_theme(self.theme_name)
+        self._refresh_display_context()
         logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
         if logo.exists():
             self.setWindowIcon(QIcon(str(logo)))
@@ -693,47 +685,68 @@ class MainWindow(QMainWindow):
         self.canvas.solver_cell = self.doc.options.cell_mm
         self.canvas.viewport().update()
 
+    def _update_map_button(self):
+        """!
+        @brief Set the state of the map button (and of its menu entry and key): greyed until a result exists and while it is outdated, with the reason in the tooltip.
+        """
+        a = self.a_overlay
+        if self.sim is None:
+            tip, ok = "Run a simulation first", False
+        elif self._stale:
+            tip, ok = "The result is outdated: run the simulation again", False
+        else:
+            tip, ok = "Show the temperature map of the last result on the board (T)", True
+        a.setEnabled(ok)
+        a.setToolTip(tip)
+        a.setStatusTip(tip)
+        self._map_button_tip = tip
+        if not ok and a.isChecked():
+            a.blockSignals(True)
+            a.setChecked(False)
+            a.blockSignals(False)
+            self.canvas.clear_overlay()
+            self._editor_apply_underlay(False)
+
+    def _key_overlay(self):
+        """!
+        @brief The key T: toggle the map on the board, or say in the status bar why it cannot be shown.
+        """
+        if self.a_overlay.isEnabled():
+            self.a_overlay.toggle()
+        else:
+            self.statusBar().showMessage(getattr(self, "_map_button_tip", "Run a simulation first"))
+
     def _toggle_overlay(self, on):
         """!
         @brief Paint or remove the temperature result on the board.
-        @details The map is the one the Results tab shows (same model, same colour map and the same colour limits, so both show the same numbers) on the layer chosen in the
-                 toolbar, with the cells off the outline transparent and a colour bar. It is not drawn while the result is outdated, nor for the stretched map of a
-                 Lumped or Analytic result on a board with an outline (a note says so in the status bar).
+        @details The map is the one the Temperature tab shows (same model, colour limits and colour map, so both show the same numbers) on the layer chosen in the
+                 toolbar, with the cells off the outline transparent, a colour bar and the card of the model with the hottest and coolest point. A model that cannot
+                 be drawn on this board (the stretched map of the Lumped or Analytic on an outline board) leaves only the card with that note. It is not drawn while
+                 the result is outdated.
         @param on True to paint.
         """
-        from .fieldscale import inside_mask, overlay_refusal, results_limits
+        from .fieldscale import MODEL_SHORT, extreme_points, inside_mask, overlay_refusal, results_limits
 
-        self.overlay_opacity.setEnabled(bool(on))
-        self.overlay_opacity_box.setEnabled(bool(on))
-        self.editor_underlay.combo.setEnabled(bool(on))
         self._editor_apply_underlay(bool(on))
         if not on or self.sim is None or self._stale:
             self.canvas.clear_overlay()
             if on:
-                # Nothing to paint: say why and leave the button and the opacity controls off (the button used to stay checked over an empty board)
+                # Nothing to paint: say why and leave the button off
                 self.statusBar().showMessage("Run a simulation first." if self.sim is None else
                                              "The result is outdated (the design changed): run the simulation again to paint it on the board.")
                 self.a_overlay.blockSignals(True)
                 self.a_overlay.setChecked(False)
                 self.a_overlay.blockSignals(False)
-                self.overlay_opacity.setEnabled(False)
-                self.overlay_opacity_box.setEnabled(False)
-                self.editor_underlay.combo.setEnabled(False)
                 self._editor_apply_underlay(False)
             return
         cfg = self.results.temp.current_field()
         res = self.results.temp._result() or self.sim.reference     # The model shown in the Results tab
+        short = MODEL_SHORT.get(res.model, str(res.model))
         note = overlay_refusal(res, self.doc.problem)
         if note:
             self.canvas.clear_overlay()
+            self.canvas.set_overlay_card(f"{short}: not drawn on an outline board (stretched map)")
             self.statusBar().showMessage(note)
-            self.a_overlay.blockSignals(True)
-            self.a_overlay.setChecked(False)
-            self.a_overlay.blockSignals(False)
-            self.overlay_opacity.setEnabled(False)
-            self.overlay_opacity_box.setEnabled(False)
-            self.editor_underlay.combo.setEnabled(False)
-            self._editor_apply_underlay(False)
             return
         layer = min(self.canvas.layer, res.T.shape[0] - 1)
         field = res.T[layer]
@@ -742,78 +755,111 @@ class MainWindow(QMainWindow):
         vmin, vmax = (cfg[4], cfg[5]) if cfg else (None, None)
         # The limits by the rule of the Results map (Auto range over the samples on the board only), passed explicitly so the canvas does not rescale
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
-        self.canvas.set_overlay(field, res.dx, res.dy, cmap=cfg[3] if cfg else "inferno", vmin=vmin, vmax=vmax,
-                                opacity=self.overlay_opacity.value() / 100.0, nodes=nodes, mask=mask)
+        self.canvas.set_overlay(field, res.dx, res.dy, cmap=self.display.cmap, vmin=vmin, vmax=vmax,
+                                opacity=self.display.value(), nodes=nodes, mask=mask)
+        ext = extreme_points(field, mask, res.dx, res.dy, nodes)
+        if ext is not None:
+            self.canvas.set_overlay_card(short, ext["tmax"], ext["pmax"], ext["tmin"], ext["pmin"])
+        else:
+            self.canvas.set_overlay_card(short)
 
     def _editor_apply_underlay(self, overlay_on):
         """!
         @brief Show the background image on the canvas: always, except while a map is on the board and the Underlay is not Image.
         @param overlay_on True while the temperature map is painted on the board.
         """
-        image = self.editor_underlay.kind() == "image"
+        image = self.display.kind == "image"
         self.canvas.set_background_visible(not overlay_on or image)
         self.canvas.set_background_full(overlay_on and image)       # Faded twice otherwise (its own opacity, then the map's)
 
-    def _editor_underlay_edited(self, *_):
+    def _on_display_changed(self, what):
         """!
-        @brief The Underlay combo of the editor changed: the Results maps follow it, and the image shows or hides.
+        @brief The display choice changed (Display popover, or a new project): update the dot of the button and the map on the board.
+        @param what Name of what changed ("underlay", "opacity", "view", "contour", "cmap" or "source").
+        """
+        self.display_button.set_dot(self.display.active())
+        on = self.a_overlay.isChecked()
+        if what == "opacity" and on:
+            self.canvas.set_overlay_opacity(self.display.value())
+        elif what == "cmap" and on:
+            self._toggle_overlay(True)
+        self._editor_apply_underlay(on)
+
+    def _display_context(self):
+        """!
+        @brief Where the Display popover is opened from: the board, one of the maps, or a page without a map.
+        @return One of display.CONTEXTS.
+        """
+        if self.tabs.currentIndex() == TAB_BOARD:
+            return "editor"
+        if self.tabs.currentIndex() == TAB_RESULTS:
+            w = self.results.tabs.currentWidget()
+            if w is self.results.temp:
+                return "temperature"
+            if w is self.results.grad:
+                return "gradient"
+            if w is self.results.animation:
+                return "animation"
+        return "other"
+
+    def _refresh_display_context(self, *_):
+        """!
+        @brief The tab changed: the popover (open or not) shows the controls that apply there.
         @param _ Ignored (the value carried by the Qt signal).
         """
-        res = self.results
-        res.temp.underlay.set_kind(self.editor_underlay.kind())
-        res.grad.underlay.set_kind(self.editor_underlay.kind())
-        res.temp.redraw()
-        res.grad.redraw()
-        self._editor_apply_underlay(self.a_overlay.isChecked())
+        self.display_popover.set_context(self._display_context())
 
-    def _editor_underlay_follow(self):
+    def _toggle_display_popover(self):
         """!
-        @brief The Underlay of a Results map changed: the combo of the editor shows the same entry.
+        @brief Open the Display popover under its button, or close it.
         """
-        self.editor_underlay.set_kind(self.results.temp.underlay.kind())
-        self._editor_apply_underlay(self.a_overlay.isChecked())
+        if self.display_popover.isVisible():
+            self.display_popover.flush()
+            self.display_popover.hide()
+            return
+        self.display_popover.set_context(self._display_context())
+        self.display_popover.show_under(self.display_button)
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Close the Display popover on a click anywhere outside it and its button, and on Escape.
+        @param obj Object that receives the event.
+        @param event The event.
+        @return False (the event is never consumed).
+        """
+        pop = getattr(self, "display_popover", None)
+        if pop is not None and pop.isVisible():
+            if event.type() == QEvent.MouseButtonPress and isinstance(obj, QWidget):
+                inside = obj is pop or pop.isAncestorOf(obj) or obj is self.display_button or obj.window() is pop
+                if not inside:
+                    pop.flush()
+                    pop.hide()
+            elif event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape and isinstance(obj, QWidget) and (obj is pop or pop.isAncestorOf(obj)):
+                pop.hide()
+        return False
 
     def _sync_underlay(self):
         """!
-        @brief Tell the Results maps, the Animation and the editor what the project offers under the map (copper, and the image of a hand-drawn project).
-        @details An image that appears for the first time brings its stored opacity (older projects) as the initial opacity of the map over it.
+        @brief Tell the display choice what the project offers under the map (copper, and the image of a hand-drawn project).
+        @details An image that appears for the first time brings its stored opacity (older projects) as the initial opacity of the map over it; the file format is unchanged.
         """
         cfg = self.doc.project.view.get("background")
         imported = self._is_imported()
         self.results.set_underlay_source(imported, cfg)
-        self.editor_underlay.set_source(imported, cfg, image=self.results.temp.underlay.image)
-        self.editor_underlay.set_kind(self.results.temp.underlay.kind())
         key = None if imported or not cfg else cfg.get("path")
         if key is not None and key != self._underlay_key and cfg.get("opacity") is not None:
-            pct = cfg["opacity"] * 100.0
-            for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
-                u.set_opacity(pct)
-            self.overlay_opacity.setValue(int(round(pct)))
-            self.overlay_sync.flush()                       # A programmatic change is applied now, not after the pause of a typed one
-            self.results.temp.redraw()
-            self.results.grad.redraw()
-            self.results.animation.redraw()
+            self.display.set_opacity(cfg["opacity"] * 100.0)
         self._underlay_key = key
+        self.display_popover.refresh()
         self._editor_apply_underlay(self.a_overlay.isChecked())
 
     def _overlay_follow_results(self, *_):
         """!
-        @brief A control of the Temperature tab changed (model, colour map, Auto range, limits): paint the map on the board again with it, when the map is on.
+        @brief A control of the Temperature tab changed (model, Auto range, limits): paint the map on the board again with it, when the map is on.
         @param _ Ignored (the value carried by the Qt signal).
         """
         if self.a_overlay.isChecked() and not self.results.temp._updating:      # Not while the tab is being filled with a new simulation
             self._toggle_overlay(True)
-
-    def _overlay_opacity_changed(self, v):
-        """!
-        @brief The overlay opacity changed (slider or box): keep both in step and repaint the map.
-        @param v Opacity in percent (0..100).
-        """
-        if self.overlay_opacity_box.value() != v:
-            self.overlay_opacity_box.blockSignals(True)
-            self.overlay_opacity_box.setValue(v)
-            self.overlay_opacity_box.blockSignals(False)
-        self.canvas.set_overlay_opacity(v / 100.0)
 
     def _refresh_layers(self):
         """!
@@ -936,6 +982,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(TAB_RESULTS, "Results (outdated)")
             self.canvas.clear_overlay()
             self.a_overlay.setChecked(False)
+            self._update_map_button()
 
     def _update_title(self):
         """!
@@ -965,15 +1012,13 @@ class MainWindow(QMainWindow):
         self.tabs.setTabText(TAB_RESULTS, "Results")
         self.canvas.clear_overlay()
         self.a_overlay.setChecked(False)
+        self._update_map_button()
         self.canvas.fit()
         self._refresh_layers()
         # A document just opened: its stored background opacity is the initial one again, also when the image file is the same as before
         self._underlay_key = None
         # Starting from scratch (or a project with no stored opacity) the pairs are 70 % again, not the previous project's value
-        for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
-            u.set_opacity(70)
-        self.overlay_opacity.setValue(70)
-        self.overlay_sync.flush()
+        self.display.reset()
         self._sync_underlay()
         # The load rebuilt the canvas before this "Ready." could overwrite its message: say again that the stored image cannot be drawn
         self.statusBar().showMessage(self.canvas.background_problem or "Ready.")
@@ -1310,6 +1355,7 @@ class MainWindow(QMainWindow):
         self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W"
                                       + ("  (the design changed while it ran)" if self._stale else ""))
         self.tabs.setCurrentIndex(TAB_RESULTS)
+        self._update_map_button()
         if self.a_overlay.isChecked():
             self._toggle_overlay(True)             # Refused while the result is outdated
 
@@ -1348,7 +1394,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
-<tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature map on the board (T; the Display button of the tool bar says how it is drawn)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>

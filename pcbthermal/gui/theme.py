@@ -7,7 +7,7 @@
 
 import shiboken6
 from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPalette, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QIcon, QKeyEvent, QKeySequence, QLinearGradient, QPainter, QPalette, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyStyle, QStyle, QWidget
 
 THEMES = {
@@ -371,10 +371,64 @@ def _icon(size, painter_fn, color):
     return QIcon(pm)
 
 
+HEAT_RAMP = ("#ffe27a", "#ff9a3c", "#e0392d", "#7a1f5c")     # The colours of the heat gradient of the map icons (the temperature map itself has its own colour map)
+
+
+def _display_icons(p, s, kind, c):
+    """!
+    @brief Draw the icon of the map button (a thermometer over a grid), of the Display button (layers with a heat gradient) or of the Display button with its dot.
+    @details Own drawings in unit coordinates: the stroke follows the text token, the heat ramp is the one of the earlier map icon, the dot is the accent token.
+    @param p QPainter with the stroke pen set by `_icon`.
+    @param s Edge of the icon in pixels.
+    @param kind "map", "display" or "display_dot".
+    @param c Colour tokens of the theme (`colors`).
+    """
+    p.save()
+    p.scale(s, s)
+    w = 1.55 / s * 1.0
+    ink = QColor(c["text"])
+    p.setPen(QPen(ink, w * 1.7 / 1.55, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    if kind == "map":
+        grid = QColor(ink)
+        grid.setAlpha(150)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(grid, w * 1.3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawRect(QRectF(.08, .12, .84, .76))
+        for k in (1, 2):
+            p.drawLine(QPointF(.08 + k * .28, .12), QPointF(.08 + k * .28, .88))
+            p.drawLine(QPointF(.08, .12 + k * .2533), QPointF(.92, .12 + k * .2533))
+        p.setPen(QPen(ink, w * 1.7, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.setBrush(QColor(c["window"]))
+        p.drawRoundedRect(QRectF(.5, .04, .2, .62), .1, .1)
+        p.setBrush(QColor(c["heater"]))
+        p.drawEllipse(QPointF(.6, .74), .16, .16)
+        p.setPen(QPen(QColor(c["heater"]), w * 1.7))
+        p.drawLine(QPointF(.6, .72), QPointF(.6, .3))
+    else:
+        def chevron(y):
+            p.setBrush(Qt.NoBrush)
+            p.drawPolyline(QPolygonF([QPointF(.08, y), QPointF(.5, y + .2), QPointF(.92, y)]))
+
+        chevron(.72)
+        chevron(.56)
+        g = QLinearGradient(.1, 0, .9, 0)
+        for k, col in enumerate(HEAT_RAMP):
+            g.setColorAt(k / 3, QColor(col))
+        p.setBrush(QBrush(g))
+        p.drawPolygon(QPolygonF([QPointF(.5, .2), QPointF(.92, .4), QPointF(.5, .6), QPointF(.08, .4)]))
+        if kind == "display_dot":
+            r = max(.13, 2.6 / s)
+            p.setPen(QPen(QColor(c["window"]), max(.05, 1.0 / s)))
+            p.setBrush(QColor(c["accent"]))
+            p.drawEllipse(QPointF(1 - r - .02, r + .02), r, r)
+    p.restore()
+
+
 def tool_icon(kind, theme="dark", size=22):
     """!
     @brief Painted icon of a tool or action.
-    @param kind select, zone, heater, heatsink, via, outline, run, fit, grid, solver_grid, overlay, polygon.
+    @param kind select, zone, heater, heatsink, via, outline, run, fit, grid, solver_grid, overlay, polygon, map (thermometer over a grid), display (layers with a heat
+           gradient) or display_dot (the same with the dot of an active underlay).
     @param theme "dark" or "light" (stroke colour follows it).
     @param size Edge in pixels.
     @return QIcon.
@@ -423,6 +477,8 @@ def tool_icon(kind, theme="dark", size=22):
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(col))
                 p.drawRoundedRect(QRectF(m, m + k * (s - 2 * m) / 4, s - 2 * m, (s - 2 * m) / 4 + 0.5), 1, 1)
+        elif kind in ("map", "display", "display_dot"):
+            _display_icons(p, s, kind, c)
         elif kind == "run":
             p.setBrush(QColor(c["run"]))
             p.setPen(Qt.NoPen)

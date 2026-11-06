@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_opacity_release.py
-@brief The opacity controls (Results maps, Animation, editor overlay) redraw once per finished edit: a drag redraws nothing, the release redraws once, keys and typing wait for a pause.
+@brief The opacity control of the Display popover (Results maps, Animation, editor overlay) redraws once per finished edit: a drag redraws nothing, the release redraws once, keys and typing wait for a pause.
 @details The box follows a drag live; the slider released, Enter in the box, or the debounce timer after a key or wheel step end an edit.
 """
 
@@ -12,7 +12,7 @@ pytest.importorskip("pytestqt")
 
 from PySide6.QtWidgets import QSlider, QSpinBox
 
-from pcbthermal.gui.underlay import OPACITY_DEBOUNCE_MS, ReleaseSync, UnderlayControls
+from pcbthermal.gui.underlay import OPACITY_DEBOUNCE_MS, ReleaseSync
 from tests.test_underlay_selector import _win
 
 
@@ -78,32 +78,21 @@ def test_box_edit_is_applied_on_enter_or_after_the_pause(qtbot):
     qtbot.waitUntil(lambda: calls == [30, 55], timeout=2000)
 
 
-def test_underlay_controls_and_editor_overlay_use_it(qtbot, tmp_path):
+def test_display_popover_uses_it(qtbot, tmp_path):
     """!
-    @brief The Results/Animation underlay and the editor overlay opacity redraw on release only; their numeric box stays live.
+    @brief The opacity of the Display popover redraws on release only; its numeric box stays live (one control for the Results maps, the Animation and the board).
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     """
     win = _win(qtbot, tmp_path)
-    u = win.results.temp.underlay
-    assert isinstance(u, UnderlayControls)
+    pop, d = win.display_popover, win.display
     drawn = []
-    u.changed.connect(lambda: drawn.append(u.value()))
-    u.combo.setCurrentIndex(1)
+    d.changed.connect(lambda what: drawn.append((what, d.opacity)))
+    d.set_kind("copper")
     drawn.clear()
-    u.opacity.setSliderDown(True)
-    u.opacity.setValue(20)
-    u.opacity.setValue(30)
-    assert u.opacity_spin.value() == 30 and drawn == []
-    u.opacity.setSliderDown(False)
-    assert drawn == [0.3]
-    # the editor overlay of the main window
-    seen = []
-    win.overlay_sync.callback = seen.append
-    win.overlay_opacity.setEnabled(True)
-    win.overlay_opacity.setSliderDown(True)
-    win.overlay_opacity.setValue(10)
-    win.overlay_opacity.setValue(15)
-    assert win.overlay_opacity_box.value() == 15 and seen == []
-    win.overlay_opacity.setSliderDown(False)
-    assert seen == [15]
+    pop.opacity.setSliderDown(True)
+    pop.opacity.setValue(20)
+    pop.opacity.setValue(30)
+    assert pop.opacity_spin.value() == 30 and drawn == []
+    pop.opacity.setSliderDown(False)
+    assert drawn == [("opacity", 30)] and d.opacity == 30

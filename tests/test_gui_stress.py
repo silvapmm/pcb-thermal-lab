@@ -23,6 +23,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 
 from pcbthermal import SolverOptions, SquareWave, TableProfile, load_project, simulate
+from pcbthermal import plots
 from pcbthermal.examples import example_block_board, example_board, example_profile_board
 from pcbthermal.gui.document import Document
 from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow
@@ -108,7 +109,7 @@ def walk_results(win, qtbot):
         rv.tabs.setCurrentIndex(t)
         qtbot.wait(5)
     for tab in (rv.temp, rv.grad, rv.profile, rv.compare):
-        for name in ("model", "layer", "cmap", "axis"):
+        for name in ("model", "layer", "axis"):
             combo = getattr(tab, name)
             for i in range(combo.count()):
                 combo.setCurrentIndex(i)
@@ -119,20 +120,28 @@ def walk_results(win, qtbot):
             tab.pos.setValue(v)
         tab.vmin.setValue(30.0)
         tab.vmax.setValue(500.0)
-    # The view modes, the copper box and the opacity on every model and layer of the two map tabs (display only)
+    # The shared display state (view, underlay, opacity, contour, colour map) on every model and layer of the two map tabs and the Animation (display only)
+    d = rv.display
     for tab in (rv.temp, rv.grad):
         for m in range(tab.model.count()):
             tab.model.setCurrentIndex(m)
-            for mode in range(tab.view.count()):
-                tab.view.setCurrentIndex(mode)
+            for mode in plots.VIEW_MODES:
+                d.set_view(mode)
                 for copper_on in ("none", "copper"):
-                    tab.underlay.combo.setCurrentIndex(tab.underlay.combo.findData(copper_on))
+                    d.set_kind(copper_on)
+                    for cm in plots.CMAPS[:3]:
+                        d.set_cmap(cm)
                     for k in range(tab.layer.count()):
                         tab.layer.setCurrentIndex(k)
-        tab.opacity_spin.setValue(0)
-        tab.opacity.setValue(100)
-        tab.underlay.combo.setCurrentIndex(0)
-        tab.view.setCurrentIndex(0)
+        d.set_contour("gradient" if tab is rv.grad else "temperature", 0.0 if tab is rv.grad else 2.0)
+        d.set_opacity(0)
+        d.set_opacity(100)
+        d.set_kind("none")
+        d.set_view("current")
+        d.set_cmap(plots.CMAPS[0])
+    d.set_view("terrain")
+    rv.animation.redraw()                                                          # Terrain is drawn as Current in motion
+    d.set_view("current")
     ts = rv.time_sim
     for i in range(ts.model.count()):
         ts.model.setCurrentIndex(i)
@@ -197,6 +206,21 @@ def test_every_example_with_every_model_and_view(win, qtbot, which, tmp_path):
         win.results.temp.model.setCurrentIndex(i)
         win.a_overlay.setChecked(True)
         win._toggle_overlay(True)
+        # The Display popover on the board with the map on: every control and every context (the card, the rings and the bar follow)
+        pop = win.display_popover
+        for ctx in ("editor", "temperature", "gradient", "animation", "other"):
+            pop.set_context(ctx)
+            for j in range(pop.cmap.count()):
+                pop.cmap.setCurrentIndex(j)
+            pop.underlay.setCurrentIndex(pop.underlay.count() - 1)
+            pop.opacity_spin.setValue(35)
+            pop.flush()
+            win.canvas.viewport().grab()
+        pop.underlay.setCurrentIndex(0)
+        pop.opacity_spin.setValue(70)
+        pop.flush()
+        win._toggle_display_popover()
+        win._toggle_display_popover()
         win.a_overlay.setChecked(False)
     # Exports with the dialogs answered
     out = tmp_path / "out"

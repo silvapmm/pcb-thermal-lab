@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 from .. import analysis, plots
 from . import theme as th
 from . import tips
-from .underlay import UnderlayControls
+from .display import DisplayState
 from ..numfmt import num
 
 
@@ -131,21 +131,21 @@ def recolour_toolbar(toolbar, theme):
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
-    @details The temperature and gradient tabs have the View combo (Current, Smooth, Terrain), the Show copper box with its Opacity slider and, for
-             both, the Contour step of the Terrain view (in K, or in K/mm with 'auto' on the gradient tab); they are display only (nothing is solved again) and the two tabs share them
-             through `view_changed` / `copy_view_from`.
+    @details How the map is drawn (underlay, opacity, View, contour step, colour map) is not a control of the tab: it is the shared `DisplayState`, edited in the
+             Display popover of the main toolbar, so the temperature and gradient maps, the Animation and the board can never disagree. The tab keeps Model, Layer,
+             Hotspot and the colour limits.
     """
 
-    view_changed = Signal()                             # A view control was edited by the user
-
-    def __init__(self, kind, theme="dark", parent=None):
+    def __init__(self, kind, theme="dark", parent=None, display=None):
         """!
         @param kind "temperature", "gradient", "profile" or "compare".
         @param theme Colour theme name.
         @param parent Qt parent.
+        @param display The shared DisplayState (a private one when None).
         """
         super().__init__(parent)
         self.kind, self.theme, self.sim = kind, theme, None
+        self.display = display if display is not None else DisplayState(self)
         self._updating = False
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
@@ -155,8 +155,6 @@ class PlotTab(QWidget):
 
         self.model = QComboBox()
         self.layer = QComboBox()
-        self.cmap = QComboBox()
-        self.cmap.addItems(plots.CMAPS)
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
         self.equiv = QCheckBox("Equiv. rect.")
@@ -169,27 +167,6 @@ class PlotTab(QWidget):
             s.setRange(-100, 2000)
             s.setDecimals(1)
             s.setKeyboardTracking(False)
-        self.view = QComboBox()                         # How the map is drawn (display only)
-        for mode in plots.VIEW_MODES:
-            self.view.addItem(plots.VIEW_LABELS[mode], mode)
-        self.underlay = UnderlayControls(self)          # None / Copper / Image under the map and the opacity of the map over it
-        self.opacity, self.opacity_spin = self.underlay.opacity, self.underlay.opacity_spin
-        self.contour = QDoubleSpinBox()
-        if kind == "gradient":
-            # The gradient map has its own step in K/mm; the lowest value is the special text 'auto': a round step picked from the range of the map
-            self.contour.setRange(0.0, 20.0)
-            self.contour.setDecimals(2)
-            self.contour.setSingleStep(0.1)
-            self.contour.setSpecialValueText("auto")
-            self.contour.setValue(0.0)
-            self.contour.setSuffix(" K/mm")
-        else:
-            self.contour.setRange(0.5, 50.0)
-            self.contour.setDecimals(1)
-            self.contour.setValue(5.0)
-            self.contour.setSuffix(" K")
-        self.contour.setKeyboardTracking(False)
-        self.contour_label = QLabel("Contour every")
         self.axis = QComboBox()
         self.axis.addItem("Along x", "x")
         self.axis.addItem("Along y", "y")
@@ -198,14 +175,9 @@ class PlotTab(QWidget):
         self.pos_label = QLabel()
         self.model.setToolTip("Model whose result is drawn.")
         self.layer.setToolTip("Copper layer shown.")
-        self.cmap.setToolTip("Colour scale of the map.")
         self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
                               "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
                               "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
-        self.view.setToolTip("How the map is drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic (the solver "
-                             "resolution is the cell, nothing finer is computed). Terrain: shaded relief with contour lines. Nothing is solved again.")
-        self.contour.setToolTip("Distance between the contour lines of the Terrain view in K; every second line is thicker and labelled with its "
-                                "temperature. On the Gradients tab the step is in K/mm and 'auto' (the lowest value) picks a round one from the range of the map.")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
         self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
@@ -213,7 +185,7 @@ class PlotTab(QWidget):
 
         controls = QHBoxLayout()
         if kind in ("temperature", "gradient"):
-            for lbl, w in (("Model", self.model), ("Layer", self.layer), ("View", self.view), ("Colours", self.cmap)):
+            for lbl, w in (("Model", self.model), ("Layer", self.layer)):
                 controls.addWidget(QLabel(lbl))
                 controls.addWidget(w)
             controls.addWidget(self.equiv)
@@ -229,70 +201,28 @@ class PlotTab(QWidget):
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
         controls.addStretch(1)
-        # Second row: the controls of the view (copper under the map, its opacity, the Terrain contour step of each tab)
-        row2 = QHBoxLayout()
-        if kind in ("temperature", "gradient"):
-            for w in (*self.underlay.widgets(), self.contour_label, self.contour):
-                row2.addWidget(w)
-        row2.addStretch(1)
-
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(controls)
-        if kind in ("temperature", "gradient"):
-            lay.addLayout(row2)
         lay.addWidget(self.toolbar)
         lay.addWidget(self.canvas, 1)
 
-        for w in (self.model, self.layer, self.cmap, self.axis):
+        for w in (self.model, self.layer, self.axis):
             w.currentIndexChanged.connect(self.redraw)
-        self.view.currentIndexChanged.connect(self._view_edited)
-        self.underlay.changed.connect(self._view_edited)
-        self.contour.valueChanged.connect(self._view_edited)
-        self._show_view_controls()
+        if kind in ("temperature", "gradient"):
+            self.display.changed.connect(lambda _what: self.redraw())     # A change of the shared display choice draws the map again
         for w in (self.hot, self.auto, self.equiv):
             w.toggled.connect(self.redraw)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
 
-    def _show_view_controls(self):
-        """!
-        @brief Show the view controls that apply: the contour step with the Terrain view (temperature and gradient tabs, each with its own value).
-        """
-        terrain = self.view.currentData() == "terrain" and self.kind in ("temperature", "gradient")
-        self.contour_label.setVisible(terrain)
-        self.contour.setVisible(terrain)
-
-    def _view_edited(self, *_):
-        """!
-        @brief The user changed a view control: tell the other tab and redraw.
-        @param _ Ignored (extra arguments of the Qt signal).
-        """
-        self._show_view_controls()
-        self.view_changed.emit()
-        self.redraw()
-
-    def copy_view_from(self, other):
-        """!
-        @brief Take the view, the underlay and the opacity of another tab (the contour step stays: it is a temperature step).
-        @param other PlotTab.
-        """
-        self.view.blockSignals(True)
-        self.view.setCurrentIndex(other.view.currentIndex())
-        self.view.blockSignals(False)
-        self.underlay.copy_from(other.underlay)
-        self._show_view_controls()
-        self.redraw()
-
     def map_view(self):
         """!
-        @brief The MapView of the controls, with the colours of the theme.
-        @return plots.MapView.
+        @brief The MapView of the shared display choice, with the colours of the theme.
+        @return plots.MapView, or None when the map is drawn as always (Current without an underlay).
         """
-        mode = self.view.currentData()
-        view = plots.MapView(mode=mode, contour_step=self.contour.value() if self.kind in ("temperature", "gradient") else 0.0)
-        return self.underlay.apply(view, self.theme)
+        return self.display.map_view(self.kind, self.theme)
 
     def set_theme(self, theme):
         """!
@@ -311,7 +241,7 @@ class PlotTab(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
-        self.underlay.clear_cache()                     # The copper pictures belong to the problem of the simulation
+        self.display.clear_cache()                      # The copper pictures belong to the problem of the simulation
         self._updating = True
         have = [k for k, r in sim.results.items() if r.T is not None]
         self.model.clear()
@@ -362,7 +292,7 @@ class PlotTab(QWidget):
             return None                                                # The overlay on the board shows the board layers only
         vmin = None if self.auto.isChecked() else self.vmin.value()
         vmax = None if self.auto.isChecked() else self.vmax.value()
-        return r.T[layer], r.dx, r.dy, self.cmap.currentText(), vmin, vmax
+        return r.T[layer], r.dx, r.dy, self.display.cmap, vmin, vmax
 
     def redraw(self, *_):
         """!
@@ -379,15 +309,12 @@ class PlotTab(QWidget):
         eq_args = {"equivalent_scale": eq if self.equiv.isChecked() else None, "equivalent_color": th.colors("dark")["alert"]}
         self.vmin.setEnabled(not self.auto.isChecked())
         self.vmax.setEnabled(not self.auto.isChecked())
-        self._show_view_controls()
-        view = self.map_view() if self.kind in ("temperature", "gradient") else None
-        if view is not None and view.mode == "current" and not view.show_copper:
-            view = None                                  # The original picture, call for call
+        view = self.map_view() if self.kind in ("temperature", "gradient") else None    # None: the original picture, call for call
         with _mpl_theme(self.theme):
             if self.kind == "temperature" and self._result() is not None:
                 r = self._result()
                 layer = self.layer.currentData()
-                cmap = self.cmap.currentText()
+                cmap = self.display.cmap
                 if layer in (-1, -2):
                     plots.draw_fields(self.fig, r, prob, cmap=cmap, show_equivalent=self.equiv.isChecked(), equivalent_color=eq_args["equivalent_color"],
                                       view=view, grid=layer == -2)
@@ -406,7 +333,7 @@ class PlotTab(QWidget):
                 r = self._result()
                 layer = max(self.layer.currentData(), 0)
                 g = analysis.gradient_magnitude(r)[layer]
-                plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.cmap.currentText(), layer=layer,
+                plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.display.cmap, layer=layer,
                                  label="|∇T| (K/mm)", **eq_args, view=view,
                                  title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
@@ -431,13 +358,15 @@ class ResultsView(QWidget):
 
     show_on_board = Signal()
 
-    def __init__(self, theme="dark", parent=None):
+    def __init__(self, theme="dark", parent=None, display=None):
         """!
         @param theme Colour theme name.
         @param parent Qt parent.
+        @param display The shared DisplayState of the maps (a private one when None).
         """
         super().__init__(parent)
         self.theme, self.sim = theme, None
+        self.display = display if display is not None else DisplayState(self)     # One choice of how the maps are drawn, for every tab that draws one
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
@@ -466,13 +395,10 @@ class ResultsView(QWidget):
         sl.addWidget(self.report, 1)
         self.tabs.addTab(summary, "Summary")
 
-        self.temp = PlotTab("temperature", theme)
-        self.grad = PlotTab("gradient", theme)
-        self.profile = PlotTab("profile", theme)
-        self.compare = PlotTab("compare", theme)
-        # The view (mode, copper box, opacity) is one choice for the temperature and the gradient maps
-        self.temp.view_changed.connect(lambda: self.grad.copy_view_from(self.temp))
-        self.grad.view_changed.connect(lambda: self.temp.copy_view_from(self.grad))
+        self.temp = PlotTab("temperature", theme, display=self.display)
+        self.grad = PlotTab("gradient", theme, display=self.display)
+        self.profile = PlotTab("profile", theme, display=self.display)
+        self.compare = PlotTab("compare", theme, display=self.display)
         self.tabs.addTab(self.temp, "Temperature")
         self.tabs.addTab(self.grad, "Gradients")
         self.tabs.addTab(self.profile, "Profiles")
@@ -499,15 +425,10 @@ class ResultsView(QWidget):
         self.tabs.addTab(comp, "Components")
         self.tabs.addTab(self.compare, "Models")
         from .animation import AnimationTab        # Imported here: animation imports helpers from this module
-        self.animation = AnimationTab(theme)
+        self.animation = AnimationTab(theme, display=self.display)
         self._anim_warns = []                                   # Notes of the last animation, listed in the summary after those of the run
         self.animation.warnings_changed.connect(self._on_animation_warnings)
         self.tabs.addTab(self.animation, "Animation")
-        self.animation.underlay.set_source(False, None)
-        # The underlay (entry and opacity) is one choice for the three tabs that draw a map: the Animation follows the maps and the maps follow the Animation
-        self.temp.view_changed.connect(lambda: self._share_underlay(self.temp))
-        self.grad.view_changed.connect(lambda: self._share_underlay(self.grad))
-        self.animation.underlay.changed.connect(lambda: self._share_underlay(self.animation, redraw_maps=True))
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
@@ -533,37 +454,14 @@ class ResultsView(QWidget):
         # Two line breaks = one blank line between warnings, so that a long list is easy to read
         self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
 
-    def _share_underlay(self, source, redraw_maps=False):
-        """!
-        @brief Give the underlay choice of one tab (entry and opacity) to the Animation tab, or from the Animation to the two maps.
-        @param source The PlotTab or AnimationTab whose choice was edited.
-        @param redraw_maps True when the Animation was edited: the maps are drawn again and the editor combo is told (through the Temperature `view_changed`).
-        """
-        if source is self.animation:
-            for t in (self.temp, self.grad):
-                t.underlay.copy_from(self.animation.underlay)
-                t.redraw()
-            self.temp.view_changed.emit()                  # The editor combo of the main window follows the Temperature tab
-        else:
-            self.animation.underlay.copy_from(source.underlay)
-            self.animation.redraw()
-
     def set_underlay_source(self, imported, cfg):
         """!
-        @brief Tell the Temperature, Gradients and Animation tabs what the project offers under the map, and redraw them.
+        @brief Tell the display choice what the project offers under the map (copper, and the image of a hand-drawn project); the maps are drawn again when it changed.
         @param imported True when the project comes from Gerber files (Copper only).
         @param cfg The `view["background"]` dict of the project or None (the Image entry exists for a hand-drawn project with an image).
         @return True when something changed.
         """
-        changed = [t.underlay.set_source(imported, cfg) for t in (self.temp, self.grad, self.animation)]
-        if not any(changed):
-            return
-        # The two maps share the choice; keep them equal after a list that lost the selected entry
-        self.grad.underlay.copy_from(self.temp.underlay)
-        self.animation.underlay.copy_from(self.temp.underlay)
-        self.temp.redraw()
-        self.grad.redraw()
-        self.animation.redraw()
+        return self.display.set_source(imported, cfg)         # Its `changed` signal draws the maps
 
     def set_theme(self, theme):
         """!

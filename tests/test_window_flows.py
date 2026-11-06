@@ -376,8 +376,8 @@ def test_animation_tab_compute_play_pause_export_and_the_underlay_combo(win, qtb
     assert anim.slider.value() == anim.slider.maximum()
     # Export the GIF with the underlay None and then Copper
     for kind in ("none", "copper"):
-        anim.underlay.combo.setCurrentIndex(anim.underlay.combo.findData(kind))
-        assert anim.underlay.kind() == kind
+        win.display_popover.underlay.setCurrentIndex(win.display_popover.underlay.findData(kind))
+        assert win.display.kind == kind
         out = tmp_path / f"anim_{kind}.gif"
         monkeypatch.setattr(an.QFileDialog, "getSaveFileName", staticmethod(lambda *a, o=out, **k: (str(o), "")))
         anim.export.click()
