@@ -8,7 +8,9 @@
          cell conductance of the mapping (arithmetic, geometric, lambda 0.5 mean, flow-based mean). The error is that of the mean rise over the 6 x 6 mm heater of the coarse run against the fine run of the same model.
          The program must add the coverage of abutting zones instead of taking their maximum (the program's union rule distorts a field made of many small zones; see README 4.27), so this study is run
          against a copy of the program with that one change (np.minimum(fill + coverage, 1) in fvm, fdm, solid3d, analytic); set PYTHONPATH to that copy.
-         Run: PYTHONPATH=<patched copy>:. .venv/bin/python research/gerber-models/scripts/study_models_self.py (from the repository root) (about 20 minutes).
+         Run: .venv-research/bin/python research/gerber-models/scripts/study_models_self.py [--models fvm,fdm,lumped,analytic,solid3d] (from the repository root).
+         Since release 2.4.3 the program takes the union of the zones per sample point (`geometry.zone_fill`), which is additive for zones that abut, so the patched copy described above is no longer needed
+         (the patch is kept in this text as the record of the first run). With the memory guard at its default the whole run takes about 3 minutes; the 3D solid's fine run peaks near 3.7 GB resident.
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths of research/gerber-models in order)
@@ -26,6 +28,7 @@ import study_lumped_analytic as sl
 import windows
 
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+FVM_SOLVER = "direct"                          # `--fvm-solver cg` keeps the memory of the 0.1 mm run under 3 GB (no LU factor)
 BOARDS_USED = (0, 6, 12, 24)                 # window indices: storm, chibi, easyeda, pcad
 
 
@@ -53,15 +56,23 @@ def run_model(p, model, cell):
     @param cell Cell size (mm).
     @return Mean rise (K) of the heater.
     """
-    sim = simulate(p, SolverOptions(models=(model,), cell_mm=cell))
+    sim = simulate(p, SolverOptions(models=(model,), cell_mm=cell, linear_solver=FVM_SOLVER))
     return heater_stats(sim.results[model], p)[0]["t_mean"] - p.board.ambient
 
 
 def main():
     """!
     @brief Run the windows and print the errors per model and mapping.
+    @details Optional argument `--models fvm,fdm,...` limits the models (the 3D solid's fine run needs about 6 GB resident, more than a small machine may give).
     @return None.
     """
+    global MODELS, FVM_SOLVER, BOARDS_USED
+    if "--windows" in sys.argv:                      # window indices, e.g. 0 for the Stormduino only
+        BOARDS_USED = tuple(int(v) for v in sys.argv[sys.argv.index("--windows") + 1].split(","))
+    if "--fvm-solver" in sys.argv:
+        FVM_SOLVER = sys.argv[sys.argv.index("--fvm-solver") + 1]
+    if "--models" in sys.argv:
+        MODELS = tuple(sys.argv[sys.argv.index("--models") + 1].split(","))
     masks, meta = windows.load()
     res = {}
     for k in BOARDS_USED:

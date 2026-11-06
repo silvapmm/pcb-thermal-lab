@@ -211,7 +211,7 @@ def fig_models_our_board():
     axs[0].set_xticks(x)
     axs[0].set_xticklabels(models)
     axs[0].set_ylabel("mean rise over the heater (K)")
-    axs[0].set_title("our IC board, 1 W in 6 x 6 mm (the 3D solid has no fine run: over the program's size limit)", fontsize=9)
+    axs[0].set_title("our IC board, 1 W in 6 x 6 mm (no FDM bar: its 0.1 mm run is refused by the memory guard)", fontsize=9)
     axs[0].set_ylim(0, axs[0].get_ylim()[1] * 1.35)                       # head-room: the legend covered the bars of the geometric mean
     axs[0].legend(fontsize=7, ncol=3, loc="upper left")
     for k, i in enumerate(range(len(maps))):
