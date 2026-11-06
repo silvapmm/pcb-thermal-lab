@@ -608,6 +608,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addWidget(QLabel(" Layer "))
         self.layer_choice = LayerChoice(self)                       # The one layer choice: the editor, every map and the map on the board
+        self.doc.project_replaced.connect(self.layer_choice.reset)       # A new project starts on layer 1 (the layer is also the drawing layer)
         self.layer_context = "editor"
         self.layer_combo = QComboBox()
         # One width for every context: the longest entry ("Metal block (bottom)") fits, and the tool bar does not move when the list changes with the tab

@@ -96,6 +96,17 @@ class LayerChoice(QObject):
             self.last_single = value
         self.changed.emit()
 
+    def reset(self):
+        """!
+        @brief Go back to layer 1 (the top) as a new project starts: the choice is also the drawing layer, and a stale inner layer would put the first element there.
+        @return None.
+        """
+        if self.pick_value == 0 and self.last_single == 0:
+            return
+        self.pick_value = 0
+        self.last_single = 0
+        self.changed.emit()
+
     def follow(self, layer):
         """!
         @brief Move the single layer for a reason that is not a pick of the box (an element selected on another layer, a clicked warning).

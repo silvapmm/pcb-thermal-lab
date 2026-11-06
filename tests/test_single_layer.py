@@ -351,3 +351,74 @@ def test_the_model_menu_shows_tooltips_keeps_one_menu_and_has_a_key(qtbot, tmp_p
     menu = win._model_menu
     assert menu.isVisible() and menu.activeAction() is not None and menu.activeAction().isChecked()
     menu.close()
+
+
+def test_the_layer_starts_again_at_the_top_when_a_project_is_opened_created_or_imported(qtbot, tmp_path):
+    """!
+    @brief The layer choice is also the drawing layer, so a project that is opened, created or imported starts on layer 1 (an edit or a re-import keeps it).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from pcbthermal.project import Project, save_project
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    four, two = str(tmp_path / "four.pcbt.json"), str(tmp_path / "two.pcbt.json")
+    win.doc.new(60, 40, 4)
+    save_project(four, win.doc.project)
+    win.doc.new(60, 40, 2)
+    save_project(two, win.doc.project)
+    win.doc.open(four)
+    win._set_layer(2)
+    assert win.canvas.layer == 2 and win.layer_choice.single(4) == 2
+    win.doc.edit_board("ambient", ambient=30.0)                      # An edit keeps the choice
+    assert win.canvas.layer == 2
+    win.doc.open(two)                                                # Another project: layer 1, on the canvas, in the box and in the choice
+    assert win.canvas.layer == 0 and win.layer_choice.single(2) == 0 and win.layer_combo.currentData() == 0
+    win.doc.open(four)
+    assert win.canvas.layer == 0 and win.layer_combo.currentData() == 0
+    win._set_layer(3)
+    win.doc.open_problem(example_board())                            # An example board, as File - Open example
+    assert win.canvas.layer == 0
+    win._set_layer(1)
+    win.doc.new(60, 40, 4)                                           # File - New
+    assert win.canvas.layer == 0
+    win._set_layer(3)
+    win.doc._set_project(Project(problem=example_board()), None)     # The import and the package open go through the same call
+    assert win.canvas.layer == 0 and win.layer_combo.currentData() == 0
+
+
+def test_the_letter_keys_do_not_fire_while_a_text_or_number_field_has_the_focus(qtbot, tmp_path):
+    """!
+    @brief M (model of the map), D (display settings) and T (map on the board) are typed into a focused line edit or number box, they do not trigger their action.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QDoubleSpinBox, QLineEdit
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    win.show()
+    win.activateWindow()
+    qtbot.waitActive(win)
+    fired = []
+    for name, act in (("M", win.a_model), ("D", win.a_display), ("T", win.a_overlay)):
+        act.setEnabled(True)
+        act.triggered.connect(lambda *_a, n=name: fired.append(n))
+    for field in (QLineEdit(win), QDoubleSpinBox(win)):
+        field.setGeometry(0, 0, 80, 24)
+        field.show()
+        field.raise_()
+        field.setFocus()
+        qtbot.waitUntil(lambda f=field: f.hasFocus())
+        text = field.lineEdit() if isinstance(field, QDoubleSpinBox) else field
+        text.clear()
+        QTest.keyClicks(field, "mdt")
+        assert fired == [], f"a letter key fired an action while {type(field).__name__} had the focus: {fired}"
+        if isinstance(field, QLineEdit):
+            assert text.text().lower() == "mdt"                      # The letters went into the field (a number box rejects them, and still does not fire the keys)
+    # Control: with the board canvas focused the key still works
+    win.canvas.setFocus()
+    QTest.keyClicks(win.canvas, "m")
+    assert "M" in fired
