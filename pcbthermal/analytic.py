@@ -902,6 +902,8 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
     d = _modal_dynamics(problem, cell_mm, n_terms, 0.0, 0.0)             # the board without vias and heatsinks
     d.update({"local_max": None, "scaled": None, "local": None, "local_factor": 1.0, "local_note": None})
     bx, by = d["bases"]
+    # The steady solve first: its dense matrices are freed before the (also dense) block of the transient is built, so the peak memory is the larger of the two, not the sum
+    steady = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms)
     lc = _local_conductances(problem, _effective_sheet(problem, cell_mm), bx, by)       # (the dict d holds the decay rates under the key lam, the sheet the fin length)
     if not len(lc["active"]):
         return d
@@ -914,8 +916,8 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
     lay, iy, ix = d["points"][served]
     wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
     q_all = _heater_unit_sources(problem, bx, by)                          # 1 W of every heater
+    del lc["Cv"], lc["cs"]                                                 # (now held as projections inside the LocalSystem)
     # Target: the steady rise per watt of the corrected steady model at the own point of the served heater, less what the modes outside the block carry
-    steady = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms)
     power = problem.heaters[served].power
     target = float(steady.T[lay, iy, ix] - ambient) / power
     outside = np.ones((n_terms, n_terms, 1), dtype=bool)
