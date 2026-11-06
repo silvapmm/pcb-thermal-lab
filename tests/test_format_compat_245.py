@@ -182,3 +182,19 @@ def test_example_boards_format1_round_trip_is_byte_stable(tmp_path):
         assert again.read_bytes() == out.read_bytes(), n
         b = json.loads(out.read_text())
         assert b["format"] == FORMAT_1 and not os.path.exists(str(out) + ".bak")
+
+
+def test_old_program_refuses_a_package_without_touching_it(old_tree, tmp_path):
+    """!
+    @brief v2.4.5 cannot open a `.pcbtz` package written by this tree (a ZIP is not JSON), says so as an error, and the file is byte-identical afterwards.
+    @param old_tree The old tree.
+    @param tmp_path Temporary folder.
+    @return None.
+    """
+    from pcbthermal import package as pkg
+    path = tmp_path / "board.pcbtz"
+    pkg.save_package(path, Project(problem=example_board()))
+    before = path.read_bytes()
+    out = _run_old(old_tree, "load", path)
+    assert out.startswith("REFUSED")
+    assert path.read_bytes() == before and sorted(os.listdir(tmp_path)) == ["board.pcbtz"]

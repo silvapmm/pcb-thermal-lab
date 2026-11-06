@@ -663,3 +663,31 @@ def test_stored_sources_feed_a_reimport(window, tmp_path):
         assert next(f for f in s.files if f.name == "top.gtl").role == "Top copper"
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+
+
+def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
+    """!
+    @brief The import window closes the session (and a ZIP archive with it) before any signal: the capture wrapped around `session.close` reads the files first, with their roles and kinds.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from types import SimpleNamespace
+    from pcbthermal.gui import package_actions as pa
+    from pcbthermal.gui.import_session import ImportSession
+    zp = tmp_path / "set.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.writestr("top.gtl", GBR)
+        zf.writestr("pos.csv", "Ref,Val,Package,PosX,PosY,Rot,Side\n\"C1\",\"30p\",\"C_0603\",44.2,62.3,0.0,bottom\n")
+        zf.writestr("parts_bom.csv", "Ref,Value\nU1,10k\n")
+    session = ImportSession()
+    session.set_files(zp)
+    dlg = SimpleNamespace(session=session, record=None)
+    cap = pa.capture_on_close(dlg)
+    session.close()                                          # cancelled before a record exists: nothing is read
+    assert cap.files == []
+    session.set_files(zp)
+    dlg.record = object()
+    session.close()                                          # what ImportBoardWindow.done does
+    got = {n: (k, fn) for n, _, k, fn in cap.files}
+    assert got["top.gtl"][0] == "gerber" and got["pos.csv"][0] == "placement" and got["parts_bom.csv"][0] == "bom"
+    assert dict((n, b) for n, b, _, _ in cap.files)["top.gtl"] == GBR
