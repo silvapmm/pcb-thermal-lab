@@ -2,19 +2,16 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_maximum_principle.py
-@brief The via couplings put positive off-diagonal entries into K (docs/theory.md 2.2): how many, how large, and where the solution keeps or loses the maximum principle.
+@brief The via is a star coupling (docs/theory.md 2.2): K has no positive off-diagonal entry with vias, and the field has no cold spot, also where the copper ends inside a footprint.
 
 @details A thermal matrix without vias is an M-matrix (non-positive off-diagonal entries), whose solution for non-negative sources is non-negative and has no
-         interior minimum below its surroundings. The Kron-reduced via barrels add couplings with zero row sum and positive entries between the cells of one
-         footprint on one plane (the via takes heat from each cell in proportion to its weight times the difference of the plane MEANS), so K is no longer an
-         M-matrix and the principle is not proved. The check used here is local, because the global minimum of a board lies far from its vias and would hide a
-         cold spot: on every plane, inside a window around the vias, no temperature may lie below the lowest temperature on the edge of the window (a cold spot
-         under a via has no physical cause: no sink is there).
-         - On copper that covers the footprints (the example board at 1 mm, a dense 10 x 10 array of 0.3 mm vias at 0.5 and 0.25 mm) the field has no cold spot.
-         - Where the copper of a plane covers only part of a footprint (a copper edge through the via, a part on bare laminate over a via) the fixed weights take
-           heat from cells that cannot supply it, and the FVM shows a cold spot of 8 to 14 K at 0.5 to 0.25 mm on a 2 W part (tens of K, even below the ambient,
-           in the reviewer's sweeps); that limit is recorded in docs/theory.md 2.2 and is tested below as a strict expected failure, so that a correction of the
-           via weights must update this test.
+         interior minimum below its surroundings. The earlier mean-potential via added positive entries between the cells of one footprint on one plane, K was
+         not an M-matrix, and where the copper covered only part of a footprint the FVM showed a cold spot of 8 to 14 K at 0.5 to 0.25 mm. The star coupling (one
+         barrel node per layer reached through a conductance to every cell of the footprint, the barrel nodes eliminated) is the Schur complement of a resistor
+         network, so every off-diagonal entry is non-positive by construction. The check used here is local, because the global minimum of a board lies far
+         from its vias and would hide a cold spot: on every plane, inside a window around the vias, no temperature may lie below the lowest temperature on the
+         edge of the window (a cold spot under a via has no physical cause: no sink is there). It is held on copper that covers the footprints (the example board
+         at 1 mm, a dense 10 x 10 array of 0.3 mm vias at 0.5 and 0.25 mm) and where the copper ends inside the footprint (the board of docs/theory.md 2.2).
 """
 
 import os
@@ -136,7 +133,7 @@ def test_positive_couplings_and_no_cold_spot_on_copper(case, model):
     spot = cold_spot(problem, net, theta)
     print(f"\n{case} {model} {cell} mm: unknowns {net.K.shape[0]}, positive off-diagonal entries {count}, largest / diagonal {rel_diag:.4f}, "
           f"largest / row negative sum {rel_neg:.4f}, min rise {theta[keep].min():.3e} K, max rise {top:.3f} K, deepest cold spot {spot:+.3e} K")
-    assert count > 0                                      # the vias are there (16 for the FVM on the example at 1 mm, theory.md 2.2)
+    assert count == 0                                     # an M-matrix: the star coupling has no positive off-diagonal entry (16 on the example before it)
     assert theta[keep].min() >= -TOLERANCE * top           # no node below the ambient
     assert spot >= -TOLERANCE * top                        # and no cold spot around the vias
     where = np.unravel_index(np.argmax(np.where(keep, theta, -np.inf)), theta.shape)
@@ -144,8 +141,6 @@ def test_positive_couplings_and_no_cold_spot_on_copper(case, model):
 
 
 @pytest.mark.parametrize("cell", [0.5, 0.25])
-@pytest.mark.xfail(strict=True, reason="known limit (docs/theory.md 2.2): fixed footprint weights on a plane whose copper covers only part of the footprint "
-                                       "make a cold spot under the via")
 def test_no_cold_spot_where_the_copper_ends_inside_a_footprint(cell):
     problem = copper_edge_board()
     net = network(problem, "fvm", cell)

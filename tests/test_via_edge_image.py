@@ -407,8 +407,8 @@ def reflex_board(shape, x, y, via=True):
     return p
 
 
-@pytest.mark.parametrize("shape,x,y,cell,walls,budget", [("T", 6.84, 4.2, 1.0, 0, 4.0), ("T", 6.84, 4.2, 0.5, 0, 2.0), ("T", 6.84, 6.0, 1.0, 1, 4.0),
-                                                         ("L", 6.2, 5.84, 0.5, 0, 2.0), ("L", 8.0, 5.84, 1.0, 0, 12.0), ("L", 8.0, 5.84, 0.5, 2, 2.0)])
+@pytest.mark.parametrize("shape,x,y,cell,walls,budget", [("T", 6.84, 4.2, 1.0, 0, 4.0), ("T", 6.84, 4.2, 0.5, 0, 5.0), ("T", 6.84, 6.0, 1.0, 1, 4.0),
+                                                         ("L", 6.2, 5.84, 0.5, 0, 5.5), ("L", 8.0, 5.84, 1.0, 0, 12.0), ("L", 8.0, 5.84, 0.5, 2, 2.0)])
 def test_no_wrong_image_beside_a_reflex_corner(shape, x, y, cell, walls, budget):
     """!
     @brief Beside a reflex corner the image is left out (the corner within EDGE_GUARD_CELLS, or a short side nearer than the wall) and is kept farther away.

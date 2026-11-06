@@ -33,6 +33,7 @@ The research is in research/point-via-convergence (treatment, convergence), rese
 import math
 
 import numpy as np
+from scipy.optimize import brentq
 
 from .geometry import cell_index_of_point
 
@@ -143,7 +144,7 @@ def restrict_to_board(weights, cover):
     return {k: v / tot for k, v in out.items()} if tot > 0 else {}
 
 
-def enlarged_footprint(cx, cy, r_via, dx, origin, cover, dy, origin_y, need):
+def enlarged_footprint(cx, cy, r_via, dx, origin, cover, dy, origin_y, need, rel=None):
     """!
     @brief Smallest disc footprint (centre fixed, restricted to the board) whose lattice effective radius is at least `need`.
     @param cx Via centre x in m.
@@ -155,20 +156,41 @@ def enlarged_footprint(cx, cy, r_via, dx, origin, cover, dy, origin_y, need):
     @param dy Cell size along y in m.
     @param origin_y Lower y edge of row 0 in m.
     @param need Required effective radius in m.
+    @param rel Optional array (ny, nx) of the sheet conductance per unit of board of a layer (any scale, W/K): the weight of a cell is the share of the disc
+           times rel, renormalised (cells that cannot carry the heat get almost none of it); None = the share of the disc alone.
     @return dict {(i, j): w} (the disc radius is found by bisection after a doubling search bounded by the board size).
     """
     h = math.sqrt(dx * dy)
 
     def make(radius):
-        return restrict_to_board(disc_weights(cx, cy, radius, dx, origin, dy, origin_y), cover)
+        """!
+        @brief Footprint weights of a disc of a given radius.
+        @param radius Disc radius in m.
+        @return dict {(i, j): w}, possibly empty.
+        """
+        g = restrict_to_board(disc_weights(cx, cy, radius, dx, origin, dy, origin_y), cover)
+        if rel is None:
+            return g
+        g = {k: x * float(rel[k]) for k, x in g.items() if rel[k] > 0.0}
+        tot = sum(g.values())
+        return {k: x / tot for k, x in g.items()} if tot > 0.0 else {}
+
+    def reach(radius):
+        """!
+        @brief Effective radius of the footprint of a given disc (0 when it is empty).
+        @param radius Disc radius in m.
+        @return float r_eff in m.
+        """
+        wr = make(radius)
+        return effective_radius(wr, h) if wr else 0.0
 
     limit = max(cover.shape) * max(dx, dy)
     lo, hi = r_via, 2.0 * r_via
-    while effective_radius(make(hi), h) < need and hi < limit:
+    while reach(hi) < need and hi < limit:
         lo, hi = hi, 2.0 * hi
     for _ in range(30):
         mid = 0.5 * (lo + hi)
-        if effective_radius(make(mid), h) < need:
+        if reach(mid) < need:
             lo = mid
         else:
             hi = mid
@@ -350,6 +372,37 @@ def edge_term(w, dx, dy, via_xy, r_via, walls):
     return c
 
 
+def edge_kernel(keys, dx, dy, via_xy, r_via, walls):
+    """!
+    @brief The edge term as a matrix over the cells of a footprint: K[a, b] such that sum_ab w_a w_b K[a, b] = `edge_term`.
+    @details K[a, b] = sum over the walls of [lattice log from cell a to the mirror image of cell b - ln(2 max(distance, r_via))] (+ the diagonal image at a corner):
+             how much more resistive than the true image the lattice image is for a flux that goes in at b and is read at a. The star coupling needs the matrix because
+             its flux is not the weight w (it follows the cells that carry the heat), where the mean-potential well had a prescribed flux and needed only the number.
+    @param keys List of the (i, j) cells of the footprint (cell-centred grid, origin 0).
+    @param dx Cell size in x in m.
+    @param dy Cell size in y in m.
+    @param via_xy Via centre (x, y) in m.
+    @param r_via Drill radius in m.
+    @param walls list of (axis, position) from `edge_walls` / `image_walls`.
+    @return numpy.ndarray (n, n) in logarithm units (dimensionless).
+    """
+    h = math.sqrt(dx * dy)
+    X = (np.array([k[1] for k in keys]) + 0.5) * dx
+    Y = (np.array([k[0] for k in keys]) + 0.5) * dy
+    K = np.zeros((len(keys), len(keys)))
+    deltas = []
+    Xd, Yd = X, Y
+    for axis, p in walls:
+        delta = abs((via_xy[0] if axis == "x" else via_xy[1]) - p)
+        deltas.append(delta)
+        Xi, Yi = (2.0 * p - X, Y) if axis == "x" else (X, 2.0 * p - Y)
+        K += lattice_log((Y[:, None] - Yi[None, :]) / h, (X[:, None] - Xi[None, :]) / h, h) - math.log(2.0 * max(delta, r_via))
+        Xd, Yd = (2.0 * p - Xd, Yd) if axis == "x" else (Xd, 2.0 * p - Yd)
+    if len(walls) == 2:
+        K += lattice_log((Y[:, None] - Yd[None, :]) / h, (X[:, None] - Xd[None, :]) / h, h) - math.log(2.0 * max(math.hypot(*deltas), r_via))
+    return K
+
+
 def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     """!
     @brief Footprint of a via for the 3D solid, whose cells carry the copper area of the barrel (no well): the weights whose effective radius equals 0.78 r_via.
@@ -473,6 +526,152 @@ def kron_barrel(g_gap, g_well):
     return G
 
 
+STAR_CAP = 1e6                                                      # total conductance of the star over S when the footprint alone is already resistive enough (nearly an equipotential)
+_STAR_CACHE = {}                                                    # dimensionless star scales by footprint shape (see star_scale)
+_STAR_CACHE_MAX = 20000
+
+
+class Block:
+    """!
+    @brief The coupling of one via: it unpacks like the earlier 4-tuple (rows, cols, w, G) and carries the dense coupling over its (layer, cell) pairs.
+    """
+
+    def __init__(self, layer_cells, M, G):
+        """!
+        @brief Store the coupling of one via.
+        @param layer_cells List over the board layers of integer arrays (n_l, 2) of the (row, col) cells joined to the barrel in that layer (possibly empty).
+        @param M Dense symmetric matrix (n, n) in W/K over the concatenated (layer, cell) pairs, zero row sums, non-positive off-diagonal entries.
+        @param G Array (L, L) of the total conductance between the cells of two layers, -sum M[a, b] over a in l, b in m, in W/K.
+        """
+        self.layer_cells, self.M, self.G = layer_cells, M, G
+        union = sorted({(int(c[0]), int(c[1])) for cells in layer_cells for c in cells})
+        self.rows = np.array([c[0] for c in union], dtype=int)
+        self.cols = np.array([c[1] for c in union], dtype=int)
+        self.w = np.full(len(union), 1.0 / max(len(union), 1))         # informative: the union is shared out equally (each layer has its own weights in M)
+
+    def __iter__(self):
+        """!
+        @brief Unpack as (rows, cols, w, G) like the earlier tuple of the mean-potential treatment.
+        @return iterator over (rows, cols, w, G): the union of the cells, equal weights on it, the layer-to-layer conductances.
+        """
+        return iter((self.rows, self.cols, self.w, self.G))
+
+    def __getitem__(self, i):
+        """!
+        @brief Index like the earlier 4-tuple.
+        @param i Position 0 to 3 (rows, cols, w, G).
+        @return The element.
+        """
+        return (self.rows, self.cols, self.w, self.G)[i]
+
+    def flat(self, idx):
+        """!
+        @brief Indices of the (layer, cell) pairs of the block in the unknowns.
+        @param idx Index array (layers, ny, nx) of the unknowns.
+        @return numpy.ndarray of integers, in the order of the rows of `M`.
+        """
+        parts = [idx[l][c[:, 0], c[:, 1]] for l, c in enumerate(self.layer_cells) if len(c)]
+        return np.concatenate(parts) if parts else np.zeros(0, dtype=int)
+
+
+def star_scale(cells, w, kmat, ratio):
+    """!
+    @brief Total conductance of the star of one layer, in units of the sheet conductance, so that a lone via in a uniform sheet keeps the resistance of the well.
+    @details The barrel of a layer is an equipotential node reached from the cell a of the footprint through g_a = c S w_a. A unit flux into the cells (f_a, sum 1) gives the
+             barrel a potential delta above the far-field logarithm, f_a / (c S w_a) - sum_b C_ab f_b = delta with the lattice potential C_ab = (a(a - b) - kappa) / (4 S).
+             The required delta is that of the Peaceman well without an edge, D = ln(h / r_t) / (2 pi S). Near a straight edge the lattice potential gets the matrix of
+             `edge_kernel`, C_ab + K_ab / (2 pi S): the grid has the wall, but at the mirror of the cells and not of the via, and the star's flux f follows the cells that
+             carry the heat, so the correction is a matrix (for f = w it is the number `edge_term` that the mean-potential well used).
+             With S = 1, g = 1 / c and the eigenpairs (lambda_k, v_k) of W^(1/2) C W^(1/2): delta = 1 / sum_k q_k^2 / (g - lambda_k), q_k = v_k . W^(1/2) 1, which grows
+             with g without a pole for g >= 0 (-C is positive definite on the fluxes of zero total, so only the eigenvalue along W^(1/2) 1 can be positive and the pole of
+             the sum at it is a zero of delta), so c is found by Brent's method on g. D is negative when the cell is smaller than the target radius. When even an
+             equipotential footprint is not resistive enough (delta at g = 0 not below D) the star gets the conductance STAR_CAP (nearly an equipotential), the case of the
+             earlier 'infinite well'.
+    @param cells Array (n, 2) of integer (row, col) cell indices of the footprint.
+    @param w Array (n,) of the weights (sum 1).
+    @param kmat Array (n, n) from `edge_kernel` (dimensionless), or None away from an edge.
+    @param ratio Lattice spacing over the target radius, h / r_t (dimensionless).
+    @return float c (dimensionless, units of S): the total conductance of the star over the sheet conductance.
+    """
+    key = (tuple((cells - cells.min(axis=0)).ravel().tolist()), tuple(np.round(w, 10).tolist()),
+           None if kmat is None else tuple(np.round(kmat, 9).ravel().tolist()), round(float(ratio), 9))
+    hit = _STAR_CACHE.get(key)
+    if hit is not None:
+        return hit
+    d = cells[:, None, :] - cells[None, :, :]
+    C = (lattice_kernel(d[..., 0], d[..., 1]) - KAPPA) / 4.0
+    if kmat is not None:
+        C = C + kmat / (2.0 * math.pi)
+    target = math.log(ratio) / (2.0 * math.pi)
+    sw = np.sqrt(w)
+    lam, vec = np.linalg.eigh(sw[:, None] * C * sw[None, :])
+    q2 = (vec.T @ sw) ** 2
+
+    def delta(g):
+        """!
+        @brief Potential of the star node over the far-field logarithm for a unit flux, at g = 1 / c.
+        @param g Inverse of the star conductance (dimensionless, above the largest eigenvalue).
+        @return float delta (dimensionless).
+        """
+        with np.errstate(divide="ignore"):
+            return 1.0 / float(np.sum(q2 / (g - lam)))
+
+    lo = 1.0 / STAR_CAP
+    if delta(lo) >= target:
+        result = STAR_CAP                       # even an equipotential footprint is not resistive enough: nearly an equipotential star
+    else:
+        hi = max(1.0, 2.0 * (abs(target) + float(np.abs(lam).max())))
+        while delta(hi) < target:
+            hi *= 2.0
+        result = 1.0 / brentq(lambda g: delta(g) - target, lo, hi, xtol=1e-14, rtol=1e-13)
+    if len(_STAR_CACHE) >= _STAR_CACHE_MAX:
+        _STAR_CACHE.clear()
+    _STAR_CACHE[key] = result
+    return result
+
+
+def star_coupling(layer_cells, layer_w, layer_sbar, gv, ratio, kmats):
+    """!
+    @brief Dense coupling of the star treatment of one via: a barrel node per layer reached by g_a = c S w_a from the cells of the layer, the barrel nodes eliminated.
+    @param layer_cells List over the layers of integer arrays (n_l, 2) (row, col) of the footprint cells (possibly empty).
+    @param layer_w List over the layers of weight arrays (n_l,), each summing to 1.
+    @param layer_sbar List over the layers of the weighted mean sheet conductance of the footprint in W/K (0 = the layer does not touch the barrel).
+    @param gv Array (L-1,) of the barrel conductance of every gap in W/K.
+    @param ratio Lattice spacing over the target radius, h / r_t (dimensionless).
+    @param kmats List over the layers of the edge matrix of `edge_kernel` (or None away from an edge).
+    @return Tuple (M, G): the dense matrix (n, n) in W/K over the concatenated (layer, cell) pairs (the Schur complement of the resistor network: symmetric, zero row sums,
+            every off-diagonal entry non-positive) and the layer-to-layer conductances (L, L) in W/K.
+    """
+    L = len(layer_cells)
+    sizes = [len(c) for c in layer_cells]
+    off = np.concatenate([[0], np.cumsum(sizes)]).astype(int)
+    n = int(off[-1])
+    g = np.zeros(n)
+    lay = np.zeros(n, dtype=int)
+    for l in range(L):
+        lay[off[l]:off[l + 1]] = l
+        if sizes[l]:
+            g[off[l]:off[l + 1]] = star_scale(layer_cells[l], layer_w[l], kmats[l], ratio) * layer_sbar[l] * layer_w[l]
+    # Nodal matrix of the barrel nodes: the star totals on the diagonal, the barrel gaps in series between neighbouring layers
+    Ybb = np.zeros((L, L))
+    for l in range(L):
+        Ybb[l, l] += g[off[l]:off[l + 1]].sum()
+    for k in range(L - 1):
+        Ybb[k, k] += gv[k]
+        Ybb[k + 1, k + 1] += gv[k]
+        Ybb[k, k + 1] -= gv[k]
+        Ybb[k + 1, k] -= gv[k]
+    Ybb += 1e-300 * np.eye(L)
+    Z = np.linalg.inv(Ybb)
+    M = np.diag(g) - np.outer(g, g) * Z[np.ix_(lay, lay)]
+    M = 0.5 * (M + M.T)                                              # exactly symmetric: the symmetric LU checks it
+    G = np.zeros((L, L))
+    for l in range(L):
+        for m in range(l + 1, L):
+            G[l, m] = G[m, l] = -float(M[off[l]:off[l + 1], off[m]:off[m + 1]].sum())
+    return M, G
+
+
 def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     """!
     @brief Couplings of every via of a problem on a grid.
@@ -486,12 +685,15 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     @param ny Cells (nodes) along y.
     @param origin Lower x edge of cell 0 in m (0 for the FVM, -dx/2 for the FDM nodes); the y edge is origin * dy / dx (-dy/2 for the FDM).
     @param active Boolean array (ny, nx) of the cells on the board. Unused since a via without board under its drill disc is skipped instead of being
-           moved to the nearest active cell; kept so that the call sites of the FVM and FDM (and the research patches that match them by text) do not change.
-    @return Tuple (blocks, gz_via): blocks is a list of (rows, cols, w, G) with the cell indices (integer arrays), the weights (sum 1) and the
-            layer-to-layer conductances G (L, L) in W/K; gz_via is the array (L-1, ny, nx) with the barrel conductance in the cell of the via centre
-            (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells). A via whose drill disc has no board
-            cell is left out of both, and so is a via whose drill disc is off the board by the geometric test (model.Problem.via_board_shares), the
-            one the warning and the Lumped and Analytic runs use.
+           moved to the nearest active cell; kept so that the call sites of the FVM and FDM do not change.
+    @return Tuple (blocks, gz_via): blocks is a list of `Block` (they unpack as (rows, cols, w, G): the cells of the union, equal weights on them and the
+            layer-to-layer conductances in W/K) that carry the dense star coupling of the via; gz_via is the array (L-1, ny, nx) with the barrel conductance in
+            the cell of the via centre (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells). A via whose drill
+            disc has no board cell is left out of both, and so is a via whose drill disc is off the board by the geometric test (model.Problem.via_board_shares),
+            the one the warning and the Lumped and Analytic runs use.
+    @note The footprint of a layer is the geometric one when the sheet conductance per unit of board is the same on all its cells, and otherwise the disc weighted by
+          that conductance (a cell that cannot carry the heat takes almost none of it), enlarged until its effective radius reaches the target. The edge term
+          is computed from the weights of each layer.
     """
     b = problem.board
     k_cu = b.materials.k_copper
@@ -499,84 +701,99 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     blocks = []
     gz_via = np.zeros((L - 1, ny, nx))
     oy = origin * dy / dx                      # lower y edge of row 0 (-dy/2 for the FDM nodes)
+    h = math.sqrt(dx * dy)
+    safe_cover = np.where(cover > 0, cover, 1.0)
+    rel_all = [np.where(cover > 0, S[l] / safe_cover, 0.0) for l in range(L)]       # sheet conductance per unit of board (the cell value carries the cover factor)
+    empty = (np.zeros((0, 2), dtype=int), np.zeros(0), 0.0, None)                   # a layer that does not touch the barrel
     for v, share in zip(problem.vias, problem.via_board_shares()):
         if share <= 0.0:
             # The drill disc is off the board (the geometric test of checks.check_problem and of the Lumped and Analytic runs): the via conducts nothing,
             # also when it falls in a cut cell whose board part does not reach it (a cover test alone kept it there, 0.15 to 0.22 K on a small T)
             continue
         gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d                # barrel conductance of every gap (W/K)
-        w, r_eff, r_t = footprint(v.x, v.y, v.diameter / 2.0, dx, origin, cover, dy, oy)
-        if not w:
+        r_via = v.diameter / 2.0
+        w0, r_eff0, r_t = footprint(v.x, v.y, r_via, dx, origin, cover, dy, oy)
+        if not w0:
             # No cell of the board under the drill disc: the via conducts nothing. (It used to be moved onto the nearest board cell at the full barrel
             # conductance, which made a via off the outline of a T worth 2.7 K instead of nothing.)
             continue
         ip, jp = cell_index_of_point(v.x - origin, v.y - oy, nx, ny, dx, dy)
         gz_via[:, ip, jp] += gv
-        ic, jc = max(w, key=w.get)
-        # Sheet conductance per unit of board: the cell value carries the cover factor
-        s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
-        c = 0.0
+        keys0 = list(w0)
+        walls = []
         if origin == 0.0:
             # The edge image acts on the cell-centred grid only (the half volumes at the edge nodes of the FDM are left alone)
             walls = image_walls(problem, v, EDGE_REACH_CELLS * max(dx, dy), max(dx, dy))
-            if walls:
-                r_via = v.diameter / 2.0
-                h = math.sqrt(dx * dy)
-                for _ in range(5):
-                    # The footprint and c depend on each other through the enlargement; a negative c would need a negative resistance
-                    c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
-                    if math.log(r_eff / r_t) + c > 1e-9:
-                        break
-                    w = enlarged_footprint(v.x, v.y, r_via, dx, origin, cover, dy, oy, r_t * math.exp(-c) * (1.0 + 1e-6))
-                    r_eff = effective_radius(w, h)
-                    ic, jc = max(w, key=w.get)
-                    s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
+        memo = {}
+        parts = []
+        for l in range(L):
+            rel = rel_all[l]
+            vals = np.array([float(rel[k]) for k in keys0])
+            top = float(vals.max())
+            if top <= 0.0:
+                parts.append(empty)
+                continue
+            pattern = tuple(np.round(vals / top, 9).tolist())
+            if pattern not in memo:
+                uniform = float(vals.min()) >= top * (1.0 - 1e-9)
+                weighting = None if uniform else rel
+                if uniform:
+                    w, r_eff = w0, r_eff0
                 else:
-                    c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
-        g_well = [well_conductance(s_cell[l], r_eff, r_t, c) if s_cell[l] > 0 else 0.0 for l in range(L)]
-        keys = list(w)
-        blocks.append((np.array([k[0] for k in keys]), np.array([k[1] for k in keys]), np.array([w[k] for k in keys]), kron_barrel(gv, g_well)))
+                    w = enlarged_footprint(v.x, v.y, r_via, dx, origin, cover, dy, oy, r_t, weighting)
+                    r_eff = effective_radius(w, h) if w else 0.0
+                c = 0.0
+                if walls and w:
+                    for _ in range(5):
+                        # The footprint and c depend on each other through the enlargement; a negative c would need a negative resistance
+                        c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
+                        if math.log(r_eff / r_t) + c > 1e-9:
+                            break
+                        w = enlarged_footprint(v.x, v.y, r_via, dx, origin, cover, dy, oy, r_t * math.exp(-c) * (1.0 + 1e-6), weighting)
+                        r_eff = effective_radius(w, h)
+                    else:
+                        c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
+                memo[pattern] = (w, edge_kernel(list(w), dx, dy, (v.x, v.y), r_via, walls) if (walls and w) else None)
+            w, kmat = memo[pattern]
+            if not w:
+                parts.append(empty)
+                continue
+            ks = list(w)
+            parts.append((np.array(ks, dtype=int), np.array([w[k] for k in ks]), float(sum(w[k] * rel[k] for k in ks)), kmat))
+        layer_cells = [p[0] for p in parts]
+        M, G = star_coupling(layer_cells, [p[1] for p in parts], [p[2] for p in parts], gv, h / r_t, [p[3] for p in parts])
+        blocks.append(Block(layer_cells, M, G))
     return blocks, gz_via
 
 
 def matrix_entries(blocks, idx):
     """!
-    @brief COO entries of the via couplings, G[l, m] u u^T with u = e_l (x) w - e_m (x) w for every pair of layers of every via.
+    @brief COO entries of the via couplings: the dense star coupling M of every via over its (layer, cell) unknowns.
     @param blocks List from `build`.
     @param idx Index array (layers, ny, nx) of the unknowns.
     @return Tuple (rows, cols, vals) of lists of arrays, ready to extend the lists of the assembly.
     """
     rows, cols, vals = [], [], []
-    for ci, cj, w, G in blocks:
-        ww = np.outer(w, w).ravel()
-        n = len(w)
-        L = G.shape[0]
-        for l in range(L):
-            for m in range(l + 1, L):
-                g = G[l, m]
-                if g <= 0:
-                    continue
-                a = np.repeat(idx[l, ci, cj], n)                             # row: cell a of layer l, column: cell a' of layer l
-                a2 = np.tile(idx[l, ci, cj], n)
-                bb = np.repeat(idx[m, ci, cj], n)
-                b2 = np.tile(idx[m, ci, cj], n)
-                rows.extend([a, bb, a, bb])
-                cols.extend([a2, b2, b2, a2])
-                vals.extend([g * ww, g * ww, -g * ww, -g * ww])
+    for bl in blocks:
+        flat = bl.flat(idx)
+        n = len(flat)
+        rows.append(np.repeat(flat, n))
+        cols.append(np.tile(flat, n))
+        vals.append(bl.M.ravel())
     return rows, cols, vals
 
 
 def unknown_blocks(blocks, idx, n_layers):
     """!
-    @brief Flat unknown indices of the cells of every via (footprint cells of the board layers), vias that share a cell merged: the blocks of the block SOR.
+    @brief Flat unknown indices of the (layer, cell) pairs of every via, vias that share an unknown merged: the blocks of the block SOR.
     @param blocks List from `build`.
     @param idx Index array (layers, ny, nx) of the unknowns.
-    @param n_layers Number of board layers the vias join.
+    @param n_layers Number of board layers the vias join (unused: a block holds the pairs the via couples).
     @return List of sorted integer arrays.
     """
     merged = []
-    for ci, cj, _w, _G in blocks:
-        s = set(idx[:n_layers, ci, cj].ravel().tolist())
+    for bl in blocks:
+        s = set(bl.flat(idx).tolist())
         for other in [m for m in merged if m & s]:
             s |= other
             merged.remove(other)
