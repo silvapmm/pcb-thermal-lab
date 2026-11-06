@@ -6,7 +6,7 @@
 @details Question answered: (1) does this folder reproduce the numbers of gerber-models 4.39 (one zone, 40 abutting strips, two overlapping zones of fill 0.5, fills 0.8 and 0.4 overlapping partly) for the old rule, the additive rule and the per-point union?
          (2) do the example boards (`examples/*.pcbt.json`) give the same numbers under both rules (the proposal must not move them)? The examples are run with the cell of the project (the default of `simulate`), and every model.
          Modes (from the repository root): develop (the program as it is), variant (every rule on the copy), report (tables, out/study_program.txt), fdm-additive (review: the -2.3 % of 4.39).
-         Run: .venv/bin/python research/zone-union/scripts/study_program.py develop | variant | report
+         Run: .venv/bin/python research/zone-union/scripts/study_program.py develop | variant [0|1|2|3|4|examples] | report (`variant` alone is the whole run, which can pass 10 minutes: the parts are one process each and `report` merges them)
 """
 
 import _bootstrap  # noqa: F401  (import paths)
@@ -39,11 +39,12 @@ def peaks(p, cell):
     return out
 
 
-def run(mode):
+def run(mode, part=None):
     """!
     @brief Run the cases and the examples.
     @param mode develop or variant.
-    @return None (writes out/program_<mode>.json).
+    @param part None for everything, a case number 0 to 4 (index in CASES_439) or "examples": one piece of the work, so that a long run can be done in separate processes (writes out/program_<mode>_<part>.json).
+    @return None (writes out/program_<mode>.json, or the part file).
     """
     variant.use(mode == "variant")
     import cases
@@ -51,7 +52,9 @@ def run(mode):
     from zone_rules import RULES
     res = {"439": {}, "examples": {}}
     C = cases.make_cases()
-    for name in CASES_439:
+    for k, name in enumerate(CASES_439):
+        if part not in (None, str(k)):
+            continue
         p, _ = cases.build(C[name], isotropic=False)           # the 4.39 board: default anisotropic laminate, 1 mm cells
         if mode == "variant":
             res["439"][name] = {}
@@ -60,7 +63,7 @@ def run(mode):
                 res["439"][name][r] = peaks(p, 1.0)
         else:
             res["439"][name] = {"develop": peaks(p, 1.0)}
-    for ex in EXAMPLES:
+    for ex in (EXAMPLES if part in (None, "examples") else ()):
         pr = load_project(REPO / "examples" / f"{ex}.pcbt.json")
         pr = getattr(pr, "problem", pr)
         for cell in (1.0, 0.5):
@@ -73,7 +76,7 @@ def run(mode):
             else:
                 res["examples"][key] = {"develop": peaks(pr, cell)}
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / f"program_{mode}.json").write_text(json.dumps(res, indent=1))
+    (OUT / (f"program_{mode}.json" if part is None else f"program_{mode}_{part}.json")).write_text(json.dumps(res, indent=1))
 
 
 def report():
@@ -82,7 +85,14 @@ def report():
     @return None.
     """
     dev = json.loads((OUT / "program_develop.json").read_text())
-    var = json.loads((OUT / "program_variant.json").read_text())
+    if (OUT / "program_variant.json").exists():
+        var = json.loads((OUT / "program_variant.json").read_text())
+    else:                                                   # the variant run in pieces (`variant <part>`): merge the part files
+        var = {"439": {}, "examples": {}}
+        for f in sorted(OUT.glob("program_variant_*.json")):
+            part = json.loads(f.read_text())
+            var["439"].update(part["439"])
+            var["examples"].update(part["examples"])
     lines = []
 
     def out(s=""):
@@ -97,19 +107,19 @@ def report():
     out("gerber-models 4.39 on the default materials, 1 mm cells (20 x 20 mm, one layer, 4 x 4 mm heater of 1 W): peak rise (K) of the program as it is, then the change (%) under each rule")
     out(f"{'case':44s}{'rule':>11s}" + "".join(f"{m:>10s}" for m in MODELS))
     for name in CASES_439:
-        d = dev["439"][name]["develop"]
+        d = var["439"][name]["max_cell"]                   # the rule of the program before 2.4.3 ("old"); the program as it is now equals max_point
         out(f"{name:44s}{'old (K)':>11s}" + "".join(f"{d[m]:10.2f}" for m in MODELS))
         for r in ("additive", "max_point", "prob", "sum_clip", "priority"):
             v = var["439"][name][r]
             out(f"{'':44s}{r:>11s}" + "".join(f"{100 * (v[m] / d[m] - 1):+9.1f}%" for m in MODELS))
-    out("\nExample boards of the repository: peak rise (K) of the program as it is and the largest change under the per-point union (K)")
+    out("\nExample boards of the repository: peak rise (K) under the old rule (max_cell) and the change under the per-point union, which is the program now (K)")
     out(f"{'board':64s}" + "".join(f"{m:>10s}" for m in MODELS))
     for key in dev["examples"]:
-        d = dev["examples"][key]["develop"]
+        d = var["examples"][key]["max_cell"]               # old rule
         v = var["examples"][key]["max_point"]
         num = lambda x: f"{x:10.3f}" if isinstance(x, float) else f"{str(x)[:9]:>10s}"
         out(f"{key:64s}" + "".join(num(d[m]) for m in MODELS))
-        out(f"{'   change under max_point (K)':64s}" + "".join(f"{v[m] - d[m]:+10.4f}" if isinstance(v[m], float) and isinstance(d[m], float) else f"{'-':>10s}" for m in MODELS))
+        out(f"{'   change under max_point = the program (K)':64s}" + "".join(f"{v[m] - d[m]:+10.4f}" if isinstance(v[m], float) and isinstance(d[m], float) else f"{'-':>10s}" for m in MODELS))
     (OUT / "study_program.txt").write_text("\n".join(lines))
 
 
@@ -143,7 +153,7 @@ def fdm_additive_at_nodes():
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "report"
     if mode in ("develop", "variant"):
-        run(mode)
+        run(mode, sys.argv[2] if len(sys.argv) > 2 else None)
     elif mode == "fdm-additive":
         fdm_additive_at_nodes()
     else:
