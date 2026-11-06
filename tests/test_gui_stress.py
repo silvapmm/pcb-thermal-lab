@@ -1375,3 +1375,45 @@ def test_project_format_2_in_the_application(win, qtbot, tmp_path, popups):
     run(win, qtbot, ("fvm",))                                     # The models run on a format 2 project (the imports are not read by them yet)
     assert win.save_file() and not (tmp_path / "board.pcbt.json.bak2").exists()   # Already format 2: no new copy
     win.doc.stack.setClean()
+
+
+def test_display_control_in_the_application(win, qtbot):
+    """The Display control through a whole session: the map button before a run, after it and after an edit, the popover opened on every tab and every results sub-tab, every control of it, the key T with and without a result, a rerun, and the outline board with a refused model."""
+    win._load_problem(example_board(), "ex")
+    win.show()
+    assert not win.a_overlay.isEnabled()                                      # no result yet
+    win._hidden_overlay_key.trigger()                                         # the key says why
+    assert not win.a_overlay.isChecked() and win.statusBar().currentMessage()
+    win.display_button.click()                                                # the popover works before a run
+    assert win.display_popover.isVisible()
+    win.display_popover.underlay.setCurrentIndex(1)
+    win.display_popover.view.setCurrentIndex(win.display_popover.view.findData("smooth"))
+    win.display_button.click()
+    assert not win.display_popover.isVisible()
+    run(win, qtbot, models=("fvm", "lumped"))
+    assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()        # enabled but off after a run
+    win._hidden_overlay_key.trigger()
+    assert win.a_overlay.isChecked() and win.canvas._overlay is not None and win.canvas._overlay_card["title"] == "FVM"
+    for tab_index in (TAB_BOARD, TAB_RESULTS):
+        win.tabs.setCurrentIndex(tab_index)
+        for k in range(win.results.tabs.count() if tab_index == TAB_RESULTS else 1):
+            if tab_index == TAB_RESULTS:
+                win.results.tabs.setCurrentIndex(k)
+            win.display_button.click()
+            pop = win.display_popover
+            for mode in plots.VIEW_MODES:
+                pop.view.setCurrentIndex(pop.view.findData(mode))
+                pop.contour.setValue(pop.contour.maximum() if pop.contour.isEnabled() else pop.contour.value())
+            for j in range(pop.cmap.count()):
+                pop.cmap.setCurrentIndex(j)
+            pop.opacity_spin.setValue(10 * (k + 1))
+            pop.flush()
+            win.canvas.viewport().grab()
+            win.display_button.click()
+    win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
+    assert win.canvas._overlay_card["title"] == "Lumped"
+    win.doc.set_props("heater", 0, power=2.0)                                 # the first edit: the map leaves, the button greys
+    assert win.canvas._overlay is None and win.canvas._overlay_card is None and not win.a_overlay.isEnabled()
+    win.doc.stack.undo()
+    run(win, qtbot, models=("fvm", "lumped"))
+    assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()
