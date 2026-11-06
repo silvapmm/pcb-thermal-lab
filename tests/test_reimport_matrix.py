@@ -635,3 +635,31 @@ def test_a_different_board_makes_cancel_the_default_button(app, base, tmp_path):
     assert cancel.isDefault()
     app.run(base, "replace", cancel="dialog")
     assert not app.dialogs[-1].different
+
+
+@pytest.mark.parametrize("mode", ["replace", "update"])
+def test_a_reimport_into_a_project_with_a_background_image_offers_copper_only(app, base, tmp_path, mode):
+    """!
+    @brief The underlay combo of every map offers None and Copper only once the project comes from Gerber files, also after a re-import, even when the file keeps the old image.
+    @param app The application driver.
+    @param base The fabrication set.
+    @param tmp_path Temporary folder.
+    @param mode Command of the re-import dialog.
+    """
+    from PySide6.QtGui import QImage
+    png = tmp_path / "bg.png"
+    img = QImage(8, 8, QImage.Format_RGBA8888)
+    img.fill(0xFF336699)
+    assert img.save(str(png))
+    app.doc.project.view["background"] = {"path": str(png), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0}
+    app.doc.changed.emit()
+    win = app.win
+
+    def entries():
+        return [[u.combo.itemData(i) for i in range(u.combo.count())]
+                for u in (win.results.temp.underlay, win.results.grad.underlay, win.results.animation.underlay, win.editor_underlay)]
+    assert all(e == ["none", "copper", "image"] for e in entries())                  # hand-drawn with an image
+    app.run(base, "replace", powers={"U1": 3.0})
+    assert all(e == ["none", "copper"] for e in entries()), entries()
+    app.run(base, mode)
+    assert all(e == ["none", "copper"] for e in entries()), entries()
