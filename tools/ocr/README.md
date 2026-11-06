@@ -20,6 +20,7 @@ $PY -W ignore -m tools.ocr status show [STEM]           # reading status per pag
 $PY -W ignore -m tools.ocr status set STEM 3,5-6 verified|corrected|machine --note "eqs 3-5 match the image"   # the reviewer's record
 $PY -W ignore -m tools.ocr status seed                  # once: fill the file from the headers/markers of md-final and OCR_TO_VERIFY.md
 $PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic --whole-page --max-tokens 16000 --subdir whole   # one request per page, no crops
+$PY -W ignore -m tools.ocr transcribe STEM --pages 3 --prompt-variant NAME   # another phrasing of the prompt (data/prompt_variants.json; `default` is data/prompt.txt): the refusal filter is stochastic and sensitive to the wording
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
