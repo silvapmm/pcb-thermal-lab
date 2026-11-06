@@ -251,12 +251,13 @@ class MapView:
     cache: dict = dc_field(default_factory=dict)  # {layer: copper image}; the owner keeps it as long as the problem is the same
 
 
-@dataclass
+@dataclass(eq=False)
 class UnderlayImage:
     """!
     @brief The background image of a project as a picture for the underlay of a map (display only).
     @details `rgba` has the rows of the file (row 0 at the top), like the editor; the placement is the one of the editor: the image covers
-             x_mm .. x_mm + w_mm and y_mm .. y_mm + h_mm of the board, y upwards.
+             x_mm .. x_mm + w_mm and y_mm .. y_mm + h_mm of the board, y upwards. Compared by identity (`eq=False`): the field-wise equality of a
+             dataclass would compare the pixel arrays and raise (the truth value of an array), which broke the refresh of the controls when the image moved.
     """
     rgba: object                                # uint8 array (rows, cols, 4), row 0 at the top
     x_mm: float = 0.0                           # Left edge on the board in mm
@@ -489,7 +490,8 @@ def _draw_image(ax, problem, view, solved_view):
     """!
     @brief Draw the background image of the project under a map, at the place and size it has in the editor, on a laminate-coloured board.
     @details The rows are flipped once (the maps run from the bottom of the board) and kept in `view.cache["image"]`, so a redraw or the next
-             frame of an animation does not convert it again. The axes limits are set by the caller, so an image larger than the board is cut.
+             frame of an animation does not convert it again. The axes limits are set by the caller, so an image larger than the board is cut, and on a board
+             with an outline the laminate and the image are clipped to the outline (as the copper underlay).
     @param ax Matplotlib axis (coordinates in mm).
     @param problem The Problem.
     @param view MapView (the image, the laminate colour and the cache).
@@ -500,7 +502,7 @@ def _draw_image(ax, problem, view, solved_view):
     box = [0.0, b.width * 1000.0, 0.0, b.height * 1000.0]
     base = np.zeros((1, 1, 4), np.float32)
     base[0, 0] = (*view.laminate_rgb, 1.0)
-    ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
+    lam = ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
     if solved_view:
         ax.text(0.01, 0.01, "image not drawn on the solved rectangle", transform=ax.transAxes, fontsize=6, color=view.contour_color, va="bottom", zorder=6)
         return
@@ -508,7 +510,10 @@ def _draw_image(ax, problem, view, solved_view):
     arr = view.cache.get("image")
     if arr is None:
         arr = view.cache["image"] = np.ascontiguousarray(np.asarray(img.rgba)[::-1])
-    ax.imshow(arr, origin="lower", extent=[img.x_mm, img.x_mm + img.w_mm, img.y_mm, img.y_mm + img.h_mm], interpolation="antialiased")
+    im = ax.imshow(arr, origin="lower", extent=[img.x_mm, img.x_mm + img.w_mm, img.y_mm, img.y_mm + img.h_mm], interpolation="antialiased")
+    # Nothing is drawn where there is no board, as with the copper underlay (the editor shows the whole image, for tracing)
+    _clip_to_board(lam, ax, problem)
+    _clip_to_board(im, ax, problem)
 
 
 def _draw_copper(ax, problem, layer, view, solved_view):

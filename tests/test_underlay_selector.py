@@ -301,3 +301,137 @@ def test_results_tab_has_the_combo_in_place_of_the_checkbox(qtbot, sim):
     rv = ResultsView("dark")
     qtbot.addWidget(rv)
     assert hasattr(rv.animation, "underlay")
+
+
+def test_loaded_image_owns_its_pixels(qtbot, tmp_path):
+    """!
+    @brief The picture read from the file is a copy: the QImage it came from is freed when the reader returns, and a view of its buffer read
+           freed memory (the review saw the Results map draw a flipped, striped picture in the main window).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    import gc
+    from pcbthermal.gui.underlay import load_underlay_image
+    path = _png(tmp_path / "q.png", _quadrants())
+    u = load_underlay_image({"path": path, "w_mm": 10.0, "h_mm": 5.0})
+    assert u.rgba.flags["OWNDATA"]
+    gc.collect()
+    junk = [QImage(path).convertToFormat(QImage.Format_RGBA8888) for _ in range(20)]      # Reuse the freed memory, if any
+    assert tuple(u.rgba[0, 0]) == RED and tuple(u.rgba[-1, -1]) == YELLOW and len(junk) == 20
+
+
+def test_moving_the_image_refreshes_the_controls(qtbot, tmp_path):
+    """!
+    @brief A second picture (the image moved or was replaced) is taken without an error and empties the picture cache; the review found the
+           field-wise equality of the dataclass comparing the pixel arrays and raising, which stopped the refresh after a move of the image.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    u = UnderlayControls()
+    a = plots.UnderlayImage(rgba=_quadrants(), w_mm=10.0, h_mm=10.0)
+    b = plots.UnderlayImage(rgba=_quadrants(), x_mm=5.0, w_mm=10.0, h_mm=10.0)
+    u.set_source(False, {"path": "x"}, image=a)
+    u.cache["image"] = "old picture"
+    assert u.set_source(False, {"path": "x"}, image=b) is True
+    assert u.image is b and "image" not in u.cache
+    win = _win(qtbot, tmp_path)
+    cfg = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0}
+    for x in (0.0, 7.5):                                     # Through the window: the same file at another place
+        win.doc.project.view["background"] = dict(cfg, x_mm=x)
+        win.doc.changed.emit()
+        assert win.results.temp.underlay.image.x_mm == x and win.results.animation.underlay.image.x_mm == x
+
+
+def test_reopening_a_project_takes_its_stored_opacity_again(qtbot, tmp_path):
+    """!
+    @brief Opening a project whose image has a stored opacity sets the pairs to it, also when the same image file was open before (round trip).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    win = _win(qtbot, tmp_path)
+    win.doc.project.view["background"] = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0,
+                                          "opacity": 0.9}
+    win.doc.changed.emit()
+    path = str(tmp_path / "p.pcbt.json")
+    win.doc.save(path)
+    assert win.results.temp.underlay.opacity.value() == 90
+    win.results.temp.underlay.opacity.setValue(55)
+    win.doc.open(path)
+    win._after_load()
+    assert win.results.temp.underlay.opacity.value() == win.results.animation.underlay.opacity.value() == win.overlay_opacity.value() == 90
+    assert win.doc.project.view["background"]["opacity"] == pytest.approx(0.9)
+    assert _entries(win.results.temp.underlay) == ["none", "copper", "image"]
+
+
+def test_default_animation_matches_the_plain_imshow_on_any_matplotlib(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief Version-independent twin for the Animation: with the default controls (Current, None) the frame on the tab and the exported GIF are
+           those drawn by develop's literal `imshow` call patched in for `_draw_map`, in the same run (the pixel-hash tests skip on another Matplotlib).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    p = example_board()
+    tr = analytic.solve_transient(p, t_end=30.0, n_out=3, cell_mm=2.0, n_terms=40)
+    tab = AnimationTab()
+    qtbot.addWidget(tab)
+    tab.set_result(tr, p)
+
+    def pictures(tag):
+        """!
+        @brief The frame on the tab and the bytes of the exported GIF with the tab's view.
+        @param tag File name tag.
+        @return tuple (uint8 array, bytes).
+        """
+        tab._redraw()
+        tab.canvas.draw()
+        gif = tmp_path / f"{tag}.gif"
+        plots.save_transient_gif(tr, p, str(gif), fps=5, view=tab.map_view())
+        return np.array(tab.canvas.buffer_rgba()), gif.read_bytes()
+
+    new = pictures("new")
+
+    def develop_imshow(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_view=False):
+        """!
+        @brief The map call of develop before the View modes, argument for argument.
+        @param ax Axis.
+        @param field Field.
+        @param problem Problem.
+        @param dx Cell width in m.
+        @param dy Cell height in m.
+        @param layer Layer (unused).
+        @param cmap Colormap.
+        @param vmin Lower limit or None.
+        @param vmax Upper limit or None.
+        @param view MapView (unused).
+        @param solved_view Unused.
+        @return AxesImage.
+        """
+        _, _, ext = plots._field_axes(field, problem, dx, dy)
+        return ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=np.nanmin(field) if vmin is None else vmin,
+                         vmax=np.nanmax(field) if vmax is None else vmax)
+
+    monkeypatch.setattr(plots, "_draw_map", develop_imshow)
+    old = pictures("old")
+    assert np.array_equal(new[0], old[0]) and new[1] == old[1]
+    # Smooth or an underlay is drawn by the new path, so it is NOT the plain picture (the twin above would not see a change of the default)
+    monkeypatch.undo()
+    tab.view.setCurrentIndex(1)
+    assert not np.array_equal(pictures("smooth")[0], old[0])
+
+
+def test_image_underlay_is_clipped_to_the_outline():
+    """!
+    @brief On a board with an outline the image is drawn only on the board, like the copper underlay (outside it the figure shows nothing).
+    """
+    from pcbthermal.model import Problem
+    p = Problem.new(40.0, 40.0, layers=2, name="tri")
+    p.set_outline([(0, 0), (40, 0), (0, 40)])                # The upper right half of the box is off the board
+    p.add_heater(1, 1.0, rect=(5, 5, 10, 10))
+    s = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    full = plots.UnderlayImage(rgba=_quadrants(), w_mm=40.0, h_mm=40.0)
+    ax, pix = _map(s, plots.MapView(show_copper=True, underlay="image", image=full, opacity=0.0))
+    assert _near(_px(ax, pix, 15.0, 3.0), BLUE)              # On the board: the image
+    off = _px(ax, pix, 35.0, 35.0)                            # Off the board: neither the image (yellow / green) nor the laminate
+    lam = tuple(int(round(v * 255)) for v in plots.MapView().laminate_rgb)
+    assert not _near(off, GREEN) and not _near(off, YELLOW) and not _near(off, lam + (255,), 8)

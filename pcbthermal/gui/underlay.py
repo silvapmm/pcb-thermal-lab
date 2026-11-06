@@ -47,7 +47,9 @@ def load_underlay_image(cfg):
     w, h = img.width(), img.height()
     # bytesPerLine can be larger than 4 w (row padding): read the rows with their stride
     buf = np.frombuffer(img.constBits(), dtype=np.uint8, count=img.sizeInBytes()).reshape(h, img.bytesPerLine())[:, :4 * w]
-    rgba = np.ascontiguousarray(buf.reshape(h, w, 4))
+    # A COPY: the buffer belongs to the QImage, which is freed when this function returns (a view would read freed memory: a garbled or
+    # flipped picture, or a crash; np.ascontiguousarray returns the view itself when the rows have no padding)
+    rgba = np.array(buf.reshape(h, w, 4), dtype=np.uint8, copy=True)
     return plots.UnderlayImage(rgba=rgba, x_mm=float(cfg.get("x_mm", 0.0)), y_mm=float(cfg.get("y_mm", 0.0)),
                                w_mm=float(cfg["w_mm"]), h_mm=float(cfg["h_mm"]))
 

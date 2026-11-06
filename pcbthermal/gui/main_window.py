@@ -962,6 +962,9 @@ class MainWindow(QMainWindow):
         self.a_overlay.setChecked(False)
         self.canvas.fit()
         self._refresh_layers()
+        # A document just opened: its stored background opacity is the initial one again, also when the image file is the same as before
+        self._underlay_key = None
+        self._sync_underlay()
         self.statusBar().showMessage("Ready.")
 
     def new_board(self):
