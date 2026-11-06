@@ -910,7 +910,9 @@ class ImportSession:
         """
         files = self.used(BOM)
         key = tuple(f.sha256 for f in files)
-        if self._bom_key == key and (self._bom is not None or not files):
+        # Review: a refused file (a limit, no header, a workbook) left `_bom` None and was read again at every call, once per row of step 2 (7 reads, 7 s, for a refused table of
+        # 250 000 rows on a board of 4 parts, in the GUI thread); the outcome, a set or None, is cached until the files, their functions or their ticks change
+        if self._bom_key == key:
             return self._bom
         tables = []
         for f in files:
@@ -990,7 +992,7 @@ class ImportSession:
         """!
         @brief The text of the BOM column of step 2 for a part.
         @param p ImportPart.
-        @return str "not fitted", "<role> (guess)", "unknown", "not in BOM", or "" without a BOM.
+        @return str "not fitted", the guessed role ("component", "source", "no heat source"), "unknown", "not in BOM", or "" without a BOM.
         """
         bs = self.bom_set()
         if bs is None or p.from_file.get("orphan") or parts_mod._positional(p):
@@ -1001,7 +1003,9 @@ class ImportSession:
         if b.get("dnp"):
             return "not fitted"
         role = b.get("role", "unknown")
-        return "unknown" if role == "unknown" else f"{bom_mod.ROLE_TEXT.get(role, role)} (guess)"
+        # The column header says "BOM (guess)" and the tooltip says it is a guess; the cell carries only the role (review: "no heat source (guess)" was cut at 1280 x 800 and its
+        # width squeezed the Package and Source columns to a few letters)
+        return bom_mod.ROLE_TEXT.get(role, role)
 
     def use_bom_roles(self) -> int:
         """!

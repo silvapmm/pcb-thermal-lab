@@ -135,7 +135,7 @@ def test_the_parts_carry_the_guess_and_the_mark_and_nothing_else_changes(base):
     assert by["R1"].from_file["bom"]["role"] == "source" and by["D1"].from_file["bom"]["dnp"] is True
     assert "TP9" not in by                                                    # a BOM-only designator makes no part
     assert s.bom_match()["bom_only"] == ["TP9"] and s.bom_match()["not_fitted"] == ["D1"] and s.bom_match()["not_in_bom"] == []
-    assert [s.bom_proposal_text(by[d]) for d in ("U1", "R1", "D1")] == ["component (guess)", "source (guess)", "not fitted"]
+    assert [s.bom_proposal_text(by[d]) for d in ("U1", "R1", "D1")] == ["component", "source", "not fitted"]
     # Powers, ticks, positions and roles are exactly those of an import without the BOM: the guess is never applied on its own
     for p in plain.parts():
         q = by[p.designator]
@@ -172,7 +172,7 @@ def test_the_step_2_table_shows_the_column_only_with_a_bom(qtbot, base, tmp_path
     t = w.page2.table
     assert not t.isColumnHidden(w.page2.BOM_COL) and w.page2.bom_roles_btn.isVisible()
     texts = {t.item(r, 1).text(): t.item(r, w.page2.BOM_COL).text() for r in range(t.rowCount())}
-    assert texts["U1"] == "component (guess)" and texts["D1"] == "not fitted"
+    assert texts["U1"] == "component" and texts["D1"] == "not fitted"
     assert t.item(0, w.page2.BOM_COL).toolTip()
     assert "BOM: 4 of these parts are in it" in w.page2.info.text()
     w.page2.bom_roles_btn.click()
@@ -307,6 +307,9 @@ def test_the_package_round_trip_with_a_bom(app, base, tmp_path):
     again = app.doc.project.imports[0]
     assert {p.designator: p.from_file.get("bom") for p in again.parts} == {p.designator: p.from_file.get("bom") for p in prj.imports[0].parts}
     assert any(f.function == BOM for f in again.files)
+    import hashlib
+    stored = {m.rsplit("/", 1)[-1]: b for m, b in app.doc.project.package.sources.items()}
+    assert hashlib.sha256(stored["assembly.csv"]).hexdigest() == hashlib.sha256((base / "assembly.csv").read_bytes()).hexdigest()   # the BOM bytes, not a decoded text
 
 
 def test_the_re_import_lines_name_the_parts_whose_bom_role_or_mark_changed():
@@ -316,3 +319,56 @@ def test_the_re_import_lines_name_the_parts_whose_bom_role_or_mark_changed():
     new = [ImportPart(designator="U1", from_file={"bom": {"role": "none", "dnp": False}}), ImportPart(designator="D1", from_file={"bom": {"role": "component", "dnp": True}}),
            ImportPart(designator="R1", from_file={"bom": {"role": "source", "dnp": False}})]
     assert ImportSession.bom_changes(old, new) == ["U1: BOM role component -> none (your Role is kept)", "D1: BOM now says not fitted"]
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------- review
+def test_a_refused_bom_is_read_once_and_its_message_is_in_the_list_at_the_first_refresh(qtbot, base, monkeypatch):
+    """!
+    @brief Review: a BOM the reader refuses was read again at every call (once per row of step 2, in the GUI thread: 7 reads and 7 s for a refused table of 250 000 rows on four
+           parts), and the step 1 list showed its message only from the second refresh while the BOM line already said "see the list".
+    @param qtbot pytest-qt fixture.
+    @param base Synthetic set with a BOM.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    from pcbthermal.gerber import bom as bm
+    (base / "assembly.csv").write_text("Designator,Comment,Footprint\nR1,1k," + "x" * 200000 + "\n")      # a cell beyond the csv field limit: refused
+    calls = []
+    real = bm.read_bom
+    monkeypatch.setattr(bm, "read_bom", lambda *a, **k: (calls.append(1), real(*a, **k))[1])
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda *a: None
+    w.open_path(str(base))
+    row = [f.name for f in w.session.files].index("assembly.csv")
+    assert "cannot be read" in w.page1.table.item(row, 4).text()
+    assert w.page1.bom_label.text().startswith("BOM: no file could be read")
+    w.page2.refresh()
+    w.page2.refresh()
+    w.session.bom_line()
+    assert len(calls) == 1
+
+
+def test_text_from_the_bom_in_the_tooltips_is_escaped(qtbot, base):
+    """!
+    @brief Review: the part numbers of the BOM (step 2 cells) and the file names in the warnings of the BOM line (step 1) went into tooltips unescaped, and Qt renders a tooltip
+           that looks like markup as rich text (the Decisions Log: text from the files in the tooltips is escaped).
+    @param qtbot pytest-qt fixture.
+    @param base Synthetic set with a BOM.
+    @return None
+    """
+    (base / "assembly.csv").write_text(TABLE.replace(",C1\n", ",<img src=x>\n") + "U1,dup,x,1,,\n")
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda *a: None
+    w.open_path(str(base))
+    tip = w.page1.bom_label.toolTip()
+    assert "<img" not in tip and "appear more than once" in tip
+    w.page2.refresh()
+    t = w.page2.table
+    tips = [t.item(k, w.page2.BOM_COL).toolTip() for k in range(t.rowCount()) if t.item(k, w.page2.BOM_COL)]
+    assert any("&lt;img src=x&gt;" in x for x in tips) and not any("<img" in x for x in tips)
