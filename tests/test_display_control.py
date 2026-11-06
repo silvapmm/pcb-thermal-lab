@@ -571,3 +571,29 @@ def test_the_application_filter_is_installed_only_while_the_popover_is_open(qtbo
     win._toggle_display_popover()
     win.close()                                                           # The window closes with the popover open: removed too
     assert not seen()
+
+
+def test_a_deferred_close_after_the_popover_was_deleted_raises_nothing(qtbot, tmp_path):
+    """!
+    @brief A call queued while the popover was open must not touch it after Qt deleted it: no RuntimeError, no filter left behind.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    import shiboken6
+    from PySide6.QtCore import QEvent, QTimer
+
+    win = _win(qtbot, tmp_path)
+    win._toggle_display_popover()
+    assert win._popover_filter_on
+    QTimer.singleShot(0, win._close_popover_if_inactive)      # The call that changeEvent queues on a loss of activation
+    pop = win.display_popover
+    pop.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    assert not shiboken6.isValid(pop)
+    assert win.display_popover is None and not win._popover_filter_on
+    QApplication.processEvents()                              # The queued call runs now and must find nothing to close
+    win._close_display_popover()                              # Idempotent
+    win._close_display_popover()
+    win._on_tab_changed()
+    win._toggle_display_popover()
+    assert not win._in_display_popover(win)
