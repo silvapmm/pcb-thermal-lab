@@ -310,6 +310,7 @@ class BoardView(QGraphicsView):
     @brief The board canvas.
     """
 
+    COLOURBAR_STRIP = 96                   # Pixels kept free at the right at fit zoom while the temperature overlay is shown
     selection_changed = Signal(list)       # [(kind, index), ...]
     cursor_moved = Signal(float, float)    # mm
     message = Signal(str)                  # status text
@@ -600,6 +601,8 @@ class BoardView(QGraphicsView):
         self._overlay = item
         # Kept so that a rebuild of the scene (layer change, selection, theme) draws the same map again, and for the colour bar
         self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit)
+        if self._at_fit_zoom() and not self._rebuilding:
+            self.fit()                                                    # Leave the strip of the colour bar free
         self.viewport().update()
 
     def set_overlay_opacity(self, opacity):
@@ -617,31 +620,79 @@ class BoardView(QGraphicsView):
         """
         if self._overlay is not None and self._overlay.scene() is not None:
             self.scene().removeItem(self._overlay)
+        had = self._overlay is not None
         self._overlay = None
         self._overlay_args = None
+        if had and self._at_fit_zoom() and not self._rebuilding:
+            self.fit()                                                    # Give the strip back to the board
         self.viewport().update()
+
+    def colourbar_geometry(self):
+        """!
+        @brief Box of the colour bar of the temperature overlay, in viewport pixels.
+        @details It is placed by `fieldscale.place_colourbar` where it covers neither the board nor the scale bar (right column, then left; top, middle, bottom).
+        @return tuple (x, y, w, h, covers_board), or None when no overlay is shown.
+        """
+        from .fieldscale import place_colourbar
+
+        if getattr(self, "_overlay_args", None) is None or self._overlay is None:
+            return None
+        w, h = self.viewport().width(), self.viewport().height()
+        bh = min(140, max(h - 90, 40))
+        b = self._board_pixel_rect()
+        return place_colourbar((w, h), b, [self._scale_bar_rect()], (74 + 14, bh + 24))
+
+    def _board_pixel_rect(self):
+        """!
+        @brief The board rectangle in viewport pixels.
+        @return tuple (x, y, w, h).
+        """
+        r = self.mapFromScene(QRectF(0.0, 0.0, self.doc.problem.board.width * 1000.0, self.doc.problem.board.height * 1000.0)).boundingRect()
+        return (r.x(), r.y(), r.width(), r.height())
+
+    def _scale_step(self):
+        """!
+        @brief Step of the rulers in millimetres and the screen length of the scale bar.
+        @return tuple (step_mm, pixels) or None when the view has no scale.
+        """
+        scale = abs(self.transform().m11())
+        if scale <= 0:
+            return None
+        step = next((s for s in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000) if s * scale >= 60), 1000)
+        return step, step * scale
+
+    def _scale_bar_rect(self):
+        """!
+        @brief Rectangle taken by the scale bar and its label at the bottom left, in viewport pixels.
+        @return tuple (x, y, w, h).
+        """
+        st = self._scale_step()
+        bar = st[1] if st else 60.0
+        return (18 + 12 - 4, self.viewport().height() - 14 - 20, max(bar, 60.0) + 8, 28)
 
     def drawForeground(self, painter, rect):
         """!
-        @brief Paint the colour bar of the temperature overlay in the bottom-right corner of the view (in screen pixels, whatever the zoom).
+        @brief Paint the colour bar of the temperature overlay (in screen pixels, whatever the zoom) where it does not cover the board.
         @param painter QPainter to draw with.
         @param rect Exposed rectangle in scene coordinates (mm), not used.
         """
-        a = getattr(self, "_overlay_args", None)
-        if a is None or self._overlay is None:
+        g = self.colourbar_geometry()
+        if g is None:
             return
         from matplotlib import colormaps
+        from .fieldscale import nice_ticks, tick_label
 
+        a = self._overlay_args
         c = th.colors(self.theme)
+        x0b, y0b, wb, hb, covers = g
         painter.save()
         painter.resetTransform()                                          # Screen pixels from here on
-        w, h = self.viewport().width(), self.viewport().height()
-        bw, bh, mg = 14, min(140, max(h - 60, 40)), 12
-        x0, y0 = w - mg - bw - 62, h - mg - bh - 8
+        bw, bh = 14, int(hb - 24)
+        x0, y0 = x0b + 6, y0b + 16
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(c["canvas"]))
-        painter.setOpacity(0.85)
-        painter.drawRoundedRect(QRectF(x0 - 6, y0 - 16, bw + 74, bh + 24), 4, 4)   # Backing plate so the labels read over any copper or photo
+        painter.setOpacity(0.6 if covers else 0.85)                       # Translucent only when the board leaves no free place for it
+        painter.drawRoundedRect(QRectF(x0b, y0b, wb, hb), 4, 4)           # Backing plate so the labels read over any copper
         painter.setOpacity(1.0)
         cm = colormaps[a["cmap"]]
         # One column of the colour map as an image (no colour literals: the values come from matplotlib), highest temperature on top
@@ -649,9 +700,16 @@ class BoardView(QGraphicsView):
         painter.drawImage(QRectF(x0, y0, bw, bh), QImage(strip.data, 1, bh, 4, QImage.Format_RGBA8888).copy())
         painter.setPen(QColor(c["text"]))
         painter.drawText(QPointF(x0, y0 - 4), a["unit"])
-        mid = 0.5 * (a["vmin"] + a["vmax"])
-        for v, yy in ((a["vmax"], y0 + 8), (mid, y0 + bh / 2 + 4), (a["vmin"], y0 + bh)):
-            painter.drawText(QPointF(x0 + bw + 4, yy), num(v))
+        # Round ticks (1, 2, 5 times a power of ten) placed at their value on the bar, labelled with the digits the step needs
+        lo, hi = a["vmin"], a["vmax"]
+        vals, step = nice_ticks(lo, hi, 4)
+        self._colourbar_labels = []
+        for v in vals:
+            yy = y0 + bh * (1.0 - (v - lo) / max(hi - lo, 1e-12))
+            painter.drawLine(QPointF(x0 + bw, yy), QPointF(x0 + bw + 3, yy))
+            text = f"{tick_label(v, step)}"
+            self._colourbar_labels.append(text)
+            painter.drawText(QPointF(x0 + bw + 5, yy + 4), text)
         painter.restore()
 
     # ------------------------------------------------------------------ selection
@@ -761,15 +819,26 @@ class BoardView(QGraphicsView):
     def fit(self):
         """!
         @brief Zoom so that the whole board fits in the view.
+        @details While the temperature overlay is shown, a strip on the right (`COLOURBAR_STRIP` pixels) is left free for its colour bar, so that the bar never covers the board.
         """
         b = self.doc.problem.board
         W, H = b.width * 1000.0, b.height * 1000.0
         vw, vh = max(self.viewport().width(), 50), max(self.viewport().height(), 50)
-        s = 0.9 * min(vw / W, vh / H)
+        strip = self.COLOURBAR_STRIP if getattr(self, "_overlay", None) is not None and vw > 3 * self.COLOURBAR_STRIP else 0
+        s = 0.9 * min((vw - strip) / W, vh / H)
         self.setTransform(QTransform().scale(s, -s))
-        self.centerOn(W / 2, H / 2)
+        self.centerOn(W / 2 + strip / (2.0 * s), H / 2)
+        self._fit_scale = s
         self._fitted = True
         self._fit_labels()
+
+    def _at_fit_zoom(self):
+        """!
+        @brief True while the view still has the zoom that `fit` set (the user has not zoomed since), so that it may be fitted again without undoing a zoom.
+        @return bool.
+        """
+        s = getattr(self, "_fit_scale", None)
+        return s is not None and abs(abs(self.transform().m11()) - s) <= 1e-9 * s
 
     def showEvent(self, e):
         """!
@@ -899,7 +968,7 @@ class BoardView(QGraphicsView):
         font = painter.font()
         font.setPointSizeF(7.5)
         painter.setFont(font)
-        step = next((s for s in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000) if s * scale >= 60), 1000)
+        step = self._scale_step()[0]
         minor = step / 5.0 if step * scale >= 100 else step / 2.0
         origin = self.mapFromScene(QPointF(0.0, 0.0))        # Pixel of the board corner (0, 0)
         # Horizontal ruler: x grows to the right

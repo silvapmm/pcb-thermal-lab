@@ -122,7 +122,7 @@ def test_cells_off_the_outline_are_transparent(qtbot, tmp_path, sim_t):
     assert win.canvas._overlay is not None
     px = _rgba(win.canvas._overlay.pixmap().toImage())
     ref = sim_t.results["fvm"]
-    mask = fieldscale.inside_mask(sim_t.problem.board, ref.T[0].shape, ref.dx, ref.dy)
+    mask = fieldscale.inside_mask(sim_t.problem, ref.T[0].shape, ref.dx, ref.dy)
     assert not mask.all() and mask.any()
     assert (px[..., 3][~mask] == 0).all() and (px[..., 3][mask] == 255).all()
 
@@ -153,7 +153,8 @@ def test_the_colour_bar_is_painted_only_with_the_overlay(qtbot, tmp_path, sim_re
     win.canvas.set_overlay_opacity(0.1)                      # the board nearly clear: the difference at the corner is the bar
     on = _rgba(win.canvas.viewport().grab().toImage())
     h, w = off.shape[:2]
-    corner = (slice(h - 160, h), slice(w - 90, w))           # bottom-right corner of the view
+    bx, by, bw, bh, _ = win.canvas.colourbar_geometry()      # The bar is wherever it fits without covering the board
+    corner = (slice(int(by), int(by + bh)), slice(int(bx), int(bx + bw)))
     assert not np.array_equal(off[corner], on[corner])
 
 
@@ -285,3 +286,86 @@ def test_the_opacity_box_and_the_slider_follow_each_other(qtbot, tmp_path, sim_r
     assert win.overlay_opacity_box.value() == 90 and abs(win.canvas._overlay.opacity() - 0.9) < 1e-9
     win.overlay_opacity_box.setValue(0)
     assert win.canvas._overlay.opacity() == 0.0
+
+
+def _round_problem():
+    """!
+    @brief The example board cut to a disc-like outline (48 vertices), one heater, so that many cells are cut by the outline but have their centre off it.
+    @return Problem with a rounded outline.
+    """
+    p = example_board()
+    W, H = p.board.width, p.board.height
+    a = np.linspace(0, 2 * np.pi, 48, endpoint=False)
+    p.board.outline = np.column_stack([0.5 * W + 0.5 * W * np.cos(a), 0.5 * H + 0.5 * H * np.sin(a)])
+    p.heaters = p.heaters[:1]
+    p.heaters[0].polygon = np.array([[0.45 * W, 0.45 * H], [0.55 * W, 0.45 * H], [0.55 * W, 0.55 * H], [0.45 * W, 0.55 * H]])
+    p.vias = []
+    return p
+
+
+def test_overlay_and_results_leave_the_same_cells_blank(qtbot, tmp_path):
+    """!
+    @brief Cells cut by a rounded corner whose centre is off the board are blank in the Results map; the overlay now blanks the same cells.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    from pcbthermal import plots
+    from pcbthermal.geometry import coverage_fraction
+
+    sim = simulate(_round_problem(), SolverOptions(models=("fvm",), cell_mm=2.0))
+    ref = sim.results["fvm"]
+    win = _window(qtbot, tmp_path, sim, sim.problem)
+    win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("fvm"))
+    win.a_overlay.setChecked(True)
+    alpha = _rgba(win.canvas._overlay.pixmap().toImage())[..., 3] > 0
+    results = np.isfinite(plots._off_board(ref.T[0], sim.problem, ref.dx, ref.dy))
+    assert np.array_equal(alpha, results)
+    ny, nx = ref.T[0].shape
+    old_rule = np.asarray(coverage_fraction(sim.problem.board.outline, nx, ny, ref.dx, ref.dy, 8)) > 0.0
+    assert (old_rule & ~results).any()                      # The case is real: the coverage rule painted cells that the tab leaves blank
+
+
+def test_colour_bar_ticks_are_round_and_short():
+    """!
+    @brief The tick values are multiples of 1, 2 or 5 times a power of ten and their text has at most one decimal for steps of 0.1 and more.
+    """
+    for lo, hi in ((35.1111, 184.743), (25.0, 25.5), (0.0, 7.3), (-12.0, 4.0)):
+        vals, step = fieldscale.nice_ticks(lo, hi, 4)
+        assert 2 <= len(vals) <= 8 and all(lo - 1e-9 <= v <= hi + 1e-9 for v in vals)
+        assert step / 10 ** np.floor(np.log10(step)) in (1.0, 2.0, 5.0) or abs(step / 10 ** np.floor(np.log10(step)) - 10) < 1e-9
+        for v in vals:
+            t = fieldscale.tick_label(v, step)
+            assert float(t) == pytest.approx(v, abs=step / 100)
+            if step >= 0.1:
+                assert len(t.split(".")[1]) <= 1 if "." in t else True
+    vals, step = fieldscale.nice_ticks(35.1111, 184.743, 4)
+    assert [fieldscale.tick_label(v, step) for v in vals] == ["50", "100", "150"]
+
+
+def test_colour_bar_never_covers_the_board_at_fit_zoom(qtbot, tmp_path, sim_rect):
+    """!
+    @brief At fit-to-window zoom, in a wide and a narrow window, the bar box does not meet the board rectangle or the scale bar, and the drawn labels are the round ticks.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim_rect Simulation of the example board.
+    """
+    win = _window(qtbot, tmp_path, sim_rect, sim_rect.problem)
+    win.a_overlay.setChecked(True)
+    win.canvas.show()
+    for size in ((700, 500), (360, 420), (900, 260)):
+        win.canvas.resize(*size)
+        qtbot.wait(100)                                     # Let the layout settle before fitting
+        win.canvas.fit()
+        win.canvas.viewport().grab()                        # Paints once, which fills the label list
+        x, y, w, h, covers = win.canvas.colourbar_geometry()
+        bx, by, bw, bh = win.canvas._board_pixel_rect()
+        sx, sy, sw, sh = win.canvas._scale_bar_rect()
+
+        def meet(a, b):
+            return min(a[0] + a[2], b[0] + b[2]) > max(a[0], b[0]) and min(a[1] + a[3], b[1] + b[3]) > max(a[1], b[1])
+
+        assert not covers and not meet((x, y, w, h), (bx, by, bw, bh)), (size, win.canvas.viewport().width(), win.canvas.viewport().height(), (x, y, w, h), (bx, by, bw, bh))
+        assert not meet((x, y, w, h), (sx, sy, sw, sh)), size
+        assert x >= 0 and y >= 0 and x + w <= win.canvas.viewport().width() + 1 and y + h <= win.canvas.viewport().height() + 1
+        for t in win.canvas._colourbar_labels:
+            assert len(t) <= 6 and ("." not in t or len(t.split(".")[1]) <= 2)

@@ -694,7 +694,7 @@ class MainWindow(QMainWindow):
         layer = min(self.canvas.layer, res.T.shape[0] - 1)
         field = res.T[layer]
         nodes = res.grid == "nodes"
-        mask = inside_mask(self.doc.problem.board, field.shape, res.dx, res.dy, nodes)
+        mask = inside_mask(self.doc.problem, field.shape, res.dx, res.dy)
         vmin, vmax = (cfg[4], cfg[5]) if cfg else (None, None)
         # The limits by the rule of the Results map (Auto range over the samples on the board only), passed explicitly so the canvas does not rescale
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)

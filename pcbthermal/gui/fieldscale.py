@@ -56,23 +56,97 @@ def results_limits(field, problem, dx, dy, auto=True, vmin=None, vmax=None):
     return colour_limits(field, False, vmin, vmax)
 
 
-def inside_mask(board, shape, dx, dy, nodes=False):
+def inside_mask(problem, shape, dx, dy):
     """!
-    @brief The cells of a result grid that lie on the board (False outside the outline).
-    @param board model.Board whose outline is used (no outline: every cell is on the board).
+    @brief The cells of a result grid that the Results map draws (False where it leaves them blank).
+    @details It is the rule of the Results Temperature tab itself, `plots._off_board`: a sample is on the board when its CENTRE lies inside the outline, so a cell that
+             the outline cuts through a rounded corner but whose centre is outside is blank in both views (the overlay used to paint any cell with a coverage above zero).
+             Node fields (one more sample than cells per axis) are recognised by their shape as the Results map does.
+    @param problem model.Problem shown (its board outline).
     @param shape tuple (ny, nx) of the field.
     @param dx Cell width in metres.
     @param dy Cell height in metres.
-    @param nodes True when the field holds values at grid points (the first sample sits at 0): the outline is shifted by half a cell so that a node stands for the cell around it.
     @return Boolean array (ny, nx).
     """
-    ny, nx = shape
-    if not board.has_outline():
-        return np.ones((ny, nx), bool)
-    poly = board.outline
-    if nodes:
-        poly = [(x + 0.5 * dx, y + 0.5 * dy) for x, y in poly]
-    return np.asarray(coverage_fraction(poly, nx, ny, dx, dy, 8)) > 0.0
+    from ..plots import _off_board                       # One rule for the two views, so they cannot drift apart
+
+    return np.isfinite(_off_board(np.zeros(shape), problem, dx, dy))
+
+
+def nice_ticks(lo, hi, n=4):
+    """!
+    @brief Round tick values for a colour bar.
+    @details The step is 1, 2 or 5 times a power of ten, chosen to give about `n` intervals, and the values are multiples of it inside [lo, hi].
+    @param lo Lower limit in the unit of the field.
+    @param hi Upper limit in the unit of the field.
+    @param n Wanted number of intervals (at least 1).
+    @return tuple (values, step): list of floats and the step used (same unit).
+    """
+    span = max(float(hi) - float(lo), 1e-12)
+    raw = span / max(int(n), 1)
+    mag = 10.0 ** np.floor(np.log10(raw))
+    step = next(m * mag for m in (1, 2, 5, 10) if m * mag >= raw * 0.999)
+    first = np.ceil(lo / step - 1e-9)
+    vals = []
+    k = first
+    while k * step <= hi + 1e-9 * span:
+        vals.append(round(float(k * step), 12))
+        k += 1
+    return vals, float(step)
+
+
+def tick_label(value, step):
+    """!
+    @brief Text of one colour bar tick: plain decimals with only the digits the step needs (one at most for steps of 0.1 and more), the project's number rules outside 0.01 to 10000.
+    @param value Tick value in the unit of the field.
+    @param step Tick step in the same unit.
+    @return str.
+    """
+    from ..numfmt import num
+
+    a = abs(value)
+    if value != 0 and (a < 0.01 or a >= 10000):
+        return num(value)                                  # Engineering notation of the project outside the plain window
+    decimals = 0 if step >= 1 - 1e-9 else int(min(2, max(1, np.ceil(-np.log10(step) - 1e-9))))
+    text = f"{value:.{decimals}f}"
+    return "0" if float(text) == 0 else text               # No "-0.0"
+
+
+def place_colourbar(view, board, avoid, size, margin=8):
+    """!
+    @brief Where the colour bar goes in the view so that it does not cover the board.
+    @details Candidates are tried in order (right column, left column, each from the top, the middle and the bottom); the first that touches neither the board rectangle
+             nor the rectangles in `avoid` (rulers, scale bar) wins. When the board fills the view (zoomed in) the candidate that covers the least board is used.
+    @param view tuple (width, height) of the viewport in pixels.
+    @param board tuple (x, y, w, h) of the board on screen in pixels.
+    @param avoid list of tuples (x, y, w, h) in pixels to keep clear (the rulers and the scale bar).
+    @param size tuple (w, h) of the bar with its labels in pixels.
+    @param margin Gap to the view border in pixels.
+    @return tuple (x, y, w, h, covers_board): the box in pixels and True when it still overlaps the board.
+    """
+    vw, vh = view
+    w, h = size
+
+    def inter(a, b):
+        dx = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+        dy = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
+        return max(dx, 0) * max(dy, 0)
+
+    ruler = 18
+    ys = (ruler + margin, max((vh - h) / 2.0, ruler + margin), vh - h - margin)
+    xs = (vw - w - margin, ruler + margin)
+    cands = [(x, y, w, h) for x in xs for y in ys]
+    best = None
+    for c in cands:
+        over_board = inter(c, board)
+        over_other = sum(inter(c, a) for a in avoid)
+        score = (over_other > 0, over_board, over_other)
+        if best is None or score < best[0]:
+            best = (score, c)
+        if over_board == 0 and over_other == 0:
+            break
+    c = best[1]
+    return (float(c[0]), float(c[1]), float(w), float(h), inter(c, board) > 0)
 
 
 def overlay_refusal(result, problem):
