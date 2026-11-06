@@ -616,7 +616,7 @@ class MainWindow(QMainWindow):
         self.display.changed.connect(self._on_display_changed)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.results.tabs.currentChanged.connect(self._on_tab_changed)
-        QApplication.instance().installEventFilter(self)           # A click outside the popover closes it
+        self._popover_filter_on = False                             # The application-level filter of the popover is installed only while it is open
         tb.addSeparator()
         tb.addWidget(QLabel(" Snap "))
         self.snap_combo = QComboBox()
@@ -831,6 +831,10 @@ class MainWindow(QMainWindow):
             self._close_display_popover()
             return
         self.display_popover.set_context(self._display_context())
+        # A click outside the popover closes it: the filter watches every event of the application, so it is installed only while the popover is open
+        # (installed for good it cost about 1.3 us per event and window, and a closed window kept it)
+        QApplication.instance().installEventFilter(self)
+        self._popover_filter_on = True
         self.display_popover.show_under(self.display_button, activate=activate)
 
     def _close_display_popover(self):
@@ -838,6 +842,9 @@ class MainWindow(QMainWindow):
         @brief Close the Display popover, applying an opacity edit that still waits for its pause, and give the keyboard back to the window when the popover had it.
         """
         pop = self.display_popover
+        if getattr(self, "_popover_filter_on", False):
+            QApplication.instance().removeEventFilter(self)          # Nothing to watch while the popover is closed
+            self._popover_filter_on = False
         if not pop.isVisible():
             return
         had_keyboard = QApplication.activeWindow() is pop
