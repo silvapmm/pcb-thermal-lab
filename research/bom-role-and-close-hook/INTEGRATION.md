@@ -22,11 +22,13 @@ Branch for the program (after the maintainer decides): `feature/bom-role-and-clo
 
 ## 3. Recommendation for each decision (README 10)
 
-1. **File role and proposal in step 2.** Recommended: yes to both; the file role alone ("stored, not read") gives the package something to store but nothing the user sees. Cost 18 h of the 35.
-2. **DNP unticks the part.** Recommended: yes, with the visible text "not populated (BOM)"; it is the one thing a BOM tells that no other file does (5 of 5 test points in the sample were in the placement file and not populated).
-3. **Hook without veto.** Recommended: no veto in 2.6.0.
-4. **Power list.** Recommended: a separate later item.
-5. **Text rule words.** Recommended: accept for 2.6.0, state the limit (KiCad-style English names), measure on Altium and EasyEDA exports when a sample with a BOM is found.
+The researcher's recommendation, then the reviewer's (README 12).
+
+1. **File role and proposal in step 2.** Researcher: yes to both. Reviewer: **yes to both, in two steps of the same branch**: the file role (content detection, stored in the record, exported with the package) is what the maintainer already agreed ("stored, not read"); the role proposal adds a default the user sees and can change, at no risk to a temperature. If time is short, ship the file role and the reader, and the proposal after. Cost 18 h of the 35.
+2. **DNP.** Researcher: untick. Reviewer: **yes, but as a mark, not an untick**: every part already starts unticked, so the BOM can only say "not populated (BOM)", keep the part unticked or warn when a power is typed, and never write `edits["use"]`.
+3. **Hook without veto.** Both: **no veto in 2.6.0**. The unsaved-changes veto lives in `MainWindow.closeEvent`; the only hook users (source capture, removal of the extracted folder) must never block a close, and `done()` already defers while a call runs. Add the thread rule of README 6.3 (or run the "new_files" hooks in the GUI thread before the worker starts, which the reviewer prefers: simpler and no Qt hazard).
+4. **Power list.** Both: **a separate later item**; no BOM of the library has a power column.
+5. **Text rule words.** Researcher: accept. Reviewer: **accept for 2.6.0 only as a proposal shown as a guess**, because the 99 % is agreement on KiCad names in-sample (README 12.2), not accuracy; keep `SMA` and other ambiguous words from deciding alone (a value `SMA` was an RF connector on librevna), and measure on an Altium or EasyEDA set with a BOM before calling it reliable.
 
 ## 4. Order
 
@@ -40,9 +42,14 @@ Branch for the program (after the maintainer decides): `feature/bom-role-and-clo
 
 * A wrong proposal: only a default; the tooltip says "from the BOM names (a guess)". Test: user edit survives a re-import with a different BOM role.
 * Hostile table: formula cells, 100 000-character cell, range `R1-R9999999`, 200 001 rows (tests in this folder cover the first three).
-* The hook raising or running while busy: tests in README 6.4.
+* The hook raising or running while busy: tests in README 6.4. A session hook run from `set_files` runs in the reader's worker thread with the garbage collector off: a test that a hook touching no Qt object runs there, and the rule written in its docstring.
 * A 2.5.x program opening a 2.6.0 project with a BOM role: it ignores the unknown role text (code reading); run `tests/test_format_compat_245.py` style compatibility on the merged tree before release.
 
 ## 6. Not verified
 
 Accuracy of the roles against a labelled set; BOM exports of tools other than Pulsonix; any GUI behaviour (nothing was built).
+
+## 7. Program findings of the review (for a `fix/` branch, not this folder)
+
+* **Pulsonix position file refused** (`gerber/parts.parse_placement`): four preamble lines, then `Units,mm,`, then `Ref,Part Name,Side,X,Y,Rotation`; the import goes on without designators (notes: "is not used: no placement header found"). Proposal: skip lines before the first header row (bounded, for example 20 lines), read a `Units,<unit>` line, test with an invented Pulsonix-style table. Moves no number.
+* **Parts warning with no placement used**: the session says "0 parts were matched to the placement file by position ... Usually right" when the placement file was refused; the line should not appear (or say that no placement file was read).

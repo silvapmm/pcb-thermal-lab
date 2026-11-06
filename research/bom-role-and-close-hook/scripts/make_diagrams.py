@@ -57,7 +57,7 @@ def fig_02():
     ax.set_ylim(0, 6)
     ax.add_patch(Rectangle((0.1, 0.1), 9.8, 5.8, fc="#f4f4f4", ec="k"))
     ax.text(0.3, 5.6, "Import Gerber board        1 Files     2 Parts     3 Model", fontsize=9, fontweight="bold", va="center")
-    ax.text(0.3, 5.1, "CAD tool: KiCad (high confidence)", fontsize=8.5, va="center")
+    ax.text(0.3, 5.1, "CAD tool: Pulsonix (high confidence)", fontsize=8.5, va="center")
     ax.text(0.3, 4.75, "BOM: board-bom.csv  - 86 designators, 5 not populated, proposed: 63 component, 5 source, 18 none", fontsize=8.5, va="center", color="#1e6b2c", fontweight="bold")
     rows = [("board-F_Cu.gbr", "Top copper"), ("board-F_Paste.gbr", "Solder paste top"), ("board-pos.csv", "Placement (pick and place)"),
             ("board-bom.csv", "BOM (bill of materials)"), ("board-drl.drl", "Plated drill")]
@@ -71,7 +71,7 @@ def fig_02():
         ax.text(0.4, y, f, fontsize=8.5, va="center")
         ax.text(4.2, y, r + "  v", fontsize=8.5, va="center", fontweight="bold" if hl else None)
         ax.text(7.4, y, "columns of a BOM table" if hl else "file name", fontsize=8, va="center", color="#555")
-    ax.text(0.3, 1.0, "The BOM role is read: the table is parsed once, its columns are shown above, and the roles it proposes appear in step 2\n(a role the user changed there stays; a part that is in the BOM as not populated is unticked and says so).", fontsize=8.3, va="top")
+    ax.text(0.3, 1.0, "The BOM role is read: the table is parsed once, its columns are shown above, and the roles it proposes appear in step 2\n(a role the user changed there stays; a part the BOM marks not populated stays unticked, says so, and warns if a power is typed).", fontsize=8.3, va="top")
     ax.text(0.3, 0.3, "Add files... / Replace / Cancel", fontsize=8, color="#555")
     dk.save(fig, os.path.join(FIG, "fig_02_step1_mockup.png"), "Mock-up of step 1 with the BOM file and the BOM line (not built)")
 
@@ -88,14 +88,14 @@ def fig_03():
     a.text(3, 5.7, "Now (feature/project-package): replace an attribute", ha="center", fontsize=9, fontweight="bold")
     dk.box(a, 0.3, 4.2, 5.4, 0.8, "MainWindow: cap = capture_on_close(dlg)\ndlg.session.close = wrapper   (monkey patch)", "#f6e3b4")
     dk.box(a, 0.3, 2.9, 5.4, 0.8, "dlg.done() -> session.close()  (wrapper: read files, then original)", "#cfe3f5")
-    dk.box(a, 0.3, 1.6, 5.4, 0.8, "set_files() -> self.close() fires the same wrapper\n(also when only other files are opened)", "#e6b0aa")
-    dk.box(a, 0.3, 0.3, 5.4, 0.8, "A second feature that patches close() replaces the first", "#e6b0aa")
+    dk.box(a, 0.3, 1.6, 5.4, 0.8, "set_files() (worker thread) -> self.close() fires the same wrappers\n(also when only other files are opened)", "#e6b0aa")
+    dk.box(a, 0.3, 0.3, 5.4, 0.8, "A second wrapper (stored-sources folder removal) is chained\non the first: order-dependent and invisible in ImportBoardWindow", "#e6b0aa")
     for y in (4.2, 2.9, 1.6):
         dk.arrow(a, 3, y, 3, y - 0.4)
     b.text(3, 5.7, "Proposed: a list the window and the session run", ha="center", fontsize=9, fontweight="bold")
     dk.box(b, 0.3, 4.2, 5.4, 0.8, "MainWindow: dlg.before_close.append(cap.read)\n(no change to session.close)", "#c9e7c3", bold=True)
     dk.box(b, 0.3, 2.9, 5.4, 0.8, "dlg.done(): run each hook(dlg, result), in order,\nexceptions logged; then session.close()", "#c9e7c3", bold=True)
-    dk.box(b, 0.3, 1.6, 5.4, 0.8, "set_files() releases the archive with reason \"new_files\":\nthe hooks of the session see the old files first", "#cfe3f5")
+    dk.box(b, 0.3, 1.6, 5.4, 0.8, "set_files() releases the archive with reason \"new_files\":\nruns in the WORKER thread (gc off): hooks touch no Qt", "#cfe3f5")
     dk.box(b, 0.3, 0.3, 5.4, 0.8, "Several hooks coexist; each is removed by the owner", "#c9e7c3")
     for y in (4.2, 2.9, 1.6):
         dk.arrow(b, 3, y, 3, y - 0.4)
