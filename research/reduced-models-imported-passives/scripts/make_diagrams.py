@@ -34,7 +34,7 @@ def fig_section():
     dk.layer(ax, 6.8, 3.2, 1.0, 0.25, dk.COPPER, "")
     dk.layer(ax, 7.8, 3.2, 4.2, 0.25, dk.AIR)
     dk.layer(ax, 0, 1.35, 12, 0.25, dk.COPPER)
-    ax.text(0.1, 4.3, "top copper: plane", fontsize=7); ax.text(3.6, 4.3, "track (the neck)", fontsize=7); ax.text(6.55, 3.85, "pad", fontsize=7)
+    ax.text(0.1, 4.3, "top copper: plane", fontsize=7); ax.text(3.6, 4.3, "track (the neck)", fontsize=7); ax.annotate("pad", xy=(7.3, 3.3), xytext=(8.5, 3.75), fontsize=7, arrowprops={"arrowstyle": "-", "lw": 0.6})  # beside the part, not over it
     ax.text(0.1, 1.05, "second copper layer", fontsize=7)
     dk.layer(ax, 6.4, 3.45, 1.8, 0.7, "#555555", "0402 part, 1 W", 7)
     # Heat paths

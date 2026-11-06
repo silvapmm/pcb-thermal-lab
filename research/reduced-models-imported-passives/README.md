@@ -59,8 +59,8 @@ Geometric mean of the ratio of the rises (range in brackets), by size of the foo
 What this says, in order:
 
 1. **The averaging of the copper over regions of 1 to 10 mm is not the cause** (hypothesis a). The FVM changes by 0 to 8 % between the layer-average sheet, tiles of 10, 5, 2 and 1 mm: the local fill around the part matters little. The Analytic model on a uniform sheet is within 2 % of the FVM on it, the Lumped within 2 to 16 % cool.
-2. **The cause is the structure of the copper below about 1 mm**: the pad, the track that feeds it, the clearances (the FVM step "imported / cell fill" is 1.4 to 3.1 times; the whole structure 1.5 to 3.7 times, up to 4.3 on CO60). The reduced models read the copper as a cell average, so they cannot see it, and the numbers confirm that they do not: Lumped and Analytic on the imported board differ by only 0 to 10 % from themselves on the uniform sheet (rows "imported / uniform"). **They are, for a part, uniform-sheet models.**
-3. **The Lumped has its own deficit of 2 to 16 % on a uniform sheet** (RP2040; 9 to 30 % on CO60, the largest on the smallest parts: C1 -30 %, R1 -26 %) that the Analytic does not have (-4 to +5 %). It is not the outline or the board size alone (3.6) and was not isolated (the ring construction for a source smaller than the cell is the candidate, hypothesis c).
+2. **The cause is the structure of the copper below about 1 mm**: the pad, the track that feeds it, the clearances (the FVM step "imported / cell fill" is 1.4 to 3.1 times; the whole structure 1.5 to 3.7 times, up to 4.3 on CO60). The reduced models read the copper as a cell average, so they cannot see it, and the numbers confirm that they do not: Lumped and Analytic on the imported board differ far less from themselves on the uniform sheet than the FVM does (rows "imported / uniform": Lumped -12 to +32 %, Analytic -9 to +14 % on RP2040, 0 to +15 % on the other two boards, against 1.2 to 4.5 times for the FVM; the first version said "0 to 10 %", corrected by the review, chapter 6). **They are, for a part, close to uniform-sheet models.**
+3. **The Lumped has its own deficit of 2 to 16 % on a uniform sheet** (RP2040; 7 to 13 % on oswlight; 9 to 30 % on CO60, the largest on the smallest parts: C1 -30 %, R1 -26 %) that the Analytic has much less of (-4 to +5 % on RP2040, -8 to -2 % on oswlight, -4 to -2 % on CO60; the first version quoted -4 to +5 % for all three, corrected by the review). It is not the outline or the board size alone (3.5) and was not isolated (the ring construction for a source smaller than the cell is the candidate, hypothesis c).
 4. **Vias are not the cause** (hypothesis d): removing them raises the FVM by 17 to 20 % and the Lumped by 7 to 15 %, so the vias are seen by both models; the difference between the two ratios (a few points) is the via share of the gap.
 5. **The shape of the heat source is not the cause** (hypothesis e) for the passives, which have one opening and no exposed pad; U1 and U3 use the pad as proposed, and the gap there (-31 to -42 %) is among the smallest of the board because the pad is large and sits on solid copper.
 6. **Thin copper conductivity** (hypothesis f) is in every variant (the same 35 um sheet), so it cannot explain a difference between them.
@@ -83,7 +83,7 @@ Rise in K for 1 W (`study_cell_convergence.py`, peak 1.82 GB):
 
 ![cell convergence](figures/fig_04_cell_convergence.png)
 
-Two consequences. (i) The arithmetic fill climbs towards the imported value as the cell approaches the pad size (C3 80 to 148 K): the "fill" mapping fails exactly because of the sub-cell structure, which supports section 3.1. (ii) The imported value is not converged at 0.25 mm for the 1 mm parts (C3 +3 %, R5 +20 %, C13 +30 % from 0.5 to 0.25; C13 at 1 mm, 258 K, is above its 0.5 mm value: not monotone); the percentages of the tables above are therefore **lower bounds on the error against a converged reference, and a finer cell would make them larger, not smaller**. The two reduced models hardly move with the cell (3.6), so the agreement of Lumped with the FVM of C3 at 1 mm (-31 %) is an accident of the reference.
+Two consequences. (i) The arithmetic fill climbs towards the imported value as the cell approaches the pad size (C3 80 to 148 K): the "fill" mapping fails exactly because of the sub-cell structure, which supports section 3.1. (ii) The imported value is not converged at 0.25 mm for the 1 mm parts (C3 +3 %, R5 +20 %, C13 +30 % from 0.5 to 0.25; C13 at 1 mm, 258 K, is above its 0.5 mm value: not monotone); the percentages of the tables above are therefore **lower bounds on the error against a converged reference, and a finer cell would make them larger, not smaller**. The two reduced models hardly move with the cell (3.5), so the agreement of Lumped with the FVM of C3 at 1 mm (-31 %) is an accident of the reference. **Review (6.2):** the masks of this table change with the cell (automatic pixel `min(w, cell / 10)`: 0.1, 0.05, 0.025 mm); with the pixel fixed at 0.025 mm the movement stays (C3 86.1, 207.3, 201.2 K; R5 240.4, 262.4, 302.1 K), so it is the cell, not the masks; and the program's Auto already chooses 0.25 mm for a powered 0402, not 1 mm (figure 6).
 
 ### 3.3 No local variable separates the good from the bad cases
 
@@ -95,7 +95,7 @@ Two consequences. (i) The arithmetic fill climbs towards the imported value as t
 | Lumped / FVM | -0.32 (0.13) | 0.00 (1.0) | +0.41 (0.034) | +0.70 (0.000) |
 | Analytic / FVM | -0.42 (0.042) | +0.22 (0.27) | +0.40 (0.037) | +0.61 (0.001) |
 
-(kappa is infinite for three parts whose pad is connected only through the second layer: C12, C13, U3.) `study_rule_search.py` pools the 42 parts of the three boards and asks which variable could warn before the run that the error exceeds 50 % (30 of 42 Lumped cases, 28 of 42 Analytic):
+(kappa is infinite for three parts whose pad is connected only through the second layer: C12, C13, U3; the correlations above leave them out, n = 24. Ranked as the largest values instead, n = 27, they become +0.28 (0.16), -0.17 (0.40), -0.33 (0.09): weaker still. The column "distance to bare laminate" is the distance from the centre of the footprint to the nearest pixel below half coverage, which for a two-pad part is the gap between its own pads: 0.00 to 0.07 mm on 30 of the 42 parts; it measures nothing about the copper around the part, review 6.3.) `study_rule_search.py` pools the 42 parts of the three boards and asks which variable could warn before the run that the error exceeds 50 % (30 of 42 Lumped cases, 28 of 42 Analytic):
 
 | Variable | Spearman with Lumped error | AUC for "below -50 %" |
 | :-- | :-- | :-- |
@@ -121,7 +121,7 @@ The best case of the pool is -17 % (Analytic) and -25 % (Lumped); big parts on C
 
 ### 3.4 Independent check: a pixel-resolved fin network of the top layer
 
-`study_fin_check.py` predicts the structure factor FVM-imported / FVM-uniform with a separate, much simpler calculation that shares no code with the program: the top mask at its own pixel as a resistor network, every pixel leaking to the ambient with a fin length lambda, the part's copper as one node. The solver is tested (`tests/test_constriction.py`) against the strip (R = L/W, exact), the disc pad in a disc window (ln(b/a)/2 pi, 3 %) and the fin solution K0(x)/(x K1(x))/2 pi of an infinite leaking sheet (4 %; Carslaw and Jaeger, from memory, status M). Result with lambda chosen as a free parameter:
+`study_fin_check.py` predicts the structure factor FVM-imported / FVM-uniform with a separate, much simpler calculation that shares no code with the program: the top mask at its own pixel as a resistor network, every pixel leaking to the ambient with a fin length lambda, the part's copper as one node. The solver is tested (`tests/test_constriction.py`) against the strip (R = L/W, exact), the disc pad in a disc window (ln(b/a)/2 pi, 3 %) and the fin solution K0(x)/(x K1(x))/2 pi of an infinite leaking sheet (4 %; the form is equation (19) of [Shen2019], PDF page 10, read on the page image by the review: status R, chapter 6.4; the first version cited Carslaw and Jaeger from memory). Result with lambda chosen as a free parameter:
 
 | Board | lambda (mm) | predicted structure factor (geometric mean) | FVM | Spearman | Lumped times the factor: mean absolute error (as run) |
 | :-- | :-- | :-- | :-- | :-- | :-- |
@@ -141,23 +141,75 @@ RP2040 decomposition: 14 s per part, peak 0.67 GB; oswlight 23 s, 0.56 GB; **CO6
 
 ## 4. What the study does and does not say
 
-* **Cause found**: the reduced models read the copper as a cell average; the part's pad and the tracks that feed it are smaller than the cell and are invisible to them. They behave as uniform-sheet models (they change by under 10 % between the imported board and a uniform sheet), while the FVM that resolves the pattern reads 1.4 to 3.7 times hotter for 1 W in a small part. This accounts for essentially the whole gap; the remaining part is the Lumped's own deficit on a uniform sheet (2 to 16 %, up to 30 % on CO60) and the via and cell effects of a few points.
-* **Not the cause**: the average fill around the part (1 to 10 mm), the distance to a copper edge, the shape of the source (for passives), the vias, the copper conductivity.
-* **Easy rule**: none found. Every one of 42 parts is 17 % or more too cold, and no variable computable from the masks separates them (best: part size, AUC 0.87, with the classes overlapping from -25 % to -82 %).
+* **Cause found**: the reduced models read the copper as a cell average; the part's pad and the tracks that feed it are smaller than the cell and are invisible to them. They behave nearly as uniform-sheet models (they change by -12 to +32 % between the imported board and a uniform sheet, the FVM by 1.2 to 4.5 times), while the FVM that resolves the pattern reads 1.4 to 3.7 times hotter for 1 W in a small part. This accounts for essentially the whole gap; the remaining part is the Lumped's own deficit on a uniform sheet (2 to 16 %, up to 30 % on CO60) and the via and cell effects of a few points.
+* **Not the cause**: the average fill around the part (1 to 10 mm), the shape of the source (for passives), the vias, the copper conductivity. The distance to a copper edge was **not tested** in a meaningful way: the measure used is degenerate for a two-pad part (chapter 6.3).
+* **Easy rule**: none found. Every one of the 42 parts measured is 17 % or more too cold (a sample, not a bound), and no variable computable from the masks separates them (best: part size, AUC 0.87, with the classes overlapping from -25 % to -82 %).
 * **A model change**: a pad-scale correction from the top-layer mask works on two boards (12 to 22 % mean absolute error against 41 to 60 %) and fails on the third (62 %); not transferable as it stands.
 
 ## 5. Limits and what is not verified
 
 * Three boards, 42 parts (RP2040 27, oswlight 10, CO60 5), 1 W each, one at a time, two- and four-layer 35 um copper, typical stack-up, default convection. Other boards (planes under the parts, thick copper) were not tried.
 * The FVM reference is not converged at 0.25 mm for the 1 mm parts (3.2); nothing was compared with a measurement of a physical board.
-* The reduced models were run at 0.5 mm; the program's Auto caps imported copper at 1 mm; the 1 mm check is seven parts.
+* The reduced models were run at 0.5 mm; the 1 mm check is seven parts. (The program's Auto does not give 1 mm for a powered small part: it gives a quarter of the narrow side, at least 0.25 mm, and the 1 mm cap is only a ceiling; review 6.2.)
 * Hypothesis c (equivalent rectangle) not separated from the ring construction; the Lumped's deficit on a uniform sheet is a finding without a cause.
 * CO60 has 5 parts only (memory and time), the pool of 42 mixes the boards.
 * The fin network of 3.4 is a check of the order of magnitude, with a free parameter and without the second layer or the vias.
 
-## 6. What was read and what was not verified
+## 6. Review
 
-* **No new source was opened for this study.** The closed forms used by the tests of `lib/constriction.py` are the strip, the disc of a Dirichlet window (`R = ln(b/a)/(2 pi S)`) and the fin of an infinite leaking sheet (`K0(x)/(x K1(x))`, Carslaw and Jaeger, status M, consistent with the program's own `docs/theory.md`); they were checked numerically by the tests, not against a printed page. The spreading-resistance papers of Muzychka, Culham and Yovanovich of `research/theory/BIBLIOGRAPHY.md` (read in earlier investigations) were not reopened; a published case with a track and a pad below the cell does not exist among them, so no published numerical case was reproduced here: the independent check is the pixel network of 3.4 and the pixel-resolved comparison of `research/gerber-real-boards` (README 4.1), which was not repeated.
+Independent review of the investigation (merged `develop` `26616eb` into the branch; `git diff develop -- pcbthermal tests examples ico` empty). One solve at a time, peak 1.5 GB; the CO60 solves were not repeated (their stored CSV was used).
+
+### 6.1 Re-run of a subset (RP2040 U1, U3, C3, R5, C13, C1; oswlight U2, C11, J1, D1; 0.5 mm)
+
+The FVM on the imported copper, the Lumped and the Analytic print the digits of the CSV and of the tables to the last one (for example C3 195.6 / 56.9 / 66.7 K, R5 251.9 / 66.3 / 64.3 K, U1 78.9 / 46.1 / 52.3 K, oswlight U2 165.7 / 65.0 / 68.0 K). The uniform sheet was rebuilt independently of `lib/variants.py` (the mean of each mask over the board box): on RP2040, whose outline is its box, it gives the same FVM rise within 0.1 K; on oswlight, which has an outline, the box average counts the bare space off the board and reads 9 to 12 % hotter than the library's on-board average, so the library's construction is the right one. `study_rule_search.py` and `study_summary.py` reprint every number of 3.1 and 3.3 from the stored tables (Spearman +0.68, AUC 0.87 for the side; fill 0.07 to 0.29, distance 0.31; the size classes -81 to -52, -82 to -25, -56 to -25 % Lumped and -77 to -39, -76 to -22, -60 to -17 % Analytic). Corrected in the text: the reduced models on the imported board against themselves on the uniform sheet are -12 to +32 % (Lumped) and -9 to +14 % (Analytic) on RP2040, not "0 to 10 %"; the Analytic on a uniform sheet is -8 to -2 % on oswlight, not within -4 to +5 % everywhere. Neither changes the conclusion (the FVM moves 1.2 to 4.5 times).
+
+### 6.2 The FVM reference and the cell; what Auto does
+
+![cell and pixel](figures/fig_06_review_cell_and_pixel.png)
+
+*Figure 6 (`fig_06_review_cell_and_pixel.png`): FVM rise of C3 and R5 (RP2040, 1 W) against the cell, with the automatic pixel of the masks and with the pixel fixed at 0.025 mm; the dotted line is the cell that Auto chooses for a powered 0402.*
+
+`scripts/study_review_auto_cell.py` (peak 1.5 GB):
+
+| Part | 1 mm | 0.5 mm | 0.25 mm |
+| :-- | :-- | :-- | :-- |
+| C3, automatic pixel (0.1 / 0.05 / 0.025 mm) | 84.6 | 195.6 | 201.2 |
+| C3, pixel 0.025 mm | 86.1 | 207.3 | 201.2 |
+| R5, automatic pixel | 233.0 | 251.9 | 302.1 |
+| R5, pixel 0.025 mm | 240.4 | 262.4 | 302.1 |
+
+The convergence numbers of 3.2 are confirmed, and the movement is the cell, not the change of the masks with the cell (the pixel moves the rise by 2 to 6 %). C3 is not monotone with a fixed pixel either (207 then 201 K) and R5 still moves 15 % from 0.5 to 0.25 mm: the reference for an 0402 is uncertain by 15 to 30 % at 0.25 mm. A 0.125 mm cell was not run: the guard estimates 7.05 GB for RP2040 (4.47 GB oswlight), above this review's 2.5 GB limit.
+
+**The premise "a user following Auto reads C3 at 84.6 K" is false.** Auto (`api.suggest_cell_mm`, also the import window's `auto_cell`) takes a quarter of the narrow side of the smallest powered part, clipped to 0.25..2 mm, and only then caps imported copper at 1 mm; the cap is a ceiling, not a floor. With one powered part:
+
+| Board, part (narrow side) | Auto | FVM peak estimated |
+| :-- | :-- | :-- |
+| RP2040 C3, R5, C13 (0.65 mm) | 0.25 mm | 1.62 GB |
+| RP2040 C1 (1.45) / U1 (2.0) / U3 (2.35) | 0.363 / 0.50 / 0.588 mm | 0.92 / 0.66 / 0.59 GB |
+| oswlight C1, C11 (0.95) / U2 (1.9) / J1 (3.4) | 0.25 / 0.475 / 0.85 mm | 1.27 / 0.71 / 0.59 GB |
+| CO60 R1, C1 (0.9, 0.95) / U1 (10) | 0.40 / 0.40 / 1.0 mm | 7.9 / 7.9 / 1.7 GB |
+
+So the user who follows Auto gets the 0.25 mm answer (201 K for C3). Only a typed coarse cell gives the 1 mm one, and then the existing heater check ("the smallest side is only 0.65 cells wide; use a cell size of 0.16 mm or less") fires; it also fires at Auto's 0.25 mm (2.6 cells across), recommending 0.16 mm, which Auto cannot give (its floor is 0.25 mm). CO60 at 0.40 mm is accepted by the guard (estimate 7.9 GB against the 0.60 fraction of 16 GB) but is a heavy run (this investigation measured 3.87 GB at 0.5 mm).
+
+### 6.3 The local variables
+
+The Spearman and AUC numbers are reproduced (6.1). Two corrections of the reading. (i) The constriction factor correlations of 3.3 leave out the three infinite values (n = 24); ranked as the largest, they are weaker (+0.28, -0.17, -0.33). (ii) The "distance to bare laminate" is degenerate for passives: it is measured from the centre of the footprint, which for a two-pad part lies in the gap between its own pads (0.00 to 0.07 mm on 30 of 42 parts). The hypothesis "distance to a copper edge" is therefore **not tested**, not rejected. The AUC 0.87 of the part size is a fair classifier of "worse than 50 %", but since every measured part is at least 17 % cool no threshold makes the models safe, so the conclusion "no easy rule that protects the user" stands.
+
+### 6.4 The independent check and its source
+
+The fin form of `lib/constriction.py` is printed as equation (19) of [Shen2019] (PDF page 10, read by the reviewer on the rendered page image: `dT = a I0(z) + b K0(z)`, `P = -2 pi k t z [a I1(z) + b K1(z)]`, `z = r sqrt(h/(kt))`); with `a = 0` it gives `K0(z) / (2 pi k t z K1(z))`, the form the test uses. Status R; the Carslaw and Jaeger attribution (M) is withdrawn. Lienhard's fin chapter treats straight and circular fins, not this sheet, and was not needed. The tests of the folder pass (`tests/`, with the documentation and licence gates: 585 passed). The pixel network shares no code with the program and reproduces the size of the effect on two boards with a swept fin length; on CO60 it fails, as the README says. It is an order-of-magnitude check, not a reference.
+
+### 6.5 Figures
+
+Figure 1 (section of the pad, the neck and the plane with the heat paths) and figure 2 (plan of pad, track and plane as the three treatments see them) are the drawings of the situation; the review moved the "pad" label off the part in figure 1, renamed the axes of figure 5 to what is measured (square root of the footprint area, centre to the nearest bare pixel) and added figure 6.
+
+### 6.6 Verdict
+
+**GO for closing the investigation** with the corrections above: the cause (the reduced models cannot see the pad and the track below the cell) is supported by the decomposition, re-run on ten parts, and by an independent network on two boards. The size-class numbers of the warning text refer to the square root of the paste-hull area, which a user does not know; the proposed text was rewritten (`docs/warning-text.md`). Recommendations per decision: `INTEGRATION.md` 1.
+
+## 7. What was read and what was not verified
+
+* **No new source was opened for this study.** The closed forms used by the tests of `lib/constriction.py` are the strip, the disc of a Dirichlet window (`R = ln(b/a)/(2 pi S)`) and the fin of an infinite leaking sheet (`K0(x)/(x K1(x))`): the review found it printed as equation (19) of [Shen2019] (`research/theory/BIBLIOGRAPHY.md`; PDF page 10, the general solution `dT = a I0(z) + b K0(z)`, `P = -2 pi k t z [a I1(z) + b K1(z)]`, `z = r sqrt(h/(kt))`; with `a = 0` the resistance of the sheet seen from a disc of radius r is `K0(z)/(2 pi k t z K1(z))`), read on the rendered page image: status R. The strip and the disc are elementary. The Carslaw and Jaeger attribution of the first version was from memory and is withdrawn. The spreading-resistance papers of Muzychka, Culham and Yovanovich of `research/theory/BIBLIOGRAPHY.md` (read in earlier investigations) were not reopened; a published case with a track and a pad below the cell does not exist among them, so no published numerical case was reproduced here: the independent check is the pixel network of 3.4 and the pixel-resolved comparison of `research/gerber-real-boards` (README 4.1), which was not repeated.
 * Reproduced here: the numbers of `docs/validation.md` 27.7 for the RP2040 at 0.5 mm (U1 -41.6 / -33.6 %, U3 -31.2 / -21.6 %, the 27 parts -31 to -74 % / -22 to -75 %: the same values printed by `study_error_decomposition.py` and `study_cell_and_outline.py`).
 * Not verified: a physical measurement; boards beyond the three; the cause of the Lumped's uniform-sheet deficit; the effect of the second copper layer on the neck (CO60 shows it matters).
 * The renders of third-party boards are not committed (the figures are schematic or made from numbers); the boards stay in the local `pcb-library/`.
