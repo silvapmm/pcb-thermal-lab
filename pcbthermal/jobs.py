@@ -139,6 +139,9 @@ def serve(tasks, results):
     """
     import threading
     threading.Thread(target=_watch_parent, daemon=True).start()
+    # The base of every memory estimate of the session: the size after the imports, before any job (a job that runs without an estimate, the Power
+    # Calculator for one, would otherwise leave its pages in the first reading)
+    memory.baseline_bytes()
     while True:
         item = tasks.get()
         if item is None:

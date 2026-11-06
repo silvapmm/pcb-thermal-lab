@@ -17,7 +17,7 @@
          mean-potential couplings of viawell.py join the copper layers across the laminate nodes, and the factorisation of a board with vias took up to 1.6 times the memory
          of the same board without them in SuperLU's default mode (CO60 at 0.5 mm, 769 vias); in the symmetric mode that the solver now uses the excess is 0.82 to 1.09 times, and the gain is
          the small VIA_GAIN = 0.10 (if the solver ever falls back to the default mode the law does not cover the peaks of up to 4.75 times). A board without vias is unchanged.
-         `base` is the resident size of the process at its first estimate (`baseline_bytes`, not the live size, which grows with the history; not multiplied by the factors: it is measured, not estimated). The coefficients are bytes of the algorithm, mostly independent of the machine, but they were
+         `base` is the resident size of the process read once (`baseline_bytes`: at the start of the calculation process, else at the first estimate; not the live size, which grows with the history; not multiplied by the factors: it is measured, not estimated). The coefficients are bytes of the algorithm, mostly independent of the machine, but they were
          measured on one machine and are logged against the measured peak after each run so that other machines can check them.
 
          Units: bytes inside the code; messages use GB of 10^9 bytes. No GUI import and no new dependency (the memory is read with the standard library).
@@ -29,6 +29,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
@@ -223,22 +224,26 @@ def resident_bytes() -> float:
     return BASE_DEFAULT
 
 
-_BASELINE: Optional[float] = None       # Resident size read at the first estimate of the process, kept for the others (see baseline_bytes)
+_BASELINE: Optional[float] = None       # Resident size read once for the process, kept for every later estimate (see baseline_bytes)
+_BASELINE_LOCK = threading.Lock()        # The first reading is made once even when two threads estimate at the same moment
 
 
 def baseline_bytes() -> float:
     """!
-    @brief The base of the estimates: the resident size of this process at its FIRST estimate, kept for the rest of its life.
+    @brief The base of the estimates: the resident size of this process read ONCE, kept for the rest of its life.
     @details The live size (`resident_bytes`) grows with what the process has already solved (the allocator keeps pages: 0.08 GB when fresh, 0.67 GB after one 1 mm run
              of the CO60 import, 1.5 GB after a 0.7 mm run), and the calculation process of the window serves every job of the session, so the same problem at the same
-             cell was `ok` in the panel (which counts a fixed base) and refused by the run for no reason but the history. A fresh process reads its true size at the
-             first call, so its verdicts are those of the live size; the later calls get the same number. What is really held beside the unknowns (the masks of an
-             import) is counted apart (`copper_run_bytes`, `check_import`).
+             cell was `ok` in the panel (which counts a fixed base) and refused by the run for no reason but the history. The calculation process reads it at start-up,
+             after its imports and before its first job (`jobs.serve`), so a job that runs without an estimate (the Power Calculator, an Analytic animation) cannot
+             inflate it; any other process (command line, scripts) reads it at its first estimate. What is really held beside the unknowns (the masks of an import)
+             is counted apart (`copper_run_bytes`, `check_import`).
     @return Bytes.
     """
     global _BASELINE
     if _BASELINE is None:
-        _BASELINE = resident_bytes()
+        with _BASELINE_LOCK:
+            if _BASELINE is None:
+                _BASELINE = resident_bytes()
     return _BASELINE
 
 
@@ -315,7 +320,7 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     @param model "fvm", "fdm" or "solid3d".
     @param unknowns Unknowns the model builds (count, not bytes).
     @param cells Cells of the plan grid, nx * ny (the nodes of one layer for the FDM), count.
-    @param base Resident bytes of the process (None: baseline_bytes(), the size at the first estimate).
+    @param base Resident bytes of the process (None: baseline_bytes(), the size read once for the process).
     @param factor Multiplier of a time simulation or profile run (TRANSIENT_FACTOR, PROFILE_FACTOR); 1 for a steady solve.
     @param via_footprint_cells Cells of the via footprints of the FVM or FDM (via_cells), count; 0 for no vias, which leaves the estimate unchanged. Ignored by the 3D solid.
     @return Bytes.
@@ -729,7 +734,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param refuse "raise" raises MemoryGuardError for the first refused model; "return" only returns the verdicts (the caller decides).
     @param ram Physical memory in bytes (None: read it); for tests with a fake machine.
     @param available Memory available now in bytes (None: read it); for tests.
-    @param base Resident bytes the solving process will have (None: baseline_bytes(), this process at its first estimate; the window passes BASE_DEFAULT, since the solve runs in the
+    @param base Resident bytes the solving process will have (None: baseline_bytes(), this process read once; the window passes BASE_DEFAULT, since the solve runs in the
                 calculation process and not in the window's).
     @param n_diel Slabs across every dielectric gap of the 3D solid (Solid's own argument), count.
     @param quiet True for a check that is not a run (the solver panel at every edit, the Auto cell): no log lines, so that the log holds the estimates of the runs only.
