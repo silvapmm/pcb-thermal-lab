@@ -947,11 +947,7 @@ class _AnalyticAdapter:
             # the earlier review of validation 4.1 measured -3.6 % for a heatsink alone in a corner and +28 to +49 % with vias, another board); plain boards, one via and via arrays were +0.1 to +0.6 %. The Lumped model is not a safe alternative there (-41.8 % with the
             # heatsink beside the part), so the text points to the FVM and FDM. Text only: no number moves (the local modal system is planned for 2.6.0).
             scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
-            self.warnings.append(
-                "the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was, on a sample of test boards, "
-                "from about -66 % to +84 % off the converged finite-volume result, and +175 % on one 2-layer board with a strong heatsink (300 W/m2K); "
-                "this is a sample, not a bound (one 60 x 40 mm family, step response only); use the FVM or the FDM for the time behaviour with a heatsink"
-                + (f" (calibration factors {scales})" if ms.scaled else ""))
+            self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
             what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
             scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
@@ -1020,6 +1016,21 @@ class _AnalyticAdapter:
         return None
 
 
+HEATSINK_TRANSIENT_KEY = "-66 % to +84 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+
+
+def heatsink_transient_warning(scales=""):
+    """!
+    @brief Text of the warning for the Analytic time behaviour of a board with a heatsink (the heatsinks are smeared over the board).
+    @param scales Calibration factors of the modal systems as text (empty for none).
+    @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
+    """
+    return ("the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was, on a sample of test boards, "
+            "from about -66 % to +84 % off the converged finite-volume result, and +175 % on one 2-layer board with a strong heatsink (300 W/m2K); "
+            "this is a sample, not a bound (one 60 x 40 mm family, step response only); use the FVM or the FDM for the time behaviour with a heatsink"
+            + (f" (calibration factors {scales})" if scales else ""))
+
+
 def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=None):
     """!
     @brief Time simulation of a problem with power profiles using the analytic modal model.
@@ -1036,8 +1047,11 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     from . import profiles
-    return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
-                                progress)
+    result = profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic", progress)
+    # A run with every heater averaged returns before the adapter's warnings are copied, yet the decision used the smeared step response: say it anyway
+    if problem.heatsinks and not any(HEATSINK_TRANSIENT_KEY in w for w in result.warnings):
+        result.warnings.append(heatsink_transient_warning())
+    return result
 
 
 def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_times=True):

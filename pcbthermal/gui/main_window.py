@@ -913,7 +913,7 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -972,7 +972,8 @@ class MainWindow(QMainWindow):
             u.set_opacity(70)
         self.overlay_opacity.setValue(70)
         self._sync_underlay()
-        self.statusBar().showMessage("Ready.")
+        # The load rebuilt the canvas before this "Ready." could overwrite its message: say again that the stored image cannot be drawn
+        self.statusBar().showMessage(self.canvas.background_problem or "Ready.")
 
     def new_board(self):
         """!

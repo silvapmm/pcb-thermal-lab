@@ -220,8 +220,8 @@ Numbering rule (maintainer): only fixes give a patch number; of the display feat
 **Fixes** (each on `fix/<topic>`; text, robustness, tests and hygiene; 2.5.1):
 
 6. **CLI: a clean message and exit code 2 instead of a traceback** for a project file with a wrong-typed value (`model.py` `from_dict`, `project.py`, `cli.py`; a TypeError in about 15 places; the GUI already says "Cannot open file"; of 400 mutated format-2 files 121 were clean, the rest a raw TypeError; a test with the mutated files). About 4 h.
-7. **The Analytic heatsink transient line in every transient and profile Results summary**: today the warning (-66 to +84 %, use the FVM or FDM) is in the log only (`analytic.py`, `api.py` notes, test). About 2 h.
-8. **Time cap on the live partial-copper via check** (`checks.py`, `viawell.py` or the caller): stop after about 0.3 s and say "at least N vias" (2.3 s in the synthetic worst case; speed test). About 4 h.
+7. *Done in 2.5.1 (`fix/small-251`).* **The Analytic heatsink transient line in every transient and profile Results summary**: today the warning (-66 to +84 %, use the FVM or FDM) is in the log only (`analytic.py`, `api.py` notes, test). About 2 h.
+8. *Done in 2.5.1 (`fix/small-251`).* **Time cap on the live partial-copper via check** (`checks.py`, `viawell.py` or the caller): stop after about 0.3 s and say "at least N vias" (2.3 s in the synthetic worst case; speed test). About 4 h.
 9. **Tests the battery does not hold yet**: the MainWindow "apply" flow of the import (offscreen), the Power Calculator dialog, the re-import Replace, Update and Add modes, and that 2.4.5 refuses a 2.5.x format-2 file (`tests/test_import_apply_flow.py`, `tests/test_calculator_dialog.py`). About 8 h.
 10. **A real-screen (cocoa) checklist** of the import window and Preferences, written down (the offscreen tests cannot show how a native window draws; the layout of Preferences on a real screen). About 2 h; no program file.
 11. **Replace PyMuPDF** (AGPL, developer tool only) in `tools/ocr` by a permissive renderer (pypdfium2) and update the licence table in the README and `tests/test_ocr_tool.py`. About 4 h.
