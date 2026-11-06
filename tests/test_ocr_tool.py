@@ -1399,3 +1399,23 @@ def test_status_set_verified_refuses_a_page_that_does_not_exist(tmp_path):
     assert main(["--papers", str(papers), "status", "set", "X", "99", "verified"]) == 1
     assert "99" not in status.load(papers).get("X", {})
     status.set_status(papers, "X", {99}, "machine")                    # a machine entry is harmless
+
+
+# ---------------------------------------------------------------- prompt variants
+def test_prompt_variants_are_named_and_reach_the_runner(tmp_path):
+    """!
+    @brief `--prompt-variant` selects one of three alternative phrasings; the default is data/prompt.txt; an unknown name is refused.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import config
+    from tools.ocr.cli import build_parser, make_runner
+    assert config.variant_prompt(None) == config.default_prompt() == config.variant_prompt("default")
+    names = set(config.prompt_variants()) - {"default"}
+    assert names == {"plain", "latex", "topdown"}
+    texts = {config.variant_prompt(n) for n in names}
+    assert len(texts) == 3 and config.default_prompt() not in texts
+    with pytest.raises(ValueError):
+        config.variant_prompt("nope")
+    a = build_parser().parse_args(["transcribe", "X", "--provider", "local", "--prompt-variant", "latex"])
+    assert make_runner(a, tmp_path).prompt == config.variant_prompt("latex")

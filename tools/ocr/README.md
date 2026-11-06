@@ -23,6 +23,7 @@ $PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic --whol
 $PY -W ignore -m tools.ocr firstline [--stem S] [--pages 1-5]   # offline: first line of each machine page against the PDF text layer -> notes/FIRSTLINE_REPORT.md
 $PY -W ignore -m tools.ocr eqcheck [--stem S]           # offline: $ spans and \tag numbers against the text layer and the Gemini page -> notes/EQCHECK_REPORT.md
 $PY -W ignore -m tools.ocr audit                        # offline: integrity of the assembled library -> notes/AUDIT_REPORT.md (exit 1 on an error)
+$PY -W ignore -m tools.ocr transcribe STEM --pages 3 --prompt-variant NAME   # another phrasing of the prompt (data/prompt_variants.json; `default` is data/prompt.txt): the refusal filter is stochastic and sensitive to the wording
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
