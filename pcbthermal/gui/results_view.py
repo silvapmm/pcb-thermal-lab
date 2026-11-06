@@ -10,7 +10,7 @@ import html
 
 import matplotlib
 import numpy as np
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 from .. import analysis, plots
 from . import theme as th
 from . import tips
+from .toolbar_icons import ThemedToolbar
 from .underlay import UnderlayControls
 from ..numfmt import num
 
@@ -108,6 +109,9 @@ def recolour_toolbar(toolbar, theme):
     @note Matplotlib picks the icon colour from the palette (a light cream in the dark theme); the shape (alpha) of the first icon of
           each action is kept and filled with the token, so a theme switch can recolour it again.
     """
+    if hasattr(toolbar, "set_theme"):               # ThemedToolbar paints its own icons in the token colour
+        toolbar.set_theme(theme)
+        return
     colour = QColor(th.colors(theme)["text"])
     for act in toolbar.actions():
         if act.isSeparator() or act.icon().isNull():
@@ -150,7 +154,7 @@ class PlotTab(QWidget):
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
-        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        self.toolbar = ThemedToolbar(self.canvas, self, self.theme)
         recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
