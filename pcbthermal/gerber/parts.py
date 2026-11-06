@@ -1290,6 +1290,20 @@ def _centre_size(poly):
     return ((x0 + x1) / 2, (y0 + y1) / 2), tuple(sorted((x1 - x0, y1 - y0)))
 
 
+MOVED_MM = 0.05                                       # A part whose centre moved by more than this between two imports is reported as moved
+
+
+def _moved_mm(old_poly, new_poly):
+    """!
+    @brief Distance between the centres of the boxes of two polygons.
+    @param old_poly Stored polygon (mm) or empty.
+    @param new_poly New polygon (mm) or empty.
+    @return float Distance in mm (0 when either polygon is empty).
+    """
+    a, b = _centre_size(old_poly), _centre_size(new_poly)
+    return math.hypot(a[0][0] - b[0][0], a[0][1] - b[0][1]) if a and b else 0.0
+
+
 def _sides(poly):
     """!
     @brief Width and height of the box of a polygon (not sorted).
@@ -1414,7 +1428,9 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
                 q.polygon_mm = [list(map(float, pt)) for pt in src]
                 q.from_file.pop("shape_rule", None)
                 changes.append(f"{p.designator}: kept the shape '{a.shape}' of a project written before the exposed-pad rule (the pad is now proposed and reads hotter: choose it in step 2)")
-            changes.append(f"{p.designator}: kept power {a.power:g} W" if a.power else f"{p.designator}: matched")
+            moved = _moved_mm(a.polygon_mm, q.polygon_mm)
+            how = f"moved by {moved:.2f} mm" if moved > MOVED_MM else "matched"
+            changes.append(f"{p.designator}: {how}" + (f", kept power {a.power:g} W" if a.power else ""))
         merged.append(q)
         taken.add(q.designator)
     # Parts with a name the files do not give: by position
@@ -1459,7 +1475,8 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             changes.append(f"{a.designator}: the shape 'largest opening' is no longer offered; the part has the proposed shape '{q.shape}'{short}")
         merged.append(q)
         taken.add(q.designator)
-        changes.append(f"{a.designator}: matched by position" + (f", kept power {a.power:g} W" if a.power else ""))
+        moved = _moved_mm(a.polygon_mm, q.polygon_mm)
+        changes.append(f"{a.designator}: matched by position" + (f", moved by {moved:.2f} mm" if moved > MOVED_MM else "") + (f", kept power {a.power:g} W" if a.power else ""))
     # New positional parts that no stored part took: added, renamed when the name is taken
     for k, p in enumerate(pos_new):
         if k in used_new:

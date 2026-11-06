@@ -72,7 +72,7 @@ class App:
         monkeypatch.setattr("pcbthermal.gui.main_window.QMessageBox.question", lambda *a, **k: QMessageBox.Discard)
         self.win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
         qtbot.addWidget(self.win)
-        self.plan = {"source": None, "mode": "replace", "powers": {}, "choice": {}, "cancel": None}
+        self.plan = {"source": None, "mode": "replace", "powers": {}, "choice": {}, "cancel": None, "untick": [], "roles": {}}
         self.dialogs = []
         plan, app = self.plan, self
 
@@ -80,6 +80,13 @@ class App:
             window.confirm = lambda *a: True
             window.notify = lambda title, text: pytest.fail(f"{title}: {text}")
             window.open_path(str(plan["source"]))
+            names = [f.name for f in window.session.files]
+            for n in plan["untick"]:
+                window.session.set_use(names.index(n), False)
+            for n, role in plan["roles"].items():
+                window.session.set_role(names.index(n), role)
+            if plan["untick"] or plan["roles"]:
+                window.reload()
             for d, w in plan["powers"].items():
                 window.session.set_part(d, power=w)
             if getattr(app, "plan_cell", None):
@@ -108,7 +115,7 @@ class App:
         """
         return self.win.doc
 
-    def run(self, source, mode="replace", powers=None, choice=None, cancel=None):
+    def run(self, source, mode="replace", powers=None, choice=None, cancel=None, untick=(), roles=None):
         """!
         @brief Run File - Import Gerber board once.
         @param source Folder or ZIP the window reads.
@@ -116,9 +123,11 @@ class App:
         @param powers dict designator -> W set in step 2.
         @param choice dict function -> "stored" or "new" for the Add conflicts.
         @param cancel None, "window" (the import window is closed) or "dialog" (the re-import dialog is cancelled).
+        @param untick File names the user unticks in step 1.
+        @param roles dict file name -> function the user chooses in step 1.
         @return str The status bar message afterwards.
         """
-        self.plan.update(source=source, mode=mode, powers=powers or {}, choice=choice or {}, cancel=cancel)
+        self.plan.update(source=source, mode=mode, powers=powers or {}, choice=choice or {}, cancel=cancel, untick=list(untick), roles=dict(roles or {}))
         self.win.statusBar().showMessage("")
         self.win.show_import()
         return self.win.statusBar().currentMessage()
@@ -170,6 +179,38 @@ def variant(base, tmp_path, name, **edits):
 
 # The clear window of the top copper gets a corner pulled out: the copper really changes (a pad flashed on the pour would not)
 COPPER_EDIT = ("X10000000Y20000000D01*\nX8000000Y20000000D01", "X10000000Y20000000D01*\nX12000000Y22000000D01*\nX8000000Y20000000D01")
+
+
+def edit_copper(src, rev, box):
+    """!
+    @brief Copy a fabrication set and change its top copper: a 5 mm clear hole at the centre of the board with a 2 mm dot in it (a change whether or not there was copper).
+    @param src Folder of the set.
+    @param rev Folder of the copy (created).
+    @param box Board box (x0, y0, x1, y1) in mm in the Gerber frame.
+    @return pathlib.Path of the copy.
+    """
+    shutil.copytree(src, rev)
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    f = rev / "F.gbr"
+    text = f.read_text()
+    assert "M02*" in text
+    extra = (f"%ADD97C,5.000000*%\n%ADD98C,2.000000*%\n%LPC*%\nD97*\nX{int(cx * 1e6)}Y{int(cy * 1e6)}D03*\n%LPD*%\nD98*\nX{int(cx * 1e6)}Y{int(cy * 1e6)}D03*\nM02*")
+    f.write_text(text.replace("M02*", extra, 1))
+    return rev
+
+
+def copper_item_hash(app):
+    """!
+    @brief Hash of the pixmap the canvas draws for the imported copper of the active layer (None when none is drawn).
+    @param app The App.
+    @return str or None
+    """
+    app.win.canvas.rebuild() if hasattr(app.win.canvas, "rebuild") else None
+    item = app.win.canvas._copper_item
+    if item is None:
+        return None
+    img = item.pixmap().toImage()
+    return hashlib.md5(bytes(img.constBits())).hexdigest()
 
 
 @pytest.mark.parametrize("mode", ["replace", "update", "add"])
@@ -345,20 +386,137 @@ def test_the_dialog_does_not_offer_a_continue_that_does_nothing(app, base, qtbot
     assert isinstance(dlg, ReimportDialog)
 
 
-@pytest.mark.skipif(not REAL or not os.path.isdir(os.path.join(REAL, "rp2040")), reason="the library boards are not linked (PCBT_REAL_BOARDS)")
+def library(key):
+    """!
+    @brief Folder of a library board, or skip the test.
+    @param key Board key (rp2040, co60, oswlight).
+    @return str
+    """
+    path = os.path.join(REAL, key) if REAL else ""
+    if not os.path.isdir(path):
+        pytest.skip("the library boards are not linked (PCBT_REAL_BOARDS)")
+    return path
+
+
+@pytest.mark.parametrize("key, power", [("rp2040", {"C1": 0.5}), ("co60", {}), ("oswlight", {})])
 @pytest.mark.parametrize("mode", ["replace", "update"])
-def test_the_rp2040_takes_a_changed_copper_file(app, tmp_path, mode):
-    src = os.path.join(REAL, "rp2040")
-    app.run(src, "replace", powers={"C1": 0.5})
+def test_library_boards_take_changed_copper_and_the_same_files_again(app, tmp_path, key, power, mode):
+    src = library(key)
+    app.run(src, "replace", powers=power)
     before = snapshot(app.doc)
-    rev = tmp_path / "rp2"
-    shutil.copytree(src, rev)
-    text = (rev / "F.gbr").read_text()
-    assert "M02*" in text
-    (rev / "F.gbr").write_text(text.replace("M02*", "%ADD99R,6.000000X6.000000*%\n%LPC*%\nD99*\nX100000000Y-95000000D03*\n%LPD*%\nM02*", 1))
-    app.run(rev, mode)
+    app.run(src, mode)                                                                 # the very same files
+    assert snapshot(app.doc) == before
+    rev = edit_copper(src, tmp_path / "rev", app.doc.project.imports[0].box_mm)
+    msg = app.run(rev, mode)
     after = snapshot(app.doc)
     assert after["masks"] != before["masks"] and after["files"] != before["files"]
-    assert [h for h in after["heaters"] if h[0] == "C1"][0][1] == 0.5
+    for d, w in power.items():
+        assert [h for h in after["heaters"] if h[0] == d][0][1] == w
+    assert "copper layer(s) replaced" in msg and not msg.startswith("Gerber board re-imported (" + mode + "): 0 of"), msg
     app.doc.stack.undo()
     assert snapshot(app.doc)["masks"] == before["masks"]
+
+
+def test_rp2040_add_new_paste_and_placement_files_to_a_project_imported_without_them(app, tmp_path):
+    src = library("rp2040")
+    bare = tmp_path / "bare"
+    shutil.copytree(src, bare)
+    for n in ("pasteF.gbr", "pasteB.gbr", "pos.csv"):
+        (bare / n).unlink()
+    app.run(bare, "replace")
+    before = snapshot(app.doc)
+    assert before["parts"] == [] and before["heaters"] == []
+    msg = app.run(src, "add", powers={"C1": 0.5})
+    rec = app.doc.project.imports[0]
+    assert len(rec.parts) == 30 and [h.name for h in app.doc.problem.heaters] == ["C1"]
+    assert app.doc.problem.heaters[0].power == 0.5
+    assert mask_hash(app.doc) == before["masks"] and sorted(v for v in snapshot(app.doc)["vias"]) == before["vias"]
+    assert "30 part(s) added" in msg and "untouched" in msg, msg
+
+
+def test_the_canvas_draws_the_new_copper_after_a_reimport_and_the_old_after_undo(app, base, tmp_path):
+    app.run(base, "replace", powers={"U1": 3.0})
+    h0 = copper_item_hash(app)
+    assert h0 is not None
+    app.run(variant(base, tmp_path, "rev", F_gbr=COPPER_EDIT), "replace")
+    h1 = copper_item_hash(app)
+    assert h1 is not None and h1 != h0
+    app.doc.stack.undo()
+    assert copper_item_hash(app) == h0
+    app.doc.stack.redo()
+    assert copper_item_hash(app) == h1
+
+
+def test_a_moved_part_says_moved_and_the_status_gives_the_numbers(app, base, tmp_path):
+    app.run(base, "replace", powers={"U1": 3.0})
+    new = variant(base, tmp_path, "rev", pasteF_gbr=("X12000000Y15000000D03", "X16000000Y15000000D03"),
+                  pos_csv=('"U1","reg","SOT-223",12.0,15.0', '"U1","reg","SOT-223",16.0,15.0'), F_gbr=COPPER_EDIT)
+    msg = app.run(new, "update")
+    assert "1 of 2 copper layer(s) replaced" in msg and "1 moved" in msg and "0 orphaned" in msg, msg
+
+
+def test_merge_parts_reports_the_move_and_the_position_match():
+    from pcbthermal.gerber.parts import merge_parts
+    from pcbthermal.model import ImportPart
+    sq = lambda x, y: [[x, y], [x + 2, y], [x + 2, y + 2], [x, y + 2]]
+    old = [ImportPart("U1", polygon_mm=sq(0, 0), power=2.0, edits={}), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20, 0), from_file={"grouping": "hand"})]
+    new = [ImportPart("U1", polygon_mm=sq(3, 0)), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20.1, 0), from_file={"grouping": "hand"})]
+    lines = merge_parts(old, new).changes
+    assert "U1: moved by 3.00 mm, kept power 2 W" in lines and "U2: matched" in lines
+    assert any(l.startswith("H1: matched by position, moved by 0.10 mm") for l in lines), lines
+
+
+def _second_drill(folder):
+    """!
+    @brief Add a second plated drill file to a synthetic set.
+    @param folder Folder of the set.
+    @return None
+    """
+    (folder / "drill2.drl").write_text((folder / "drill.drl").read_text().replace("X20.0Y10.0", "X5.0Y25.0").replace("X22.0Y10.0", "X6.0Y25.0").replace("X30.0Y25.0", "X7.0Y25.0"))
+
+
+def test_two_files_of_one_function_are_paired_and_kept(app, base, tmp_path):
+    """!
+    @brief A function that may hold several files (two plated drill files) was collapsed to one by the file comparison and by Add files.
+    """
+    first = tmp_path / "two_drills"
+    shutil.copytree(base, first)
+    _second_drill(first)
+    app.run(first, "replace", powers={"U1": 3.0})
+    rec = app.doc.project.imports[0]
+    plated = sorted(f.name for f in rec.files if f.function == "Plated drill")
+    assert plated == ["drill.drl", "drill2.drl"]
+    before = snapshot(app.doc)
+    app.run(first, "add")
+    assert sorted(f.name for f in app.doc.project.imports[0].files if f.function == "Plated drill") == plated
+    assert snapshot(app.doc) == before
+    # one of them changes: it is paired with its own stored file, the other stays identical
+    rev = tmp_path / "rev"
+    shutil.copytree(first, rev)
+    (rev / "drill2.drl").write_text((rev / "drill2.drl").read_text().replace("X5.0Y25.0", "X5.5Y25.0"))
+    app.run(rev, "replace", powers={"U1": 3.0})
+    status = {(i["old"] or i["new"]).name: i["status"] for i in app.dialogs[-1].sources if i["function"] == "Plated drill"}
+    assert status == {"drill.drl": "identical", "drill2.drl": "changed"}, status
+    assert snapshot(app.doc)["vias"] != before["vias"]
+
+
+def test_the_choices_about_the_files_survive_a_reimport(app, base, tmp_path):
+    """!
+    @brief A second placement table stops the import until the user unticks it; the user's decision about the files (a function chosen, a file left out) must not come back.
+    """
+    two = tmp_path / "two_pos"
+    shutil.copytree(base, two)
+    shutil.copy(two / "pos.csv", two / "cpl2.csv")
+    app.run(two, "replace", powers={"U1": 3.0}, untick=["cpl2.csv"])
+    before = snapshot(app.doc)
+    assert "cpl2.csv" in app.doc.project.imports[0].settings["not_used"]
+    app.run(two, "update")                                                              # no untick this time: the stored choice is applied by the window
+    assert snapshot(app.doc) == before
+    # a function chosen by hand: a placement table given another function is kept so
+    third = tmp_path / "third"
+    shutil.copytree(base, third)
+    shutil.copy(third / "pos.csv", third / "cpl3.csv")
+    app.run(third, "update", roles={"cpl3.csv": "Ignore"})
+    assert app.doc.project.imports[0].settings["user_roles"]["cpl3.csv"] == "Ignore"
+    app.run(third, "update")
+    assert snapshot(app.doc)["parts"] == before["parts"] and app.doc.project.imports[0].settings["user_roles"]["cpl3.csv"] == "Ignore"

@@ -1585,7 +1585,7 @@ class ReimportDialog(QDialog):
                     cb.setCurrentIndex(1)                       # the user added these files to change the import: the new one is the default (the stored file is one click away)
                     cb.setToolTip("Two files claim this function and they differ. The new file is the default; choose the stored one to leave it as it is.")
                     t.setCellWidget(k, 3, cb)
-                    self.combos[s["function"]] = cb
+                    self.combos[self.session.choice_key(s)] = cb
             geo = sum(1 for s in rows if s["function"] in GEOMETRY and s["status"] in ("added", "changed"))
             n_added = sum(1 for s in rows if s["status"] == "added" and s["function"] not in GEOMETRY)
             self.note.setText(f"{n_added} function(s) added, {len(self.combos)} conflict(s) to choose. "
@@ -1904,6 +1904,8 @@ class ImportBoardWindow(QDialog):
         # Another board: the automatic cell and the project name of step 3 are taken again from it
         self._cell_set = False
         self._take_stored_settings()
+        if self.existing is not None and self.session.files and self.session.take_stored_roles(getattr(self.existing, "settings", None)):
+            self.reload()                                       # a file the user had given a function (or left out) keeps it
         self.page3.newname.blockSignals(True)
         self.page3.newname.setText("")
         self.page3.newname.blockSignals(False)

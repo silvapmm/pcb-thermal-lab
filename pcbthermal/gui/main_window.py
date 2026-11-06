@@ -25,6 +25,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .import_session import reimport_summary
 from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
@@ -1160,7 +1161,7 @@ class MainWindow(QMainWindow):
                 self.doc.open_import(dlg.problem, dlg.record)
                 self._after_load()
             return
-        old = self.doc.project.imports[0]
+        old = copy.deepcopy(self.doc.project.imports[0])
         known = {p.designator for p in old.parts}
         added = [p for p in dlg.record.parts if p.designator not in known]
         kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
@@ -1168,9 +1169,8 @@ class MainWindow(QMainWindow):
         self._refresh_layers()
         # What the editor kept comes first (the user must see it), then the first changes of the parts and files
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
-        if not lines:
-            # An empty list used to leave "re-imported (add): " and nothing else: say what happened
-            lines = ["nothing changed (every file was identical to the stored one)"]
+        # The numbers first: copper layers replaced, files and parts, holes (never an empty text)
+        lines = [reimport_summary(old, dlg.record, dlg.mode)] + lines
         self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):

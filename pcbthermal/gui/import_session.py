@@ -385,6 +385,27 @@ class ImportSession:
         f.user_role = True                                    # the user's assignment of a file is final: a change of profile never touches it
         self._board, self._parts_dirty = None, True
 
+    def take_stored_roles(self, settings: dict) -> bool:
+        """!
+        @brief Give the files of a re-import the functions the user chose by hand in the stored import, and leave out the files the user left out (matched by file name).
+        @details The detection runs again on the new files and could give another answer; what the user decided is final (as in `set_role`). The board is read again by the caller.
+        @param settings `ImportRecord.settings` of the stored import (keys `user_roles`, `not_used`).
+        @return bool True when a file was changed.
+        """
+        roles = (settings or {}).get("user_roles") or {}
+        out = set((settings or {}).get("not_used") or [])
+        changed = False
+        for i, f in enumerate(self.files):
+            r = roles.get(f.name)
+            if r in ROLES:
+                if f.role != r or not f.user_role:
+                    changed = changed or f.role != r
+                    self.set_role(i, r)
+            elif f.name in out and f.use:
+                self.set_use(i, False)
+                changed = True
+        return changed
+
     def profile_line(self) -> tuple:
         """!
         @brief The CAD-tool line of step 1: text (plain), whether it needs a check, and the tooltip (public facts only, never text matched in a file).
@@ -1238,6 +1259,13 @@ class ImportSession:
         rec.cad_profile = self.profile_choice.record() if self.profile_choice is not None else None
         rec.settings = {"mapping": self.mapping, "cell_mm": self.cell_mm, "pixel_mm": ib.pixel_mm, "via_max_mm": self.via_max_mm, "offset_mm": list(self.offset),
                         "roles": {f.name: f.role for f in self.used()}}
+        # What the user decided by hand about the files, so that a re-import does not undo it (written only when there is something, older files stay byte-identical)
+        user_roles = {f.name: f.role for f in self.files if f.user_role}
+        left_out = [f.name for f in self.files if not f.use and not f.user_role]
+        if user_roles:
+            rec.settings["user_roles"] = user_roles
+        if left_out:
+            rec.settings["not_used"] = left_out
         self.record, self.thickness_mm = rec, thickness
         return prob
 
@@ -1274,16 +1302,42 @@ class ImportSession:
         @param new Record of the new files.
         @return list of dicts function, status ("identical", "changed", "added", "only stored"), old, new (ImportFile or None).
         """
-        o = {f.function: f for f in old.files}
-        n = {f.function: f for f in new.files}
         out = []
         for fn in ROLES:
-            a, b = o.get(fn), n.get(fn)
-            if a is None and b is None:
+            olds = [f for f in old.files if f.function == fn]
+            news = [f for f in new.files if f.function == fn]
+            if not olds and not news:
                 continue
-            status = "added" if a is None else "only stored" if b is None else "identical" if a.sha256 == b.sha256 else "changed"
-            out.append({"function": fn, "status": status, "old": a, "new": b})
+            # Several files may share a function (two drill files, masks, legends): pair them by content first, then by name, so that none is lost or compared with another
+            pairs, left_o, left_n = [], list(olds), list(news)
+            for f in list(left_n):
+                m = next((a for a in left_o if a.sha256 == f.sha256), None)
+                if m is not None:
+                    pairs.append((m, f))
+                    left_o.remove(m)
+                    left_n.remove(f)
+            for f in list(left_n):
+                m = next((a for a in left_o if a.name == f.name), None)
+                if m is not None:
+                    pairs.append((m, f))
+                    left_o.remove(m)
+                    left_n.remove(f)
+            if fn in UNIQUE and left_o and left_n:                      # one file per function: the only two are the same file, changed (and renamed)
+                pairs.append((left_o.pop(0), left_n.pop(0)))
+            pairs += [(a, None) for a in left_o] + [(None, b) for b in left_n]
+            for a, b in pairs:
+                status = "added" if a is None else "only stored" if b is None else "identical" if a.sha256 == b.sha256 else "changed"
+                out.append({"function": fn, "status": status, "old": a, "new": b})
         return out
+
+    @staticmethod
+    def choice_key(item: dict) -> str:
+        """!
+        @brief The key of a file conflict in `file_choice`: the function when it can hold only one file, else the function and the file name.
+        @param item An element of `classify_files`.
+        @return str
+        """
+        return item["function"] if item["function"] in UNIQUE else f"{item['function']}: {(item['new'] or item['old']).name}"
 
     @staticmethod
     def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
@@ -1325,7 +1379,7 @@ class ImportSession:
         shapes = self._res.shapes if self._res else None
         if mode == "add":
             rec = copy.deepcopy(old)
-            files = {f.function: f for f in old.files}
+            files = list(rec.files)
             changes, rematch = [], False
             for item in self.classify_files(old, new):
                 fn, status = item["function"], item["status"]
@@ -1335,13 +1389,15 @@ class ImportSession:
                     # Review: the record listed an added copper layer that the stored masks do not hold (and a drill file whose vias were not made)
                     changes.append(f"not taken: {fn} ({item['new'].name}) changes the board itself; use Replace or Update to import it")
                     continue
-                take = status == "added" or (file_choice or {}).get(fn, "stored") == "new"
+                take = status == "added" or (file_choice or {}).get(self.choice_key(item), "stored") == "new"
                 if take:
-                    files[fn] = item["new"]
+                    # The new file replaces the one it was paired with, or joins the list: the other files of the same function stay
+                    files = [f for f in files if f is not item["old"] and not (item["old"] is not None and f.name == item["old"].name and f.sha256 == item["old"].sha256)]
+                    files.append(item["new"])
                     rematch = rematch or fn in PARTS_FUNCTIONS
                 changes.append(f"added {fn}: {item['new'].name}" if status == "added" else
                                f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
-            rec.files = list(files.values())
+            rec.files = files
             res = parts_mod.merge_parts(old.parts, new.parts, shapes, openings=self.openings())
             stored = {p.designator: p for p in old.parts}
             # A stored part stays as it is unless the parts files were taken (then it takes the new match); it never becomes an orphan here
@@ -1353,6 +1409,39 @@ class ImportSession:
         rec = copy.deepcopy(new)
         rec.parts = res.parts
         return {"record": rec, "changes": res.changes, "parts": res.parts, "orphans": res.orphans}
+
+
+def reimport_summary(old: ImportRecord, new: ImportRecord, mode: str) -> str:
+    """!
+    @brief One sentence with the numbers of what a re-import changed (never empty).
+    @param old The ImportRecord before the re-import.
+    @param new The ImportRecord after it.
+    @param mode "replace", "update" or "add".
+    @return str
+    """
+    def masks(rec):
+        """!
+        @brief The packed mask text of every copper layer of a record, by layer index.
+        @param rec ImportRecord.
+        @return dict index -> str.
+        """
+        c = getattr(rec, "copper", None)
+        return {int(e.get("index", k)): str((e.get("mask") or {}).get("data", "")) for k, e in enumerate(getattr(c, "layers", []) or [])}
+    mo, mn = masks(old), masks(new)
+    replaced = sum(1 for k, v in mn.items() if mo.get(k) != v)
+    po, pn = {p.designator: p for p in old.parts}, {p.designator: p for p in new.parts}
+    added = sorted(set(pn) - set(po))
+    orphans = sorted(d for d, p in pn.items() if p.from_file.get("orphan") and not (po.get(d) and po[d].from_file.get("orphan")))
+    gone = sorted(set(po) - set(pn))
+    moved = sum(1 for d, p in pn.items() if d in po and parts_mod.MOVED_MM < parts_mod._moved_mm(po[d].polygon_mm, p.polygon_mm))
+    ofiles = {(f.function, f.name, f.sha256) for f in old.files}
+    files = sum(1 for f in new.files if (f.function, f.name, f.sha256) not in ofiles)
+    holes = f"{len(new.holes)} holes" + ("" if len(new.holes) == len(old.holes) else f" (were {len(old.holes)})")
+    if mode == "add":
+        return (f"{files} file(s) taken, {len(added)} part(s) added, copper, outline and holes untouched ({len(mn)} copper layers, {holes})" if files or added
+                else "nothing was added; copper, outline and holes untouched")
+    return (f"{replaced} of {len(mn)} copper layer(s) replaced, {holes}, {files} file(s) new or changed; parts: {len(added)} added, {moved} moved, "
+            f"{len(orphans)} orphaned, {len(gone)} removed, {len(pn) - len(added)} kept")
 
 
 def _same_polygon(a, b, tol=1e-7) -> bool:
