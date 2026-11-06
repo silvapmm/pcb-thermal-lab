@@ -177,7 +177,7 @@ def test_many_vias_give_one_aggregated_message_with_the_count_and_the_worst_few(
 
 def test_the_text_says_both_directions_and_does_not_say_exaggerated():
     text = str(checks.check_via_partial_copper(copper_edge_board(), ("fvm",), 0.5)[0])
-    assert "higher or lower" in text and "numerical artefact" in text and "3D solid" in text
+    assert "higher or lower" in text and "3D solid" in text and "cold spot" not in text   # the star coupling has no cold spot to mention
     assert "exaggerat" not in text.lower()
 
 
