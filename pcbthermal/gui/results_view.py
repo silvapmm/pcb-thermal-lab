@@ -502,6 +502,10 @@ class ResultsView(QWidget):
         self.animation = AnimationTab(theme)
         self.tabs.addTab(self.animation, "Animation")
         self.animation.underlay.set_source(False, None)
+        # The underlay (entry and opacity) is one choice for the three tabs that draw a map: the Animation follows the maps and the maps follow the Animation
+        self.temp.view_changed.connect(lambda: self._share_underlay(self.temp))
+        self.grad.view_changed.connect(lambda: self._share_underlay(self.grad))
+        self.animation.underlay.changed.connect(lambda: self._share_underlay(self.animation, redraw_maps=True))
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
@@ -516,6 +520,21 @@ class ResultsView(QWidget):
         # Two line breaks = one blank line between warnings, so that a long list is easy to read
         self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
 
+    def _share_underlay(self, source, redraw_maps=False):
+        """!
+        @brief Give the underlay choice of one tab (entry and opacity) to the Animation tab, or from the Animation to the two maps.
+        @param source The PlotTab or AnimationTab whose choice was edited.
+        @param redraw_maps True when the Animation was edited: the maps are drawn again and the editor combo is told (through the Temperature `view_changed`).
+        """
+        if source is self.animation:
+            for t in (self.temp, self.grad):
+                t.underlay.copy_from(self.animation.underlay)
+                t.redraw()
+            self.temp.view_changed.emit()                  # The editor combo of the main window follows the Temperature tab
+        else:
+            self.animation.underlay.copy_from(source.underlay)
+            self.animation.redraw()
+
     def set_underlay_source(self, imported, cfg):
         """!
         @brief Tell the Temperature, Gradients and Animation tabs what the project offers under the map, and redraw them.
@@ -528,6 +547,7 @@ class ResultsView(QWidget):
             return
         # The two maps share the choice; keep them equal after a list that lost the selected entry
         self.grad.underlay.copy_from(self.temp.underlay)
+        self.animation.underlay.copy_from(self.temp.underlay)
         self.temp.redraw()
         self.grad.redraw()
         self.animation.redraw()
