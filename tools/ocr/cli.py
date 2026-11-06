@@ -69,6 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--max-tokens", type=int, help="output token budget per request (Claude default 8192)")
         p.add_argument("--whole-page", action="store_true",
                        help="one request per page: no half-page crops, no fallback model (a cut page is kept with a note)")
+        p.add_argument("--prompt-variant", choices=sorted(config.prompt_variants()), default="default",
+                       help="phrasing of the prompt (data/prompt_variants.json): the filter that refuses some pages is "
+                            "stochastic and sensitive to the wording")
         p.add_argument("--subdir", help="write the pages into this subfolder of the provider's output folder "
                                         "(to keep an existing or reviewed page untouched)")
 
@@ -167,6 +170,7 @@ def make_runner(a, papers: Path) -> Runner:
     return Runner(get_provider(a.provider), out,
                   Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi,
+                  prompt=config.variant_prompt(getattr(a, "prompt_variant", None)),
                   max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False))
 
 
