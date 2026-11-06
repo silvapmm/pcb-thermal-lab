@@ -15,7 +15,7 @@ from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QPushButton, QScrollArea, QSlider, QSpinBox, QStatusBar, QTabWidget, QToolBar,
+                               QMenu, QMessageBox, QPushButton, QScrollArea, QSlider, QSpinBox, QStatusBar, QTabWidget, QToolBar,
                                QVBoxLayout, QWidget)
 
 from .. import __version__
@@ -41,6 +41,8 @@ from . import tips
 from .results_view import ResultsView
 import shiboken6
 from .display import OPEN_TIP, DisplayButton, DisplayPopover, DisplayState
+from . import layerchoice
+from .layerchoice import LayerChoice
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
@@ -257,6 +259,7 @@ class MainWindow(QMainWindow):
         self.canvas.cursor_moved.connect(lambda x, y: self.coord_label.setText(f"x {x:7.2f} mm   y {y:7.2f} mm"))
         self.canvas.message.connect(lambda m: self.statusBar().showMessage(m))
         self.canvas.element_created.connect(self._on_created)
+        self.canvas.card_clicked.connect(self._open_model_menu)
         self.elements.selection_requested.connect(self._on_list_selection)
         self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))
         self.solver_panel.run_requested.connect(self.run_simulation)
@@ -285,7 +288,6 @@ class MainWindow(QMainWindow):
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
-        self.layer_combo.setToolTip("Layer on which new zones and heaters are drawn; the other layers are shown faded.")
         self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
         tips.apply(self)
         self.canvas.set_tool("select")
@@ -602,6 +604,8 @@ class MainWindow(QMainWindow):
         tb.addAction(self.a_poly)
         tb.addSeparator()
         tb.addWidget(QLabel(" Layer "))
+        self.layer_choice = LayerChoice(self)                       # The one layer choice: the editor, every map and the map on the board
+        self.layer_context = "editor"
         self.layer_combo = QComboBox()
         self.layer_combo.currentIndexChanged.connect(self._on_layer_changed)
         tb.addWidget(self.layer_combo)
@@ -715,6 +719,36 @@ class MainWindow(QMainWindow):
             self.canvas.clear_overlay()
             self._editor_apply_underlay(False)
 
+    def _open_model_menu(self, pos):
+        """!
+        @brief The model name of the card of the map was clicked: list the models of the current result and change the model of the Temperature tab.
+        @details It is the same control as the Model box of Results - Temperature (no second list). A model that cannot be drawn on this board stays listed, greyed, with the
+                 reason. The menu is a popup, so the keyboard focus returns to the board when it closes.
+        @param pos QPoint in global coordinates where the menu opens.
+        """
+        from .fieldscale import overlay_refusal
+
+        t = self.results.temp
+        if self.sim is None or not t.model.count():
+            return
+        menu = QMenu(self)
+        menu.setObjectName("modelMenu")
+        for i in range(t.model.count()):
+            key = t.model.itemData(i)
+            act = menu.addAction(t.model.itemText(i))
+            act.setCheckable(True)
+            act.setChecked(i == t.model.currentIndex())
+            why = overlay_refusal(self.sim.results[key], self.doc.problem) if key in self.sim.results else None
+            if why:
+                act.setEnabled(False)
+                act.setToolTip(why)
+                act.setText(f"{t.model.itemText(i)} (not drawn on an outline board)")
+            else:
+                act.triggered.connect(lambda _=False, k=i: t.model.setCurrentIndex(k))     # The map on the board follows the Temperature tab
+        self._model_menu = menu
+        menu.aboutToHide.connect(self.canvas.setFocus)
+        menu.popup(pos)
+
     def _key_overlay(self):
         """!
         @brief The key T: toggle the map on the board, or say in the status bar why it cannot be shown.
@@ -825,6 +859,7 @@ class MainWindow(QMainWindow):
         """
         self._close_display_popover()
         self._refresh_display_context()
+        self._apply_layer()
 
     def _toggle_display_popover(self, activate=False):
         """!
@@ -960,26 +995,76 @@ class MainWindow(QMainWindow):
         """!
         @brief Rebuild the layer chooser from the board.
         """
+        self._apply_layer(redraw_board=False)
+
+    def _layer_ctx(self):
+        """!
+        @brief Where the toolbar Layer box is used now: the name of the context (editor, power profile page, or one of the Results maps).
+        @return One of tips.LAYER_TIPS keys.
+        """
+        i = self.tabs.currentIndex()
+        if i == TAB_PROFILE:
+            return "profile page"
+        if i == TAB_RESULTS:
+            w = self.results.tabs.currentWidget()
+            for name, tab in (("temperature", self.results.temp), ("gradient", self.results.grad), ("animation", self.results.animation),
+                              ("profiles", self.results.profile), ("profiles", self.results.time_sim)):
+                if w is tab:
+                    return name
+            return "results"
+        return "editor"
+
+    def _apply_layer(self, redraw_board=True):
+        """!
+        @brief Show the layer choice in the toolbar box, the editor, the map on the board and every tab.
+        @details The box lists, by context, layers 1..n (editor, power profile page, Gradients, Animation, Profiles) or All layers, All (2 x 2), the layers and the metal
+                 block of the result (Temperature). A tab that cannot show the stored choice shows the last single layer and a one-line note says so.
+        @param redraw_board False while the board is being rebuilt (the caller draws the map).
+        """
         n = self.doc.problem.board.layers
-        cur = self.layer_combo.currentIndex()
-        self.layer_combo.blockSignals(True)
-        self.layer_combo.clear()
-        for l in range(n):
-            self.layer_combo.addItem(f"{l + 1}" + (" top" if l == 0 else " bottom" if l == n - 1 else ""), l)
-        self.layer_combo.setCurrentIndex(min(max(cur, 0), n - 1))
-        self.layer_combo.blockSignals(False)
-        if self.canvas.layer != self.layer_combo.currentIndex():
-            self.canvas.layer = self.layer_combo.currentIndex()
+        ctx = self._layer_ctx()
+        faces = self.results.temp.block_faces() if getattr(self, "sim", None) is not None else []
+        kind = layerchoice.EXTENDED_CONTEXT if ctx == "temperature" else "single"
+        value, note = self.layer_choice.effective(kind, n, faces)
+        entries = layerchoice.items(kind, n, faces)
+        box = self.layer_combo
+        if [(box.itemText(i), box.itemData(i)) for i in range(box.count())] != entries:
+            box.blockSignals(True)
+            box.clear()
+            for text, data in entries:
+                box.addItem(text, data)
+            box.blockSignals(False)
+        box.blockSignals(True)
+        box.setCurrentIndex(max(box.findData(value), 0))
+        box.blockSignals(False)
+        self.layer_context = ctx
+        box.setToolTip(tips.LAYER_TIPS.get(ctx, tips.LAYER_TIPS["editor"]))
+        single = self.layer_choice.single(n)
+        changed = self.canvas.layer != single
+        if changed:
+            self.canvas.set_layer(single)                  # The drawing layer and the layer of the map on the board are the same choice
+        self.results.set_layer(self.layer_choice.effective(layerchoice.EXTENDED_CONTEXT, n, faces)[0], single)
+        self.results.set_layer_note(note if ctx in ("gradient", "animation", "profiles") else "")
+        if changed and redraw_board and self.a_overlay.isChecked():
+            self._toggle_overlay(True)                     # The map follows the layer being edited
 
     def _on_layer_changed(self, idx):
         """!
-        @brief Change the edited layer.
-        @param idx Combo index (= layer).
+        @brief The user picked an entry of the toolbar Layer box.
+        @param idx Combo index.
         """
-        if idx >= 0:
-            self.canvas.set_layer(idx)
-            if self.a_overlay.isChecked():
-                self._toggle_overlay(True)                 # The map follows the layer being edited
+        data = self.layer_combo.itemData(idx) if idx >= 0 else None
+        if data is not None:
+            self.layer_choice.pick(data)
+            self._apply_layer()
+
+    def _set_layer(self, layer):
+        """!
+        @brief Choose a copper layer by code (a selection on another layer, a clicked warning).
+        @param layer Layer index (0-based).
+        """
+        self.layer_choice.pick(layer)
+        self._apply_layer()
 
     def _select_all(self):
         """!
@@ -1009,7 +1094,7 @@ class MainWindow(QMainWindow):
                   for e in [getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[k])[i]]}
         layers.discard(None)
         if len(layers) == 1 and self.canvas.layer not in layers:
-            self.layer_combo.setCurrentIndex(next(iter(layers)))      # Switch to the layer of the element
+            self._set_layer(next(iter(layers)))      # Switch to the layer of the element
         self.canvas.set_selection(items)
         self.inspector.set_selection(items)
 
@@ -1024,7 +1109,7 @@ class MainWindow(QMainWindow):
             return
         layer = getattr(lst[index], "layer", None)
         if layer is not None and self.canvas.layer != layer:
-            self.layer_combo.setCurrentIndex(layer)         # The element is drawn on its own layer
+            self._set_layer(layer)         # The element is drawn on its own layer
         self.canvas.set_selection([(kind, index)])
         self._on_canvas_selection([(kind, index)])
 
@@ -1442,6 +1527,7 @@ class MainWindow(QMainWindow):
         self.sim, self._stale = sim, self._run_edits is not None and self._edits != self._run_edits
         self._run_edits = None
         self.results.set_simulation(sim)
+        self._apply_layer(redraw_board=False)              # The list of the Temperature context depends on the result (metal block)
         tips.apply(self.results)
         if sim.decisions:
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)

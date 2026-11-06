@@ -264,8 +264,7 @@ def test_controls_default_to_the_old_picture_and_follow_the_view(tab):
     d = tab.display
     assert d.view == "current" and d.kind == "none" and d.opacity == 70 and d.contour_temp == 5.0
     assert tab.map_view() is None                                                   # the original picture, call for call
-    labels = [tab.layer.itemText(i) for i in range(tab.layer.count())]
-    assert labels[:3] == ["All layers", "All (2 x 2)", "Layer 1"] and tab.layer.currentData() == 0
+    assert not hasattr(tab, "layer") and tab.layer_value == 0                      # The layer is the one choice of the toolbar (test_single_layer)
 
 
 def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
@@ -281,7 +280,7 @@ def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
     assert _sha(_rgba_tab(tab)) == _sha(first)                                      # Back to Current: the same pixels
     tab.display.set_kind("copper")
     assert _sha(_rgba_tab(tab)) != _sha(first)
-    tab.layer.setCurrentIndex(tab.layer.findData(-2))
+    tab.set_layer(-2)
     tab.redraw()
     assert len([a for a in tab.fig.axes if a.get_images()]) == 4
 

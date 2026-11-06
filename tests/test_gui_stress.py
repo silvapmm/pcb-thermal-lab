@@ -109,10 +109,15 @@ def walk_results(win, qtbot):
         rv.tabs.setCurrentIndex(t)
         qtbot.wait(5)
     for tab in (rv.temp, rv.grad, rv.profile, rv.compare):
-        for name in ("model", "layer", "axis"):
+        for name in ("model", "axis"):
             combo = getattr(tab, name)
             for i in range(combo.count()):
                 combo.setCurrentIndex(i)
+        # The layer is the one choice of the toolbar: every entry of its list in the context of this tab (All layers, 2 x 2, layers, metal block in Temperature)
+        rv.tabs.setCurrentWidget(tab)
+        for i in range(win.layer_combo.count()):
+            win.layer_combo.setCurrentIndex(i)
+        win.layer_combo.setCurrentIndex(0)
         for chk in (tab.hot, tab.auto, tab.equiv):
             chk.setChecked(not chk.isChecked())
             chk.setChecked(not chk.isChecked())
@@ -131,8 +136,8 @@ def walk_results(win, qtbot):
                     d.set_kind(copper_on)
                     for cm in plots.CMAPS[:3]:
                         d.set_cmap(cm)
-                    for k in range(tab.layer.count()):
-                        tab.layer.setCurrentIndex(k)
+                    for k in (-2, -1, 0, rv.sim.problem.board.layers - 1) if tab is rv.temp else (0, rv.sim.problem.board.layers - 1):
+                        tab.set_layer(k)
         d.set_contour("gradient" if tab is rv.grad else "temperature", 0.0 if tab is rv.grad else 2.0)
         d.set_opacity(0)
         d.set_opacity(100)
@@ -147,8 +152,8 @@ def walk_results(win, qtbot):
         ts.model.setCurrentIndex(i)
         for j in range(ts.view.count()):
             ts.view.setCurrentIndex(j)
-            for k in range(ts.layer.count()):
-                ts.layer.setCurrentIndex(k)
+            for k in range(rv.sim.problem.board.layers):
+                ts.set_layer(k)
             ts.slider.setValue(ts.slider.maximum())
             ts.slider.setValue(0)
 
@@ -171,8 +176,8 @@ def animate(win, qtbot, model):
     qtbot.waitUntil(lambda: anim.tr is not None, timeout=120000)
     for v in (0, anim.slider.maximum() // 2, anim.slider.maximum()):
         anim.slider.setValue(v)
-    for i in range(anim.layer.count()):
-        anim.layer.setCurrentIndex(i)
+    for i in range(win.layer_combo.count()):                            # The Animation lists the layers only (the toolbar choice)
+        win.layer_combo.setCurrentIndex(i)
     anim.play.setChecked(True)
     qtbot.wait(80)
     anim.play.setChecked(False)
@@ -663,10 +668,10 @@ def test_metal_block_in_the_application(win, qtbot):
     rv.tabs.setCurrentWidget(rv.temp)
     for model in ("fvm", "fdm", "lumped"):
         rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
-        k = rv.temp.layer.findData(101)                                  # "Metal block (bottom)"
+        k = win.layer_combo.findData(101)                                # "Metal block (bottom)" in the toolbar box of the Temperature context
         assert k >= 0
-        rv.temp.layer.setCurrentIndex(k)                                 # Drawn for the models that have it, a message for the others
-        rv.temp.layer.setCurrentIndex(0)
+        win.layer_combo.setCurrentIndex(k)                               # Drawn for the models that have it, a message for the others
+        win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
     walk_results(win, qtbot)
     animate(win, qtbot, "fvm")
     animate(win, qtbot, "fdm")

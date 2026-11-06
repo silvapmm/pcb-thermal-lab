@@ -71,7 +71,7 @@ class AnimationTab(QWidget):
         self.status = QLabel("Set the duration and compute the response to the heater power switched on at t = 0.")
         self.status.setWordWrap(True)
 
-        self.layer = QComboBox()
+        self.layer_value = 0                            # The layer of the toolbar choice (a single layer here)
         self.play = QPushButton("Play")
         self.play.setCheckable(True)
         self.play.toggled.connect(self._toggle_play)
@@ -82,7 +82,6 @@ class AnimationTab(QWidget):
         self.fps.setRange(1, 60)
         self.fps.setValue(12)
         self.fps.setSuffix(" fps")
-        self.layer.setToolTip("Copper layer shown in the animation.")
         self.slider.setToolTip("Drag to go to a moment of the response.")
         self.fps.setToolTip("Playback speed in frames per second.")
         self.play.setToolTip("Play or pause the animation.")
@@ -106,9 +105,8 @@ class AnimationTab(QWidget):
         play = QHBoxLayout()
         for w in (self.play, self.slider):
             play.addWidget(w, 1 if w is self.slider else 0)
-        for lbl, w in (("Layer", self.layer), ("Speed", self.fps)):
-            play.addWidget(QLabel(lbl))
-            play.addWidget(w)
+        play.addWidget(QLabel("Speed"))                 # The layer is the one choice of the main toolbar
+        play.addWidget(self.fps)
         play.addWidget(self.export)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
@@ -121,7 +119,6 @@ class AnimationTab(QWidget):
         lay.addWidget(self.canvas, 1)
         lay.addLayout(play)
         self._set_enabled(False)
-        self.layer.currentIndexChanged.connect(self._redraw)
         self.fps.valueChanged.connect(lambda v: self.timer.setInterval(int(1000 / v)))
         self.display.changed.connect(lambda _what: self.redraw())       # A change of the shared display choice draws the frame again
 
@@ -130,7 +127,7 @@ class AnimationTab(QWidget):
         @brief Enable the playback controls only when a transient result exists.
         @param on True when a result is available.
         """
-        for w in (self.play, self.slider, self.layer, self.fps, self.export):
+        for w in (self.play, self.slider, self.fps, self.export):
             w.setEnabled(on)
 
     def set_theme(self, theme):
@@ -179,9 +176,6 @@ class AnimationTab(QWidget):
         self.tr, self.problem = tr, problem
         self.display.clear_cache()                      # The copper pictures belong to the problem of this animation
         self._updating = True
-        self.layer.clear()
-        for l in range(problem.board.layers):
-            self.layer.addItem(f"Layer {l + 1}", l)
         self.slider.setRange(0, len(tr.times) - 1)
         self._updating = False
         self.compute.setEnabled(True)
@@ -198,6 +192,24 @@ class AnimationTab(QWidget):
         self._frame = len(tr.times) - 1
         self.slider.setValue(self._frame)
         self._redraw()
+
+    def set_layer(self, value):
+        """!
+        @brief Show the layer chosen in the toolbar.
+        @param value Layer index (0-based).
+        """
+        value = max(int(value), 0)
+        if value != self.layer_value:
+            self.layer_value = value
+            self._redraw()
+
+    def _layer_index(self):
+        """!
+        @brief The layer drawn, kept on the board of the transient.
+        @return int in 0..layers-1.
+        """
+        n = self.problem.board.layers if self.problem is not None else 1
+        return min(max(self.layer_value, 0), n - 1)
 
     def map_view(self):
         """!
@@ -219,7 +231,7 @@ class AnimationTab(QWidget):
         """
         if self._updating or self.tr is None:
             return
-        tr, l = self.tr, max(self.layer.currentData() or 0, 0)
+        tr, l = self.tr, self._layer_index()
         dx, dy = plots.frame_spacing(tr, self.problem)
         k = self.slider.value()
         with _mpl_theme(self.theme):
@@ -267,6 +279,6 @@ class AnimationTab(QWidget):
             return
         path, _ = QFileDialog.getSaveFileName(self, "Export animation", "heat_evolution.gif", "GIF (*.gif)")
         if path:
-            plots.save_transient_gif(self.tr, self.problem, path, layer=max(self.layer.currentData() or 0, 0),
+            plots.save_transient_gif(self.tr, self.problem, path, layer=self._layer_index(),
                                      fps=self.fps.value(), cmap=self.display.cmap, view=self.map_view())
             self.status.setText(f"Saved {path}")
