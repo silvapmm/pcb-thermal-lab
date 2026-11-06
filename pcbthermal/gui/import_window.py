@@ -1559,7 +1559,7 @@ class ReimportDialog(QDialog):
         @param _ Ignored (the toggled signal's argument).
         @return None
         """
-        if not hasattr(self, "table") or not any(r.isChecked() for r in self.radios.values()):
+        if not hasattr(self, "go") or not any(r.isChecked() for r in self.radios.values()):
             return
         t = self.table
         t.blockSignals(True)
@@ -1582,14 +1582,21 @@ class ReimportDialog(QDialog):
                 else:
                     cb = QComboBox()
                     cb.addItems(["Keep the stored file", "Use the new file"])
-                    cb.setToolTip("Two files claim this function and they differ.")
+                    cb.setCurrentIndex(1)                       # the user added these files to change the import: the new one is the default (the stored file is one click away)
+                    cb.setToolTip("Two files claim this function and they differ. The new file is the default; choose the stored one to leave it as it is.")
                     t.setCellWidget(k, 3, cb)
                     self.combos[s["function"]] = cb
             geo = sum(1 for s in rows if s["function"] in GEOMETRY and s["status"] in ("added", "changed"))
-            self.note.setText(f"{sum(1 for s in rows if s['status'] == 'added' and s['function'] not in GEOMETRY)} function(s) added, {len(self.combos)} conflict(s) to choose. "
+            n_added = sum(1 for s in rows if s["status"] == "added" and s["function"] not in GEOMETRY)
+            self.note.setText(f"{n_added} function(s) added, {len(self.combos)} conflict(s) to choose. "
                               "The stored copper, outline, vias and existing parts are not touched."
-                              + (f" {geo} copper, outline or drill file(s) are not taken: they change the board, use Replace or Update." if geo else ""))
+                              + (f" {geo} copper, outline or drill file(s) are not taken: they change the board, use Replace or Update." if geo else "")
+                              + ("" if n_added + len(self.combos) else " Nothing to add: every file is identical to the stored one or changes the board itself; "
+                                 "choose Replace or Update to apply it."))
+            # A Continue that can only do nothing used to close the window and leave the project as it was: the user took that for a failure
+            self.go.setEnabled(n_added + len(self.combos) > 0)
         else:
+            self.go.setEnabled(True)
             t.setHorizontalHeaderLabels(["Part", "Change", "Detail", "Kept from the stored import" if mode != "replace" else "Action"])
             rows = [d for d in self.diff if d["change"] != "kept"] if mode == "update" else [d for d in self.diff if d["change"] == "removed"]
             t.setRowCount(len(rows))
@@ -1896,10 +1903,29 @@ class ImportBoardWindow(QDialog):
             QApplication.restoreOverrideCursor()
         # Another board: the automatic cell and the project name of step 3 are taken again from it
         self._cell_set = False
+        self._take_stored_settings()
         self.page3.newname.blockSignals(True)
         self.page3.newname.setText("")
         self.page3.newname.blockSignals(False)
         self.refresh()
+
+    def _take_stored_settings(self):
+        """!
+        @brief A re-import starts from the model settings of the stored import (copper mapping, cell, largest via hole), not from the automatic ones.
+        @details The new session has no powers yet, so its automatic cell differs from the one the user ended with; without this a re-import of the very same files silently
+                 changed the cell and the pixel of the copper masks. The user can still change them in step 3.
+        @return None
+        """
+        st = getattr(self.existing, "settings", None) or {}
+        sx = self.session
+        if st.get("mapping") in ("faces", "lambda", "fill"):
+            sx.mapping = st["mapping"]
+        for key, attr in (("via_max_mm", "via_max_mm"), ("cell_mm", "cell_mm")):
+            v = st.get(key)
+            if isinstance(v, (int, float)) and v > 0:
+                setattr(sx, attr, float(v))
+        if isinstance(st.get("cell_mm"), (int, float)) and st["cell_mm"] > 0:
+            self._cell_set = True                              # step 3 keeps the stored cell instead of proposing a new one
 
     def reload_later(self):
         """!

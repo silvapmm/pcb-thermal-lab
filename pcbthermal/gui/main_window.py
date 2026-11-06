@@ -1168,6 +1168,9 @@ class MainWindow(QMainWindow):
         self._refresh_layers()
         # What the editor kept comes first (the user must see it), then the first changes of the parts and files
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
+        if not lines:
+            # An empty list used to leave "re-imported (add): " and nothing else: say what happened
+            lines = ["nothing changed (every file was identical to the stored one)"]
         self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):
