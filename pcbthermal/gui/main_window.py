@@ -748,7 +748,9 @@ class MainWindow(QMainWindow):
         @brief Show the background image on the canvas: always, except while a map is on the board and the Underlay is not Image.
         @param overlay_on True while the temperature map is painted on the board.
         """
-        self.canvas.set_background_visible(not overlay_on or self.editor_underlay.kind() == "image")
+        image = self.editor_underlay.kind() == "image"
+        self.canvas.set_background_visible(not overlay_on or image)
+        self.canvas.set_background_full(overlay_on and image)       # Faded twice otherwise (its own opacity, then the map's)
 
     def _editor_underlay_edited(self, *_):
         """!
@@ -964,6 +966,10 @@ class MainWindow(QMainWindow):
         self._refresh_layers()
         # A document just opened: its stored background opacity is the initial one again, also when the image file is the same as before
         self._underlay_key = None
+        # Starting from scratch (or a project with no stored opacity) the pairs are 70 % again, not the previous project's value
+        for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
+            u.set_opacity(70)
+        self.overlay_opacity.setValue(70)
         self._sync_underlay()
         self.statusBar().showMessage("Ready.")
 

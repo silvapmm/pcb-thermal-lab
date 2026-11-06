@@ -348,6 +348,7 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self.background_full = False                             # True while a map is over the Image underlay: the image is then drawn at 100 %
         self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
@@ -557,12 +558,22 @@ class BoardView(QGraphicsView):
         # Image rows go downward, the scene goes upward: flip y and anchor at the top-left corner
         item.setTransform(QTransform().scale(cfg["w_mm"] / pm.width(), -cfg["h_mm"] / pm.height()))
         item.setPos(cfg.get("x_mm", 0.0), cfg.get("y_mm", 0.0) + cfg["h_mm"])
-        item.setOpacity(cfg.get("opacity", 0.5))
+        item.setOpacity(1.0 if self.background_full else cfg.get("opacity", 0.5))
         item.setZValue(0.2)
         item.setAcceptedMouseButtons(Qt.NoButton)
         item.setVisible(self.background_visible)
         self.scene().addItem(item)
         self._background = item
+
+    def set_background_full(self, full):
+        """!
+        @brief Draw the background image at 100 % (a map is on the board over the Image underlay, so the map opacity alone sets what shows) or at its stored opacity.
+        @param full True for 100 %.
+        """
+        self.background_full = bool(full)
+        if self._background is not None:
+            cfg = self.doc.project.view.get("background") or {}
+            self._background.setOpacity(1.0 if self.background_full else cfg.get("opacity", 0.5))
 
     def set_background_visible(self, visible):
         """!

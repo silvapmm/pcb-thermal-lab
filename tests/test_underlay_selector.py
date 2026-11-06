@@ -435,3 +435,47 @@ def test_image_underlay_is_clipped_to_the_outline():
     off = _px(ax, pix, 35.0, 35.0)                            # Off the board: neither the image (yellow / green) nor the laminate
     lam = tuple(int(round(v * 255)) for v in plots.MapView().laminate_rgb)
     assert not _near(off, GREEN) and not _near(off, YELLOW) and not _near(off, lam + (255,), 8)
+
+
+def test_new_project_or_no_stored_opacity_resets_the_pairs_to_70(qtbot, tmp_path):
+    """!
+    @brief After a project with a stored opacity, a new board (or a project with no stored opacity) starts at 70 %, not at the previous value.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    win = _win(qtbot, tmp_path)
+    win.doc.project.view["background"] = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0,
+                                          "opacity": 0.9}
+    win.doc.changed.emit()
+    win.results.temp.underlay.opacity.setValue(33)
+    win.doc.new(50.0, 40.0, 2)
+    win._after_load()
+    for u in (win.results.temp.underlay, win.results.grad.underlay, win.results.animation.underlay):
+        assert u.opacity.value() == u.opacity_spin.value() == 70
+    assert win.overlay_opacity.value() == 70
+
+
+def test_editor_draws_the_image_at_full_opacity_under_the_map(qtbot, tmp_path):
+    """!
+    @brief With the map on the board over Image the image item is at 100 % (no double fade), also after a rebuild; with the map off it keeps its stored opacity.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    win = _win(qtbot, tmp_path)
+    win.doc.project.view["background"] = {"path": _png(tmp_path / "bg.png", _quadrants()), "x_mm": 0.0, "y_mm": 0.0, "w_mm": 50.0, "h_mm": 40.0,
+                                          "opacity": 0.3}
+    win.doc.changed.emit()
+    win.canvas.rebuild()
+    assert win.canvas._background.opacity() == pytest.approx(0.3)
+    win.editor_underlay.combo.setCurrentIndex(win.editor_underlay.combo.findData("image"))
+    win._editor_apply_underlay(True)
+    assert win.canvas._background.opacity() == pytest.approx(1.0) and win.canvas._background.isVisible()
+    win.canvas.rebuild()
+    assert win.canvas._background.opacity() == pytest.approx(1.0)
+    win._editor_apply_underlay(False)
+    assert win.canvas._background.opacity() == pytest.approx(0.3)
+    # The pixels differ between the two states (the image is not faded by its own 30 % under the map)
+    win._editor_apply_underlay(True)
+    full = win.canvas.viewport().grab().toImage()
+    win._editor_apply_underlay(False)
+    assert full != win.canvas.viewport().grab().toImage()
