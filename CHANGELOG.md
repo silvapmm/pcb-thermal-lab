@@ -5,6 +5,14 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed (moves numbers on purpose)
+
+- **Analytic model: the edge of unlike layers and the time behaviour with vias and heatsinks** (`feature/analytic-edge-and-local-transient`, adopts the reviewed `research/analytic-2-6`; reviewer pending):
+  - **Per-layer edge (steady).** Each layer has its own edge parameter `β_l = h_side s_l / S_l`; the common `β` of the series basis is corrected by an extra modal source solved with GMRES around the whole solve (4 to 9 products). On 48 boards of two or more layers with very different copper the largest error against the FVM at 0.5 mm falls from 8.64 to 4.07 % (mean 1.51 to 0.90 %); what is left is always on the cool side (the laminate rule of the FVM beside partial copper), so a board with a strong edge and partial copper now reads a few per cent cool and never hot. Boards whose layers have the same `s_l / S_l`, boards without an edge coefficient and one-layer boards are bit-identical.
+  - **Local transient.** Vias and heatsinks stay local in a coupled modal block of the lowest 16 x 16 modes (new `pcbthermal/analytic_local.py`) with one factor on the via couplings fitted to the steady solve, replacing the smeared one-sided calibration. The time to 63 % of the step with a heatsink falls from -66 .. +175 % to -8.1 .. -0.1 % of the converged FVM on a sample of 8 test boards (12 with the boards without a heatsink: -8.1 .. +0.5 %); boards without vias and heatsinks are unchanged.
+  - **Records that move** (`tests/regression/data/pending/`): the Analytic steady records of example_board, profile_board, example_cut_to_T, hatched_copper, part_top_path and two_layer_partial (at most 3.9e-3 K on the hottest point, 3.4e-2 K on the minimum) and the Analytic times to 63 % of example_board and profile_board U1 (-18.6 %), U2 (+1.7 %), plate_vias (+1.3 %) and plate_lone_via (+1.1 %).
+  - **Warnings.** The Analytic time simulation with a heatsink now quotes -8 % to +1 % (a sample, not a bound); the edge convection warning for two or more layers quotes the new range.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
