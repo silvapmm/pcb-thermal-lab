@@ -753,6 +753,7 @@ class MainWindow(QMainWindow):
     def _editor_underlay_edited(self, *_):
         """!
         @brief The Underlay combo of the editor changed: the Results maps follow it, and the image shows or hides.
+        @param _ Ignored (the value carried by the Qt signal).
         """
         res = self.results
         res.temp.underlay.set_kind(self.editor_underlay.kind())
