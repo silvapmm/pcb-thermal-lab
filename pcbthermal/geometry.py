@@ -82,11 +82,107 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
-# Sub-samples per cell side for everything that measures how much of a cell is on the board or in a part that crosses the outline.
-# ONE constant shared by Board.cover (FVM, 3D solid), part_weights (FVM, FDM, 3D solid, analysis) and the FDM node cover, so that the board share
-# a model gives a cut cell and the share of the part in it are sampled on the same lattice (a 4 x 4 board cover against 8 x 8 part weights gave an
-# edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gives 1.47 K).
+# Sub-samples per cell side for the sampled rules that remain: the part weights of a pair of polygons that cannot be clipped exactly (two concave
+# ones, or one that crosses itself). The board cover (FVM, FDM, 3D solid) and the weights of the usual part are exact (`exact_coverage`) since
+# fix/exact-board-cover; before it ONE lattice was shared by the cover and the weights (a 4 x 4 board cover against 8 x 8 part weights gave an
+# edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gave 1.47 K; the exact cover gives about 0.65 K).
 BOARD_SAMPLES = 8
+
+
+# Cells whose exact coverage is closer than this to 0 or 1 are snapped to it: the column sums below carry a rounding noise of a few 1e-10 of a cell
+_EXACT_SNAP = 1e-9
+
+
+def exact_coverage(poly, nx, ny, dx, dy):
+    """!
+    @brief Exact fraction of every grid cell that a simple polygon covers (no sampling).
+    @details For a polygon traversed once, the length of the vertical section that lies inside it and between two horizontal grid lines is
+             the sum over the edges that the vertical line crosses of +/- (clamp(y_edge, lower, upper) - lower), the sign being that of the
+             direction of the edge (the lower edges of a counter-clockwise polygon go to the right, the upper ones to the left). Integrated
+             over a grid column, the cell covers follow from the differences of one function of the grid lines,
+             Phi(Y) = sum_e s_e integral of min(y_e(x), Y) dx, which is piecewise linear in Y per edge piece. Each (edge, column) piece
+             contributes Y * width below its lowest point, a constant above its highest point (both accumulated by cumulative sums over the
+             grid lines) and an explicit trapezoid-minus-triangle value only on the grid lines it crosses, so the work is that of the cells
+             the outline cuts, vectorised, and a board of 1000 vertices on a 0.25 mm grid takes milliseconds. A zero-width bridge (two
+             opposite edges on the same line, as the clip of a concave polygon leaves) cancels exactly. The same area as clipping each cell
+             with `clip_polygon`, and exactly the polygon area (checked against analytic areas in the tests).
+    @param poly Polygon vertices (n, 2) in metres, either orientation, not crossing itself.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Array (ny, nx) with the covered fraction in [0, 1]; values within 1e-9 of 0 or 1 are snapped to them.
+    """
+    p = np.asarray(poly, dtype=float)
+    out = np.zeros((ny, nx))
+    if len(p) < 3:
+        return out
+    orient = np.sign(polygon_area_signed(p))
+    if orient == 0:
+        return out
+    x0, y0 = p[:, 0], p[:, 1]
+    x1, y1 = np.roll(x0, -1), np.roll(y0, -1)
+    # Edges to the right are the lower ones of a counter-clockwise polygon (inside above them): sign -1; to the left +1; a vertical edge adds nothing
+    sgn = np.where(x1 > x0, -orient, orient)
+    left = np.minimum(x0, x1)
+    right = np.maximum(x0, x1)
+    yl = np.where(x0 <= x1, y0, y1)                                    # Height at the left end of the edge
+    yr = np.where(x0 <= x1, y1, y0)                                    # Height at the right end
+    keep = (right > left) & (right > 0.0) & (left < nx * dx)
+    sgn, left, right, yl, yr = sgn[keep], left[keep], right[keep], yl[keep], yr[keep]
+    if sgn.size == 0:
+        return out
+    # One piece per (edge, column): the columns an edge spans, with the x range of the edge inside each one
+    c0 = np.maximum(np.floor(left / dx).astype(np.int64), 0)
+    c1 = np.minimum(np.floor(right / dx).astype(np.int64), nx - 1)
+    cnt = np.maximum(c1 - c0 + 1, 0)
+    e = np.repeat(np.arange(sgn.size), cnt)
+    col = np.repeat(c0, cnt) + (np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt))
+    xa = np.maximum(left[e], col * dx)
+    xb = np.minimum(right[e], (col + 1) * dx)
+    w = xb - xa
+    ok = w > 0.0
+    e, col, xa, xb, w = e[ok], col[ok], xa[ok], xb[ok], w[ok]
+    slope = (yr[e] - yl[e]) / (right[e] - left[e])
+    ya = yl[e] + slope * (xa - left[e])
+    yb = yl[e] + slope * (xb - left[e])
+    s = sgn[e]
+    lo, hi = np.minimum(ya, yb), np.maximum(ya, yb)
+    # Grid lines Y_k = k dy, k = 0..ny: k <= klo lie at or below the piece, k >= khi at or above it, those between cross it
+    klo = np.floor(lo / dy).astype(np.int64)
+    khi = np.maximum(np.ceil(hi / dy).astype(np.int64), klo + 1)
+    phi = np.zeros((ny + 1, nx))
+    # Below the piece: min(y, Y) = Y, so the sum is Y_k times the signed widths of the pieces with klo >= k (a reverse cumulative sum)
+    low = np.zeros((ny + 1, nx))
+    sel = klo >= 0
+    np.add.at(low, (np.minimum(klo[sel], ny), col[sel]), s[sel] * w[sel])
+    low = np.cumsum(low[::-1], axis=0)[::-1]
+    phi += (np.arange(ny + 1) * dy)[:, None] * low
+    # Above the piece: min(y, Y) = y, a constant from khi on (a forward cumulative sum)
+    high = np.zeros((ny + 1, nx))
+    sel = khi <= ny
+    np.add.at(high, (np.maximum(khi[sel], 0), col[sel]), (s * w * 0.5 * (ya + yb))[sel])
+    phi += np.cumsum(high, axis=0)
+    # On the lines that cross the piece: integral of y minus integral of max(y - Y, 0), the second being a trapezoid or a triangle
+    k_from = np.maximum(klo + 1, 0)
+    k_to = np.minimum(khi - 1, ny)
+    n = np.maximum(k_to - k_from + 1, 0)
+    if n.sum():
+        r = np.repeat(np.arange(n.size), n)
+        k = np.repeat(k_from, n) + (np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n))
+        Y = k * dy
+        pq = ya[r] - Y, yb[r] - Y
+        pp, qq = np.maximum(pq[0], 0.0), np.maximum(pq[1], 0.0)
+        span = np.abs(pq[0]) + np.abs(pq[1])
+        mixed = pq[0] * pq[1] < 0.0
+        # Mixed signs: a triangle of height (positive end)^2 / (|p| + |q|) / 2 per unit of width; same signs: the trapezoid (zero when both are below)
+        tri = np.where(mixed, (pp * pp + qq * qq) / np.where(span > 0.0, 2.0 * span, 1.0), 0.5 * (pp + qq))
+        np.add.at(phi, (k, col[r]), s[r] * w[r] * (0.5 * (ya[r] + yb[r]) - tri))
+    out = np.diff(phi, axis=0) / (dx * dy)
+    out = np.clip(out, 0.0, 1.0)
+    out[out < _EXACT_SNAP] = 0.0
+    out[out > 1.0 - _EXACT_SNAP] = 1.0
+    return out
 
 
 def _sample_mask(poly, nx, ny, dx, dy, samples, clip=None):
@@ -218,30 +314,54 @@ def _coverage_edge_cells(p, i0, i1, j0, j1, dx, dy, samples):
     return box
 
 
+def _part_on_board(poly, outline):
+    """!
+    @brief The part of a polygon that lies on the board, as one polygon, by exact clipping.
+    @details Sutherland-Hodgman needs one convex operand: a convex part (every rectangle and drawn footprint) clips the outline, or a convex
+             outline clips the part. A concave outline cut by the part can leave zero-width bridges, which have no area and cancel in `exact_coverage`.
+             Two concave polygons, or a polygon that crosses itself (read by the even-odd rule of the models), are not clipped.
+    @param poly Part polygon vertices (n, 2) in metres.
+    @param outline Board outline vertices (m, 2) in metres.
+    @return numpy.ndarray Vertices (k, 2) in metres (k = 0 when nothing is left), or None when the pair cannot be clipped exactly.
+    """
+    pa, ob = np.asarray(poly, dtype=float), np.asarray(outline, dtype=float)
+    if _is_convex(pa) and not polygon_self_intersects(ob):
+        return clip_polygon(ob, pa)
+    if _is_convex(ob) and not polygon_self_intersects(pa):
+        return clip_polygon(pa, ob)
+    return None
+
+
 def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=None):
     """!
     @brief Weight of every grid cell in the heating of a part: the share of the cell that is inside the part AND on the board.
     @details A part that crosses the board outline must heat the board only where it lies on it. The product of the two coverages
              (part x board) is exact only when one of them covers the whole cell; on a cell cut by both it is wrong (a part that covers
              the whole cell gets the right weight, but a part edge and the outline in the same cell give part cover x board cover instead of
-             the area that is in both). The intersection is taken sample by sample on the same points.
-             When the model represents the board share of a cell by its own cover (sampled more coarsely than the part), the weight is
-             the share of the cell's board samples that are in the part, times that cover: the heat density on the board part of the cell
-             is then the part's density, consistently with the board area the model gives the cell (otherwise a cut cell whose cover reads
-             1/4 against a part weight of 3/8 gets 1.5 times the density; measured +1.3 K on a small T at 0.5 mm). The caller normalises the
-             weights so that the total power is exact.
+             the area that is in both).
+             With an outline the weight is the exact area of the part on the board in each cell over the area of the cell (the part is clipped to
+             the outline and the result is intersected with the cells by `exact_coverage`). It is also the share of the board part of the cell that
+             the part covers times the exact board cover of the cell (`Board.cover`), so the heat density on the board part of every cell is the
+             part's density, consistently with the board area the model gives the cell. When the pair cannot be clipped (two concave
+             polygons, or one that crosses itself) the older rule is used: the intersection is taken sample by sample on the same points; if the model
+             represents the board share of the cell by its own cover, the weight is the share of the cell's board samples that are in the part, times
+             that cover. The caller normalises the weights so that the total power is exact.
     @param poly Part polygon vertices (n, 2) in metres.
     @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board (then the result is coverage_fraction).
     @param nx Number of cells along x.
     @param ny Number of cells along y.
     @param dx Cell width in metres.
     @param dy Cell height in metres.
-    @param samples Sub-samples per cell side.
-    @param cover Optional board cover of every cell used by the model (ny, nx), in [0, 1]; None gives the plain intersection share.
+    @param samples Sub-samples per cell side (rectangular board and the sampled fallback only).
+    @param cover Optional board cover of every cell used by the model (ny, nx), in [0, 1]; used only by the sampled fallback (the exact weight needs no
+           normalisation); None gives the plain intersection share.
     @return Array of shape (ny, nx) with values in [0, 1].
     """
     if outline is None:
         return coverage_fraction(poly, nx, ny, dx, dy, samples)
+    region = _part_on_board(poly, outline)
+    if region is not None:
+        return exact_coverage(region, nx, ny, dx, dy)
     out = np.zeros((ny, nx))
     got = _sample_mask(poly, nx, ny, dx, dy, samples, clip=outline)
     if got is None:

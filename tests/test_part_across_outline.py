@@ -111,13 +111,28 @@ def test_part_weights_is_the_intersection_not_the_product():
     prod = coverage_fraction(part, 3, 3, 1e-3, 1e-3, 8) * coverage_fraction(outline, 3, 3, 1e-3, 1e-3, 8)
     assert prod[1, 1] == pytest.approx(0.375, abs=1e-12)
     assert w[1, 2] == 0.0                                    # Cell x 2 to 3 mm is off the board
-    # With the model's board cover (sampled more coarsely, here 0.6 for the cut cell): the share of the board samples in the part (2 of 4
-    # columns of samples on the board, 0.5) times that cover, so that the density on the board part is the part's own
+    # The weight is exact (part clipped to the outline, cut by the cells) and needs no normalisation to the model's cover: the exact board cover
+    # of that cell is 0.5 and the part covers half of the board part of it, so the weight is the same 0.25 whatever `cover` is passed
+    cover = np.ones((3, 3))
+    cover[:, 1] = 0.5
+    wc = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8, cover=cover)
+    assert wc[1, 1] == pytest.approx(0.25, abs=1e-15)
+    assert wc[1, 0] == 0.0 and wc[1, 2] == 0.0
+
+
+def test_part_weights_sampled_fallback_for_two_concave_polygons_keeps_the_cover_normalisation():
+    # Two concave polygons cannot be clipped exactly (Sutherland-Hodgman needs one convex operand): the sampled rule stays, with the model's cover
+    # (here 0.6 for the cut cell): the share of the board samples in the part (0.5) times that cover
+    outline = np.array([[0, 0], [1.5e-3, 0], [1.5e-3, 3e-3], [0.9e-3, 1.5e-3], [0, 3e-3]])      # A notch on the left side makes it concave
+    part = np.array([[1.25e-3, 0.0], [2.9e-3, 0.0], [2.9e-3, 3e-3], [1.25e-3, 3e-3], [1.5e-3, 1.5e-3]])
+    from pcbthermal import geometry
+    assert geometry._part_on_board(part, outline) is None
     cover = np.ones((3, 3))
     cover[:, 1] = 0.6
     wc = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8, cover=cover)
-    assert wc[1, 1] == pytest.approx(0.5 * 0.6, abs=1e-12)
-    assert wc[1, 0] == 0.0 and wc[1, 2] == 0.0
+    plain = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8)
+    assert wc[1, 2] == 0.0 and plain[1, 2] == 0.0
+    assert 0.0 < wc[1, 1] <= 0.6 and wc[1, 1] > plain[1, 1]
 
 
 def test_turned_small_part_keeps_its_area_in_the_3d_solid():
@@ -174,13 +189,13 @@ def test_statistics_leave_out_the_cells_off_the_board(model):
         assert analysis._footprint_stats(rq, h.polygon, h.layer, q.board.outline)[0] == pytest.approx(float((T * cov).sum() / cov.sum()), rel=1e-15)
 
 
-def test_one_sampling_constant_is_shared_by_the_cover_and_the_part_weights():
-    # The board cover (FVM, 3D solid), the part weights and the FDM node cover must be sampled on the same lattice (geometry.BOARD_SAMPLES): a 4 x 4
-    # board cover against 8 x 8 part weights gave an edge-shift scatter of 2.95 K at 1 mm on the small T (1.47 K with 8 x 8 everywhere)
+def test_board_cover_and_part_weights_have_no_sampling_lattice_any_more():
+    # The board cover (FVM, 3D solid, FDM node cover) and the weights of a part are exact since fix/exact-board-cover; only the fallback for two
+    # concave polygons keeps the lattice of geometry.BOARD_SAMPLES
     import inspect
     from pcbthermal import geometry, model
     assert geometry.BOARD_SAMPLES == 8
-    assert inspect.signature(model.Board.cover).parameters["samples"].default == geometry.BOARD_SAMPLES
+    assert "samples" not in inspect.signature(model.Board.cover).parameters
     assert inspect.signature(part_weights).parameters["samples"].default == geometry.BOARD_SAMPLES
 
 

@@ -20,7 +20,7 @@
 import numpy as np
 import scipy.sparse as sp
 
-from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
+from .geometry import exact_coverage, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, copper, fvm, laminate, viawell
 from .results import SteadyResult
 
@@ -126,7 +126,7 @@ class Network:
 
         # Share of every node's control volume that is board (ones for a rectangle); nodes off the board carry nothing
         if b.has_outline():
-            ncov = cover(b.outline, BOARD_SAMPLES)
+            ncov = _node_average(exact_coverage(b.outline, cells_x, cells_y, dx, dy)) if sampling == "area" else cover(b.outline, 4)
             ncov = np.where(ncov >= 0.01, ncov, 0.0)
         else:
             ncov = np.ones((ny, nx))
@@ -293,7 +293,7 @@ class Network:
             if sampling == "area":
                 # Each cell's covered area is shared by its four nodes
                 w = np.zeros((ny, nx))
-                # Part and board by sample; the board cover of the nodes is sampled 8 x 8 too, so the plain intersection is consistent with it
+                # Exact area of the part on the board in every cell, consistent with the exact board cover of the nodes
                 cov = part_weights(h.polygon, b.outline, cells_x, cells_y, dx, dy)
                 for di in (0, 1):
                     for dj in (0, 1):
@@ -376,7 +376,7 @@ def unknowns(problem, cell_mm=2.0):
         cell_fill = copper.problem_fill(problem, cells_x, cells_y, dx, dy, 4)
         fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
         if b.has_outline():
-            c = _node_average(coverage_fraction(b.outline, cells_x, cells_y, dx, dy, BOARD_SAMPLES))
+            c = _node_average(exact_coverage(b.outline, cells_x, cells_y, dx, dy))
             active = np.where(c >= 0.01, c, 0.0) > 0
         else:
             active = np.ones((ny, nx), dtype=bool)
