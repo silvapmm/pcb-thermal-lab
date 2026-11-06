@@ -129,3 +129,70 @@ def test_self_intersects_matches_its_old_form():
         else:
             pts = rng.uniform(0, 1, size=(n, 2))
         assert polygon_self_intersects(pts) == _reference_self_intersects(pts), k
+
+
+def _exact_is_simple(poly):
+    """!
+    @brief All-pairs crossing test in exact rational arithmetic (`fractions.Fraction` of the float coordinates).
+    @param poly Array-like (n, 2) of finite vertices.
+    @return bool.
+    """
+    from fractions import Fraction
+    q = [(Fraction(float(x)), Fraction(float(y))) for x, y in poly]
+    n = len(q)
+
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    for i in range(n):
+        for j in range(i + 2, n):
+            if i == 0 and j == n - 1:
+                continue                                          # The closing edge is adjacent to the first
+            a, b, c, d = q[i], q[(i + 1) % n], q[j], q[(j + 1) % n]
+            if ccw(a, b, c) * ccw(a, b, d) < 0 and ccw(c, d, a) * ccw(c, d, b) < 0:
+                return False
+    return True
+
+
+def test_matches_exact_arithmetic_on_small_integer_polygons():
+    """!
+    @brief On small integer coordinates (touching vertices, T-junctions, collinear overlaps, repeated points), scaled by powers of two, the answer is the exact one.
+    @return None.
+    """
+    rng = np.random.default_rng(4242)
+    for k in range(1500):
+        n = int(rng.integers(3, 14))
+        g = int(rng.choice([1, 2, 3, 5]))
+        pts = rng.integers(-g, g + 1, size=(n, 2)).astype(float)
+        if k % 3 == 0 and n >= 5:
+            a, b = pts[0], pts[1]
+            pts[3] = (a + b) / 2                                  # A vertex on the interior of another edge (exact in binary)
+        scale = float(rng.choice([1.0, 2.0 ** -20, 2.0 ** 20]))
+        # Powers of two keep every difference and product exact (tiny, huge, and huge with small features)
+        for p in (pts, pts * scale, pts * 2.0 ** -10 + 2.0 ** 20):
+            assert polygon_is_simple(p) == _exact_is_simple(p), (k, p.tolist())
+
+
+def test_no_spurious_crossing_of_collinear_edges_apart():
+    """!
+    @brief A triangle whose long side holds nearly collinear points is simple; the old all-pairs loop said it crossed itself.
+    @note The rounded orientation products of collinear edges change sign at random; the old loop compared the first and
+          the third edge of the side (far apart along it) and found a "crossing". The box test never compares them.
+    @return None.
+    """
+    from pcbthermal.geometry import polygon_self_intersects
+    tri = [[0.1580864194840257, 0.47425925845207695], [0.5430920201342117, 1.6292760604026346],
+           [0.5619097232232606, 1.6857291696697816], [0.8719644465264909, 2.6158933395794737], [0.5, -5.0]]
+    assert _exact_is_simple(tri)
+    assert not _reference_is_simple(tri)                          # The defect of the old code, kept as the record
+    assert polygon_is_simple(tri) and not polygon_self_intersects(tri)
+
+
+def test_crossings_on_box_edges_and_near_parallel():
+    """!
+    @brief A crossing at the end of a box (axis-aligned plus sign) and long nearly parallel edges that cross are found.
+    @return None.
+    """
+    assert not polygon_is_simple([[0, 0], [2, 0], [1, -1], [1, 1]])            # Horizontal against vertical edge
+    assert not polygon_is_simple([[0, 0], [1e6, 1.0], [1e6, 0.0], [0, 1.0]])   # Two edges of slope 1e-6 crossing at the middle
+    assert polygon_is_simple([[0, 0], [1e6, 0.0], [1e6, 1.0], [0, 1.0]])       # The same four points in order

@@ -661,8 +661,14 @@ def polygon_is_simple(poly):
     @note Same rule as the all-pairs test (strict sign change of both orientation tests, so touching
           and collinear overlaps are not crossings) but about O(n log n + k): the edges are sorted by
           the left end of their box and only pairs whose boxes overlap are tested, in vectorised blocks
-          (k is the number of overlapping boxes). The boxes are padded by a relative 1e-9 so that
-          rounding in the orientation test can never find a crossing that the box test dropped.
+          (k is the number of overlapping boxes; it is n^2 / 2 at worst, a star of long spikes:
+          2.3 s at 20 000 vertices). Two edges that cross properly always have overlapping boxes, so
+          the box test drops no real crossing. It differs from the old all-pairs loop in one place,
+          on purpose: for nearly collinear edges that lie apart (the points of a straight side
+          subdivided several times) the rounded orientation products can change sign at random, and
+          the all-pairs loop then reported a crossing that exact arithmetic does not have and refused
+          a valid outline; the box test never compares such edges. The boxes are padded by 1e-9 of
+          the extent, which only adds pairs whose boxes touch to within that distance.
     """
     p = np.asarray(poly, dtype=float)
     n = len(p)
@@ -675,7 +681,7 @@ def polygon_is_simple(poly):
     if len(idx) < 2:
         return True
     a, b = a[idx], b[idx]
-    span = float(max(np.ptp(p[np.isfinite(p).all(axis=1)], axis=0).max(), 0.0))
+    span = float(max(np.ptp(p[np.isfinite(p).all(axis=1)], axis=0).max(), 0.0))   # Extent of the finite vertices (at least two exist here)
     pad = 1e-9 * span
     xlo = np.minimum(a[:, 0], b[:, 0]) - pad
     xhi = np.maximum(a[:, 0], b[:, 0]) + pad
