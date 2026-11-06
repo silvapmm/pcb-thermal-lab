@@ -390,7 +390,8 @@ def test_five_models_run_and_warn():
     for name in ("lumped", "analytic"):
         w = [x for x in sim.results[name].warnings if "imported copper on the Lumped" in x][0]
         # The text states the cases honestly: windows and the whole board, a sample and not a bound, and who reads the copper
-        assert "not a bound" in w and "24 windows" in w and "whole RP2040 board" in w and "27 to 42 %" in w and "17 to 35 %" in w and "do read it" in w, name
+        assert "not a bound" in w and "42 parts" in w and "25 to 82 %" in w and "17 to 77 %" in w and "39 to 81 %" in w and "0402" in w and "do read" in w, name
+        assert "average over a cell" in w and "invisible" in w, name
     assert any("imported copper in the 3D solid" in w for w in sim.results["solid3d"].warnings)
     assert any("import" in w for w in sim.results["fvm"].warnings) and any("import" in w for w in sim.results["fdm"].warnings)
     # A drawn board gets none of these

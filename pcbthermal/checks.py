@@ -23,6 +23,9 @@ from .uicontext import cell_where, laminate_where, using_ui
 
 # Where to change the cell, appended to every warning that tells the user to use another cell size: uicontext.cell_where() names the control of the window or the option of the command line
 
+# The finest cell that Auto (api.suggest_cell_mm, lo=0.25) gives: the cell warning of an imported board must not recommend a finer one
+IMPORTED_CELL_FLOOR_MM = 0.25
+
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
 THICK_PLATE_LIMIT = 0.05
 
@@ -125,8 +128,22 @@ def check_problem(problem, cell_mm=1.0, models=None):
                        "is applied to the part that is inside.", f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board.")
         n_across = min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) / min(dx, dy)
         if n_across < 3:
-            _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of "
-                       f"{min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000 / 4:.2f} mm or less ({cell_where()}).")
+            side_mm = min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0
+            if not imported_layers:
+                _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of "
+                           f"{side_mm / 4:.2f} mm or less ({cell_where()}).")
+            elif cell_mm > IMPORTED_CELL_FLOOR_MM + 1e-9:
+                # Auto never goes below 0.25 mm, so a finer cell is not offered for imported copper (the masks and the memory grow with 1 / cell^2)
+                rec = max(side_mm / 4, IMPORTED_CELL_FLOOR_MM)
+                note = (" " + copper.SMALL_PART_CELL_NOTE_TEXT + ".") if cell_mm >= 1.0 - 1e-9 else ""
+                _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of {rec:.2f} mm "
+                           f"(the finest cell that Auto gives for imported copper; {cell_where()}).{note}",
+                     f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of {rec:.2f} mm.")
+            else:
+                _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide even at the finest cell that Auto gives for imported copper "
+                           f"({IMPORTED_CELL_FLOOR_MM:g} mm); the reference moved 3 to 30 % between 0.5 and 0.25 mm for the small parts measured, so read this part "
+                           "with care (a sample, not a bound).",
+                     f"{name}: the smallest side is only {n_across:.1f} cells wide at the finest Auto cell; read it with care.")
         if cov.sum() > 0:
             f_mean = float((fill[h.layer] * cov).sum() / cov.sum())
             if f_mean < 0.02:
