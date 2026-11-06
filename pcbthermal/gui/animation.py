@@ -26,6 +26,7 @@ class AnimationTab(QWidget):
     """
 
     compute_requested = Signal(dict)
+    warnings_changed = Signal(list)      # The limits of the model met by the last animation, for the Results summary
 
     def __init__(self, theme="dark", parent=None):
         """!
@@ -210,6 +211,7 @@ class AnimationTab(QWidget):
         warns = list(getattr(tr, "warnings", None) or [])
         self.status.setText(text + "".join(f"\nWarning: {w}" for w in warns))
         self.status.setToolTip("\n".join(warns))
+        self.warnings_changed.emit(warns)                         # The Results summary lists them too (a transient with a heatsink in the Analytic model)
         self._frame = len(tr.times) - 1
         self.slider.setValue(self._frame)
         self._redraw()

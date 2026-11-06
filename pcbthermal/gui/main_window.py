@@ -972,7 +972,8 @@ class MainWindow(QMainWindow):
             u.set_opacity(70)
         self.overlay_opacity.setValue(70)
         self._sync_underlay()
-        self.statusBar().showMessage("Ready.")
+        # The load rebuilt the canvas before this "Ready." could overwrite its message: say again that the stored image cannot be drawn
+        self.statusBar().showMessage(self.canvas.background_problem or "Ready.")
 
     def new_board(self):
         """!

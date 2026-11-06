@@ -8,6 +8,7 @@ The scene is in millimetres with the y axis pointing up (the view flips it), so 
 coordinates are the board coordinates the physics core uses.
 """
 
+import os
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
@@ -349,6 +350,8 @@ class BoardView(QGraphicsView):
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
         self.background_full = False                             # True while a map is over the Image underlay: the image is then drawn at 100 %
+        self.background_problem = ""                             # Text for the status bar while the stored background image cannot be read ("" when fine)
+        self._bg_reported = None                                 # The path already reported, so that a redraw does not repeat the message
         self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
@@ -551,9 +554,19 @@ class BoardView(QGraphicsView):
         cfg = self.doc.project.view.get("background")
         if not cfg:
             return
-        pm = QPixmap(cfg.get("path", ""))
+        path = cfg.get("path", "")
+        pm = QPixmap(path)
         if pm.isNull():
+            # The stored path is kept (the dialog shows it): only say, once per load, that the picture cannot be drawn
+            name = os.path.basename(path) or "(no file name)"
+            what = "not found" if not os.path.exists(path) else "could not be read"
+            self.background_problem = f"Background image {what}: {name}; use View - Background image… to choose it again."
+            if self._bg_reported != path:
+                self._bg_reported = path
+                self.message.emit(self.background_problem)
             return
+        self.background_problem = ""
+        self._bg_reported = None
         item = QGraphicsPixmapItem(pm)
         # Image rows go downward, the scene goes upward: flip y and anchor at the top-left corner
         item.setTransform(QTransform().scale(cfg["w_mm"] / pm.width(), -cfg["h_mm"] / pm.height()))
