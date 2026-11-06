@@ -656,8 +656,9 @@ def test_a_reimport_into_a_project_with_a_background_image_offers_copper_only(ap
     win = app.win
 
     def entries():
-        return [[u.combo.itemData(i) for i in range(u.combo.count())]
-                for u in (win.results.temp.underlay, win.results.grad.underlay, win.results.animation.underlay, win.editor_underlay)]
+        # One display state for every map and the board; the popover lists the same entries
+        pop = win.display_popover
+        return [[k for _l, k in win.display.entries()], [pop.underlay.itemData(i) for i in range(pop.underlay.count())]]
     assert all(e == ["none", "copper", "image"] for e in entries())                  # hand-drawn with an image
     app.run(base, "replace", powers={"U1": 3.0})
     assert all(e == ["none", "copper"] for e in entries()), entries()
