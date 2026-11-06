@@ -6,6 +6,7 @@
 """
 
 import copy
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -38,7 +39,7 @@ from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
 from .results_view import ResultsView
-from .underlay import UnderlayControls
+from .underlay import ReleaseSync, UnderlayControls
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
@@ -628,8 +629,8 @@ class MainWindow(QMainWindow):
         self.overlay_opacity_box.setEnabled(False)
         self.overlay_opacity_box.setToolTip("Opacity of the temperature map over the board in percent, 0 to 100 (default 70): the same value as the slider beside it, typed.")
         # Slider and box hold one value: each follows the other (blocked signals, so there is one change and one repaint)
-        self.overlay_opacity.valueChanged.connect(self._overlay_opacity_changed)
-        self.overlay_opacity_box.valueChanged.connect(self.overlay_opacity.setValue)
+        # The map on the board is repainted once per finished edit (mouse released, Enter, or a pause after keys and the wheel); the box follows a drag live
+        self.overlay_sync = ReleaseSync(self.overlay_opacity, self.overlay_opacity_box, self._overlay_opacity_changed, self)
         tb.addWidget(self.overlay_opacity)
         tb.addWidget(self.overlay_opacity_box)
         # The map on the board follows the Temperature tab: its model, colour map and colour limits (without this the overlay kept the scale of the moment it was switched on)
@@ -788,6 +789,7 @@ class MainWindow(QMainWindow):
             for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
                 u.set_opacity(pct)
             self.overlay_opacity.setValue(int(round(pct)))
+            self.overlay_sync.flush()                       # A programmatic change is applied now, not after the pause of a typed one
             self.results.temp.redraw()
             self.results.grad.redraw()
             self.results.animation.redraw()
@@ -913,7 +915,7 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui"))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -971,6 +973,7 @@ class MainWindow(QMainWindow):
         for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
             u.set_opacity(70)
         self.overlay_opacity.setValue(70)
+        self.overlay_sync.flush()
         self._sync_underlay()
         # The load rebuilt the canvas before this "Ready." could overwrite its message: say again that the stored image cannot be drawn
         self.statusBar().showMessage(self.canvas.background_problem or "Ready.")
@@ -1156,7 +1159,7 @@ class MainWindow(QMainWindow):
         if low:
             self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
-        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
+        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)

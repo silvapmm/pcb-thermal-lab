@@ -165,8 +165,10 @@ def test_controls_entries_and_opacity_pair(qtbot):
     u.combo.setCurrentIndex(2)
     assert u.kind() == "image" and u.opacity.isEnabled()
     u.opacity_spin.setValue(25)
+    u.flush()
     assert u.opacity.value() == 25 and u.value() == 0.25
     u.opacity.setValue(90)
+    u.flush()
     assert u.opacity_spin.value() == 90
     u.set_source(True, {"path": "x"}, image=img)           # An imported project: Copper only, and the choice that vanished goes back to None
     assert items() == ["none", "copper"] and u.kind() == "none"
@@ -210,7 +212,8 @@ def test_entries_per_project_type_and_migration_of_the_stored_opacity(qtbot, tmp
         assert _entries(u) == ["none", "copper", "image"]
     assert r.temp.underlay.opacity.value() == r.grad.underlay.opacity.value() == r.animation.underlay.opacity.value() == 25
     assert win.overlay_opacity.value() == 25
-    r.temp.underlay.opacity.setValue(60)                    # A later choice of the user is not taken back
+    r.temp.underlay.opacity.setValue(60)
+    r.temp.underlay.flush()                   # A later choice of the user is not taken back
     win.doc.changed.emit()
     assert r.temp.underlay.opacity.value() == 60
     win.doc.project.imports = [ImportRecord(name="b")]
@@ -275,6 +278,7 @@ def test_animation_underlay_view_and_export(qtbot, tmp_path):
     frame()
     assert tab.underlay.cache[0] is first
     tab.underlay.opacity.setValue(10)
+    tab.underlay.flush()
     assert not np.array_equal(withcu, frame())
     tab.slider.setValue(tab.slider.maximum())
     tab.underlay.combo.setCurrentIndex(0)
@@ -356,6 +360,7 @@ def test_reopening_a_project_takes_its_stored_opacity_again(qtbot, tmp_path):
     win.doc.save(path)
     assert win.results.temp.underlay.opacity.value() == 90
     win.results.temp.underlay.opacity.setValue(55)
+    win.results.temp.underlay.flush()
     win.doc.open(path)
     win._after_load()
     assert win.results.temp.underlay.opacity.value() == win.results.animation.underlay.opacity.value() == win.overlay_opacity.value() == 90
@@ -448,6 +453,7 @@ def test_new_project_or_no_stored_opacity_resets_the_pairs_to_70(qtbot, tmp_path
                                           "opacity": 0.9}
     win.doc.changed.emit()
     win.results.temp.underlay.opacity.setValue(33)
+    win.results.temp.underlay.flush()
     win.doc.new(50.0, 40.0, 2)
     win._after_load()
     for u in (win.results.temp.underlay, win.results.grad.underlay, win.results.animation.underlay):

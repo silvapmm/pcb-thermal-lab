@@ -110,6 +110,7 @@ def test_opacity_changes_the_painted_pixels_and_the_default_is_70_percent(qtbot,
     shots = []
     for v in (100, 30):
         win.overlay_opacity.setValue(v)
+        win.overlay_sync.flush()
         shots.append(_rgba(win.canvas.viewport().grab().toImage()))
     assert not np.array_equal(shots[0], shots[1])            # a lower opacity paints other pixels
     assert abs(win.canvas._overlay.opacity() - 0.3) < 1e-9
@@ -281,10 +282,13 @@ def test_the_opacity_box_and_the_slider_follow_each_other(qtbot, tmp_path, sim_r
     win.a_overlay.setChecked(True)
     assert win.overlay_opacity_box.isEnabled()
     win.overlay_opacity_box.setValue(25)
+    win.overlay_sync.flush()
     assert win.overlay_opacity.value() == 25 and abs(win.canvas._overlay.opacity() - 0.25) < 1e-9
     win.overlay_opacity.setValue(90)
+    win.overlay_sync.flush()
     assert win.overlay_opacity_box.value() == 90 and abs(win.canvas._overlay.opacity() - 0.9) < 1e-9
     win.overlay_opacity_box.setValue(0)
+    win.overlay_sync.flush()
     assert win.canvas._overlay.opacity() == 0.0
 
 

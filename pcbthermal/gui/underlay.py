@@ -13,13 +13,14 @@
 import os
 
 import numpy as np
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QComboBox, QLabel, QSlider, QSpinBox
 
 from .. import plots
 from . import theme as th
 
+OPACITY_DEBOUNCE_MS = 250                               # Wait after the last key, wheel or arrow step before the maps are drawn again
 IMAGE_MAX_PX = 2048                                     # Longest side of the picture kept for the underlay
 DEFAULT_OPACITY = 70                                    # Percent of the map over the underlay
 
@@ -86,6 +87,76 @@ def cached_underlay_image(cfg):
     return _LAST[1]
 
 
+class ReleaseSync(QObject):
+    """!
+    @brief Keeps a slider and a box in step and calls back only when the user has finished: the mouse is released, Enter is pressed, or a pause follows a key or the wheel.
+    @details A drag redraws nothing (the box shows the value live); key, wheel and arrow steps are debounced by OPACITY_DEBOUNCE_MS so that a run of steps draws once.
+    """
+
+    def __init__(self, slider, spin, callback, parent=None):
+        """!
+        @param slider QSlider with the value.
+        @param spin QSpinBox with the same value (typed); its keyboard tracking should be off.
+        @param callback Callable(value) called once per finished edit.
+        @param parent Qt parent.
+        """
+        super().__init__(parent)
+        self.slider, self.spin, self.callback = slider, spin, callback
+        self._pending = False
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.setInterval(OPACITY_DEBOUNCE_MS)
+        self.timer.timeout.connect(self.flush)
+        slider.valueChanged.connect(self._slider_moved)
+        slider.sliderReleased.connect(self.flush)
+        spin.valueChanged.connect(self._spin_changed)
+        spin.editingFinished.connect(self.flush)
+
+    def _slider_moved(self, value):
+        """!
+        @brief The slider changed: show the value in the box at once; draw after the release, or after a pause for a key or the wheel.
+        @param value Slider value in percent.
+        """
+        self.spin.blockSignals(True)
+        self.spin.setValue(value)
+        self.spin.blockSignals(False)
+        self._pending = True
+        if not self.slider.isSliderDown():
+            self.timer.start()
+
+    def _spin_changed(self, value):
+        """!
+        @brief The box changed (typed and confirmed, or an arrow step): move the slider silently and draw after a pause (at once on Enter or focus loss).
+        @param value Box value in percent.
+        """
+        self.slider.blockSignals(True)
+        self.slider.setValue(value)
+        self.slider.blockSignals(False)
+        self._pending = True
+        self.timer.start()
+
+    def flush(self):
+        """!
+        @brief Call back now if an edit is waiting.
+        """
+        self.timer.stop()
+        if self._pending:
+            self._pending = False
+            self.callback(self.slider.value())
+
+    def set_silently(self, percent):
+        """!
+        @brief Set both widgets without any callback and forget a waiting edit.
+        @param percent Opacity 0 to 100.
+        """
+        self.timer.stop()
+        self._pending = False
+        for w in (self.slider, self.spin):
+            w.blockSignals(True)
+            w.setValue(percent)
+            w.blockSignals(False)
+
+
 class UnderlayControls(QObject):
     """!
     @brief The Underlay combo and the opacity pair (slider and box), with the image and the cache of the pictures drawn under the map.
@@ -118,8 +189,8 @@ class UnderlayControls(QObject):
         self._imported, self._has_image = False, False
         self._fill()
         self.combo.currentIndexChanged.connect(self._edited)
-        self.opacity.valueChanged.connect(self._from_slider)
-        self.opacity_spin.valueChanged.connect(self._from_spin)
+        # The opacity redraws the maps once per finished edit (mouse released, Enter, or a pause after keys and the wheel), the box follows a drag live
+        self.sync = ReleaseSync(self.opacity, self.opacity_spin, lambda _v: self._edited(), self)
 
     def widgets(self):
         """!
@@ -192,25 +263,11 @@ class UnderlayControls(QObject):
         for w in (self.opacity_label, self.opacity, self.opacity_spin):
             w.setEnabled(on)
 
-    def _from_slider(self, value):
+    def flush(self):
         """!
-        @brief The slider moved: put the value in the box without a second signal, then handle it as one edit.
-        @param value Slider value in percent.
+        @brief Apply an opacity edit that is still waiting for its pause (tests and shutdown).
         """
-        self.opacity_spin.blockSignals(True)
-        self.opacity_spin.setValue(value)
-        self.opacity_spin.blockSignals(False)
-        self._edited()
-
-    def _from_spin(self, value):
-        """!
-        @brief The box changed: put the value on the slider without a second signal, then handle it as one edit.
-        @param value Box value in percent.
-        """
-        self.opacity.blockSignals(True)
-        self.opacity.setValue(value)
-        self.opacity.blockSignals(False)
-        self._edited()
+        self.sync.flush()
 
     def _edited(self, *_):
         """!
@@ -225,11 +282,7 @@ class UnderlayControls(QObject):
         @brief Set the opacity pair without a signal.
         @param percent Opacity 0 to 100.
         """
-        v = int(max(0, min(100, round(percent))))
-        for w in (self.opacity, self.opacity_spin):
-            w.blockSignals(True)
-            w.setValue(v)
-            w.blockSignals(False)
+        self.sync.set_silently(int(max(0, min(100, round(percent)))))
 
     def set_kind(self, kind):
         """!

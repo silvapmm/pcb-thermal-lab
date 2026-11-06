@@ -5,6 +5,7 @@
 @brief The Power profile page: edit a square-wave power per heater, see the average-or-resolve decision, set the time run.
 """
 
+import dataclasses
 import math
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -603,7 +604,7 @@ class ProfilePage(QWidget):
         import copy
         self.analyze.setEnabled(False)
         self.status.setText("Computing the thermal response of the heaters…")
-        self.worker = ProcessWorker("analyze", copy.deepcopy(pr), copy.deepcopy(self.doc.options))
+        self.worker = ProcessWorker("analyze", copy.deepcopy(pr), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.done.connect(lambda out: self._on_analysis(*out))
         self.worker.failed.connect(self._on_analysis_failed)
         self.worker.cancelled.connect(lambda: self._on_analysis_failed("Cancelled."))
