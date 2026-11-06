@@ -67,7 +67,9 @@ def test_guide_gerber_walkthrough_glossary_and_validity():
     # Every picture the guide points to ships beside it, and the README pictures exist in docs/images
     for name in re.findall(r'<img src="([^"]+)"', html):
         assert (GUIDE.parent / name).exists(), name
-    for name in ("import_step1", "import_step2", "import_step3", "import_reimport", "editor_imported", "editor_warnings", "preferences_solver_gerber"):
+    for name in ("import_step1", "import_step2", "import_step3", "import_reimport", "editor_imported", "editor_warnings", "preferences_solver_gerber",
+                 "results_views", "results_views_dark", "results_terrain", "results_gradient", "animation_underlay", "editor_overlay", "background_dialog",
+                 "editor_background", "import_reimport_different"):
         assert 'src="%s.png"' % name in html, name
 
 
