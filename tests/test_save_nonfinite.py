@@ -145,3 +145,22 @@ def test_a_gui_edit_that_makes_a_value_non_finite_or_absurd_is_undone(qtbot):
     n = doc.stack.index()
     doc.set_props("heater", 0, power=3.0)               # An ordinary edit still works
     assert doc.problem.heaters[0].power == 3.0 and doc.stack.index() == n + 1
+
+
+def test_a_refused_edit_is_announced_once_in_the_status_bar(qtbot):
+    """!
+    @brief A refused edit emits edit_refused once and the main window shows the text in its status bar (no dialog); an ordinary edit says nothing.
+    @param qtbot pytest-qt fixture.
+    @return None.
+    """
+    from pcbthermal.gui.main_window import MainWindow
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.doc.open_problem(example_board())
+    w.statusBar().clearMessage()
+    seen = []
+    w.doc.edit_refused.connect(seen.append)
+    w.doc.set_props("heater", 0, power=2.0)
+    assert seen == [] and "refused" not in w.statusBar().currentMessage()
+    w.doc.set_props("heater", 0, polygon=np.asarray(w.doc.problem.heaters[0].polygon) + np.inf)
+    assert len(seen) == 1 and "refused" in w.statusBar().currentMessage() and "1 km" in w.statusBar().currentMessage()

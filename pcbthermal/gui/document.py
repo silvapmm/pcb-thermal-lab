@@ -88,6 +88,8 @@ class Document(QObject):
 
     changed = Signal()          # The problem or the options changed (views must refresh)
     state_changed = Signal()    # File name or modified flag changed (window title)
+    edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
+    edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
 
     def __init__(self, project=None):
         """!
@@ -190,6 +192,8 @@ class Document(QObject):
             logger.warning("edit '%s' refused: %s", text, exc)
             self.project = project_from_dict(copy.deepcopy(before), validate=False)
             self.changed.emit()
+            # The user must see why the value snapped back (one message per refusal, no dialog)
+            self.edit_refused.emit("That value was refused: it would be larger than 1 km or not a number.")
             return
         self.stack.push(_SnapshotCommand(self, text, before, after, merge_key))
         self.changed.emit()
