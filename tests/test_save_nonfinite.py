@@ -123,3 +123,25 @@ def test_random_magnitudes_up_to_the_bound_save_load_save_is_stable(tmp_path):
         save_project(a, proj)
         save_project(b, load_project(a))
         assert open(a, encoding="utf-8").read() == open(b, encoding="utf-8").read()
+
+
+def test_a_gui_edit_that_makes_a_value_non_finite_or_absurd_is_undone(qtbot):
+    """!
+    @brief Document.edit refuses a result with an infinite, NaN or beyond-the-bound coordinate and leaves the project as it was (no undo step).
+    @param qtbot pytest-qt fixture.
+    @return None.
+    """
+    from pcbthermal.gui.document import Document
+    doc = Document(Project(problem=example_board()))
+    before = doc.snapshot()
+    n = doc.stack.count()
+    for bad in (np.inf, np.nan, 1e303, 2e3):          # 2e3 m is 2e6 mm, above the bound
+        doc.set_props("heater", 0, polygon=np.asarray(doc.problem.heaters[0].polygon) + bad)
+        assert doc.snapshot() == before and doc.stack.count() == n
+    doc.move([("heater", 0)], 1e300, 0.0)                # The drag is clipped to the board: a legitimate edit, and the result can be saved and reopened
+    project_from_dict(doc.snapshot())
+    doc.stack.undo()
+    assert doc.snapshot() == before
+    n = doc.stack.count()
+    doc.set_props("heater", 0, power=3.0)               # An ordinary edit still works
+    assert doc.problem.heaters[0].power == 3.0 and doc.stack.count() == n + 1

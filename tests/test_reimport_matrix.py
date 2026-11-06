@@ -243,6 +243,39 @@ def test_changed_copper_is_taken_by_replace_and_update_and_undone_in_one_step(ap
     assert snapshot(app.doc) == after
 
 
+@pytest.mark.parametrize("mode", ["replace", "update"])
+def test_undo_of_a_reimport_restores_the_whole_record_and_a_second_reimport_matches_the_first(app, base, tmp_path, mode):
+    """!
+    @brief Guard (a reviewer read in the code that undo kept the new stored sources): the project holds no source bytes, only the record (file names,
+           sizes, hashes), the packed masks and the unknown keys, and Document._restore rebuilds all of them from the snapshot.
+    @details After Undo the record, the masks, the unknown top-level keys and the unknown keys of the record are the old ones, and the same re-import done
+             again gives exactly the state the first one gave, so nothing of the new files stayed behind.
+    @param app The application driver.
+    @param base Folder of the first import.
+    @param tmp_path Temporary folder.
+    @param mode Re-import command.
+    @return None.
+    """
+    app.run(base, "replace", powers={"U1": 3.0})
+    # Keys a later version wrote: they must survive a save and an undo, on the project and on its record
+    app.doc.project.extra["future_key"] = {"a": 1}
+    app.doc.project.imports[0].extra["record_future"] = "x"
+    before = app.doc.snapshot()
+    new = variant(base, tmp_path, "rev", F_gbr=COPPER_EDIT)
+    app.run(new, mode)
+    first = app.doc.snapshot()
+    assert first != before
+    app.doc.stack.undo()
+    assert app.doc.snapshot() == before
+    assert app.doc.project.extra == {"future_key": {"a": 1}}
+    assert app.doc.project.imports[0].extra == {"record_future": "x"}
+    assert [f.sha256 for f in app.doc.project.imports[0].files] == [f["sha256"] for f in before["imports"][0]["files"]]
+    app.run(new, mode)
+    assert app.doc.snapshot() == first
+    app.doc.stack.undo()
+    assert app.doc.snapshot() == before
+
+
 def test_add_never_takes_copper_and_the_message_says_which_file_was_left(app, base, tmp_path):
     app.run(base, "replace", powers={"U1": 3.0})
     before = snapshot(app.doc)
