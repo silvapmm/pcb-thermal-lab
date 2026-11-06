@@ -37,6 +37,7 @@ from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
 from .results_view import ResultsView
+from .underlay import UnderlayControls
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
@@ -80,7 +81,7 @@ BACKGROUND_IMPORTED_TIP = ("A background image is for tracing a board by hand; t
 
 class BackgroundDialog(QDialog):
     """!
-    @brief Place a photo or layout image under the board (position, size, opacity).
+    @brief Place a photo or layout image under the board (file, position and size; the opacity of the map over it is the Underlay opacity).
     """
 
     def __init__(self, cfg, board_mm, parent=None, imported=False):
@@ -95,6 +96,8 @@ class BackgroundDialog(QDialog):
         self.board_mm = board_mm
         cfg = cfg or {}
         self.path = cfg.get("path", "")
+        # The opacity of an older project is not edited here any more (the Underlay controls own it); the stored value is kept as it was
+        self._stored_opacity = cfg.get("opacity")
         f = QFormLayout(self)
         self.file_label = QLabel(os.path.basename(self.path) or "no image")
         choose = QPushButton("Choose image…")
@@ -119,24 +122,9 @@ class BackgroundDialog(QDialog):
             s.setDecimals(2)
             s.setSuffix(" mm")
             s.setValue(cfg.get(k, d))
-        self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(0, 100)
-        self.opacity.setToolTip("Opacity of the background image, 0 to 100 % (default 50 %): lower it to read the drawing over the image.")
-        self.opacity_box = QSpinBox()
-        self.opacity_box.setRange(0, 100)
-        self.opacity_box.setSuffix(" %")
-        self.opacity_box.setToolTip("Opacity of the background image in percent, 0 to 100: the same value as the slider beside it, typed.")
-        # Linked both ways; the guards in Qt (no signal on an equal value) stop the loop
-        self.opacity.valueChanged.connect(self.opacity_box.setValue)
-        self.opacity_box.valueChanged.connect(self.opacity.setValue)
-        self.opacity.setValue(int(round(cfg.get("opacity", 0.5) * 100)))
-        op_row = QHBoxLayout()
-        op_row.addWidget(self.opacity, 1)
-        op_row.addWidget(self.opacity_box)
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
-        for label, w in (("X", self.x), ("Y", self.y), ("Width", self.w), ("Height", self.h),
-                         ("Opacity", op_row)):
+        for label, w in (("X", self.x), ("Y", self.y), ("Width", self.w), ("Height", self.h)):
             f.addRow(label, w)
         f.addRow(fit)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -176,8 +164,10 @@ class BackgroundDialog(QDialog):
         """
         if not self.path:
             return None
-        return {"path": self.path, "x_mm": self.x.value(), "y_mm": self.y.value(), "w_mm": self.w.value(),
-                "h_mm": self.h.value(), "opacity": self.opacity.value() / 100.0}
+        out = {"path": self.path, "x_mm": self.x.value(), "y_mm": self.y.value(), "w_mm": self.w.value(), "h_mm": self.h.value()}
+        if self._stored_opacity is not None:
+            out["opacity"] = self._stored_opacity           # An old project keeps its value (the initial opacity of the map over the image)
+        return out
 
 
 class _FooterLimiter(QObject):
@@ -226,6 +216,7 @@ class MainWindow(QMainWindow):
 
         self.canvas = BoardView(self.doc, self.theme_name)
         self.results = ResultsView(self.theme_name)
+        self._underlay_key = None                          # Path of the image whose stored opacity was already taken as the initial one
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
         self.stackup_page = StackupPage(self.doc, self.theme_name)
@@ -610,6 +601,18 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         for a in (self.a_fit, self.a_grid, self.a_sgrid, self.a_overlay):
             tb.addAction(a)
+        # What is under the map on the board: the same combo as the Results maps (None / Copper / Image); the editor draws the zones and the imported
+        # copper itself, so here the choice decides whether the background image shows while the map is on
+        self.editor_underlay = UnderlayControls(self)
+        self.editor_underlay.combo.setEnabled(False)
+        self.editor_underlay.combo.setToolTip("What is under the temperature map on the board. None or Copper: the background image is hidden while the map is on (the zones "
+                                              "and the imported copper are always drawn); Image: the background image of the project shows under the map. "
+                                              "The same choice as the Underlay of the Results maps. Active while Temperature on board is on.")
+        tb.addWidget(QLabel(" Underlay "))
+        tb.addWidget(self.editor_underlay.combo)
+        self.editor_underlay.combo.currentIndexChanged.connect(self._editor_underlay_edited)
+        for t in (self.results.temp, self.results.grad):
+            t.view_changed.connect(self._editor_underlay_follow)
         self.overlay_opacity = QSlider(Qt.Horizontal)
         self.overlay_opacity.setRange(0, 100)
         self.overlay_opacity.setValue(70)
@@ -700,6 +703,8 @@ class MainWindow(QMainWindow):
 
         self.overlay_opacity.setEnabled(bool(on))
         self.overlay_opacity_box.setEnabled(bool(on))
+        self.editor_underlay.combo.setEnabled(bool(on))
+        self._editor_apply_underlay(bool(on))
         if not on or self.sim is None or self._stale:
             self.canvas.clear_overlay()
             if on:
@@ -711,6 +716,8 @@ class MainWindow(QMainWindow):
                 self.a_overlay.blockSignals(False)
                 self.overlay_opacity.setEnabled(False)
                 self.overlay_opacity_box.setEnabled(False)
+                self.editor_underlay.combo.setEnabled(False)
+                self._editor_apply_underlay(False)
             return
         cfg = self.results.temp.current_field()
         res = self.results.temp._result() or self.sim.reference     # The model shown in the Results tab
@@ -723,6 +730,8 @@ class MainWindow(QMainWindow):
             self.a_overlay.blockSignals(False)
             self.overlay_opacity.setEnabled(False)
             self.overlay_opacity_box.setEnabled(False)
+            self.editor_underlay.combo.setEnabled(False)
+            self._editor_apply_underlay(False)
             return
         layer = min(self.canvas.layer, res.T.shape[0] - 1)
         field = res.T[layer]
@@ -733,6 +742,53 @@ class MainWindow(QMainWindow):
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
         self.canvas.set_overlay(field, res.dx, res.dy, cmap=cfg[3] if cfg else "inferno", vmin=vmin, vmax=vmax,
                                 opacity=self.overlay_opacity.value() / 100.0, nodes=nodes, mask=mask)
+
+    def _editor_apply_underlay(self, overlay_on):
+        """!
+        @brief Show the background image on the canvas: always, except while a map is on the board and the Underlay is not Image.
+        @param overlay_on True while the temperature map is painted on the board.
+        """
+        self.canvas.set_background_visible(not overlay_on or self.editor_underlay.kind() == "image")
+
+    def _editor_underlay_edited(self, *_):
+        """!
+        @brief The Underlay combo of the editor changed: the Results maps follow it, and the image shows or hides.
+        """
+        res = self.results
+        res.temp.underlay.set_kind(self.editor_underlay.kind())
+        res.grad.underlay.set_kind(self.editor_underlay.kind())
+        res.temp.redraw()
+        res.grad.redraw()
+        self._editor_apply_underlay(self.a_overlay.isChecked())
+
+    def _editor_underlay_follow(self):
+        """!
+        @brief The Underlay of a Results map changed: the combo of the editor shows the same entry.
+        """
+        self.editor_underlay.set_kind(self.results.temp.underlay.kind())
+        self._editor_apply_underlay(self.a_overlay.isChecked())
+
+    def _sync_underlay(self):
+        """!
+        @brief Tell the Results maps, the Animation and the editor what the project offers under the map (copper, and the image of a hand-drawn project).
+        @details An image that appears for the first time brings its stored opacity (older projects) as the initial opacity of the map over it.
+        """
+        cfg = self.doc.project.view.get("background")
+        imported = self._is_imported()
+        self.results.set_underlay_source(imported, cfg)
+        self.editor_underlay.set_source(imported, cfg, image=self.results.temp.underlay.image)
+        self.editor_underlay.set_kind(self.results.temp.underlay.kind())
+        key = None if imported or not cfg else cfg.get("path")
+        if key is not None and key != self._underlay_key and cfg.get("opacity") is not None:
+            pct = cfg["opacity"] * 100.0
+            for u in (self.results.temp.underlay, self.results.grad.underlay, self.results.animation.underlay):
+                u.set_opacity(pct)
+            self.overlay_opacity.setValue(int(round(pct)))
+            self.results.temp.redraw()
+            self.results.grad.redraw()
+            self.results.animation.redraw()
+        self._underlay_key = key
+        self._editor_apply_underlay(self.a_overlay.isChecked())
 
     def _overlay_follow_results(self, *_):
         """!
@@ -863,6 +919,7 @@ class MainWindow(QMainWindow):
         """
         self._edits += 1
         self._update_background_action()
+        self._sync_underlay()
         self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
@@ -1039,6 +1096,7 @@ class MainWindow(QMainWindow):
             else:
                 self.doc.project.view.pop("background", None)
             self.canvas.rebuild()
+            self._sync_underlay()
 
     def _is_imported(self):
         """!

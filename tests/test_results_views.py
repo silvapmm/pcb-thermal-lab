@@ -261,11 +261,11 @@ def test_controls_default_to_the_old_picture_and_follow_the_view(tab):
     @brief The defaults are Current with no copper; the opacity is enabled only with the copper box and the contour step only for Terrain.
     @param tab PlotTab fixture.
     """
-    assert tab.view.currentData() == "current" and not tab.copper.isChecked()
+    assert tab.view.currentData() == "current" and not (tab.underlay.kind() == "copper")
     assert [tab.view.itemData(i) for i in range(tab.view.count())] == ["current", "smooth", "terrain"]
     assert tab.opacity.value() == 70 and tab.contour.value() == 5.0
     assert not tab.opacity.isEnabled() and tab.contour.isHidden() and tab.contour_label.isHidden()
-    tab.copper.setChecked(True)
+    tab.underlay.combo.setCurrentIndex(1)
     assert tab.opacity.isEnabled()
     tab.view.setCurrentIndex(tab.view.findData("terrain"))
     assert not tab.contour.isHidden() and not tab.contour_label.isHidden()
@@ -286,7 +286,7 @@ def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
     assert _sha(first) != _sha(terrain)
     tab.view.setCurrentIndex(0)
     assert _sha(_rgba_tab(tab)) == _sha(first)                                      # Back to Current: the same pixels
-    tab.copper.setChecked(True)
+    tab.underlay.combo.setCurrentIndex(1)
     assert _sha(_rgba_tab(tab)) != _sha(first)
     tab.layer.setCurrentIndex(tab.layer.findData(-2))
     tab.redraw()
@@ -309,7 +309,7 @@ def test_theme_switch_redraws_with_the_theme_colours(tab):
     @brief With the copper box ticked, a theme switch redraws the figure with the other tokens (the picture changes and the contour colour follows).
     @param tab PlotTab fixture.
     """
-    tab.copper.setChecked(True)
+    tab.underlay.combo.setCurrentIndex(1)
     tab.view.setCurrentIndex(tab.view.findData("terrain"))
     dark = _sha(_rgba_tab(tab))
     assert tab.map_view().contour_color == th.colors("dark")["map_contour"]
@@ -327,9 +327,9 @@ def test_temperature_and_gradient_tabs_share_the_view(sim):
     rv = ResultsView("dark")
     rv.set_simulation(sim)
     rv.temp.view.setCurrentIndex(rv.temp.view.findData("smooth"))
-    rv.temp.copper.setChecked(True)
+    rv.temp.underlay.combo.setCurrentIndex(1)
     rv.temp.opacity.setValue(40)
-    assert rv.grad.view.currentData() == "smooth" and rv.grad.copper.isChecked() and rv.grad.opacity.value() == 40
+    assert rv.grad.view.currentData() == "smooth" and (rv.grad.underlay.kind() == "copper") and rv.grad.opacity.value() == 40
     rv.grad.view.setCurrentIndex(rv.grad.view.findData("terrain"))
     assert rv.temp.view.currentData() == "terrain"
     assert rv.grad.contour.isHidden()                                              # The gradient has no K step: it picks a round one
@@ -346,7 +346,7 @@ def test_redraw_is_fast_on_a_100_by_80_mm_board(sim1):
     QApplication.instance() or QApplication([])
     t = PlotTab("temperature", "dark")
     t.set_simulation(sim1)
-    t.copper.setChecked(True)
+    t.underlay.combo.setCurrentIndex(1)
     t.view.setCurrentIndex(t.view.findData("terrain"))
     t.redraw()
     t.canvas.draw()                                                                # Warm: the copper picture is made here
@@ -363,7 +363,7 @@ def test_opacity_spin_box_and_slider_are_one_value_and_drive_the_pixels(tab):
     """
     assert (tab.opacity_spin.minimum(), tab.opacity_spin.maximum(), tab.opacity_spin.value(), tab.opacity_spin.suffix()) == (0, 100, 70, " %")
     assert not tab.opacity_spin.isEnabled() and tab.opacity_spin.toolTip() and tab.opacity.toolTip()
-    tab.copper.setChecked(True)
+    tab.underlay.combo.setCurrentIndex(1)
     assert tab.opacity_spin.isEnabled()
     calls = []
     tab.view_changed.connect(lambda: calls.append(1))

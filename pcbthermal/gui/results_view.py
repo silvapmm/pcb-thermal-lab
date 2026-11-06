@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 from .. import analysis, plots
 from . import theme as th
 from . import tips
+from .underlay import UnderlayControls
 from ..numfmt import num
 
 
@@ -171,17 +172,8 @@ class PlotTab(QWidget):
         self.view = QComboBox()                         # How the map is drawn (display only)
         for mode in plots.VIEW_MODES:
             self.view.addItem(plots.VIEW_LABELS[mode], mode)
-        self.copper = QCheckBox("Show copper")
-        self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(0, 100)
-        self.opacity.setValue(70)
-        self.opacity.setFixedWidth(110)
-        self.opacity_spin = QSpinBox()                  # The same value as the slider, typed
-        self.opacity_spin.setRange(0, 100)
-        self.opacity_spin.setValue(70)
-        self.opacity_spin.setSuffix(" %")
-        self.opacity_spin.setKeyboardTracking(False)
-        self.opacity_label = QLabel("Opacity")
+        self.underlay = UnderlayControls(self)          # None / Copper / Image under the map and the opacity of the map over it
+        self.opacity, self.opacity_spin = self.underlay.opacity, self.underlay.opacity_spin
         self.contour = QDoubleSpinBox()
         self.contour.setRange(0.5, 50.0)
         self.contour.setDecimals(1)
@@ -189,7 +181,6 @@ class PlotTab(QWidget):
         self.contour.setSuffix(" K")
         self.contour.setKeyboardTracking(False)
         self.contour_label = QLabel("Contour every")
-        self._copper_cache = {}                         # {layer: copper picture} of the simulation shown (plots.copper_image)
         self.axis = QComboBox()
         self.axis.addItem("Along x", "x")
         self.axis.addItem("Along y", "y")
@@ -204,13 +195,6 @@ class PlotTab(QWidget):
                               "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
         self.view.setToolTip("How the map is drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic (the solver "
                              "resolution is the cell, nothing finer is computed). Terrain: shaded relief with contour lines. Nothing is solved again.")
-        self.copper.setToolTip("Draw the copper of the layer shown (grey, from the zones or the imported copper) under the map, so the temperature can be "
-                               "read against the tracks and planes. Works with every View. Lumped and Analytic results on a board with an outline "
-                               "show the solved rectangle without copper.")
-        _op = ("Opacity of the temperature map over the copper, 0 to 100 % (0: only the copper, 100: the map hides it; default 70 %). "
-               "The slider and the box show the same value. Used only when Show copper is ticked.")
-        self.opacity.setToolTip(_op)
-        self.opacity_spin.setToolTip(_op)
         self.contour.setToolTip("Distance between the contour lines of the Terrain view in K; every second line is thicker and labelled with its "
                                 "temperature. The gradient map picks a round step by itself.")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
@@ -239,7 +223,7 @@ class PlotTab(QWidget):
         # Second row: the controls of the view (copper under the map, its opacity, the Terrain contour step)
         row2 = QHBoxLayout()
         if kind in ("temperature", "gradient"):
-            for w in (self.copper, self.opacity_label, self.opacity, self.opacity_spin, self.contour_label, self.contour):
+            for w in (*self.underlay.widgets(), self.contour_label, self.contour):
                 row2.addWidget(w)
         row2.addStretch(1)
 
@@ -254,9 +238,7 @@ class PlotTab(QWidget):
         for w in (self.model, self.layer, self.cmap, self.axis):
             w.currentIndexChanged.connect(self.redraw)
         self.view.currentIndexChanged.connect(self._view_edited)
-        self.copper.toggled.connect(self._view_edited)
-        self.opacity.valueChanged.connect(self._opacity_from_slider)
-        self.opacity_spin.valueChanged.connect(self._opacity_from_spin)
+        self.underlay.changed.connect(self._view_edited)
         self.contour.valueChanged.connect(self._view_edited)
         self._show_view_controls()
         for w in (self.hot, self.auto, self.equiv):
@@ -267,34 +249,11 @@ class PlotTab(QWidget):
 
     def _show_view_controls(self):
         """!
-        @brief Show or enable the view controls that apply: opacity with the copper box ticked, the contour step with the Terrain view (temperature only).
+        @brief Show the view controls that apply: the contour step with the Terrain view (temperature only).
         """
-        on = self.copper.isChecked()
-        for w in (self.opacity_label, self.opacity, self.opacity_spin):
-            w.setEnabled(on)
         terrain = self.view.currentData() == "terrain" and self.kind == "temperature"
         self.contour_label.setVisible(terrain)
         self.contour.setVisible(terrain)
-
-    def _opacity_from_slider(self, value):
-        """!
-        @brief The slider moved: put the value in the box without a second signal, then handle it as one edit.
-        @param value Slider value in percent.
-        """
-        self.opacity_spin.blockSignals(True)
-        self.opacity_spin.setValue(value)
-        self.opacity_spin.blockSignals(False)
-        self._view_edited()
-
-    def _opacity_from_spin(self, value):
-        """!
-        @brief The box changed: put the value on the slider without a second signal, then handle it as one edit.
-        @param value Box value in percent.
-        """
-        self.opacity.blockSignals(True)
-        self.opacity.setValue(value)
-        self.opacity.blockSignals(False)
-        self._view_edited()
 
     def _view_edited(self, *_):
         """!
@@ -307,18 +266,13 @@ class PlotTab(QWidget):
 
     def copy_view_from(self, other):
         """!
-        @brief Take the view, the copper box and the opacity of another tab (the contour step stays: it is a temperature step).
+        @brief Take the view, the underlay and the opacity of another tab (the contour step stays: it is a temperature step).
         @param other PlotTab.
         """
-        widgets = (self.view, self.copper, self.opacity, self.opacity_spin)
-        for w in widgets:
-            w.blockSignals(True)
+        self.view.blockSignals(True)
         self.view.setCurrentIndex(other.view.currentIndex())
-        self.copper.setChecked(other.copper.isChecked())
-        self.opacity.setValue(other.opacity.value())
-        self.opacity_spin.setValue(other.opacity.value())
-        for w in widgets:
-            w.blockSignals(False)
+        self.view.blockSignals(False)
+        self.underlay.copy_from(other.underlay)
         self._show_view_controls()
         self.redraw()
 
@@ -327,14 +281,9 @@ class PlotTab(QWidget):
         @brief The MapView of the controls, with the colours of the theme.
         @return plots.MapView.
         """
-        c = th.colors(self.theme)
-
-        def triplet(name):
-            return tuple(QColor(c[name]).getRgbF()[:3])
-
-        return plots.MapView(mode=self.view.currentData(), contour_step=self.contour.value() if self.kind == "temperature" else 0.0,
-                             show_copper=self.copper.isChecked(), opacity=self.opacity.value() / 100.0, copper_rgb=triplet("map_copper"),
-                             laminate_rgb=triplet("map_laminate"), contour_color=c["map_contour"], cache=self._copper_cache)
+        mode = self.view.currentData()
+        view = plots.MapView(mode=mode, contour_step=self.contour.value() if self.kind == "temperature" else 0.0)
+        return self.underlay.apply(view, self.theme)
 
     def set_theme(self, theme):
         """!
@@ -353,7 +302,7 @@ class PlotTab(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
-        self._copper_cache = {}                         # The copper pictures belong to the problem of the simulation
+        self.underlay.clear_cache()                     # The copper pictures belong to the problem of the simulation
         self._updating = True
         have = [k for k, r in sim.results.items() if r.T is not None]
         self.model.clear()
@@ -543,6 +492,7 @@ class ResultsView(QWidget):
         from .animation import AnimationTab        # Imported here: animation imports helpers from this module
         self.animation = AnimationTab(theme)
         self.tabs.addTab(self.animation, "Animation")
+        self.animation.underlay.set_source(False, None)
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
@@ -556,6 +506,22 @@ class ResultsView(QWidget):
         self.warnings.setTextFormat(Qt.RichText)
         # Two line breaks = one blank line between warnings, so that a long list is easy to read
         self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+
+    def set_underlay_source(self, imported, cfg):
+        """!
+        @brief Tell the Temperature, Gradients and Animation tabs what the project offers under the map, and redraw them.
+        @param imported True when the project comes from Gerber files (Copper only).
+        @param cfg The `view["background"]` dict of the project or None (the Image entry exists for a hand-drawn project with an image).
+        @return True when something changed.
+        """
+        changed = [t.underlay.set_source(imported, cfg) for t in (self.temp, self.grad, self.animation)]
+        if not any(changed):
+            return
+        # The two maps share the choice; keep them equal after a list that lost the selected entry
+        self.grad.underlay.copy_from(self.temp.underlay)
+        self.temp.redraw()
+        self.grad.redraw()
+        self.animation.redraw()
 
     def set_theme(self, theme):
         """!

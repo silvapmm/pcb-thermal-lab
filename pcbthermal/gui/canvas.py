@@ -348,6 +348,7 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
@@ -559,8 +560,18 @@ class BoardView(QGraphicsView):
         item.setOpacity(cfg.get("opacity", 0.5))
         item.setZValue(0.2)
         item.setAcceptedMouseButtons(Qt.NoButton)
+        item.setVisible(self.background_visible)
         self.scene().addItem(item)
         self._background = item
+
+    def set_background_visible(self, visible):
+        """!
+        @brief Show or hide the background image (the editor hides it while a temperature map is on the board and the Underlay is not Image).
+        @param visible True to show it.
+        """
+        self.background_visible = bool(visible)
+        if self._background is not None:
+            self._background.setVisible(self.background_visible)
 
     def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
         """!
