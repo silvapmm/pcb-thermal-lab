@@ -26,12 +26,13 @@
 
 import contextlib
 import logging
+import math
 
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import copper, memory, viawell
+from . import copper, laminate, memory, viawell
 from .fvm import ORDERING
 from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
@@ -44,6 +45,11 @@ K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a 
 # installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
 # (16 slabs) takes 3.5 GB at 247 000 unknowns and 9.9 GB at 512 000; a plain two-layer board (6 slabs) 3.3 GB at 500 000.
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
+# Slabs across a dielectric gap (research/laminate-2-6 5): a slab of at most 0.2 mm, at least 4 and at most 16 per gap. A fixed 4 slabs left the heat of a small part
+# (2 mm) too concentrated over a thick laminate (+23 % bare, +27 % pad at 3.2 mm); 8 slabs of the 1.53 mm core of a two-layer board and 6 of the 1.065 mm core of a four-layer one
+SLAB_MM = 0.2
+SLABS_MIN = 4
+SLABS_MAX = 16
 
 
 @contextlib.contextmanager
@@ -61,22 +67,58 @@ def size_limit(max_cells):
         yield
 
 
-def unknowns(problem, cell_mm=2.0, n_diel=4):
+def slab_rule(d):
+    """!
+    @brief Number of slabs of one dielectric gap by its thickness: ceil(d / 0.2 mm), at least 4 and at most 16.
+    @param d Gap thickness in m.
+    @return int.
+    """
+    return int(min(SLABS_MAX, max(SLABS_MIN, math.ceil(d * 1e3 / SLAB_MM - 1e-9))))
+
+
+def slabs_per_gap(problem, n_diel=None):
+    """!
+    @brief Slabs across every dielectric gap of a board (the laminate under the copper for a one-layer board, which has no gap).
+    @details None gives the rule of `slab_rule` per gap (the 1.53 mm gap of a two-layer board: 8 slabs; the 1.065 mm core of a four-layer template: 6; the thin prepreg: 4);
+             an int gives the same count to every gap (the studies that ask for the old fixed 4, or a convergence sweep); a sequence gives one count per gap.
+    @param problem A Problem.
+    @param n_diel None for the rule, an int for every gap, or a sequence with one count per gap (one element for a one-layer board), count.
+    @return List of int with L - 1 elements (one element, or none when the laminate has no thickness, for a one-layer board).
+    @throws ValueError If a sequence has the wrong length or a count below 1.
+    """
+    b = problem.board
+    if b.layers == 1:
+        t_lam = float(b.slab_thicknesses()[0] - np.asarray(b.copper_thickness)[0])
+        ds = [t_lam] if t_lam > 0 else []
+    else:
+        ds = [float(d) for d in b.gap_thicknesses()]
+    if n_diel is None:
+        return [slab_rule(d) for d in ds]
+    if np.ndim(n_diel) == 0:
+        out = [int(n_diel)] * len(ds)
+    else:
+        out = [int(n) for n in n_diel]
+        if len(out) != len(ds):
+            raise ValueError(f"n_diel has {len(out)} counts for {len(ds)} dielectric gaps")
+    if any(n < 1 for n in out):
+        raise ValueError("every dielectric gap needs at least one slab")
+    return out
+
+
+def unknowns(problem, cell_mm=2.0, n_diel=None):
     """!
     @brief Number of unknowns of the 3D model of a problem, counted without building it (same slabs as Solid).
     @details Used by the memory guard to refuse a model that is too large before anything is assembled, and by the application to show the size next to the cell.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap.
+    @param n_diel Slabs across the dielectric gaps: None for the rule by thickness (slabs_per_gap), an int for every gap or a sequence per gap, count.
     @return Tuple (unknowns, slabs, nx, ny).
     """
     b = problem.board
     L = b.layers
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    ns = L + n_diel * (L - 1)                                    # A copper slab per layer and n_diel slabs in every gap
-    if L == 1 and float(b.slab_thicknesses()[0] - np.asarray(b.copper_thickness)[0]) > 0:
-        ns += n_diel                                             # The laminate under the copper of a one-layer board
+    ns = L + sum(slabs_per_gap(problem, n_diel))                 # A copper slab per layer and the slabs of every gap (the laminate under a one-layer board's copper)
     thick = {}
     for s in problem.heatsinks:
         if s.is_block():
@@ -108,11 +150,11 @@ class Solid:
     @brief The slabs, conductances and sources of the 3D model.
     """
 
-    def __init__(self, problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
+    def __init__(self, problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
         """!
         @param problem A Problem.
         @param cell_mm Target size of the cells in the plan in millimetres (same rule as the FVM).
-        @param n_diel Slabs across every dielectric gap.
+        @param n_diel Slabs across the dielectric gaps: None for the rule by thickness (slabs_per_gap), an int for every gap or a sequence per gap, count.
         @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()); api.simulate passes the option of the run.
         @throws memory.MemoryGuardError (a ValueError) If the estimated memory is above the limit, the model is above the 3D ceiling, or it is outside the
                 window of a size_limit block; checked before any array of the size of the model is made.
@@ -122,6 +164,7 @@ class Solid:
         # refused a model above MAX_CELLS; a study that catches ValueError to print "-" for a model too large keeps working
         memory.check(problem, ("solid3d",), cell_mm, fraction=memory_fraction, n_diel=n_diel)
         self.problem = problem
+        self.n_gap = slabs_per_gap(problem, n_diel)                  # Slabs of every gap (the laminate of a one-layer board is one element)
         b, m = problem.board, problem.board.materials
         L, W, H = b.layers, b.width, b.height
         nx = max(int(round(W * 1000.0 / cell_mm)), 2)
@@ -219,8 +262,8 @@ class Solid:
             add("cu", l, tc[l], kx, kz)
             if l < L - 1:
                 kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
-                for _ in range(n_diel):
-                    add("fr4", l, gaps[l] / n_diel, g_kip[l], kz)
+                for _ in range(self.n_gap[l]):
+                    add("fr4", l, gaps[l] / self.n_gap[l], g_kip[l], kz)
         if L == 1:
             # A one-layer board has no gap, but its laminate is still there under the copper: the slab of the layered models (thickness minus
             # copper, FR-4 of `materials`) as dielectric slabs, so it spreads heat sideways and the bottom face loses heat through it.
@@ -228,8 +271,8 @@ class Solid:
             t_lam = float(b.slab_thicknesses()[0] - tc[0])
             if t_lam > 0:
                 kz = via_frac * m.k_copper + (1.0 - via_frac) * m.k_fr4_through
-                for _ in range(n_diel):
-                    add("fr4", 0, t_lam / n_diel, m.k_fr4_inplane, kz)
+                for _ in range(self.n_gap[0]):
+                    add("fr4", 0, t_lam / self.n_gap[0], m.k_fr4_inplane, kz)
         last_board = len(slabs) - 1
         if 1 in faces:
             for kind, dz, kx, kz in block_slabs(1):
@@ -365,15 +408,17 @@ class Solid:
         return theta.reshape(self.ns, self.ny, self.nx), res
 
 
-def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
+def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
     """!
     @brief Steady-state solution of the 3D model.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap (4 by default; not enough for a part whose side is under 6.7 times the slab d / 4: under a 2 mm source 4 against 8 slabs differ 5 % at 1.6 mm and 14 % at 3.2 mm, and the solid reads it up to +20 % bare / +27 % pad hot with 4, +5.4 / +13.3 % with 8, +0.4 / +7.9 % with 16; checks.check_small_part_laminate warns).
+    @param n_diel Slabs across the dielectric gaps: None (default) is the rule by thickness, ceil(d / 0.2 mm) between 4 and 16 per gap (slabs_per_gap); an int gives every gap the same count (the studies; 4 was the
+                  fixed count before the rule and is too few under a part whose side is under about 6.7 times the slab); a sequence gives one count per gap.
     @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
     @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
-            blocks, their temperature and heat as the FVM does.
+            blocks, their temperature and heat as the FVM does. A part over absent copper on an outer layer also gets the face terms (arrays "face_peak" and "face_mean", the
+            half layer of laminate between the node and the face, laminate.face_terms) as the FVM and FDM, so the temperature read under it is that of its face.
     @throws memory.MemoryGuardError (a ValueError) If the model is too large for the memory guard.
     """
     net = Solid(problem, cell_mm, n_diel, memory_fraction)
@@ -395,6 +440,14 @@ def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
         extras={"cells": float(net.n), "slabs": float(net.ns)}, warnings=[])
     if not inside.all():
         out.arrays["board_mask"] = inside
+    if laminate.uses_rule(problem):
+        # The heat of a part enters the copper slab at mid-thickness: over absent copper the half layer of laminate between that node and the face of the part is not in the
+        # slabs (the same term as the layered models, applied to the peak and mean read under the part; a board with a metal block keeps the earlier reading, as they do).
+        # It is right only together with the slab rule (research/laminate-2-6 5.1): with 4 slabs per gap alone it makes the solid hotter than the reference
+        q_layers = net.Q.reshape(net.ns, net.ny, net.nx)[net.board_slab]
+        terms = laminate.face_terms(b, net.fill, q_layers, net.area_b, net.dx)
+        if terms is not None:
+            out.arrays["face_peak"], out.arrays["face_mean"] = terms
     if net.faces:
         out.power_out["blocks"] = float(((net.g["blocks"] + net.g_leak) * theta_all.ravel()).sum())
         covs, temps = [], []
