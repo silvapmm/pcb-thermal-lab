@@ -22,6 +22,9 @@ def fixed_base(monkeypatch):
     @return None.
     """
     monkeypatch.setattr(memory, "resident_bytes", lambda: BASE)
+    memory.reset_baseline()                      # The baseline of an earlier test must not hide the fake size
+    yield
+    memory.reset_baseline()
 
 
 def test_estimate_matches_measured_points_of_the_ladder():
@@ -631,3 +634,20 @@ def test_check_adds_the_via_term_and_keeps_the_bound_a_lower_bound():
     ra = memory.check(board(False), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
     rb = memory.check(board(True), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
     assert ra.verdict == rb.verdict == "refuse" and rb.estimate == ra.estimate
+
+
+def test_estimate_does_not_follow_the_history_of_the_process(monkeypatch):
+    """!
+    @brief The estimate of the same problem is the same after the process has grown (the calculation process serves every job of a session).
+    @details Found with the CO60 import: ok at 9.87 GB when fresh, refuse at 10.35 GB after one 1 mm run, from the live resident size alone.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    prob = reference_problem()
+    fresh = memory.check(prob, ("fvm",), 0.5, refuse="return", quiet=True)[0].estimate
+    monkeypatch.setattr(memory, "resident_bytes", lambda: BASE + 3.0e9)       # Ballast left by earlier solves
+    after = memory.check(prob, ("fvm",), 0.5, refuse="return", quiet=True)[0].estimate
+    assert after == fresh
+    assert memory.estimate_bytes("fvm", 1.0e5, 5.0e4) == memory.estimate_bytes("fvm", 1.0e5, 5.0e4, base=BASE)
+    memory.reset_baseline()                                                      # A new reading is a new baseline
+    assert memory.baseline_bytes() == BASE + 3.0e9
