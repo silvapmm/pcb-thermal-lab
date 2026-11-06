@@ -244,3 +244,13 @@ def test_dock_titles_say_settings_but_object_names_and_saved_layouts_are_kept(wi
     assert {"Board", "Simulation", "Elements", "Properties"} <= names
     win.dock_sim.show()
     assert win.restoreState(state, win.STATE_VERSION) and win.dock_sim.isHidden()
+
+
+def test_the_key_d_is_bound_once_to_display_settings_and_is_in_both_key_tables(win):
+    """!
+    @brief D opens the Display panel through one hidden window action; the keyboard box and the user guide name it.
+    @param win MainWindow fixture.
+    """
+    bound = [a for a in _all_actions(win) if any(k.toString() == "D" for k in a.shortcuts())]
+    assert len(bound) == 1 and bound[0].text() == "Display settings…"
+    assert _mentions(_plain(win.SHORTCUTS_HTML), "D") and _mentions(_plain(GUIDE.read_text(encoding="utf-8")), "D")

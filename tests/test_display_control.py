@@ -420,3 +420,102 @@ def test_the_popover_closes_when_another_window_is_active(qtbot, tmp_path, monke
     monkeypatch.setattr(QApplication, "activeWindow", staticmethod(lambda: other))
     win._close_popover_if_inactive()
     assert not pop.isVisible()
+
+
+def test_the_key_d_opens_the_popover_with_the_keyboard_but_not_while_typing(qtbot, tmp_path):
+    """!
+    @brief The plain key D is a window-level shortcut of View - Display settings (the offscreen platform does not dispatch shortcuts, so the hidden action is triggered); a D typed in a field is text.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QLineEdit
+    win = _win(qtbot, tmp_path)
+    win.show()
+    keyed = [a for a in win.actions() if [k.toString() for k in a.shortcuts()] == ["D"]]
+    assert len(keyed) == 1 and keyed[0].shortcutContext() == Qt.WindowShortcut         # Same guard as G and T: a text field gets the key first
+    pop = win.display_popover
+    keyed[0].trigger()
+    assert pop.isVisible() and pop.focusWidget() is pop.underlay
+    pop.hide()
+    edit = QLineEdit(win)                                                 # A text field: the letter is typed, nothing opens
+    edit.show()
+    edit.setFocus()
+    QTest.keyClick(edit, Qt.Key_D)
+    assert edit.text().lower() == "d" and not pop.isVisible()
+
+
+def test_every_tab_change_closes_the_popover(qtbot, tmp_path, sim):
+    """!
+    @brief The popover closes on a click on a tab, on Ctrl+1 to Ctrl+4 and on the Results sub-tabs.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    win = _win(qtbot, tmp_path)
+    win.show()
+    _with_result(win, sim)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    pop = win.display_popover
+    for change in (lambda: win.results.tabs.setCurrentIndex(1 - win.results.tabs.currentIndex()),   # the code route of a click on a sub-tab
+                   lambda: win.results.tabs.setCurrentIndex(0),
+                   lambda: win.tabs.setCurrentIndex(TAB_BOARD)):
+        win._toggle_display_popover()
+        assert pop.isVisible()
+        change()
+        assert not pop.isVisible()
+    # Keyboard route: the Ctrl+number actions
+    win._toggle_display_popover()
+    assert pop.isVisible()
+    for a in win.actions():
+        if a.shortcut().toString() == "Ctrl+4":
+            a.trigger()
+    assert win.tabs.currentIndex() == 3 and not pop.isVisible()
+    # Mouse route: a click on the tab bar
+    win._toggle_display_popover()
+    bar = win.tabs.tabBar()
+    QTest.mouseClick(bar, Qt.LeftButton, pos=bar.tabRect(0).center())
+    assert win.tabs.currentIndex() == 0 and not pop.isVisible()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_the_results_tab_has_no_horizontal_scroll_at_1280x800(qtbot, tmp_path, sim, theme):
+    """!
+    @brief At 1280 x 800 with both side docks open the control rows of the Results tabs wrap and the page has no horizontal scroll bar.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    @param theme "light" or "dark".
+    """
+    from pcbthermal.gui.flow import FlowLayout
+    win = _win(qtbot, tmp_path)
+    if win.theme_name != theme:
+        win.toggle_theme()
+    win.resize(1280, 800)
+    win.show()
+    _with_result(win, sim)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    for d in (win.dock_board, win.dock_elements, win.dock_sim, win.dock_inspector):
+        d.show()
+    QApplication.processEvents()
+    for i in range(win.results.tabs.count()):
+        win.results.tabs.setCurrentIndex(i)
+        QApplication.processEvents()
+        page = win.results.tabs.currentWidget()
+        lay = getattr(page, "layout", lambda: None)()
+        controls = lay.itemAt(0).layout() if lay is not None and lay.count() else None
+        if isinstance(controls, FlowLayout):
+            # The row wraps when its parts do not fit on one line
+            assert controls.sizeHint().width() <= page.width() or controls.line_count(page.width()) > 1
+            assert controls.minimumSize().width() < controls.sizeHint().width()
+        # No horizontal scroll bar anywhere above the page: the centre area and the Results tab widgets
+        w = page
+        while w is not None:
+            for sb in w.findChildren(type(win.tabs.tabBar())) if False else []:
+                pass
+            w = w.parentWidget()
+        from PySide6.QtWidgets import QScrollArea
+        for area in win.findChildren(QScrollArea):
+            if area.isVisible() and area.isAncestorOf(page):
+                hb = area.horizontalScrollBar()
+                assert hb.maximum() == 0, (area.objectName(), hb.maximum(), i)
