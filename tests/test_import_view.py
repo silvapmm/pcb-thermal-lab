@@ -128,12 +128,12 @@ def test_part_names_that_do_not_fit_wait_for_the_zoom(qtbot, imported_doc):
 
 
 def test_a_huge_mask_is_drawn_from_a_reduced_copy_quickly_and_lightly():
-    big = np.zeros((3300, 3300), np.uint8)                       # CO60 has 10.8 Mpx per layer
+    big = np.zeros((5000, 3300), np.uint8)                       # longer than the 4096 pixels of the cap: reduced by two
     big[::7, :] = 255
     t0 = time.perf_counter()
     red, f = reduced_coverage(big)
-    assert time.perf_counter() - t0 < 1.0 and f == 2 and red.shape == (1650, 1650)
-    assert abs(float(red.mean()) - float(big[:3300, :3300].mean())) < 1.0          # the mean coverage is kept
+    assert time.perf_counter() - t0 < 1.0 and f == 2 and red.shape == (2500, 1650)
+    assert abs(float(red.mean()) - float(big[:5000, :3300].mean())) < 1.0          # the mean coverage is kept
     assert max(reduced_coverage(np.zeros((100, 100), np.uint8))[0].shape) == 100
 
 
@@ -154,7 +154,7 @@ def test_the_co60_canvas_is_fast_and_light(qtbot):
     view = BoardView(doc, "dark")
     qtbot.addWidget(view)
     spent = time.perf_counter() - t0
-    assert view._copper_item is not None and max(view._copper_item.pixmap().width(), view._copper_item.pixmap().height()) <= 2048
+    assert view._copper_item is not None and max(view._copper_item.pixmap().width(), view._copper_item.pixmap().height()) <= 4096
     # ru_maxrss is bytes on macOS and kilobytes on Linux
     grew = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) * (1.0 if os.uname().sysname == "Darwin" else 1024.0)
     print(f"co60 mask {rows} x {cols} = {rows * cols / 1e6:.1f} Mpx: canvas {spent:.2f} s, +{grew / 1e6:.0f} MB")
