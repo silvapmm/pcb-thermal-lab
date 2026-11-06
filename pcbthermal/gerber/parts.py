@@ -1290,7 +1290,10 @@ def _centre_size(poly):
     return ((x0 + x1) / 2, (y0 + y1) / 2), tuple(sorted((x1 - x0, y1 - y0)))
 
 
-MOVED_MM = 0.05                                       # A part whose centre moved by more than this between two imports is reported as moved
+# A part whose centre moved by more than this between two imports is reported as moved, by the table of the re-import dialog (`diff_parts`) and by the status line (`merge_parts`,
+# `reimport_summary`) alike (review: the table used 0.3 mm and the status 0.05 mm, so a 0.1 mm shift was "kept" in one and "moved" in the other). 0.3 mm is the tolerance the
+# review of the update table chose (a centre within a third of a millimetre is the same place for a heat source) and the radius of the match by position.
+MOVED_MM = 0.3
 
 
 def _moved_mm(old_poly, new_poly):
@@ -1314,7 +1317,7 @@ def _sides(poly):
     return x1 - x0, y1 - y0
 
 
-def diff_parts(old, new, move_mm=0.3, resize_mm=0.2):
+def diff_parts(old, new, move_mm=MOVED_MM, resize_mm=0.2):
     """!
     @brief The table a user reads before confirming an update: new, removed, moved (centre shifted by more than `move_mm`), resized (a sorted side changed by more than `resize_mm`), rotated
            (the rotation of the files changed by more than 1 degree, or, without a rotation in the files, the box swapped its sides), kept. The same files twice give only "kept".
@@ -1380,7 +1383,7 @@ def _positional(part):
     return part.from_file.get("grouping") in ("hand", "proximity")
 
 
-def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
+def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=MOVED_MM):
     """!
     @brief Merge the parts of a new import into the stored ones: copper, drills and outline come from the new files elsewhere; here, a part with the same designator keeps its power and its `edits` and takes the
            `from_file` and the polygon of the new files; the user's shape choice (`edits["shape_user"]`) is applied to the NEW openings; a part that is not in the new files is an orphan.

@@ -379,6 +379,7 @@ def test_the_dialog_does_not_offer_a_continue_that_does_nothing(app, base, qtbot
     app.run(base, "replace")
     dlg = app.dialogs[-1]
     qtbot.addWidget(dlg)
+    assert "Every file is the same as the stored one" in dlg.intro.text()            # the same folder chosen again: the dialog says nothing will change
     dlg.radios["add"].setChecked(True)
     assert not dlg.go.isEnabled() and "nothing" in dlg.note.text().lower()
     dlg.radios["update"].setChecked(True)
@@ -463,7 +464,7 @@ def test_merge_parts_reports_the_move_and_the_position_match():
     new = [ImportPart("U1", polygon_mm=sq(3, 0)), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20.1, 0), from_file={"grouping": "hand"})]
     lines = merge_parts(old, new).changes
     assert "U1: moved by 3.00 mm, kept power 2 W" in lines and "U2: matched" in lines
-    assert any(l.startswith("H1: matched by position, moved by 0.10 mm") for l in lines), lines
+    assert "H1: matched by position" in lines, lines                                    # 0.10 mm is within the one threshold (parts.MOVED_MM, 0.3 mm) of the table and the status
 
 
 def _second_drill(folder):
@@ -520,3 +521,103 @@ def test_the_choices_about_the_files_survive_a_reimport(app, base, tmp_path):
     assert app.doc.project.imports[0].settings["user_roles"]["cpl3.csv"] == "Ignore"
     app.run(third, "update")
     assert snapshot(app.doc)["parts"] == before["parts"] and app.doc.project.imports[0].settings["user_roles"]["cpl3.csv"] == "Ignore"
+
+
+@pytest.mark.parametrize("mode", ["replace", "update"])
+def test_values_typed_in_step2_of_a_reimport_win(app, base, mode):
+    """!
+    @brief Review: step 2 of a re-import started at zero powers and the merge kept the stored ones, so a power typed or a part ticked there was dropped: the re-import "changed nothing".
+    """
+    app.run(base, "replace", powers={"U1": 3.0})
+    seen = {}
+    real = iw.ImportBoardWindow.open_path
+
+    def spy(window, source):
+        real(window, source)
+        seen.update({p.designator: (p.power, bool(p.edits.get("use"))) for p in window.session.parts()})
+    iw.ImportBoardWindow.open_path = spy
+    try:
+        msg = app.run(base, mode, powers={"U1": 5.0, "Q1": 1.0})
+    finally:
+        iw.ImportBoardWindow.open_path = real
+    assert seen["U1"] == (3.0, True) and seen["Q1"] == (0.0, False)                    # the table shows what the project has
+    assert {h.name: h.power for h in app.doc.problem.heaters} == {"U1": 5.0, "Q1": 1.0}
+    assert {p.designator: p.power for p in app.doc.project.imports[0].parts}["U1"] == 5.0
+    assert "took the values of step 2" in msg and "kept power 3 W" not in msg, msg
+    app.doc.stack.undo()
+    assert {h.name: h.power for h in app.doc.problem.heaters} == {"U1": 3.0}
+
+
+def test_a_part_unticked_in_step2_stops_heating_and_the_editor_power_is_shown(app, base):
+    app.run(base, "replace", powers={"U1": 3.0})
+    app.doc.edit("user", lambda project: setattr(project.problem.heaters[0], "power", 7.0))
+    seen = {}
+    real = iw.ImportBoardWindow.open_path
+
+    def spy(window, source):
+        real(window, source)
+        seen["U1"] = window.session.part("U1").power
+        window.session.set_part("U1", use=False)
+    iw.ImportBoardWindow.open_path = spy
+    try:
+        app.run(base, "update")
+    finally:
+        iw.ImportBoardWindow.open_path = real
+    assert seen["U1"] == 7.0                                                           # the editor's power, not the record's 3 W
+    assert app.doc.problem.heaters == []
+
+
+def test_a_renamed_heater_and_a_deleted_heater_survive_the_prefilled_table(app, base):
+    app.run(base, "replace", powers={"U1": 3.0, "Q1": 1.0})
+
+    def edit(project):
+        hs = {h.name: h for h in project.problem.heaters}
+        hs["U1"].name, hs["U1"].power = "Regulator", 4.0
+        project.problem.heaters = [h for h in project.problem.heaters if h is not hs["Q1"]]
+    app.doc.edit("user", edit)
+    for mode in ("replace", "update"):
+        app.run(base, mode)
+        assert {h.name: h.power for h in app.doc.problem.heaters} == {"Regulator": 4.0}, mode
+
+
+def test_add_with_a_moved_part_moves_its_heater(app, base, tmp_path):
+    """!
+    @brief Review: Add files with a new placement and paste file moved the part in the record but left its heater at the old place (the status said "moved by 4.00 mm").
+    """
+    app.run(base, "replace", powers={"U1": 3.0})
+    before = {h.name: h.polygon.copy() for h in app.doc.problem.heaters}
+    new = variant(base, tmp_path, "rev", pasteF_gbr=("X12000000Y15000000D03", "X16000000Y15000000D03"),
+                  pos_csv=('"U1","reg","SOT-223",12.0,15.0', '"U1","reg","SOT-223",16.0,15.0'))
+    msg = app.run(new, "add")
+    (h,) = app.doc.problem.heaters
+    assert h.power == 3.0 and abs((h.polygon - before["U1"])[:, 0].mean() - 0.004) < 1e-9 and abs((h.polygon - before["U1"])[:, 1]).max() < 1e-9
+    rec = {p.designator: p for p in app.doc.project.imports[0].parts}["U1"]
+    box = app.doc.project.imports[0].box_mm
+    assert abs(h.polygon[0][0] * 1e3 + box[0] - rec.polygon_mm[0][0]) < 1e-6           # the heater sits on the part of the record
+    assert "moved the heater" in msg, msg
+
+
+def test_a_typed_pixel_is_kept_by_a_reimport(app, base):
+    real = iw.ImportBoardWindow.open_path
+
+    def typed(window, source):
+        real(window, source)
+        window.session.pixel_mm = 0.04
+    iw.ImportBoardWindow.open_path = typed
+    try:
+        app.run(base, "replace", powers={"U1": 3.0})
+    finally:
+        iw.ImportBoardWindow.open_path = real
+    first = dict(app.doc.project.imports[0].settings)
+    assert first["pixel_mm"] == 0.04 and first.get("pixel_user") is True
+    masks = mask_hash(app.doc)
+    app.run(base, "replace")
+    assert app.doc.project.imports[0].settings["pixel_mm"] == 0.04 and mask_hash(app.doc) == masks
+
+
+def test_add_files_takes_the_power_typed_for_a_stored_part(app, base, tmp_path):
+    app.run(base, "replace", powers={"U1": 3.0})
+    new = variant(base, tmp_path, "rev", pos_csv=('"U1","reg","SOT-223",12.0,15.0', '"U1","reg","SOT-223",12.0,15.0\n"U9","x","SOT-23",5.0,5.0'))
+    app.run(new, "add", powers={"U1": 6.0, "Q1": 0.5})
+    assert {h.name: h.power for h in app.doc.problem.heaters} == {"U1": 6.0, "Q1": 0.5}
+    assert {p.designator: p.power for p in app.doc.project.imports[0].parts}["U1"] == 6.0

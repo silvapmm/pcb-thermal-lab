@@ -25,7 +25,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
-from .import_session import reimport_summary
+from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
@@ -1148,10 +1148,7 @@ class MainWindow(QMainWindow):
         if self.doc.project.imports:
             # The re-import dialog shows what each part keeps: the powers typed in the editor after the import, not those of the import itself
             existing = copy.deepcopy(self.doc.project.imports[0])
-            heaters = {h.name: h for h in self.doc.problem.heaters}
-            for p in existing.parts:
-                if p.designator in heaters:
-                    p.power = float(heaters[p.designator].power)
+            editor_part_values(existing, self.doc.problem)
         dlg = ImportBoardWindow(self, existing=existing)
         if dlg.exec() != QDialog.Accepted or dlg.record is None:
             return
@@ -1162,10 +1159,12 @@ class MainWindow(QMainWindow):
                 self._after_load()
             return
         old = copy.deepcopy(self.doc.project.imports[0])
-        known = {p.designator for p in old.parts}
-        added = [p for p in dlg.record.parts if p.designator not in known]
-        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
-                                 add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        typed = getattr(dlg, "typed", set())
+        synced = []
+        # Add files: the heaters of the new parts, the heaters of the stored parts the new files moved, and the step-2 values (review: the heaters stayed where they were)
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})", typed=typed,
+                                 add=lambda project: synced.extend(sync_add_heaters(dlg.session, project.problem, old, dlg.record, typed)))
+        kept = kept + synced
         self._refresh_layers()
         # What the editor kept comes first (the user must see it), then the first changes of the parts and files
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
