@@ -9,7 +9,7 @@
          of the toolbar and does not take the keyboard focus away from the window (the key T still works while it is open). Display only: nothing is solved again.
 """
 
-from PySide6.QtCore import QObject, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QSlider, QSpinBox, QToolButton, QVBoxLayout,
                                QWidget)
@@ -432,18 +432,33 @@ class DisplayPopover(QFrame):
         """
         self.sync.flush()
 
-    def show_under(self, button):
+    def show_under(self, button, activate=False):
         """!
-        @brief Open the popover under a button, on the control used last, without taking the activation.
+        @brief Open the popover under a button, on the control used last; by default without taking the activation.
+        @details The popover is kept on the screen of the button: near the right or the bottom edge it is moved left or up (the review found it drawn half off a
+                 1280-pixel screen when the window sat at the right edge).
         @param button The toolbar button the popover hangs from.
+        @param activate True to make the popover the active window with the keyboard in its control used last (opened from the menu, so that a keyboard user can
+                        reach the controls); False for a mouse click on the button (the canvas keeps the keyboard and the key T).
         """
         self.refresh()
         self.adjustSize()
-        self.move(button.mapToGlobal(button.rect().bottomLeft()))
+        pos = button.mapToGlobal(button.rect().bottomLeft())
+        screen = button.screen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            x = min(pos.x(), area.right() + 1 - self.width())
+            y = pos.y() if pos.y() + self.height() <= area.bottom() + 1 else button.mapToGlobal(button.rect().topLeft()).y() - self.height()
+            pos = QPoint(max(x, area.left()), max(y, area.top()))
+        self.move(pos)
         self.show()
         self.raise_()
-        if self.last_control is not None and self.last_control.isEnabled():
-            self.last_control.setFocus(Qt.OtherFocusReason)
+        target = self.last_control if self.last_control is not None and self.last_control.isEnabled() else None
+        if activate:
+            self.activateWindow()
+            target = target or next((w for w in (self.underlay, self.opacity_spin, self.cmap) if w.isEnabled()), None)
+        if target is not None:
+            target.setFocus(Qt.OtherFocusReason)
 
 
 class DisplayButton(QToolButton):
@@ -460,6 +475,9 @@ class DisplayButton(QToolButton):
         self.setAutoRaise(True)
         self.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.setFocusPolicy(Qt.NoFocus)                       # Clicking it never takes the keyboard from the canvas (the key T)
+        # The button has an icon only and paints its arrow itself: give screen readers a name (the keyboard route is View - Display settings)
+        self.setAccessibleName("Display")
+        self.setAccessibleDescription("Opens the Display panel: underlay, map opacity, view, contour step and colour map of the temperature maps")
         self._icon()
 
     def _icon(self):

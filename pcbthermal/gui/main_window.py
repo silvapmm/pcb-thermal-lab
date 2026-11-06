@@ -494,6 +494,9 @@ class MainWindow(QMainWindow):
         self.a_overlay = self._act("Temperature map on the board", self._toggle_overlay, "T", True, False,
                                    "Show the temperature map of the last result on the board (T)")
         self.a_overlay.setEnabled(False)                       # Until a result exists; _update_map_button keeps the state and the tooltip
+        # The keyboard route to the Display popover (the toolbar button takes no focus): opened active, with the keyboard in its controls
+        self.a_display = self._act("Display settings…", lambda: self._toggle_display_popover(activate=True),
+                                   tip="Open the Display panel of the tool bar from the keyboard: underlay, map opacity, view, contour step and colour map of the maps")
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
@@ -533,7 +536,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_imported, self.a_labels, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -809,34 +812,81 @@ class MainWindow(QMainWindow):
         """
         self.display_popover.set_context(self._display_context())
 
-    def _toggle_display_popover(self):
+    def _toggle_display_popover(self, activate=False):
         """!
         @brief Open the Display popover under its button, or close it.
+        @param activate True when opened from the menu (View - Display settings): the popover takes the keyboard so that its controls can be reached without a mouse.
         """
         if self.display_popover.isVisible():
-            self.display_popover.flush()
-            self.display_popover.hide()
+            self._close_display_popover()
             return
         self.display_popover.set_context(self._display_context())
-        self.display_popover.show_under(self.display_button)
+        self.display_popover.show_under(self.display_button, activate=activate)
+
+    def _close_display_popover(self):
+        """!
+        @brief Close the Display popover, applying an opacity edit that still waits for its pause, and give the keyboard back to the window when the popover had it.
+        """
+        pop = self.display_popover
+        if not pop.isVisible():
+            return
+        had_keyboard = QApplication.activeWindow() is pop
+        pop.flush()
+        pop.hide()
+        if had_keyboard:
+            self.activateWindow()
+
+    def _in_display_popover(self, w):
+        """!
+        @brief True when a widget belongs to the Display popover, also through a window of its own (the open list of one of its combo boxes).
+        @details `QWidget.isAncestorOf` stops at a window boundary, so the drop-down list of the Underlay or Colour map combo, which is a popup window, was taken for
+                 a click outside and closed the popover before the entry could be chosen (found in the review).
+        @param w QWidget.
+        @return bool.
+        """
+        pop = self.display_popover
+        while w is not None:
+            if w is pop:
+                return True
+            w = w.parentWidget()
+        return False
 
     def eventFilter(self, obj, event):
         """!
-        @brief Close the Display popover on a click anywhere outside it and its button, and on Escape.
+        @brief Close the Display popover on a click anywhere outside it and its button, and on Escape in the popover or in this window.
         @param obj Object that receives the event.
         @param event The event.
-        @return False (the event is never consumed).
+        @return True for the Escape that closed the popover (it does not also cancel a drawing on the canvas), False otherwise.
         """
         pop = getattr(self, "display_popover", None)
-        if pop is not None and pop.isVisible():
-            if event.type() == QEvent.MouseButtonPress and isinstance(obj, QWidget):
-                inside = obj is pop or pop.isAncestorOf(obj) or obj is self.display_button or obj.window() is pop
-                if not inside:
-                    pop.flush()
-                    pop.hide()
-            elif event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape and isinstance(obj, QWidget) and (obj is pop or pop.isAncestorOf(obj)):
-                pop.hide()
+        if pop is not None and pop.isVisible() and isinstance(obj, QWidget):
+            if event.type() == QEvent.MouseButtonPress:
+                if not (self._in_display_popover(obj) or obj is self.display_button):
+                    self._close_display_popover()
+            elif (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape and QApplication.activePopupWidget() is None
+                  and (self._in_display_popover(obj) or obj.window() is self)):
+                self._close_display_popover()
+                return True
         return False
+
+    def changeEvent(self, e):
+        """!
+        @brief Close the Display popover when the window loses the activation to anything but the popover (another application, another window).
+        @param e QEvent.
+        """
+        super().changeEvent(e)
+        if e.type() == QEvent.ActivationChange and not self.isActiveWindow() and getattr(self, "display_popover", None) is not None:
+            # Decided after the change has settled: a click into the popover activates the popover itself, which must not close it
+            QTimer.singleShot(0, self._close_popover_if_inactive)
+
+    def _close_popover_if_inactive(self):
+        """!
+        @brief Close the Display popover when neither this window nor the popover (nor a list it opened) is the active window.
+        """
+        active = QApplication.activeWindow()
+        if active is self or (active is not None and self._in_display_popover(active)) or QApplication.activePopupWidget() is not None:
+            return
+        self._close_display_popover()
 
     def _sync_underlay(self):
         """!
@@ -1429,6 +1479,7 @@ class MainWindow(QMainWindow):
         @param e QCloseEvent (accepted or ignored here).
         """
         if self._confirm_discard():
+            self._close_display_popover()              # A floating panel does not outlive its window
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
             self.settings.setValue("window_state", self.saveState(self.STATE_VERSION))      # Dock positions and visibility
