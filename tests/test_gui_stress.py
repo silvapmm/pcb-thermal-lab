@@ -1422,3 +1422,36 @@ def test_display_control_in_the_application(win, qtbot):
     win.doc.stack.undo()
     run(win, qtbot, models=("fvm", "lumped"))
     assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()
+
+
+def test_single_layer_choice_and_card_menu_in_the_application(win, qtbot):
+    """The one Layer box through a whole session: every entry of every context, every tab visited with All (2 x 2) and a metal block stored, the layer of the map on the board, a rerun, a change of the layer count, the card menu with each model and an edit that makes the result outdated."""
+    p = example_board()
+    p.add_heatsink(1, 10.0, rect=(15, 12, 45, 28), thickness_mm=3.0)
+    win._load_problem(p, "ex")
+    win.show()
+    run(win, qtbot, models=("fvm", "fdm", "lumped"))
+    win._hidden_overlay_key.trigger()
+    assert win.a_overlay.isChecked()
+    contexts = [(TAB_BOARD, None), (TAB_PROFILE, None)] + [(TAB_RESULTS, k) for k in range(win.results.tabs.count())]
+    for pick in (-2, -1, 101, 3, 0):
+        for tab_index, k in contexts:
+            win.tabs.setCurrentIndex(tab_index)
+            if k is not None:
+                win.results.tabs.setCurrentIndex(k)
+            for i in range(win.layer_combo.count()):                          # every entry of the list of this context
+                win.layer_combo.setCurrentIndex(i)
+                win.canvas.viewport().grab()
+            if win.layer_combo.findData(pick) >= 0:
+                win.layer_combo.setCurrentIndex(win.layer_combo.findData(pick))
+    for model_index in range(win.results.temp.model.count()):                  # the card name lists the models; each one can be picked
+        win._open_model_menu(win.mapToGlobal(win.rect().center()))
+        win._model_menu.actions()[model_index].trigger()
+        win._model_menu.close()
+        assert win.results.temp.model.currentIndex() == model_index
+    run(win, qtbot, models=("fvm", "lumped"))                                  # a rerun keeps the choice and the list follows the new result
+    win.doc.set_props("heater", 0, power=2.0)                                  # the result is outdated: the map leaves, the box still works
+    win.layer_combo.setCurrentIndex(0)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(-2))
