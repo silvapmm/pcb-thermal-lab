@@ -22,7 +22,6 @@ from .. import analysis, plots
 from . import theme as th
 from . import tips
 from .toolbar_icons import ThemedToolbar
-from .underlay import UnderlayControls
 from .display import DisplayState
 from ..numfmt import num
 
