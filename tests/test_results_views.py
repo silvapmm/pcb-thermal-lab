@@ -329,6 +329,7 @@ def test_temperature_and_gradient_tabs_share_the_view(sim):
     rv.temp.view.setCurrentIndex(rv.temp.view.findData("smooth"))
     rv.temp.underlay.combo.setCurrentIndex(1)
     rv.temp.opacity.setValue(40)
+    rv.temp.underlay.flush()
     assert rv.grad.view.currentData() == "smooth" and (rv.grad.underlay.kind() == "copper") and rv.grad.opacity.value() == 40
     rv.grad.view.setCurrentIndex(rv.grad.view.findData("terrain"))
     assert rv.temp.view.currentData() == "terrain"
@@ -389,12 +390,15 @@ def test_opacity_spin_box_and_slider_are_one_value_and_drive_the_pixels(tab):
     tab.view_changed.connect(lambda: calls.append(1))
     p70 = _sha(_rgba_tab(tab))
     tab.opacity_spin.setValue(20)
+    tab.underlay.flush()
     assert tab.opacity.value() == 20 and len(calls) == 1
     p20 = _sha(_rgba_tab(tab))
     tab.opacity.setValue(70)
+    tab.underlay.flush()
     assert tab.opacity_spin.value() == 70 and len(calls) == 2
     assert p20 != p70 and _sha(_rgba_tab(tab)) == p70
     tab.opacity_spin.setValue(0)
+    tab.underlay.flush()
     assert tab.map_view().opacity == 0.0
 
 

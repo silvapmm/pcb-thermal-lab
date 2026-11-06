@@ -64,11 +64,13 @@ def test_the_choice_is_shared_both_ways(qtbot, tmp_path):
     r.temp.underlay.combo.setCurrentIndex(1)
     assert r.animation.underlay.kind() == "copper" and r.grad.underlay.kind() == "copper"
     r.grad.underlay.opacity.setValue(35)
+    r.grad.underlay.flush()
     assert r.animation.underlay.opacity.value() == 35 and r.temp.underlay.opacity.value() == 35
     r.animation.underlay.combo.setCurrentIndex(0)
     assert r.temp.underlay.kind() == r.grad.underlay.kind() == win.editor_underlay.kind() == "none"
     r.animation.underlay.combo.setCurrentIndex(1)
     r.animation.underlay.opacity.setValue(20)
+    r.animation.underlay.flush()
     assert r.temp.underlay.kind() == "copper" and r.temp.underlay.opacity.value() == 20 and win.editor_underlay.kind() == "copper"
     win.doc.project.imports = [ImportRecord(name="b")]
     win.doc.changed.emit()                                                                # an entry that stays valid is kept
