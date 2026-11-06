@@ -49,7 +49,8 @@ def lumped_peak(p, rule, cell=0.5):
     @return float in K.
     """
     old = lumped.Network
-    lumped.Network = lambda problem, nx, ny, assemble=False, with_blocks=True: GN.build(problem, 1e3 * problem.board.width / nx, rule, assemble=False)
+    # **kw: the program's lumped.py passes more arguments than these (ladder=False since the zonal Lumped model), which the rule's network does not use
+    lumped.Network = lambda problem, nx, ny, assemble=False, with_blocks=True, **kw: GN.build(problem, 1e3 * problem.board.width / nx, rule, assemble=False)
     try:
         r = lumped.solve_steady(p, cell_mm=cell)
     finally:
