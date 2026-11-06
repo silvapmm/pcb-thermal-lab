@@ -31,6 +31,7 @@ from .preferences import PreferencesDialog
 from .canvas import BoardView
 from . import compute
 from .compute import ProcessWorker
+from . import package_actions
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel, WarningList
 from .profile_page import ProfilePage
@@ -38,7 +39,7 @@ from .stackup import StackupPage
 from . import tips
 from .results_view import ResultsView
 
-FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
+FILE_FILTER = "PCB Thermal projects and packages (*.pcbt.json *.json *.pcbtz);;All files (*)"
 
 
 TAB_BOARD, TAB_STACKUP, TAB_PROFILE, TAB_RESULTS = 0, 1, 2, 3     # Order of the main tabs
@@ -469,6 +470,8 @@ class MainWindow(QMainWindow):
         self.a_open = self._act("Open…", self.open_file, QKeySequence.Open)
         self.a_save = self._act("Save", self.save_file, QKeySequence.Save)
         self.a_saveas = self._act("Save as…", self.save_file_as, QKeySequence.SaveAs)
+        self.a_export_pkg = self._act("Export package…", lambda: package_actions.export_package(self),
+                                      tip="Write a copy of the project as one package file (.pcbtz): the project, its images and, if you choose, the source files of the import")
         self.a_ex_ref = self._act("Reference board (100 × 100 mm, 2 layers)", lambda: self._load_problem(reference_problem(), "reference"))
         self.a_ex_4l = self._act("Example 4-layer board (vias, heatsink, 2 heaters)", lambda: self._load_problem(example_board(), "example-4layer"))
         self.a_export_all = self._act("Export results to a folder…", self.export_results)
@@ -531,7 +534,7 @@ class MainWindow(QMainWindow):
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
         ex.addAction(self.a_ex_4l)
-        for a in (None, self.a_save, self.a_saveas, None, self.a_export_all, self.a_export_txt,
+        for a in (None, self.a_save, self.a_saveas, self.a_export_pkg, None, self.a_export_all, self.a_export_txt,
                   self.a_export_json, None, self.a_quit):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&Edit")
@@ -904,7 +907,9 @@ class MainWindow(QMainWindow):
         self.a_overlay.setChecked(False)
         self.canvas.fit()
         self._refresh_layers()
-        self.statusBar().showMessage("Ready.")
+        # A background image that cannot be loaded is said, not skipped
+        missing = getattr(self.canvas, "background_error", "")
+        self.statusBar().showMessage("Ready." + (" " + missing if missing else ""))
 
     def new_board(self):
         """!
@@ -958,6 +963,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
         self._report_backup(backup)
+        package_actions.report_notes(self)
         return True
 
     def _report_backup(self, backup):
@@ -974,19 +980,7 @@ class MainWindow(QMainWindow):
         @brief Save under a new name.
         @return True if saved.
         """
-        path, _ = QFileDialog.getSaveFileName(self, "Save project", f"{self.doc.problem.name}.pcbt.json",
-                                              "PCB Thermal projects (*.pcbt.json)")
-        if not path:
-            return False
-        if not path.endswith(".json"):
-            path += ".pcbt.json"
-        try:
-            backup = self.doc.save(path)
-        except Exception as exc:
-            QMessageBox.critical(self, "Cannot save", str(exc))
-            return False
-        self._report_backup(backup)
-        return True
+        return package_actions.save_as(self)
 
     def export_results(self):
         """!
@@ -1152,12 +1146,16 @@ class MainWindow(QMainWindow):
                 if p.designator in heaters:
                     p.power = float(heaters[p.designator].power)
         dlg = ImportBoardWindow(self, existing=existing)
+        cap = package_actions.capture_on_close(dlg)
+        if existing is not None and package_actions.stored_sources(self):
+            package_actions.offer_stored_sources(self, dlg)          # the project stores its source files: the re-import can start from them
         if dlg.exec() != QDialog.Accepted or dlg.record is None:
             return
         if dlg.mode == "new":
             if self._confirm_discard():
                 dlg.problem.name = dlg.session.name
                 self.doc.open_import(dlg.problem, dlg.record)
+                package_actions.remember_import(self, cap)   # keep the source files in memory so that Export package can store them
                 self._after_load()
             return
         old = self.doc.project.imports[0]
@@ -1165,6 +1163,7 @@ class MainWindow(QMainWindow):
         added = [p for p in dlg.record.parts if p.designator not in known]
         kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
                                  add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        package_actions.remember_import(self, cap, replace=dlg.mode != "add")
         self._refresh_layers()
         # What the editor kept comes first (the user must see it), then the first changes of the parts and files
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]

@@ -20,6 +20,7 @@ from .. import copper, defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
+from ..package import background_bytes as package_background_bytes
 
 COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
@@ -348,6 +349,7 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self.background_error = ""                 # Why the background image is not drawn ("" when it is or there is none)
         self._overlay_args = None
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
@@ -546,11 +548,19 @@ class BoardView(QGraphicsView):
         """!
         @brief Add the background photo (from the project view settings) below everything else.
         """
+        self.background_error = ""
         cfg = self.doc.project.view.get("background")
         if not cfg:
             return
-        pm = QPixmap(cfg.get("path", ""))
+        pm = QPixmap()
+        data = package_background_bytes(self.doc.project, cfg.get("path", ""))   # an image stored in the project package is read from memory
+        if data is not None:
+            pm.loadFromData(data)
+        else:
+            pm = QPixmap(cfg.get("path", ""))
         if pm.isNull():
+            # Not silent: the window shows this text (a moved or deleted image used to vanish without a word)
+            self.background_error = f"The background image could not be loaded: {cfg.get('path', '')}"
             return
         item = QGraphicsPixmapItem(pm)
         # Image rows go downward, the scene goes upward: flip y and anchor at the top-left corner

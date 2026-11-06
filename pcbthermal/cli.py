@@ -9,7 +9,7 @@ Commands
 - transient   power-step response with the FVM model
 - convergence FVM grid refinement study
 - solvers     compare the linear solvers (direct, CG, SOR) on one board
-- convert     legacy editor JSON -> native JSON
+- convert     legacy editor JSON -> native JSON; `.pcbt.json` <-> `.pcbtz` package
 - gui         open the graphical application
 - example     write the reference board as a native JSON file
 
@@ -30,7 +30,8 @@ from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
-from .project import Project, ProjectFormatError, load_project, save_project
+from . import package as pkg
+from .project import Project, ProjectFormatError, save_project
 from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
@@ -81,7 +82,7 @@ def cmd_run(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    project = load_project(args.config)
+    project = pkg.load_any(args.config)
     options = project.options
     options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
     options.linear_solver = args.solver
@@ -183,7 +184,7 @@ def cmd_calibrate(args):
     @return Process exit code.
     """
     from .api import calibrate_convection
-    project = load_project(args.config)
+    project = pkg.load_any(args.config)
     options = project.options
     with laminate.using(*options.laminate_params()):                    # "auto" counts the unknowns of the project's laminate rule
         options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
@@ -225,7 +226,7 @@ def cmd_solvers(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    project = load_project(args.config)
+    project = pkg.load_any(args.config)
     with laminate.using(*project.options.laminate_params()):            # "auto" and the guard count the unknowns of the project's laminate rule
         cell = _cell_arg(args, project.problem, project.options.cell_mm)
         _guard(project.problem, ("fvm",), [cell])
@@ -258,9 +259,35 @@ def cmd_convert(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
+    if pkg.is_package(args.legacy) or args.output.lower().endswith(pkg.PACKAGE_SUFFIX):
+        return _convert_project(args)
     problem = load_problem(args.legacy)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(problem_to_dict(problem), fh, indent=2)
+    print(f"Wrote {args.output}")
+    return 0
+
+
+def _convert_project(args):
+    """!
+    @brief `convert` between a plain project file and a package (either direction, or package to package).
+    @details To a package: the project, its images and, with `--with-gerbers`, the source files the input package stores (a plain project has none). To a plain file: the
+             images and stored files are dropped, and the command says what was dropped.
+    @param args Parsed arguments (`legacy` is the input, `output` the output, `with_gerbers`).
+    @return Process exit code.
+    """
+    project = pkg.load_any(args.legacy)
+    extras = project.package
+    if args.output.lower().endswith(pkg.PACKAGE_SUFFIX):
+        _, notes = pkg.save_package(args.output, project, include_sources=bool(args.with_gerbers))
+        if extras is not None and extras.has_sources() and not args.with_gerbers:
+            notes.append(f"{len(extras.sources)} stored source file(s) were not copied (use --with-gerbers)")
+        for n in notes:
+            print(f"Note: {n}")
+    else:
+        _, notes = pkg.save_any(args.output, project, as_package=False)
+        for n in notes:
+            print(f"Warning: dropped: {n}")
     print(f"Wrote {args.output}")
     return 0
 
@@ -366,9 +393,10 @@ def build_parser():
     common(sv)
     sv.set_defaults(func=cmd_solvers)
 
-    v = sub.add_parser("convert", help="legacy editor JSON -> native JSON")
-    v.add_argument("legacy")
-    v.add_argument("output")
+    v = sub.add_parser("convert", help="legacy editor JSON -> native JSON; .pcbt.json <-> .pcbtz package")
+    v.add_argument("legacy", help="input: a legacy editor file, a .pcbt.json project or a .pcbtz package")
+    v.add_argument("output", help="output: a .pcbtz package, or a native JSON file")
+    v.add_argument("--with-gerbers", action="store_true", help="to a package: also store the source files (Gerbers, drills, placement, BOM) that the input package holds")
     v.set_defaults(func=cmd_convert)
 
     g = sub.add_parser("gui", help="open the graphical application")

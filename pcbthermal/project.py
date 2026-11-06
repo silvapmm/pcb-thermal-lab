@@ -49,6 +49,7 @@ class Project:
     view: dict = field(default_factory=dict)         # Viewer state: background image, zoom, ...
     imports: list = field(default_factory=list)      # ImportRecord list; non-empty makes the file format 2
     extra: dict = field(default_factory=dict)        # Top-level keys of a format 2 file this version does not know, written back unchanged
+    package: object = field(default=None, compare=False, repr=False)   # package.PackageExtras of a project that came from (or is saved as) a `.pcbtz`; never in the JSON
 
     def run_problem(self):
         """!
@@ -176,17 +177,28 @@ def read_project_json(path):
     @return The parsed JSON.
     @throws ProjectFormatError If the file is not valid JSON (the message gives the line and column).
     """
-    with open(path, "r", encoding="utf-8") as fh:
-        try:
-            return json.load(fh)
-        except json.JSONDecodeError as exc:
-            raise ProjectFormatError(f"this file is not valid JSON ({exc}); it may be damaged or not a project file") from exc
-        except UnicodeDecodeError as exc:          # Bytes that are not UTF-8 (a binary or damaged file)
-            raise ProjectFormatError(f"this file is not UTF-8 text ({exc.reason} at byte {exc.start}); it may be damaged or not a project file") from exc
-        except ValueError as exc:                  # A number of more than 4300 digits: Python refuses to read it
-            raise ProjectFormatError(f"this file holds a value that cannot be read ({exc}); it may be damaged or not a project file") from exc
-        except RecursionError as exc:              # Lists or objects nested thousands of levels deep: no project is like that
-            raise ProjectFormatError("this file is nested too deeply to be a project (lists or objects inside each other thousands of times)") from exc
+    with open(path, "rb") as fh:
+        return loads_project_json(fh.read())
+
+
+def loads_project_json(raw):
+    """!
+    @brief Parse the bytes of a project JSON, turning a damaged file into a clear message (shared by `.pcbt.json` files and the project member of a package).
+    @param raw Bytes of the file.
+    @return The parsed JSON.
+    @throws ProjectFormatError If the bytes are not valid UTF-8 JSON (the message gives the line and column).
+    """
+    try:
+        # Text mode of the old reader: a UTF-8 file with a byte order mark was never accepted, so none is skipped here either
+        return json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ProjectFormatError(f"this file is not valid JSON ({exc}); it may be damaged or not a project file") from exc
+    except UnicodeDecodeError as exc:          # Bytes that are not UTF-8 (a binary or damaged file)
+        raise ProjectFormatError(f"this file is not UTF-8 text ({exc.reason} at byte {exc.start}); it may be damaged or not a project file") from exc
+    except ValueError as exc:                  # A number of more than 4300 digits: Python refuses to read it
+        raise ProjectFormatError(f"this file holds a value that cannot be read ({exc}); it may be damaged or not a project file") from exc
+    except RecursionError as exc:              # Lists or objects nested thousands of levels deep: no project is like that
+        raise ProjectFormatError("this file is nested too deeply to be a project (lists or objects inside each other thousands of times)") from exc
 
 
 def _file_format(path):
@@ -229,13 +241,24 @@ def _umask():
 
 def _write_text_atomic(path, text):
     """!
-    @brief Write a text file so that a crash or an error during the write never leaves a truncated file in place of the old one.
-    @details The text goes to a temporary file in the same folder, is flushed to the disk and then renamed over the target (`os.replace`,
-             atomic on POSIX and on Windows NTFS). The permission bits of an existing file are kept; a new file gets the usual permissions
-             (0666 minus the umask). When the folder does not allow a new file (a writable file in a read-only folder) the file is written in
-             place, as the earlier versions did; the text is already serialised, so only an input/output error can interrupt it.
+    @brief Write a text file atomically (see `_write_atomic`).
     @param path Target path (a symbolic link is resolved, so the link stays and its target is replaced).
     @param text File content.
+    @throws PermissionError If the existing file is read-only (it is not replaced behind the user's back).
+    """
+    _write_atomic(path, lambda fh: fh.write(text), binary=False)
+
+
+def _write_atomic(path, write, binary):
+    """!
+    @brief Write a file so that a crash or an error during the write never leaves a truncated file in place of the old one.
+    @details The content goes to a temporary file in the same folder, is flushed to the disk and then renamed over the target (`os.replace`,
+             atomic on POSIX and on Windows NTFS). The permission bits of an existing file are kept; a new file gets the usual permissions
+             (0666 minus the umask). When the folder does not allow a new file (a writable file in a read-only folder) the file is written in
+             place, as the earlier versions did; the content is already built, so only an input/output error can interrupt it.
+    @param path Target path (a symbolic link is resolved, so the link stays and its target is replaced).
+    @param write Function(file object) that writes the whole content.
+    @param binary True for a binary file (a package), False for UTF-8 text (a project JSON, with the line ends of earlier versions).
     @throws PermissionError If the existing file is read-only (it is not replaced behind the user's back).
     """
     if os.path.exists(path) and not os.access(path, os.W_OK):
@@ -244,12 +267,12 @@ def _write_text_atomic(path, text):
     try:
         fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=folder)
     except OSError:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(text)
+        with open(path, "wb" if binary else "w", **({} if binary else {"encoding": "utf-8"})) as fh:
+            write(fh)
         return
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:   # Text mode as before, so the line ends are those of earlier versions
-            fh.write(text)
+        with os.fdopen(fd, "wb" if binary else "w", **({} if binary else {"encoding": "utf-8"})) as fh:   # Text mode as before, so the line ends are those of earlier versions
+            write(fh)
             fh.flush()
             os.fsync(fh.fileno())
         if os.path.exists(path):
