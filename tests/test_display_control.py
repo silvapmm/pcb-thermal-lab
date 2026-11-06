@@ -519,3 +519,55 @@ def test_the_results_tab_has_no_horizontal_scroll_at_1280x800(qtbot, tmp_path, s
             if area.isVisible() and area.isAncestorOf(page):
                 hb = area.horizontalScrollBar()
                 assert hb.maximum() == 0, (area.objectName(), hb.maximum(), i)
+
+
+
+def test_the_application_filter_is_installed_only_while_the_popover_is_open(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The click-outside filter watches every event of the application, so it is installed when the popover opens and removed when it closes (also when
+           the window closes with it open): an event sent to an unrelated widget reaches the window's filter only while the popover is open.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture (counts the calls of the filter).
+    """
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QWidget
+
+    calls = []
+    original = MainWindow.eventFilter
+
+    def counting(self, obj, event):
+        """!
+        @brief The window's filter, counting the user events it sees.
+        @param self MainWindow.
+        @param obj Receiver.
+        @param event The event.
+        @return What the real filter returns.
+        """
+        if event.type() == QEvent.User:
+            calls.append(obj)
+        return original(self, obj, event)
+
+    monkeypatch.setattr(MainWindow, "eventFilter", counting)
+    win = _win(qtbot, tmp_path)
+    win.show()
+    other = QWidget()
+    qtbot.addWidget(other)
+
+    def seen():
+        """!
+        @brief Send one user event to an unrelated widget.
+        @return True when the window's filter saw it.
+        """
+        n = len(calls)
+        QApplication.sendEvent(other, QEvent(QEvent.User))
+        return len(calls) > n
+
+    assert not seen()                                                     # Closed at start: not installed
+    win._toggle_display_popover()
+    assert win.display_popover.isVisible() and seen()                     # Open: installed
+    win._toggle_display_popover()
+    assert not win.display_popover.isVisible() and not seen()             # Closed again: removed
+    win._toggle_display_popover()
+    win.close()                                                           # The window closes with the popover open: removed too
+    assert not seen()
