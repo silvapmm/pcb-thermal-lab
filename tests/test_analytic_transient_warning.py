@@ -9,7 +9,7 @@ from pcbthermal.api import SolverOptions, simulate
 from pcbthermal.examples import example_board
 from pcbthermal import SquareWave
 
-KEY = "-66 % to +84 %"
+KEY = "-8 % to +1 %"
 
 
 def _profile_board(heatsink):
@@ -62,7 +62,7 @@ def test_warning_names_the_sample_and_not_the_lumped_model():
     """
     w = [x for x in analytic._AnalyticAdapter(_profile_board(True), 2.0, 40).warnings if KEY in x]
     assert len(w) == 1
-    assert "sample" in w[0] and "not a bound" in w[0] and "+175 %" in w[0] and "step response only" in w[0]
+    assert "sample" in w[0] and "not a bound" in w[0] and "300 W/m2K" in w[0] and "one part" in w[0]
     assert "FVM or the FDM" in w[0]
     assert "Lumped" not in w[0]
 
