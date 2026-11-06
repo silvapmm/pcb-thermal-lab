@@ -91,7 +91,7 @@ def test_current_view_is_byte_identical_to_develop(sim):
     """
     r = sim.results["fvm"]
     for view in (None, plots.MapView()):
-        assert _sha(_field(sim, view, hotspot=100.0, title="t")) == BASELINE["field"] or view is not None
+        assert _sha(_field(sim, view, hotspot=100.0, title="t")) == BASELINE["field"]
         fig = plots.new_figure()
         plots.draw_fields(fig, r, sim.problem, view=view)
         assert _sha(_rgba(fig)) == BASELINE["fields"]
@@ -118,8 +118,7 @@ def test_every_mode_changes_the_pixels_and_keeps_the_colour_scale(sim):
     r = sim.results["fvm"]
     for mode in plots.VIEW_MODES:
         fig = plots.new_figure()
-        ax = plots.draw_field(fig, r.T[0], sim.problem, r.dx, r.dy, view=plots.MapView(mode=mode, vmin=None) if False else plots.MapView(mode=mode),
-                              vmin=40.0, vmax=90.0)
+        ax = plots.draw_field(fig, r.T[0], sim.problem, r.dx, r.dy, view=plots.MapView(mode=mode), vmin=40.0, vmax=90.0)
         cb = fig.axes[-1]
         assert cb.get_ylim() == pytest.approx((40.0, 90.0))
         assert ax is not None
@@ -377,3 +376,112 @@ def test_opacity_spin_box_and_slider_are_one_value_and_drive_the_pixels(tab):
     assert p20 != p70 and _sha(_rgba_tab(tab)) == p70
     tab.opacity_spin.setValue(0)
     assert tab.map_view().opacity == 0.0
+
+
+def test_default_view_matches_the_plain_imshow_on_any_matplotlib(sim, monkeypatch):
+    """!
+    @brief Version-independent twin of the hash test: the default picture equals the one drawn by develop's literal `imshow` call (patched in for
+           `_draw_map`), in the same run, so a Matplotlib upgrade that skips the hash test still guards the default view.
+    @param sim Simulation fixture.
+    @param monkeypatch pytest fixture.
+    """
+    r = sim.results["fvm"]
+
+    def pictures():
+        """!
+        @brief The single map, the row of layers and a gradient map with the default view.
+        @return list of uint8 arrays.
+        """
+        out = [_field(sim, None, hotspot=100.0, title="t"), _field(sim, plots.MapView(), hotspot=100.0, title="t")]
+        fig = plots.new_figure()
+        plots.draw_fields(fig, r, sim.problem, view=plots.MapView())
+        out.append(_rgba(fig))
+        return out
+
+    new = pictures()
+
+    def develop_imshow(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_view=False):
+        """!
+        @brief The map call of develop before the View modes, argument for argument.
+        @param ax Axis.
+        @param field Field.
+        @param problem Problem.
+        @param dx Cell width in m.
+        @param dy Cell height in m.
+        @param layer Layer (unused).
+        @param cmap Colormap.
+        @param vmin Lower limit or None.
+        @param vmax Upper limit or None.
+        @param view MapView (unused).
+        @param solved_view Unused.
+        @return AxesImage.
+        """
+        _, _, ext = plots._field_axes(field, problem, dx, dy)
+        return ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=np.nanmin(field) if vmin is None else vmin,
+                         vmax=np.nanmax(field) if vmax is None else vmax)
+
+    monkeypatch.setattr(plots, "_draw_map", develop_imshow)
+    old = pictures()
+    assert all(np.array_equal(a, b) for a, b in zip(new, old))
+
+
+def test_upsampling_keeps_every_cell_in_its_place():
+    """!
+    @brief The Terrain lattice is not stretched: on a ramp the upsampled value at a pixel is the ramp at that pixel (the corner-aligned zoom was off by
+           0.375 of a cell at the edges), and a blank cell blanks exactly its own k x k pixels.
+    """
+    n = 20
+    ramp = np.tile(np.arange(n, dtype=float), (n, 1))                              # Value = index of the cell = position of its centre minus 0.5
+    z, filled, xs, ys = plots._upsampled(ramp, [0.0, float(n), 0.0, float(n)])
+    k = z.shape[1] // n
+    inner = slice(k, (n - 1) * k)                                                   # The end cells are clamped (nearest), the rest must follow the ramp
+    assert np.abs(z[n * k // 2, inner] - (xs[inner] - 0.5)).max() < 0.1          # The corner-aligned zoom: 0.33 of a cell here
+    blank = ramp.copy()
+    blank[:, 0] = np.nan
+    z, filled, xs, ys = plots._upsampled(blank, [0.0, float(n), 0.0, float(n)])
+    assert np.isnan(z[:, :k]).all() and not np.isnan(z[:, k:]).any() and not np.isnan(filled).any()
+
+
+def test_terrain_keeps_the_colours_of_the_bar_on_flat_ground():
+    """!
+    @brief On a plateau (and on a plateau with a ripple of a millikelvin) the Terrain picture has the colours of the colour bar; only slopes are lit.
+           Matplotlib's LightSource rescaled every picture's light to its own extremes, so flat ground moved off the bar and a ripple became a pattern.
+    """
+    from pcbthermal.model import Problem
+
+    p = Problem.new(width_mm=40, height_mm=40, layers=1)
+    y, x = np.mgrid[0:40, 0:40]
+    field = 50.0 + 30.0 * np.exp(-((x - 10.0) ** 2 + (y - 10.0) ** 2) / 20.0)        # A hill in one corner, flat elsewhere
+    field[25:, 25:] = 60.0 + 1e-3 * np.sin(x[25:, 25:] * 3.0)                          # A plateau with a ripple
+    fig = plots.new_figure()
+    ax = plots.draw_field(fig, field, p, 1e-3, 1e-3, view=plots.MapView(mode="terrain"), outline=False)
+    rgba = np.asarray(ax.get_images()[0].get_array())
+    k = rgba.shape[0] // 40
+    sm = plots.ScalarMappable(plots.Normalize(np.nanmin(field), np.nanmax(field)), "inferno")
+    flat = rgba[30 * k:38 * k, 30 * k:38 * k, :3]
+    assert np.abs(flat - np.asarray(sm.to_rgba(60.0))[:3]).max() < 0.01
+    assert np.abs(rgba[10 * k:12 * k, 4 * k:6 * k, :3] - rgba[10 * k:12 * k, 14 * k:16 * k, :3]).max() > 0.02   # The hill is lit on one side
+
+
+def test_smooth_and_terrain_reach_the_outline_and_the_bar_is_opaque():
+    """!
+    @brief On an outline board Smooth draws a gap-free picture clipped to the outline (blank cells used to eat a band of 1.5 cells along it), and with the
+           copper under the map the colour bar keeps full colours.
+    """
+    from pcbthermal.model import Problem
+
+    p = Problem.new(width_mm=40, height_mm=30, layers=1)
+    p.set_outline([(0, 0), (40, 0), (40, 12), (20, 12), (20, 30), (0, 30)])
+    p.add_zone(1, rect=(2, 2, 18, 28))
+    p.add_heater(1, 1.0, rect=(5, 20, 9, 24))
+    s = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+    r = s.results["fvm"]
+    for mode in ("smooth", "terrain"):
+        fig = plots.new_figure()
+        ax = plots.draw_field(fig, r.T[0], p, r.dx, r.dy, view=plots.MapView(mode=mode, show_copper=True))
+        im = ax.get_images()[-1]
+        assert im.get_clip_path() is not None
+        assert not np.isnan(np.asarray(im.get_array(), dtype=float)).any()
+        cbar = fig.axes[-1]
+        assert all(getattr(c, "get_alpha", lambda: None)() in (None, 1.0) for c in cbar.collections + cbar.images)
+        _rgba(fig)
