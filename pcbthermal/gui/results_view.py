@@ -23,6 +23,7 @@ from . import theme as th
 from . import tips
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
+from .flow import FlowLayout
 from ..numfmt import num
 
 
@@ -187,7 +188,8 @@ class PlotTab(QWidget):
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
         self.pos.setToolTip("Position of the cut: drag to move the line across the board.")
 
-        controls = QHBoxLayout()
+        # The temperature and gradient rows wrap (Auto range, min and max go to a second line in a narrow centre area); the profile row has a stretching slider
+        controls = FlowLayout() if kind in ("temperature", "gradient") else QHBoxLayout()
         if kind in ("temperature", "gradient"):
             for lbl, w in (("Model", self.model), ("Layer", self.layer)):
                 controls.addWidget(QLabel(lbl))
@@ -204,7 +206,8 @@ class PlotTab(QWidget):
                 controls.addWidget(w)
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
-        controls.addStretch(1)
+        if kind not in ("temperature", "gradient"):
+            controls.addStretch(1)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(controls)

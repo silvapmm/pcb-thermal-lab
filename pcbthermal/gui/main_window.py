@@ -495,8 +495,8 @@ class MainWindow(QMainWindow):
                                    "Show the temperature map of the last result on the board (T)")
         self.a_overlay.setEnabled(False)                       # Until a result exists; _update_map_button keeps the state and the tooltip
         # The keyboard route to the Display popover (the toolbar button takes no focus): opened active, with the keyboard in its controls
-        self.a_display = self._act("Display settings…", lambda: self._toggle_display_popover(activate=True),
-                                   tip="Open the Display panel of the tool bar from the keyboard: underlay, map opacity, view, contour step and colour map of the maps")
+        self.a_display = self._act("Display settings…", lambda: self._toggle_display_popover(activate=True), "D",
+                                   tip="Open the Display panel of the tool bar from the keyboard (D): underlay, map opacity, view, contour step and colour map of the maps")
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
@@ -556,13 +556,13 @@ class MainWindow(QMainWindow):
 
     def _hide_bare_key_hints(self):
         """!
-        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T) working but out of the menu text.
+        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T, D) working but out of the menu text.
 
         On macOS the native menu prints a key without a modifier as a lone letter next to the entry ("Temperature on board  T"),
         which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
         tool bar tooltips and the keyboard help still name them.
         """
-        for a in (self.a_grid, self.a_sgrid, self.a_overlay):
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display):
             keys = a.shortcuts()
             a.setShortcuts([])
             hidden = QAction(a.text(), self)
@@ -570,6 +570,8 @@ class MainWindow(QMainWindow):
             if a is self.a_overlay:
                 hidden.triggered.connect(self._key_overlay)
                 self._hidden_overlay_key = hidden
+            elif a is self.a_display:
+                hidden.triggered.connect(a.trigger)          # Same route as the menu entry: the popover takes the keyboard
             else:
                 hidden.triggered.connect(a.toggle)
             self.addAction(hidden)                              # Active in the whole window, in no menu
@@ -612,8 +614,8 @@ class MainWindow(QMainWindow):
         self.display_popover = DisplayPopover(self.display, self)
         self.display_popover.addAction(self._hidden_overlay_key)    # The key T keeps working while the popover is the active window
         self.display.changed.connect(self._on_display_changed)
-        self.tabs.currentChanged.connect(self._refresh_display_context)
-        self.results.tabs.currentChanged.connect(self._refresh_display_context)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.results.tabs.currentChanged.connect(self._on_tab_changed)
         QApplication.instance().installEventFilter(self)           # A click outside the popover closes it
         tb.addSeparator()
         tb.addWidget(QLabel(" Snap "))
@@ -811,6 +813,14 @@ class MainWindow(QMainWindow):
         @param _ Ignored (the value carried by the Qt signal).
         """
         self.display_popover.set_context(self._display_context())
+
+    def _on_tab_changed(self, *_):
+        """!
+        @brief A tab of the window or of the Results changed (mouse, Ctrl+1 to Ctrl+4, keyboard): close the Display panel, then show its controls for the new tab.
+        @param _ Ignored (the index carried by the Qt signal).
+        """
+        self._close_display_popover()
+        self._refresh_display_context()
 
     def _toggle_display_popover(self, activate=False):
         """!
@@ -1445,6 +1455,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature map on the board (T; the Display button of the tool bar says how it is drawn)</td></tr>
+<tr><td><b>D</b></td><td>Display settings: opens the Display panel with the keyboard in its controls</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
