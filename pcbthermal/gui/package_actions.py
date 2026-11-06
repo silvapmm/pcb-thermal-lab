@@ -8,7 +8,6 @@ Kept apart from `main_window.py` so that the window needs only a few calls. The 
 """
 
 import hashlib
-import shutil
 from pathlib import Path
 
 from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QLabel, QMessageBox, QVBoxLayout
@@ -47,34 +46,42 @@ def kind_of(role, name):
 
 def session_files(session):
     """!
-    @brief The source files of an import session as (name, bytes, kind, function), for `package.attach_sources`.
-    @details The bytes are those of the file on the disk when the source is a folder and its SHA-256 equals the session's (then the file is stored byte for byte); otherwise
-             the text the session read, encoded as UTF-8 (a file of a ZIP, or one whose line ends were normalised by the reader). A file above the size limit is left out.
-             The session keeps no BOM role: a BOM that sat in the folder is listed with the role Ignore and stored as kind "bom" when its name says so.
+    @brief The source files of an import session as (name, bytes, kind, function, origin), for `package.attach_sources`.
+    @details The ORIGINAL bytes are stored, never the reader's decoded text (review: a member of a ZIP was stored as its text re-encoded, so a byte that is not UTF-8, a
+             Latin-1 comment for instance, became U+FFFD and the backup was no longer the file). A file of a folder (or of a list of files) is read again from the disk and
+             kept only when its SHA-256 is still the session's; a member of a ZIP is read again from the archive, still open, and checked the way the session hashed it
+             (its text re-encoded, whole up to `import_session.HASH_WHOLE_BYTES`; a larger member is trusted to the CRC of the archive). A file that changed since it was
+             read, or cannot be read, is left out with a note, as is a file above the size limit. `origin` ("folder" or "zip") lets `extract_sources` give a re-import the
+             same container, so that the names and the hashes of the record are reproduced. The session keeps no BOM role: a BOM that sat in the folder is listed with the
+             role Ignore and stored as kind "bom" when its name says so.
     @param session The ImportSession (still open: its files are read now).
-    @return tuple (list of (name, bytes, kind, function), list of warning texts).
+    @return tuple (list of (name, bytes, kind, function, origin), list of warning texts).
     """
     out, notes = [], []
-    folder = Path(session.source_text) if session.source_text else None
+    archive = getattr(session, "_archive", None)
+    paths = getattr(session, "paths", {}) or {}
     for f in session.files:
         if f.limit_error:
             notes.append(f"{f.name}: not stored ({f.limit_error})")
             continue
-        blob = None
-        if folder is not None and folder.is_dir():
-            try:
-                raw = (folder / f.name).read_bytes()
-                if hashlib.sha256(raw).hexdigest() == f.sha256:
-                    blob = raw
-            except OSError:
-                blob = None
-        if blob is None:
-            try:
-                blob = f.text().encode("utf-8")
-            except Exception as exc:                           # a file that can no longer be read: say so, store the rest
-                notes.append(f"{f.name}: not stored ({exc})")
+        try:
+            if archive is not None:
+                raw, origin = archive.read_bytes(f.name), "zip"
+                same = (len(raw) > imp.HASH_WHOLE_BYTES
+                        or hashlib.sha256(raw.decode("utf-8", "replace").encode("utf-8", "replace")).hexdigest() == f.sha256)
+            elif f.name in paths:
+                raw, origin = Path(paths[f.name]).read_bytes(), "folder"
+                same = hashlib.sha256(raw).hexdigest() == f.sha256
+            else:
+                notes.append(f"{f.name}: not stored (its file is not known)")
                 continue
-        out.append((f.name, blob, kind_of(f.role, f.name), f.role))
+        except Exception as exc:                               # a file that can no longer be read: say so, store the rest
+            notes.append(f"{f.name}: not stored ({exc})")
+            continue
+        if not same:
+            notes.append(f"{f.name}: not stored (it changed on the disk since the import read it)")
+            continue
+        out.append((f.name, raw, kind_of(f.role, f.name), f.role, origin))
     return out, notes
 
 
@@ -133,9 +140,13 @@ def stored_sources(win):
 
 def offer_stored_sources(win, dlg):
     """!
-    @brief Offer a re-import the files stored in the project and, if the user agrees, open them in the import window (they are written to a private folder that is removed at once).
+    @brief Offer a re-import the files stored in the project and, if the user agrees, open them in the import window.
+    @details The files are written to a private folder that lives until the window closes its session: the session reads the files lazily (the placement file and the
+             paste layers when the parts are built, every file again when the capture stores them), so the folder must not be removed right after `open_path` (review: it
+             was, and the import then failed with FileNotFoundError and the stored files were lost). The removal is chained after `session.close` (and after the capture of
+             `capture_on_close`, which reads the files first), and also happens when the user opens other files in the window (`set_files` closes the session first).
     @param win The MainWindow.
-    @param dlg The ImportBoardWindow, before it is shown.
+    @param dlg The ImportBoardWindow, before it is shown (after `capture_on_close`).
     @return None
     """
     box = QMessageBox(win)
@@ -152,10 +163,21 @@ def offer_stored_sources(win, dlg):
         folder = win.doc.project.package.extract_sources()
         dlg.open_path(folder)
     except Exception as exc:
-        QMessageBox.warning(win, "Cannot use the stored files", str(exc))
-    finally:
         if folder:
-            shutil.rmtree(folder, ignore_errors=True)
+            pkg.remove_extracted(folder)
+        QMessageBox.warning(win, "Cannot use the stored files", str(exc))
+        return
+    session = dlg.session
+    previous = session.close
+
+    def close():
+        """!@brief Close the session as before (the capture reads the files first), then remove the private folder of the stored files."""
+        try:
+            previous()
+        finally:
+            pkg.remove_extracted(folder)
+            session.close = previous                         # once removed, a later close (a new set_files) is the plain one again
+    session.close = close
 
 
 class ExportPackageDialog(QDialog):
@@ -163,7 +185,7 @@ class ExportPackageDialog(QDialog):
 
     def __init__(self, parent, has_sources, checked):
         """!
-        @param parent Parent window.
+        @param parent Parent window (the MainWindow: its open project's stored files are scanned by `package.privacy_hints`).
         @param has_sources Whether the project holds source files (the box is disabled and the text says why when it does not).
         @param checked Initial state of the box (the remembered preference).
         """
@@ -176,7 +198,14 @@ class ExportPackageDialog(QDialog):
         self.sources.setChecked(bool(checked and has_sources))
         self.sources.setEnabled(has_sources)
         lay.addWidget(self.sources)
-        note = QLabel(SOURCES_NOTE if has_sources else "This project holds no source files (it was not imported from files in this session, or its package stores none).")
+        text = SOURCES_NOTE if has_sources else "This project holds no source files (it was not imported from files in this session, or its package stores none)."
+        hints = pkg.privacy_hints(parent.doc.project.package.sources) if has_sources else []
+        if hints:
+            # Which files, and what kind of text: the text itself is never shown (it may be a user name or a path)
+            shown = "; ".join(f"{name} ({', '.join(kinds)})" for name, kinds in hints[:6]) + (f"; and {len(hints) - 6} more" if len(hints) > 6 else "")
+            text += f" Found in the first {pkg.PRIVACY_HEAD_BYTES // 1024} kB of {len(hints)} file(s): {shown}. Remove it from the files before sharing the package, or leave the box off."
+        self.privacy = hints
+        note = QLabel(text)
         note.setWordWrap(True)
         note.setToolTip(SOURCES_TIP)
         lay.addWidget(note)

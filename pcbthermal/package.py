@@ -36,6 +36,7 @@ import shutil
 import stat
 import struct
 import tempfile
+import unicodedata
 import zipfile
 import zlib
 from datetime import datetime, timezone
@@ -52,11 +53,16 @@ PROJECT_MEMBER = "project.pcbt.json"
 IMAGES_DIR = "images/"
 SOURCES_DIR = "sources/"                           # sources/<set>/<original file name>; the kind of each file is in the manifest ("gerber", "drill", "placement", "bom", "x3", "other"; room for "odbpp")
 KINDS = ("gerber", "drill", "placement", "bom", "x3", "other")
+ORIGINS = ("folder", "zip")                         # The container a stored set came from; extract_sources rebuilds the same one
 RENDERS_DIR = "renders/"
 
 MAX_MEMBERS = 5000
-MAX_TOTAL_BYTES = 2 * 1024 ** 3                     # Declared uncompressed total
-MAX_RATIO = 1000.0                                  # Uncompressed over compressed bytes of one member (a zip bomb)
+# A package is read WHOLE into memory when it is opened (the Gerber ZIP reader reads one member at a time), so its limits are tighter than those of `gerber/archive.py`:
+# review: with the archive's 2 GB and ratio 1000 a 0.7 MB package took 280 MB (two members at ratio 449) and a 5 MB one could take 2 GB. Real members compress at most
+# 8.6 times (143 files of the open boards above 64 kB) and a project JSON with imported copper about 2.5 times, so 200 leaves a margin of 20.
+MAX_TOTAL_BYTES = 1024 ** 3                         # Declared uncompressed total (all of it is held in memory)
+MAX_RATIO = 200.0                                   # Uncompressed over compressed bytes of one member (a zip bomb)
+MAX_PROJECT_RATIO = 1000.0                          # The project JSON itself: repeated objects (identical vias copied in the editor) reach 255 and the archive's limit is kept
 RATIO_FREE_BYTES = 64 * 1024                        # A member this small is not judged by the ratio (a tiny file of zeros has a big ratio and no danger)
 MAX_MANIFEST_BYTES = 16 * 1024 ** 2
 MAX_PROJECT_BYTES = 512 * 1024 ** 2
@@ -66,6 +72,9 @@ GERBER_NOTE = ("Gerber file headers may carry folder paths and user names, and a
                "(no comment is removed).")
 _ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError, ValueError, UnicodeDecodeError, struct.error, OverflowError, OSError)
 _SAFE_PART = re.compile(r"[^\w.\- +()]")
+EXTRACT_PREFIX = "pcbtz_gerber_"
+_WINDOWS_DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}
+MAX_NAME_CHARS = 120                               # Longest file name written by extract_sources (well under the 255 bytes of common file systems)
 
 
 class PackageExtras:
@@ -108,29 +117,74 @@ class PackageExtras:
     def extract_sources(self, set_name=None):
         """!
         @brief Write the stored Gerber files of one set to a new private folder (mode 0700), checking their hash again, so that the import can read a folder.
+        @details The files go into a sub-folder named after the set (`<temporary folder>/<set>/`), so that the import session, which names the board after the folder,
+                 keeps the name of the stored import (review: the record of a re-import from the stored files was named `pcbtz_gerber_...` and the package then held the
+                 files twice, under the old and the temporary set name). Names are made safe for every file system (`_safe_file_name`) and never overwrite each other.
         @param set_name Set to extract (None: the first set).
-        @return str: the folder; the caller removes it (`shutil.rmtree`) when the import is closed.
+        @return str: the folder of the files, or a ZIP file when the set came from a ZIP (same member names); the caller removes it with `remove_extracted` when the
+                import is closed.
         @throws ProjectFormatError If the package stores no Gerber files or a member changed in memory.
         """
         sets = self.gerber_sets()
         if not sets:
             raise ProjectFormatError("this project stores no Gerber files")
         key = set_name if set_name in sets else sorted(sets)[0]
-        folder = tempfile.mkdtemp(prefix="pcbtz_gerber_")
+        top = tempfile.mkdtemp(prefix=EXTRACT_PREFIX)
         try:
-            os.chmod(folder, 0o700)
+            os.chmod(top, 0o700)
+            as_zip = any(self.source_meta.get(m, {}).get("origin") == "zip" for _, m in sets[key])
+            if as_zip:
+                # The set came from a ZIP: rebuild a ZIP with the original member names (nothing named by the package touches the file system; the import's own
+                # archive reader checks the names), so that the re-import sees the same names and hashes the members the same way
+                folder = os.path.join(top, _safe_file_name(key) + ".zip")
+                with zipfile.ZipFile(folder, "x", zipfile.ZIP_DEFLATED) as zf:
+                    used = set()
+                    for name, member in sets[key]:
+                        original = self.source_meta.get(member, {}).get("original") or name
+                        if original in used:
+                            original = name
+                        used.add(original)
+                        zf.writestr(original, self._checked(member))
+                return folder
+            folder = os.path.join(top, _safe_file_name(key))
+            os.mkdir(folder, 0o700)
+            taken = set()
             for name, member in sets[key]:
-                data = self.sources[member]
-                want = self._hashes.get(member) if hasattr(self, "_hashes") else None
-                if want and hashlib.sha256(data).hexdigest() != want:
-                    raise ProjectFormatError(f"{member}: the stored file changed since the package was read")
-                safe = _safe_file_name(name)
-                with open(os.path.join(folder, safe), "wb") as fh:
-                    fh.write(data)
+                original = (self.source_meta.get(member, {}).get("original") or name).rsplit("/", 1)[-1]
+                safe = _unique(_safe_file_name(original), taken)       # two hostile names that become the same safe name: the second gets a number
+                taken.add(safe)
+                with open(os.path.join(folder, safe), "xb") as fh:     # exclusive: never writes through an existing name
+                    fh.write(self._checked(member))
         except BaseException:
-            shutil.rmtree(folder, ignore_errors=True)
+            shutil.rmtree(top, ignore_errors=True)
             raise
         return folder
+
+    def _checked(self, member):
+        """!
+        @brief The bytes of a stored file, checked again against the hash read from the package.
+        @param member Member name.
+        @return bytes.
+        @throws ProjectFormatError If the bytes changed in memory.
+        """
+        data = self.sources[member]
+        want = self._hashes.get(member) if hasattr(self, "_hashes") else None
+        if want and hashlib.sha256(data).hexdigest() != want:
+            raise ProjectFormatError(f"{member}: the stored file changed since the package was read")
+        return data
+
+
+def remove_extracted(folder):
+    """!
+    @brief Remove a folder made by `PackageExtras.extract_sources` (the set folder and its private parent).
+    @param folder The folder or ZIP file `extract_sources` returned.
+    @return None
+    """
+    parent = os.path.dirname(os.path.abspath(folder))
+    if os.path.basename(parent).startswith(EXTRACT_PREFIX):
+        shutil.rmtree(parent, ignore_errors=True)
+    else:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------ detection
@@ -149,11 +203,20 @@ def is_package(path):
 
 def _safe_file_name(name):
     """!
-    @brief A file name safe to create in a private folder.
+    @brief A file name safe to create in a private folder on any common file system.
+    @details Only the last component is kept; characters outside letters, digits and `.-_ +()` become `_`; leading dots and trailing dots and spaces (which Windows drops,
+             making two names one) are removed; a Windows device name (`CON`, `NUL`, `COM1`, ... with or without an extension) gets a leading `_`; the name is cut to
+             MAX_NAME_CHARS characters, keeping its extension.
     @param name Name taken from a package.
-    @return str: the last component with unusual characters replaced (never empty, never starting with a dot).
+    @return str: never empty, never starting with a dot.
     """
-    base = _SAFE_PART.sub("_", name.rsplit("/", 1)[-1]).lstrip(".") or "file"
+    base = _SAFE_PART.sub("_", unicodedata.normalize("NFC", name).rsplit("/", 1)[-1]).lstrip(".").rstrip(". ") or "file"
+    if base.split(".", 1)[0].upper() in _WINDOWS_DEVICES:
+        base = "_" + base
+    if len(base) > MAX_NAME_CHARS:
+        stem, ext = posixpath.splitext(base)
+        ext = ext[:16]
+        base = stem[:MAX_NAME_CHARS - len(ext)] + ext
     return base
 
 
@@ -251,6 +314,9 @@ def read_package(path):
                 extras._hashes[name] = entry["sha256"]
                 if name.startswith(SOURCES_DIR):
                     extras.source_meta[name] = {"kind": str(entry.get("kind", "other")), "function": str(entry.get("function", ""))}
+                    for key in ("original", "origin"):         # Written since the review; an older package has neither (folder, member name)
+                        if isinstance(entry.get(key), str):
+                            extras.source_meta[name][key] = entry[key][:1024]
             if name == PROJECT_MEMBER:
                 data = blob
             elif name.startswith(IMAGES_DIR):
@@ -287,17 +353,19 @@ def _validate(zf):
         name = i.filename
         if name in out:
             raise ProjectFormatError(f"the package holds two members named {name!r}")
-        if name.casefold() in folded:
-            raise ProjectFormatError(f"the package holds two names that differ only in case: {folded[name.casefold()]!r} and {name!r}")
+        fold = unicodedata.normalize("NFC", name).casefold()     # also NFC against NFD: one file on macOS, two members in the ZIP
+        if fold in folded:
+            raise ProjectFormatError(f"the package holds two names that differ only in case or Unicode normalisation: {folded[fold]!r} and {name!r}")
         mode = (i.external_attr >> 16) & 0xFFFF
         if mode and stat.S_ISLNK(mode):
             raise ProjectFormatError(f"member {name!r} is a symbolic link; the package is refused")
         if i.flag_bits & 0x1:
             raise ProjectFormatError(f"member {name!r} is encrypted")
-        if i.file_size > RATIO_FREE_BYTES and i.compress_size > 0 and i.file_size / i.compress_size > MAX_RATIO:
-            raise ProjectFormatError(f"member {name!r} has a compression ratio above {MAX_RATIO:.0f} (zip bomb?)")
+        ratio = MAX_PROJECT_RATIO if name == PROJECT_MEMBER else MAX_RATIO
+        if i.file_size > RATIO_FREE_BYTES and i.compress_size > 0 and i.file_size / i.compress_size > ratio:
+            raise ProjectFormatError(f"member {name!r} has a compression ratio above {ratio:.0f} (zip bomb?)")
         total += i.file_size
-        out[name], folded[name.casefold()] = i, name
+        out[name], folded[fold] = i, name
     if total > MAX_TOTAL_BYTES:
         raise ProjectFormatError(f"the package declares {total} uncompressed bytes (limit {MAX_TOTAL_BYTES})")
     return out
@@ -489,7 +557,15 @@ def save_package(path, project, include_sources=None):
             for name, blob in members.items():
                 zf.writestr(name, blob)
 
-    _write_atomic(target, write, binary=True)
+    try:
+        _write_atomic(target, write, binary=True)
+    except BaseException:
+        if backup:                                    # The old file was not replaced: its copy is not needed (review: each failed attempt left one more .bak)
+            try:
+                os.unlink(backup)
+            except OSError:
+                pass
+        raise
     extras.writer = f"pcbthermal {__version__}"
     extras.is_package = True
     extras._hashes = {n: _sha(b) for n, b in members.items()}
@@ -548,29 +624,64 @@ def dropped_text(extras):
     return notes
 
 
+PRIVACY_HEAD_BYTES = 8192                           # Bytes of each stored file looked at by privacy_hints (the header and comments of a Gerber file sit at its top)
+_PRIVACY_RULES = (
+    ("a user folder path", re.compile(rb"(?:/Users/|/home/|[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/])[^\s*%\\/]{1,64}")),
+    ("a network path", re.compile(rb"\\\\[A-Za-z0-9_.-]{1,64}\\")),
+    ("an e-mail address", re.compile(rb"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,4}")),
+    ("a user, author or computer name", re.compile(rb"(?i)\b(?:user(?:\s?name)?|author|login|computer|host(?:name)?|designer)\s{0,3}[:=]")),
+)
+
+
+def privacy_hints(sources, limit=PRIVACY_HEAD_BYTES):
+    """!
+    @brief Which stored source files carry text that may identify a person or a machine, by a cheap scan of their first bytes.
+    @details Only the KIND of text found is returned, never the text itself (the rule of the CAD profiles: a banner can carry paths and user and computer names, and the
+             program does not show or store them). Every pattern is bounded, so the scan is linear in the bytes looked at. A file without such text is not proven clean:
+             the scan reads only the first `limit` bytes and knows only these patterns.
+    @param sources dict member name -> bytes (`PackageExtras.sources`).
+    @param limit Bytes of each file looked at.
+    @return list of (file name, list of kinds), only for the files with a hint, in member order.
+    """
+    out = []
+    for member in sorted(sources):
+        head = bytes(sources[member][:limit])
+        kinds = [label for label, rx in _PRIVACY_RULES if rx.search(head)]
+        if kinds:
+            out.append((member.rsplit("/", 1)[-1], kinds))
+    return out
+
+
 def attach_sources(project, files, set_name=None, replace=True):
     """!
     @brief Remember the source files of an import so that a package can store them.
+    @details A project holds one import, so `replace=True` (a new import, a re-import by Replace or Update) drops EVERY stored set before the new files are kept (review: it
+             dropped only the set of the new name, so a re-import from a folder of another name left the old set beside the new one, and `extract_sources` took the first set
+             by name, possibly the stale one). `replace=False` (Add files) adds the files to the stored set when there is one.
     @param project The Project.
-    @param files Iterable of (file name, bytes, kind, function): the original name, the content, one of KINDS and the role the import gave the file.
-    @param set_name Name of the set (None: from the first import record, or "board").
-    @param replace True: the stored files of the set are replaced by these; False: these are added to them.
+    @param files Iterable of (file name, bytes, kind, function[, origin]): the original name (a ZIP member with its folders), the ORIGINAL bytes, one of KINDS, the role
+                 the import gave the file and the container it came from (one of ORIGINS, default "folder").
+    @param set_name Name of the set (None: the stored set when adding to one, else the first import record's name, or "board").
+    @param replace True: the stored files are replaced by these; False: these are added to them.
     @return int: number of files attached.
     """
     extras = getattr(project, "package", None) or PackageExtras()
+    if replace:
+        extras.sources, extras.source_meta = {}, {}
     if set_name is None:
-        set_name = (project.imports[0].name if project.imports else "") or "board"
+        stored = sorted(extras.gerber_sets())
+        set_name = stored[0] if stored and not replace else ((project.imports[0].name if project.imports else "") or "board")
     set_name = _safe_file_name(set_name).replace(" ", "_")[:60] or "board"
-    for member in [m for m in extras.sources if replace and m.startswith(f"{SOURCES_DIR}{set_name}/")]:
-        del extras.sources[member]
-        extras.source_meta.pop(member, None)
     taken = list(extras.sources)
     n = 0
-    for name, blob, kind, function in files:
+    for item in files:
+        name, blob, kind, function = item[:4]
+        origin = item[4] if len(item) > 4 and item[4] in ORIGINS else "folder"
         member = _unique(f"{SOURCES_DIR}{set_name}/{_safe_file_name(name)}", taken)
         taken.append(member)
         extras.sources[member] = bytes(blob)
-        extras.source_meta[member] = {"kind": kind if kind in KINDS else "other", "function": str(function)}
+        # The original name (a ZIP member keeps its folders) and the container let a re-import read the same names, so the hashes and the pairing of the record hold
+        extras.source_meta[member] = {"kind": kind if kind in KINDS else "other", "function": str(function), "original": str(name), "origin": origin}
         n += 1
     project.package = extras
     return n

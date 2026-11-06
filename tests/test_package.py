@@ -124,7 +124,7 @@ def test_round_trip_every_member_kind(tmp_path):
     assert back.package.images["images/bg.png"] == PNG
     assert back.package.sources["sources/my_board/top.gtl"] == GBR
     assert back.package.unknown["notes/readme.txt"] == b"hello" and back.package.renders["renders/copper.png"] == PNG
-    assert back.package.source_meta["sources/my_board/board.drl"] == {"kind": "drill", "function": "Plated drill"}
+    assert back.package.source_meta["sources/my_board/board.drl"] == {"kind": "drill", "function": "Plated drill", "original": "board.drl", "origin": "folder"}
     assert back.imports == prj.imports
     again = tmp_path / "again.pcbtz"
     pkg.save_package(again, back)
@@ -181,6 +181,7 @@ def test_extract_sources_private_folder(tmp_path):
     back = pkg.load_package(path)
     folder = back.package.extract_sources()
     try:
+        assert os.path.basename(folder) == "my_board"                 # the session names the board after the folder: the set name, not the temporary name
         assert sorted(os.listdir(folder)) == ["board.drl", "my_bom.csv", "pos.csv", "top.gtl"]
         assert open(os.path.join(folder, "top.gtl"), "rb").read() == GBR
         assert stat.S_IMODE(os.stat(folder).st_mode) == 0o700
@@ -188,8 +189,8 @@ def test_extract_sources_private_folder(tmp_path):
         with pytest.raises(ProjectFormatError):
             back.package.extract_sources()
     finally:
-        import shutil
-        shutil.rmtree(folder, ignore_errors=True)
+        pkg.remove_extracted(folder)
+    assert not os.path.exists(os.path.dirname(folder))
 
 
 def test_moving_the_package_keeps_image_and_files(tmp_path):
@@ -649,7 +650,6 @@ def test_stored_sources_feed_a_reimport(window, tmp_path):
     @param tmp_path Temporary folder.
     @return None
     """
-    import shutil
     from pcbthermal.gui.import_session import ImportSession
     prj = _project(tmp_path, imports=True, sources=True)
     path = tmp_path / "r.pcbtz"
@@ -662,7 +662,7 @@ def test_stored_sources_feed_a_reimport(window, tmp_path):
         assert sorted(f.name for f in s.files) == ["board.drl", "my_bom.csv", "pos.csv", "top.gtl"]
         assert next(f for f in s.files if f.name == "top.gtl").role == "Top copper"
     finally:
-        shutil.rmtree(folder, ignore_errors=True)
+        pkg.remove_extracted(folder)
 
 
 def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
@@ -688,6 +688,156 @@ def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
     session.set_files(zp)
     dlg.record = object()
     session.close()                                          # what ImportBoardWindow.done does
-    got = {n: (k, fn) for n, _, k, fn in cap.files}
+    got = {n: (k, fn) for n, _, k, fn, _ in cap.files}
     assert got["top.gtl"][0] == "gerber" and got["pos.csv"][0] == "placement" and got["parts_bom.csv"][0] == "bom"
-    assert dict((n, b) for n, b, _, _ in cap.files)["top.gtl"] == GBR
+    assert dict((n, b) for n, b, _, _, _ in cap.files)["top.gtl"] == GBR
+    assert {o for *_, o in cap.files} == {"zip"}
+
+
+def _drive_import(window, monkeypatch, state):
+    """!
+    @brief Answer File - Import Gerber board like a user: the window reads `state["source"]` (None: what the offer of the stored files opened), the re-import is a Replace,
+           and the box that offers the stored files answers `state["use_stored"]`.
+    @param window The MainWindow.
+    @param monkeypatch pytest fixture.
+    @param state dict with "source", "use_stored" and the list "folders" (what the session read, filled here).
+    @return None
+    """
+    from PySide6.QtWidgets import QMessageBox
+    from pcbthermal.gui import import_window as iw
+    monkeypatch.setattr("pcbthermal.gui.main_window.QMessageBox.question", lambda *a, **k: QMessageBox.Discard)
+
+    def fake_exec(dlg):
+        """!@brief The import window: read, build, close. @param dlg The window. @return int"""
+        dlg.confirm = lambda *a: True
+        dlg.notify = lambda title, text: pytest.fail(f"{title}: {text}")
+        if state["source"] is not None:
+            dlg.open_path(str(state["source"]))
+        state["folders"].append(dlg.session.source_text)
+        dlg.ask_reimport = lambda d: (d.radios["replace"].setChecked(True), True)[1]
+        return 1 if dlg.do_import() else 0
+    monkeypatch.setattr(iw.ImportBoardWindow, "exec", fake_exec)
+
+    def box_exec(box):
+        """!@brief The offer of the stored files. @param box The message box. @return int"""
+        box._answer = next((b for b in box.buttons() if b.text() == ("Use the stored files" if state["use_stored"] else "Choose other files")), None)
+        return 0
+    monkeypatch.setattr(QMessageBox, "exec", box_exec)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda box: getattr(box, "_answer", None))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: pytest.fail(f"warning: {a[1:]}"))
+
+
+@pytest.mark.parametrize("as_zip", [False, True])
+def test_reimport_from_the_stored_files_through_the_window(window, tmp_path, monkeypatch, as_zip):
+    """!
+    @brief Review regression: an import, Export package with the files, Open, and two re-imports from the stored files through the window.
+    @details Found by the review: the private folder of the stored files was removed right after `open_path`, so the import failed (FileNotFoundError when the parts read
+             the placement file) and the capture lost the files; the record was renamed after the temporary folder and the package then held the files twice; a ZIP member
+             was stored as its decoded text (a Latin-1 byte became U+FFFD). Now: the original bytes are stored, the re-import sees the same names and hashes as the first
+             import (a ZIP is rebuilt for a set that came from one, with its folders), the set keeps its name and holds each file once, and no temporary folder is left.
+    @param window The MainWindow.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @param as_zip True to import from a ZIP whose members sit in a sub-folder, False from a folder.
+    @return None
+    """
+    import glob
+    import tempfile
+    from tests.helpers.synthetic_board import make_board
+    src = make_board(tmp_path / "board")
+    # Bytes no reader may change: a Latin-1 comment (not UTF-8) and CR LF line ends
+    f_gbr = b"G04 R\xe9vision \xa9 2026*\r\n" + (src / "F.gbr").read_bytes().replace(b"\n", b"\r\n")
+    (src / "F.gbr").write_bytes(f_gbr)
+    originals = {f.name: f.read_bytes() for f in src.iterdir()}
+    source = src
+    if as_zip:
+        source = tmp_path / "board.zip"
+        with zipfile.ZipFile(source, "w", zipfile.ZIP_DEFLATED) as z:
+            for name, data in originals.items():
+                z.writestr("gerbers/" + name, data)
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*")))
+    state = {"source": source, "use_stored": True, "folders": []}
+    _drive_import(window, monkeypatch, state)
+    window.show_import()
+    first = sorted((f.name, f.sha256, f.function) for f in window.doc.project.imports[0].files)
+    name = window.doc.project.imports[0].name
+    stored = window.doc.project.package.sources
+    assert {m.rsplit("/", 1)[-1]: b for m, b in stored.items()} == {k: v for k, v in originals.items() if k in {n.rsplit("/", 1)[-1] for n, _, _ in first}}
+    out = tmp_path / "p.pcbtz"
+    from pcbthermal.gui import package_actions as pa
+    assert pa.write_copy(window, str(out), True)
+    window.open_file(str(out))
+    assert window.doc.project.package.sources["sources/board/F.gbr"] == f_gbr          # byte for byte after a save and an open
+    for _ in range(2):
+        state["source"] = None
+        window.show_import()
+        rec = window.doc.project.imports[0]
+        assert sorted((f.name, f.sha256, f.function) for f in rec.files) == first and rec.name == name
+        assert sorted(window.doc.project.package.sources) == sorted(stored) and window.doc.project.package.sources["sources/board/F.gbr"] == f_gbr
+    assert len(state["folders"]) == 3 and all(pkg.EXTRACT_PREFIX in t for t in state["folders"][1:])
+    assert set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*"))) == before    # the private folder went with the window
+
+
+def test_extraction_names_are_safe_on_every_file_system(tmp_path):
+    """!
+    @brief Review regression: a hostile package cannot make the extraction write a Windows device name, a name Windows would merge (trailing dot or space), a name too long
+           for the file system, or one file over another (two names that become the same safe name); NFC and NFD spellings of one name are refused like a case collision.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    import unicodedata
+    names = ["sources/b/CON", "sources/b/nul.gbr", "sources/b/com1.drl", "sources/b/trail. ", "sources/b/" + "a" * 300 + ".gbr", "sources/b/x:y.gbr", "sources/b/x?y.gbr"]
+    members = dict(_good_members(), **{n: n.encode() for n in names})
+    path = tmp_path / "w.pcbtz"
+    _raw_zip(path, members)
+    extras = pkg.load_package(path).package
+    folder = extras.extract_sources()
+    try:
+        got = sorted(os.listdir(folder))
+        assert len(got) == len(names)                                                   # nothing overwritten
+        assert all(len(g) <= pkg.MAX_NAME_CHARS and not g.endswith((".", " ")) for g in got)
+        assert all(g.split(".", 1)[0].upper() not in pkg._WINDOWS_DEVICES for g in got)
+    finally:
+        pkg.remove_extracted(folder)
+    nfc, nfd = (unicodedata.normalize(f, "sources/b/é.gbr") for f in ("NFC", "NFD"))
+    _raw_zip(tmp_path / "n.pcbtz", dict(_good_members(), **{nfc: b"1", nfd: b"2"}))
+    with pytest.raises(ProjectFormatError, match="normalisation"):
+        pkg.load_package(tmp_path / "n.pcbtz")
+
+
+def test_failed_save_over_a_json_leaves_no_new_backup(tmp_path, monkeypatch):
+    """!
+    @brief Review regression: a package save over a `.pcbt.json` that fails (the rename) keeps the old file and does not leave the `.bak` it made (each failed attempt left one more).
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    target = tmp_path / "t"
+    save_project(target, Project(problem=example_board()))
+    before = target.read_bytes()
+
+    def boom(*a, **k):
+        """!@brief A rename that fails. @param a Ignored. @param k Ignored."""
+        raise OSError("disk full")
+    monkeypatch.setattr(os, "replace", boom)
+    for _ in range(2):
+        with pytest.raises(OSError):
+            pkg.save_package(target, Project(problem=example_board()))
+    assert target.read_bytes() == before and sorted(os.listdir(tmp_path)) == ["t"]
+
+
+def test_privacy_hints_name_the_kind_never_the_text(window, tmp_path):
+    """!
+    @brief Export package names the stored files that carry a user folder path, an e-mail address or a user/author field, and shows the kind of text, never the text.
+    @param window The MainWindow.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from pcbthermal.gui import package_actions as pa
+    secret = b"G04 User: jdoe12 on C:\\Users\\jdoe12\\Desktop mail jdoe12@example.org*\n"
+    hints = pkg.privacy_hints({"sources/b/a.gbr": secret + GBR, "sources/b/clean.gbr": GBR, "sources/b/k.gbr": b"G04 /home/someone/x*\n"})
+    assert hints == [("a.gbr", ["a user folder path", "an e-mail address", "a user, author or computer name"]), ("k.gbr", ["a user folder path"])]
+    pkg.attach_sources(window.doc.project, [("a.gbr", secret + GBR, "gerber", "Top copper")])
+    dlg = pa.ExportPackageDialog(window, True, False)
+    text = " ".join(w.text() for w in dlg.findChildren(type(dlg.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel))))
+    assert "a.gbr" in text and "e-mail address" in text and "jdoe12" not in text and "example.org" not in text
