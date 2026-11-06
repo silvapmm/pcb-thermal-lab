@@ -74,16 +74,21 @@ class NewBoardDialog(QDialog):
         f.addRow(bb)
 
 
+BACKGROUND_IMPORTED_TIP = ("A background image is for tracing a board by hand; this project comes from Gerber files, "
+                           "which already give the exact copper.")
+
+
 class BackgroundDialog(QDialog):
     """!
     @brief Place a photo or layout image under the board (position, size, opacity).
     """
 
-    def __init__(self, cfg, board_mm, parent=None):
+    def __init__(self, cfg, board_mm, parent=None, imported=False):
         """!
         @param cfg Current background dict or None.
         @param board_mm Board size (width, height) in mm, used by "Fit to board".
         @param parent Qt parent.
+        @param imported True when the project comes from Gerber files: no image can be chosen, only the one already stored can be removed.
         """
         super().__init__(parent)
         self.setWindowTitle("Background image")
@@ -93,10 +98,19 @@ class BackgroundDialog(QDialog):
         f = QFormLayout(self)
         self.file_label = QLabel(os.path.basename(self.path) or "no image")
         choose = QPushButton("Choose image…")
+        choose.setToolTip("Pick a PNG, JPEG or BMP image (a photo or a layout drawing) to trace the board from.")
         choose.clicked.connect(self._choose)
+        self.remove_btn = QPushButton("Remove image")
+        self.remove_btn.setToolTip("Take the background image out of the project (the image file itself is not touched).")
+        self.remove_btn.clicked.connect(self._remove)
         row = QHBoxLayout()
         row.addWidget(self.file_label, 1)
         row.addWidget(choose)
+        row.addWidget(self.remove_btn)
+        if imported:
+            # A Gerber project already has the exact copper: an image can only be removed
+            choose.setEnabled(False)
+            choose.setToolTip(BACKGROUND_IMPORTED_TIP)
         f.addRow(row)
         self.x, self.y, self.w, self.h = (QDoubleSpinBox() for _ in range(4))
         for s, k, d in ((self.x, "x_mm", 0.0), (self.y, "y_mm", 0.0), (self.w, "w_mm", board_mm[0]),
@@ -106,12 +120,23 @@ class BackgroundDialog(QDialog):
             s.setSuffix(" mm")
             s.setValue(cfg.get(k, d))
         self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(5, 100)
-        self.opacity.setValue(int(cfg.get("opacity", 0.5) * 100))
+        self.opacity.setRange(0, 100)
+        self.opacity.setToolTip("Opacity of the background image, 0 to 100 % (default 50 %): lower it to read the drawing over the image.")
+        self.opacity_box = QSpinBox()
+        self.opacity_box.setRange(0, 100)
+        self.opacity_box.setSuffix(" %")
+        self.opacity_box.setToolTip("Opacity of the background image in percent, 0 to 100: the same value as the slider beside it, typed.")
+        # Linked both ways; the guards in Qt (no signal on an equal value) stop the loop
+        self.opacity.valueChanged.connect(self.opacity_box.setValue)
+        self.opacity_box.valueChanged.connect(self.opacity.setValue)
+        self.opacity.setValue(int(round(cfg.get("opacity", 0.5) * 100)))
+        op_row = QHBoxLayout()
+        op_row.addWidget(self.opacity, 1)
+        op_row.addWidget(self.opacity_box)
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
         for label, w in (("X", self.x), ("Y", self.y), ("Width", self.w), ("Height", self.h),
-                         ("Opacity", self.opacity)):
+                         ("Opacity", op_row)):
             f.addRow(label, w)
         f.addRow(fit)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -127,6 +152,13 @@ class BackgroundDialog(QDialog):
         if p:
             self.path = p
             self.file_label.setText(os.path.basename(p))
+
+    def _remove(self):
+        """!
+        @brief Forget the image (the dialog then stores no background when accepted).
+        """
+        self.path = ""
+        self.file_label.setText("no image")
 
     def _fit(self):
         """!
@@ -471,7 +503,8 @@ class MainWindow(QMainWindow):
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
                                   "Write the names of the zones, heatsinks and heaters of the active layer on the board (the designator for an imported part); on an imported board a part name that does not fit the part appears when you zoom in")
-        self.a_bg = self._act("Background image…", self.set_background)
+        self.a_bg = self._act("Background image…", self.set_background,
+                              tip="Place a photo or layout image under the board to trace it by hand (not for a project imported from Gerber files)")
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
@@ -829,6 +862,7 @@ class MainWindow(QMainWindow):
         @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
         self._edits += 1
+        self._update_background_action()
         self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
@@ -993,7 +1027,11 @@ class MainWindow(QMainWindow):
         @brief Choose and place a background image.
         """
         b = self.doc.problem.board
-        d = BackgroundDialog(self.doc.project.view.get("background"), (b.width * 1000, b.height * 1000), self)
+        has_bg = bool(self.doc.project.view.get("background"))
+        imported = self._is_imported()
+        if imported and not has_bg:
+            return                                          # Menu, shortcut or command: nothing to choose or remove
+        d = BackgroundDialog(self.doc.project.view.get("background"), (b.width * 1000, b.height * 1000), self, imported=imported)
         if d.exec():
             cfg = d.config()
             if cfg:
@@ -1001,6 +1039,26 @@ class MainWindow(QMainWindow):
             else:
                 self.doc.project.view.pop("background", None)
             self.canvas.rebuild()
+
+    def _is_imported(self):
+        """!
+        @brief Whether the project comes from Gerber files (an import record or imported copper).
+        @return True for an imported project.
+        """
+        return bool(self.doc.project.imports) or self.doc.problem.imported is not None
+
+    def _update_background_action(self):
+        """!
+        @brief Enable "Background image..." only for a hand-drawn project (an imported one with an old image can still open it to remove the image).
+        """
+        imp = self._is_imported()
+        keep = imp and bool(self.doc.project.view.get("background"))
+        self.a_bg.setEnabled(not imp or keep)
+        tip = BACKGROUND_IMPORTED_TIP if imp else "Place a photo or layout image under the board to trace it by hand (not for a project imported from Gerber files)"
+        if keep:
+            tip = BACKGROUND_IMPORTED_TIP + " The image stored by an older version is kept; open this to remove it."
+        self.a_bg.setToolTip(tip)
+        self.a_bg.setStatusTip(tip)
 
     # ------------------------------------------------------------------ simulation
     def run_simulation(self):
