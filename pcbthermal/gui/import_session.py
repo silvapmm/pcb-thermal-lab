@@ -226,6 +226,7 @@ class ImportSession:
         self.user_profile = None                              # Profile key the user chose (or a re-import reuses); None keeps the detection
         self.auto_note = ""                                   # The sentence of the last auto_cell() when the cell left the imported-copper cap
         self.record = None                                    # ImportRecord of the last build_problem()
+        self._stored_values = {}                              # Re-import: designator -> the step-2 fields taken from the stored import (`take_stored_parts`)
         self.thickness_mm = None                              # Board thickness of the last build (mm)
         self._outline = None                                  # gerber.Outline of the profile file, when it could be read
         self._parts_dirty = True
@@ -384,6 +385,98 @@ class ImportSession:
         f.role, f.use, f.error = role, role != IGNORE, f.limit_error
         f.user_role = True                                    # the user's assignment of a file is final: a change of profile never touches it
         self._board, self._parts_dirty = None, True
+
+    def take_stored_roles(self, settings: dict) -> bool:
+        """!
+        @brief Give the files of a re-import the functions the user chose by hand in the stored import, and leave out the files the user left out (matched by file name).
+        @details The detection runs again on the new files and could give another answer; what the user decided is final (as in `set_role`). The board is read again by the caller.
+        @param settings `ImportRecord.settings` of the stored import (keys `user_roles`, `not_used`).
+        @return bool True when a file was changed.
+        """
+        roles = (settings or {}).get("user_roles") or {}
+        out = set((settings or {}).get("not_used") or [])
+        changed = False
+        for i, f in enumerate(self.files):
+            r = roles.get(f.name)
+            if r in ROLES:
+                if f.role != r or not f.user_role:
+                    changed = changed or f.role != r
+                    self.set_role(i, r)
+            elif f.name in out and f.use:
+                self.set_use(i, False)
+                changed = True
+        return changed
+
+    @staticmethod
+    def _step2_fields(p) -> tuple:
+        """!
+        @brief The fields of a part that the user edits in the parts table of step 2.
+        @param p ImportPart.
+        @return tuple (power W, heat-source tick, Tj max degC, role).
+        """
+        return (float(p.power), bool(p.edits.get("use")), float(p.edits.get("tj_max", 0.0) or 0.0), p.edits.get("role"))
+
+    def take_stored_parts(self, stored: ImportRecord) -> int:
+        """!
+        @brief A re-import shows in step 2 the values the project already has (power, heat-source tick, Tj max, role) for the parts named by the files, so that what the table shows is
+               what Replace and Update keep, and a value the user changes there is known as the user's (`step2_edits`).
+        @details Review: the table of a re-import started at zero powers while the merge kept the stored ones, so a power typed or a part ticked in step 2 was silently dropped and the
+                 re-import "changed nothing". Parts picked by hand or grouped by proximity are matched by position at the merge, not by name, and are not filled here.
+        @param stored The stored ImportRecord, with the powers of the editor (the main window copies them in).
+        @return int Number of parts filled.
+        """
+        by = {a.designator: a for a in getattr(stored, "parts", []) or [] if not parts_mod._positional(a)}
+        self._stored_values = {}
+        for p in self.parts():
+            a = by.get(p.designator)
+            if a is None or parts_mod._positional(p):
+                continue
+            p.power = float(a.power)
+            p.edits["use"] = bool(a.edits.get("use")) and bool(p.polygon_mm)
+            for k in ("tj_max", "role"):
+                if k in a.edits:
+                    p.edits[k] = copy.deepcopy(a.edits[k])
+                else:
+                    p.edits.pop(k, None)
+            self._stored_values[p.designator] = self._step2_fields(p)
+        return len(self._stored_values)
+
+    def step2_edits(self) -> dict:
+        """!
+        @brief The parts of a re-import whose step-2 fields the user changed from the stored values (`take_stored_parts`).
+        @return dict designator -> ImportPart of the session.
+        """
+        return {p.designator: p for p in self.parts() if p.designator in self._stored_values and self._step2_fields(p) != self._stored_values[p.designator]}
+
+    @staticmethod
+    def _drop_kept_power(lines: list, typed) -> list:
+        """!
+        @brief Take "kept power X W" out of the merge lines of the parts whose power the user typed in step 2 (the line of step 2 says what they got).
+        @param lines Text lines of the merge.
+        @param typed Designators of `_apply_step2`.
+        @return list of text lines.
+        """
+        return [re.sub(r", kept power [^,;]* W", "", c) if any(c.startswith(f"{d}: ") for d in typed) else c for c in lines]
+
+    def _apply_step2(self, parts: list) -> tuple:
+        """!
+        @brief Give the merged parts the values the user typed in step 2 of the re-import (they win over the stored ones and over the editor).
+        @param parts Merged ImportPart list; changed in place.
+        @return tuple (set of designators, list of text lines).
+        """
+        edits, done, lines = self.step2_edits(), set(), []
+        for q in parts:
+            p = edits.get(q.designator)
+            if p is None or q.from_file.get("orphan"):
+                continue
+            q.power = float(p.power)
+            q.edits["use"] = bool(p.edits.get("use")) and bool(q.polygon_mm)
+            for k in ("tj_max", "role"):
+                if k in p.edits:
+                    q.edits[k] = copy.deepcopy(p.edits[k])
+            done.add(q.designator)
+            lines.append(f"{q.designator}: took the values of step 2 ({q.power:g} W, " + ("heat source" if q.edits["use"] else "not heating") + ")")
+        return done, lines
 
     def profile_line(self) -> tuple:
         """!
@@ -1238,6 +1331,15 @@ class ImportSession:
         rec.cad_profile = self.profile_choice.record() if self.profile_choice is not None else None
         rec.settings = {"mapping": self.mapping, "cell_mm": self.cell_mm, "pixel_mm": ib.pixel_mm, "via_max_mm": self.via_max_mm, "offset_mm": list(self.offset),
                         "roles": {f.name: f.role for f in self.used()}}
+        # What the user decided by hand about the files, so that a re-import does not undo it (written only when there is something, older files stay byte-identical)
+        user_roles = {f.name: f.role for f in self.files if f.user_role}
+        left_out = [f.name for f in self.files if not f.use and not f.user_role]
+        if user_roles:
+            rec.settings["user_roles"] = user_roles
+        if self.pixel_mm is not None:
+            rec.settings["pixel_user"] = True                # the user typed the pixel: a re-import takes it again (an automatic pixel is proposed again)
+        if left_out:
+            rec.settings["not_used"] = left_out
         self.record, self.thickness_mm = rec, thickness
         return prob
 
@@ -1274,16 +1376,42 @@ class ImportSession:
         @param new Record of the new files.
         @return list of dicts function, status ("identical", "changed", "added", "only stored"), old, new (ImportFile or None).
         """
-        o = {f.function: f for f in old.files}
-        n = {f.function: f for f in new.files}
         out = []
         for fn in ROLES:
-            a, b = o.get(fn), n.get(fn)
-            if a is None and b is None:
+            olds = [f for f in old.files if f.function == fn]
+            news = [f for f in new.files if f.function == fn]
+            if not olds and not news:
                 continue
-            status = "added" if a is None else "only stored" if b is None else "identical" if a.sha256 == b.sha256 else "changed"
-            out.append({"function": fn, "status": status, "old": a, "new": b})
+            # Several files may share a function (two drill files, masks, legends): pair them by content first, then by name, so that none is lost or compared with another
+            pairs, left_o, left_n = [], list(olds), list(news)
+            for f in list(left_n):
+                m = next((a for a in left_o if a.sha256 == f.sha256), None)
+                if m is not None:
+                    pairs.append((m, f))
+                    left_o.remove(m)
+                    left_n.remove(f)
+            for f in list(left_n):
+                m = next((a for a in left_o if a.name == f.name), None)
+                if m is not None:
+                    pairs.append((m, f))
+                    left_o.remove(m)
+                    left_n.remove(f)
+            if fn in UNIQUE and left_o and left_n:                      # one file per function: the only two are the same file, changed (and renamed)
+                pairs.append((left_o.pop(0), left_n.pop(0)))
+            pairs += [(a, None) for a in left_o] + [(None, b) for b in left_n]
+            for a, b in pairs:
+                status = "added" if a is None else "only stored" if b is None else "identical" if a.sha256 == b.sha256 else "changed"
+                out.append({"function": fn, "status": status, "old": a, "new": b})
         return out
+
+    @staticmethod
+    def choice_key(item: dict) -> str:
+        """!
+        @brief The key of a file conflict in `file_choice`: the function when it can hold only one file, else the function and the file name.
+        @param item An element of `classify_files`.
+        @return str
+        """
+        return item["function"] if item["function"] in UNIQUE else f"{item['function']}: {(item['new'] or item['old']).name}"
 
     @staticmethod
     def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
@@ -1319,13 +1447,14 @@ class ImportSession:
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
         @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
-        @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators).
+        @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators), `typed` (designators whose power, tick, Tj max
+                or role the user changed in step 2: these values win over the stored ones, see `take_stored_parts`).
         """
         new = self.record
         shapes = self._res.shapes if self._res else None
         if mode == "add":
             rec = copy.deepcopy(old)
-            files = {f.function: f for f in old.files}
+            files = list(rec.files)
             changes, rematch = [], False
             for item in self.classify_files(old, new):
                 fn, status = item["function"], item["status"]
@@ -1335,24 +1464,144 @@ class ImportSession:
                     # Review: the record listed an added copper layer that the stored masks do not hold (and a drill file whose vias were not made)
                     changes.append(f"not taken: {fn} ({item['new'].name}) changes the board itself; use Replace or Update to import it")
                     continue
-                take = status == "added" or (file_choice or {}).get(fn, "stored") == "new"
+                take = status == "added" or (file_choice or {}).get(self.choice_key(item), "stored") == "new"
                 if take:
-                    files[fn] = item["new"]
+                    # The new file replaces the one it was paired with, or joins the list: the other files of the same function stay
+                    files = [f for f in files if f is not item["old"] and not (item["old"] is not None and f.name == item["old"].name and f.sha256 == item["old"].sha256)]
+                    files.append(item["new"])
                     rematch = rematch or fn in PARTS_FUNCTIONS
                 changes.append(f"added {fn}: {item['new'].name}" if status == "added" else
                                f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
-            rec.files = list(files.values())
+            rec.files = files
             res = parts_mod.merge_parts(old.parts, new.parts, shapes, openings=self.openings())
             stored = {p.designator: p for p in old.parts}
             # A stored part stays as it is unless the parts files were taken (then it takes the new match); it never becomes an orphan here
             parts = [copy.deepcopy(stored[p.designator]) if p.designator in stored and (not rematch or p.from_file.get("orphan")) else p for p in res.parts]
             rec.parts = parts
             changes += [c for c in res.changes if "orphan" not in c] if rematch else [f"{p.designator}: added" for p in parts if p.designator not in stored]
-            return {"record": rec, "changes": changes, "parts": parts, "orphans": []}
+            typed, lines = self._apply_step2(parts)
+            return {"record": rec, "changes": lines + self._drop_kept_power(changes, typed), "parts": parts, "orphans": [], "typed": typed}
         res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
+        typed, lines = self._apply_step2(res.parts)
         rec = copy.deepcopy(new)
         rec.parts = res.parts
-        return {"record": rec, "changes": res.changes, "parts": res.parts, "orphans": res.orphans}
+        return {"record": rec, "changes": lines + self._drop_kept_power(res.changes, typed), "parts": res.parts, "orphans": res.orphans, "typed": typed}
+
+
+def reimport_summary(old: ImportRecord, new: ImportRecord, mode: str) -> str:
+    """!
+    @brief One sentence with the numbers of what a re-import changed (never empty).
+    @param old The ImportRecord before the re-import.
+    @param new The ImportRecord after it.
+    @param mode "replace", "update" or "add".
+    @return str
+    """
+    def masks(rec):
+        """!
+        @brief The packed mask text of every copper layer of a record, by layer index.
+        @param rec ImportRecord.
+        @return dict index -> str.
+        """
+        c = getattr(rec, "copper", None)
+        return {int(e.get("index", k)): str((e.get("mask") or {}).get("data", "")) for k, e in enumerate(getattr(c, "layers", []) or [])}
+    mo, mn = masks(old), masks(new)
+    replaced = sum(1 for k, v in mn.items() if mo.get(k) != v)
+    po, pn = {p.designator: p for p in old.parts}, {p.designator: p for p in new.parts}
+    added = sorted(set(pn) - set(po))
+    orphans = sorted(d for d, p in pn.items() if p.from_file.get("orphan") and not (po.get(d) and po[d].from_file.get("orphan")))
+    gone = sorted(set(po) - set(pn))
+    moved = sum(1 for d, p in pn.items() if d in po and parts_mod.MOVED_MM < parts_mod._moved_mm(po[d].polygon_mm, p.polygon_mm))
+    ofiles = {(f.function, f.name, f.sha256) for f in old.files}
+    files = sum(1 for f in new.files if (f.function, f.name, f.sha256) not in ofiles)
+    holes = f"{len(new.holes)} holes" + ("" if len(new.holes) == len(old.holes) else f" (were {len(old.holes)})")
+    if mode == "add":
+        return (f"{files} file(s) taken, {len(added)} part(s) added, copper, outline and holes untouched ({len(mn)} copper layers, {holes})" if files or added
+                else "nothing was added; copper, outline and holes untouched")
+    return (f"{replaced} of {len(mn)} copper layer(s) replaced, {holes}, {files} file(s) new or changed; parts: {len(added)} added, {moved} moved, "
+            f"{len(orphans)} orphaned, {len(gone)} removed, {len(pn) - len(added)} kept")
+
+
+def editor_part_values(record: ImportRecord, problem: Problem) -> None:
+    """!
+    @brief Write into a copy of the stored record the values the editor holds for its parts (power, Tj max, role, and no heat source when the user deleted the heater), so that the
+           re-import window shows them in step 2 and the merge keeps them.
+    @details A heater is the part's when it has its designator or, renamed, the polygon of the part (the rule of `carry_over`). The record itself is not the project's: the caller passes
+             a copy.
+    @param record Copy of the stored ImportRecord; changed in place.
+    @param problem The Problem of the open project.
+    @return None
+    """
+    box = list(record.box_mm)
+    x0, y0 = (box[0], box[1]) if len(box) == 4 else (0.0, 0.0)
+    by_name = {h.name: h for h in problem.heaters}
+    for p in record.parts:
+        h = by_name.get(p.designator)
+        if h is None and p.polygon_mm:
+            poly = [[(x - x0) * 1e-3, (y - y0) * 1e-3] for x, y in p.polygon_mm]
+            h = next((g for g in problem.heaters if _same_polygon(poly, g.polygon)), None)
+        if h is not None:
+            p.power = float(h.power)
+            p.edits["tj_max"] = float(h.tj_max)
+            if h.role in ("source", "component"):
+                p.edits["role"] = h.role.capitalize()
+        elif p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan"):
+            p.edits["use"] = False                             # the user deleted its heater in the editor: the re-import does not make it again (as `carry_over`)
+
+
+def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_record: ImportRecord, typed=()) -> List[str]:
+    """!
+    @brief Bring the heaters of the open project in line with the record of an Add files: a heater for every new part that heats, the heater of a stored part moved with it when the new
+           placement or paste file moved the part, and the step-2 values of the parts the user changed there.
+    @details Review: Add files with a new placement file moved the parts of the record (the merge took the new files) but left their heaters where they were, so the editor showed
+             nothing changed while the status line said "moved by 4.00 mm". A heater whose polygon the user changed in the editor is not moved (the line says so). Add files keeps the
+             board box, so the record and the heaters share the frame.
+    @param session The ImportSession of the new files (for `_add_heaters` and `is_source`).
+    @param problem The Problem of the open project; changed in place.
+    @param old_record The stored ImportRecord before the re-import.
+    @param new_record The merged ImportRecord of the Add files.
+    @param typed Designators whose step-2 values win (`ImportSession.step2_edits`).
+    @return list of text lines.
+    """
+    box = list(new_record.box_mm)
+    x0, y0 = (box[0], box[1]) if len(box) == 4 else (0.0, 0.0)
+
+    def metres(poly):
+        """!
+        @brief A record polygon (mm, Gerber frame) in board metres.
+        @param poly List of [x, y] in mm.
+        @return numpy.ndarray (n, 2)
+        """
+        return np.array([[(x - x0) * 1e-3, (y - y0) * 1e-3] for x, y in poly], float).reshape(-1, 2)
+
+    oldp = {p.designator: p for p in old_record.parts}
+    session._add_heaters(problem, box, [p for p in new_record.parts if p.designator not in oldp])
+    heaters = {h.name: h for h in problem.heaters}
+    moved, left, typed_set, out = [], [], set(typed or ()), []
+    for q in new_record.parts:
+        a, h = oldp.get(q.designator), heaters.get(q.designator)
+        if a is None:
+            continue
+        if h is not None and q.polygon_mm and a.polygon_mm and not _same_polygon(q.polygon_mm, a.polygon_mm, 1e-6):
+            if _same_polygon(metres(a.polygon_mm), h.polygon, 1e-9):
+                h.polygon = metres(q.polygon_mm)
+                moved.append(q.designator)
+            else:
+                left.append(q.designator)
+        if q.designator in typed_set:
+            if not session.is_source(q):
+                if h is not None:
+                    problem.heaters = [g for g in problem.heaters if g is not h]      # by identity: the == of a Heater compares arrays
+            elif h is None:
+                session._add_heaters(problem, box, [q])
+            else:
+                h.power, h.tj_max = float(q.power), float(q.edits.get("tj_max", h.tj_max))
+                if q.edits.get("role") in ("Source", "Component"):
+                    h.role = q.edits["role"].lower()
+    if moved:
+        out.append(f"moved the heater of {len(moved)} part(s) with the new files: {', '.join(moved[:8])}" + (" ..." if len(moved) > 8 else ""))
+    if left:
+        out.append(f"not moved: the heater of {', '.join(left[:8])} was changed in the editor" + (" ..." if len(left) > 8 else ""))
+    return out
 
 
 def _same_polygon(a, b, tol=1e-7) -> bool:
@@ -1367,7 +1616,7 @@ def _same_polygon(a, b, tol=1e-7) -> bool:
     return a.shape == b.shape and bool(np.all(np.abs(a - b) <= tol))
 
 
-def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord) -> List[str]:
+def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord, typed=()) -> List[str]:
     """!
     @brief Bring what the user did in the editor after an import into the Problem of a Replace or Update, so that a re-import loses nothing the files do not give.
     @details The files give the copper, the outline, the vias and the parts; the user gives the rest. Kept, in the Gerber frame (moved by the change of the board box):
@@ -1382,6 +1631,8 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     @param old_record The stored ImportRecord (before the merge).
     @param new_problem The Problem built from the new files with the heaters of the merged parts; changed in place.
     @param new_record The merged ImportRecord; its parts are changed in place.
+    @param typed Designators whose power, heat-source tick, Tj max and role the user changed in step 2 of the re-import (`ImportSession.step2_edits`): for these the values of the
+                 merged record win over the editor's (the other fields of the heater are still the editor's).
     @return list of text lines (what was kept), for the status line and the record warnings.
     """
     ob, nb = list(old_record.box_mm), list(new_record.box_mm)
@@ -1408,6 +1659,8 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     rec_parts = {p.designator: p for p in new_record.parts}
     new_by_name = {h.name: h for h in new_problem.heaters}
     geometry_fields = {"layer", "polygon", "name"}
+    typed = set(typed or ())
+    step2_fields = {"power", "tj_max", "role"}                         # what the parts table of step 2 edits
     seen, edited, drawn = set(), [], []
     for h in old_problem.heaters:
         des = h.name if h.name in part_poly else next((d for d, poly in part_poly.items() if _same_polygon(poly, h.polygon)), None)
@@ -1422,7 +1675,7 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
         if nh is not None:
             changed = False
             for f in dataclasses.fields(h):
-                if f.name not in geometry_fields:
+                if f.name not in geometry_fields and not (des in typed and f.name in step2_fields):
                     v = copy.deepcopy(getattr(h, f.name))
                     changed = changed or not _equal(getattr(nh, f.name), v)
                     setattr(nh, f.name, v)
@@ -1430,13 +1683,13 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
             if changed:
                 edited.append(h.name or des)
         p = rec_parts.get(des)
-        if p is not None:
+        if p is not None and des not in typed:
             p.power = float(h.power)
             p.edits["tj_max"] = float(h.tj_max)
             if h.role:
                 p.edits["role"] = "Source" if h.role == "source" else "Component"
     # 2. An imported heat source whose heater the user deleted stays deleted
-    deleted = [p.designator for p in old_record.parts if p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen]
+    deleted = [p.designator for p in old_record.parts if p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen and p.designator not in typed]
     if deleted:
         new_problem.heaters = [h for h in new_problem.heaters if h.name not in deleted]
         for d in deleted:
@@ -1503,4 +1756,4 @@ def _equal(a, b) -> bool:
         return False
 
 
-__all__ = ["BoardData", "Hole", "ImportNotAvailable", "ImportSession", "LayerInfo", "ROLES", "SourceFile", "carry_over"]
+__all__ = ["BoardData", "Hole", "ImportNotAvailable", "ImportSession", "LayerInfo", "ROLES", "SourceFile", "carry_over", "editor_part_values", "reimport_summary", "sync_add_heaters"]
