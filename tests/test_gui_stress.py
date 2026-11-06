@@ -119,6 +119,20 @@ def walk_results(win, qtbot):
             tab.pos.setValue(v)
         tab.vmin.setValue(30.0)
         tab.vmax.setValue(500.0)
+    # The view modes, the copper box and the opacity on every model and layer of the two map tabs (display only)
+    for tab in (rv.temp, rv.grad):
+        for m in range(tab.model.count()):
+            tab.model.setCurrentIndex(m)
+            for mode in range(tab.view.count()):
+                tab.view.setCurrentIndex(mode)
+                for copper_on in (False, True):
+                    tab.copper.setChecked(copper_on)
+                    for k in range(tab.layer.count()):
+                        tab.layer.setCurrentIndex(k)
+        tab.opacity_spin.setValue(0)
+        tab.opacity.setValue(100)
+        tab.copper.setChecked(False)
+        tab.view.setCurrentIndex(0)
     ts = rv.time_sim
     for i in range(ts.model.count()):
         ts.model.setCurrentIndex(i)
