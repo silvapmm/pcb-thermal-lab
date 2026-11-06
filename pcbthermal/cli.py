@@ -76,13 +76,26 @@ def _guard(problem, models, cells, transient=False):
         memory.check(problem, models, c, transient=transient)
 
 
+def _load(path):
+    """!
+    @brief Load a project file of either kind (found by content) and print what the reader of a package dropped or could not check.
+    @param path File path.
+    @return Project.
+    @throws ProjectFormatError For a file this program must not open.
+    """
+    project = pkg.load_any(path)
+    for w in getattr(project.package, "warnings", None) or []:
+        print(f"Warning: package: {w}", file=sys.stderr)   # a tampered or unlisted member is dropped or kept unverified: never silently
+    return project
+
+
 def cmd_run(args):
     """!
     @brief Handler of the `run` command: simulate with the public API and save the outputs.
     @param args Parsed arguments.
     @return Process exit code.
     """
-    project = pkg.load_any(args.config)
+    project = _load(args.config)
     options = project.options
     options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
     options.linear_solver = args.solver
@@ -146,7 +159,7 @@ def cmd_transient(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    problem = load_problem(args.config)
+    problem = _load(args.config).problem
     t0 = time.time()
     cell = _cell_arg(args, problem, 2.0, transient=True)                  # Resolved once: "auto" asks the guard, with the factor of a time simulation
     _guard(problem, (args.model,), [cell], transient=True)                # The analytic model is not estimated (the guard skips it)
@@ -184,7 +197,7 @@ def cmd_calibrate(args):
     @return Process exit code.
     """
     from .api import calibrate_convection
-    project = pkg.load_any(args.config)
+    project = _load(args.config)
     options = project.options
     with laminate.using(*options.laminate_params()):                    # "auto" counts the unknowns of the project's laminate rule
         options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
@@ -202,7 +215,7 @@ def cmd_convergence(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    problem = load_problem(args.config)
+    problem = _load(args.config).problem
     rows = []
     cells = (10, 5, 2.5, 2, 1, 0.5)
     _guard(problem, ("fvm",), cells)                    # The whole study is checked first: no half-finished table when the last cell is too fine
@@ -226,7 +239,7 @@ def cmd_solvers(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    project = pkg.load_any(args.config)
+    project = _load(args.config)
     with laminate.using(*project.options.laminate_params()):            # "auto" and the guard count the unknowns of the project's laminate rule
         cell = _cell_arg(args, project.problem, project.options.cell_mm)
         _guard(project.problem, ("fvm",), [cell])
@@ -276,7 +289,7 @@ def _convert_project(args):
     @param args Parsed arguments (`legacy` is the input, `output` the output, `with_gerbers`).
     @return Process exit code.
     """
-    project = pkg.load_any(args.legacy)
+    project = _load(args.legacy)
     extras = project.package
     if args.output.lower().endswith(pkg.PACKAGE_SUFFIX):
         _, notes = pkg.save_package(args.output, project, include_sources=bool(args.with_gerbers))

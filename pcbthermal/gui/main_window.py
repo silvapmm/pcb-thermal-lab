@@ -1149,6 +1149,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return
         self._after_load()
+        package_actions.report_read_warnings(self)          # members of a package that were dropped or not verified: said, never silent
 
     def _load_problem(self, problem, name):
         """!
@@ -1240,6 +1241,8 @@ class MainWindow(QMainWindow):
             cfg = d.config()
             if cfg:
                 self.doc.project.view["background"] = cfg
+                if self.doc.project.package is not None:
+                    self.doc.project.package.foreign_background = None   # chosen by the user now: a package may store it
             else:
                 self.doc.project.view.pop("background", None)
             self.canvas.rebuild()

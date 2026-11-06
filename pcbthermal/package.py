@@ -28,6 +28,7 @@ The write is atomic (`project._write_atomic`) and keeps a `.bak` copy when it re
 
 import copy
 import hashlib
+import io
 import json
 import os
 import posixpath
@@ -60,20 +61,29 @@ MAX_MEMBERS = 5000
 # A package is read WHOLE into memory when it is opened (the Gerber ZIP reader reads one member at a time), so its limits are tighter than those of `gerber/archive.py`:
 # review: with the archive's 2 GB and ratio 1000 a 0.7 MB package took 280 MB (two members at ratio 449) and a 5 MB one could take 2 GB. Real members compress at most
 # 8.6 times (143 files of the open boards above 64 kB) and a project JSON with imported copper about 2.5 times, so 200 leaves a margin of 20.
-MAX_TOTAL_BYTES = 1024 ** 3                         # Declared uncompressed total (all of it is held in memory)
+# Second review: a 6.5 MB package of four sources at ratio 164 took 1.4 GB before its project was refused, and a 0.12 MB project JSON of nested empty lists at ratio 565
+# took 1.9 GB in `json.loads` (about 43 bytes of Python objects per structural character). Real Gerber sets are at most 4.3 MB (the open boards of the local library) and
+# 509 real files above 64 kB compress at most 19 times, so the limits below are generous for real files and bound what a small hostile file can make the reader allocate.
+MAX_TOTAL_BYTES = 512 * 1024 ** 2                   # Declared uncompressed total (all of it is held in memory)
 MAX_RATIO = 200.0                                   # Uncompressed over compressed bytes of one member (a zip bomb)
 MAX_PROJECT_RATIO = 1000.0                          # The project JSON itself: repeated objects (identical vias copied in the editor) reach 255 and the archive's limit is kept
 RATIO_FREE_BYTES = 64 * 1024                        # A member this small is not judged by the ratio (a tiny file of zeros has a big ratio and no danger)
+OVERALL_FREE_BYTES = 64 * 1024 ** 2                 # A package whose members add up to more than this ...
+MAX_OVERALL_RATIO = 20.0                            # ... must not compress more than this as a whole (many small members, or members just under MAX_RATIO, are a bomb too)
+MAX_PROJECT_TOKENS = 8_000_000                      # Structural characters ([ { , :) of the project JSON: each becomes a Python object (8 M is about 350 MB; a real project has
+                                                    # tens of thousands: 100 000 vias are about 1.5 M)
 MAX_MANIFEST_BYTES = 16 * 1024 ** 2
 MAX_PROJECT_BYTES = 512 * 1024 ** 2
 MAX_OTHER_BYTES = 256 * 1024 ** 2                   # Images, renders and unknown members
 NOT_A_PACKAGE = ("This ZIP is not a project package (no manifest.json); to import Gerber files use File - Import Gerber board")
 GERBER_NOTE = ("Gerber file headers may carry folder paths and user names, and a third-party board keeps its owner's licence. The files are stored as they are "
                "(no comment is removed).")
+IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"BM", b"GIF87a", b"GIF89a")   # Only an image is read from the disk into a package
 _ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError, ValueError, UnicodeDecodeError, struct.error, OverflowError, OSError)
 _SAFE_PART = re.compile(r"[^\w.\- +()]")
 EXTRACT_PREFIX = "pcbtz_gerber_"
 _WINDOWS_DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}
+MAX_WARNINGS = 20                                   # Read warnings kept per kind (a manifest of 16 MB can list a million names)
 MAX_NAME_CHARS = 120                               # Longest file name written by extract_sources (well under the 255 bytes of common file systems)
 
 
@@ -94,6 +104,8 @@ class PackageExtras:
         self.writer = ""
         self.created = ""
         self.warnings = []
+        self.image_paths = {}                       # Disk path of the background -> its member, for the images a save of this session read from the disk
+        self.foreign_background = None              # A background path of the package's JSON that is not one of its images: never read from the disk into a package
 
     def gerber_sets(self):
         """!
@@ -295,19 +307,24 @@ def read_package(path):
         extras.writer, extras.created = str(manifest.get("writer", "")), str(manifest.get("created", ""))
         extras.manifest_extra = {k: v for k, v in manifest.items() if k not in ("package_format", "writer", "created", "members")}
         extras._hashes = {}
+        # The project first: a package whose project is refused costs no more than its project (review: four sources of 255 MB were read before the refusal)
+        if PROJECT_MEMBER not in listed:
+            raise ProjectFormatError(f"{PROJECT_MEMBER} is not listed in the manifest; the package may have been changed")
+        data = _read_member(zf, infos[PROJECT_MEMBER], MAX_PROJECT_BYTES, PROJECT_MEMBER)
+        if hashlib.sha256(data).hexdigest() != listed[PROJECT_MEMBER]["sha256"]:
+            raise ProjectFormatError(f"{PROJECT_MEMBER} does not match the manifest (SHA-256 differs); the package was changed or damaged and is not opened")
+        extras._hashes[PROJECT_MEMBER] = listed[PROJECT_MEMBER]["sha256"]
+        _check_project_cost(data)
+        parsed = loads_project_json(data)
         data = None
         for name, info in infos.items():
-            if name == MANIFEST:
+            if name in (MANIFEST, PROJECT_MEMBER):
                 continue
             if name not in listed:                  # Present in the ZIP and not in the manifest: nothing to check it against
-                if name == PROJECT_MEMBER:
-                    raise ProjectFormatError(f"{PROJECT_MEMBER} is not listed in the manifest; the package may have been changed")
                 extras.warnings.append(f"{name}: not listed in the manifest (kept, not verified)")
             blob = _read_member(zf, info, _limit_for(name), name)
             entry = listed.get(name)
             if entry is not None and hashlib.sha256(blob).hexdigest() != entry["sha256"]:
-                if name == PROJECT_MEMBER:
-                    raise ProjectFormatError(f"{PROJECT_MEMBER} does not match the manifest (SHA-256 differs); the package was changed or damaged and is not opened")
                 extras.warnings.append(f"{name}: does not match the manifest (SHA-256 differs); the member was dropped")
                 continue
             if entry is not None:
@@ -317,9 +334,7 @@ def read_package(path):
                     for key in ("original", "origin"):         # Written since the review; an older package has neither (folder, member name)
                         if isinstance(entry.get(key), str):
                             extras.source_meta[name][key] = entry[key][:1024]
-            if name == PROJECT_MEMBER:
-                data = blob
-            elif name.startswith(IMAGES_DIR):
+            if name.startswith(IMAGES_DIR):
                 extras.images[name] = blob
             elif name.startswith(SOURCES_DIR):
                 extras.sources[name] = blob
@@ -327,12 +342,26 @@ def read_package(path):
                 extras.renders[name] = blob
             else:
                 extras.unknown[name] = blob
-        for name in listed:
-            if name not in infos:
-                extras.warnings.append(f"{name}: listed in the manifest but missing from the package")
+        missing = [name for name in listed if name not in infos]
+        for name in missing[:MAX_WARNINGS]:
+            extras.warnings.append(f"{name[:200]}: listed in the manifest but missing from the package")
+        if len(missing) > MAX_WARNINGS:
+            extras.warnings.append(f"and {len(missing) - MAX_WARNINGS} more members listed in the manifest but missing from the package")
     extras.include_sources = bool(extras.sources)
     extras.is_package = True
-    return loads_project_json(data), extras
+    return parsed, extras
+
+
+def _check_project_cost(raw):
+    """!
+    @brief Refuse a project JSON whose parse would allocate far more than its size suggests (a JSON bomb: nested empty lists or objects).
+    @param raw Bytes of the project JSON.
+    @return None
+    @throws ProjectFormatError If it holds more than MAX_PROJECT_TOKENS structural characters (`[`, `{`, `,`, `:`; base64 masks hold none).
+    """
+    tokens = raw.count(b",") + raw.count(b"[") + raw.count(b"{") + raw.count(b":")
+    if tokens > MAX_PROJECT_TOKENS:
+        raise ProjectFormatError(f"{PROJECT_MEMBER} holds {tokens} JSON items (limit {MAX_PROJECT_TOKENS}); no project is that large, the package is refused")
 
 
 def _validate(zf):
@@ -348,7 +377,7 @@ def _validate(zf):
     files = [i for i in all_infos if not i.is_dir()]
     if len(files) > MAX_MEMBERS:
         raise ProjectFormatError(f"the package has {len(files)} members (limit {MAX_MEMBERS})")
-    out, folded, total = {}, {}, 0
+    out, folded, total, packed = {}, {}, 0, 0
     for i in files:
         name = i.filename
         if name in out:
@@ -365,9 +394,13 @@ def _validate(zf):
         if i.file_size > RATIO_FREE_BYTES and i.compress_size > 0 and i.file_size / i.compress_size > ratio:
             raise ProjectFormatError(f"member {name!r} has a compression ratio above {ratio:.0f} (zip bomb?)")
         total += i.file_size
+        packed += i.compress_size
         out[name], folded[fold] = i, name
     if total > MAX_TOTAL_BYTES:
         raise ProjectFormatError(f"the package declares {total} uncompressed bytes (limit {MAX_TOTAL_BYTES})")
+    if total > OVERALL_FREE_BYTES and total > MAX_OVERALL_RATIO * max(packed, 1):
+        raise ProjectFormatError(f"the package expands {total / max(packed, 1):.0f} times ({total} bytes from {packed}; limit {MAX_OVERALL_RATIO:.0f} above "
+                                 f"{OVERALL_FREE_BYTES // 1024 ** 2} MB): zip bomb?")
     return out
 
 
@@ -408,6 +441,11 @@ def load_package(path):
     """
     data, extras = read_package(path)
     project = project_from_dict(data)
+    bg = project.view.get("background") if isinstance(project.view, dict) else None
+    if isinstance(bg, dict) and bg.get("path") and str(bg["path"]) not in extras.images:
+        # The JSON of a package names a file outside it: drawn if it exists (as a .pcbt.json would), never copied into a later package (a hostile package could name
+        # any private file of the reader's disk, and a re-save would carry it away)
+        extras.foreign_background = str(bg["path"])
     project.package = extras
     return project
 
@@ -419,10 +457,8 @@ def load_any(path):
     @return Project (with `package` set for a package, None otherwise).
     @throws ProjectFormatError For a file this program must not open.
     """
-    if is_package(path):
-        return load_package(path)
     from .project import load_project
-    return load_project(path)
+    return load_project(path)                       # load_project itself detects a package by its content
 
 
 def background_bytes(project, path):
@@ -435,7 +471,9 @@ def background_bytes(project, path):
     extras = getattr(project, "package", None)
     if extras is None:
         return None
-    return extras.images.get(path)
+    if path in extras.images:
+        return extras.images[path]
+    return extras.images.get(extras.image_paths.get(path))      # a disk image that a save of this session stored (the file may be gone since)
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------ writing
@@ -477,23 +515,36 @@ def build_members(project, include_sources=None):
     d = project_to_dict(project)
     view = d["view"] if d.get("format") == FORMAT_1 else d["project"]["view"]
     view = copy.deepcopy(view)
-    images = {}
+    images, image_paths = {}, {}
     bg = view.get("background")
     if isinstance(bg, dict) and bg.get("path"):
         src = str(bg["path"])
         if src in extras.images:                     # Already a member of this package
             images[src] = extras.images[src]
+        elif src == extras.foreign_background:
+            notes.append("the background image path of the opened package points outside it; the file is not stored (choose the image again to store it)")
         else:
             try:
                 with open(src, "rb") as fh:
                     blob = fh.read(MAX_OTHER_BYTES + 1)
                 if len(blob) > MAX_OTHER_BYTES:
                     raise OSError("the image is too large for a package")
+                if not blob.startswith(IMAGE_SIGNATURES):
+                    raise OSError("the file is not a PNG, JPEG, BMP or GIF image")
                 member = _unique(IMAGES_DIR + _safe_file_name(os.path.basename(src)), images)
                 images[member] = blob
+                image_paths[src] = member
                 bg["path"] = member                  # Inside a package the path is relative
             except OSError as exc:
-                notes.append(f"the background image {src} could not be stored in the package ({exc}); its path is kept")
+                kept = extras.image_paths.get(src)
+                if kept in extras.images:
+                    # Saved into this package before and gone from the disk since: the stored copy is kept (review: the image was lost at the next save and the
+                    # absolute path of the user's disk was written in its place)
+                    images[kept] = extras.images[kept]
+                    image_paths[src] = kept
+                    bg["path"] = kept
+                else:
+                    notes.append(f"the background image {src} could not be stored in the package ({exc}); its path is kept")
     # The serialised project must carry the rewritten path: patch the copy of the dict
     if d.get("format") == FORMAT_1:
         d["view"] = view
@@ -508,14 +559,30 @@ def build_members(project, include_sources=None):
         members.setdefault(name, blob)
     extras = copy.copy(extras)
     extras.images = images
+    extras.image_paths = image_paths
     return members, notes, extras
+
+
+def _created(extras):
+    """!
+    @brief The creation time of a package: kept from the package that is saved again, so that a save of an unchanged project writes the same bytes.
+    @param extras PackageExtras.
+    @return str: UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`.
+    """
+    if re.fullmatch(r"(19[89]\d|2\d{3})-\d\d-\d\dT\d\d:\d\d:\d\dZ", extras.created or ""):
+        try:
+            datetime.strptime(extras.created, "%Y-%m-%dT%H:%M:%SZ")
+            return extras.created
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _manifest_bytes(members, extras):
     """!
     @brief The manifest.json for a set of members.
     @param members dict name -> bytes.
-    @param extras PackageExtras (the unknown manifest keys are written back).
+    @param extras PackageExtras (the unknown manifest keys are written back; `created` is kept, see `_created`).
     @return bytes.
     """
     entries = []
@@ -524,7 +591,7 @@ def _manifest_bytes(members, extras):
         if n.startswith(SOURCES_DIR):
             e.update(extras.source_meta.get(n, {"kind": "other", "function": ""}))
         entries.append(e)
-    m = {"package_format": PACKAGE_FORMAT, "writer": f"pcbthermal {__version__}", "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "members": entries}
+    m = {"package_format": PACKAGE_FORMAT, "writer": f"pcbthermal {__version__}", "created": _created(extras), "members": entries}
     for k, v in extras.manifest_extra.items():
         m.setdefault(k, copy.deepcopy(v))
     return json.dumps(m, indent=2).encode("utf-8")
@@ -540,25 +607,30 @@ def save_package(path, project, include_sources=None):
     @throws PermissionError If the existing file is read-only.
     """
     members, notes, extras = build_members(project, include_sources)
+    extras.created = _created(extras)
     manifest = _manifest_bytes(members, extras)
+    data = package_bytes(manifest, members, extras.created)
+    try:
+        # The program never writes a package that it would refuse to read (a file far more compressible than any real one, a project above the limits)
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            _validate(zf)
+        _check_project_cost(members[PROJECT_MEMBER])
+        if len(members[PROJECT_MEMBER]) > MAX_PROJECT_BYTES:
+            raise ProjectFormatError(f"{PROJECT_MEMBER} is {len(members[PROJECT_MEMBER])} bytes (limit {MAX_PROJECT_BYTES})")
+        for name, blob in members.items():
+            if len(blob) > _limit_for(name):
+                raise ProjectFormatError(f"member {name!r} is {len(blob)} bytes (limit {_limit_for(name)})")
+    except ProjectFormatError as exc:
+        raise ProjectFormatError(f"the package cannot be written, it would not be readable: {exc}") from exc
     target = os.path.realpath(os.fspath(path))
     backup = None
     if os.path.exists(target) and not _is_package_or_missing(target):
         backup = _backup_path(target)                 # A JSON (or unreadable) file is replaced by a package: keep it
         shutil.copy2(target, backup)
 
-    def write(fh):
-        """!
-        @brief Write the ZIP to an open binary file.
-        @param fh File object.
-        """
-        with zipfile.ZipFile(fh, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-            zf.writestr(MANIFEST, manifest)
-            for name, blob in members.items():
-                zf.writestr(name, blob)
-
     try:
-        _write_atomic(target, write, binary=True)
+        # The whole ZIP is built first, so that also the in-place write of a read-only folder is a single write of finished bytes
+        _write_atomic(target, lambda fh: fh.write(data), binary=True)
     except BaseException:
         if backup:                                    # The old file was not replaced: its copy is not needed (review: each failed attempt left one more .bak)
             try:
@@ -571,6 +643,25 @@ def save_package(path, project, include_sources=None):
     extras._hashes = {n: _sha(b) for n, b in members.items()}
     project.package = extras
     return backup, notes
+
+
+def package_bytes(manifest, members, created):
+    """!
+    @brief The bytes of a package ZIP: deterministic (every member dated by the package's creation time, fixed permissions), so equal content gives equal bytes.
+    @param manifest Bytes of manifest.json.
+    @param members dict name -> bytes, in write order.
+    @param created Creation time `YYYY-MM-DDTHH:MM:SSZ`.
+    @return bytes.
+    """
+    when = datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ").timetuple()[:6]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for name, blob in [(MANIFEST, manifest)] + list(members.items()):
+            info = zipfile.ZipInfo(name, date_time=when)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = (stat.S_IFREG | 0o644) << 16
+            zf.writestr(info, blob, compresslevel=6)
+    return buf.getvalue()
 
 
 def _is_package_or_missing(path):

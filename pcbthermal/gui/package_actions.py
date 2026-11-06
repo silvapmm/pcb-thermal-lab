@@ -289,6 +289,22 @@ def save_as(win):
     return True
 
 
+def report_read_warnings(win):
+    """!
+    @brief After opening a package, say what its reader dropped or could not verify (a member that does not match the manifest, one not listed, one missing).
+    @details A message box, because the status bar line is replaced by the next message and a changed package is something the user must see (review: the warnings
+             were collected and never shown, in the window or on the command line).
+    @param win The MainWindow.
+    @return None
+    """
+    extras = win.doc.project.package
+    warnings = list(getattr(extras, "warnings", None) or [])
+    if not warnings:
+        return
+    shown = "\n".join(f"- {w}" for w in warnings[:12]) + (f"\n- and {len(warnings) - 12} more" if len(warnings) > 12 else "")
+    QMessageBox.warning(win, "Package opened with warnings", f"The project was opened, but some members of the package were not used as they are:\n\n{shown}")
+
+
 def report_notes(win):
     """!
     @brief Show in the status bar what the last save could not store (an image missing on the disk, files a plain project cannot hold).

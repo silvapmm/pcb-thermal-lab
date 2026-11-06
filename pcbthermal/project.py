@@ -162,11 +162,16 @@ def project_from_dict(data, validate=True):
 
 def load_project(path):
     """!
-    @brief Load a project file.
+    @brief Load a project file: a `.pcbt.json` (or legacy editor JSON), or a `.pcbtz` package, found by its content.
     @param path File path.
-    @return Project.
+    @return Project (with `package` set for a package).
     @throws ProjectFormatError For a file of a format this program does not know, or a file that is not valid JSON.
     """
+    # Every reader of a project (the commands `transient` and `convergence`, `model.load_problem`, the API) goes through here, so a package is read wherever a
+    # project is (review: only the commands that called `package.load_any` read one; the others said "not UTF-8 text"); imported here, package imports this module
+    from . import package
+    if package.is_package(path):
+        return package.load_package(path)
     return project_from_dict(read_project_json(path))
 
 

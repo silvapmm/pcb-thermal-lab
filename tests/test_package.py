@@ -10,6 +10,7 @@ import json
 import os
 import stat
 import struct
+import time
 import warnings
 import zlib
 import zipfile
@@ -841,3 +842,134 @@ def test_privacy_hints_name_the_kind_never_the_text(window, tmp_path):
     dlg = pa.ExportPackageDialog(window, True, False)
     text = " ".join(w.text() for w in dlg.findChildren(type(dlg.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel))))
     assert "a.gbr" in text and "e-mail address" in text and "jdoe12" not in text and "example.org" not in text
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------ second review
+def test_every_reader_of_a_project_reads_a_package(tmp_path, capsys):
+    """!
+    @brief `load_project`, `model.load_problem` and the commands `transient` and `convergence` read a package (review: they said "not UTF-8 text").
+    @param tmp_path Temporary folder.
+    @param capsys pytest fixture.
+    @return None
+    """
+    from pcbthermal import cli
+    from pcbthermal.model import load_problem
+    path = tmp_path / "b.pcbtz"
+    pkg.save_package(path, Project(problem=example_board()))
+    assert load_project(path).package.is_package
+    assert load_problem(path).name == example_board().name
+    assert cli.main(["transient", str(path), "--t-end", "2", "--steps", "2", "--no-plots", "--out", str(tmp_path / "o")]) == 0
+    assert "not UTF-8" not in capsys.readouterr().err
+
+
+def test_a_package_never_carries_away_a_file_it_did_not_hold(tmp_path):
+    """!
+    @brief A package whose JSON names a file outside it (any private file of the reader's disk) does not copy that file into the next package; a non-image is never
+           read into a package (review: a re-save embedded `images/secret.txt`).
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    secret = tmp_path / "secret.txt"
+    secret.write_bytes(b"PRIVATE KEY")
+    members = _good_members()
+    d = json.loads(members["project.pcbt.json"])
+    d["view"] = {"background": {"path": str(secret), "w_mm": 10, "h_mm": 10}}
+    members["project.pcbt.json"] = json.dumps(d).encode()
+    _raw_zip(tmp_path / "h.pcbtz", members)
+    prj = pkg.load_any(tmp_path / "h.pcbtz")
+    _, notes = pkg.save_package(tmp_path / "again.pcbtz", prj)
+    assert not [n for n in zipfile.ZipFile(tmp_path / "again.pcbtz").namelist() if n.startswith("images/")]
+    assert any("points outside" in n for n in notes)
+    # A project of this machine whose background is not an image: refused with a note, the path is kept
+    plain = Project(problem=example_board())
+    plain.view["background"] = {"path": str(secret), "w_mm": 10, "h_mm": 10}
+    _, notes = pkg.save_package(tmp_path / "p.pcbtz", plain)
+    assert not [n for n in zipfile.ZipFile(tmp_path / "p.pcbtz").namelist() if n.startswith("images/")] and any("not a PNG" in n for n in notes)
+
+
+def test_saving_an_unchanged_package_writes_the_same_bytes(tmp_path):
+    """!
+    @brief Open a package and save it again: the file is byte for byte the same (the creation time is kept and every member is dated by it).
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    prj = _project(tmp_path, imports=True, sources=True)
+    pkg.save_package(tmp_path / "a.pcbtz", prj, include_sources=True)
+    again = pkg.load_package(tmp_path / "a.pcbtz")
+    time.sleep(1.1)                                         # the clock moves on: the dates of the file must not follow it
+    pkg.save_package(tmp_path / "b.pcbtz", again)
+    assert (tmp_path / "a.pcbtz").read_bytes() == (tmp_path / "b.pcbtz").read_bytes()
+
+
+def test_json_bomb_and_whole_package_ratio_refused(tmp_path, monkeypatch):
+    """!
+    @brief A project JSON of nested empty lists (a few kB that `json.loads` would make into GB) and a package that expands too much as a whole are refused before
+           anything big is allocated.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture (the limits are lowered so that the test is small).
+    @return None
+    """
+    monkeypatch.setattr(pkg, "MAX_PROJECT_TOKENS", 1000)
+    members = _good_members()
+    members["project.pcbt.json"] = b"[" + b"[]," * 2000 + b"[]]"
+    _refused(tmp_path, members, "JSON items")
+    monkeypatch.setattr(pkg, "MAX_PROJECT_TOKENS", 8_000_000)
+    monkeypatch.setattr(pkg, "OVERALL_FREE_BYTES", 1024)
+    many = _good_members()
+    many.update({f"renders/{i}.bin": b"\x00" * 60000 for i in range(5)})     # each member is under RATIO_FREE_BYTES: only the whole-package rule sees them
+    _refused(tmp_path, many, "expands")
+
+
+def test_the_program_never_writes_a_package_it_would_refuse(tmp_path, monkeypatch):
+    """!
+    @brief A save whose package the reader would refuse raises and leaves the old file (the writer checks the reader's limits).
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    path = tmp_path / "k.pcbtz"
+    pkg.save_package(path, Project(problem=example_board()))
+    before = path.read_bytes()
+    monkeypatch.setattr(pkg, "MAX_PROJECT_TOKENS", 10)
+    with pytest.raises(ProjectFormatError, match="would not be readable"):
+        pkg.save_package(path, Project(problem=example_board()))
+    assert path.read_bytes() == before
+
+
+def test_read_warnings_are_said(window, tmp_path, capsys, monkeypatch):
+    """!
+    @brief A member that does not match the manifest is dropped AND said: printed by the command line, shown by the window (review: collected and never shown).
+    @param window The MainWindow.
+    @param tmp_path Temporary folder.
+    @param capsys pytest fixture.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    from pcbthermal import cli
+    from PySide6.QtWidgets import QMessageBox
+    members = _good_members()
+    members["images/bg.png"] = PNG
+    _raw_zip(tmp_path / "t.pcbtz", members, bad_hash=("images/bg.png",))
+    assert cli.main(["run", str(tmp_path / "t.pcbtz"), "--model", "analytic", "--out", str(tmp_path / "r"), "--no-plots", "--cell-mm", "2"]) == 0
+    assert "Warning: package: images/bg.png" in capsys.readouterr().err
+    seen = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: seen.append(a[2]) or QMessageBox.Ok))
+    window.open_file(str(tmp_path / "t.pcbtz"))
+    assert seen and "images/bg.png" in seen[0]
+
+
+def test_a_stored_background_survives_its_file(tmp_path):
+    """!
+    @brief Save as a package with an image from the disk, delete the image, save again: the package still holds it and no absolute path is written (review: the
+           image was dropped and the path of the user's disk written in its place).
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    prj = _project(tmp_path)
+    pkg.save_package(tmp_path / "a.pcbtz", prj)
+    (tmp_path / "bg.png").unlink()
+    _, notes = pkg.save_package(tmp_path / "a.pcbtz", prj)
+    back = pkg.load_package(tmp_path / "a.pcbtz")
+    assert notes == [] and back.view["background"]["path"] == "images/bg.png" and back.package.images["images/bg.png"] == PNG
+    assert str(tmp_path) not in zipfile.ZipFile(tmp_path / "a.pcbtz").read("project.pcbt.json").decode()
+    assert pkg.background_bytes(prj, str(tmp_path / "bg.png")) == PNG          # the canvas draws it from memory
