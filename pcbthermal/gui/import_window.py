@@ -1544,6 +1544,14 @@ class ReimportDialog(QDialog):
         self.go = bb.addButton("Continue", QDialogButtonBox.AcceptRole)
         self.go.setObjectName("primary")
         self.go.setToolTip("Apply the chosen command to the project as one undo step.")
+        self.different = not same
+        if self.different:
+            # A different board: Enter must not replace the import; Cancel is the default and Continue is one click away
+            self.go.setDefault(False)
+            self.go.setAutoDefault(False)
+            cancel = bb.button(QDialogButtonBox.Cancel)
+            cancel.setAutoDefault(True)
+            cancel.setDefault(True)
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)

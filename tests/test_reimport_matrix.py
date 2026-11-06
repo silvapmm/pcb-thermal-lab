@@ -461,7 +461,7 @@ def test_merge_parts_reports_the_move_and_the_position_match():
     from pcbthermal.model import ImportPart
     sq = lambda x, y: [[x, y], [x + 2, y], [x + 2, y + 2], [x, y + 2]]
     old = [ImportPart("U1", polygon_mm=sq(0, 0), power=2.0, edits={}), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20, 0), from_file={"grouping": "hand"})]
-    new = [ImportPart("U1", polygon_mm=sq(3, 0)), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20.1, 0), from_file={"grouping": "hand"})]
+    new = [ImportPart("U1", polygon_mm=sq(3, 0)), ImportPart("U2", polygon_mm=sq(10, 0)), ImportPart("H1", polygon_mm=sq(20.2, 0), from_file={"grouping": "hand"})]
     lines = merge_parts(old, new).changes
     assert "U1: moved by 3.00 mm, kept power 2 W" in lines and "U2: matched" in lines
     assert "H1: matched by position" in lines, lines                                    # 0.10 mm is within the one threshold (parts.MOVED_MM, 0.3 mm) of the table and the status
@@ -621,3 +621,17 @@ def test_add_files_takes_the_power_typed_for_a_stored_part(app, base, tmp_path):
     app.run(new, "add", powers={"U1": 6.0, "Q1": 0.5})
     assert {h.name: h.power for h in app.doc.problem.heaters} == {"U1": 6.0, "Q1": 0.5}
     assert {p.designator: p.power for p in app.doc.project.imports[0].parts}["U1"] == 6.0
+
+
+def test_a_different_board_makes_cancel_the_default_button(app, base, tmp_path):
+    app.run(base, "replace", powers={"U1": 3.0})
+    other = make_board(tmp_path / "other", inner=0)
+    (other / "edge.gbr").write_text((other / "edge.gbr").read_text().replace("X40000000", "X80000000"))
+    app.run(other, "replace", cancel="dialog")
+    dlg = app.dialogs[-1]
+    assert dlg.different and "this looks like a different board" in dlg.warn.text().lower()
+    assert dlg.go.isEnabled() and not dlg.go.isDefault()
+    cancel = [b for b in dlg.findChildren(type(dlg.go)) if b.text().replace("&", "") == "Cancel"][0]
+    assert cancel.isDefault()
+    app.run(base, "replace", cancel="dialog")
+    assert not app.dialogs[-1].different
