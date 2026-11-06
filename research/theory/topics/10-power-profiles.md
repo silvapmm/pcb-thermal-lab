@@ -39,7 +39,7 @@ One time-stepping run with all heaters (the problem is linear). The step `dt` is
 ## 8. Sources
 
 * Superposition of delayed steps (Duhamel): standard linear-systems theory; no single source is recorded in the project documents.
-* The repetitive-pulse form `D + (1 - D) z(t)` of a thermal impedance: [TI-SLUAAT8]. RC networks from the thermal impedance: [Nexperia-AN11261] (both search summaries).
+* The repetitive-pulse form `D + (1 - D) z(t)` of a thermal impedance: source not found (status M, memory; [TI-SLUAAT8] does not contain it: it reads the normalised `Z_thetaJC` from the duty-cycle curves of the data sheet, `Delta T_J = P Z R_thetaJC`). RC networks from the thermal impedance: [Nexperia-AN11261] (both search summaries).
 * Own computation: [L-validation].
 
 *What was read and what was not verified:* equations from `docs/theory.md` section 10 (read in full).
