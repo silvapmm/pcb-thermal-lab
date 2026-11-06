@@ -117,7 +117,7 @@ def set_status(papers: Path, stem: str, pages: set[int], state: str, by: str = "
     @param note       Free text (what was checked or changed).
     @param source_sha Hash of the provider page per page (optional).
     @return None
-    @throws ValueError For an unknown state, or a `corrected` page with no corrected text to keep.
+    @throws ValueError For an unknown state, a `corrected` page with no corrected text to keep, or a `verified` page that does not exist.
     """
     if state not in STATES:
         raise ValueError(f"state must be one of {STATES}, not {state!r}")
@@ -125,6 +125,10 @@ def set_status(papers: Path, stem: str, pages: set[int], state: str, by: str = "
     final = papers / "md-final" / f"{stem}.md"
     chunks = split_pages(final.read_text(encoding="utf-8")) if final.is_file() else {}
     for p in sorted(pages):
+        if state == "verified" and _src(papers, stem, p) is None and not corrected_path(papers, stem, p).is_file() \
+                and chunks.get(p, "[missing]").strip() in ("", "[missing]"):
+            # a page that does not exist cannot have been compared with its image
+            raise ValueError(f"{stem} p{p}: nothing to verify (no provider page, no corrected text, not in md-final)")
         if state == "corrected":
             cf = corrected_path(papers, stem, p)
             if not cf.is_file():
