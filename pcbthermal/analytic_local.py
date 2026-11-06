@@ -77,7 +77,9 @@ class LocalSystem:
         @brief The symmetric matrix Cap^-1/2 (A + D P^T (s C_via + C_sink) P D / W H) Cap^-1/2 of the block.
         @param s Factor on the via couplings.
         @return Array (K K L, K K L).
+        @throws RuntimeError After release().
         """
+        self._require_matrices()
         return (self.base + s * self.Qv) * self.ci[:, None] * self.ci[None, :]
 
     def steady_point(self, s, q, out):
@@ -126,6 +128,25 @@ class LocalSystem:
         lam, V = np.linalg.eigh(self._sym(self.s))
         self.lam, self.V = lam, V
         return lam.reshape(self.K, self.K, self.L)
+
+    def release(self):
+        """!
+        @brief Free the matrices of the calibration once the block is decomposed: the rows, the coefficients and the start state need only the eigenvectors.
+        @details The transient keeps one system per heater when the board has vias or heatsinks, and each system held four dense matrices of (K^2 L)^2 doubles (the base,
+                 the via and heatsink projections and the eigenvectors; 67 MB each at 8 layers): on six parts of an 8-layer board the step responses peaked 0.9 GB above
+                 the smeared transient they replace (review). After this call steady_point, calibrate and decompose raise RuntimeError.
+        @return None.
+        """
+        self.base = self.Qv = self.Qs = None
+
+    def _require_matrices(self):
+        """!
+        @brief Check that the calibration matrices are still held.
+        @return None.
+        @throws RuntimeError After release().
+        """
+        if self.base is None:
+            raise RuntimeError("the local system was released after its decomposition: build a new LocalSystem to calibrate again")
 
     def source_row(self, q):
         """!

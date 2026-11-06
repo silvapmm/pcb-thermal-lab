@@ -204,11 +204,13 @@ def test_modes_of_the_block_16_against_24(monkeypatch):
     assert abs(b / a - 1.0) < 0.02
 
 
-def test_unit_checks_of_the_local_system():
+def test_unit_checks_of_the_local_system(monkeypatch):
     """!
     @brief Eigenvalues are positive, the block is symmetric, and a target outside the bracket of the factor takes the end and reports it.
+    @param monkeypatch pytest fixture (keeps the calibration matrices, which the program frees after the decomposition).
     @return None.
     """
+    monkeypatch.setattr(analytic_local.LocalSystem, "release", lambda self: None)
     p = _sink(_vias(_plain()))
     d = analytic._local_dynamics(p, 1.0, 100, 0)
     ls = d["local"]
@@ -244,3 +246,22 @@ def test_the_animation_reaches_the_steady_state():
     assert tr.t_max[0] == pytest.approx(T0)
     assert tr.t_max[-1] == pytest.approx(tr.steady_t_max, rel=1e-3)
     assert any("coupled" in w or "couplings" in w for w in tr.warnings)
+
+
+def test_the_released_system_keeps_the_results_and_frees_the_matrices(monkeypatch):
+    """!
+    @brief After the decomposition the calibration matrices are freed (one system per heater held four dense matrices: review, 0.9 GB more than the smeared transient
+           on six parts of an 8-layer board); the step responses are bit-identical with and without the release, and a released system refuses to calibrate again.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    p = _sink(_vias(_plain()))
+    p.add_heater(1, 1.0, rect=(5, 5, 12, 12))
+    t1, z1, r1 = analytic.step_responses(p, cell_mm=1.0, n_terms=100)
+    ms = analytic._ModalSet(p, 1.0, 100)
+    assert all(d["local"].base is None and d["local"].Qv is None and d["local"].Qs is None for d in ms.ds)
+    with pytest.raises(RuntimeError):
+        ms.ds[0]["local"]._sym(1.0)
+    monkeypatch.setattr(analytic_local.LocalSystem, "release", lambda self: None)
+    t2, z2, r2 = analytic.step_responses(p, cell_mm=1.0, n_terms=100)
+    assert np.array_equal(t1, t2) and np.array_equal(z1, z2) and np.array_equal(r1, r2)

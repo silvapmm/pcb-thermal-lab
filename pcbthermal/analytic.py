@@ -409,12 +409,15 @@ def _effective_sheet(problem, cell_mm):
                 "the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
                 "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
         else:
-            # Per-layer edge (research/analytic-2-6 README 2.3, 2.4 and 6.1; reproduced in docs/validation.md 4.1): what is left is the laminate rule of the FVM
+            # Per-layer edge (research/analytic-2-6 README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
+            # idealisation, which the per-layer edge solves exactly (within 0.5 % of an FVM with one link): the FVM with its sub-gaps and the 3D solid both read hotter.
+            # Review: on the 24 study boards with h_side 50 and 200 the Analytic is -0.5 to -5.8 % of the 3D solid; on small boards outside the study (30 x 20 mm, a 6 mm
+            # corner part, the edge 73 % of the loss) -7 to -10 %.
             warnings.append(
                 f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the sheet conductances of the layers differ by {spread:.1f} times: "
-                "the Analytic model treats the edge of each layer separately and its hottest temperature was measured from about 5 % too cool to 1 % too hot against the "
-                "FVM on a sample of 48 boards (the cool side is the laminate of the FVM beside partial copper; a sample, not a bound). "
-                "The FVM is itself up to about 15 % low on a thick board with a large edge coefficient: then use the 3D solid.")
+                "the Analytic model treats the edge of each layer separately, but it keeps one laminate link per gap, and its hottest temperature was measured too cool, "
+                "by up to about 6 % against the 3D solid on 60 x 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
+                "Use the FVM or, on a thick board with a large edge coefficient, the 3D solid.")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
             "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "beta_l": beta_l, "edge_mismatch": edge_mismatch, "h_eff": h_eff, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam,
@@ -933,6 +936,7 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
         G[i, :K, :K] = ls.source_row(q[:K, :K])
         l_i, iy_i, ix_i = d["points"][i]
         U[i, :K, :K] = ls.point_row(bx.at(d["xs"][ix_i])[:K], by.at(d["ys"][iy_i])[:K], l_i)
+    ls.release()                                                         # Only the eigenvectors are used from here on: one system per heater keeps 1 dense matrix, not 4
     back = d["back"].copy()
     back[:K, :K] = 0.0                                                   # The block modes reach the field through LocalSystem.coefficients
     d.update({"lam": lam, "G": G, "U": U, "back": back, "local": ls, "local_factor": float(s), "K": K,
@@ -1100,8 +1104,8 @@ class _AnalyticAdapter:
         if problem.heatsinks:
             # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
             # 0.5 mm, converged), research/analytic-2-6 README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
-            # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. Several parts,
-            # partial copper, an outline and the profile runs are not in the sample. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
+            # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
+            # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
             self.warnings.append(
@@ -1184,7 +1188,8 @@ def heatsink_transient_warning(scales=""):
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
             "of test boards, from about -8 % to +1 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
-            "this is a sample, not a bound (one 60 x 40 mm family, one part; several parts, partial copper and a board outline were not tested); "
+            "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
+            "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"
             + (f" (via coupling factors {scales})" if scales else ""))
 
