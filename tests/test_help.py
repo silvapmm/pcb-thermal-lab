@@ -100,3 +100,13 @@ def test_guide_window_about_and_menu(qtbot, tmp_path, monkeypatch):
         by_key[f"Ctrl+{n}"].trigger()
         assert win.tabs.currentIndex() == idx
     assert win.a_guide.shortcut() == QKeySequence("F1")
+
+
+def test_guide_states_the_background_image_rule():
+    """!
+    @brief The guide says the background image is for hand-drawn boards and disabled for Gerber projects.
+
+    @return None
+    """
+    html = GUIDE.read_text(encoding="utf-8")
+    assert "View - Background image" in html and "only remove the image" in html
