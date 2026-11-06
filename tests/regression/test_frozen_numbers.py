@@ -107,7 +107,8 @@ def with_pending(data):
              why), so the battery stays green and the moved records are still held to the same tolerance. A pending file of another base version is not applied
              (test_pending_shifts_belong_to_the_frozen_release fails on it: it must be folded into the refreeze of the release and deleted).
     @param data Content of the frozen file (F.load()).
-    @return dict: a copy with the pending records in place, and "pending" listing the files applied.
+    @return dict: a copy with the pending records in place, the records a pending file lists under "skipped" moved from "records" to "skipped" (pushed over the size cap of the
+            harness by the change), and "pending" listing the files applied.
     """
     out = copy.deepcopy(data)
     out["pending"] = []
@@ -174,7 +175,31 @@ def test_pending_shifts_belong_to_the_frozen_release():
         assert pend.get("item") and pend.get("branch") and pend.get("why"), f"{path.name}: the item, the branch and the reason are required"
         assert set(pend.get("records", {})) <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
         assert set(pend.get("skipped", {})) <= set(data["records"]), f"{path.name}: skipped records that are not in {FROZEN_FILE.name}"
+        assert not set(pend.get("skipped", {})) & set(pend.get("records", {})), f"{path.name}: a record cannot be both moved and skipped"
         assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
+
+
+def test_a_pending_skip_moves_the_record_out_of_the_checked_set(tmp_path, monkeypatch):
+    """!
+    @brief The "skipped" list of a pending file takes a record out of "records" into "skipped" (so a run that is now over the cap passes and a run that still finishes fails),
+           moved records are replaced, and a pending file of another base version is ignored.
+    @param tmp_path Folder of the synthetic pending files (pytest fixture).
+    @param monkeypatch Pytest fixture that points the module at that folder.
+    @return None.
+    """
+    data = {"version": "9.9.9", "records": {"a|solid3d|1": {"class": "bit", "metrics": {"t_max": 1.0}}, "b|fvm|1": {"class": "bit", "metrics": {"t_max": 2.0}}},
+            "transients": {}, "skipped": {}}
+    (tmp_path / "x.json").write_text(json.dumps({"base_version": "9.9.9", "records": {"b|fvm|1": {"class": "moved", "metrics": {"t_max": 3.0}}},
+                                                 "skipped": {"a|solid3d|1": "too many unknowns"}}), encoding="utf-8")
+    (tmp_path / "old.json").write_text(json.dumps({"base_version": "1.0.0", "skipped": {"b|fvm|1": "old"}}), encoding="utf-8")
+    monkeypatch.setitem(globals(), "PENDING_DIR", tmp_path)
+    out = with_pending(data)
+    assert "a|solid3d|1" not in out["records"] and out["skipped"] == {"a|solid3d|1": "too many unknowns"}
+    assert out["records"]["b|fvm|1"]["metrics"]["t_max"] == 3.0 and out["pending"] == ["x.json"]
+    assert data["records"]["a|solid3d|1"] and not data["skipped"]                     # the frozen content itself is not edited
+    still_runs = [{"board": "a", "model": "solid3d", "cell_mm": 1.0, "status": "ok"}]
+    now_skipped = [{"board": "a", "model": "solid3d", "cell_mm": 1.0, "status": "skipped", "reason": "too many unknowns"}]
+    assert F.compare(out, now_skipped) == [] and F.compare(out, still_runs)
 
 
 def test_the_frozen_file_is_present_and_complete():

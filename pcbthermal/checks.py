@@ -615,8 +615,10 @@ def small_part_ratios(problem, models, cell_mm=1.0):
              so the margin can differ from the run's by a cell) and the board has no metal block (which keeps the earlier treatment). The sub-layer of the 3D solid is d / n with n the slabs of the gap by the rule of solid3d.slab_rule (0.2 mm, 4 to 16: at most 0.2 mm) and
              is always present. d is the gap on each side of the layer of the part; the larger ratio is kept. The side is the smaller extent of the bounding box of the footprint, grown by
              the copper around the part on its layer (_spread_side): a part over a plane is silent. The limit is SMALL_PART_RATIO on bare laminate (the centre of the footprint without copper,
-             as in the bare-laminate warning) and, for the layered rule over copper, SMALL_PART_RATIO_PAD; the 3D solid uses SMALL_PART_RATIO in both cases (the limit was set with the four fixed slabs of the earlier solid, 4 against 16 slabs: +3.5 % bare,
-             +4.1 % pad at 0.15, +2.5 % pad at 0.10; with the slabs by thickness a sub-layer is at most 0.2 mm, so the warning is for parts under about 1.3 mm).
+             as in the bare-laminate warning) and, for the layered rule over copper, SMALL_PART_RATIO_PAD; the 3D solid uses SMALL_PART_RATIO in both cases. The limit was set with the four fixed
+             slabs of the earlier solid (4 against 16 slabs: +3.5 % bare, +4.1 % pad at 0.15) and holds for the slabs by thickness: the error of the slabs alone, against the same solid
+             extrapolated in its slabs, follows the ratio and not the thickness (review, 1.6 and 3.2 mm, parts of 1 to 4 mm: +0.7 to +1.0 % at 0.05, +2.0 to +2.6 % at 0.10, +3.0 to +3.6 %
+             at 0.13, +4.9 to +5.7 % at 0.19 to 0.20, bare and pad); a sub-layer is at most 0.2 mm, so the warning is for parts under about 1.3 mm.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -707,8 +709,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
              With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
              A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
              The 3D solid cuts every gap into ceil(d / 0.2 mm) slabs, 4 to 16 (before: a fixed four, which read a 2 mm part +20 % bare and +27 % pad hot on 3.2 mm and +5.5 and +14.7 % on 1.6 mm);
-             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-2-6 5.1);
-             the test is d / n against 0.15 of the side, so it fires only for parts under about 1.3 mm. No result depends on it.
+             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-2-6 5.1),
+             of which about +2 to +2.6 % are the slabs and the rest the plan cell (+7 to +16 % in all at 0.5 mm, +17 to +30 % at 1 mm; review). The test is d / n against 0.15 of the side
+             (the slabs alone +3 to +4 % there), so it fires only for parts under about 1.3 mm; the cell is the warning of check_problem (a part under three cells). No result depends on it.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -730,9 +733,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
                     f"or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
             short_what = f"the FVM and FDM read them too cool (4 to 24 %); reduce {laminate_where('sub-gap')}"
         else:
-            what = ("the 3D solid, with slabs of at most 0.2 mm per insulating layer, still reads them too hot (+4 % bare and +8 to +9 % over a pad for a 2 mm part; "
-                    "a smaller part reads more)")
-            short_what = "the 3D solid reads them too hot (about +4 to +9 % at 2 mm, more when smaller)"
+            what = ("the 3D solid, with slabs of at most 0.2 mm per insulating layer, reads them too hot: its slabs alone add about +3 to +4 % at a ratio of 0.15 and +5 to +6 % at 0.2 "
+                    "(a 1 mm part), and a part only a few cells wide adds the error of the plan cell")
+            short_what = "the 3D solid reads them too hot (+3 to +6 % from its slabs, more at a coarse cell)"
         _add(out, None, None, f"{len(group)} parts are small against the sub-layer of laminate under them (ratio above {limit:.2f}; the worst, with their ratios: {worst}); {what}.",
              f"{len(group)} small parts over a thick laminate (worst: {worst}); {short_what}.")
     found = [f for f in found if sum(1 for g in found if g[1] == f[1]) <= SMALL_PART_AGGREGATE]
@@ -747,14 +750,15 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
                        f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
                        "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller "
                        f"{laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
-                       "The 3D solid, with its slabs of at most 0.2 mm per insulating layer, reads such a part a few per cent too hot instead (about +4 % bare, +8 to +9 % over a pad at 2 mm).",
+                       "The 3D solid, with its slabs of at most 0.2 mm per insulating layer, reads such a part a few per cent too hot instead (a 2 mm part about +4 % bare and +8 to +9 % over a pad at a 0.25 mm cell, more at a coarser cell).",
                  f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
                  f"reduce {laminate_where('sub-gap')}.")
         else:
             _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
-                       f"above {limit:.2f}); the solid reads it too hot: measured +4 % bare and +8 to +9 % over a pad under a 2 mm part at a 0.25 mm cell "
-                       "(+4.1 and +9.0 % on 1.6 mm laminate, +3.9 and +7.9 % on 3.2 mm), and more for a smaller part (not measured). The slabs are 0.2 mm thick (4 to 16 per insulating layer).",
-                 f"{name}: small part on a thick laminate; the 3D solid reads it too hot (+4 to +9 % at 2 mm, more when smaller).")
+                       f"above {limit:.2f}); the solid reads it too hot: its slabs alone were measured +3 to +4 % at a ratio of 0.13 to 0.15 and +5 to +6 % at 0.2, bare and over a "
+                       "pad of the part's size, and the plan cell adds its own hot error for a part only a few cells wide (a 2 mm part read +4 to +9 % in all at a 0.25 mm cell, "
+                       "+7 to +16 % at 0.5 mm and +17 to +30 % at 1 mm). The slabs are at most 0.2 mm thick (4 to 16 per insulating layer).",
+                 f"{name}: small part on a thick laminate; the 3D solid reads it too hot (+3 to +6 % from its slabs, more at a coarse cell).")
     return out
 
 
