@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Placement file with a text preamble** (`fix/placement-preamble`; the Pulsonix position file, from `research/bom-role-and-close-hook`): the placement reader looked for the header row on the first line, so a file that starts with a title, a date and `Units,mm` (Pulsonix) was refused and no part got a designator. It now skips up to 40 lines of free text before the header row (a `Units,<mm|mil|in>` line sets the unit), counts the lines skipped, and the Parts step says on which line the header was found. A file with no header row is refused with "no placement header found" (the reason is in the notes of the files). The sentence "N parts were matched to the placement file by position" is no longer shown when the placement file was refused (nothing was matched). Files that already read give the same rows; no number of a solve moves.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
