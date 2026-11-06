@@ -6,6 +6,7 @@
 
 Usage: python examples/make_screenshots.py [output_folder]   (default: docs/images)
        python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
+       python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
 """
 
 import os
@@ -324,9 +325,171 @@ def main_import(out_dir, board_dir):
     return written
 
 
+def _sketch_picture(path, width_mm, height_mm):
+    """!
+    @brief Draw a neutral PCB-like sketch (green board, tracks, pads) as the background picture of a hand-drawn board.
+    @param path PNG file to write.
+    @param width_mm Board width in mm (sets the aspect ratio of the picture).
+    @param height_mm Board height in mm.
+    @return None
+    """
+    from PIL import Image, ImageDraw
+
+    k = 10                                                                   # pixels per mm
+    im = Image.new("RGB", (round(width_mm * k), round(height_mm * k)), (36, 92, 60))
+    d = ImageDraw.Draw(im)
+    track = (205, 170, 70)
+    for i in range(1, 7):                                                    # a bus of parallel tracks with right-angle bends
+        y = round(height_mm * k * i / 7)
+        x1 = round(width_mm * k * (0.15 + 0.08 * i))
+        d.line([(round(width_mm * k * 0.05), y), (x1, y), (x1, round(height_mm * k * 0.5)), (round(width_mm * k * 0.95), round(height_mm * k * 0.5))], fill=track, width=7)
+    for i in range(10):                                                      # pads of a connector row
+        x = round(width_mm * k * (0.1 + 0.08 * i))
+        d.ellipse([x - 12, 18, x + 12, 42], fill=track)
+        d.ellipse([x - 5, 25, x + 5, 35], fill=(20, 40, 30))
+    d.rectangle([round(width_mm * k * 0.55), round(height_mm * k * 0.6), round(width_mm * k * 0.85), round(height_mm * k * 0.9)], outline=(235, 235, 235), width=4)
+    im.save(path)
+
+
+def main_views(out_dir, board_dir):
+    """!
+    @brief Produce the pictures of the 2.5.1 views: the Results maps with the layer grid, the Smooth and Terrain views and the copper underlay (light and dark), the Gradients tab,
+           the Animation tab with its underlay, the temperature on the board, the Background image dialog with an image under a hand-drawn board and the re-import warning.
+    @param out_dir Folder that receives the PNG files.
+    @param board_dir Folder with the Gerber files of the RP2040 minimal design (BSD-3-Clause), used for the re-import warning.
+    @return List of written file paths.
+    """
+    import copy
+    import shutil
+
+    from pcbthermal.gui.import_window import ImportBoardWindow, ReimportDialog
+    from pcbthermal.gui.main_window import BackgroundDialog
+
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    work = tempfile.mkdtemp()
+    written = []
+
+    def save(widget, name):
+        app.processEvents()
+        path = os.path.join(out_dir, name)
+        widget.grab().save(path)
+        shrink(path)
+        written.append(path)
+
+    def pick(combo, data):
+        combo.setCurrentIndex(combo.findData(data))
+
+    for theme_name, suffix in (("light", ""), ("dark", "_dark")):
+        settings = QSettings(os.path.join(work, f"shots_{theme_name}.ini"), QSettings.IniFormat)
+        settings.setValue("theme", theme_name)
+        win = MainWindow(settings=settings)
+        win._load_problem(example_board(), "example-4layer")
+        win.resize(2000, 1200)
+        win.show()
+        app.processEvents()
+        win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+        win.canvas.fit()
+        win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)))
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        res = win.results
+        # The Temperature tab: all four layers in a grid, smooth, with the copper under the map
+        res.tabs.setCurrentWidget(res.temp)
+        pick(res.temp.layer, -2)
+        pick(res.temp.view, "smooth")
+        pick(res.temp.underlay.combo, "copper")
+        save(win, f"results_views{suffix}.png")
+        if not suffix:
+            # The Terrain view and the Gradients tab (the light theme is enough: the dark one only recolours them)
+            pick(res.temp.layer, 0)
+            pick(res.temp.view, "terrain")
+            res.temp.contour.setValue(5.0)
+            save(win, "results_terrain.png")
+            res.tabs.setCurrentWidget(res.grad)
+            pick(res.grad.layer, 0)
+            save(win, "results_gradient.png")
+        if suffix:
+            win.doc.stack.setClean()
+            win.close()
+            continue
+        # The Animation tab with the copper underlay and the Smooth view
+        res.tabs.setCurrentWidget(res.animation)
+        anim = res.animation
+        anim.t_end.setValue(120.0)
+        anim.frames.setValue(30)
+        anim.compute.click()
+        while anim.tr is None:
+            app.processEvents()
+        pick(anim.view, "smooth")
+        pick(anim.underlay.combo, "copper")
+        anim.slider.setValue(int(anim.slider.maximum() * 0.55))
+        save(win, "animation_underlay.png")
+        # The editor with the temperature on the board (colour bar in the strip beside the board)
+        win.tabs.setCurrentIndex(0)
+        win.canvas.fit()
+        win.a_overlay.setChecked(True)
+        win.canvas.fit()
+        save(win, "editor_overlay.png")
+        win.a_overlay.setChecked(False)
+        win.doc.stack.setClean()
+        # A hand-drawn board with a picture under it: the dialog, then the editor
+        win._load_problem(example_board(), "example-image")
+        b = win.doc.problem.board
+        w_mm, h_mm = b.width * 1000, b.height * 1000
+        pic = os.path.join(work, "layout_sketch.png")
+        _sketch_picture(pic, w_mm, h_mm)
+        cfg = {"path": pic, "x_mm": 0.0, "y_mm": 0.0, "w_mm": w_mm, "h_mm": h_mm}
+        dlg = BackgroundDialog(cfg, (w_mm, h_mm), win)
+        dlg.show()
+        save(dlg, "background_dialog.png")
+        dlg.close()
+        win.doc.project.view["background"] = cfg
+        win.canvas.rebuild()
+        win._sync_underlay()
+        win.tabs.setCurrentIndex(0)
+        win.canvas.fit()
+        win.canvas.set_selection([])
+        save(win, "editor_background.png")
+        win.doc.stack.setClean()
+        win.close()
+
+    # The re-import dialog with the warning of a different board: the stored import is made to look like another board (a different outline and other files)
+    copy_dir = os.path.join(work, "rp2040")
+    shutil.copytree(board_dir, copy_dir)
+    settings = QSettings(os.path.join(work, "shots_re.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    win.resize(1600, 1000)
+    win.show()
+    w1 = ImportBoardWindow(win)
+    w1.confirm = lambda *a: True
+    w1.notify = lambda *a: None
+    w1.open_path(copy_dir)
+    w1.session.build_problem()
+    old = copy.deepcopy(w1.session.record)
+    old.name = "OTHER-BOARD"
+    old.box_mm = [0.0, 0.0, 2 * (old.box_mm[2] - old.box_mm[0]), 1.5 * (old.box_mm[3] - old.box_mm[1])]
+    for i, f in enumerate(old.files):
+        f.name, f.sha256 = f"other_{i}.gbr", f"{i:064x}"
+    w1.session.build_problem()
+    rd = ReimportDialog(w1.session, old, w1)
+    rd.resize(900, 620)
+    rd.show()
+    save(rd, "import_reimport_different.png")
+    rd.close()
+    w1.close()
+    win.close()
+    return written
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "--import":
         for f in main_import(sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images"), sys.argv[2]):
+            print(f)
+        sys.exit(0)
+    if len(sys.argv) > 2 and sys.argv[1] == "--views":
+        for f in main_views(sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images"), sys.argv[2]):
             print(f)
         sys.exit(0)
     for f in main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):

@@ -55,6 +55,16 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Temperature](docs/images/results_temperature.png)
 
+![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
+
+![Temperature tab, View Terrain with contour lines every 5 K](docs/images/results_terrain.png)
+
+![Animation tab with View Smooth and Underlay Copper](docs/images/animation_underlay.png)
+
+![Temperature on board: the map painted over the board in the editor, with its colour bar](docs/images/editor_overlay.png)
+
+![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
+
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
 ## What is new in 2.5.0
