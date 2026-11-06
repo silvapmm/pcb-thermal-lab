@@ -119,7 +119,7 @@ def test_heat_balance_with_unlike_layers_vias_and_heatsink(fills, vias, sink):
 def test_against_the_fvm_on_boards_with_very_different_copper(fills, pos, hs):
     """!
     @brief The hottest rise against the FVM at 0.5 mm (measured on 48 boards: -4.07 to +0.06 %, the earlier common beta -8.64 to +5.76 %): within 4.5 % and not hot by
-           more than 1.5 %; the cool side is the laminate rule of the FVM beside partial copper.
+           more than 1.5 %; the cool side is the one laminate link per gap of the Analytic (the FVM with its sub-gaps and the 3D solid read hotter, review).
     @param fills Fill of each layer.
     @param pos Position of the part.
     @param hs Edge coefficient.
@@ -182,6 +182,32 @@ def test_warning_for_unlike_layers_quotes_the_per_layer_range():
     @return None.
     """
     two = [w for w in analytic.solve_steady(_board((1, 0.2)), 1.0).warnings if "edge convection" in w]
-    assert len(two) == 1 and "separately" in two[0] and "48 boards" in two[0]
+    assert len(two) == 1 and "separately" in two[0] and "3D solid" in two[0] and "10 %" in two[0] and "too cool" in two[0]
     one = [w for w in analytic.solve_steady(_board((1,)), 1.0).warnings if "edge convection" in w]
     assert len(one) == 1 and "one-layer" in one[0]
+
+
+def test_small_board_with_a_strong_edge_reads_cool_against_the_3d_solid():
+    """!
+    @brief Review case outside the 48-board study: a 30 x 20 mm two-layer board (top fill 0.1, bottom full), a 1 W, 6 mm part in a corner, h_side 200 W/m2K (the edge
+           73 % of the loss). The per-layer edge solves the layered idealisation exactly (within 1 % of an FVM with one laminate link per gap), but the idealisation is
+           cool: measured -9.3 % against the 3D solid at 0.5 mm (115.65 K; 115.39 K at 0.25 mm) where the common beta of 2.5.1 read +8.0 %. The warning must fire and
+           quote the cool side up to about 10 %.
+    @return None.
+    """
+    from pcbthermal import solid3d
+    p = Problem.new(width_mm=30, height_mm=20, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=T0, h_top=10.0, h_bottom=10.0, h_side=200.0)
+    for l in (1, 2):
+        p.add_zone(l, rect=(0, 0, 30, 20))
+    p.zones[0].fill = 0.1
+    p.add_heater(1, 1.0, rect=(0, 0, 6, 6))
+    r = analytic.solve_steady(p, 1.0)
+    a = r.t_max - T0
+    s = solid3d.solve_steady(p, cell_mm=0.5).t_max - T0
+    e = a / s - 1.0
+    assert -0.11 < e < -0.05
+    from pcbthermal import laminate
+    with laminate.using(None, 1):                           # one laminate link per gap, the idealisation the Analytic shares
+        f1 = fvm.solve_steady(p, cell_mm=0.5).t_max - T0
+    assert abs(a / f1 - 1.0) < 0.01
+    assert any("edge convection" in w and "10 %" in w for w in r.warnings)
