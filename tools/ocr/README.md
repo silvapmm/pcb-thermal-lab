@@ -20,6 +20,9 @@ $PY -W ignore -m tools.ocr status show [STEM]           # reading status per pag
 $PY -W ignore -m tools.ocr status set STEM 3,5-6 verified|corrected|machine --note "eqs 3-5 match the image"   # the reviewer's record
 $PY -W ignore -m tools.ocr status seed                  # once: fill the file from the headers/markers of md-final and OCR_TO_VERIFY.md
 $PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic --whole-page --max-tokens 16000 --subdir whole   # one request per page, no crops
+$PY -W ignore -m tools.ocr firstline [--stem S] [--pages 1-5]   # offline: first line of each machine page against the PDF text layer -> notes/FIRSTLINE_REPORT.md
+$PY -W ignore -m tools.ocr eqcheck [--stem S]           # offline: $ spans and \tag numbers against the text layer and the Gemini page -> notes/EQCHECK_REPORT.md
+$PY -W ignore -m tools.ocr audit                        # offline: integrity of the assembled library -> notes/AUDIT_REPORT.md (exit 1 on an error)
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
@@ -159,3 +162,26 @@ fake providers, a scripted HTTP layer). `tests/test_docs.py` and `tests/test_lic
   number, plus the reviewer's list `OCR_TO_VERIFY.md`. Tiers: E1 essential and not verified against the image, E2 verified, O not
   cited; the tokens to finish use 7.5k per page. The page detection is a heuristic (printed pages shifted by the file's offset),
   stated as such in the output.
+
+## Offline checks (`checks.py`; no provider, no key, no network)
+
+* **`firstline`**: a typical Claude error is a sentence invented at the top of a page. For each page file of `ocr/anthropic`,
+  `ocr/anthropic/whole`, `ocr/retry` and `ocr/corrected` (`--sources` changes the folders) the first text line of the machine
+  page (figure descriptions skipped, `*(note)*` annotations and math removed) is compared with the first 12 lines of the PDF text
+  layer of the same page: share of its tokens (NFKC, lower case, ligatures expanded) found there, at least 0.6 to pass. A token
+  of four or more characters also matches the layer squeezed without spaces (old PDFs break words into fragments). Verdicts: `ok`;
+  `moved` (the line is on the page but not at the top: running head, reading order); `FLAG` (not found: the reviewer looks at
+  the image); `not checkable` (a scan or a layer with fewer than 25 words, a garbage layer, a page that starts with a formula or
+  only a figure). Only born-digital pages with a usable layer are checkable, and a passed check proves nothing about the rest of the page.
+* **`eqcheck`**: per page, the number of `$$..$$` and `$..$` spans and the equation numbers (`\tag{n}`, or a trailing
+  `\qquad (n)`), against the formula density and the lone `(n)` lines of the text layer, and against the Gemini page when it
+  exists (display count differing by more than a third; tag sets compared only when both sides have numbers, since Gemini often
+  leaves them out). `(weak)` marks the case of equations drawn as images, where the layer has almost no formula glyphs.
+* **`audit`**: `md-final` against `ocr/`, `pdf/` and `reading_status.json`: YAML header fields, page markers 1..N in order
+  without a gap, `[missing]` where a Claude, OpenRouter, Gemini or corrected page exists (error: run `assemble`), the marker state
+  against the sidecar (stale file), corrected pages used as they are, `corrected` entries without a file, page files beyond the
+  PDF, stems without a PDF, key-like text (the patterns of `keys.KEY_PATTERNS`; only file and line are reported, never the text),
+  and confidential files (name patterns or the SHA-256 of the PDF with the same stem) in `ocr/` or `md-final/`. The exit code is 1
+  when an error is found. All reports are deterministic (no dates).
+* `status set STEM PAGES verified` now refuses a page that has no provider text, no corrected text and no `md-final` chunk
+  (it used to record a page that does not exist as compared with its image).
