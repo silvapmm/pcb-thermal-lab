@@ -61,3 +61,52 @@ def test_animation_notes_reach_the_summary(qtbot):
     assert analytic.HEATSINK_TRANSIENT_KEY in rv.warnings.text()
     rv.set_simulation(sim)                                       # A new run clears the old animation's notes
     assert analytic.HEATSINK_TRANSIENT_KEY not in rv.warnings.text()
+
+
+class _FakeClock:
+    """!
+    @brief A clock that advances one second per reading, to cut the live via pass after a known number of vias.
+    """
+
+    def __init__(self):
+        """!
+        @brief Start at zero.
+        """
+        self.t = 0.0
+
+    def perf_counter(self):
+        """!
+        @brief Read the clock.
+        @return float Seconds, one more than the previous reading.
+        """
+        self.t += 1.0
+        return self.t
+
+
+def test_partial_copper_pass_cap(monkeypatch):
+    from test_via_partial_copper_warning import _two_planes
+    p = _two_planes(0.3, n_vias=9)
+    full = [str(w) for w in checks.check_input(p, ("fvm",), 0.5, live=True) if "copper over only part" in str(w)]
+    plain = [str(w) for w in checks.check_input(p, ("fvm",), 0.5) if "copper over only part" in str(w)]
+    assert full == plain and full and "At least" not in full[0]          # A fast pass is identical to the run's list
+    n_all, n_checked = checks.partial_copper_vias(p, 0.5)
+    assert len(n_all) == 9 and n_checked == len(p.vias)
+    # Truncated: the clock jumps a second per reading, the cap is 3.5 s, so the pass stops after three exact via tests
+    monkeypatch.setattr(checks, "time", _FakeClock())
+    partial, n_done, cut = checks.partial_copper_scan(p, 0.5, 3.5)
+    assert cut and n_done < len(p.vias) and len(partial) <= len(n_all)
+    monkeypatch.setattr(checks, "time", _FakeClock())
+    msgs = [w for w in checks.check_via_partial_copper(p, ("fvm",), 0.5, 3.5)]
+    assert msgs and "At least" in str(msgs[0]) and "Results of the run" in str(msgs[0]) and "At least" in msgs[0].short
+
+
+def test_live_budget_constant_is_used(monkeypatch):
+    from test_via_partial_copper_warning import _two_planes
+    p = _two_planes(0.3, n_vias=9)
+    seen = []
+    real = checks.partial_copper_scan
+    monkeypatch.setattr(checks, "partial_copper_scan", lambda *a, **k: (seen.append(a[2] if len(a) > 2 else k.get("budget_s")), real(*a, **k))[1])
+    monkeypatch.setattr(checks, "PARTIAL_COPPER_BUDGET_S", 123.0)
+    checks.check_input(p, ("fvm",), 0.5, live=True)
+    checks.check_input(p, ("fvm",), 0.5)
+    assert seen == [123.0, None]
