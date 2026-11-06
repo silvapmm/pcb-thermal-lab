@@ -198,16 +198,58 @@ def tee(a, part=(9, 10, 12, 14)):
     return p
 
 
+def sampled_weights(poly, outline, nx, ny, dx, dy, samples=8, cover=None):
+    """!
+    @brief The sampled part weights of 2.4.5 to 2.5.x (intersection sample by sample, normalised to the model's cover), kept for the history curves.
+    @details Since fix/exact-board-cover `geometry.part_weights` clips the part exactly; the sampled rule is still its fallback, reached here by
+             making the exact clip unavailable for the call.
+    @param poly Part polygon (m).
+    @param outline Board outline (m).
+    @param nx Cells along x.
+    @param ny Cells along y.
+    @param dx Cell width (m).
+    @param dy Cell height (m).
+    @param samples Samples per cell side.
+    @param cover Board cover of the model, or None.
+    @return Array (ny, nx).
+    """
+    exact = geometry._part_on_board
+    geometry._part_on_board = lambda p, o: None
+    try:
+        return geometry.part_weights(poly, outline, nx, ny, dx, dy, samples, cover)
+    finally:
+        geometry._part_on_board = exact
+
+
+def sampled_cover(self, nx, ny, dx, dy, minimum=0.01, samples=8):
+    """!
+    @brief The sampled board cover of 2.5.x and before (`Board.cover` is exact since fix/exact-board-cover), kept for the history curves.
+    @param self The Board.
+    @param nx Cells along x.
+    @param ny Cells along y.
+    @param dx Cell width (m).
+    @param dy Cell height (m).
+    @param minimum Smallest cover kept.
+    @param samples Samples per cell side.
+    @return Array (ny, nx).
+    """
+    if self.outline is None:
+        return np.ones((ny, nx))
+    c = geometry.coverage_fraction(self.outline, nx, ny, dx, dy, samples)
+    return np.where(c >= minimum, c, 0.0)
+
+
 def fig_edge_shift():
     """!
     @brief Figure 37: error of the hottest point against the position of the neck edge for four rules, FVM at 1 and 0.5 mm.
     @return dict of the spreads (max - min of the error) per cell and rule.
     """
     new_pw = fvm.part_weights
-    inter = lambda poly, o, nx, ny, dx, dy, samples=8, cover=None: new_pw(poly, o, nx, ny, dx, dy, samples)   # noqa: E731
+    # The four curves are the sampled rules of their releases; the program's own rule is exact since fix/exact-board-cover (docs/validation.md 23.1)
+    inter = lambda poly, o, nx, ny, dx, dy, samples=8, cover=None: sampled_weights(poly, o, nx, ny, dx, dy, samples)   # noqa: E731
     cover_cls = model.Board.cover
-    rules = {"before (2.4.4)": (old_weights, 4), "intersection only": (inter, 4), "fix (normalised to cover)": (new_pw, 4),
-             "fix + cover sampled 8 x 8 (fix/board-cover-8x8)": (new_pw, 8)}
+    rules = {"before (2.4.4)": (old_weights, 4), "intersection only": (inter, 4), "fix (normalised to cover)": (sampled_weights, 4),
+             "fix + cover sampled 8 x 8 (fix/board-cover-8x8)": (sampled_weights, 8)}
     styles = {"before (2.4.4)": ("o-", "#c1440e"), "intersection only": ("^--", "#e9c46a"), "fix (normalised to cover)": ("s-", "#2a9d8f"),
               "fix + cover sampled 8 x 8 (fix/board-cover-8x8)": ("d:", "#264653")}
     fig, axs = plt.subplots(1, 2, figsize=(12, 4.4))
@@ -221,7 +263,7 @@ def fig_edge_shift():
             fvm.part_weights = f
             # Pin the board cover of every rule to its own lattice: the program default (geometry.BOARD_SAMPLES) is 8 since fix/board-cover-8x8,
             # so a rule of the 4 x 4 cover must force it (the default would silently turn the three first curves into 8 x 8 ones)
-            model.Board.cover = lambda self, nx, ny, dx, dy, samples=None, minimum=0.01, cs=cs: cover_cls(self, nx, ny, dx, dy, cs, minimum)
+            model.Board.cover = lambda self, nx, ny, dx, dy, minimum=0.01, cs=cs: sampled_cover(self, nx, ny, dx, dy, minimum, cs)
             err = np.array([fvm.solve_steady(tee(a), cell_mm=cell).t_max - r for a, r in zip(aa, refs)])
             model.Board.cover = cover_cls
             spreads[(cell, name)] = float(np.ptp(err))
