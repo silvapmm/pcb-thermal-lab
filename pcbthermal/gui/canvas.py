@@ -21,7 +21,7 @@ from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
 
-COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of a 287 mm board whole: 2850 x 951)
+COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -605,7 +605,7 @@ class BoardView(QGraphicsView):
     def set_overlay_opacity(self, opacity):
         """!
         @brief Change the opacity of the temperature map without building it again.
-        @param opacity Opacity (0.1..1).
+        @param opacity Opacity (0..1).
         """
         if self._overlay is not None:
             self._overlay.setOpacity(float(opacity))

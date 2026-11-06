@@ -31,6 +31,31 @@ def colour_limits(field, auto=True, vmin=None, vmax=None):
     return lo, hi
 
 
+def results_limits(field, problem, dx, dy, auto=True, vmin=None, vmax=None):
+    """!
+    @brief The colour limits that the Results Temperature tab gives a field of this problem.
+    @details With Auto range the Results view takes the extremes of the samples whose centre lies on the board (`plots._off_board` blanks the others): on a board with
+             an outline the cells off it are held at the ambient and would otherwise pull the lower limit down to it, so the overlay would colour the same
+             temperature differently from the tab. Typed limits are used as they are.
+    @param field Array (ny, nx) of temperatures in degC (cells or grid points).
+    @param problem model.Problem shown (its outline).
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @param auto True for the automatic range.
+    @param vmin Typed lower limit in degC (used when `auto` is False).
+    @param vmax Typed upper limit in degC (used when `auto` is False).
+    @return tuple (low, high) in degC with high > low.
+    """
+    from ..plots import _off_board                       # The rule of the Results map itself, so the two can never drift apart
+
+    if auto or vmin is None or vmax is None:
+        on = _off_board(field, problem, dx, dy)
+        if np.isfinite(on).any():                         # A board so small that no sample centre is on it keeps the whole field
+            field = on
+        return colour_limits(field)
+    return colour_limits(field, False, vmin, vmax)
+
+
 def inside_mask(board, shape, dx, dy, nodes=False):
     """!
     @brief The cells of a result grid that lie on the board (False outside the outline).

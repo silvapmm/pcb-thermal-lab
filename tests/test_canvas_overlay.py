@@ -6,6 +6,7 @@
        4096-pixel cap of the imported copper pixmap (CO60 at 2850 x 951, RP2040 unchanged).
 """
 
+import copy
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -74,7 +75,7 @@ def _window(qtbot, tmp_path, sim, problem):
     """
     win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
     qtbot.addWidget(win)
-    win._load_problem(problem, "t")
+    win._load_problem(copy.deepcopy(problem), "t")              # a copy: an edit in one test must not change the module fixtures of the next
     win.results.set_simulation(sim)
     win.sim, win._stale = sim, False
     return win
@@ -154,6 +155,46 @@ def test_the_colour_bar_is_painted_only_with_the_overlay(qtbot, tmp_path, sim_re
     h, w = off.shape[:2]
     corner = (slice(h - 160, h), slice(w - 90, w))           # bottom-right corner of the view
     assert not np.array_equal(off[corner], on[corner])
+
+
+def test_auto_limits_on_an_outline_board_are_those_of_the_results_map(qtbot, tmp_path, sim_t):
+    # Review: the cells off the outline sit at the ambient, and the overlay took them into its Auto range (25.0 against the tab's 35.1 degC on this T)
+    from pcbthermal.plots import _off_board
+
+    win = _window(qtbot, tmp_path, sim_t, sim_t.problem)
+    t = win.results.temp
+    t.model.setCurrentIndex(t.model.findData("fvm"))
+    win.a_overlay.setChecked(True)
+    r = sim_t.results["fvm"]
+    on = _off_board(r.T[0], sim_t.problem, r.dx, r.dy)
+    a = win.canvas._overlay_args
+    assert a["vmin"] == pytest.approx(float(np.nanmin(on))) and a["vmax"] == pytest.approx(float(np.nanmax(on)))
+    assert a["vmin"] > float(np.nanmin(r.T[0])) + 1.0                    # the off-board ambient is not the lower limit
+
+
+def test_the_overlay_follows_the_controls_of_the_temperature_tab(qtbot, tmp_path, sim_t):
+    # Review: the overlay kept the colour map and limits of the moment it was switched on
+    win = _window(qtbot, tmp_path, sim_t, sim_t.problem)
+    t = win.results.temp
+    t.model.setCurrentIndex(t.model.findData("fvm"))
+    win.a_overlay.setChecked(True)
+    t.cmap.setCurrentIndex((t.cmap.currentIndex() + 1) % t.cmap.count())
+    assert win.canvas._overlay_args["cmap"] == t.cmap.currentText()
+    t.auto.setChecked(False)
+    t.vmin.setValue(40.0)
+    t.vmax.setValue(90.0)
+    assert (win.canvas._overlay_args["vmin"], win.canvas._overlay_args["vmax"]) == (40.0, 90.0)
+    t.model.setCurrentIndex(t.model.findData("lumped"))                 # the stretched map of the outline board: refused at once
+    assert win.canvas._overlay is None and not win.a_overlay.isChecked() and "stretched" in win.statusBar().currentMessage()
+
+
+def test_switching_on_an_outdated_result_says_so_and_leaves_the_button_off(qtbot, tmp_path, sim_rect):
+    win = _window(qtbot, tmp_path, sim_rect, sim_rect.problem)
+    win.doc.set_props("heater", 0, power=3.0)
+    win.a_overlay.setChecked(True)
+    assert win.canvas._overlay is None and not win.a_overlay.isChecked()
+    assert not win.overlay_opacity.isEnabled() and not win.overlay_opacity_box.isEnabled()
+    assert "outdated" in win.statusBar().currentMessage()
 
 
 def test_an_edit_hides_the_overlay(qtbot, tmp_path, sim_rect):

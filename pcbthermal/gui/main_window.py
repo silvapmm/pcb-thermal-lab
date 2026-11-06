@@ -595,6 +595,13 @@ class MainWindow(QMainWindow):
         self.overlay_opacity_box.valueChanged.connect(self.overlay_opacity.setValue)
         tb.addWidget(self.overlay_opacity)
         tb.addWidget(self.overlay_opacity_box)
+        # The map on the board follows the Temperature tab: its model, colour map and colour limits (without this the overlay kept the scale of the moment it was switched on)
+        t = self.results.temp
+        for w in (t.model, t.cmap):
+            w.currentIndexChanged.connect(self._overlay_follow_results)
+        t.auto.toggled.connect(self._overlay_follow_results)
+        for w in (t.vmin, t.vmax):
+            w.valueChanged.connect(self._overlay_follow_results)
         tb.addSeparator()
         tb.addAction(self.a_run)
         self.toolbar = tb
@@ -656,15 +663,21 @@ class MainWindow(QMainWindow):
                  Lumped or Analytic result on a board with an outline (a note says so in the status bar).
         @param on True to paint.
         """
-        from .fieldscale import inside_mask, overlay_refusal
+        from .fieldscale import inside_mask, overlay_refusal, results_limits
 
         self.overlay_opacity.setEnabled(bool(on))
         self.overlay_opacity_box.setEnabled(bool(on))
         if not on or self.sim is None or self._stale:
             self.canvas.clear_overlay()
-            if on and self.sim is None:
-                self.statusBar().showMessage("Run a simulation first.")
+            if on:
+                # Nothing to paint: say why and leave the button and the opacity controls off (the button used to stay checked over an empty board)
+                self.statusBar().showMessage("Run a simulation first." if self.sim is None else
+                                             "The result is outdated (the design changed): run the simulation again to paint it on the board.")
+                self.a_overlay.blockSignals(True)
                 self.a_overlay.setChecked(False)
+                self.a_overlay.blockSignals(False)
+                self.overlay_opacity.setEnabled(False)
+                self.overlay_opacity_box.setEnabled(False)
             return
         cfg = self.results.temp.current_field()
         res = self.results.temp._result() or self.sim.reference     # The model shown in the Results tab
@@ -683,8 +696,18 @@ class MainWindow(QMainWindow):
         nodes = res.grid == "nodes"
         mask = inside_mask(self.doc.problem.board, field.shape, res.dx, res.dy, nodes)
         vmin, vmax = (cfg[4], cfg[5]) if cfg else (None, None)
+        # The limits by the rule of the Results map (Auto range over the samples on the board only), passed explicitly so the canvas does not rescale
+        vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
         self.canvas.set_overlay(field, res.dx, res.dy, cmap=cfg[3] if cfg else "inferno", vmin=vmin, vmax=vmax,
                                 opacity=self.overlay_opacity.value() / 100.0, nodes=nodes, mask=mask)
+
+    def _overlay_follow_results(self, *_):
+        """!
+        @brief A control of the Temperature tab changed (model, colour map, Auto range, limits): paint the map on the board again with it, when the map is on.
+        @param _ Ignored (the value carried by the Qt signal).
+        """
+        if self.a_overlay.isChecked() and not self.results.temp._updating:      # Not while the tab is being filled with a new simulation
+            self._toggle_overlay(True)
 
     def _overlay_opacity_changed(self, v):
         """!
