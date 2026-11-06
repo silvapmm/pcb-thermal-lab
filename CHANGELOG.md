@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+- **Temperature on board, finished** (display only, no number moves): the overlay of the editor canvas has an opacity slider and a linked box (0 to 100 %, default 70 %), uses the model, colour map and colour limits of the Results Temperature tab, shows a colour bar with the unit, makes the cells off the outline transparent, follows the layer box, disappears when the result is outdated and is refused with a status note for the stretched Lumped or Analytic map of a board with an outline (`gui/fieldscale.py`).
+- **Imported copper drawn at up to 4096 pixels** on its longest side (was 2048): a long board such as the CO60 (287.6 mm) is drawn whole at its 0.1 mm pixel (2850 x 951) instead of in halves; about +8 MB for the pixmap.
+
 ### Changed
 - **Documents only, theory sources**: `docs/theory.md` 8 now says that equation 18 of Yovanovich and Teertstra (2001) prints the coefficient 0.742, not 0.664 (the composite is 11 to 14 % above the program, 1 to 4 % only with 0.664 put in its place; the program stays on the hot side and no number moves); the page list of [TeertstraReview] is 79 to 88, and the SuperLU Users' Guide section 2.6 is a second source, read by image, for the symmetric mode. `research/theory/BIBLIOGRAPHY.md` carries the statuses of the night-run image pass.
 

@@ -21,7 +21,7 @@ from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
 
-COPPER_DISPLAY_PIXELS = 2048           # Longest side (pixels) of the reduced mask that is drawn under the elements
+COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of a 287 mm board whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -347,6 +347,7 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self._overlay_args = None
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
         self.show_imported_copper = True            # View - Imported copper
@@ -413,6 +414,7 @@ class BoardView(QGraphicsView):
             sc = self.scene()
             sc.blockSignals(True)
             sc.clear()
+            keep = getattr(self, "_overlay_args", None)             # The map outlives a rebuild of the items (layer change, selection)
             self._overlay = self._background = self._copper_item = None
             pr = self.doc.problem
             W, H = pr.board.width * 1000.0, pr.board.height * 1000.0
@@ -420,6 +422,8 @@ class BoardView(QGraphicsView):
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
             self._add_imported_copper()
+            if keep is not None:
+                self.set_overlay(**keep)
             active = self.layer
             for kind, lst in (("zone", pr.zones), ("heatsink", pr.heatsinks), ("heater", pr.heaters)):
                 for i, el in enumerate(lst):
@@ -557,26 +561,31 @@ class BoardView(QGraphicsView):
         self.scene().addItem(item)
         self._background = item
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.8, nodes=False):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
         """!
-        @brief Draw a temperature map over the board.
+        @brief Draw a temperature map over the board, with a small colour bar in the corner of the view.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
         @param dx Cell width in metres.
         @param dy Cell height in metres.
         @param cmap Matplotlib colormap name.
-        @param vmin Lower colour limit.
-        @param vmax Upper colour limit.
+        @param vmin Lower colour limit in the unit of the field.
+        @param vmax Upper colour limit in the unit of the field.
         @param opacity Overlay opacity (0..1).
         @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
+        @param mask Boolean array (ny, nx), True for the cells on the board; the others are transparent (None: every cell is drawn).
+        @param unit Unit written on the colour bar.
         """
         from matplotlib import colormaps
+        from .fieldscale import colour_limits
 
         self.clear_overlay()
         ny, nx = field.shape
-        lo = float(np.nanmin(field)) if vmin is None else vmin
-        hi = float(np.nanmax(field)) if vmax is None else vmax
-        norm = np.clip((field - lo) / max(hi - lo, 1e-9), 0, 1)
+        lo, hi = colour_limits(field, vmin is None or vmax is None, vmin, vmax)
+        # Cells without a value (NaN) or off the outline get alpha 0 so that the board shows through
+        ok = np.isfinite(field) if mask is None else (np.isfinite(field) & np.asarray(mask, bool))
+        norm = np.clip((np.nan_to_num(field, nan=lo) - lo) / max(hi - lo, 1e-9), 0, 1)
         rgba = (colormaps[cmap](norm) * 255).astype(np.uint8)
+        rgba[..., 3] = np.where(ok, 255, 0)
         rgba = np.ascontiguousarray(rgba)
         img = QImage(rgba.data, nx, ny, 4 * nx, QImage.Format_RGBA8888).copy()
         item = QGraphicsPixmapItem(QPixmap.fromImage(img))
@@ -584,19 +593,66 @@ class BoardView(QGraphicsView):
         if nodes:
             tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(dx * 1000.0, dy * 1000.0)
         item.setTransform(tr)
-        item.setOpacity(opacity)
+        item.setOpacity(float(opacity))
         item.setZValue(0.5)
         item.setAcceptedMouseButtons(Qt.NoButton)
         self.scene().addItem(item)
         self._overlay = item
+        # Kept so that a rebuild of the scene (layer change, selection, theme) draws the same map again, and for the colour bar
+        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit)
+        self.viewport().update()
+
+    def set_overlay_opacity(self, opacity):
+        """!
+        @brief Change the opacity of the temperature map without building it again.
+        @param opacity Opacity (0.1..1).
+        """
+        if self._overlay is not None:
+            self._overlay.setOpacity(float(opacity))
+            self._overlay_args["opacity"] = float(opacity)
 
     def clear_overlay(self):
         """!
-        @brief Remove the temperature overlay.
+        @brief Remove the temperature overlay and its colour bar.
         """
         if self._overlay is not None and self._overlay.scene() is not None:
             self.scene().removeItem(self._overlay)
         self._overlay = None
+        self._overlay_args = None
+        self.viewport().update()
+
+    def drawForeground(self, painter, rect):
+        """!
+        @brief Paint the colour bar of the temperature overlay in the bottom-right corner of the view (in screen pixels, whatever the zoom).
+        @param painter QPainter to draw with.
+        @param rect Exposed rectangle in scene coordinates (mm), not used.
+        """
+        a = getattr(self, "_overlay_args", None)
+        if a is None or self._overlay is None:
+            return
+        from matplotlib import colormaps
+
+        c = th.colors(self.theme)
+        painter.save()
+        painter.resetTransform()                                          # Screen pixels from here on
+        w, h = self.viewport().width(), self.viewport().height()
+        bw, bh, mg = 14, min(140, max(h - 60, 40)), 12
+        x0, y0 = w - mg - bw - 62, h - mg - bh - 8
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(c["canvas"]))
+        painter.setOpacity(0.85)
+        painter.drawRoundedRect(QRectF(x0 - 6, y0 - 16, bw + 74, bh + 24), 4, 4)   # Backing plate so the labels read over any copper or photo
+        painter.setOpacity(1.0)
+        cm = colormaps[a["cmap"]]
+        # One column of the colour map as an image (no colour literals: the values come from matplotlib), highest temperature on top
+        strip = np.ascontiguousarray((cm(np.linspace(1.0, 0.0, bh)[:, None]) * 255).astype(np.uint8))
+        painter.drawImage(QRectF(x0, y0, bw, bh), QImage(strip.data, 1, bh, 4, QImage.Format_RGBA8888).copy())
+        painter.setPen(QColor(c["text"]))
+        painter.drawText(QPointF(x0, y0 - 4), a["unit"])
+        mid = 0.5 * (a["vmin"] + a["vmax"])
+        for v, yy in ((a["vmax"], y0 + 8), (mid, y0 + bh / 2 + 4), (a["vmin"], y0 + bh)):
+            painter.drawText(QPointF(x0 + bw + 4, yy), num(v))
+        painter.restore()
 
     # ------------------------------------------------------------------ selection
     def selected_elements(self):

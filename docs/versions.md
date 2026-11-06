@@ -4,6 +4,12 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
+## 2.5.1 (in progress): display features
+
+* **Temperature overlay on the board, finished, and the copper pixmap at 4096** (`feature/canvas-overlay-and-copper-4096`; `gui/canvas.py` `BoardView.set_overlay`, `set_overlay_opacity`, `drawForeground` (colour bar), `COPPER_DISPLAY_PIXELS` 4096; `gui/main_window.py` `_toggle_overlay`, the opacity slider `overlay_opacity`; new `gui/fieldscale.py`: `colour_limits`, `inside_mask`, `overlay_refusal`; tests `tests/test_canvas_overlay.py`, with the library CO60 mask drawn as 2850 x 951 in under 1 s and the RP2040 unchanged). The overlay takes the model, colour map and limits of the Temperature tab, masks the cells off the outline, follows the layer box, survives a scene rebuild and refuses a stretched map of an outline board. No frozen number moves. The Results-view display modes are on `feature/results-view-modes`.
+
+---
+
 ## 2.5.0 - 2026-11-05: the Gerber import, imported copper, the memory guard and the zonal Lumped model
 
 * **Import heater shapes** (`fix/import-heater-shapes`; `ImportSession.shapes_of`, `set_shape`, `part_hull`, `parts.merge_parts`; tests in `tests/test_exposed_pad.py`): the radio 'largest opening' is retired from step 2 (a stored choice takes the proposed shape at the re-import, with a line; `parts.shape_polygon(kind="largest")` stays for the studies); the dashed outline of the part is drawn for the pad and the box, also for a part that is not ticked; a part keeps all its openings whatever its shape (the red '?' came from 'largest' on a part owned by position: its polygon was one pad); a stored 'largest' matched by position (a part picked by hand) also takes the proposal, with a line that says how many of its openings were found, and Ctrl+click on such a part names the new shape. Add files keeps a stored 'largest' as it is.

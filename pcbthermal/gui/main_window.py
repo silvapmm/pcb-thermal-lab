@@ -577,6 +577,24 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         for a in (self.a_fit, self.a_grid, self.a_sgrid, self.a_overlay):
             tb.addAction(a)
+        self.overlay_opacity = QSlider(Qt.Horizontal)
+        self.overlay_opacity.setRange(0, 100)
+        self.overlay_opacity.setValue(70)
+        self.overlay_opacity.setFixedWidth(90)
+        self.overlay_opacity.setEnabled(False)
+        self.overlay_opacity.setToolTip("Opacity of the temperature map over the board, 0 to 100 % (default 70 %): lower it to read the copper and the parts under the colours. "
+                                        "Active while Temperature on board is on.")
+        self.overlay_opacity_box = QSpinBox()
+        self.overlay_opacity_box.setRange(0, 100)
+        self.overlay_opacity_box.setValue(70)
+        self.overlay_opacity_box.setSuffix(" %")
+        self.overlay_opacity_box.setEnabled(False)
+        self.overlay_opacity_box.setToolTip("Opacity of the temperature map over the board in percent, 0 to 100 (default 70): the same value as the slider beside it, typed.")
+        # Slider and box hold one value: each follows the other (blocked signals, so there is one change and one repaint)
+        self.overlay_opacity.valueChanged.connect(self._overlay_opacity_changed)
+        self.overlay_opacity_box.valueChanged.connect(self.overlay_opacity.setValue)
+        tb.addWidget(self.overlay_opacity)
+        tb.addWidget(self.overlay_opacity_box)
         tb.addSeparator()
         tb.addAction(self.a_run)
         self.toolbar = tb
@@ -632,19 +650,52 @@ class MainWindow(QMainWindow):
 
     def _toggle_overlay(self, on):
         """!
-        @brief Paint or remove the last temperature result on the board.
+        @brief Paint or remove the temperature result on the board.
+        @details The map is the one the Results tab shows (same model, same colour map and the same colour limits, so both show the same numbers) on the layer chosen in the
+                 toolbar, with the cells off the outline transparent and a colour bar. It is not drawn while the result is outdated, nor for the stretched map of a
+                 Lumped or Analytic result on a board with an outline (a note says so in the status bar).
         @param on True to paint.
         """
+        from .fieldscale import inside_mask, overlay_refusal
+
+        self.overlay_opacity.setEnabled(bool(on))
+        self.overlay_opacity_box.setEnabled(bool(on))
         if not on or self.sim is None or self._stale:
             self.canvas.clear_overlay()
             if on and self.sim is None:
                 self.statusBar().showMessage("Run a simulation first.")
                 self.a_overlay.setChecked(False)
             return
-        ref = self.sim.reference
-        layer = min(self.canvas.layer, ref.T.shape[0] - 1)
         cfg = self.results.temp.current_field()
-        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno", nodes=ref.grid == "nodes")
+        res = self.results.temp._result() or self.sim.reference     # The model shown in the Results tab
+        note = overlay_refusal(res, self.doc.problem)
+        if note:
+            self.canvas.clear_overlay()
+            self.statusBar().showMessage(note)
+            self.a_overlay.blockSignals(True)
+            self.a_overlay.setChecked(False)
+            self.a_overlay.blockSignals(False)
+            self.overlay_opacity.setEnabled(False)
+            self.overlay_opacity_box.setEnabled(False)
+            return
+        layer = min(self.canvas.layer, res.T.shape[0] - 1)
+        field = res.T[layer]
+        nodes = res.grid == "nodes"
+        mask = inside_mask(self.doc.problem.board, field.shape, res.dx, res.dy, nodes)
+        vmin, vmax = (cfg[4], cfg[5]) if cfg else (None, None)
+        self.canvas.set_overlay(field, res.dx, res.dy, cmap=cfg[3] if cfg else "inferno", vmin=vmin, vmax=vmax,
+                                opacity=self.overlay_opacity.value() / 100.0, nodes=nodes, mask=mask)
+
+    def _overlay_opacity_changed(self, v):
+        """!
+        @brief The overlay opacity changed (slider or box): keep both in step and repaint the map.
+        @param v Opacity in percent (0..100).
+        """
+        if self.overlay_opacity_box.value() != v:
+            self.overlay_opacity_box.blockSignals(True)
+            self.overlay_opacity_box.setValue(v)
+            self.overlay_opacity_box.blockSignals(False)
+        self.canvas.set_overlay_opacity(v / 100.0)
 
     def _refresh_layers(self):
         """!
@@ -668,6 +719,8 @@ class MainWindow(QMainWindow):
         """
         if idx >= 0:
             self.canvas.set_layer(idx)
+            if self.a_overlay.isChecked():
+                self._toggle_overlay(True)                 # The map follows the layer being edited
 
     def _select_all(self):
         """!
