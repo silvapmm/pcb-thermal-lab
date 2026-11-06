@@ -35,6 +35,8 @@ def kind_of(role, name):
         return "drill"
     if role == imp.PLACEMENT:
         return "placement"
+    if role == imp.BOM:
+        return "bom"
     if role == imp.COMPONENT:
         return "x3"
     if "bom" in low and low.rsplit(".", 1)[-1] in ("csv", "txt", "xls", "xlsx", "tsv", "xml", "json"):

@@ -30,6 +30,7 @@ from .. import copper as copper_mod
 from .. import memory
 from ..gerber import (DrillFile, GerberArchive, GerberError, LayerFunction, detect_set, limits, parse_layer, pixel_counts, rasterize, read_drill, read_outline,
                       window_of)
+from ..gerber import bom as bom_mod
 from ..gerber import components as comp_mod
 from ..gerber import profiles as prof_mod
 from ..gerber import parts as parts_mod
@@ -46,13 +47,14 @@ PASTE = ("Solder paste top", "Solder paste bottom")
 MASK = ("Solder mask top", "Solder mask bottom")
 LEGEND = ("Legend (silkscreen) top", "Legend (silkscreen) bottom")
 COMPONENT, PLACEMENT, IGNORE = "Component layer (X3)", "Placement (pick and place)", "Ignore"
-ROLES = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + MASK + LEGEND + (COMPONENT, PLACEMENT, IGNORE)
+BOM = "BOM (bill of materials)"
+ROLES = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + MASK + LEGEND + (COMPONENT, PLACEMENT, BOM, IGNORE)
 # Functions that change the board itself (copper masks, outline, vias): "Add files" never takes them, because it keeps the stored masks and the board as they are
 GEOMETRY = COPPER + (OUTLINE, PLATED, NONPLATED)
 # Functions that give the parts: an added one, or a conflict answered "use the new file", matches the stored parts again against the new files
 PARTS_FUNCTIONS = PASTE + (PLACEMENT, COMPONENT)
 # Roles that are read when the file is in use; the others (mask, legend) are listed and ignored by the models
-USED_BY_DEFAULT = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + (COMPONENT, PLACEMENT)
+USED_BY_DEFAULT = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + (COMPONENT, PLACEMENT, BOM)
 # Roles of which only one file can exist (two files claiming one are shown and stop the import)
 UNIQUE = COPPER + (OUTLINE,) + PASTE + (COMPONENT, PLACEMENT)
 PREVIEW_PIXELS = 900                                            # The preview raster is about this many pixels on the long side
@@ -187,6 +189,33 @@ def _looks_like_placement(head: str) -> bool:
     return False
 
 
+TABLE_SUFFIXES = (".csv", ".pos", ".txt", ".xy", ".tsv", ".tab")
+WORKBOOK_SUFFIXES = (".xlsx", ".xls")
+
+
+def _role_by_content(name: str, fn: LayerFunction, head: str):
+    """!
+    @brief The role of a file the detector could not place, from the columns of a table: a placement table (a reference column and X, Y columns) or a BOM (a designator column and a
+           value, footprint, quantity or part-number column, no X and Y). An Excel workbook is a BOM that is not read.
+    @param name File name.
+    @param fn The detector's answer.
+    @param head First kilobytes of the file, decoded.
+    @return tuple (role, how) or None when the file is not a table of these kinds.
+    """
+    suffix = Path(name).suffix.lower()
+    if fn.kind not in ("unknown", "other"):
+        return None
+    # The detector calls a table it does not know "other" (low confidence, by the name): its columns decide; a placement table is recognised only where it always was ("unknown")
+    if suffix in WORKBOOK_SUFFIXES:
+        return BOM, "Excel workbook: not read, save the table as CSV"
+    if suffix in TABLE_SUFFIXES:
+        if fn.kind == "unknown" and _looks_like_placement(head):
+            return PLACEMENT, "columns of a placement table"
+        if bom_mod.looks_like_bom(head):
+            return BOM, "columns of a BOM table"
+    return None
+
+
 def _sha256(data: bytes) -> str:
     """!
     @brief SHA-256 of a byte string.
@@ -238,6 +267,8 @@ class ImportSession:
         self._owner_cache = None
         self._layer_cache = {}                                # sha256 -> parsed Layer
         self._raster_cache = {}                               # (sha256, window, pixel) -> (coverage, thinnest mm)
+        self._bom = None                                      # bom.BomSet of the BOM files in use, None without one (`bom_set`)
+        self._bom_key = None                                  # the sha256 of those files when `_bom` was read; None: read again
         # Hooks `fn(session, reason)` of the features that must act before the files are released (reason "close" or "new_files"); each runs once and is then dropped
         self.before_release: List[Callable] = []
 
@@ -281,6 +312,7 @@ class ImportSession:
         @throws ValueError If the source holds no file.
         """
         self.close("new_files")
+        self._bom_key = None
         self.files, self._board, self._board_error, self.job, self._pending = [], None, "", None, []
         self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
         self.user_profile = self.reuse_profile                # a new set starts from the detection, a re-import from the stored profile
@@ -318,10 +350,13 @@ class ImportSession:
         for name, size, sha, head, reader, limit_error in self._pending:
             fn = found[name]
             role, how = role_of(fn), _how(fn)
-            if fn.kind == "unknown" and Path(name).suffix.lower() in (".csv", ".pos", ".txt", ".xy") and _looks_like_placement(head):
-                role, how = PLACEMENT, "columns of a placement table"
+            by_content = _role_by_content(name, fn, head)
+            if by_content:
+                role, how = by_content
             f = SourceFile(name, size, sha, fn, role, how, reader)
             f.limit_error = f.error = limit_error
+            if role == BOM and Path(name).suffix.lower() in WORKBOOK_SUFFIXES and not limit_error:
+                f.error = "an Excel workbook (.xlsx, .xls) is not read; save the table as CSV"
             self.files.append(f)
         self._pending = []
 
@@ -354,7 +389,7 @@ class ImportSession:
                 with open(f, "rb") as fh:                      # Hashed in blocks: a layer can be tens of megabytes
                     for block in iter(lambda: fh.read(1 << 20), b""):
                         sha.update(block)
-            self._pending.append((f.name, size, sha.hexdigest(), head.decode("utf-8", "replace"), lambda p=f: limits.read_text(p), err))
+            self._pending.append((f.name, size, sha.hexdigest(), bom_mod.decode_head(head), lambda p=f: limits.read_text(p), err))
             self.paths[f.name] = f                                 # the file on the disk, so that a project package can store its original bytes
 
     def _add_archive(self, path):
@@ -373,7 +408,8 @@ class ImportSession:
                     self.job = None
             if name.lower().endswith(("/", ".png", ".pdf", ".md", ".json", ".gbrjob", ".kicad_pcb", ".zip", ".jpg", ".svg")):
                 continue
-            head = self._archive.read_head(name)
+            raw_head = self._archive.read_head_bytes(name)
+            head = raw_head.decode("utf-8", "replace")             # as before for the digest of a large member
             info = self._archive._infos[name]
             # The hash of an archive member needs the whole member: read it once, bounded by the declared size (the archive reader checks the CRC)
             if info.file_size <= HASH_WHOLE_BYTES:
@@ -382,7 +418,7 @@ class ImportSession:
                 # A very large member is hashed by its head, its tail and its size (reading it whole only to hash it would hold it in memory twice)
                 tail = self._archive.read_text(name)[-HASH_EDGE_BYTES:]
                 digest = _sha256((head + "\0" + tail + "\0" + str(info.file_size)).encode("utf-8", "replace"))
-            self._pending.append((name, info.file_size, digest, head, lambda n=name: self._archive.read_text(n), ""))
+            self._pending.append((name, info.file_size, digest, bom_mod.decode_head(raw_head), lambda n=name: self._archive.read_text(n), ""))
 
     def _assign_inner_numbers(self):
         """!
@@ -410,7 +446,7 @@ class ImportSession:
         f = self.files[i]
         f.role, f.use, f.error = role, role != IGNORE, f.limit_error
         f.user_role = True                                    # the user's assignment of a file is final: a change of profile never touches it
-        self._board, self._parts_dirty = None, True
+        self._board, self._parts_dirty, self._bom_key = None, True, None
 
     def take_stored_roles(self, settings: dict) -> bool:
         """!
@@ -549,11 +585,12 @@ class ImportSession:
                 continue
             fn = found[f.name]
             role, how = role_of(fn), _how(fn)
-            if fn.kind == "unknown" and Path(f.name).suffix.lower() in (".csv", ".pos", ".txt", ".xy") and _looks_like_placement(self._heads.get(f.name, "")):
-                role, how = PLACEMENT, "columns of a placement table"
+            by_content = _role_by_content(f.name, fn, self._heads.get(f.name, ""))
+            if by_content:
+                role, how = by_content
             f.detected, f.role, f.how, f.use = fn, role, how, role in USED_BY_DEFAULT
         self._assign_inner_numbers()
-        self._board, self._parts_dirty = None, True
+        self._board, self._parts_dirty, self._bom_key = None, True, None
 
     def set_use(self, i: int, use: bool):
         """!
@@ -563,7 +600,7 @@ class ImportSession:
         @return None
         """
         self.files[i].use = bool(use)
-        self._board, self._parts_dirty = None, True
+        self._board, self._parts_dirty, self._bom_key = None, True, None
 
     def used(self, *roles) -> List[SourceFile]:
         """!
@@ -836,12 +873,170 @@ class ImportSession:
         merged = parts_mod.merge_parts(old, new, res.shapes, openings=res.openings).parts if old else new
         for p in merged:
             p.edits.setdefault("use", False)
+        self.apply_bom(merged)                                # what the BOM says about each part (nothing is written without a BOM file)
         self._res = res
         self._parts = [p for p in merged if p.polygon_mm and p.from_file.get("heat_source", True) or p.from_file.get("orphan")]
         self._listed = [p for p in merged if p not in self._parts]
         self._unmatched = list(res.unmatched)
         self._owner_cache = None
         self._parts_dirty = False
+
+    # ------------------------------------------------------------------------------------------------------------------------------------ BOM
+    def _bom_bytes(self, f: SourceFile) -> bytes:
+        """!
+        @brief The original bytes of a BOM file (a text decoder would spoil UTF-16), never more than the size limit.
+        @param f SourceFile of the role BOM.
+        @return bytes
+        @throws GerberError If the file is above the limit or cannot be read.
+        """
+        if f.limit_error:
+            raise GerberError(f.limit_error)
+        if f.name in self.paths:
+            limit = limits.max_file_bytes()
+            limits.check_path(self.paths[f.name], limit)
+            with open(self.paths[f.name], "rb") as fh:
+                data = fh.read(limit + 1)
+            limits.check_size(len(data), f.name, limit)
+            return data
+        if self._archive is not None:
+            return self._archive.read_bytes(f.name)
+        raise GerberError(f"{f.name}: the file is no longer available")
+
+    def bom_set(self):
+        """!
+        @brief The BOM files in use read and merged by designator (cached until the files, their functions or their ticks change).
+        @details A file the reader refuses (an Excel workbook, a table without a header, a limit) gets its message in `error` and is left out; the others are still merged.
+        @return bom.BomSet, or None when no BOM file is in use or none could be read.
+        """
+        files = self.used(BOM)
+        key = tuple(f.sha256 for f in files)
+        if self._bom_key == key and (self._bom is not None or not files):
+            return self._bom
+        tables = []
+        for f in files:
+            try:
+                tables.append(bom_mod.read_bom(self._bom_bytes(f), f.name))
+                f.error = f.limit_error
+            except (GerberError, ValueError, OSError) as exc:
+                f.error = str(exc)
+        self._bom = bom_mod.merge(tables) if tables else None
+        self._bom_key = key
+        return self._bom
+
+    def bom_line(self) -> tuple:
+        """!
+        @brief The one-line summary of the BOM for step 1 (empty without a BOM file).
+        @return tuple (text, needs a check bool, tooltip).
+        """
+        files = self.used(BOM)
+        if not files:
+            return "", False, ""
+        bs = self.bom_set()
+        if bs is None:
+            return "BOM: no file could be read (see the list)", True, "A BOM that cannot be read is left out; the message is in the file list. An Excel workbook is not read: save it as CSV."
+        nf = sum(1 for r in bs.rows.values() if r.not_fitted)
+        text = f"BOM: {len(bs.rows)} designators from {len(bs.files)} file(s)"
+        if bs.sections > len(bs.files):
+            text += f", {bs.sections} sections"
+        text += f", {nf} marked not fitted"
+        text += f"; assembly variant: {', '.join(bs.variants)}" if bs.variants else "; the file names no assembly variant"
+        bad = [f for f in files if f.error]
+        if bad:
+            text += f"; {len(bad)} file(s) not read"
+        tip = ("The bill of materials read from its columns. It proposes a role for each part (a guess from the designator, the footprint and the value) and marks the parts it says are "
+               "not fitted (DNP, DNI, NF, NM, DNF, or a Fitted column with No). It never sets a power and never moves a part. If your CAD program writes several assembly variants, "
+               "this is the one in the file you chose. " + " ".join(bs.warnings[:3]))
+        return text, bool(bad or bs.warnings), tip
+
+    def apply_bom(self, parts: list) -> None:
+        """!
+        @brief Write what the BOM says about each part into `from_file["bom"]`, or remove it when there is no BOM; never touches a power, a position or an edit.
+        @details The key is written only for a part the BOM names (role guessed from the names, `dnp`, and the part number, supplier number and quantity when the BOM has them), so a project
+                 imported without a BOM is byte-identical to one written before this feature. Parts made up by the import (`H<n>`, `P<n>`: grouping by hand or by proximity) and orphans
+                 are skipped: their names are not designators.
+        @param parts ImportPart list; changed in place.
+        @return None
+        """
+        bs = self.bom_set()
+        for p in parts:
+            p.from_file.pop("bom", None)
+            if bs is None or p.from_file.get("orphan") or parts_mod._positional(p):
+                continue
+            row = bs.get(p.designator)
+            if row is None:
+                continue
+            guess = bom_mod.classify(p.designator, row.value or str(p.from_file.get("value", "")), row.package or p.footprint or str(p.from_file.get("package", "")), row.description)
+            info = {"role": bom_mod.proposal(guess), "dnp": bool(row.not_fitted)}
+            for key in ("mpn", "lcsc", "qty"):
+                if getattr(row, key):
+                    info[key] = getattr(row, key)[:80]
+            p.from_file["bom"] = info
+
+    def bom_match(self) -> Optional[dict]:
+        """!
+        @brief How the BOM and the parts fit: the parts the BOM does not name, the designators of the BOM that no part has, the parts it marks not fitted.
+        @return dict (`in_bom` count, `not_in_bom`, `bom_only`, `not_fitted` lists of designators), or None without a BOM.
+        """
+        bs = self.bom_set()
+        if bs is None:
+            return None
+        named = [p for p in self.parts() if not p.from_file.get("orphan") and not parts_mod._positional(p)]
+        have = {p.designator.upper() for p in named}
+        missing = sorted(p.designator for p in named if "bom" not in p.from_file)
+        only = sorted(r.ref for r in bs.rows.values() if r.ref.upper() not in have)
+        return {"in_bom": len(named) - len(missing), "not_in_bom": missing, "bom_only": only, "not_fitted": sorted(p.designator for p in named if p.from_file.get("bom", {}).get("dnp"))}
+
+    def bom_proposal_text(self, p) -> str:
+        """!
+        @brief The text of the BOM column of step 2 for a part.
+        @param p ImportPart.
+        @return str "not fitted", "<role> (guess)", "unknown", "not in BOM", or "" without a BOM.
+        """
+        bs = self.bom_set()
+        if bs is None or p.from_file.get("orphan") or parts_mod._positional(p):
+            return ""
+        b = p.from_file.get("bom")
+        if b is None:
+            return "not in BOM"
+        if b.get("dnp"):
+            return "not fitted"
+        role = b.get("role", "unknown")
+        return "unknown" if role == "unknown" else f"{bom_mod.ROLE_TEXT.get(role, role)} (guess)"
+
+    def use_bom_roles(self) -> int:
+        """!
+        @brief Set the Role of the parts to the role the BOM guessed (component or source), for the parts whose Role the user has not set; "no heat source" and unknown change nothing.
+        @details This is the user's command ("Use the BOM roles"), never applied on its own. A role the user chose by hand (`edits["role"]` already present) stays.
+        @return int Number of parts changed.
+        """
+        n = 0
+        for p in self.parts():
+            role = (p.from_file.get("bom") or {}).get("role")
+            if role in ("component", "source") and "role" not in p.edits:
+                p.edits["role"] = role.capitalize()
+                n += 1
+        return n
+
+    @staticmethod
+    def bom_changes(old_parts: list, new_parts: list) -> list:
+        """!
+        @brief The lines of a re-import about parts whose BOM role or not-fitted mark changed.
+        @param old_parts ImportPart list before.
+        @param new_parts ImportPart list after.
+        @return list of text lines.
+        """
+        old = {p.designator: (p.from_file.get("bom") or {}) for p in old_parts}
+        out = []
+        for p in new_parts:
+            a, b = old.get(p.designator), p.from_file.get("bom") or {}
+            if not a or not b:
+                continue
+            if a.get("role") != b.get("role"):
+                out.append(f"{p.designator}: BOM role {a.get('role')} -> {b.get('role')} (your Role is kept)")
+            if bool(a.get("dnp")) != bool(b.get("dnp")):
+                out.append(f"{p.designator}: BOM now says {'not fitted' if b.get('dnp') else 'fitted'}")
+        return out
+
 
     def _ensure_parts(self):
         """!
@@ -1481,7 +1676,7 @@ class ImportSession:
         if mode == "add":
             rec = copy.deepcopy(old)
             files = list(rec.files)
-            changes, rematch = [], False
+            changes, rematch, bom_taken = [], False, False
             for item in self.classify_files(old, new):
                 fn, status = item["function"], item["status"]
                 if status not in ("added", "changed"):
@@ -1496,6 +1691,7 @@ class ImportSession:
                     files = [f for f in files if f is not item["old"] and not (item["old"] is not None and f.name == item["old"].name and f.sha256 == item["old"].sha256)]
                     files.append(item["new"])
                     rematch = rematch or fn in PARTS_FUNCTIONS
+                    bom_taken = bom_taken or fn == BOM
                 changes.append(f"added {fn}: {item['new'].name}" if status == "added" else
                                f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
             rec.files = files
@@ -1503,15 +1699,22 @@ class ImportSession:
             stored = {p.designator: p for p in old.parts}
             # A stored part stays as it is unless the parts files were taken (then it takes the new match); it never becomes an orphan here
             parts = [copy.deepcopy(stored[p.designator]) if p.designator in stored and (not rematch or p.from_file.get("orphan")) else p for p in res.parts]
+            if bom_taken:
+                self.apply_bom(parts)                                  # the kept copies get what the new BOM says; powers, positions and edits are untouched
+            else:
+                for p in parts:
+                    if p.designator not in stored:
+                        p.from_file.pop("bom", None)                   # the stored BOM stays the one of the project
             rec.parts = parts
             changes += [c for c in res.changes if "orphan" not in c] if rematch else [f"{p.designator}: added" for p in parts if p.designator not in stored]
+            changes += self.bom_changes(old.parts, parts)
             typed, lines = self._apply_step2(parts)
             return {"record": rec, "changes": lines + self._drop_kept_power(changes, typed), "parts": parts, "orphans": [], "typed": typed}
         res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
         typed, lines = self._apply_step2(res.parts)
         rec = copy.deepcopy(new)
         rec.parts = res.parts
-        return {"record": rec, "changes": lines + self._drop_kept_power(res.changes, typed), "parts": res.parts, "orphans": res.orphans, "typed": typed}
+        return {"record": rec, "changes": lines + self._drop_kept_power(res.changes, typed) + self.bom_changes(old.parts, res.parts), "parts": res.parts, "orphans": res.orphans, "typed": typed}
 
 
 def reimport_summary(old: ImportRecord, new: ImportRecord, mode: str) -> str:

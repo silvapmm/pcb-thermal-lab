@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
-from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
+from .import_session import BOM, COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
 
@@ -641,6 +641,12 @@ class Step1Page(QWidget):
         tl.addStretch(1)
         self.tool_row.setVisible(False)
         f.addRow(self.tool_row)
+        # The bill of materials (a file with the function BOM): what was read from it, as plain text; hidden when no BOM file is in use
+        self.bom_label = QLabel("")
+        self.bom_label.setTextFormat(Qt.PlainText)                          # built from counts and the variant names of the file
+        self.bom_label.setWordWrap(True)
+        self.bom_label.setVisible(False)
+        f.addRow(self.bom_label)
         left.addWidget(g)
         lay.addLayout(left, 11)
         right = QVBoxLayout()
@@ -727,6 +733,7 @@ class Step1Page(QWidget):
             t.item(i, 4).setText(f.how + (f"; {f.error}" if f.error else ""))
         self._filling = False
         self._refresh_tool(c)
+        self._refresh_bom(c)
         self.source.setText(sx.source_text)
         self.box.setTitle(f"Files found ({len(sx.files)})")
         probs, notes = sx.problems(), sx.notes()
@@ -781,6 +788,18 @@ class Step1Page(QWidget):
                 self.tool_pick.addItem(name if key != "unknown" else "None (generic rules)", key)
         self.tool_pick.setCurrentIndex(max(0, self.tool_pick.findData(sx.user_profile)))
         self._tool_filling = False
+
+    def _refresh_bom(self, c):
+        """!
+        @brief Show the BOM line (counts, sections, not fitted, assembly variant) when a BOM file is in use.
+        @param c Colour table of the theme.
+        @return None
+        """
+        text, check, tip = self.session.bom_line()
+        self.bom_label.setVisible(bool(text))
+        self.bom_label.setText(text)
+        self.bom_label.setToolTip(tip)
+        self.bom_label.setStyleSheet(f"color: {c['alert'] if check else c['text']};")
 
     def _tool_changed(self, _):
         """!
@@ -893,8 +912,9 @@ class Step2Page(QWidget):
              red opening makes a part, Ctrl+click adds it to the selected part).
     """
 
-    COLS = ["Heat source", "Part", "Package", "Source", "Openings", "Size (mm)", "Position (mm)", "Power", "Tj max", "Role"]
-    HEADERS = ["Heat\nsource", "Part", "Package", "Source", "Open-\nings", "Size\n(mm)", "Position\n(mm)", "Power\n(W)", "Tj max\n(°C)", "Role"]
+    COLS = ["Heat source", "Part", "Package", "Source", "Openings", "Size (mm)", "Position (mm)", "Power", "Tj max", "Role", "BOM"]
+    HEADERS = ["Heat\nsource", "Part", "Package", "Source", "Open-\nings", "Size\n(mm)", "Position\n(mm)", "Power\n(W)", "Tj max\n(°C)", "Role", "BOM\n(guess)"]
+    BOM_COL = 10
 
     def __init__(self, win: "ImportBoardWindow"):
         """!
@@ -964,6 +984,12 @@ class Step2Page(QWidget):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
+        self.bom_roles_btn = QPushButton("Use the BOM roles")
+        self.bom_roles_btn.setToolTip("Set the Role (Component or Source) of every part whose Role you have not set to the role the BOM suggests from the designator, the footprint and the value. "
+                                      "It is a guess from the names; parts it calls connectors, capacitors, test points or unknown keep their Role. Nothing is applied until you press this.")
+        self.bom_roles_btn.clicked.connect(self._use_bom_roles)
+        self.bom_roles_btn.setVisible(False)
+        row.addWidget(self.bom_roles_btn)
         left.addLayout(row)
         lay.addLayout(left, 16)
         right = QVBoxLayout()
@@ -1057,6 +1083,15 @@ class Step2Page(QWidget):
             cb.setToolTip("Component: a package with a junction (theta, Tj limit, optional heatsink on top). Source: only a heated area on the board.")
             cb.currentTextChanged.connect(lambda v, d=p.designator: self._set(d, role=v))
             t.setCellWidget(k, 9, cb)
+            bom_text = sx.bom_proposal_text(p)
+            bi = QTableWidgetItem(bom_text)
+            bi.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            bi.setToolTip(self._bom_tip(p, bom_text))
+            if bom_text in ("not fitted", "not in BOM"):
+                bi.setForeground(QColor(c["alert"]))
+            elif not has or orphan:
+                bi.setForeground(QColor(c["muted"]))
+            t.setItem(k, self.BOM_COL, bi)
         # Fit the table to the window: the package and the source take the spare width, the numeric columns are as narrow as their content, and the horizontal scroll bar
         # appears only when even that does not fit (a window narrower than about 900 pixels)
         hh = t.horizontalHeader()
@@ -1065,11 +1100,19 @@ class Step2Page(QWidget):
         for col in range(len(self.COLS)):
             hh.setSectionResizeMode(col, QHeaderView.Stretch if col in (2, 3) else QHeaderView.ResizeToContents)
         t.setTextElideMode(Qt.ElideRight)
+        has_bom = sx.bom_set() is not None
+        t.setColumnHidden(self.BOM_COL, not has_bom)                 # without a BOM the table is the one it always was
+        self.bom_roles_btn.setVisible(has_bom)
         self._building = False
         counts = sx.parts_info().get("counts", {})
         n_open = len(sx.openings())
         self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {k}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
                           + (f"<span style='color:{c['bad']}'>{len(sx.unmatched())} match no part (red in the preview).</span>" if sx.unmatched() else "0 match no part."))
+        match = sx.bom_match()
+        if match is not None:
+            self.info.setText(self.info.text() + "<br>" + html.escape(
+                f"BOM: {match['in_bom']} of these parts are in it, {len(match['not_in_bom'])} are not, {len(match['bom_only'])} of its designators have no part here, "
+                f"{len(match['not_fitted'])} of these parts are marked not fitted (they stay as you set them)."))
         fr = sx.frame_proposal()
         self.frame_box.setVisible(bool(fr))
         if fr:
@@ -1085,6 +1128,35 @@ class Step2Page(QWidget):
         self._sync_selection()
         self.preview.selected_part = self.selected
         self.preview.update()
+
+    def _bom_tip(self, p, text):
+        """!
+        @brief The tooltip of a cell of the BOM column.
+        @param p ImportPart.
+        @param text Text of the cell.
+        @return str
+        """
+        b = p.from_file.get("bom") or {}
+        if text == "not fitted":
+            return "The BOM marks this part as not fitted (DNP, DNI, NF, NM, DNF or a Fitted column with No). Nothing is unticked or changed: tick it only if you want to simulate it anyway."
+        if text == "not in BOM":
+            return "The placement file has this part but the BOM does not name it."
+        extra = ", ".join(f"{k} {b[k]}" for k in ("mpn", "lcsc", "qty") if b.get(k))
+        if text == "unknown":
+            return "The names (designator, footprint, value) do not decide the role, or a word in them can mean two things (SMA): choose the Role yourself." + (f" BOM: {extra}." if extra else "")
+        if text:
+            return ("A guess from the designator, the footprint and the value, in English and KiCad-style names; it is only a suggestion and is not applied until you press Use the BOM roles."
+                    + (f" BOM: {extra}." if extra else ""))
+        return ""
+
+    def _use_bom_roles(self):
+        """!
+        @brief Apply the roles the BOM suggests to the parts whose Role the user has not set.
+        @return None
+        """
+        n = self.session.use_bom_roles()
+        self.refresh()
+        self.win.status.setText(f"Role set from the BOM guess for {n} part(s)." if n else "No part to set: the roles are already yours, or the BOM suggests no Component or Source.")
 
     def _answer(self, accept):
         """!
