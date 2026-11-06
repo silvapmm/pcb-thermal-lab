@@ -22,6 +22,9 @@ def fixed_base(monkeypatch):
     @return None.
     """
     monkeypatch.setattr(memory, "resident_bytes", lambda: BASE)
+    memory.reset_baseline()                      # The baseline of an earlier test must not hide the fake size
+    yield
+    memory.reset_baseline()
 
 
 def test_estimate_matches_measured_points_of_the_ladder():
@@ -631,3 +634,81 @@ def test_check_adds_the_via_term_and_keeps_the_bound_a_lower_bound():
     ra = memory.check(board(False), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
     rb = memory.check(board(True), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
     assert ra.verdict == rb.verdict == "refuse" and rb.estimate == ra.estimate
+
+
+def test_estimate_does_not_follow_the_history_of_the_process(monkeypatch):
+    """!
+    @brief The estimate of the same problem is the same after the process has grown (the calculation process serves every job of a session).
+    @details Found with the CO60 import at 0.365 mm in the calculation process: ok at 9.80 GB when fresh, refuse at 10.39 GB after one 1 mm run, from the live resident size alone.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    prob = reference_problem()
+    fresh = memory.check(prob, ("fvm",), 0.5, refuse="return", quiet=True)[0].estimate
+    monkeypatch.setattr(memory, "resident_bytes", lambda: BASE + 3.0e9)       # Ballast left by earlier solves
+    after = memory.check(prob, ("fvm",), 0.5, refuse="return", quiet=True)[0].estimate
+    assert after == fresh
+    assert memory.estimate_bytes("fvm", 1.0e5, 5.0e4) == memory.estimate_bytes("fvm", 1.0e5, 5.0e4, base=BASE)
+    memory.reset_baseline()                                                      # A new reading is a new baseline
+    assert memory.baseline_bytes() == BASE + 3.0e9
+
+
+def test_calculation_process_reads_the_baseline_before_its_first_job(monkeypatch):
+    """!
+    @brief The calculation process takes its base before any job: a first job without an estimate (the Power Calculator) must not freeze an inflated base.
+    @details Found by the review: with the base read at the first estimate, a Power Calculator run of the CO60 at 0.7 mm left the process at 1.21 GB and the
+             base stayed 1.21 GB for the whole session (0.365 mm: 10.93 GB refuse instead of 9.80 GB ok).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    import queue
+    from pcbthermal import jobs
+    size = [BASE]
+    monkeypatch.setattr(memory, "resident_bytes", lambda: size[0])
+    memory.reset_baseline()
+
+    def grow(progress):
+        """!
+        @brief A job that leaves 2 GB in the process and makes no estimate.
+        @param progress Progress callback (unused).
+        @return None.
+        """
+        size[0] = BASE + 2.0e9
+
+    monkeypatch.setitem(jobs.JOBS, "grow", grow)
+    tasks, results = queue.Queue(), queue.Queue()
+    tasks.put((1, "grow", ()))
+    tasks.put(None)
+    jobs.serve(tasks, results)
+    assert results.get_nowait()[1] == "done"
+    assert memory.baseline_bytes() == BASE
+
+
+def test_baseline_is_read_once_by_concurrent_threads(monkeypatch):
+    """!
+    @brief Threads that estimate at the same moment (the import window's workers) read the resident size once and share it.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    import threading
+    import time
+    reads = []
+
+    def slow_read():
+        """!
+        @brief A slow resident-size reading that returns a new number at each call.
+        @return Bytes.
+        """
+        reads.append(1)
+        time.sleep(0.05)
+        return BASE + len(reads)
+
+    monkeypatch.setattr(memory, "resident_bytes", slow_read)
+    memory.reset_baseline()
+    seen = []
+    threads = [threading.Thread(target=lambda: seen.append(memory.baseline_bytes())) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(reads) == 1 and len(set(seen)) == 1

@@ -479,6 +479,7 @@ def test_memory_terms_for_imported_copper(monkeypatch):
     @return None.
     """
     monkeypatch.setattr(memory, "resident_bytes", lambda: 0.108e9)
+    memory.reset_baseline()
     small = _board([_solid(120), _solid(120)], "faces")
     big = _board([_solid(2000), _solid(2000)], "faces", side=200.0, pix=0.1)
     assert memory.copper_run_bytes(Problem.new(12, 12)) == 0.0
