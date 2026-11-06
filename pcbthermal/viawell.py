@@ -2,27 +2,34 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file viawell.py
-@brief Mean-potential treatment of a via barrel on the grid of the FVM and FDM networks (footprint, Peaceman wells, Kron reduction).
+@brief Star treatment of a via barrel on the grid of the FVM and FDM networks (footprint, Peaceman wells calibrated on the lattice, Schur complement).
 
 @details A via is one conductor. Instead of putting the barrel conductance of every gap in the cell that holds the via centre (a point link, which does not
-converge when the cell is refined: the constriction at the point grows like ln(1/dx)), the sheet of layer l reaches the barrel through the weighted mean
-temperature of a footprint of cells, T_l = sum_a w_a T_{l,a} (a prescribed flux distribution w), with a Peaceman well of conductance
-G_c = 2 pi S / ln(r_eff / r_t) between that mean and the barrel. The barrel nodes are eliminated (Kron reduction), which leaves the couplings G[l, m]
-between the layer means; the matrix gets G[l, m] u u^T with u = e_l (x) w - e_m (x) w for every pair of layers, so no unknown is added and K stays
-symmetric, positive semidefinite, with zero row sum from the via.
+converge when the cell is refined: the constriction at the point grows like ln(1/dx)), the barrel of each layer is an equipotential node that the sheet of the
+layer reaches through a conductance to every cell of a footprint, g_a = c S w_a (a star, the barrel nodes of the layers joined by the barrel conductance of the
+gaps). The barrel nodes are eliminated (Schur complement of a resistor network), which leaves a dense symmetric block M over the (layer, cell) unknowns of the
+via: zero row sums, so no unknown is added and no heat is lost, symmetric positive semidefinite, and **every off-diagonal entry non-positive**, so K stays an
+M-matrix (the maximum principle holds with vias, also where the copper covers only part of the footprint). The earlier treatment took the weighted MEAN of the
+footprint temperatures (a prescribed flux w), whose couplings had positive entries and drew heat from bare cells that could not supply it (a cold spot).
+The conductance c of the star is calibrated on the lattice (`star_scale`): a lone via in a uniform sheet keeps the resistance of the Peaceman well,
+D = ln(h / r_t) / (2 pi S) from the distance h of one cell to the target radius, so the convergence of the point-via work (research/point-via-convergence) is kept.
 
 * Footprint: the area of the disc of the via over the cells that are on the board (cover > 0), weighted by the cover and normalised; if its lattice
   effective radius r_eff is smaller than the target r_t = e^(-1/4) r_via (the radius of the uniform sink density of the layered idealisation) the disc is
   enlarged, centre fixed, until r_eff = r_t.
 * Effective radius of a distribution w on the square lattice: ln(r_eff / dx) = (pi / 2) (E - kappa), E = sum_ab w_a w_b a(a - b), a the potential kernel of
   the five-point stencil (exact recurrence up to offset 12, asymptote beyond), kappa = (2 gamma + 3 ln 2) / pi.
-* Sheet conductance of the well: that of the cell with the largest weight, per unit of board (the cover factor of the cell is divided out).
+* Weights of a layer: the geometric footprint when the sheet conductance per unit of board (the cover factor divided out) is the same on all its cells, otherwise
+  the disc share times that conductance, renormalised and enlarged until its effective radius reaches the target, so a bare cell next to the barrel takes almost
+  none of the heat but is still coupled through its own (small) conductance.
 
-The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings and research/via-real-board.
+The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings, research/via-real-board and research/via-partial-copper (the star).
 * Edge image (FVM only): the lattice kernel has no image of a board edge, and the footprint sits at cell centres, not at the via, so a via within about one cell
   of a straight edge saw the image of the edge at the wrong distance (the via effect read +14.5 % high at 1 mm for a via 0.16 mm from the edge). The well
-  gets the term c = sum over the walls [ln D_lat - ln D_true] (D_true = 2 max(distance, r_via) the distance to the mirror image of the via, D_lat the lattice
-  mean distance of the footprint to its own mirror image), G_c = 2 pi S / (ln(r_eff / r_t) + c); at a corner the diagonal image is added. The mirror image
+  gets the term K_ab = sum over the walls [ln D_lat(a, b') - ln D_true] (D_true = 2 max(distance, r_via) the distance to the mirror image of the via, D_lat the
+  lattice distance from cell a to the mirror image of cell b) in the lattice potential of the calibration (`edge_kernel`); at a corner the diagonal image is added.
+  For a flux equal to the weights this is the number c of the earlier mean-potential well (`edge_term`, still used to enlarge the footprint when c would need a
+  negative resistance); the star's flux follows the cells that carry the heat, so the matrix is what composes. The mirror image
   is that of an insulated edge and is used also for a cooled edge (a Robin image was studied and is not worth its code: research/via-edge-image 3).
   Only the walls of `image_walls` are imaged: none within EDGE_GUARD_CELLS of a reflex corner or a short or slanted side, where the infinite mirror of a side
   that ends there overstates the wall (docs/validation.md 28.1).

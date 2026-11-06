@@ -438,7 +438,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
              research/young-omega-tiles 3; the numbers are the error of the via effect against the FVM at 0.25 mm on the 29 boards of the
              branch fix/via-constriction and 17 more boards of its review, measured on this program). The Analytic copper-spread warning lives in analytic._effective_sheet, where its weights are computed.
     @note The warnings about vias on a coarse cell and near the board edge (FVM and FDM) are in check_via_limits, which came with the
-          mean-potential via of viawell.py.
+          star via of viawell.py.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run ("fvm", "fdm", "lumped", "analytic", "solid3d").
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -997,7 +997,7 @@ VIA_COARSE_CELL_MM = 2.0
 def check_via_limits(problem, models, cell_mm):
     """!
     @brief Warnings about the vias on the grid: a via touching the edge of the board, and a cell too coarse for the vias (FVM and FDM).
-    @details The mean-potential via of the FVM and FDM (viawell.py) converges as the cell shrinks, but
+    @details The star via of the FVM and FDM (viawell.py) converges as the cell shrinks, but
              * its kernel has no image of the board edge, so a via within one cell of the edge of the box or of the outline is clipped and its effect is
                too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell). The FVM now adds the mirror image
                of a straight edge (viawell.edge_term; research/via-edge-image: +14.5 % becomes +0.7 %), so the warning stays only for what it does not
@@ -1078,9 +1078,10 @@ def partial_copper_vias(problem, cell_mm):
              cheap enough for the live list. The sheet after the rule (lower in the bare cells) flags the same vias and 0 to 6 more per board on seven imported boards
              (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
              further; this check keeps the plain footprint.
-             Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
-             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread in both directions: 31 to 68 % low for a copper edge
-             through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser.
+             Why it matters (research/via-partial-copper, docs/validation.md 31): the star coupling has no cold spot, but where the copper changes inside the footprint
+             the weights are still a model of where the heat enters and the via effect is misread against the 3D solid (10 mm boards, cells 0.25 to 1 mm): -35 to +32 %
+             for a copper edge through the via or a track ending on it, and 2 to 9 times too high for a via on bare laminate just outside a copper edge at a cell of
+             0.5 mm or coarser (the cell fill brings the copper onto the via).
     @param problem The Problem.
     @param cell_mm Cell size in mm.
     @return Tuple (partial, n_checked): partial is a list of (via index, layer index, ratio of the smallest to the largest sheet conductance), one entry per via
@@ -1160,8 +1161,8 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
     @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
-             is misread because it goes both ways (the FVM reads 31 to 68 % low for a copper edge through the via or a track ending on it, 3 to 4 times high for a via just outside a
-             copper edge at a cell of 0.5 mm or coarser), and the cold spot below the barrel is a numerical artefact of the fixed footprint weights.
+             is misread because it goes both ways (the FVM reads -35 to +32 % for a copper edge through the via or a track ending on it, 2 to 9 times high for a via on bare laminate
+             just outside a copper edge at a cell of 0.5 mm or coarser); since the star coupling there is no cold spot below the barrel.
     @param problem The Problem.
     @param models Model keys that will run (the warning applies to "fvm" and "fdm").
     @param cell_mm Cell size in mm.
@@ -1185,9 +1186,8 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     _add(out, "via", worst[0][0],
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
-         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM: 31 to 68 % low for a copper edge "
-         "through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser), and the cold spot that the FVM can "
-         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
+         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM against the 3D solid: -35 to +32 % for a copper edge "
+         "through the via or a track ending on it, 2 to 9 times high for a via on bare laminate just outside a copper edge at a cell of 0.5 mm or coarser). Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
          "(higher or lower); use a finer cell (" + cell_where() + ") or the 3D solid.")
     return out

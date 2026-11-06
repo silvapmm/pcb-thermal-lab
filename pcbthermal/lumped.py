@@ -272,7 +272,7 @@ def _one_node_network(net, cov, layer, power, rings, vias=None):
         gz = np.array([coupling[(l, l + 1)] for l in range(nb - 1)])
         far = {key: g for key, g in coupling.items() if key[1] > key[0] + 1}
     else:
-        # The rings read the barrel as a point conductance (gz_via); the FVM matrix holds it as mean-potential couplings instead
+        # The rings read the barrel as a point conductance (gz_via); the FVM matrix holds it as star couplings instead
         gz = np.array([ring_sum(net.gz[l] + net.gz_via[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)

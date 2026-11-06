@@ -215,7 +215,7 @@ class Network:
             d = b.gap_thicknesses()                    # One value per gap (equal in the simple stack-up)
             k_gap = b.gap_properties()[0]
             self.gz[:] = k_gap[:, None, None] * cell[None] / d[:, None, None]    # Dielectric alone
-            # The barrel is not added to gz: every via is a mean-potential coupling of a footprint of cells (viawell.py), appended to the matrix in
+            # The barrel is not added to gz: every via is a star coupling of a footprint of cells (viawell.py), appended to the matrix in
             # _assemble. gz_via keeps the point conductance in the cell of the via centre, which the Lumped model reads ring by ring (gz + gz_via)
             self.via_blocks, self.gz_via = viawell.build(problem, d, self.S, self.cover, dx, dy, nx, ny, 0.0, self.active)
 
@@ -452,7 +452,7 @@ class Network:
             couple(idx[:nb - 1], idx[1:nb], self.gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)
-        # The mean-potential couplings of the vias (they add to the diagonal and couple the footprint cells of the layers they join)
+        # The star couplings of the vias (they add to the diagonal and couple the footprint cells of the layers they join)
         vr, vc, vv = viawell.matrix_entries(self.via_blocks, idx)
         rows.extend(vr)
         cols.extend(vc)

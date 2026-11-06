@@ -239,11 +239,11 @@ class Network:
             gyl[layer] = fgy * (on[:-1, :] & on[1:, :])
         couple(idx[:, :, :-1], idx[:, :, 1:], gxl)
         couple(idx[:, :-1, :], idx[:, 1:, :], gyl)
-        # Vertical: dielectric over the control area; the via barrels are mean-potential couplings of a footprint of nodes (viawell.py)
+        # Vertical: dielectric over the control area; the via barrels are star couplings of a footprint of nodes (viawell.py)
         if L > 1:
             d = b.gap_thicknesses()
             gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy() if rule is None else rule.gz
-            # The barrel is a mean-potential coupling of a footprint of nodes (viawell.py), appended to the matrix entries
+            # The barrel is a star coupling of a footprint of nodes (viawell.py), appended to the matrix entries
             via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx, self.active)
             vr, vc, vv = viawell.matrix_entries(via_blocks, idx)
             rows.extend(vr)
