@@ -6,7 +6,7 @@
 @details Same protocol as study_models_our_board.py (1 W in a 6 x 6 mm block, 35 um copper, 10 W/m2K on both faces, insulated edges). Three kinds of run in every model: the fine mask at 0.1 mm (the model's own truth), the program's native zones
          at 1 mm cells (exact rectangles, the program's coverage fraction) and the four cell mappings of the fine mask (arithmetic fraction, geometric, lambda 0.5, mean of the flow-based faces). Shift 0 puts the edges on the cells,
          shift 0.4 mm between them. Needs the additive union of zones (README 4.27): run against the patched copy of the program, set PYTHONPATH.
-         Argument: the number of copper layers (1 or 2; with 2 the bottom layer is empty). The 3D solid has no laminate under a single copper layer, so only the 2-layer run is a fair check of it (README 4.35).
+         Optional `--models fvm,fdm,...` limits the models run. Argument: the number of copper layers (1 or 2; with 2 the bottom layer is empty). The 3D solid has no laminate under a single copper layer, so only the 2-layer run is a fair check of it (README 4.35).
          Run: PYTHONPATH=<patched copy>:. .venv/bin/python research/gerber-models/scripts/study_models_rect_board.py (from the repository root; a few minutes).
 """
 
@@ -25,6 +25,8 @@ import study_lumped_analytic as sl
 from paths import OUT
 
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+if "--models" in sys.argv:                                                  # e.g. --models fvm,fdm,lumped,analytic: the 3D solid's 0.1 mm run needs about 4.7 GB resident
+    MODELS = tuple(sys.argv[sys.argv.index("--models") + 1].split(","))
 
 
 LAYERS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 1                  # copper layers of the board; the copper is always on the top one
@@ -92,7 +94,8 @@ def main():
         print(f"{'  error vs truth (%)':32s}" + "".join(f"{100 * (native[m_] / truth[m_] - 1):12.1f}" if m_ in truth else f"{'-':>12s}" for m_ in MODELS))
         for name in cells:
             print(f"{'mapping: ' + name + ' (%)':32s}" + "".join(f"{100 * (mapped[(name, m_)] / truth[m_] - 1):12.1f}" if m_ in truth else f"{'-':>12s}" for m_ in MODELS))
-        print("each model against the FVM truth (%): " + ", ".join(f"{m_} {100 * (truth[m_] / truth['fvm'] - 1):+.1f}" for m_ in truth))
+        if "fvm" in truth:
+            print("each model against the FVM truth (%): " + ", ".join(f"{m_} {100 * (truth[m_] / truth['fvm'] - 1):+.1f}" for m_ in truth))
         out[shift] = (truth, native, mapped, list(cells))
     np.savez(OUT / f"models_rect_board_{LAYERS}l.npz", **{f"s{int(k * 10)}_{n}": np.array([v[i].get(m_, np.nan) if i < 2 else np.nan for m_ in MODELS]) for k, v in out.items() for i, n in enumerate(("truth", "native"))})
 

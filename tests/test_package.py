@@ -568,7 +568,7 @@ def test_window_open_save_keep_format(window, tmp_path):
     (tmp_path / "bg.png").unlink()
     window.open_file(str(path))
     assert window.doc.project.package.has_sources() and window.doc.project.package.is_package
-    assert window.canvas.background_error == "" and window.canvas._background is not None
+    assert window.canvas.background_problem == "" and window.canvas._background is not None
     window.doc.edit("rename", lambda p: setattr(p.problem, "name", "renamed"))
     window.doc.stack.undo()
     assert window.doc.project.package.has_sources()
@@ -589,7 +589,7 @@ def test_window_missing_background_is_said(window, tmp_path):
     path = tmp_path / "m.pcbt.json"
     save_project(path, prj)
     window.open_file(str(path))
-    assert "gone.png" in window.canvas.background_error and "gone.png" in window.statusBar().currentMessage()
+    assert "gone.png" in window.canvas.background_problem and "gone.png" in window.statusBar().currentMessage()
 
 
 def test_window_export_package_does_not_change_the_document(window, tmp_path, monkeypatch):

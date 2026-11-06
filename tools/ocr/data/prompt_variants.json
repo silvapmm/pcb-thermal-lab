@@ -1,0 +1,6 @@
+{
+  "default": null,
+  "plain": "Transcribe this page.",
+  "latex": "Transcribe this page of a scientific paper into Markdown, equations in LaTeX.",
+  "topdown": "Read the page top to bottom and output only what is printed."
+}

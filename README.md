@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.5.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2416%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.5.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2666%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -24,8 +24,9 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
 - **Gerber reader** (`pcbthermal.gerber`, used by **File - Import Gerber board**, `docs/models.md` 19.4): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6). It also recognises which CAD program wrote a set of files (KiCad, Altium, EAGLE, Allegro and others) from their headers, only to propose layer names, never to decide (`docs/models.md` 19.3).
 - **Gerber import window** (**File - Import Gerber board**, three steps: files and layers, parts, model): parts from the paste layers, the placement file and X3 component layers, with the heat source shaped as the exposed pad or tab (proposed for QFN, DFN, SOT-223, DPAK), the convex hull or the bounding box; plated holes become vias; re-import with Replace, Update or Add files keeps what you did in the editor; a project with imports is saved in **project format 2** (needs 2.5.0 or later; older programs refuse it, `.bak` copies are kept). The user guide has a walkthrough, a glossary of the warnings and a table of what is validated and what is not.
-- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models do not read it and warn that they read too cool (a sample, not a bound: 1 to 16 % on 24 mm windows, 17 to 42 % on the whole RP2040 board).
+- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models read the copper only as the average of a cell, so the pads and narrow tracks of small parts are invisible to them, and they warn that they read too cool (on 42 parts of three imported boards 25 to 82 % and 17 to 77 % at a 0.5 mm cell; a sample, not a bound).
 - **Views of the result maps**: Current, Smooth and Terrain (relief with contour lines), the copper of the layer under the map with an adjustable opacity, and all layers in a 2 x 2 grid (display only).
+- **Display control** (display only): the **Map** button (key `T`) shows the temperature map on the board (a card with the model, the maximum and the minimum, and a ring on each point), and the **Display** button of the tool bar sets how every map is drawn: Underlay (nothing, the copper or the background image; only the entries valid for the project), Map opacity (default 70 %), View (Current, Smooth, Terrain), Contour every and Colour map. One choice for the Temperature and Gradients maps, the Animation and the board.
 - **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
 - **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
@@ -54,7 +55,23 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Temperature](docs/images/results_temperature.png)
 
+![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
+
+![Temperature tab, View Terrain with contour lines every 5 K](docs/images/results_terrain.png)
+
+![Animation tab with View Smooth and Underlay Copper](docs/images/animation_underlay.png)
+
+![The map on the board: the card with the model, max and min, the two rings and the colour bar](docs/images/editor_overlay.png)
+
+![The Display popover opened from the Board tab](docs/images/display_popover.png)
+
+![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
+
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+
+## What is new in 2.5.1
+
+Version 2.5.1 (2026-11-06) is a fixes and display release. The map on the board and the colour map of every map are controlled from one **Display** panel (and a **Map** button), the Results maps have the views Smooth and Terrain and an underlay (copper or the background image), imported copper is drawn at up to 4096 pixels, a **re-import** of Gerber files keeps the settings and the work of the first import, a project file with a wrong value gives a clear message instead of a traceback, big board outlines open at once, the memory estimate no longer depends on the earlier runs of the session, warnings name the control of the front end in use, and the Results plots have their own toolbar icons. No model or solver changes; the frozen numbers of 2.5.0 hold. The list is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What is new in 2.5.0
 
@@ -142,6 +159,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
 - **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.5** (2026-11-01): fixes only: vias converge with the cell in the FVM and FDM and are coupled in the SOR, the Lumped and Analytic models carry the constriction of the heat on a via, laminate nodes for patterned copper, a part across the board outline is weighted by its intersection, one factorisation for the top-path split, the SOR relaxation factor, and warnings of the limits of the models. Details in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.4** (2026-10-29): the Simulation footer stays in sight on a low window, a decimal comma pasted from the right-click menu is read as a point, and the warning for plate fins that are too close is now a check after the run on the channel Rayleigh number, with a text that follows the orientation of the board; no result changes.

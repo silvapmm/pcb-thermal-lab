@@ -1132,3 +1132,290 @@ def test_status_set_command_and_errors(tmp_path):
     from tools.ocr.cli import main
     assert main(["--papers", str(papers), "status", "set", "X", "1", "verified", "--note", "image"]) == 0
     assert status.load(papers)["X"]["1"]["state"] == "verified" and status.load(papers)["X"]["1"].get("src_sha")
+
+
+# ---------------------------------------------------------------- offline checks: firstline, eqcheck, audit
+LAYER = ("Thermal spreading resistance of a circular source on a finite cylinder with side cooling\n"
+         "The solution is obtained by separation of variables and the eigenvalues are the roots of the Bessel function\n"
+         "of the first kind. " + "The boundary condition at the end face is convective and uniform over the surface. " * 3)
+
+
+def test_firstline_clean_page_planted_invented_line_and_scan(tmp_path):
+    """!
+    @brief The first-line check passes a faithful page, flags an invented first sentence, and calls a scan not checkable.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import checks
+    clean = "<!-- page 1 -->\nThermal spreading resistance of a circular source on a finite cylinder\n\nbody"
+    assert checks.check_first_line(clean, LAYER)["verdict"] == "ok"
+    invented = "<!-- page 1 -->\nThe remainder of the derivation below is followed by the rest of this page\n\nThermal spreading resistance"
+    r = checks.check_first_line(invented, LAYER)
+    assert r["verdict"] == "FLAG" and r["overlap"] < 0.6
+    scan = checks.check_first_line(clean, "")
+    assert scan["verdict"] == "not checkable" and "scan" in scan["reason"]
+    garbage = checks.check_first_line(clean, "\x01\x02\x03 " * 80)
+    assert garbage["verdict"] == "not checkable"
+
+
+def test_firstline_moved_figure_notes_and_broken_words(tmp_path):
+    """!
+    @brief A line found lower on the page is `moved`, a figure description and a provider note are not compared, and a
+           text layer with broken words still matches.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import checks
+    lower = "<!-- page 1 -->\nThe boundary condition at the end face is convective and uniform over the surface"
+    assert checks.check_first_line(lower, LAYER, n_lines=1)["verdict"] == "moved"
+    fig = "<!-- page 1 -->\n[Figure: a sketch of the cylinder]\n\nThermal spreading resistance of a circular source on a finite cylinder"
+    assert checks.check_first_line(fig, LAYER)["verdict"] == "ok"
+    only_fig = checks.check_first_line("<!-- page 1 -->\n[Figure: a sketch]\n", LAYER)
+    assert only_fig["verdict"] == "not checkable"
+    note = "<!-- page 1 -->\nThermal spreading resistance of a circular source *(header, right: Summary)*"
+    assert checks.check_first_line(note, LAYER)["verdict"] == "ok"
+    broken = ("In\norder\nto\nform\na\nprop\ner\nblended\nsolution,\neac\nh\np\nortion\nof\nthe\nsolution\nm\nust\nb\ne\nan\nasymptote.\n"
+              "This\nrequires\nthat\nthe\nb\neha\nvior\nof\nthe\nlimits\nare\nexamined\nat\nthe\nfully\ndevelop\ned\nlimit")
+    page = "<!-- page 1 -->\nIn order to form a proper blended solution, each portion of the solution must be an asymptote."
+    r = checks.check_first_line(page, broken)             # one fragment per line: the page match is complete, the top may be short
+    assert r["verdict"] in ("ok", "moved") and r["overlap_page"] >= 0.9
+    assert checks.check_first_line(page, broken, n_lines=60)["verdict"] == "ok"
+
+
+def test_firstline_command_writes_a_report_and_lists_the_flagged_page(tmp_path, monkeypatch):
+    """!
+    @brief `firstline` over a small library (page folders of Claude, whole and corrected) writes the report and flags the planted page.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    from tools.ocr import checks
+    from tools.ocr.cli import main
+    (tmp_path / "pdf").mkdir()
+    (tmp_path / "pdf" / "Q.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "ocr" / "anthropic" / "whole").mkdir(parents=True)
+    (tmp_path / "ocr" / "corrected").mkdir()
+    (tmp_path / "ocr" / "anthropic" / "Q_p1.md").write_text("<!-- page 1 -->\nThermal spreading resistance of a circular source on a finite cylinder\n", encoding="utf-8")
+    (tmp_path / "ocr" / "anthropic" / "Q_p2.md").write_text("<!-- page 2 -->\nAs shown in the remainder of the page below this | line `x`\n", encoding="utf-8")
+    (tmp_path / "ocr" / "anthropic" / "whole" / "Q_p3.md").write_text("<!-- page 3 -->\nThermal spreading resistance of a circular source on a finite cylinder\n", encoding="utf-8")
+    (tmp_path / "ocr" / "corrected" / "Q_p4.md").write_text("<!-- page 4 -->\n$$x=1$$\n", encoding="utf-8")
+    monkeypatch.setattr(checks, "pdf_layers", lambda pdf: {1: LAYER, 2: LAYER, 3: LAYER, 4: LAYER})
+    assert main(["--papers", str(tmp_path), "firstline"]) == 0
+    rep = (tmp_path / "notes" / "FIRSTLINE_REPORT.md").read_text(encoding="utf-8")
+    assert "| Q | 2 | claude |" in rep and "| claude-whole | 1 | 1 |" in rep and "| corrected | 1 | 0 | 0 | 0 | 1 |" in rep
+    assert "remainder of the page below this   line  x" in rep          # pipes and backticks of untrusted text are neutralised
+    assert main(["--papers", str(tmp_path), "firstline", "--stem", "Q", "--pages", "1", "--out", str(tmp_path / "o.md")]) == 0
+    assert "Pages: 1." in (tmp_path / "o.md").read_text(encoding="utf-8")
+    assert main(["--papers", str(tmp_path), "firstline", "--sources", "nope"]) == 1
+
+
+def test_firstline_on_a_real_pdf_when_pymupdf_is_available(tmp_path):
+    """!
+    @brief A born-digital PDF made on the fly: an invented first line is flagged; a page without text is not checkable.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    from tools.ocr import checks
+    doc = pymupdf.open()
+    page = doc.new_page()
+    y = 72
+    for line in LAYER.splitlines():
+        page.insert_text((50, y), line[:95], fontsize=9)
+        y += 14
+    doc.new_page()                                    # no text: a scan as far as the check can tell
+    (tmp_path / "pdf").mkdir()
+    doc.save(str(tmp_path / "pdf" / "R.pdf"))
+    (tmp_path / "ocr" / "anthropic").mkdir(parents=True)
+    (tmp_path / "ocr" / "anthropic" / "R_p1.md").write_text("<!-- page 1 -->\nA sentence that is not on the page at all, invented by the model\n\nThermal spreading resistance", encoding="utf-8")
+    (tmp_path / "ocr" / "anthropic" / "R_p2.md").write_text("<!-- page 2 -->\nSome text for a page that is a picture\n", encoding="utf-8")
+    res = checks.run_firstline(tmp_path)
+    assert {r["page"]: r["verdict"] for r in res["rows"]} == {1: "FLAG", 2: "not checkable"}
+
+
+def test_eqcheck_structure_against_layer_and_other_provider():
+    """!
+    @brief Equation counts, `\\tag` and trailing `\\qquad (n)` numbers are compared with the layer and with the other provider.
+    @return None
+    """
+    from tools.ocr import checks
+    md = "<!-- page 1 -->\n$$a=b \\tag{1}$$\n\ntext\n\n$$c=d \\qquad (2)$$\n"
+    st = checks.md_eq_stats(md)
+    assert st["display"] == 2 and st["tags"] == {"1", "2"}
+    layer = "text " * 60 + "\n(1)\n(2)\n(3)\n"
+    assert any("without a \\tag: 3" in i for i in checks.check_equations(md, layer))
+    assert not checks.check_equations(md, "text " * 60 + "\n(1)\n(2)\n")
+    heavy = "x = y + z = w " * 30
+    assert any("formula heavy" in i for i in checks.check_equations("<!-- page 1 -->\nplain prose only here", heavy))
+    other = "$$a$$\n$$b$$\n$$c$$\n$$d$$\n$$e$$\n$$f$$\n"
+    assert any("other provider" in i for i in checks.check_equations(md, "", other))
+    assert not checks.check_equations(md, "", "$$a=b \\tag{1}$$\n$$c=d \\tag{2}$$")
+
+
+def test_eqcheck_command_reports_a_mismatch(tmp_path, monkeypatch):
+    """!
+    @brief `eqcheck` writes its report and counts the page with a missing equation number.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    from tools.ocr import checks
+    from tools.ocr.cli import main
+    (tmp_path / "pdf").mkdir()
+    (tmp_path / "pdf" / "E.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "ocr" / "anthropic").mkdir(parents=True)
+    (tmp_path / "ocr" / "anthropic" / "E_p1.md").write_text("<!-- page 1 -->\n$$a=b \\tag{1}$$\n", encoding="utf-8")
+    monkeypatch.setattr(checks, "pdf_layers", lambda pdf: {1: "text " * 60 + "\n(1)\n(2)\n"})
+    assert main(["--papers", str(tmp_path), "eqcheck"]) == 0
+    rep = (tmp_path / "notes" / "EQCHECK_REPORT.md").read_text(encoding="utf-8")
+    assert "with a mismatch: 1" in rep and "without a \\tag: 2" in rep
+
+
+def _audit_library(tmp_path):
+    """!
+    @brief A tiny consistent library: one 3-page paper with Claude pages, a verified and a corrected page, and its md-final.
+    @param tmp_path pytest temporary folder.
+    @return Path The papers folder.
+    """
+    from tools.ocr import assemble, status
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "X.pdf").write_bytes(b"%PDF-1.4")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    for n in (1, 2, 3):
+        (papers / "ocr" / "anthropic" / f"X_p{n}.md").write_text(f"<!-- page {n} -->\n# Section {n}\n\nmachine text of page {n} with enough words to count\n", encoding="utf-8")
+    (papers / "notes").mkdir()
+    status.set_status(papers, "X", {2}, "verified", "reviewer", "image", {2: status.sha((papers / "ocr" / "anthropic" / "X_p2.md").read_text(encoding="utf-8"))})
+    (papers / "ocr" / "corrected").mkdir()
+    (papers / "ocr" / "corrected" / "X_p3.md").write_text("<!-- page 3 -->\nCORRECTED text of page 3\n", encoding="utf-8")
+    status.set_status(papers, "X", {3}, "corrected", "reviewer", "fixed")
+    (papers / "md-final").mkdir()
+    (papers / "md-final" / "X.md").write_text(assemble.assemble(papers, "X", tmp_path, 3, None, {}, True), encoding="utf-8")
+    return papers
+
+
+def _levels(res):
+    """!
+    @brief The findings of an audit as (level, text) pairs.
+    @param res Result of `checks.audit`.
+    @return list[tuple[str, str]] Level and finding text.
+    """
+    return [(lv, text) for lv, _, text in res["findings"]]
+
+
+def test_audit_clean_library_and_every_planted_defect(tmp_path):
+    """!
+    @brief A consistent library has no error; each planted defect (marker gap, missing header field, missing page, stale
+           status, wrong corrected text, key-like text, confidential file, page beyond the PDF, orphan) is reported.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import checks
+    papers = _audit_library(tmp_path)
+    clean = checks.audit(papers)
+    assert [f for f in clean["findings"] if f[0] == "error"] == [], clean["findings"]
+    assert clean["stats"]["marker_pages"] == {"total": 3, "machine": 1, "verified": 1, "corrected": 1}
+    final = papers / "md-final" / "X.md"
+    good = final.read_text(encoding="utf-8")
+
+    final.write_text(good.replace("<!-- page 2 |", "<!-- page 9 |"), encoding="utf-8")
+    assert any("not 1..3" in t for _, t in _levels(checks.audit(papers)))
+    final.write_text(good.replace("pdf_pages: 3\n", ""), encoding="utf-8")
+    assert any("'pdf_pages' missing" in t for _, t in _levels(checks.audit(papers)))
+    final.write_text(good.replace("# Section 1\n\nmachine text of page 1 with enough words to count", "[missing]"), encoding="utf-8")
+    assert any(lv == "error" and "'[missing]' but a page exists" in t for lv, t in _levels(checks.audit(papers)))
+    final.write_text(good.replace("| verified (image)", ""), encoding="utf-8")
+    assert any(lv == "warn" and "marker says machine" in t for lv, t in _levels(checks.audit(papers)))
+    final.write_text(good.replace("CORRECTED text of page 3", "something else"), encoding="utf-8")
+    assert any(lv == "error" and "corrected page not used" in t for lv, t in _levels(checks.audit(papers)))
+    final.write_text(good, encoding="utf-8")
+    assert not [f for f in checks.audit(papers)["findings"] if f[0] == "error"]
+
+    key = "sk-ant-" + "a1" * 15                                   # built at run time: no key-like text in this file
+    (papers / "ocr" / "anthropic" / "X_p1.md").write_text(f"<!-- page 1 -->\nleaked {key}\n", encoding="utf-8")
+    res = checks.audit(papers)
+    assert any(lv == "error" and "key-like text" in t for lv, t in _levels(res))
+    assert key not in checks.render_audit(res)                    # never shown
+    (papers / "ocr" / "anthropic" / "X_p1.md").write_text("<!-- page 1 -->\n# Section 1\n\nmachine text of page 1 with enough words to count\n", encoding="utf-8")
+    (papers / "ocr" / "OdbppSpec81U4_p1.md").write_text("<!-- page 1 -->\nsecret\n", encoding="utf-8")
+    (papers / "ocr" / "anthropic" / "X_p7.md").write_text("<!-- page 7 -->\nbeyond the end\n", encoding="utf-8")
+    (papers / "ocr" / "Z_p1.md").write_text("<!-- page 1 -->\norphan\n", encoding="utf-8")
+    lv = _levels(checks.audit(papers))
+    assert any(level == "error" and "confidential file" in t for level, t in lv)
+    assert any(level == "error" and "beyond the 3 PDF pages" in t for level, t in lv)
+    assert any(level == "warn" and "without a PDF" in t for level, t in lv)
+
+
+def test_audit_command_exit_code_and_report(tmp_path):
+    """!
+    @brief `audit` returns 0 and writes the report for a clean library, 1 when an error is found.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr.cli import main
+    papers = _audit_library(tmp_path)
+    assert main(["--papers", str(papers), "audit"]) == 0
+    assert "Findings: 0 error" in (papers / "notes" / "AUDIT_REPORT.md").read_text(encoding="utf-8")
+    (papers / "ocr" / "corrected" / "X_p3.md").unlink()
+    assert main(["--papers", str(papers), "audit"]) == 1
+
+
+def test_assemble_and_map_are_reproducible(tmp_path):
+    """!
+    @brief Two `assemble` runs give byte-identical files, and so do two `map` runs (offline, no provider).
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    from tools.ocr.cli import main
+    papers = _audit_library(tmp_path)
+    doc = pymupdf.open()
+    for _ in range(3):
+        doc.new_page().insert_text((50, 72), "page text " * 20, fontsize=9)
+    doc.save(str(papers / "pdf" / "X.pdf"))
+    outs = []
+    for _ in range(2):
+        assert main(["--papers", str(papers), "assemble", "X", "--root", str(tmp_path)]) == 0
+        outs.append((papers / "md-final" / "X.md").read_bytes())
+    assert outs[0] == outs[1]
+    maps = []
+    for _ in range(2):
+        assert main(["--papers", str(papers), "map", "--root", str(tmp_path)]) == 0
+        maps.append(((papers / "notes" / "OCR_MAP.md").read_bytes(), (papers / "notes" / "ocr_map.json").read_bytes()))
+    assert maps[0] == maps[1]
+
+
+def test_status_set_verified_refuses_a_page_that_does_not_exist(tmp_path):
+    """!
+    @brief `status set STEM 99 verified` for a page with no provider text, no corrected text and no md-final chunk is refused.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import status
+    from tools.ocr.cli import main
+    papers = _status_papers(tmp_path)
+    with pytest.raises(ValueError):
+        status.set_status(papers, "X", {99}, "verified")
+    assert main(["--papers", str(papers), "status", "set", "X", "99", "verified"]) == 1
+    assert "99" not in status.load(papers).get("X", {})
+    status.set_status(papers, "X", {99}, "machine")                    # a machine entry is harmless
+
+
+# ---------------------------------------------------------------- prompt variants
+def test_prompt_variants_are_named_and_reach_the_runner(tmp_path):
+    """!
+    @brief `--prompt-variant` selects one of three alternative phrasings; the default is data/prompt.txt; an unknown name is refused.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import config
+    from tools.ocr.cli import build_parser, make_runner
+    assert config.variant_prompt(None) == config.default_prompt() == config.variant_prompt("default")
+    names = set(config.prompt_variants()) - {"default"}
+    assert names == {"plain", "latex", "topdown"}
+    texts = {config.variant_prompt(n) for n in names}
+    assert len(texts) == 3 and config.default_prompt() not in texts
+    with pytest.raises(ValueError):
+        config.variant_prompt("nope")
+    a = build_parser().parse_args(["transcribe", "X", "--provider", "local", "--prompt-variant", "latex"])
+    assert make_runner(a, tmp_path).prompt == config.variant_prompt("latex")

@@ -29,6 +29,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
+from . import uicontext
 from .geometry import zone_fill
 from .numfmt import num
 
@@ -746,17 +747,33 @@ FILL_NOTE = ("the copper of this board is an import and the models read it as a 
              "conductances (on 24 mm windows of real two-layer boards with a 4 mm part they read within 1.7 % of the program's network on the pixels at a 0.5 mm cell, "
              "up to 4.3 % too hot at 1 mm and 7 to 10 % too hot at 2 mm; the program's own grid error under a part two cells wide is +2.2 % with drawn full copper and +11.8 % "
              "on bare laminate at 2 mm, and the imported overshoot lies between the two; no measurement on a physical board exists)")
+# A powered 0402 of the imported RP2040 board, 1 W, rise of the hottest copper node (README 3.2 of the study): 84.6 K at a 1 mm cell, 201.2 K at 0.25 mm
+SMALL_PART_CELL_NOTE_TEXT = ("a coarse cell reads a small powered part of an imported board too cool: a 0402 capacitor of one board read 84.6 K at a 1 mm cell and 201 K at 0.25 mm, "
+                        "2.4 times (one part, a sample, not a bound)")
 COARSE_CELL_MM = 1.0                             # Cell above which the note on the faces adds the coarse-cell warning (README 10 of research/gerber-real-boards, review)
 SCREENING_CELL_MM = 1.5                          # Cell above which the warning calls the result a screening estimate
 COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4.3 % too hot at a 1 mm cell and 7 to 10 % "
                        "too hot at a 2 mm cell for a 4 mm part (on the safe side; the program's grid error under a part two cells wide is +0.5 % and +2.2 % at 1 and 2 mm with drawn "
                        "full copper, +3.7 % and +11.8 % on bare laminate, and the imported overshoot lies between the two; the share of the copper inside a cell was not separated); "
-                       "use a cell of 1 mm or less for the result (Simulation settings, Cell size, or the Auto button)")
+                       "use a cell of 1 mm or less for the result ({where}); " + SMALL_PART_CELL_NOTE_TEXT)
+
+
+def coarse_cell_warning(ui=None):
+    """!
+    @brief The coarse-cell warning of an import with the place to change the cell for the front end.
+    @param ui 'gui', 'cli' or None for the context in force (uicontext).
+    @return Text of the warning.
+    """
+    return COARSE_CELL_WARNING.format(where=uicontext.cell_where(ui))
+
+
 SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
-REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models do not read the imported copper (only the copper fraction of every cell, as zones; the FVM, FDM and 3D "
-                         "solid do read it) and they read too cool every time it was measured; the figures are a sample, not a bound: 1 to 16 % (6 % on average) on 24 windows of 24 mm "
-                         "with a 6 mm part at a 1 mm cell, against the pixel network, and 27 to 42 % (Lumped) and 17 to 35 % (Analytic) on the whole RP2040 board with 1 W in one of its "
-                         "two largest parts, U1 and U3 (the QFN-56) at a 0.25 mm cell, against the FVM, up to 75 % for small passives at 0.5 mm; use the finite-volume model for the result")
+REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models read the copper only as its average over a cell of 0.5 to 1 mm (the fill of the cell), so the pad of "
+                         "a part and the narrow tracks that feed it, smaller than the cell, are invisible to them, and they set most of the temperature rise of a small part; on 42 parts "
+                         "of three imported boards, with 1 W in one part at a time, the Lumped model read 25 to 82 % and the Analytic 17 to 77 % too cool against the finite-volume "
+                         "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and the finite-volume "
+                         "model itself reads the smallest parts hotter still at a finer cell; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
+                         "use the finite-volume model for the result")
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
                    "than the flow-based faces of the layered models (see the finite-volume model for the reference)")
 
@@ -781,7 +798,7 @@ def model_warnings(problem, model, cell_mm=None):
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
-            out.append(COARSE_CELL_WARNING)
+            out.append(coarse_cell_warning())
             if cell_mm > SCREENING_CELL_MM + 1e-9:
                 out.append(SCREENING_WARNING)
         if cell_mm is not None and src.mapping != "fill":

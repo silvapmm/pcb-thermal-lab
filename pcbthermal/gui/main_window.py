@@ -6,6 +6,7 @@
 """
 
 import copy
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
@@ -38,6 +40,8 @@ from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
 from .results_view import ResultsView
+import shiboken6
+from .display import OPEN_TIP, DisplayButton, DisplayPopover, DisplayState
 
 FILE_FILTER = "PCB Thermal projects and packages (*.pcbt.json *.json *.pcbtz);;All files (*)"
 
@@ -81,7 +85,7 @@ BACKGROUND_IMPORTED_TIP = ("A background image is for tracing a board by hand; t
 
 class BackgroundDialog(QDialog):
     """!
-    @brief Place a photo or layout image under the board (position, size, opacity).
+    @brief Place a photo or layout image under the board (file, position and size; the opacity of the map over it is the Underlay opacity).
     """
 
     def __init__(self, cfg, board_mm, parent=None, imported=False):
@@ -96,6 +100,8 @@ class BackgroundDialog(QDialog):
         self.board_mm = board_mm
         cfg = cfg or {}
         self.path = cfg.get("path", "")
+        # The opacity of an older project is not edited here any more (the Underlay controls own it); the stored value is kept as it was
+        self._stored_opacity = cfg.get("opacity")
         f = QFormLayout(self)
         self.file_label = QLabel(os.path.basename(self.path) or "no image")
         choose = QPushButton("Choose image…")
@@ -120,24 +126,9 @@ class BackgroundDialog(QDialog):
             s.setDecimals(2)
             s.setSuffix(" mm")
             s.setValue(cfg.get(k, d))
-        self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(0, 100)
-        self.opacity.setToolTip("Opacity of the background image, 0 to 100 % (default 50 %): lower it to read the drawing over the image.")
-        self.opacity_box = QSpinBox()
-        self.opacity_box.setRange(0, 100)
-        self.opacity_box.setSuffix(" %")
-        self.opacity_box.setToolTip("Opacity of the background image in percent, 0 to 100: the same value as the slider beside it, typed.")
-        # Linked both ways; the guards in Qt (no signal on an equal value) stop the loop
-        self.opacity.valueChanged.connect(self.opacity_box.setValue)
-        self.opacity_box.valueChanged.connect(self.opacity.setValue)
-        self.opacity.setValue(int(round(cfg.get("opacity", 0.5) * 100)))
-        op_row = QHBoxLayout()
-        op_row.addWidget(self.opacity, 1)
-        op_row.addWidget(self.opacity_box)
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
-        for label, w in (("X", self.x), ("Y", self.y), ("Width", self.w), ("Height", self.h),
-                         ("Opacity", op_row)):
+        for label, w in (("X", self.x), ("Y", self.y), ("Width", self.w), ("Height", self.h)):
             f.addRow(label, w)
         f.addRow(fit)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -177,8 +168,10 @@ class BackgroundDialog(QDialog):
         """
         if not self.path:
             return None
-        return {"path": self.path, "x_mm": self.x.value(), "y_mm": self.y.value(), "w_mm": self.w.value(),
-                "h_mm": self.h.value(), "opacity": self.opacity.value() / 100.0}
+        out = {"path": self.path, "x_mm": self.x.value(), "y_mm": self.y.value(), "w_mm": self.w.value(), "h_mm": self.h.value()}
+        if self._stored_opacity is not None:
+            out["opacity"] = self._stored_opacity           # An old project keeps its value (the initial opacity of the map over the image)
+        return out
 
 
 class _FooterLimiter(QObject):
@@ -226,7 +219,9 @@ class MainWindow(QMainWindow):
         self._edits, self._run_edits = 0, None                 # Edit counter, and its value when the running simulation started
 
         self.canvas = BoardView(self.doc, self.theme_name)
-        self.results = ResultsView(self.theme_name)
+        self.display = DisplayState(self)                  # How the maps are drawn: one choice for the Results maps, the Animation and the board
+        self.results = ResultsView(self.theme_name, display=self.display)
+        self._underlay_key = None                          # Path of the image whose stored opacity was already taken as the initial one
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
         self.stackup_page = StackupPage(self.doc, self.theme_name)
@@ -500,8 +495,12 @@ class MainWindow(QMainWindow):
         self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
                                  "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
-        self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
-                                   "Paint the last result over the board (T)")
+        self.a_overlay = self._act("Temperature map on the board", self._toggle_overlay, "T", True, False,
+                                   "Show the temperature map of the last result on the board (T)")
+        self.a_overlay.setEnabled(False)                       # Until a result exists; _update_map_button keeps the state and the tooltip
+        # The keyboard route to the Display popover (the toolbar button takes no focus): opened active, with the keyboard in its controls
+        self.a_display = self._act("Display settings…", lambda: self._toggle_display_popover(activate=True), "D",
+                                   tip="Open the Display panel of the tool bar from the keyboard (D): underlay, map opacity, view, contour step and colour map of the maps")
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
@@ -541,7 +540,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_imported, self.a_labels, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -561,18 +560,24 @@ class MainWindow(QMainWindow):
 
     def _hide_bare_key_hints(self):
         """!
-        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T) working but out of the menu text.
+        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T, D) working but out of the menu text.
 
         On macOS the native menu prints a key without a modifier as a lone letter next to the entry ("Temperature on board  T"),
         which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
         tool bar tooltips and the keyboard help still name them.
         """
-        for a in (self.a_grid, self.a_sgrid, self.a_overlay):
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display):
             keys = a.shortcuts()
             a.setShortcuts([])
             hidden = QAction(a.text(), self)
             hidden.setShortcuts(keys)
-            hidden.triggered.connect(a.toggle)
+            if a is self.a_overlay:
+                hidden.triggered.connect(self._key_overlay)
+                self._hidden_overlay_key = hidden
+            elif a is self.a_display:
+                hidden.triggered.connect(a.trigger)          # Same route as the menu entry: the popover takes the keyboard
+            else:
+                hidden.triggered.connect(a.toggle)
             self.addAction(hidden)                              # Active in the whole window, in no menu
 
     def _build_toolbar(self):
@@ -603,38 +608,34 @@ class MainWindow(QMainWindow):
         self.layer_combo = QComboBox()
         self.layer_combo.currentIndexChanged.connect(self._on_layer_changed)
         tb.addWidget(self.layer_combo)
-        tb.addWidget(QLabel("  Snap "))
+        # The map on the board (on and off) and how it is drawn (Display): Layer, Map, Display | Snap | Run
+        tb.addAction(self.a_overlay)
+        self.display_button = DisplayButton()
+        self.display_button.setToolTip(OPEN_TIP)
+        self.display_button.setObjectName("displayButton")
+        self.display_button.clicked.connect(self._toggle_display_popover)
+        tb.addWidget(self.display_button)
+        self.display_popover = DisplayPopover(self.display, self)
+        self.display_popover.addAction(self._hidden_overlay_key)    # The key T keeps working while the popover is the active window
+        self.display.changed.connect(self._on_display_changed)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.results.tabs.currentChanged.connect(self._on_tab_changed)
+        self._popover_filter_on = False                             # The application-level filter of the popover is installed only while it is open
+        # When Qt deletes the popover (with its window) the filter goes with it, so no deferred route finds a dead object
+        self.display_popover.destroyed.connect(self._on_popover_destroyed)
+        tb.addSeparator()
+        tb.addWidget(QLabel(" Snap "))
         self.snap_combo = QComboBox()
         for label, v in (("off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
             self.snap_combo.addItem(label, v)
         self.snap_combo.setCurrentIndex(3)
         self.snap_combo.currentIndexChanged.connect(lambda _i: self.canvas.set_snap(self.snap_combo.currentData()))
         tb.addWidget(self.snap_combo)
-        tb.addSeparator()
-        for a in (self.a_fit, self.a_grid, self.a_sgrid, self.a_overlay):
+        for a in (self.a_fit, self.a_grid, self.a_sgrid):
             tb.addAction(a)
-        self.overlay_opacity = QSlider(Qt.Horizontal)
-        self.overlay_opacity.setRange(0, 100)
-        self.overlay_opacity.setValue(70)
-        self.overlay_opacity.setFixedWidth(90)
-        self.overlay_opacity.setEnabled(False)
-        self.overlay_opacity.setToolTip("Opacity of the temperature map over the board, 0 to 100 % (default 70 %): lower it to read the copper and the parts under the colours. "
-                                        "Active while Temperature on board is on.")
-        self.overlay_opacity_box = QSpinBox()
-        self.overlay_opacity_box.setRange(0, 100)
-        self.overlay_opacity_box.setValue(70)
-        self.overlay_opacity_box.setSuffix(" %")
-        self.overlay_opacity_box.setEnabled(False)
-        self.overlay_opacity_box.setToolTip("Opacity of the temperature map over the board in percent, 0 to 100 (default 70): the same value as the slider beside it, typed.")
-        # Slider and box hold one value: each follows the other (blocked signals, so there is one change and one repaint)
-        self.overlay_opacity.valueChanged.connect(self._overlay_opacity_changed)
-        self.overlay_opacity_box.valueChanged.connect(self.overlay_opacity.setValue)
-        tb.addWidget(self.overlay_opacity)
-        tb.addWidget(self.overlay_opacity_box)
-        # The map on the board follows the Temperature tab: its model, colour map and colour limits (without this the overlay kept the scale of the moment it was switched on)
+        # The map on the board follows the Temperature tab: its model and colour limits (the colour map is the shared display choice)
         t = self.results.temp
-        for w in (t.model, t.cmap):
-            w.currentIndexChanged.connect(self._overlay_follow_results)
+        t.model.currentIndexChanged.connect(self._overlay_follow_results)
         t.auto.toggled.connect(self._overlay_follow_results)
         for w in (t.vmin, t.vmax):
             w.valueChanged.connect(self._overlay_follow_results)
@@ -653,7 +654,11 @@ class MainWindow(QMainWindow):
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
         self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
-        self.a_overlay.setIcon(th.tool_icon("overlay", self.theme_name))
+        self.a_overlay.setIcon(th.tool_icon("map", self.theme_name))
+        self.display_button.set_theme(self.theme_name)
+        self.display_button.set_dot(self.display.active())
+        self.display_popover.apply_theme(self.theme_name)
+        self._refresh_display_context()
         logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
         if logo.exists():
             self.setWindowIcon(QIcon(str(logo)))
@@ -691,41 +696,68 @@ class MainWindow(QMainWindow):
         self.canvas.solver_cell = self.doc.options.cell_mm
         self.canvas.viewport().update()
 
+    def _update_map_button(self):
+        """!
+        @brief Set the state of the map button (and of its menu entry and key): greyed until a result exists and while it is outdated, with the reason in the tooltip.
+        """
+        a = self.a_overlay
+        if self.sim is None:
+            tip, ok = "Run a simulation first", False
+        elif self._stale:
+            tip, ok = "The result is outdated: run the simulation again", False
+        else:
+            tip, ok = "Show the temperature map of the last result on the board (T)", True
+        a.setEnabled(ok)
+        a.setToolTip(tip)
+        a.setStatusTip(tip)
+        self._map_button_tip = tip
+        if not ok and a.isChecked():
+            a.blockSignals(True)
+            a.setChecked(False)
+            a.blockSignals(False)
+            self.canvas.clear_overlay()
+            self._editor_apply_underlay(False)
+
+    def _key_overlay(self):
+        """!
+        @brief The key T: toggle the map on the board, or say in the status bar why it cannot be shown.
+        """
+        if self.a_overlay.isEnabled():
+            self.a_overlay.toggle()
+        else:
+            self.statusBar().showMessage(getattr(self, "_map_button_tip", "Run a simulation first"))
+
     def _toggle_overlay(self, on):
         """!
         @brief Paint or remove the temperature result on the board.
-        @details The map is the one the Results tab shows (same model, same colour map and the same colour limits, so both show the same numbers) on the layer chosen in the
-                 toolbar, with the cells off the outline transparent and a colour bar. It is not drawn while the result is outdated, nor for the stretched map of a
-                 Lumped or Analytic result on a board with an outline (a note says so in the status bar).
+        @details The map is the one the Temperature tab shows (same model, colour limits and colour map, so both show the same numbers) on the layer chosen in the
+                 toolbar, with the cells off the outline transparent, a colour bar and the card of the model with the hottest and coolest point. A model that cannot
+                 be drawn on this board (the stretched map of the Lumped or Analytic on an outline board) leaves only the card with that note. It is not drawn while
+                 the result is outdated.
         @param on True to paint.
         """
-        from .fieldscale import inside_mask, overlay_refusal, results_limits
+        from .fieldscale import MODEL_SHORT, extreme_points, inside_mask, overlay_refusal, results_limits
 
-        self.overlay_opacity.setEnabled(bool(on))
-        self.overlay_opacity_box.setEnabled(bool(on))
+        self._editor_apply_underlay(bool(on))
         if not on or self.sim is None or self._stale:
             self.canvas.clear_overlay()
             if on:
-                # Nothing to paint: say why and leave the button and the opacity controls off (the button used to stay checked over an empty board)
+                # Nothing to paint: say why and leave the button off
                 self.statusBar().showMessage("Run a simulation first." if self.sim is None else
                                              "The result is outdated (the design changed): run the simulation again to paint it on the board.")
                 self.a_overlay.blockSignals(True)
                 self.a_overlay.setChecked(False)
                 self.a_overlay.blockSignals(False)
-                self.overlay_opacity.setEnabled(False)
-                self.overlay_opacity_box.setEnabled(False)
+                self._editor_apply_underlay(False)
             return
         cfg = self.results.temp.current_field()
         res = self.results.temp._result() or self.sim.reference     # The model shown in the Results tab
+        short = MODEL_SHORT.get(res.model, str(res.model))
         note = overlay_refusal(res, self.doc.problem)
         if note:
             self.canvas.clear_overlay()
+            self.canvas.set_overlay_card(f"{short}: not drawn on an outline board (stretched map)")
             self.statusBar().showMessage(note)
-            self.a_overlay.blockSignals(True)
-            self.a_overlay.setChecked(False)
-            self.a_overlay.blockSignals(False)
-            self.overlay_opacity.setEnabled(False)
-            self.overlay_opacity_box.setEnabled(False)
             return
         layer = min(self.canvas.layer, res.T.shape[0] - 1)
         field = res.T[layer]
@@ -734,27 +766,198 @@ class MainWindow(QMainWindow):
         vmin, vmax = (cfg[4], cfg[5]) if cfg else (None, None)
         # The limits by the rule of the Results map (Auto range over the samples on the board only), passed explicitly so the canvas does not rescale
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
-        self.canvas.set_overlay(field, res.dx, res.dy, cmap=cfg[3] if cfg else "inferno", vmin=vmin, vmax=vmax,
-                                opacity=self.overlay_opacity.value() / 100.0, nodes=nodes, mask=mask)
+        self.canvas.set_overlay(field, res.dx, res.dy, cmap=self.display.cmap, vmin=vmin, vmax=vmax,
+                                opacity=self.display.value(), nodes=nodes, mask=mask)
+        ext = extreme_points(field, mask, res.dx, res.dy, nodes)
+        if ext is not None:
+            self.canvas.set_overlay_card(short, ext["tmax"], ext["pmax"], ext["tmin"], ext["pmin"])
+        else:
+            self.canvas.set_overlay_card(short)
+
+    def _editor_apply_underlay(self, overlay_on):
+        """!
+        @brief Show the background image on the canvas: always, except while a map is on the board and the Underlay is not Image.
+        @param overlay_on True while the temperature map is painted on the board.
+        """
+        image = self.display.kind == "image"
+        self.canvas.set_background_visible(not overlay_on or image)
+        self.canvas.set_background_full(overlay_on and image)       # Faded twice otherwise (its own opacity, then the map's)
+
+    def _on_display_changed(self, what):
+        """!
+        @brief The display choice changed (Display popover, or a new project): update the dot of the button and the map on the board.
+        @param what Name of what changed ("underlay", "opacity", "view", "contour", "cmap" or "source").
+        """
+        self.display_button.set_dot(self.display.active())
+        on = self.a_overlay.isChecked()
+        if what == "opacity" and on:
+            self.canvas.set_overlay_opacity(self.display.value())
+        elif what == "cmap" and on:
+            self._toggle_overlay(True)
+        self._editor_apply_underlay(on)
+
+    def _display_context(self):
+        """!
+        @brief Where the Display popover is opened from: the board, one of the maps, or a page without a map.
+        @return One of display.CONTEXTS.
+        """
+        if self.tabs.currentIndex() == TAB_BOARD:
+            return "editor"
+        if self.tabs.currentIndex() == TAB_RESULTS:
+            w = self.results.tabs.currentWidget()
+            if w is self.results.temp:
+                return "temperature"
+            if w is self.results.grad:
+                return "gradient"
+            if w is self.results.animation:
+                return "animation"
+        return "other"
+
+    def _refresh_display_context(self, *_):
+        """!
+        @brief The tab changed: the popover (open or not) shows the controls that apply there.
+        @param _ Ignored (the value carried by the Qt signal).
+        """
+        if self.display_popover is not None and shiboken6.isValid(self.display_popover):
+            self.display_popover.set_context(self._display_context())
+
+    def _on_tab_changed(self, *_):
+        """!
+        @brief A tab of the window or of the Results changed (mouse, Ctrl+1 to Ctrl+4, keyboard): close the Display panel, then show its controls for the new tab.
+        @param _ Ignored (the index carried by the Qt signal).
+        """
+        self._close_display_popover()
+        self._refresh_display_context()
+
+    def _toggle_display_popover(self, activate=False):
+        """!
+        @brief Open the Display popover under its button, or close it.
+        @param activate True when opened from the menu (View - Display settings): the popover takes the keyboard so that its controls can be reached without a mouse.
+        """
+        if self.display_popover is None or not shiboken6.isValid(self.display_popover):
+            return
+        if self.display_popover.isVisible():
+            self._close_display_popover()
+            return
+        self.display_popover.set_context(self._display_context())
+        # A click outside the popover closes it: the filter watches every event of the application, so it is installed only while the popover is open
+        # (installed for good it cost about 1.3 us per event and window, and a closed window kept it)
+        QApplication.instance().installEventFilter(self)
+        self._popover_filter_on = True
+        self.display_popover.show_under(self.display_button, activate=activate)
+
+    def _on_popover_destroyed(self, *_):
+        """!
+        @brief The popover was deleted by Qt: forget it and remove the application filter that watched for clicks.
+        @param _ Ignored (the QObject carried by the signal).
+        """
+        if getattr(self, "_popover_filter_on", False):
+            app = QApplication.instance()
+            if app is not None:
+                app.removeEventFilter(self)
+            self._popover_filter_on = False
+        self.display_popover = None
+
+    def _close_display_popover(self):
+        """!
+        @brief Close the Display popover, applying an opacity edit that still waits for its pause, and give the keyboard back to the window when the popover had it.
+        """
+        if getattr(self, "_popover_filter_on", False):
+            # Removed first and whatever the state of the popover: a filter must never outlive the window that owns it
+            app = QApplication.instance()
+            if app is not None:
+                app.removeEventFilter(self)                          # Nothing to watch while the popover is closed
+            self._popover_filter_on = False
+        pop = getattr(self, "display_popover", None)
+        # Idempotent and safe after Qt deleted the popover (its window closed or was deleted before a deferred call ran)
+        if pop is None or not shiboken6.isValid(pop) or not pop.isVisible():
+            return
+        had_keyboard = QApplication.activeWindow() is pop
+        pop.flush()
+        pop.hide()
+        if had_keyboard:
+            self.activateWindow()
+
+    def _in_display_popover(self, w):
+        """!
+        @brief True when a widget belongs to the Display popover, also through a window of its own (the open list of one of its combo boxes).
+        @details `QWidget.isAncestorOf` stops at a window boundary, so the drop-down list of the Underlay or Colour map combo, which is a popup window, was taken for
+                 a click outside and closed the popover before the entry could be chosen (found in the review).
+        @param w QWidget.
+        @return bool.
+        """
+        pop = getattr(self, "display_popover", None)
+        if pop is None or not shiboken6.isValid(pop):
+            return False
+        while w is not None:
+            if w is pop:
+                return True
+            w = w.parentWidget()
+        return False
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Close the Display popover on a click anywhere outside it and its button, and on Escape in the popover or in this window.
+        @param obj Object that receives the event.
+        @param event The event.
+        @return True for the Escape that closed the popover (it does not also cancel a drawing on the canvas), False otherwise.
+        """
+        pop = getattr(self, "display_popover", None)
+        if pop is not None and shiboken6.isValid(pop) and pop.isVisible() and isinstance(obj, QWidget):
+            if event.type() == QEvent.MouseButtonPress:
+                if not (self._in_display_popover(obj) or obj is self.display_button):
+                    self._close_display_popover()
+            elif (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape and QApplication.activePopupWidget() is None
+                  and (self._in_display_popover(obj) or obj.window() is self)):
+                self._close_display_popover()
+                return True
+        return False
+
+    def changeEvent(self, e):
+        """!
+        @brief Close the Display popover when the window loses the activation to anything but the popover (another application, another window).
+        @param e QEvent.
+        """
+        super().changeEvent(e)
+        if e.type() == QEvent.ActivationChange and not self.isActiveWindow() and getattr(self, "display_popover", None) is not None:
+            # Decided after the change has settled: a click into the popover activates the popover itself, which must not close it
+            QTimer.singleShot(0, self._close_popover_if_inactive)
+
+    def _close_popover_if_inactive(self):
+        """!
+        @brief Close the Display popover when neither this window nor the popover (nor a list it opened) is the active window.
+        """
+        # A call queued by changeEvent can run after the window (and with it the popover) was deleted
+        if not shiboken6.isValid(self) or not shiboken6.isValid(getattr(self, "display_popover", None)):
+            return
+        active = QApplication.activeWindow()
+        if active is self or (active is not None and self._in_display_popover(active)) or QApplication.activePopupWidget() is not None:
+            return
+        self._close_display_popover()
+
+    def _sync_underlay(self):
+        """!
+        @brief Tell the display choice what the project offers under the map (copper, and the image of a hand-drawn project).
+        @details An image that appears for the first time brings its stored opacity (older projects) as the initial opacity of the map over it; the file format is unchanged.
+        """
+        cfg = self.doc.project.view.get("background")
+        imported = self._is_imported()
+        self.results.set_underlay_source(imported, cfg)
+        key = None if imported or not cfg else cfg.get("path")
+        if key is not None and key != self._underlay_key and cfg.get("opacity") is not None:
+            self.display.set_opacity(cfg["opacity"] * 100.0)
+        self._underlay_key = key
+        if self.display_popover is not None and shiboken6.isValid(self.display_popover):
+            self.display_popover.refresh()
+        self._editor_apply_underlay(self.a_overlay.isChecked())
 
     def _overlay_follow_results(self, *_):
         """!
-        @brief A control of the Temperature tab changed (model, colour map, Auto range, limits): paint the map on the board again with it, when the map is on.
+        @brief A control of the Temperature tab changed (model, Auto range, limits): paint the map on the board again with it, when the map is on.
         @param _ Ignored (the value carried by the Qt signal).
         """
         if self.a_overlay.isChecked() and not self.results.temp._updating:      # Not while the tab is being filled with a new simulation
             self._toggle_overlay(True)
-
-    def _overlay_opacity_changed(self, v):
-        """!
-        @brief The overlay opacity changed (slider or box): keep both in step and repaint the map.
-        @param v Opacity in percent (0..100).
-        """
-        if self.overlay_opacity_box.value() != v:
-            self.overlay_opacity_box.blockSignals(True)
-            self.overlay_opacity_box.setValue(v)
-            self.overlay_opacity_box.blockSignals(False)
-        self.canvas.set_overlay_opacity(v / 100.0)
 
     def _refresh_layers(self):
         """!
@@ -856,7 +1059,7 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui"))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -866,6 +1069,7 @@ class MainWindow(QMainWindow):
         """
         self._edits += 1
         self._update_background_action()
+        self._sync_underlay()
         self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
@@ -876,6 +1080,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(TAB_RESULTS, "Results (outdated)")
             self.canvas.clear_overlay()
             self.a_overlay.setChecked(False)
+            self._update_map_button()
 
     def _update_title(self):
         """!
@@ -905,11 +1110,16 @@ class MainWindow(QMainWindow):
         self.tabs.setTabText(TAB_RESULTS, "Results")
         self.canvas.clear_overlay()
         self.a_overlay.setChecked(False)
+        self._update_map_button()
         self.canvas.fit()
         self._refresh_layers()
-        # A background image that cannot be loaded is said, not skipped
-        missing = getattr(self.canvas, "background_error", "")
-        self.statusBar().showMessage("Ready." + (" " + missing if missing else ""))
+        # A document just opened: its stored background opacity is the initial one again, also when the image file is the same as before
+        self._underlay_key = None
+        # Starting from scratch (or a project with no stored opacity) the pairs are 70 % again, not the previous project's value
+        self.display.reset()
+        self._sync_underlay()
+        # The load rebuilt the canvas before this "Ready." could overwrite its message: say again that the stored image cannot be drawn
+        self.statusBar().showMessage(self.canvas.background_problem or "Ready.")
 
     def new_board(self):
         """!
@@ -1033,6 +1243,7 @@ class MainWindow(QMainWindow):
             else:
                 self.doc.project.view.pop("background", None)
             self.canvas.rebuild()
+            self._sync_underlay()
 
     def _is_imported(self):
         """!
@@ -1080,7 +1291,7 @@ class MainWindow(QMainWindow):
         if low:
             self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
-        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
+        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
@@ -1141,10 +1352,7 @@ class MainWindow(QMainWindow):
         if self.doc.project.imports:
             # The re-import dialog shows what each part keeps: the powers typed in the editor after the import, not those of the import itself
             existing = copy.deepcopy(self.doc.project.imports[0])
-            heaters = {h.name: h for h in self.doc.problem.heaters}
-            for p in existing.parts:
-                if p.designator in heaters:
-                    p.power = float(heaters[p.designator].power)
+            editor_part_values(existing, self.doc.problem)
         dlg = ImportBoardWindow(self, existing=existing)
         cap = package_actions.capture_on_close(dlg)
         if existing is not None and package_actions.stored_sources(self):
@@ -1158,15 +1366,19 @@ class MainWindow(QMainWindow):
                 package_actions.remember_import(self, cap)   # keep the source files in memory so that Export package can store them
                 self._after_load()
             return
-        old = self.doc.project.imports[0]
-        known = {p.designator for p in old.parts}
-        added = [p for p in dlg.record.parts if p.designator not in known]
-        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
-                                 add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        old = copy.deepcopy(self.doc.project.imports[0])
+        typed = getattr(dlg, "typed", set())
+        synced = []
+        # Add files: the heaters of the new parts, the heaters of the stored parts the new files moved, and the step-2 values (review: the heaters stayed where they were)
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})", typed=typed,
+                                 add=lambda project: synced.extend(sync_add_heaters(dlg.session, project.problem, old, dlg.record, typed)))
+        kept = kept + synced
         package_actions.remember_import(self, cap, replace=dlg.mode != "add")
         self._refresh_layers()
         # What the editor kept comes first (the user must see it), then the first changes of the parts and files
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
+        # The numbers first: copper layers replaced, files and parts, holes (never an empty text)
+        lines = [reimport_summary(old, dlg.record, dlg.mode)] + lines
         self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):
@@ -1235,6 +1447,7 @@ class MainWindow(QMainWindow):
         self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W"
                                       + ("  (the design changed while it ran)" if self._stale else ""))
         self.tabs.setCurrentIndex(TAB_RESULTS)
+        self._update_map_button()
         if self.a_overlay.isChecked():
             self._toggle_overlay(True)             # Refused while the result is outdated
 
@@ -1273,7 +1486,8 @@ class MainWindow(QMainWindow):
 <tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
-<tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature map on the board (T; the Display button of the tool bar says how it is drawn)</td></tr>
+<tr><td><b>D</b></td><td>Display settings: opens the Display panel with the keyboard in its controls</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
@@ -1308,6 +1522,7 @@ class MainWindow(QMainWindow):
         @param e QCloseEvent (accepted or ignored here).
         """
         if self._confirm_discard():
+            self._close_display_popover()              # A floating panel does not outlive its window
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
             self.settings.setValue("window_state", self.saveState(self.STATE_VERSION))      # Dock positions and visibility

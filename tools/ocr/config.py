@@ -47,6 +47,29 @@ def default_prompt() -> str:
     return (DATA / "prompt.txt").read_text(encoding="utf-8").strip()
 
 
+def prompt_variants() -> dict:
+    """!
+    @brief The named prompt phrasings from data/prompt_variants.json.
+    @return dict Name to prompt text; the value of `default` is None (use data/prompt.txt).
+    """
+    return json.loads((DATA / "prompt_variants.json").read_text(encoding="utf-8"))
+
+
+def variant_prompt(name: str | None) -> str:
+    """!
+    @brief The prompt of a named variant (the default prompt for None or `default`).
+    @param name Variant name, or None.
+    @return str The prompt text.
+    @throws ValueError If the name is not a variant.
+    """
+    if name in (None, "default"):
+        return default_prompt()
+    table = prompt_variants()
+    if name not in table:
+        raise ValueError(f"unknown prompt variant '{name}' (known: {', '.join(sorted(table))})")
+    return table[name]
+
+
 def parse_pages(spec: str, total: int | None = None) -> list[int]:
     """!
     @brief Turn a page spec such as "3,5-6" into [3, 5, 6] (1-based PDF pages).

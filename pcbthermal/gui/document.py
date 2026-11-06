@@ -223,7 +223,7 @@ class Document(QObject):
     KEEP_ON_REIMPORT = ("ambient", "h_top", "h_bottom", "h_side", "via_plating", "h_mode", "emissivity_top", "emissivity_bottom", "orientation", "air_speed", "h_calibration",
                         "natural_form", "materials")
 
-    def reimport(self, problem, record, text="Re-import Gerber board", add=None):
+    def reimport(self, problem, record, text="Re-import Gerber board", add=None, typed=()):
         """!
         @brief Apply a re-import to the open project as ONE undo step.
         @details "replace" and "update" give a new Problem (copper, outline, vias and the heaters of the merged parts) that keeps the environment of the open board and what the user
@@ -234,6 +234,7 @@ class Document(QObject):
         @param record The merged ImportRecord, which replaces the stored one.
         @param text Text of the undo step.
         @param add Function(project) called for "add", or None.
+        @param typed Designators whose step-2 values (power, tick, Tj max, role) win over the editor's (`ImportSession.step2_edits`).
         @return list of text lines: what the re-import kept from the editor (empty for "add").
         """
         from .import_session import carry_over
@@ -251,7 +252,7 @@ class Document(QObject):
                     setattr(problem.board, k, copy.deepcopy(getattr(old, k)))
                 if project.imports:
                     # Review: Replace and Update used to drop every edit made in the editor after the import (powers, drawn heaters, zones, heatsinks, vias, stack-up)
-                    kept.extend(carry_over(project.problem, project.imports[0], problem, record))
+                    kept.extend(carry_over(project.problem, project.imports[0], problem, record, typed))
                 problem.name = project.problem.name
                 project.problem = problem
             elif add is not None:

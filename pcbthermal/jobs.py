@@ -71,7 +71,7 @@ def job_analyze(progress, problem, options):
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 
 
-def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None, laminate_params=None):
+def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None, laminate_params=None, ui="cli"):
     """!
     @brief Power of a part from a measured temperature (inverse.power_from_temperature).
     @param progress Callable progress(message, fraction) (unused).
@@ -86,13 +86,35 @@ def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm,
     @param uncertainty Optional dict of uncertainties for the band (see inverse.power_band).
     @param laminate_params Tuple (s_max in m, n_max) of the project's laminate rule (SolverOptions.laminate_params()), or None for the defaults: the board model run backwards
                            must be the board of the run.
+    @param ui 'gui' or 'cli': how the error texts name the cell size control (uicontext).
     @return Dict of inverse.power_from_temperature, or of inverse.power_band with the band.
+    """
+    from . import uicontext
+    with uicontext.using_ui(ui):
+        return _job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty, laminate_params)
+
+
+def _job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty, laminate_params):
+    """!
+    @brief Body of job_inverse in the context of the caller.
+    @param progress Callable progress(message, fraction).
+    @param problem Problem.
+    @param index Heater index.
+    @param measured_c Measured temperature in degC.
+    @param point Point of the part.
+    @param ambient_c Ambient in degC.
+    @param cell_mm Cell size in mm.
+    @param psi_jt Datasheet psi_JT in K/W.
+    @param band True for the uncertainty band.
+    @param uncertainty Optional dict of uncertainties.
+    @param laminate_params Tuple (s_max in m, n_max) or None.
+    @return Dict of the result.
     """
     from .inverse import power_band, power_from_temperature
     if laminate_params is not None:
         from . import laminate
         with laminate.using(*laminate_params):
-            return job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty)
+            return _job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty, None)
     if band:
         return power_band(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt, uncertainty=uncertainty, progress=progress)
     return power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt)
@@ -139,6 +161,9 @@ def serve(tasks, results):
     """
     import threading
     threading.Thread(target=_watch_parent, daemon=True).start()
+    # The base of every memory estimate of the session: the size after the imports, before any job (a job that runs without an estimate, the Power
+    # Calculator for one, would otherwise leave its pages in the first reading)
+    memory.baseline_bytes()
     while True:
         item = tasks.get()
         if item is None:

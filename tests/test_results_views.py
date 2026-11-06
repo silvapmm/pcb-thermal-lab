@@ -258,19 +258,12 @@ def tab(sim):
 
 def test_controls_default_to_the_old_picture_and_follow_the_view(tab):
     """!
-    @brief The defaults are Current with no copper; the opacity is enabled only with the copper box and the contour step only for Terrain.
+    @brief The defaults of the shared display state are Current with no copper and a 70 % opacity; the tab keeps its layer list and has no display control of its own.
     @param tab PlotTab fixture.
     """
-    assert tab.view.currentData() == "current" and not tab.copper.isChecked()
-    assert [tab.view.itemData(i) for i in range(tab.view.count())] == ["current", "smooth", "terrain"]
-    assert tab.opacity.value() == 70 and tab.contour.value() == 5.0
-    assert not tab.opacity.isEnabled() and tab.contour.isHidden() and tab.contour_label.isHidden()
-    tab.copper.setChecked(True)
-    assert tab.opacity.isEnabled()
-    tab.view.setCurrentIndex(tab.view.findData("terrain"))
-    assert not tab.contour.isHidden() and not tab.contour_label.isHidden()
-    tab.view.setCurrentIndex(0)
-    assert tab.contour.isHidden()
+    d = tab.display
+    assert d.view == "current" and d.kind == "none" and d.opacity == 70 and d.contour_temp == 5.0
+    assert tab.map_view() is None                                                   # the original picture, call for call
     labels = [tab.layer.itemText(i) for i in range(tab.layer.count())]
     assert labels[:3] == ["All layers", "All (2 x 2)", "Layer 1"] and tab.layer.currentData() == 0
 
@@ -281,12 +274,12 @@ def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
     @param tab PlotTab fixture.
     """
     first = _rgba_tab(tab)
-    tab.view.setCurrentIndex(tab.view.findData("terrain"))
+    tab.display.set_view("terrain")
     terrain = _rgba_tab(tab)
     assert _sha(first) != _sha(terrain)
-    tab.view.setCurrentIndex(0)
+    tab.display.set_view("current")
     assert _sha(_rgba_tab(tab)) == _sha(first)                                      # Back to Current: the same pixels
-    tab.copper.setChecked(True)
+    tab.display.set_kind("copper")
     assert _sha(_rgba_tab(tab)) != _sha(first)
     tab.layer.setCurrentIndex(tab.layer.findData(-2))
     tab.redraw()
@@ -309,8 +302,8 @@ def test_theme_switch_redraws_with_the_theme_colours(tab):
     @brief With the copper box ticked, a theme switch redraws the figure with the other tokens (the picture changes and the contour colour follows).
     @param tab PlotTab fixture.
     """
-    tab.copper.setChecked(True)
-    tab.view.setCurrentIndex(tab.view.findData("terrain"))
+    tab.display.set_kind("copper")
+    tab.display.set_view("terrain")
     dark = _sha(_rgba_tab(tab))
     assert tab.map_view().contour_color == th.colors("dark")["map_contour"]
     tab.set_theme("light")
@@ -320,22 +313,25 @@ def test_theme_switch_redraws_with_the_theme_colours(tab):
 
 def test_temperature_and_gradient_tabs_share_the_view(sim):
     """!
-    @brief Changing the view on the temperature tab changes the gradient tab and the other way round; the layers and the contour step stay separate.
+    @brief One display state: the view, the underlay and the opacity are the same for the temperature and gradient maps; the layers stay separate and each map type
+           has its own contour step.
     @param sim Simulation fixture.
     """
     QApplication.instance() or QApplication([])
     rv = ResultsView("dark")
     rv.set_simulation(sim)
-    rv.temp.view.setCurrentIndex(rv.temp.view.findData("smooth"))
-    rv.temp.copper.setChecked(True)
-    rv.temp.opacity.setValue(40)
-    assert rv.grad.view.currentData() == "smooth" and rv.grad.copper.isChecked() and rv.grad.opacity.value() == 40
-    rv.grad.view.setCurrentIndex(rv.grad.view.findData("terrain"))
-    assert rv.temp.view.currentData() == "terrain"
-    assert rv.grad.contour.isHidden()                                              # The gradient has no K step: it picks a round one
+    d = rv.display
+    d.set_view("smooth")
+    d.set_kind("copper")
+    d.set_opacity(40)
+    assert rv.temp.map_view().mode == rv.grad.map_view().mode == "smooth" and rv.grad.map_view().show_copper and rv.grad.map_view().opacity == pytest.approx(0.4)
+    d.set_view("terrain")
+    assert rv.temp.map_view().mode == "terrain"
     rv.set_simulation(sim)                                                         # A new result keeps the choice
-    assert rv.temp.view.currentData() == "terrain" and rv.temp.opacity.value() == 40
-    assert rv.grad.map_view().contour_step == 0.0
+    assert rv.temp.map_view().mode == "terrain" and d.opacity == 40
+    assert rv.grad.map_view().contour_step == 0.0 and rv.temp.map_view().contour_step == 5.0     # separate values, separate units
+    d.set_contour("gradient", 0.5)
+    assert rv.grad.map_view().contour_step == 0.5 and rv.temp.map_view().contour_step == 5.0
 
 
 def test_redraw_is_fast_on_a_100_by_80_mm_board(sim1):
@@ -346,8 +342,8 @@ def test_redraw_is_fast_on_a_100_by_80_mm_board(sim1):
     QApplication.instance() or QApplication([])
     t = PlotTab("temperature", "dark")
     t.set_simulation(sim1)
-    t.copper.setChecked(True)
-    t.view.setCurrentIndex(t.view.findData("terrain"))
+    t.display.set_kind("copper")
+    t.display.set_view("terrain")
     t.redraw()
     t.canvas.draw()                                                                # Warm: the copper picture is made here
     t0 = time.perf_counter()
@@ -356,25 +352,18 @@ def test_redraw_is_fast_on_a_100_by_80_mm_board(sim1):
     assert time.perf_counter() - t0 < 0.3
 
 
-def test_opacity_spin_box_and_slider_are_one_value_and_drive_the_pixels(tab):
+def test_opacity_changes_the_pixels(tab):
     """!
-    @brief The 0 to 100 % box and the slider follow each other with one redraw each, are enabled with the copper box only, and change the pixels.
+    @brief The opacity of the display state changes the pixels once the copper is the underlay, and 0 reaches the map view.
     @param tab PlotTab fixture.
     """
-    assert (tab.opacity_spin.minimum(), tab.opacity_spin.maximum(), tab.opacity_spin.value(), tab.opacity_spin.suffix()) == (0, 100, 70, " %")
-    assert not tab.opacity_spin.isEnabled() and tab.opacity_spin.toolTip() and tab.opacity.toolTip()
-    tab.copper.setChecked(True)
-    assert tab.opacity_spin.isEnabled()
-    calls = []
-    tab.view_changed.connect(lambda: calls.append(1))
+    tab.display.set_kind("copper")
     p70 = _sha(_rgba_tab(tab))
-    tab.opacity_spin.setValue(20)
-    assert tab.opacity.value() == 20 and len(calls) == 1
+    tab.display.set_opacity(20)
     p20 = _sha(_rgba_tab(tab))
-    tab.opacity.setValue(70)
-    assert tab.opacity_spin.value() == 70 and len(calls) == 2
+    tab.display.set_opacity(70)
     assert p20 != p70 and _sha(_rgba_tab(tab)) == p70
-    tab.opacity_spin.setValue(0)
+    tab.display.set_opacity(0)
     assert tab.map_view().opacity == 0.0
 
 

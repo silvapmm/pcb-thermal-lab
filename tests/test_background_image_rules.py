@@ -35,18 +35,15 @@ def _win(qtbot, tmp_path):
     return win
 
 
-def test_opacity_slider_and_box_are_linked(qtbot):
-    d = BackgroundDialog(None, (50.0, 40.0))
+def test_dialog_has_no_opacity_and_keeps_a_stored_one(qtbot):
+    d = BackgroundDialog(dict(BG), (50.0, 40.0))
     qtbot.addWidget(d)
-    assert d.opacity.value() == d.opacity_box.value() == 50 and d.opacity_box.suffix() == " %"
-    d.opacity_box.setValue(0)
-    assert d.opacity.value() == 0
-    d.opacity.setValue(100)
-    assert d.opacity_box.value() == 100
-    d.path = "a.png"
-    d.opacity_box.setValue(37)
-    assert d.config()["opacity"] == pytest.approx(0.37)
-    assert d.opacity.toolTip() and d.opacity_box.toolTip()
+    assert not hasattr(d, "opacity") and not hasattr(d, "opacity_box")
+    assert d.config()["opacity"] == pytest.approx(0.25)             # An old project keeps its value (the initial opacity of the map over the image)
+    d2 = BackgroundDialog(None, (50.0, 40.0))
+    qtbot.addWidget(d2)
+    d2.path = "a.png"
+    assert "opacity" not in d2.config()
 
 
 def test_drawn_project_keeps_the_action_enabled(qtbot, tmp_path):

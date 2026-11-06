@@ -8,6 +8,7 @@ The scene is in millimetres with the y axis pointing up (the view flips it), so 
 coordinates are the board coordinates the physics core uses.
 """
 
+import os
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
@@ -349,8 +350,12 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
-        self.background_error = ""                 # Why the background image is not drawn ("" when it is or there is none)
+        self.background_full = False                             # True while a map is over the Image underlay: the image is then drawn at 100 %
+        self.background_problem = ""                             # Text for the status bar while the stored background image cannot be read ("" when fine)
+        self._bg_reported = None                                 # The path already reported, so that a redraw does not repeat the message
+        self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
+        self._overlay_card = None                           # Card of the map on the board (model name, max and min), see set_overlay_card
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
         self.show_imported_copper = True            # View - Imported copper
@@ -552,25 +557,53 @@ class BoardView(QGraphicsView):
         cfg = self.doc.project.view.get("background")
         if not cfg:
             return
+        path = cfg.get("path", "")
         pm = QPixmap()
-        data = package_background_bytes(self.doc.project, cfg.get("path", ""))   # an image stored in the project package is read from memory
+        data = package_background_bytes(self.doc.project, path)   # an image stored in the project package is read from memory
         if data is not None:
             pm.loadFromData(data)
         else:
-            pm = QPixmap(cfg.get("path", ""))
+            pm = QPixmap(path)
         if pm.isNull():
-            # Not silent: the window shows this text (a moved or deleted image used to vanish without a word)
-            self.background_error = f"The background image could not be loaded: {cfg.get('path', '')}"
+            # The stored path is kept (the dialog shows it): only say, once per load, that the picture cannot be drawn
+            name = os.path.basename(path) or "(no file name)"
+            what = "not found" if not os.path.exists(path) else "could not be read"
+            self.background_problem = f"Background image {what}: {name}; use View - Background image… to choose it again."
+            if self._bg_reported != path:
+                self._bg_reported = path
+                self.message.emit(self.background_problem)
             return
+        self.background_problem = ""
+        self._bg_reported = None
         item = QGraphicsPixmapItem(pm)
         # Image rows go downward, the scene goes upward: flip y and anchor at the top-left corner
         item.setTransform(QTransform().scale(cfg["w_mm"] / pm.width(), -cfg["h_mm"] / pm.height()))
         item.setPos(cfg.get("x_mm", 0.0), cfg.get("y_mm", 0.0) + cfg["h_mm"])
-        item.setOpacity(cfg.get("opacity", 0.5))
+        item.setOpacity(1.0 if self.background_full else cfg.get("opacity", 0.5))
         item.setZValue(0.2)
         item.setAcceptedMouseButtons(Qt.NoButton)
+        item.setVisible(self.background_visible)
         self.scene().addItem(item)
         self._background = item
+
+    def set_background_full(self, full):
+        """!
+        @brief Draw the background image at 100 % (a map is on the board over the Image underlay, so the map opacity alone sets what shows) or at its stored opacity.
+        @param full True for 100 %.
+        """
+        self.background_full = bool(full)
+        if self._background is not None:
+            cfg = self.doc.project.view.get("background") or {}
+            self._background.setOpacity(1.0 if self.background_full else cfg.get("opacity", 0.5))
+
+    def set_background_visible(self, visible):
+        """!
+        @brief Show or hide the background image (the editor hides it while a temperature map is on the board and the Underlay is not Image).
+        @param visible True to show it.
+        """
+        self.background_visible = bool(visible)
+        if self._background is not None:
+            self._background.setVisible(self.background_visible)
 
     def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
         """!
@@ -589,7 +622,7 @@ class BoardView(QGraphicsView):
         from matplotlib import colormaps
         from .fieldscale import colour_limits
 
-        self.clear_overlay()
+        self.clear_overlay(keep_card=True)                # The card of the map is set by the caller and survives a rebuild of the scene
         ny, nx = field.shape
         lo, hi = colour_limits(field, vmin is None or vmax is None, vmin, vmax)
         # Cells without a value (NaN) or off the outline get alpha 0 so that the board shows through
@@ -624,10 +657,27 @@ class BoardView(QGraphicsView):
             self._overlay.setOpacity(float(opacity))
             self._overlay_args["opacity"] = float(opacity)
 
-    def clear_overlay(self):
+    def set_overlay_card(self, title, tmax=None, pmax_mm=None, tmin=None, pmin_mm=None):
         """!
-        @brief Remove the temperature overlay and its colour bar.
+        @brief Set the card at the top left of the map on the board: the model name and, when the model can be drawn, the hottest and coolest point with a ring on each.
+        @details With `tmax` the card shows `max T` and `min T` lines and the rings are painted on the map at the two points; without it the card is only the title, in the
+                 alert colour (a model that cannot be drawn on this board). Cleared by `clear_overlay`.
+        @param title Model short name (FVM, FDM, Lumped, Analytic, 3D solid) or the note of a refused model.
+        @param tmax Highest temperature of the displayed layer in degC (None: refused, title only).
+        @param pmax_mm Position (x, y) of the hottest point on the board in millimetres.
+        @param tmin Lowest temperature of the displayed layer in degC.
+        @param pmin_mm Position (x, y) of the coolest point on the board in millimetres.
         """
+        self._overlay_card = dict(title=str(title), tmax=tmax, pmax=pmax_mm, tmin=tmin, pmin=pmin_mm)
+        self.viewport().update()
+
+    def clear_overlay(self, keep_card=False):
+        """!
+        @brief Remove the temperature overlay, its colour bar and its card.
+        @param keep_card True to leave the card (the overlay is about to be set again).
+        """
+        if not keep_card:
+            self._overlay_card = None
         if self._overlay is not None and self._overlay.scene() is not None:
             self.scene().removeItem(self._overlay)
         had = self._overlay is not None
@@ -680,12 +730,75 @@ class BoardView(QGraphicsView):
         bar = st[1] if st else 60.0
         return (18 + 12 - 4, self.viewport().height() - 14 - 20, max(bar, 60.0) + 8, 28)
 
+    def _ring(self, painter, point, colour, halo):
+        """!
+        @brief Paint a small ring (screen pixels, a halo under it so that it reads on any map colour, no fill and no text).
+        @param painter QPainter in screen pixels.
+        @param point QPointF centre in screen pixels.
+        @param colour Ring colour.
+        @param halo Halo colour.
+        """
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(halo), 3.4))
+        painter.drawEllipse(point, 5.0, 5.0)
+        painter.setPen(QPen(QColor(colour), 1.7))
+        painter.drawEllipse(point, 5.0, 5.0)
+
+    def _paint_overlay_card(self, painter):
+        """!
+        @brief Paint the card of the map on the board and the two rings on the hottest and the coolest point of the displayed layer.
+        @details The card is at the top left, over the base colour at about 85 % with the border token; the title is the model in the accent colour and the two lines
+                 below carry the rings in the colours of the points. A refused model is only the title in the alert colour. The rings are small and carry no text, so
+                 the names of the elements stay readable.
+        @param painter QPainter of the foreground (scene coordinates, reset here).
+        """
+        card = getattr(self, "_overlay_card", None)
+        if not card:
+            return
+        c = th.colors(self.theme)
+        painter.save()
+        painter.resetTransform()
+        font = painter.font()
+        bold = painter.font()
+        bold.setBold(True)
+        fm, fmb = QFontMetrics(font), QFontMetrics(bold)
+        pad, row = 8, fm.height() + 3
+        x0, y0 = 26.0, 26.0
+        refused = card["tmax"] is None
+        lines = []
+        if not refused:
+            lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C")]
+        w = max([fmb.horizontalAdvance(card["title"])] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
+        h = fmb.height() + 2 * pad - 2 + row * len(lines)
+        bg = QColor(c["base"])
+        bg.setAlphaF(0.85)
+        painter.setPen(QPen(QColor(c["border"]), 1))
+        painter.setBrush(bg)
+        painter.drawRoundedRect(QRectF(x0, y0, w, h), 4, 4)
+        painter.setFont(bold)
+        painter.setPen(QColor(c["alert"] if refused else c["accent"]))
+        painter.drawText(QPointF(x0 + pad, y0 + pad + fmb.ascent() - 1), card["title"])
+        painter.setFont(font)
+        for k, (col, text) in enumerate(lines):
+            yy = y0 + pad - 2 + fmb.height() + row * k
+            self._ring(painter, QPointF(x0 + pad + 5, yy + row / 2.0), col, c["selection"])
+            painter.setPen(QColor(c["text"]))
+            painter.drawText(QPointF(x0 + pad + 16, yy + row / 2.0 + fm.ascent() / 2.0 - 1), text)
+        if not refused:
+            for key, col in (("pmax", c["bad"]), ("pmin", c["heatsink"])):
+                pos = card[key]
+                if pos is not None:
+                    pt = self.mapFromScene(QPointF(pos[0], pos[1]))
+                    self._ring(painter, QPointF(pt), col, c["selection"])
+        painter.restore()
+
     def drawForeground(self, painter, rect):
         """!
         @brief Paint the colour bar of the temperature overlay (in screen pixels, whatever the zoom) where it does not cover the board.
         @param painter QPainter to draw with.
         @param rect Exposed rectangle in scene coordinates (mm), not used.
         """
+        self._paint_overlay_card(painter)
         g = self.colourbar_geometry()
         if g is None:
             return

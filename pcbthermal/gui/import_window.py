@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
-from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, ROLES, UNIQUE, ImportSession
+from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
 
@@ -1491,9 +1491,13 @@ class ReimportDialog(QDialog):
         lay = QVBoxLayout(self)
         ident = sum(1 for s in self.sources if s["status"] == "identical")
         intro = QLabel(f"The open project holds an import of <b>{html.escape(old.name)}</b> ({len(old.files)} files, {len(old.parts)} parts). "
-                       f"Of the {len(self.sources)} functions in the new set, {ident} are byte-identical to the stored files. What do you want to do?")
+                       f"Of the {len(self.sources)} functions in the new set, {ident} are byte-identical to the stored files."
+                       # Review: the commonest case (the same folder chosen again) gave no hint that the files bring nothing new, so the user expected a change
+                       + (" <b>Every file is the same as the stored one:</b> the copper, holes and parts will not change; only what you changed in step 2 is applied."
+                          if self.sources and ident == len(self.sources) else "") + " What do you want to do?")
         intro.setWordWrap(True)
         lay.addWidget(intro)
+        self.intro = intro
         self.warn = QLabel("")
         self.warn.setWordWrap(True)
         if not same:
@@ -1503,7 +1507,7 @@ class ReimportDialog(QDialog):
         self.radios = {}
         grp = QButtonGroup(self)
         texts = {"replace": ("Replace the previous import", "Copper, drills and outline are replaced. Parts with the same designator keep their power, Tj max, role and shape edits, and the values you "
-                             "changed in the editor. Heaters, zones, heatsinks and vias you drew stay, and so does the stack-up when the layer count is the same. "
+                             "changed in the editor; a power, tick, Tj max or role you changed in step 2 of this window wins. Heaters, zones, heatsinks and vias you drew stay, and so does the stack-up when the layer count is the same. "
                              "Parts that disappeared stay as orphans (not heating) unless you tick them to remove."),
                  "update": ("Update after a layout revision", "Like replace, plus a table of what changed: moved, new, removed, resized and rotated parts. Nothing is lost silently."),
                  "add": ("Add files to the existing import", "A placement file, an extra paste layer or a component layer: their new parts are added and the stored parts keep everything. "
@@ -1540,6 +1544,14 @@ class ReimportDialog(QDialog):
         self.go = bb.addButton("Continue", QDialogButtonBox.AcceptRole)
         self.go.setObjectName("primary")
         self.go.setToolTip("Apply the chosen command to the project as one undo step.")
+        self.different = not same
+        if self.different:
+            # A different board: Enter must not replace the import; Cancel is the default and Continue is one click away
+            self.go.setDefault(False)
+            self.go.setAutoDefault(False)
+            cancel = bb.button(QDialogButtonBox.Cancel)
+            cancel.setAutoDefault(True)
+            cancel.setDefault(True)
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
@@ -1559,7 +1571,7 @@ class ReimportDialog(QDialog):
         @param _ Ignored (the toggled signal's argument).
         @return None
         """
-        if not hasattr(self, "table") or not any(r.isChecked() for r in self.radios.values()):
+        if not hasattr(self, "go") or not any(r.isChecked() for r in self.radios.values()):
             return
         t = self.table
         t.blockSignals(True)
@@ -1582,14 +1594,21 @@ class ReimportDialog(QDialog):
                 else:
                     cb = QComboBox()
                     cb.addItems(["Keep the stored file", "Use the new file"])
-                    cb.setToolTip("Two files claim this function and they differ.")
+                    cb.setCurrentIndex(1)                       # the user added these files to change the import: the new one is the default (the stored file is one click away)
+                    cb.setToolTip("Two files claim this function and they differ. The new file is the default; choose the stored one to leave it as it is.")
                     t.setCellWidget(k, 3, cb)
-                    self.combos[s["function"]] = cb
+                    self.combos[self.session.choice_key(s)] = cb
             geo = sum(1 for s in rows if s["function"] in GEOMETRY and s["status"] in ("added", "changed"))
-            self.note.setText(f"{sum(1 for s in rows if s['status'] == 'added' and s['function'] not in GEOMETRY)} function(s) added, {len(self.combos)} conflict(s) to choose. "
+            n_added = sum(1 for s in rows if s["status"] == "added" and s["function"] not in GEOMETRY)
+            self.note.setText(f"{n_added} function(s) added, {len(self.combos)} conflict(s) to choose. "
                               "The stored copper, outline, vias and existing parts are not touched."
-                              + (f" {geo} copper, outline or drill file(s) are not taken: they change the board, use Replace or Update." if geo else ""))
+                              + (f" {geo} copper, outline or drill file(s) are not taken: they change the board, use Replace or Update." if geo else "")
+                              + ("" if n_added + len(self.combos) else " Nothing to add: every file is identical to the stored one or changes the board itself; "
+                                 "choose Replace or Update to apply it."))
+            # A Continue that can only do nothing used to close the window and leave the project as it was: the user took that for a failure
+            self.go.setEnabled(n_added + len(self.combos) > 0)
         else:
+            self.go.setEnabled(True)
             t.setHorizontalHeaderLabels(["Part", "Change", "Detail", "Kept from the stored import" if mode != "replace" else "Action"])
             rows = [d for d in self.diff if d["change"] != "kept"] if mode == "update" else [d for d in self.diff if d["change"] == "removed"]
             t.setRowCount(len(rows))
@@ -1766,6 +1785,7 @@ class ImportBoardWindow(QDialog):
         self.record = None                                    # The ImportRecord to store in the project
         self.mode = "new"                                     # "new", or the re-import command "replace", "update" or "add"
         self.changes = []                                     # Text lines of what a re-import changed
+        self.typed = set()                                    # Designators whose step-2 values (power, tick, Tj max, role) the user changed in a re-import
         self.ask_reimport = lambda dlg: dlg.exec() == QDialog.Accepted
         # The questions are attributes so that a test (or a script) can answer them without a modal box
         self.confirm = lambda title, text: _plain_box(self, QMessageBox.Question, title, text, QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes
@@ -1896,10 +1916,43 @@ class ImportBoardWindow(QDialog):
             QApplication.restoreOverrideCursor()
         # Another board: the automatic cell and the project name of step 3 are taken again from it
         self._cell_set = False
+        self._take_stored_settings()
+        if self.existing is not None and self.session.files and self.session.take_stored_roles(getattr(self.existing, "settings", None)):
+            self.reload()                                       # a file the user had given a function (or left out) keeps it
+        if self.existing is not None and self.session.files:
+            self.session.take_stored_parts(self.existing)       # step 2 shows the powers the project has: what Replace and Update keep, and what the user may change
         self.page3.newname.blockSignals(True)
         self.page3.newname.setText("")
         self.page3.newname.blockSignals(False)
         self.refresh()
+
+    def _take_stored_settings(self):
+        """!
+        @brief A re-import starts from the model settings of the stored import (copper mapping, cell, largest via hole, a pixel the user typed, the offset accepted for the same
+               placement file), not from the automatic ones.
+        @details The new session has no powers yet, so its automatic cell differs from the one the user ended with; without this a re-import of the very same files silently
+                 changed the cell and the pixel of the copper masks. The user can still change them in step 3.
+        @return None
+        """
+        st = getattr(self.existing, "settings", None) or {}
+        sx = self.session
+        if st.get("mapping") in ("faces", "lambda", "fill"):
+            sx.mapping = st["mapping"]
+        for key, attr in (("via_max_mm", "via_max_mm"), ("cell_mm", "cell_mm")):
+            v = st.get(key)
+            if isinstance(v, (int, float)) and v > 0:
+                setattr(sx, attr, float(v))
+        if isinstance(st.get("cell_mm"), (int, float)) and st["cell_mm"] > 0:
+            self._cell_set = True                              # step 3 keeps the stored cell instead of proposing a new one
+        # Review: the pixel the user typed and the offset the user accepted for the placement file were dropped too (the masks or the parts changed with the very same files)
+        if st.get("pixel_user") and isinstance(st.get("pixel_mm"), (int, float)) and st["pixel_mm"] > 0:
+            sx.pixel_mm = float(st["pixel_mm"])
+        off = st.get("offset_mm")
+        if isinstance(off, (list, tuple)) and len(off) == 2 and any(abs(float(v)) > 0 for v in off):
+            stored = sorted(f.sha256 for f in getattr(self.existing, "files", []) if f.function == PLACEMENT)
+            now = sorted(f.sha256 for f in sx.used() if f.role == PLACEMENT)
+            if stored and stored == now:                      # only for the same placement file: a new one is checked again by the frame check of step 2
+                sx.offset, sx.offset_answer, sx._parts_dirty = (float(off[0]), float(off[1])), "accepted", True
 
     def reload_later(self):
         """!
@@ -2051,7 +2104,7 @@ class ImportBoardWindow(QDialog):
             if not self.ask_reimport(dlg):
                 return False
             res = sx.merge_import(dlg.mode, self.existing, dlg.remove_refs(), dlg.file_choice())
-            self.mode, self.changes, self.record = dlg.mode, res["changes"], res["record"]
+            self.mode, self.changes, self.record, self.typed = dlg.mode, res["changes"], res["record"], set(res.get("typed", ()))
             if dlg.mode != "add":
                 prob.heaters = []                                 # the heaters come from the merged parts (they keep the powers of the stored import)
                 sx._add_heaters(prob, sx.record.box_mm, res["parts"])

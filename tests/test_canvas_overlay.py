@@ -21,6 +21,7 @@ pytest.importorskip("pytestqt")
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QImage
 
+from pcbthermal import plots
 from pcbthermal.api import SolverOptions, simulate
 from pcbthermal.examples import example_board
 from pcbthermal.gui import fieldscale
@@ -78,6 +79,7 @@ def _window(qtbot, tmp_path, sim, problem):
     win._load_problem(copy.deepcopy(problem), "t")              # a copy: an edit in one test must not change the module fixtures of the next
     win.results.set_simulation(sim)
     win.sim, win._stale = sim, False
+    win._update_map_button()
     return win
 
 
@@ -101,15 +103,17 @@ def test_colour_limits_follow_the_results_rule():
 
 def test_opacity_changes_the_painted_pixels_and_the_default_is_70_percent(qtbot, tmp_path, sim_rect):
     win = _window(qtbot, tmp_path, sim_rect, sim_rect.problem)
-    assert win.overlay_opacity.value() == 70 and win.overlay_opacity.toolTip() and not win.overlay_opacity.isEnabled()
+    pop = win.display_popover
+    assert win.display.opacity == 70 and pop.opacity.toolTip() and not win.a_overlay.isChecked()          # the map is off by default
     win.a_overlay.setChecked(True)
-    assert win.overlay_opacity.isEnabled() and abs(win.canvas._overlay.opacity() - 0.7) < 1e-9
+    assert abs(win.canvas._overlay.opacity() - 0.7) < 1e-9
     win.canvas.resize(500, 400)
     win.canvas.show()
     win.canvas.fit()
     shots = []
     for v in (100, 30):
-        win.overlay_opacity.setValue(v)
+        pop.opacity.setValue(v)
+        pop.flush()
         shots.append(_rgba(win.canvas.viewport().grab().toImage()))
     assert not np.array_equal(shots[0], shots[1])            # a lower opacity paints other pixels
     assert abs(win.canvas._overlay.opacity() - 0.3) < 1e-9
@@ -135,7 +139,7 @@ def test_the_scale_is_the_one_of_the_results_view(qtbot, tmp_path, sim_rect):
     t.vmax.setValue(60.0)
     win.a_overlay.setChecked(True)
     a = win.canvas._overlay_args
-    assert (a["vmin"], a["vmax"]) == (30.0, 60.0) and a["cmap"] == t.cmap.currentText() and a["unit"] == "°C"
+    assert (a["vmin"], a["vmax"]) == (30.0, 60.0) and a["cmap"] == win.display.cmap and a["unit"] == "°C"
     t.auto.setChecked(True)
     win.a_overlay.setChecked(False)
     win.a_overlay.setChecked(True)
@@ -179,14 +183,16 @@ def test_the_overlay_follows_the_controls_of_the_temperature_tab(qtbot, tmp_path
     t = win.results.temp
     t.model.setCurrentIndex(t.model.findData("fvm"))
     win.a_overlay.setChecked(True)
-    t.cmap.setCurrentIndex((t.cmap.currentIndex() + 1) % t.cmap.count())
-    assert win.canvas._overlay_args["cmap"] == t.cmap.currentText()
+    other = [c for c in plots.CMAPS if c != win.display.cmap][0]
+    win.display.set_cmap(other)                                          # the colour map is the shared display choice
+    assert win.canvas._overlay_args["cmap"] == other
     t.auto.setChecked(False)
     t.vmin.setValue(40.0)
     t.vmax.setValue(90.0)
     assert (win.canvas._overlay_args["vmin"], win.canvas._overlay_args["vmax"]) == (40.0, 90.0)
     t.model.setCurrentIndex(t.model.findData("lumped"))                 # the stretched map of the outline board: refused at once
-    assert win.canvas._overlay is None and not win.a_overlay.isChecked() and "stretched" in win.statusBar().currentMessage()
+    assert win.canvas._overlay is None and "stretched" in win.statusBar().currentMessage()
+    assert win.canvas._overlay_card["tmax"] is None and "Lumped" in win.canvas._overlay_card["title"]          # only the card says so
 
 
 def test_switching_on_an_outdated_result_says_so_and_leaves_the_button_off(qtbot, tmp_path, sim_rect):
@@ -194,7 +200,7 @@ def test_switching_on_an_outdated_result_says_so_and_leaves_the_button_off(qtbot
     win.doc.set_props("heater", 0, power=3.0)
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay is None and not win.a_overlay.isChecked()
-    assert not win.overlay_opacity.isEnabled() and not win.overlay_opacity_box.isEnabled()
+    assert not win.a_overlay.isEnabled() and "outdated" in win.a_overlay.toolTip()
     assert "outdated" in win.statusBar().currentMessage()
 
 
@@ -203,7 +209,7 @@ def test_an_edit_hides_the_overlay(qtbot, tmp_path, sim_rect):
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay is not None
     win.doc.set_props("heater", 0, power=3.0)
-    assert win.canvas._overlay is None and not win.a_overlay.isChecked() and not win.overlay_opacity.isEnabled()
+    assert win.canvas._overlay is None and not win.a_overlay.isChecked() and not win.a_overlay.isEnabled()
     win.a_overlay.setChecked(True)                           # still outdated: refused
     assert win.canvas._overlay is None
 
@@ -214,7 +220,8 @@ def test_a_stretched_map_on_an_outline_board_is_refused_with_a_note(qtbot, tmp_p
     t.model.setCurrentIndex(t.model.findData("lumped"))
     assert sim_t.results["lumped"].equivalent_scale is not None
     win.a_overlay.setChecked(True)
-    assert win.canvas._overlay is None and not win.a_overlay.isChecked() and "stretched" in win.statusBar().currentMessage()
+    assert win.canvas._overlay is None and "stretched" in win.statusBar().currentMessage()
+    assert win.canvas._overlay_card["tmax"] is None and win.canvas._overlay_card["title"].startswith("Lumped: not drawn")
     t.model.setCurrentIndex(t.model.findData("fvm"))
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay is not None
@@ -276,15 +283,19 @@ def test_rp2040_is_unchanged_by_the_cap(qtbot):
 
 def test_the_opacity_box_and_the_slider_follow_each_other(qtbot, tmp_path, sim_rect):
     win = _window(qtbot, tmp_path, sim_rect, sim_rect.problem)
-    assert win.overlay_opacity_box.value() == 70 and win.overlay_opacity_box.suffix() == " %" and win.overlay_opacity_box.toolTip()
-    assert not win.overlay_opacity_box.isEnabled()
+    pop = win.display_popover
+    pop.set_context("editor")
+    assert pop.opacity_spin.value() == 70 and pop.opacity_spin.suffix() == " %" and pop.opacity_spin.toolTip()
+    assert pop.opacity_spin.isEnabled()                      # on the board the opacity matters also without an underlay
     win.a_overlay.setChecked(True)
-    assert win.overlay_opacity_box.isEnabled()
-    win.overlay_opacity_box.setValue(25)
-    assert win.overlay_opacity.value() == 25 and abs(win.canvas._overlay.opacity() - 0.25) < 1e-9
-    win.overlay_opacity.setValue(90)
-    assert win.overlay_opacity_box.value() == 90 and abs(win.canvas._overlay.opacity() - 0.9) < 1e-9
-    win.overlay_opacity_box.setValue(0)
+    pop.opacity_spin.setValue(25)
+    pop.flush()
+    assert pop.opacity.value() == 25 and abs(win.canvas._overlay.opacity() - 0.25) < 1e-9
+    pop.opacity.setValue(90)
+    pop.flush()
+    assert pop.opacity_spin.value() == 90 and abs(win.canvas._overlay.opacity() - 0.9) < 1e-9
+    pop.opacity_spin.setValue(0)
+    pop.flush()
     assert win.canvas._overlay.opacity() == 0.0
 
 
