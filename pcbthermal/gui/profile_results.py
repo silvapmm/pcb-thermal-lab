@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from .. import plots
-from .results_view import _mpl_theme, _paint_figure
+from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from . import tips
 from ..numfmt import num
 
@@ -90,7 +90,15 @@ class ProfileResultsTab(QWidget):
         value = max(int(value), 0)
         if value != self.layer_value:
             self.layer_value = value
-            self.redraw()
+            redraw_when_shown(self, self.redraw)           # A hidden tab is drawn when it is shown (the layer box moves every map at once)
+
+    def showEvent(self, e):
+        """!
+        @brief Draw the view that a layer change left pending while the tab was hidden.
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        redraw_pending(self, self.redraw)
 
     def _result(self):
         """!

@@ -59,7 +59,9 @@ def items(context, n, block_faces=()):
     """
     out = []
     if context == EXTENDED_CONTEXT:
-        out += [("All layers", ALL_LAYERS), ("All (2 x 2)", ALL_GRID)]
+        out += [("All layers", ALL_LAYERS)]
+        if n > 1:
+            out += [("All (2 x 2)", ALL_GRID)]          # A one-layer board has no grid to show (it would show All layers under another name)
     out += [(layer_label(l, n), l) for l in range(n)]
     if context == EXTENDED_CONTEXT:
         out += [(entry_name(BLOCK_BASE + f), BLOCK_BASE + f) for f in sorted(block_faces)]
@@ -93,6 +95,20 @@ class LayerChoice(QObject):
         if is_single(value):
             self.last_single = value
         self.changed.emit()
+
+    def follow(self, layer):
+        """!
+        @brief Move the single layer for a reason that is not a pick of the box (an element selected on another layer, a clicked warning).
+        @details A stored single layer is replaced; a stored All layers, All (2 x 2) or metal block stays (it is still what Temperature shows), and only the
+                 drawing layer and the single-layer maps move.
+        @param layer Layer index (0-based).
+        """
+        layer = int(layer)
+        if is_single(self.pick_value):
+            self.pick(layer)
+        elif layer != self.last_single:
+            self.last_single = layer
+            self.changed.emit()
 
     def single(self, n):
         """!

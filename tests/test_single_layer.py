@@ -274,3 +274,80 @@ def test_a_refused_model_is_listed_greyed_with_its_reason(qtbot, tmp_path):
     acts = win._model_menu.actions()
     assert acts[0].isEnabled() and not acts[1].isEnabled() and "outline" in acts[1].text() and "stretched" in acts[1].toolTip()
     win._model_menu.close()
+
+
+# ------------------------------------------------------------------------------------------------------------------ the review
+def test_a_layer_change_in_the_editor_does_not_draw_the_hidden_maps(qtbot, tmp_path, sim):
+    """!
+    @brief The hidden Results tabs are drawn when shown, not at every layer change (it made a layer change about 30 times slower).
+    """
+    win = _window(qtbot, tmp_path, sim)
+    win.show()
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    rv = win.results
+    calls = []
+    for t in (rv.temp, rv.grad):
+        orig = t.redraw
+        t.redraw = (lambda o=orig, name=t.kind: (calls.append(name), o())[1])
+    win.layer_combo.setCurrentIndex(2)
+    assert calls == [] and rv.grad.layer_value == 2                                  # The value moved, nothing was drawn
+    _go(win, rv.grad)
+    qtbot.wait(10)
+    assert "gradient" in calls and "temperature" not in calls
+    axes = [a for a in rv.grad.fig.axes if a.get_images()]
+    assert axes and "layer 3" in " ".join(a.get_title() for a in rv.grad.fig.axes)  # The figure is of layer 3 (0-based 2)
+
+
+def test_picking_the_fallback_layer_shown_counts_as_a_pick(qtbot, tmp_path, sim):
+    win = _window(qtbot, tmp_path, sim)
+    rv = win.results
+    _go(win, rv.temp)
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(lc.ALL_LAYERS))
+    _go(win, rv.grad)
+    assert win.layer_combo.currentData() == 0 and rv.layer_note.isVisibleTo(rv)
+    win.layer_combo.activated.emit(win.layer_combo.currentIndex())                   # The user picks the layer already shown
+    assert not rv.layer_note.isVisibleTo(rv)
+    _go(win, rv.temp)
+    assert win.layer_combo.currentData() == 0                                        # The latest pick wins: All does not return
+
+
+def test_selecting_an_element_keeps_all_layers_in_temperature(qtbot, tmp_path, sim):
+    win = _window(qtbot, tmp_path, sim)
+    p = win.doc.problem
+    _go(win, win.results.temp)
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(lc.ALL_GRID))
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    p.heaters[0].layer = 1
+    win._on_list_selection([("heater", 0)])
+    assert win.canvas.layer == 1 and win.layer_combo.currentData() == 1 and win.results.grad.layer_value == 1
+    assert win.results.temp.layer_value == lc.ALL_GRID                                # Not a pick: the grid stays in Temperature
+    _go(win, win.results.temp)
+    assert win.layer_combo.currentData() == lc.ALL_GRID
+
+
+def test_a_one_layer_board_lists_no_grid():
+    assert [d for _t, d in lc.items(lc.EXTENDED_CONTEXT, 1)] == [lc.ALL_LAYERS, 0]
+    c = lc.LayerChoice()
+    c.pick(lc.ALL_GRID)
+    assert c.effective(lc.EXTENDED_CONTEXT, 1) == (lc.ALL_LAYERS, "")
+
+
+def test_the_model_menu_shows_tooltips_keeps_one_menu_and_has_a_key(qtbot, tmp_path, sim):
+    win = _window(qtbot, tmp_path, sim)
+    win.show()
+    win.a_overlay.setChecked(True)
+    win._open_model_menu(QPoint(0, 0))
+    first = win._model_menu
+    assert first.toolTipsVisible()
+    win._open_model_menu(QPoint(0, 0))
+    assert win._model_menu is not first
+    win._model_menu.close()
+    # The key M is a window action of the View menu (the card answers the mouse only)
+    keys = [a for a in win.actions() if "M" in [k.toString() for k in a.shortcuts()]]
+    assert len(keys) == 1
+    view = [a for a in win.menuBar().actions() if a.text() == "&View"][0].menu()
+    assert win.a_model in view.actions()
+    keys[0].trigger()
+    menu = win._model_menu
+    assert menu.isVisible() and menu.activeAction() is not None and menu.activeAction().isChecked()
+    menu.close()

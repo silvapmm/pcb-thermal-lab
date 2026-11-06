@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayo
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fdm, fvm, plots
-from .results_view import _mpl_theme, _paint_figure
+from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from .display import DisplayState
 
 
@@ -201,7 +201,15 @@ class AnimationTab(QWidget):
         value = max(int(value), 0)
         if value != self.layer_value:
             self.layer_value = value
-            self._redraw()
+            redraw_when_shown(self, self._redraw)          # A hidden tab is drawn when it is shown (the layer box moves every map at once)
+
+    def showEvent(self, e):
+        """!
+        @brief Draw the frame that a layer change left pending while the tab was hidden.
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        redraw_pending(self, self._redraw)
 
     def _layer_index(self):
         """!

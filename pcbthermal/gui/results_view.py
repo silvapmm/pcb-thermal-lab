@@ -133,6 +133,33 @@ def recolour_toolbar(toolbar, theme):
         act.setIcon(QIcon(out))
 
 
+def redraw_when_shown(widget, redraw):
+    """!
+    @brief Redraw a tab now when it can be seen, or mark it to be drawn when it is shown.
+    @details The toolbar Layer box moves every map at once; drawing the hidden tabs (a Matplotlib figure each) made a layer change in the editor about 30 times
+             slower (0.004 to 0.11 s on the example board at 1 mm), so a hidden tab is drawn by its showEvent instead.
+    @param widget The tab (QWidget).
+    @param redraw Callable that draws the tab.
+    """
+    # Visible to its window: the current page of every tab widget above it (also before the window is first shown, and a tab without a parent)
+    if widget.window() is widget or widget.isVisibleTo(widget.window()):
+        widget._redraw_pending = False
+        redraw()
+    else:
+        widget._redraw_pending = True
+
+
+def redraw_pending(widget, redraw):
+    """!
+    @brief Draw a tab whose redraw was left for the moment it is shown.
+    @param widget The tab (QWidget).
+    @param redraw Callable that draws the tab.
+    """
+    if getattr(widget, "_redraw_pending", False):
+        widget._redraw_pending = False
+        redraw()
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -279,7 +306,15 @@ class PlotTab(QWidget):
         value = int(value)
         if value != self.layer_value:
             self.layer_value = value
-            self.redraw()
+            redraw_when_shown(self, self.redraw)
+
+    def showEvent(self, e):
+        """!
+        @brief Draw the figure that a layer change left pending while the tab was hidden.
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        redraw_pending(self, self.redraw)
 
     def _layer_index(self):
         """!
