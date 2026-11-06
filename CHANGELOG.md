@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+- **3D solid: slabs by thickness and the face term** (`feature/solid3d-slabs-by-thickness`, from `research/laminate-2-6` item C; **moves numbers on purpose**, reviewer pending): each dielectric gap of the 3D solid is cut into `ceil(d / 0.2 mm)` slabs, at least 4 and at most 16 (before: always 4), and a part over absent copper on an outer layer reads its face value (the half layer of laminate between its node and its face, the same term as the FVM and FDM). A 2 mm part reads, against the reference, +5.5 -> +4.1 % (bare, 1.6 mm), +20.0 -> +3.9 % (bare, 3.2 mm), +14.7 -> +9.0 % and +27.3 -> +7.9 % over a pad; the two-layer 1.6 mm board has 10 slabs instead of 6 (1.67 times the unknowns), a 3.2 mm board 18, the four-layer template 18 instead of 16, boards of 6 to 10 layers no change; the memory estimate stays above the measured peak (0.65 to 0.97). Moved frozen records: 39 solid records of 14 harness boards (hottest temperature -0.0006 to -0.72 K; `hatched_copper` part +1.2 K from the face term; two records at 0.5 mm go over the harness cap), held in `tests/regression/data/pending/laminate-solid.json`. The warning for a small part now compares `d / n` of the solid with the side and fires for parts under about 1.3 mm (text with the new measured errors). `solid3d.solve_steady(n_diel=...)` keeps its old meaning for an integer; `None` is the rule. `docs/validation.md` 21.3.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
