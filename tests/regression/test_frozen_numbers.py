@@ -116,6 +116,9 @@ def with_pending(data):
         if pend.get("base_version") != data["version"]:
             continue
         out["records"].update(pend.get("records", {}))
+        for k, reason in pend.get("skipped", {}).items():       # A record the change pushed over the size cap of the harness: now skipped, no longer run
+            out["records"].pop(k, None)
+            out["skipped"][k] = reason
         out["transients"].update(pend.get("transients", {}))
         out["pending"].append(path.name)
     return out
@@ -170,6 +173,7 @@ def test_pending_shifts_belong_to_the_frozen_release():
                                                              f"{data['version']}: fold it into the refreeze of the release and delete it")
         assert pend.get("item") and pend.get("branch") and pend.get("why"), f"{path.name}: the item, the branch and the reason are required"
         assert set(pend.get("records", {})) <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
+        assert set(pend.get("skipped", {})) <= set(data["records"]), f"{path.name}: skipped records that are not in {FROZEN_FILE.name}"
         assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
 
 
