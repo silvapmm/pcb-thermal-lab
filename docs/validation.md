@@ -1325,3 +1325,90 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
 
 **Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
+
+## 31. The star coupling of the via: before and after
+
+The via of the FVM and FDM is a star (theory 2.6): the barrel of each layer is a node reached from the cells of the footprint through `g_a = c S w_a` (weights by sheet conductance), the barrel nodes eliminated. `feature/via-star-coupling` implements variant (c) of `research/via-partial-copper` (README 5, 9.4); the sections above that say "mean-potential via" describe the program up to 2.5.1 and keep their numbers. Everything below is `research/via-star-coupling/scripts/study_star_before_after.py` run on the tree before (`29030c9`) and after, the 3D values being those tabulated in `research/via-partial-copper` README 3 and 9.2 (the 3D solid at 1/20 mm; not re-run, except the array, `study_array_reference.py`).
+
+### 31.1 The matrix and the cold spot
+
+| | before | after |
+| :-- | --: | --: |
+| positive off-diagonal entries of K, example board, FVM / FDM at 1 mm | 16 / 64 | 0 / 0 |
+| the same at 0.5 mm | 144 / 432 | 0 / 0 |
+| 10 x 10 array of 0.3 mm vias (60 mm board), FVM at 2 / 1 / 0.5 / 0.25 mm | 96 / 128 / 832 / 3104 | 0 |
+| board of theory 2.2, FVM at 1 / 0.5 / 0.25 / 0.125 mm | 10 / 10 / 10 / 202 | 0 |
+| cold spot of that board, FVM, K | 0.00 / -7.94 / -14.43 / -14.33 | 0.00 at every cell |
+
+`tests/test_maximum_principle.py` loses its expected failure (the cold spot at 0.5 and 0.25 mm) and now asserts zero positive entries. Dense block of a via: symmetric, zero row sums, positive semidefinite, no positive entry (`tests/test_via_star.py`; the FDM matrix has no positive entry either). SuperLU's symmetric mode is kept with no fallback; direct, CG and the block SOR agree to 3e-11 K (documented board at 0.5 mm, example board at 1 mm).
+
+### 31.2 Via effect (rise without the vias minus rise with them)
+
+Board of theory 2.2 (30 x 30 mm, K): the 3D solid has not converged there (0.70, 2.86, 7.20, 10.74 K from 1 to 0.125 mm), so this is a test of the dependence on the cell, not of accuracy.
+
+| | 1 mm | 0.5 mm | 0.25 mm | 0.125 mm |
+| :-- | --: | --: | --: | --: |
+| FVM before | 6.41 | 7.31 | 7.67 | 8.28 |
+| FVM after | 13.68 | 13.06 | 12.63 | 12.54 |
+| FDM before | 8.93 | 10.69 | 11.06 | 11.36 |
+| FDM after | 8.93 | 10.90 | 11.49 | 11.96 |
+
+Ten by ten mm boards (FVM, error against the 3D solid at 1/20 mm; the copper edge through the via has two references, 7.39 K for the smeared barrel of the 3D solid and 8.71 K with the barrel's square covered, research README 9.2):
+
+| case (3D, K) | 1 mm before / after | 0.5 mm before / after | 0.25 mm before / after |
+| :-- | --: | --: | --: |
+| copper edge through the via (7.39) | -47 % / +32 % | -41 % / +14 % | -37 % / +7 % |
+| copper edge 0.3 mm past the via (8.86) | -32 % / -26 % | -17 % / -16 % | -19 % / -18 % |
+| copper edge 0.3 mm before the via, bare (0.94) | +320 % / +826 % | +291 % / +641 % | +59 % / +94 % |
+| track 0.4 mm (22.62) | -68 % / -33 % | -58 % / -26 % | -58 % / -34 % |
+| track 1.0 mm (25.80) | -62 % / -16 % | -52 % / -11 % | -49 % / -19 % |
+| island 1.2 mm (38.79) | -66 % / -66 % | -64 % / -64 % | -51 % / -51 % |
+| part on bare laminate over half the via (9.81) | -21 % / +1 % | +56 % / +119 % | -34 % / -16 % |
+
+The star fixes the copper edge through the via and the tracks (the cases of the Planned item), leaves the island and the edge past the via where they were (they are not footprint-weight problems), and **reads a via on bare laminate just outside a copper edge two to nine times too high** at 0.5 mm and coarser (the cell fill puts copper on the via; the program already read it 3 to 4 times high, research README 5.2): that case is worse than before, which is why the warning stays (31.6). That via has a small effect (1 K against the 7 to 25 K of the others), so the absolute error is 2.5 to 7 K.
+
+Dense array (16 mm, four layers, 3 W on an 8 mm part, 10 x 10 copper-filled vias at 0.8 mm pitch, `study_array_reference.py`; 3D solid 50.31 K at 0.2 mm, 50.39 K at 0.1 mm):
+
+| | 1 mm | 0.5 mm | 0.25 mm |
+| :-- | --: | --: | --: |
+| FVM before | 49.80 (-1.2 %) | 50.27 (-0.2 %) | 50.22 (-0.3 %) |
+| FVM after | 50.25 (-0.3 %) | 50.77 (+0.8 %) | 50.56 (+0.3 %) |
+| FDM before | 50.75 | 49.74 | 50.13 |
+| FDM after | 51.17 | 50.38 | 50.62 |
+
+On the 60 mm board of `tests/test_maximum_principle.py` (no resolved reference) the FVM via effect goes from 16.36 / 16.47 / 16.79 / 16.71 K to 18.37 / 17.34 / 17.76 / 17.44 K at 2 / 1 / 0.5 / 0.25 mm: +4 to +12 % in the effect, 1 to 2 % of the rise; the spread from 1 to 0.25 mm is 0.32 K before and 0.42 K after.
+
+### 31.3 Convergence in the cell, copper fill, edge image
+
+* Copper-fill gain of the 3 x 3 board (resolved -4.51 K): FVM at 1 / 0.5 / 0.25 / 0.125 mm -4.468 / -4.454 / -4.488 / -4.489 K (before -4.500 / -4.466 / -4.492 / -4.49); FDM -4.415 / -4.499 / -4.481 / -4.487 K (before -4.42 / -4.51 / -4.49 / -4.49). All within 0.06 K of the reference.
+* Periodic unit cell of a via lattice (3.5 mm pitch, no convection, 1 W): the effect is 329.57 / 329.56 / 329.56 K at pitch/20, /35, /70 (before 329.57 / 329.57 / 329.58) and 29.87 / 29.88 / 29.88 K for the 8 mm pitch (before 29.87 / 29.88 / 29.88). This is the test of the calibration: a first version of the root finder that capped the star conductance wrongly gave +1.2 % and +5.2 % at pitch/70.
+* Example board, maximum temperature, FVM at 2 / 1 / 0.5 / 0.25 mm: 85.07 / 85.23 / 85.02 / 85.09 °C (before 85.07 / 85.23 / 85.18 / 85.16); FDM 84.26 / 84.67 / 85.04 / 85.06 (before 84.27 / 85.13 / 85.12 / 85.13). The FDM at 1 mm moves -0.45 K, away from its finer values.
+* Edge image (section 28): the image enters as a matrix over the footprint cells (`viawell.edge_kernel`); the sweep of 28 (distances 0.16 to 2 mm, insulated, 1 to 0.25 mm) gives the errors of before to within 0.4 points (all within 1 %), the corner within 1 %. With only the number `edge_term`, as the mean-potential well used, the star gave +4.5 % (corner 0.3 mm at 0.5 mm) and +1.8 % (edge 0.16 mm at 0.25 mm), because the star's flux does not follow the weights. **One limit is worse**: a via 0.26 mm from the reflex corner of an inverted T or an L (no wall imaged) reads +4.1 % and +4.7 % at 0.5 mm (before -0.4 and +1.0 %), then -2.3 and -2.0 % at 0.25 mm and -0.4 and -0.6 % at 0.125 mm: it converges, with a wobble from the grid at the corner (`tests/test_via_edge_image.py`, budgets 5.0 and 5.5 %).
+
+### 31.4 Frozen numbers
+
+`tests/regression/data/pending/via-star-coupling.json` (the 2.5.0 file is not edited): 21 of the 30 FVM and FDM records of the five boards with vias move (and 4 of the 10 times to 63 %); at 2 mm, where most footprints are one cell, the shift is 0.0007 to 0.05 K, and the plates with vias are unchanged at 2 and 1 mm. In K (and per cent of the rise over 25 °C):
+
+| board, model | 2 mm | 1 mm | 0.5 mm |
+| :-- | --: | --: | --: |
+| example board, FVM | -0.001 (0.00 %) | -0.003 (0.00 %) | -0.158 (-0.26 %) |
+| example board, FDM | -0.005 | -0.455 (-0.76 %) | -0.078 (-0.13 %) |
+| example cut to a T, FVM | -0.051 (-0.07 %) | -0.030 | -0.163 (-0.23 %) |
+| example cut to a T, FDM | -0.027 | -0.440 (-0.64 %) | -0.081 |
+| plate with 9 vias, FVM | 0.000 | 0.000 | -0.385 (-0.35 %) |
+| plate with 9 vias, FDM | 0.000 | 0.000 | -0.732 (-0.66 %) |
+| plate with one via | 0.000 | 0.000 | 0.000 (FDM +0.003) |
+
+The profile board (a twin of the example) moves like it. Times to 63 % (the step response): U1 of the example, FDM, 11.277 to 11.253 s (-0.22 %); U1 of the T, FVM 15.995 to 16.020 s (+0.16 %), FDM 16.703 to 16.726 s (+0.14 %); the other parts under 0.1 %. The cause of every shift is this change: the vias of those boards have footprints of several cells at 1 and 0.5 mm, where the star differs from the mean; at 2 mm, for a lone via and for a plate whose vias fill one cell, the two couplings are equal.
+
+Windows of a real board (CO60 with its plated holes as vias, `study_real_windows.py`, FVM maximum rise before / after): 40 mm, full copper 97.93 / 97.54 K (1 mm) and 98.05 / 97.69 K (0.5 mm); 40 mm stripes 322.75 / 318.37 and 318.65 / 315.35 K; 80 mm full 47.29 / 46.76 and 47.27 / 46.78 K; 80 mm stripes 165.05 / 163.81 and 162.14 / 160.88 K. The shifts are -0.4 to -4.4 K (-0.4 to -1.4 %), always cooler; the positive entries of K go from 260 to 13 490 to 0.
+
+### 31.5 Cost
+
+* Building the network (8500 random vias, 0.5 mm, 120 x 80 mm): 3.1 s against 2.8 s; a lone via 2.5 ms against 1.9 ms; 100 vias in an array 0.11 s against 0.10 s. The calibration is one eigendecomposition of the footprint plus a root find on a sum, cached by footprint shape (`viawell._STAR_CACHE`).
+* K has the same number of non-zeros (1 816 976 for the 8500-via board, 2 498 560 for the array: the dense block spans the same cells) and the solve takes the same time (2.0 s, 6.1 s).
+* Peak memory of the direct solve (`research/memory-guard/scripts/study_via_law.py`, one child process per case, FVM, 0.5 mm): 150 mm plate, 2 and 4 layers, 0 to 400 vias, 0.53 to 0.55 and 1.49 to 1.60 GB, equal to the tree before to the printed digit; with copper stripes 1.99 to 2.12 and 5.74 to 5.92 GB, equal; the CO60 board with its 769 holes 0.67 GB (0.66 before), without 0.62 (0.61); windows 0.10 to 0.57 GB (before 0.10 to 0.54). `memory.via_gain` (0.10) is not refitted.
+
+### 31.6 What the star leaves, and the warning
+
+The warning "N of M vias have copper over only part of their footprint" stays, with the text re-measured: it fires on the copper-edge, track and bare cases, where the star still reads -34 to +32 % (edge, tracks) or two to nine times high (a via on bare laminate just outside a copper edge at 0.5 mm and coarser), and it no longer says that the FVM shows a cold spot. The island (-40 to -66 %) and the copper edge just past the via (-16 to -26 %) are not footprint-weight cases and the rule does not fire on them. Not verified: a physical board; a resolved 3D reference of the documented 30 mm board (needs more than 3 GB below 0.125 mm); the Gerber windows of `research/gerber-real-boards` beyond the CO60 windows above; the FDM next to a board edge (the image is the FVM's).

@@ -40,10 +40,14 @@ def solve(problem, cell, model="fvm"):
     return net, theta, res
 
 
-def test_the_program_has_the_cold_spot_on_the_documented_board():
+def test_the_program_no_longer_has_the_cold_spot_on_the_documented_board():
+    """!
+    @brief The cold spot of this investigation (-7.94 K at 0.5 mm with the mean-potential via of 2.5.1) is gone with the star coupling of the program (feature/via-star-coupling).
+    @return None.
+    """
     problem = copper_edge_board()
     net, theta, _ = solve(problem, 0.5)
-    assert cold_spot(problem, net, theta) < -5.0                    # -7.94 K at 0.5 mm in the research run
+    assert cold_spot(problem, net, theta) >= -1e-9 * theta.max()
 
 
 @pytest.mark.parametrize("variant", ["sheet", "plane", "star"])

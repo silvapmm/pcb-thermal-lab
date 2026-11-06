@@ -79,7 +79,7 @@ Version 2.5.0 (2026-11-05) adds the **import of Gerber boards** (File - Import G
 
 * **First version of the Gerber import and of the imported copper**: they were checked against independent references and on real sets of files from open boards, **not against a measured board**.
 * **Project format 2**: a project with an imported board opens as an error ("Cannot open file") in 2.4.x, which never overwrites it; projects without imports are unchanged.
-* **Known limits**: a numerical cold spot under a via whose plane has copper over only part of the footprint (warned), the Analytic time simulation with a heatsink (warned, fix planned), convection laws not compared with a measured board, and the Lumped and Analytic models that cannot read imported copper well (they warn).
+* **Known limits**: the via effect misread by tens of percent where a plane has copper over only part of the via footprint (warned), the Analytic time simulation with a heatsink (warned, fix planned), convection laws not compared with a measured board, and the Lumped and Analytic models that cannot read imported copper well (they warn).
 
 ## Which model should I use?
 

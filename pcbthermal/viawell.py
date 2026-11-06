@@ -776,12 +776,30 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
 def matrix_entries(blocks, idx):
     """!
     @brief COO entries of the via couplings: the dense star coupling M of every via over its (layer, cell) unknowns.
+    @details A block that is a plain tuple (rows, cols, w, G), the form of the earlier mean-potential treatment, is still accepted and gets that treatment's entries
+             G[l, m] u u^T with u = e_l (x) w - e_m (x) w: the research libraries that rebuild the earlier coupling (research/via-edge-image, research/via-partial-copper)
+             patch `build` and hand such blocks to this function. `build` itself returns `Block` objects only.
     @param blocks List from `build`.
     @param idx Index array (layers, ny, nx) of the unknowns.
     @return Tuple (rows, cols, vals) of lists of arrays, ready to extend the lists of the assembly.
     """
     rows, cols, vals = [], [], []
     for bl in blocks:
+        if not isinstance(bl, Block):
+            ci, cj, w, G = bl
+            ww = np.outer(w, w).ravel()
+            n = len(w)
+            for l in range(G.shape[0]):
+                for m in range(l + 1, G.shape[0]):
+                    g = G[l, m]
+                    if g <= 0:
+                        continue
+                    a, a2 = np.repeat(idx[l, ci, cj], n), np.tile(idx[l, ci, cj], n)
+                    bb, b2 = np.repeat(idx[m, ci, cj], n), np.tile(idx[m, ci, cj], n)
+                    rows.extend([a, bb, a, bb])
+                    cols.extend([a2, b2, b2, a2])
+                    vals.extend([g * ww, g * ww, -g * ww, -g * ww])
+            continue
         flat = bl.flat(idx)
         n = len(flat)
         rows.append(np.repeat(flat, n))
@@ -795,12 +813,12 @@ def unknown_blocks(blocks, idx, n_layers):
     @brief Flat unknown indices of the (layer, cell) pairs of every via, vias that share an unknown merged: the blocks of the block SOR.
     @param blocks List from `build`.
     @param idx Index array (layers, ny, nx) of the unknowns.
-    @param n_layers Number of board layers the vias join (unused: a block holds the pairs the via couples).
+    @param n_layers Number of board layers the vias join (used only for a legacy tuple block, which holds the cells of every layer).
     @return List of sorted integer arrays.
     """
     merged = []
     for bl in blocks:
-        s = set(bl.flat(idx).tolist())
+        s = set(bl.flat(idx).tolist()) if isinstance(bl, Block) else set(idx[:n_layers, bl[0], bl[1]].ravel().tolist())
         for other in [m for m in merged if m & s]:
             s |= other
             merged.remove(other)

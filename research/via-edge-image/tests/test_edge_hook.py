@@ -12,6 +12,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 import paths  # noqa: E402,F401
@@ -82,6 +83,7 @@ def test_mirror_term_of_the_nearest_via_is_positive():
     assert 1.0 < c < 1.6
 
 
+@pytest.mark.skip(reason="obsolete by design: the program's via is the star coupling since feature/via-star-coupling, the hook patches the mean-potential via of 2.5.1")
 def test_no_wall_no_change():
     """!
     @brief A via far from every wall: the patched build gives the program's blocks bit for bit.
@@ -97,6 +99,7 @@ def test_no_wall_no_change():
     assert a == b
 
 
+@pytest.mark.skip(reason="obsolete by design: the program's via is the star coupling since feature/via-star-coupling, the hook patches the mean-potential via of 2.5.1")
 def test_mirror_removes_the_excess_at_the_nearest_via():
     """!
     @brief The via effect of the via 0.16 mm from the edge on 1 mm cells: the program without its image is about 14 % high, the mirror prototype and the
