@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.5.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2416%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.5.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2416%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -68,6 +68,10 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+
+## What is new in 2.5.1
+
+Version 2.5.1 (2026-11-06) is a fixes and display release. The map on the board and the colour map of every map are controlled from one **Display** panel (and a **Map** button), the Results maps have the views Smooth and Terrain and an underlay (copper or the background image), imported copper is drawn at up to 4096 pixels, a **re-import** of Gerber files keeps the settings and the work of the first import, a project file with a wrong value gives a clear message instead of a traceback, big board outlines open at once, the memory estimate no longer depends on the earlier runs of the session, warnings name the control of the front end in use, and the Results plots have their own toolbar icons. No model or solver changes; the frozen numbers of 2.5.0 hold. The list is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What is new in 2.5.0
 
@@ -154,6 +158,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
 - **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.5** (2026-11-01): fixes only: vias converge with the cell in the FVM and FDM and are coupled in the SOR, the Lumped and Analytic models carry the constriction of the heat on a via, laminate nodes for patterned copper, a part across the board outline is weighted by its intersection, one factorisation for the top-path split, the SOR relaxation factor, and warnings of the limits of the models. Details in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.4** (2026-10-29): the Simulation footer stays in sight on a low window, a decimal comma pasted from the right-click menu is read as a point, and the warning for plate fins that are too close is now a check after the run on the channel Rayleigh number, with a text that follows the orientation of the board; no result changes.
