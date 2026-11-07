@@ -321,7 +321,10 @@ def signed_distance_to_outline(poly, x, y):
         tt = np.clip(((x[i] - a[:, 0]) * ab[:, 0] + (y[i] - a[:, 1]) * ab[:, 1]) / np.maximum(seg_len ** 2, 1e-300), 0.0, 1.0)
         dd = np.hypot(x[i] - a[:, 0] - tt * ab[:, 0], y[i] - a[:, 1] - tt * ab[:, 1])
         j = int(dd.argmin())
-        dist[i], piece_best[i], t_best[i] = dd[j], first_piece[j], tt[j]
+        # The piece and the parameter within it of the nearest point, so that the vertex test below sees an end of the segment (the first piece with
+        # the parameter of the whole segment hid the far end: a point nearest to a vertex then got the side of one segment, wrong near a corner)
+        kp = int(min(max(np.floor(tt[j] * parts[j]), 0), parts[j] - 1))
+        dist[i], piece_best[i], t_best[i] = dd[j], first_piece[j] + kp, tt[j] * parts[j] - kp
     # Side of the nearest segment: the left of the direction a -> b is the inside of a counter-clockwise polygon
     orient = 1.0 if polygon_area_signed(p) >= 0 else -1.0
     sg = seg_of[piece_best]

@@ -134,6 +134,28 @@ def test_signed_distance_of_a_square_a_disc_and_a_reflex_corner():
     assert d == pytest.approx(np.array([-5, 1, 2, math.sqrt(0.5), -0.5]) * 1e-3, abs=1e-12)
 
 
+def test_signed_distance_at_the_cell_centres_of_a_star_matches_brute_force():
+    # Review: a point that the k-d tree could not certify was measured against every segment, but the piece kept for the sign test was the FIRST piece of the
+    # nearest segment with the parameter of the whole segment, so a point nearest to the FAR end vertex got the side of one segment (sign wrong near a corner:
+    # 19 of 337 132 near-outline cell centres of 300 random stars, this star among them). Reference: brute force over every segment, sign by matplotlib's Path
+    from matplotlib.path import Path
+    n, r0, r1, cx, cy, rot = 3, 0.006720031718062405, 0.013878982435167365, 0.016640278083253912, 0.015507510389524066, 3.0363671972868103
+    t = np.linspace(0, 2 * np.pi, 2 * n, endpoint=False) + rot
+    r = np.where(np.arange(2 * n) % 2 == 0, r1, r0)
+    p = np.column_stack([cx + r * np.cos(t), cy + r * np.sin(t)])
+    for cell in (1e-3, 0.5e-3, 0.25e-3):
+        cc = (np.arange(int(round(32e-3 / cell))) + 0.5) * cell
+        X, Y = np.meshgrid(cc, cc)
+        x, y = X.ravel(), Y.ravel()
+        a, b = p, np.roll(p, -1, axis=0)
+        ab = b - a
+        tt = np.clip(((x[:, None] - a[:, 0]) * ab[:, 0] + (y[:, None] - a[:, 1]) * ab[:, 1]) / (ab ** 2).sum(axis=1), 0, 1)
+        ref = np.hypot(x[:, None] - a[:, 0] - tt * ab[:, 0], y[:, None] - a[:, 1] - tt * ab[:, 1]).min(axis=1)
+        ref = np.where(Path(p).contains_points(np.column_stack([x, y])), ref, -ref)
+        near = np.abs(ref) < 0.75 * cell                          # the cells that carry an edge
+        assert signed_distance_to_outline(p, x[near], y[near]) == pytest.approx(ref[near], abs=1e-12)
+
+
 def rectangle_problem(h_side, with_outline, cell=1.0):
     """!
     @brief A 20 x 16 mm two-layer board with a 2 W part, as a rectangle or as the same rectangle drawn as an outline.
@@ -453,6 +475,13 @@ def test_imported_copper_on_a_board_with_an_outline_keeps_the_earlier_treatment_
     assert fvm.Network(q, 20, 20).cut_cells_note is None
     assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(q, "fvm")
     assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(p, "fdm")
+    # Review: an imported outline that is the whole box (6 of 17 real Gerber outlines tried) cuts no cell: no note (it fired on every imported outline)
+    q.set_outline([[0, 0], [10, 0], [10, 10], [0, 10]])
+    assert not copper.outline_cuts_cells(q.board) and copper.outline_cuts_cells(p.board)
+    assert fvm.Network(q, 20, 20).cut_cells_note is None
+    assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(q, "fvm")
+    # the text the user reads names no branch or internal function
+    assert not any(w in copper.CUT_CELLS_IMPORTED_NOTE for w in ("fix/", "research/", "aperture", "earlier", "_"))
 
 
 def test_the_lumped_model_builds_its_network_without_the_series_term(monkeypatch):

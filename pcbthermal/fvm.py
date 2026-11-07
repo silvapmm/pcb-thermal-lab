@@ -218,7 +218,8 @@ class Network:
         self.cut_edge = bool(cut_cells)
         self.cut_links = bool(cut_cells) and b.has_outline()
         if cut_cells and b.has_outline() and self.copper is not None:
-            self.cut_cells_note = copper.CUT_CELLS_IMPORTED_NOTE
+            # (no note when the outline is the whole box: no cell is cut, only the half-cell series term of the border film is left out)
+            self.cut_cells_note = copper.CUT_CELLS_IMPORTED_NOTE if copper.outline_cuts_cells(b) else None
             self.cut_edge = self.cut_links = False
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
