@@ -48,7 +48,7 @@ import numpy as np
 from scipy.optimize import brentq
 from scipy.special import k0
 
-from . import blocks, copper, laminate, viaconstriction
+from . import blocks, copper, laminate, viaconstriction, viawell
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
@@ -309,7 +309,7 @@ def _effective_sheet(problem, cell_mm):
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @return Dict with b, m (board and materials), W, H, L, slab, nx, ny, dx, dy, xs, ys, tc, power, warnings,
-            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), h_eff, d_diel and g_diel.
+            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), h_eff, d_diel, d_barrel (barrel length of a via over each gap) and g_diel.
     """
     problem.validate()
     b = problem.board
@@ -337,6 +337,7 @@ def _effective_sheet(problem, cell_mm):
     h_edge = (b.h_side or 0.0) * perimeter * slab / (W * H)
     h_tot = float(b.h_top + b.h_bottom + h_edge.sum())
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
+    d_barrel = viawell.barrel_length(b, d_diel)                           # (L-1,) barrel length of a via over each gap (gap plus half the copper)
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
     fill_mean = fill_map.mean(axis=(1, 2))
     S_mean = fill_mean * m.k_copper * tc + k_lam * (slab - fill_mean * tc)
@@ -393,7 +394,7 @@ def _effective_sheet(problem, cell_mm):
             "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
-            "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "h_eff": h_eff, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
+            "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "h_eff": h_eff, "d_diel": d_diel, "d_barrel": d_barrel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
 
 
 def _heater_unit_sources(problem, bx, by):
@@ -508,7 +509,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         for s in problem.heatsinks:
             h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
         if L > 1:
-            g += m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / d_diel
+            g += m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_barrel"]
 
     # --- Modal coefficients of the heaters, one vector entry per layer (the basis has the convective edge in it: beta = 0 is the cosine basis)
     M = N = n_terms
@@ -545,7 +546,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
             (ntx, nty, tw, th), via_weights = via_plan["grid"], via_plan["weights"]
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
         for iv, v in enumerate(problem.vias if vs is not None else []):
-            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / sh["d_barrel"]
             for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
                 c_via[row, col] += w * cond
         g_heatsink = np.zeros((L, nty, ntx))
@@ -667,7 +668,7 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"].copy()
     if L > 1:
-        g += via_scale * m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_diel"]
+        g += via_scale * m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_barrel"]
     bx, by = _bases(sh, n_terms)                              # The edge is in the basis (beta = 0: the cosines)
     k2 = bx.eig2[:, None] + by.eig2[None, :]
     A = np.zeros((M, N, L, L))

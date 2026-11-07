@@ -19,6 +19,10 @@ symmetric, positive semidefinite, with zero row sum from the via.
 * Sheet conductance of the well: that of the cell with the largest weight, per unit of board (the cover factor of the cell is divided out).
 
 The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings and research/via-real-board.
+* Barrel length: the barrel conductance over a gap is k_cu A / (d + a t_bar), a = BARREL_COPPER_FRACTION = 0.5, t_bar the mean copper thickness of the two layers
+  (`barrel_length`; the same length is used by the Lumped and Analytic models and not by the 3D solid, which draws the barrel through its copper slabs).
+* Contact: a layer whose zones touch none of the rim of the drill is left uncoupled, a rim partly on copper scales the well by the share (`rim_copper_shares`);
+  a via at the corner of a copper region is NOT solved (the footprint was tuned for a full plane): it reads too hot, see checks.partial_copper_vias.
 * Edge image (FVM only): the lattice kernel has no image of a board edge, and the footprint sits at cell centres, not at the via, so a via within about one cell
   of a straight edge saw the image of the edge at the wrong distance (the via effect read +14.5 % high at 1 mm for a via 0.16 mm from the edge). The well
   gets the term c = sum over the walls [ln D_lat - ln D_true] (D_true = 2 max(distance, r_via) the distance to the mirror image of the via, D_lat the lattice
@@ -34,7 +38,7 @@ import math
 
 import numpy as np
 
-from .geometry import cell_index_of_point
+from .geometry import cell_index_of_point, points_in_polygon
 
 EULER_GAMMA = 0.5772156649015329
 KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi        # asymptotic constant of the potential kernel of the five-point stencil
@@ -42,6 +46,8 @@ TARGET_RATIO = math.exp(-0.25)                                      # r_t / r_vi
 POINT_SINK_RADIUS = math.exp(-math.pi * KAPPA / 2.0)               # equivalent radius of a point sink on the lattice, in cells (0.1985: the exact infinite-lattice value; Peaceman's radial argument gives exp(-pi/2) = 0.2079, Ibraguimov 2022, Theorem 1)
 EDGE_REACH_CELLS = 6.0                                              # a wall counts when its distance from the via centre is at most this many cells
 EDGE_GUARD_CELLS = 0.6                                              # no image when a reflex vertex, a slanted or a short side is nearer than this many cells (image_walls)
+BARREL_COPPER_FRACTION = 0.5                                        # extra barrel length per gap in units of the mean copper thickness of the two layers around it (docs/theory.md 2.6)
+RIM_SAMPLES = 48                                                    # samples on the rim of the drill for the contact test (a multiple of 4, offset by half a step so that none lies on an axis-parallel copper edge through the centre)
 SAMPLES = 24                                                        # samples per cell side for the area of the disc
 
 
@@ -468,9 +474,67 @@ def kron_barrel(g_gap, g_well):
         link(n + k, n + k + 1, g_gap[k])
     Yss, Ysb, Ybb = Y[:n, :n], Y[:n, n:], Y[n:, n:]
     G = -(Yss - Ysb @ np.linalg.solve(Ybb + 1e-300 * np.eye(n), Ysb.T))
+    G = 0.5 * (G + G.T)                                               # the solve is symmetric only to rounding; the matrix K must be so exactly
     np.fill_diagonal(G, 0.0)
     G[G < 1e-14 * max(float(G.max()), 1e-300)] = 0.0                  # rounding of the elimination
     return G
+
+
+def barrel_length(board, d):
+    """!
+    @brief Length of the via barrel over every gap, the dielectric gap plus half the mean copper thickness of the two layers around it.
+    @param board The Board (only its copper thicknesses are read).
+    @param d Gap thicknesses in m, shape (L-1,).
+    @return numpy.ndarray (L-1,) of d + BARREL_COPPER_FRACTION * (t_l + t_{l+1}) / 2 in m. The copper nodes sit at the mid-planes of the layers, so the dielectric gap alone
+            leaves out the barrel inside the copper; the plane around it shunts that part, which the measured fraction accounts for (research/via-contact-geometry).
+    """
+    d = np.asarray(d, dtype=float)
+    t = np.asarray(board.copper_thickness, dtype=float)
+    if len(t) != len(d) + 1:
+        return d
+    return d + BARREL_COPPER_FRACTION * 0.5 * (t[:-1] + t[1:])
+
+
+def rim_copper_shares(problem, v, n_layers, zone_index):
+    """!
+    @brief Share of the rim of the drill of a via that lies on copper, per layer.
+    @param problem The Problem (imported copper counts as full contact: the masks are not read here).
+    @param v The Via.
+    @param n_layers Number of layers L.
+    @param zone_index List per layer of (polygon, xmin, xmax, ymin, ymax) of the zones with fill above zero (see `_zone_index`).
+    @return list of L floats in [0, 1]; 0 means that the barrel touches no copper on that layer.
+    """
+    if problem.imported is not None:
+        return [1.0] * n_layers
+    ang = (np.arange(RIM_SAMPLES) + 0.5) * 2.0 * math.pi / RIM_SAMPLES
+    r = v.diameter / 2.0
+    px, py = v.x + r * np.cos(ang), v.y + r * np.sin(ang)
+    out = []
+    for l in range(n_layers):
+        covered = np.zeros(RIM_SAMPLES, dtype=bool)
+        for poly, x0, x1, y0, y1 in zone_index[l]:
+            if v.x + r < x0 or v.x - r > x1 or v.y + r < y0 or v.y - r > y1:
+                continue                                              # the rim is outside the box of the zone
+            covered |= points_in_polygon(px, py, poly)
+            if covered.all():
+                break
+        out.append(float(covered.mean()))
+    return out
+
+
+def _zone_index(problem, n_layers):
+    """!
+    @brief Zones of every layer with their bounding boxes, for the rim test.
+    @param problem The Problem.
+    @param n_layers Number of layers L.
+    @return list per layer of (polygon array, xmin, xmax, ymin, ymax) in m; zones with no copper (fill 0) are left out.
+    """
+    index = [[] for _ in range(n_layers)]
+    for z in problem.zones:
+        if 0 <= z.layer < n_layers and z.fill > 0.0:
+            p = np.asarray(z.polygon, dtype=float)
+            index[z.layer].append((p, p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()))
+    return index
 
 
 def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
@@ -499,12 +563,14 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     blocks = []
     gz_via = np.zeros((L - 1, ny, nx))
     oy = origin * dy / dx                      # lower y edge of row 0 (-dy/2 for the FDM nodes)
+    d_barrel = barrel_length(b, d)             # the barrel is longer than the gap by half the copper thickness (BARREL_COPPER_FRACTION)
+    zone_index = _zone_index(problem, L) if problem.vias else None
     for v, share in zip(problem.vias, problem.via_board_shares()):
         if share <= 0.0:
             # The drill disc is off the board (the geometric test of checks.check_problem and of the Lumped and Analytic runs): the via conducts nothing,
             # also when it falls in a cut cell whose board part does not reach it (a cover test alone kept it there, 0.15 to 0.22 K on a small T)
             continue
-        gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d                # barrel conductance of every gap (W/K)
+        gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d_barrel         # barrel conductance of every gap (W/K)
         w, r_eff, r_t = footprint(v.x, v.y, v.diameter / 2.0, dx, origin, cover, dy, oy)
         if not w:
             # No cell of the board under the drill disc: the via conducts nothing. (It used to be moved onto the nearest board cell at the full barrel
@@ -533,7 +599,17 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
                     s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
                 else:
                     c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
+        shares = rim_copper_shares(problem, v, L, zone_index)
+        if min(shares) < 1.0:
+            # The rim is partly or not at all on copper: the sheet conductance of the well is the footprint mean (weights w) of that of the cells, not that of the heaviest cell
+            # (which can be a bare one or a copper one by the side of the barrel); a footprint with copper on its whole rim keeps the earlier value, bit for bit
+            s_cell = [sum(wk * float(S[l, k[0], k[1]]) / float(cover[k[0], k[1]]) for k, wk in w.items()) for l in range(L)]
         g_well = [well_conductance(s_cell[l], r_eff, r_t, c) if s_cell[l] > 0 else 0.0 for l in range(L)]
+        # Contact: a layer whose copper does not touch the rim of the drill is not joined to the barrel (the lattice of the footprint would otherwise carry heat
+        # into a plane the barrel never reaches); a rim partly on copper scales the well by the share. Full contact leaves the well as it was (bit for bit).
+        for l, f in enumerate(shares):
+            if f < 1.0:
+                g_well[l] = 0.0 if f <= 0.0 else g_well[l] * f
         keys = list(w)
         blocks.append((np.array([k[0] for k in keys]), np.array([k[1] for k in keys]), np.array([w[k] for k in keys]), kron_barrel(gv, g_well)))
     return blocks, gz_via
