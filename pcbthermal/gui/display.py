@@ -49,6 +49,7 @@ class DisplayState(QObject):
         self.image = None                               # plots.UnderlayImage of the project, or None
         self.cache = {}                                 # {layer: copper picture, "image": picture}: valid for one problem and one image
         self.imported, self.has_image = False, False
+        self.user_set = False                           # True once the user chose an entry: the default for an imported project (Copper) no longer applies
 
     def entries(self):
         """!
@@ -77,6 +78,9 @@ class DisplayState(QObject):
         self.imported, self.has_image = bool(imported), img is not None
         if self.kind not in [k for _l, k in self.entries()]:
             self.kind = "none"
+        # A project from Gerber files starts with its copper under the map; a choice made by the user stays, None included
+        if self.imported and not self.user_set and self.kind == "none":
+            self.kind = "copper"
         after = ([k for _l, k in self.entries()], self.kind, self.image)
         if before != after:
             self.changed.emit("source")
@@ -110,6 +114,8 @@ class DisplayState(QObject):
         @param notify True to emit `changed`.
         """
         kind = kind if kind in [k for _l, k in self.entries()] else "none"
+        if notify:
+            self.user_set = True                        # Programmatic calls (notify=False) do not count as the user's choice
         if kind != self.kind:
             self.kind = kind
             if notify:
@@ -170,6 +176,7 @@ class DisplayState(QObject):
         """
         before = (self.kind, self.opacity, self.view)
         self.kind, self.opacity, self.view = "none", DEFAULT_OPACITY, "current"
+        self.user_set = False                           # The next project gets its own default (set_source picks Copper for an imported one)
         self.cache.clear()
         if before != (self.kind, self.opacity, self.view):
             self.changed.emit("underlay")

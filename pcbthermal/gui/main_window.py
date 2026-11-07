@@ -859,6 +859,7 @@ class MainWindow(QMainWindow):
         image = self.display.kind == "image"
         self.canvas.set_background_visible(not overlay_on or image)
         self.canvas.set_background_full(overlay_on and image)       # Faded twice otherwise (its own opacity, then the map's)
+        self.canvas.set_copper_under_map(not overlay_on or self.display.kind == "copper")
 
     def _on_display_changed(self, what):
         """!
@@ -1630,9 +1631,13 @@ class MainWindow(QMainWindow):
 
     def show_shortcuts(self):
         """!
-        @brief Show the keyboard and mouse help (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
+        @brief Show the keyboard and mouse help in a dialog of two columns (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
         """
-        QMessageBox.information(self, "Keyboard and mouse", self.SHORTCUTS_HTML)
+        from .shortcuts_dialog import ShortcutsDialog
+
+        dlg = ShortcutsDialog(self.SHORTCUTS_HTML, self.theme_name, self)
+        self.shortcuts_dialog = dlg                      # Kept so that a test can look at it while it is open
+        dlg.exec()
 
     def show_about(self):
         """!
