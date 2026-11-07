@@ -295,36 +295,64 @@ def _check_input(problem, models, cell_mm, live=False):
             + check_fast_wave(problem))
 
 
-# The fast-wave warnings (docs/validation.md 37): the frequency from which a wave on bare laminate is warned about, and the slowest wave (period in s) for which a part near
+# The fast-wave warnings (docs/validation.md 37): the frequency from which a wave on bare laminate is warned about (1 Hz: the review measured 0.73 to 0.78 of the 3D
+# reference at 1 Hz for bare laminate and for copper under half the part, 0.91 to 0.97 at 0.3 Hz and below; the research had proposed 3 Hz), and the slowest wave (period in s) for which a part near
 # a board edge is warned about
-FAST_BARE_HZ = 3.0
+FAST_BARE_HZ = 1.0
 EDGE_WAVE_PERIOD_S = 1.0
 
 
 def check_fast_wave(problem):
     """!
     @brief Warnings about power waves that the closed form of the fast-wave ripple does not cover (plain text, live).
-    @details The closed-form impedance of the stack under a part (stackimpedance) replaces the node swing of the layered models for a fast square wave where there is copper under the
-             part. It does not apply (a) on bare laminate, where the swing of the program is up to 2.2 times too small between 3 and 50 Hz and the face term makes it up to 2.4
-             times too large at 1 kHz, and it understates (b) a part whose gap to the nearest board side is shorter than the radius of its disc, for waves slower than 1 Hz (0.61
-             of the truth at 0.1 Hz for a 5 mm part 1 mm from two sides; the program is also low there). One line per case and heater. Only repeating square waves with a swing are examined.
+    @details The closed-form impedance of the stack under a part (stackimpedance, docs/theory.md 10.5) replaces the node swing of the layered models for a fast repeating profile
+             (square wave or table) where there is copper under the part. Four cases are warned, one line per case and heater:
+             (a) bare laminate under the part (fill below stackimpedance.MIN_FILL) and a wave of FAST_BARE_HZ or faster: the closed form does not apply and the program's swing is
+                 0.73 at 1 Hz and up to 2.2 times too small between 3 and 50 Hz, while the face term makes it up to 2.4 times too large at 1 kHz (docs/validation.md 37.2);
+             (b) a part whose gap to the nearest side of the board (or of its outline) is shorter than the radius of its disc, for a wave slower than 1 Hz: the closed form treats
+                 the board as infinite and reads 0.61 of the truth at 0.1 Hz for a 5 mm part 1 mm from two sides (the program is also low there);
+             (c) a metal block on the board and a stretch shorter than profiles.fast_stretch_limit: the closed form is switched off and the node structure is kept, which
+                 understates a short stretch (not measured with a block);
+             (d) a one-shot table with a stretch shorter than that limit: a one-shot profile is always time-stepped by the node structure (no closed form for it).
+    @note The thresholds are measured on rectangular boards of 1.6 mm with equal gaps; an outline enters only through the gap to its nearest side.
     @param problem A Problem.
     @return List of warnings (CheckWarning, tagged with the heater).
     """
+    from . import profiles                                           # Local import: lumped (imported here) imports profiles, so a module-level import could be circular
     out = []
+    limit = profiles.fast_stretch_limit(problem.board.layers)
     for k, h in enumerate(problem.heaters):
         w = h.profile
-        if w is None or getattr(w, "kind", "") != "square" or not w.repeat or w.p_on <= w.p_off or not 0.0 < w.duty < 1.0:
+        if w is None:
             continue
         name = h.name or f"Heater {k + 1}"
+        square = getattr(w, "kind", "") == "square"
+        if square and (w.p_on <= w.p_off or not 0.0 < w.duty < 1.0):
+            continue                                                  # No swing of the power: nothing to warn about
+        if not square and float(np.ptp(np.asarray(w.powers, dtype=float))) <= 0.0:
+            continue
+        if not w.repeat:
+            if w.shortest_feature() < limit:
+                _add(out, "heater", k,
+                     f"{name}: its power table runs once and has a stretch of {num(w.shortest_feature(), 3)} s, shorter than {num(limit)} s. A table that runs once is simulated "
+                     "step by step with one temperature per copper layer, which reads the swing of so short a stretch too small (2 to 3 times at 1 to 3 Hz, up to 12 times above "
+                     "50 Hz on a repeating wave). Take the swing as a lower estimate, or make the table repeat if the load is periodic.",
+                     f"{name}: a one-shot table with a short stretch; its swing is a lower estimate.")
+            continue
         freq = 1.0 / w.period
         col, status = stackimpedance.column_for_heater(problem, k)
         if status == "bare" and freq >= FAST_BARE_HZ:
             _add(out, "heater", k,
                  f"{name}: the part has no copper under it on its layer and its power wave repeats {num(freq, 3)} times a second. The layered models cannot follow a wave that fast over "
-                 "bare laminate: between 3 and 50 Hz the temperature swing they compute is up to 2.2 times too small, and from about 300 Hz the allowance for the laminate over bare "
+                 "bare laminate: at 1 Hz the temperature swing they compute is about 0.75 of the true one and between 3 and 50 Hz up to 2.2 times too small, and from about 300 Hz the allowance for the laminate over bare "
                  "copper makes it too large (2.4 times at 1 kHz). Take the swing as an estimate, or put copper under the part.",
                  f"{name}: a fast wave on bare laminate; the swing is not reliable (2.2 times too small near 10 Hz, 2.4 times too large at 1 kHz).")
+        elif status == "block" and w.shortest_feature() < limit:
+            _add(out, "heater", k,
+                 f"{name}: its power changes within {num(w.shortest_feature(), 3)} s and the board has a metal block. The closed form that corrects the swing of fast waves is not "
+                 "used on a board with a metal block, so the swing is the one of the layered models, which reads a stretch this short too small (2 to 12 times on a board without "
+                 "a block). Take the swing as a lower estimate.",
+                 f"{name}: a fast wave on a board with a metal block; the swing is a lower estimate.")
         elif col is not None and w.period > EDGE_WAVE_PERIOD_S:
             side, gap = heater_side_gap(problem, h.polygon)
             if gap < col.radius:

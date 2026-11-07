@@ -1839,11 +1839,11 @@ Added with `fix/fast-wave-ripple` from the closed investigation `research/fast-w
 
 ### 37.1 The error of the program (the node structure)
 
-Full copper, 60 x 40 mm, 1.6 mm, 35 um, equal gaps, h = 10 W/m²K on both faces, a square part in the middle, duty 50 %. Ratio of the swing that the program computes in the decision (`profiles.wave_response` on the FVM step response at the cell side / 4, at most 1 mm) to the closed-form swing (10.5), which the reference solvers confirm to 2 % (37.2). Run for this section with the program of this branch; the same table was printed by the research (README 2, Table 1, program / reference):
+Full copper, 60 x 40 mm, 1.6 mm, 35 um, equal gaps, h = 10 W/m²K on both faces, a square part in the middle, duty 50 %. Ratio of the swing that the program computes in the decision (`profiles.wave_response` on the FVM step response at the cell side / 4, at most 1 mm) to the closed-form swing (10.5), which the reference solvers confirm to 2 % (37.2). Reproduce: `PCBT_TREE=<this tree> .venv/bin/python research/fast-wave-oscillation/scripts/study_ripple_review.py table371` (the script lives on the branch `research/fast-wave-oscillation`; `PCBT_TREE` names a tree with `pcbthermal/stackimpedance.py`); the same table was printed by the research (README 2, Table 1, program / reference):
 
 | layers, part | 0.1 Hz | 1 | 10 | 100 | 1 kHz |
 | :-- | --: | --: | --: | --: | --: |
-| 2, 2 mm | 0.94 | 0.73 | 0.34 | 0.10 | 0.09 |
+| 2, 2 mm | 0.94 | 0.73 | 0.34 | 0.10 | 0.08 |
 | 2, 10 mm | 0.92 | 0.38 | 0.13 | 0.10 | 0.07 |
 | 1, 10 mm | 0.91 | 0.37 | 0.13 | 0.09 | 0.07 |
 | 4, 2 mm | 0.92 | 0.87 | 0.55 | 0.20 | 0.16 |
@@ -1857,42 +1857,99 @@ The program understates the swing by 10 % at 0.1 to 0.3 Hz, 2 to 3 times at 1 to
 
 ### 37.2 The closed form against the references
 
+All ratios are closed form (`stackimpedance`, as the program computes it) / the reviewer's Cartesian 3D frequency-domain reference (`research/fast-wave-oscillation/lib/review_rect3d.py`: the real rectangle and part, copper in 6 cells per layer, graded laminate, the hottest footprint cell at every instant; it shares no code with the program). Above 1 is the safe side (a larger floor, a larger ripple). Reproduce each block with `study_ripple_review.py <part>` (part in brackets). **The review corrected the module**: its first version lumped the heater's copper as a capacity in parallel; at 3 kHz with a 10 % duty a stretch of 33 µs does not heat 35 µm of copper uniformly and that form read 0.904 of the reference (0.96 at 1 kHz), below the earlier claim of 0.995; the copper is now a slab of the column (`tests/test_stackimpedance.py::test_a_stretch_of_microseconds_heats_the_copper_as_a_slab`), which moved the headline case from 6.351 to 6.355 K and U1 from 2.008 to 2.013 K.
+
 | case | closed form | reference | ratio |
 | :-- | --: | --: | --: |
-| 20 Hz, 30 %, 10 W, 10 mm part, 2 layers (the headline case) | 6.351 K | 6.375 K (reviewer's Cartesian 3D), 6.37 K (axisymmetric modal) | 0.996 |
-| U1 of the example board (4 layers, 9 vias, 100 Hz, swing 13.3 W) | 2.008 K | 2.02 K | 0.994 |
+| 20 Hz, 30 %, 10 W, 10 mm part, 2 layers (the headline case) | 6.355 K | 6.375 K (reviewer's Cartesian 3D), 6.37 K (axisymmetric modal) | 0.997 |
+| U1 of the example board (4 layers, 9 vias, 100 Hz, swing 13.3 W) | 2.013 K | 2.02 K | 0.997 |
 | the same, node structure of the program | 0.393 K | 2.02 K | 0.19 |
-| 864 cases of the author's family (1, 2, 4 layers; 2, 5, 10 mm; h 10 and 30; 12 frequencies; 4 duties) | | axisymmetric modal | 0.994 to 1.111, median 1.000 (the high ones are the 10 kHz points, a limit of the harmonic count) |
-| 528 cases against the reviewer's Cartesian solver | | | 0.995 to 1.079, median 1.009 |
 
-Cases outside the family, closed form / reviewer's reference (research README 8.4; the closed form of this branch is the two-sided form for every layer):
+| family | cases | closed form / reference | verdict |
+| :-- | --: | :-- | :-- |
+| full copper, 1, 2, 4 layers; 2, 5, 10 mm; h 10 and 30; 11 frequencies 0.1 Hz to 3 kHz; duty 10, 30, 50, 90 % [saved] | 528 | 0.995 to 1.079, median 1.009 | validated |
+| new boards, 0.1 Hz to 10 kHz, duty 10, 50, 90 % [fresh]: 4 layers heater on layer 3 (5 mm) | 18 | 0.996 to 1.200 (1.20 at 0.1 Hz) | validated, safe side at 0.1 Hz |
+| 4 layers, heater on the bottom (10 mm) | 18 | 0.998 to 1.079 | validated |
+| 6 layers, top (5 mm) | 18 | 0.995 to 1.171 (1.17 at 0.1 Hz) | validated, safe side at 0.1 Hz |
+| 1 layer, 2 mm | 18 | 0.998 to 1.056 (1.056 at 10 kHz, duty 10 %) | validated |
+| 2 layers, 5 mm, h 30 / 10 | 18 | 0.995 to 1.057 | validated |
+| 4 layers, elongated 3 x 8 mm | 18 | 0.979 to 1.164 | validated (2 % below at 100 Hz) |
+| heater on layer 2 of 4 (10 and 5 mm), two-sided form [saved] | 44 | 0.996 to 1.200 (one-sided form of the research 1.07 to 1.58) | validated, safe side at 0.1 Hz |
+| heater on the bottom layer of 2 [saved] | 22 | 0.997 to 1.016 | validated |
+| computed h (14.5 / 10.1 and 22.5 / 15.5 W/m²K) [saved] | 44 | 0.997 to 1.016 | validated |
+| 10 mm part off the centre [saved] | 22 | 0.997 to 1.053 | validated |
+| elongated 2 x 10 mm [saved] | 22 | 0.972 to 1.374 | safe side, 3 % below at most |
+| a 5 mm part 1 mm from two sides [saved] | 22 | **0.60 at 0.1 Hz, 0.71 at 0.3 Hz, 0.88 at 1 Hz**, 1.47 at 20 Hz | understated below 1 Hz: warned |
 
-| case | closed form / reference | decisions |
-| :-- | :-- | :-- |
-| a heater on layer 2 of 4 (10 mm and 5 mm), two-sided form | 0.996 to 1.17 (one-sided form 1.07 to 1.57) | 0 wrong averages, 0 wrong resolves |
-| heater on the bottom layer of 2 | 0.997 to 1.015 | 0 / 0 |
-| 16 vias under a 10 mm part | 1.32 at 0.1 Hz, 1.22 at 1 Hz, 0.997 to 1.07 from 10 Hz (4 layers 1.56 at 0.1 Hz) | safe side |
-| elongated 2 x 10 mm | 1.24 to 1.36 from 0.1 to 20 Hz | safe side |
-| 10 mm part off the centre | 0.997 to 1.04 | 0 / 0 |
-| computed h (14.5 / 10.1 and 22.5 / 15.5 W/m²K) | 0.997 to 1.015 | 0 / 0 |
-| 5 mm part 1 mm from two sides | **0.61 at 0.1 Hz, 0.71 at 0.3 Hz, 0.88 at 1 Hz**, 1.38 at 20 Hz | understated (warned) |
-| part on bare laminate | 0.04 to 0.61 (does not apply) | node plus face term 0.46 to 4.1 of the truth (warned) |
+**Power tables** (10 mm part, 2 layers; the reference swing from its transfer function and the exact Fourier coefficients of the table) [tables]. Before the review a table got neither the floor nor the ripple: the 20 Hz three-level table was averaged with the node oscillation of 0.66 K.
 
-The decisions with the floor `max(program, closed form)`: 0 wrongly averaged in 5184 + 3168 decisions on full copper (948 and 634 before), 12 wrongly resolved (the truth within 11 % below the budget).
+| table | closed form | reference | ratio |
+| :-- | --: | --: | --: |
+| 20 Hz, 10 / 5 / 0 W for 10 / 10 / 30 ms | 5.077 K | 5.088 K | 0.998 |
+| 1 Hz, 8 / 2 / 6 / 0 W for 0.1 / 0.3 / 0.1 / 0.5 s | 23.135 K | 22.854 K | 1.012 |
+| 100 Hz, two 1 ms pulses of 10 W in 10 ms | 0.878 K | 0.878 K | 1.000 |
+| 0.2 Hz, 1 s at 10 W, 4 s at 2 W | 60.190 K | 59.290 K | 1.015 |
+
+**Vias under the 10 mm part** (drill 0.3 mm, plated 25 µm, duty 30 %) [vias]: the column has no via, so it overstates; the floor is safe, at the cost of resolving some slow waves that could have been averaged.
+
+| vias | layers | 0.1 Hz | 1 Hz | 10 Hz | 100 Hz | 1 kHz |
+| :-- | --: | --: | --: | --: | --: | --: |
+| 4 (2 x 2, pitch 5 mm) | 2 | 1.10 | 1.06 | 1.00 | 1.00 | 1.00 |
+| 4 | 4 | 1.20 | 1.09 | 1.00 | 1.00 | 1.00 |
+| 9 (3 x 3, pitch 3.3 mm) | 2 | 1.07 | 1.03 | 1.00 | 1.00 | 1.00 |
+| 9 | 4 | 1.14 | 1.04 | 1.00 | 1.00 | 1.00 |
+| 16 (4 x 4, pitch 2.5 mm) | 2 | 1.32 | 1.22 | 1.06 | 1.00 | 1.00 |
+| 16 | 4 | 1.56 | 1.39 | 1.06 | 1.00 | 1.00 |
+| 36 (6 x 6, pitch 1.5 mm) | 2 | 1.57 | 1.59 | 1.24 | 1.02 | 1.00 |
+| 36 | 4 | 2.03 | 2.04 | 1.27 | 1.01 | 1.00 |
+
+**Copper under half of the part** (the left half of the 10 mm part on copper, fill 0.5: the closed form does not apply and the decision is the node plus the face term) [partial]: program / reference 0.969 at 0.1 Hz, 0.734 at 1 Hz, 0.543 at 3 Hz, 0.463 at 10 Hz, 0.816 at 100 Hz, 2.38 at 1 kHz, the pattern of bare laminate (0.46 to 4.1; 0.73 at 1 Hz). The review lowered the warning for a part without full copper from 3 Hz to 1 Hz (`checks.FAST_BARE_HZ`); the closed form for a partly covered footprint is a follow-up.
+
+**The reference at 3 and 10 kHz** [conv] (1 layer, 2 mm, harmonics up to 3 MHz from the reference itself): closed form / reference with the default grid (copper in 6 cells, first laminate cell 0.5 µm) 1.025 and 1.009 at 3 kHz (duty 10 and 50 %), 1.071 and 1.030 at 10 kHz; with copper in 12 cells and a 0.2 µm first cell 1.012, 1.004, 1.032, 1.014. The reference moves by 1.3 % at 3 kHz and 3.7 % at 10 kHz with the grid, so at 10 kHz the agreement is stated as within 4 %, the closed form on the high side.
+
+**The peak and the minimum** (the envelope `plus` and `minus` about the mean that the ripple run adds to the heater, 10 mm part, 2 layers; reference: the hottest-cell wave of the 3D reference minus its mean; a time-stepped run of the program is not a reference, it has the node error): plus / minus closed form over reference 0.994 / 1.000 at 20 Hz duty 30 %, 1.006 / 1.011 at 5 Hz, 1.010 / 1.014 at 1 Hz duty 10 %, 1.013 / 1.017 at 0.2 Hz duty 10 %, 1.000 / 1.000 at 100 Hz duty 50 %: the reported peak and minimum hold the wave within 2 %, on the high side except 0.6 % at 20 Hz. [envelope]
+
+**Decisions with the floor** [saved]: 3168 decisions (the 528 cases, budget 1 K, six powers 0.03 to 30 W): 0 averaged whose true swing exceeds the budget (634 with the node alone), 6 resolved whose true swing is just below it. With the research's 5184 decisions of the axisymmetric family: 0 wrong averages (948 before).
+
+**Two parts in phase** [cross]: every wave starts on at t = 0, so two waves of the same period add at a neighbour. The program does not add the neighbour's wave to a ripple heater (the board run carries their average powers only). The closed-form cross term of an infinite sheet, `m a I₁(m a) K₀(m r) / (π a² Y)`, two 10 mm parts, duty 50 %, as a fraction of the own swing (an estimate; the 3D reference holds one part):
+
+| gap | 0.1 Hz | 1 Hz | 10 Hz | 100 Hz |
+| :-- | --: | --: | --: | --: |
+| 1 mm | 0.169 | 0.048 | 0.004 | 0.000 |
+| 2 mm | 0.135 | 0.031 | 0.002 | 0.000 |
+| 5 mm | 0.067 | 0.009 | 0.000 | 0.000 |
+| 10 mm | 0.021 | 0.001 | 0.000 | 0.000 |
+
+A ripple heater has a shortest stretch below 4 s, so its fundamental is mostly above 0.1 Hz; the missing term is a few per cent near 1 Hz for parts a few millimetres apart and negligible from 10 Hz (a limit, follow-up in `versions.md` 'Planned'). Several heaters sharing the budget: the decision adds the oscillations of the averaged heaters (each its own, with the floor), the regime rule is per heater, and the peak takes the envelope `max_j(h_j + r_j⁺)` over the ripple heaters (`tests/test_profiles.py::test_error_budget_is_shared_between_heaters`, `test_mixed_regimes_match_the_fully_resolved_run`: a fast heater `average + ripple` with a slow one time-stepped in the same run).
+
+**The models of the step response** [models]: the floor is applied whatever model makes the decision. Node swing / closed form for the 10 mm part, 2 layers, duty 50 %:
+
+| model | 0.1 Hz | 1 Hz | 10 Hz | 100 Hz |
+| :-- | --: | --: | --: | --: |
+| FVM | 0.887 | 0.364 | 0.132 | 0.100 |
+| Lumped | 0.960 | 0.482 | 0.234 | 0.175 |
+| Analytic | 0.915 | 0.377 | 0.135 | 0.099 |
+
+All three understate like the FVM, so the floor decides for them too. A ripple-only run with the Lumped or the Analytic model **raised an error** before the review (their adapters give no per-step peak values; `_ripple_only` asked them to reshape `None`): fixed, with `tests/test_stackimpedance.py::test_a_ripple_only_run_works_with_the_lumped_and_analytic_models`. 20 Hz, 30 %, 10 W on the 10 mm part: ripple 6.355 K in the four models, peak 126.90 (FVM, FDM), 129.20 (Lumped), 127.73 °C (Analytic): the peaks differ by the steady rise of each model, the ripple is the same.
+
+**Outline**: the reference is a rectangle; an outline enters the closed form only through the gap of the part to its nearest side (`checks.heater_side_gaps` measures it to the outline), the case of the corner row above. A curved edge was not computed.
 
 ### 37.3 What the program does now, measured on the tests
 
 | case | before | after |
 | :-- | :-- | :-- |
-| `example_with_profiles`, U1 100 Hz, budget 1 K | oscillation 0.393 K, averaged, curve ripple 0.39 K | oscillation 2.008 K, `average + ripple`, ripple 2.008 K (-0.949 to +1.059 K about its mean) |
+| `example_with_profiles`, U1 100 Hz, budget 1 K | oscillation 0.393 K, averaged, curve ripple 0.39 K | oscillation 2.013 K, `average + ripple`, ripple 2.013 K (-0.951 to +1.062 K about its mean) |
 | 60 x 50 mm, fast heater 20 Hz 30 % 10 W (10 mm), budget 1.5 K | 0.75 K, averaged | 6.35 K, `average + ripple` (reference 6.375 K) |
-| the 20 Hz case resolved on purpose (FVM and FDM, Euler and Crank-Nicolson) | curve ripple 0.741 K | no time steps; ripple 6.351 K at the heater |
+| the 20 Hz case resolved on purpose (FVM and FDM, Euler and Crank-Nicolson) | curve ripple 0.741 K | no time steps; ripple 6.355 K at the heater |
+| 20 Hz three-level table (10 / 5 / 0 W) on the 10 mm part, budget 1 K | 0.66 K, averaged | 5.077 K, `average + ripple` (reference 5.088 K) |
 | `example_board` with U1 at 100 Hz resolved | 800 004 steps against the limit of 200 000: refused | 0 steps for U1 (the ripple), the slow heater as before |
 | 2 mm part, 0.1 Hz, 30 %: node swing / closed form at the response cell | 2 mm: 0.64 | 0.5 mm: 0.93 |
 | 5 mm part, 0.1 Hz: the same | 2 mm: 0.85 | 1.25 mm: 0.91 |
 
-Frozen numbers (`tests/regression`): none moves (the harness has no profiles). Tests whose expectation changed, with the new values: `tests/test_profiles.py` (three tests), `tests/test_gui_profile.py::test_analysis_and_full_run` (regime of U1), listed in the commit.
+**Cost of the finer response cell** [cell] (100 x 80 mm, a 10 mm part and a small part with a 10 s wave, run cell 1 mm): 2 layers, 2 mm part: 0.5 mm, 5.9 s (0.1 s at 2 mm), 0.33 GB; 4 layers, 2 mm part: 22.3 s (0.5 s at 2 mm), 1.1 GB; a 5 mm part takes 1.25 mm, 0.4 and 1.6 s. A 0.5 mm part on the four-layer board asks for 0.25 mm, which the memory guard estimates at 6.9 GB and accepts (not run here).
+
+Frozen numbers (`tests/regression`): none moves (the harness has no profiles). Tests whose expectation changed, with the new values: `tests/test_profiles.py` (three tests), `tests/test_gui_profile.py::test_analysis_and_full_run` (regime of U1).
 
 ### 37.4 Limits and what was not verified
 
-The closed form rests on two independent reference solvers (the author's axisymmetric modal one and the reviewer's Cartesian frequency-domain one) and on the semi-infinite solid (Lienhard eq. 5.62); there is **no published fast-wave case of a layered board and no measurement**. Not verified: the Lumped and Analytic step responses (they make the decision when neither the FVM nor the FDM is selected), an outline, a metal block (the closed form is not used there), several heaters sharing the budget, 10 kHz with the reviewer's reference, tables (only square waves get the floor and the ripple). The 3D solid is not changed. A resolved laminate by nodes (8 graded nodes per gap, 4.5 times the unknowns) was measured in the research (README 8.7) and not adopted. The ripple is at the heater and not in the maps: a neighbour sees the average field, correct to the amount that the oscillation decays away from the part (not computed here).
+The closed form rests on two independent reference solvers (the author's axisymmetric modal one and the reviewer's Cartesian frequency-domain one) and on the semi-infinite solid (Lienhard eq. 5.62, R); there is **no published fast-wave case of a layered board and no measurement**. Not covered by the closed form and warned (`checks.check_fast_wave`): bare laminate or copper over part of the footprint (fill below 0.9), a metal block on the board, one-shot tables, a slow wave near a side. Limits kept: vias (safe side, up to 2.0 times at 0.1 to 1 Hz with 36 vias on 4 layers), the neighbour's wave (not added), a curved outline (not computed), boards thicker than 1.6 mm (the 4 s and 2 s limits were measured on 1.6 mm). The 3D solid is not changed. A resolved laminate by nodes (8 graded nodes per gap, 4.5 times the unknowns) was measured in the research (README 8.7) and not adopted. The ripple is at the heater and not in the maps: a neighbour sees the average field.

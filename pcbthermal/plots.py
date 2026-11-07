@@ -816,6 +816,8 @@ def draw_transient(fig, tr):
 def draw_profile_series(fig, result, problem, limit_c=None):
     """!
     @brief Temperature of the last window versus time: the hottest point of the board and under every heater, a part at its face (the node plus the drop over the laminate where its copper is absent).
+    @details A heater in the regime "average + ripple" (docs/theory.md 10.5) also gets a shaded band from the bottom to the top of its closed-form wave about its mean
+             (ProfileResult.t_heaters_mean plus minus_c and plus_c, degC): its curve is the wave averaged over each step and cannot show a wave faster than the steps, the band can.
     @param fig Target Figure (cleared first).
     @param result A ProfileResult with a time simulation.
     @param problem The Problem (heater names).

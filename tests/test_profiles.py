@@ -59,9 +59,9 @@ def test_decision_averages_the_fast_heater_and_resolves_the_slow_one():
     resp = profiles.step_response_fvm(p, 2.0)
     d = profiles.decide(p, resp, 1.0)
     # Fast-wave item (research/fast-wave-oscillation, docs/validation.md 37): U1 at 100 Hz has a node swing of 0.393 K (below the 1 K budget) but the closed form of the stack under it
-    # gives 2.008 K (an independent axisymmetric solver 2.02 K), so it is no longer averaged: it is over the budget and too fast for the node, hence "average + ripple".
+    # gives 2.013 K (an independent axisymmetric solver 2.02 K), so it is no longer averaged: it is over the budget and too fast for the node, hence "average + ripple".
     assert [x.regime for x in d] == [profiles.REGIME_RIPPLE, "resolved"]
-    assert d[0].ripple_swing == pytest.approx(2.008, abs=0.005) and d[0].oscillation == pytest.approx(d[0].ripple_swing)
+    assert d[0].ripple_swing == pytest.approx(2.013, abs=0.003) and d[0].oscillation == pytest.approx(d[0].ripple_swing)
     node = profiles.wave_response(resp, 0, p.heaters[0].profile)
     assert node[0] - node[1] == pytest.approx(0.393, abs=0.005)       # the node swing of the program, unchanged: the floor is the closed form
     assert d[1].oscillation > 1.0

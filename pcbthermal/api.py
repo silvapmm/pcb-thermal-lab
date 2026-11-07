@@ -860,6 +860,11 @@ def response_cell_mm(problem, model, options):
              at 1 Hz), so a small part was averaged although its wave exceeded the budget (research/fast-wave-oscillation 8.3). The cell is now at most a quarter of the narrow side of
              the smallest part with a profile (about four cells across), not finer than RESPONSE_CELL_FLOOR_MM, not coarser than the old one, and enlarged by a quarter at a time until the
              memory guard says "ok" for a transient of the model (the response needs one factorisation per stage, like an animation).
+    @note The cost is that of a finer transient: on a 100 x 80 mm board with a 2 mm part (cell 0.5 mm) the response took 5.9 s and 0.33 GB on two layers and 22 s and 1.1 GB on
+          four, against 0.1 and 0.5 s at 2 mm (docs/validation.md 37.3); a 0.5 mm part on the four-layer board asks for 0.25 mm, which the memory guard estimates at 6.9 GB and
+          accepts ("ok" below 60 % of 16 GB). With copper under the part the closed-form floor already covers the fast waves, so the finer cell matters for slow waves and for
+          bare laminate.
+    @see docs/theory.md 10.5 item 4, research/fast-wave-oscillation INTEGRATION.md D.
     @param problem A Problem.
     @param model "fvm" or "fdm".
     @param options SolverOptions (cell, memory fraction, laminate numbers).

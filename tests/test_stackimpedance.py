@@ -11,7 +11,7 @@ import pytest
 from scipy.linalg import solve_banded
 
 from pcbthermal import api, checks, profiles, stackimpedance as S
-from pcbthermal.model import Dielectric, Problem, SquareWave
+from pcbthermal.model import Dielectric, Problem, SquareWave, TableProfile
 
 
 def two_layer(part_mm=10.0, layer=1, wave=None):
@@ -115,7 +115,7 @@ def test_headline_case_against_the_reference_solvers():
     p = two_layer(wave=SquareWave(p_on=10.0, period=0.05, duty=0.3))
     col, _ = S.column_for_heater(p, 0)
     assert 10.0 * col.swing(0.05, 0.3) == pytest.approx(6.375, rel=0.01)
-    assert 10.0 * col.swing(0.05, 0.3) == pytest.approx(6.351, abs=0.005)    # the value of this implementation (the research module gave 6.355)
+    assert 10.0 * col.swing(0.05, 0.3) == pytest.approx(6.355, abs=0.002)    # the value of this implementation and of the research module
 
 
 def test_example_board_u1_at_100_hz():
@@ -136,8 +136,19 @@ REFERENCE_SWINGS = {
     (4, 1, 10, 0.1): (6.6436, 1.18), (4, 1, 10, 0.3): (4.8839, 1.03), (4, 1, 10, 1.0): (3.0107, 1.03), (4, 1, 10, 10.0): (0.7953, 1.02), (4, 1, 10, 100.0): (0.1307, 1.02),
     (4, 1, 10, 1000.0): (0.0159, 1.02),
     (4, 1, 5, 0.1): (12.4344, 1.18), (4, 1, 5, 1.0): (7.6894, 1.03), (4, 1, 5, 10.0): (2.9620, 1.03), (4, 1, 5, 100.0): (0.5249, 1.02),
-    (2, 1, 10, 0.1): (9.7190, 1.03), (2, 1, 10, 1.0): (4.6470, 1.03), (2, 1, 10, 20.0): (0.6375, 1.02), (2, 1, 10, 100.0): (0.1510, 1.02), (2, 1, 10, 1000.0): (0.0169, 1.02),
+    (2, 1, 10, 0.1): (9.7190, 1.03), (2, 1, 10, 1000.0): (0.0169, 1.02), (2, 1, 10, 1.0): (4.6470, 1.03), (2, 1, 10, 20.0): (0.6375, 1.02), (2, 1, 10, 100.0): (0.1510, 1.02),
 }
+
+# The review of fix/fast-wave-ripple: duty 10 %, the shortest stretch of tens of microseconds (out/review_sample.json, 2 layers, 10 mm). With the heater's copper as a lumped
+# capacity the closed form read 0.904 of the reference at 3 kHz and 0.964 at 1 kHz; with the copper as a slab of the column 1.02 and 1.01
+SHORT_STRETCH_SWINGS = {(1000.0, 0.1): 0.0074811, (3000.0, 0.1): 0.0026958, (3000.0, 0.9): 0.0026956}
+
+
+@pytest.mark.parametrize("key", sorted(SHORT_STRETCH_SWINGS))
+def test_a_stretch_of_microseconds_heats_the_copper_as_a_slab(key):
+    f, duty = key
+    col, _ = S.column_for_heater(two_layer(), 0)
+    assert 0.99 < col.swing(1.0 / f, duty) / SHORT_STRETCH_SWINGS[key] < 1.03
 
 
 @pytest.mark.parametrize("key", sorted(REFERENCE_SWINGS))
@@ -179,6 +190,7 @@ def test_a_hatched_zone_and_the_other_layers_copper_enter_the_column():
     c_full, _ = S.column_for_heater(full, 0)
     c_hatch, status = S.column_for_heater(hatched, 0)
     assert status == "ok" and c_hatch.sheet == pytest.approx(0.95 * c_full.sheet, rel=1e-6)
+    assert S.MIN_FILL == 0.9                                                 # 0.95 is above the threshold of 'copper under the part'
     # No copper on the other layer: its slab is laminate, so the column below is different and the swing too
     one_side = Problem.new(60, 40, 2, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0)
     one_side.add_zone(1, rect=(0, 0, 60, 40))
@@ -199,7 +211,7 @@ def test_advanced_stackup_with_equal_gaps_is_the_simple_one_and_a_one_layer_boar
     one = Problem.new(60, 40, 1, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0).add_full_copper()
     one.add_heater(1, 3.0, rect=(25, 15, 35, 25), name="one")
     col, status = S.column_for_heater(one, 0)
-    assert status == "ok" and col.up == [] and len(col.down) == 1 and col.swing(0.05, 0.3) > 0.0
+    assert status == "ok" and col.up == [] and len(col.down) == 2 and col.swing(0.05, 0.3) > 0.0     # its copper slab, then the laminate
 
 
 def test_the_bottom_heater_and_an_inner_one_use_the_two_sided_form():
@@ -207,7 +219,8 @@ def test_the_bottom_heater_and_an_inner_one_use_the_two_sided_form():
     for layer in (1, 2, 3, 4):
         p.add_heater(layer, 1.0, rect=(25, 15, 35, 25), name=f"L{layer}")
     cols = [S.column_for_heater(p, k)[0] for k in range(4)]
-    assert [len(c.up) for c in cols] == [0, 2, 4, 6] and [len(c.down) for c in cols] == [6, 4, 2, 0]
+    # The heater's copper is a slab of the column: all of it below an outer top part, above a bottom one, half on each side of an inner one
+    assert [len(c.up) for c in cols] == [0, 3, 5, 7] and [len(c.down) for c in cols] == [7, 5, 3, 0] and all(c.capacity == 0.0 for c in cols)
     sw = [c.swing(0.01, 0.3) for c in cols]
     # The stack is symmetric (equal h on both faces): the layers 2 and 3 are mirror images of each other, as are 1 and 4
     assert all(x > 0.0 for x in sw) and sw[1] == pytest.approx(sw[2], rel=1e-9) and sw[0] == pytest.approx(sw[3], rel=1e-9)
@@ -243,11 +256,11 @@ def test_a_ripple_only_run_has_the_wave_in_the_curve_the_peak_and_not_in_the_map
     r = sim.profile_results["fvm"]
     assert sim.decisions[0].regime == profiles.REGIME_RIPPLE
     assert r.resolved and r.steps == 0 and r.converged                       # nothing time-stepped, a result that the views can show
-    assert r.ripple[0]["swing_c"] == pytest.approx(6.351, abs=0.005)
+    assert r.ripple[0]["swing_c"] == pytest.approx(6.355, abs=0.002)
     # The peak is the steady average maximum plus the top of the wave; the minimum the bottom of it; the map is the average field
     assert r.peak == pytest.approx(r.steady_average_max + r.ripple[0]["plus_c"], abs=1e-6)
     assert r.minimum == pytest.approx(r.steady_average_max + r.ripple[0]["minus_c"], abs=1e-6)
-    assert r.oscillation == pytest.approx(6.351, abs=0.005)
+    assert r.oscillation == pytest.approx(6.355, abs=0.002)
     assert float(r.peak_map.max()) == pytest.approx(r.steady_average_max, abs=0.01)      # the ripple is not in the maps
     assert r.frames.shape[0] == 1 and r.frames.max() == pytest.approx(r.steady_average_max, abs=0.01)
     assert any("faster than the board model can follow" in w for w in r.warnings)
@@ -286,8 +299,8 @@ def test_warnings_for_bare_laminate_and_for_a_slow_wave_near_a_side():
     assert len(w) == 1 and "no copper under it" in w[0] and "2.2 times too small" in w[0] and "2.4 times at 1 kHz" in w[0] and w[0].kind == "heater"
     slow_bare = Problem.new(60, 40, 2, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0)
     slow_bare.add_zone(2, rect=(0, 0, 60, 40))
-    slow_bare.add_heater(1, 3.0, rect=(25, 15, 35, 25), name="B2", profile=SquareWave(p_on=10.0, period=2.0, duty=0.3))
-    assert checks.check_fast_wave(slow_bare) == []                            # below 3 Hz the bare part is the old, accepted case
+    slow_bare.add_heater(1, 3.0, rect=(25, 15, 35, 25), name="B2", profile=SquareWave(p_on=10.0, period=5.0, duty=0.3))
+    assert checks.check_fast_wave(slow_bare) == []                            # below 1 Hz the bare part is the old, accepted case (0.91 to 0.97 of the truth)
     edge = Problem.new(60, 40, 2, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0).add_full_copper()
     edge.add_heater(1, 3.0, rect=(1, 1, 6, 6), name="E1", profile=SquareWave(p_on=10.0, period=10.0, duty=0.3))
     w = checks.check_fast_wave(edge)
@@ -298,3 +311,54 @@ def test_warnings_for_bare_laminate_and_for_a_slow_wave_near_a_side():
     assert checks.check_fast_wave(two_layer(wave=SquareWave(p_on=10.0, period=10.0, duty=0.3))) == []      # centred, full copper: silent
     assert checks.check_fast_wave(two_layer()) == []                          # no profile
     assert any("no copper under it" in x for x in checks.check_input(bare, ("fvm",), 1.0))      # part of the live list
+
+
+# ------------------------------------------------------------------ tables, the Lumped and Analytic runs, the warnings added by the review
+
+def test_a_table_gets_the_same_closed_form_as_the_square_wave_it_describes():
+    col, _ = S.column_for_heater(two_layer(), 0)
+    sq = SquareWave(p_on=10.0, period=0.05, duty=0.3, p_off=2.0)
+    tb = TableProfile([0.0, 0.015, 0.05], [10.0, 2.0])
+    a, b = col.profile_ripple(sq), col.profile_ripple(tb)
+    assert np.max(np.abs(a.samples - b.samples)) < 1e-9 and abs(b.samples.mean()) < 1e-12
+    # A table of many stretches takes the FFT of its exact bin means: the same wave within 0.01 %
+    old = S.EXACT_COEFFICIENT_LIMIT
+    try:
+        S.EXACT_COEFFICIENT_LIMIT = 0
+        c = col.profile_ripple(tb)
+    finally:
+        S.EXACT_COEFFICIENT_LIMIT = old
+    assert (c.plus - c.minus) == pytest.approx(b.plus - b.minus, rel=1e-4)
+
+
+def test_a_fast_multilevel_table_is_no_longer_averaged_silently():
+    # 20 Hz, 10 / 5 / 0 W for 10 / 10 / 30 ms on the 10 mm part: the node structure says 0.66 K (averaged at 1 K before the review), the closed form 5.08 K
+    # (the reviewer's Cartesian 3D reference 5.09 K, docs/validation.md 37.2)
+    p = two_layer(wave=TableProfile([0.0, 0.01, 0.02, 0.05], [10.0, 5.0, 0.0]))
+    sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
+    d = sim.decisions[0]
+    assert d.regime == profiles.REGIME_RIPPLE and d.oscillation == pytest.approx(5.077, abs=0.01)
+    r = sim.profile_results["fvm"]
+    assert r.ripple[0]["swing_c"] == pytest.approx(5.077, abs=0.01) and r.ripple[0]["duty"] is None
+    assert r.peak == pytest.approx(r.steady_average_max + r.ripple[0]["plus_c"], abs=1e-6)
+
+
+@pytest.mark.parametrize("model", ["lumped", "analytic"])
+def test_a_ripple_only_run_works_with_the_lumped_and_analytic_models(model):
+    # Their adapters give no peak values per step; the ripple-only run used to call shape_field on them and raised AttributeError
+    p = two_layer(wave=SquareWave(p_on=10.0, period=0.05, duty=0.3))
+    sim = api.simulate(p, api.SolverOptions(models=(model,), cell_mm=2.0))
+    r = sim.profile_results[model]
+    assert sim.decisions[0].regime == profiles.REGIME_RIPPLE and r.steps == 0
+    assert r.ripple[0]["swing_c"] == pytest.approx(6.355, abs=0.005) and r.peak_map is not None
+
+
+def test_warnings_for_a_metal_block_and_a_one_shot_table_with_short_stretches():
+    blk = two_layer(wave=SquareWave(p_on=10.0, period=0.05, duty=0.3))
+    blk.add_heatsink(2, 0.0, rect=(0, 0, 20, 20), thickness_mm=3.0)
+    w = checks.check_fast_wave(blk)
+    assert len(w) == 1 and "metal block" in w[0]
+    once = two_layer(wave=TableProfile([0.0, 0.01, 0.02, 5.0], [10.0, 0.0, 10.0], repeat=False))
+    w = checks.check_fast_wave(once)
+    assert len(w) == 1 and "runs once" in w[0]
+    assert checks.check_fast_wave(two_layer(wave=TableProfile([0.0, 0.01, 0.05], [10.0, 0.0]))) == []     # a repeating fast table on copper: covered by the closed form

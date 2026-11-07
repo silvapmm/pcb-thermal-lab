@@ -57,11 +57,15 @@ from .fvm import lu_factor
 from .numfmt import num
 
 
-# Regime of a repeating square wave that is over the budget but too fast for the node structure of the layered models: average power in the board run, closed-form ripple at the heater
+# Regime of a repeating profile (square wave or table) that is over the budget but too fast for the node structure of the layered models: average power in the board run, closed-form
+# ripple at the heater (docs/theory.md 10.5)
 REGIME_RIPPLE = "average + ripple"
 
-# A wave whose shortest stretch (on or off time) is below this gets the ripple instead of a time-stepped curve: on one or two copper layers the node swing is within 7.5 % of the truth from
-# 4 s up, and below it falls to 0.64 at 1 s and to a tenth at 100 Hz (research/fast-wave-oscillation 8.6); with three or more layers the slabs are thinner and the limit is 2 s
+# A wave whose shortest stretch (on or off time; for a table its shortest row) is below this gets the ripple instead of a time-stepped curve. The limit is measured, not derived
+# (research/fast-wave-oscillation README 8.6, which corrected the period rule T_w of its section 6: that formula gave 20 s for one layer, and the error is set by the shortest
+# stretch, not the period): on one or two copper layers of a 1.6 mm board the node swing is within 7.5 % of the reference for a stretch of 4 s or more, 0.89 to 0.94 for 2 to 4 s and
+# down to 0.64 for 1 to 2 s; with four layers the gaps are thinner and the node is 0.95 to 0.97 for 2 to 4 s, hence 2 s from three layers on (three layers were not measured: they
+# take the four-layer limit). A thicker board has thicker gaps and a longer limit (not measured: a time-stepped wave above the limit is then read up to some 10 % low)
 FAST_STRETCH_S = 4.0
 FAST_STRETCH_MANY_LAYERS_S = 2.0
 
@@ -381,7 +385,13 @@ def once_response(resp, i, profile, n_points=400):
 
 def decide(problem, resp, threshold_c):
     """!
-    @brief Decide, for every heater, whether its power wave is averaged or resolved in time.
+    @brief Decide, for every heater, whether its power wave is averaged, resolved in time, or averaged with its closed-form ripple.
+    @details The oscillation of a repeating profile is the peak minus the valley of the periodic response of the heater's hottest point (eq. 10.1 on the step response resp);
+             for a part with copper under it it is raised to the closed-form swing of the stack when that is larger, ``max(node swing, eq. 10.5)`` (the floor of docs/theory.md
+             10.5: the node structure only understates). Heaters are then averaged, smallest oscillation first, while the sum stays within threshold_c (a shared budget); the others
+             are resolved, and a resolved one whose shortest stretch is below fast_stretch_limit() becomes REGIME_RIPPLE, if the closed form applies to it.
+    @note Measured on 3168 decisions of the reviewer's sample (full copper, 1 to 4 layers, 2 to 10 mm, 0.1 Hz to 3 kHz, budget 1 K): 0 averaged waves whose true swing exceeds the
+          budget, 6 resolved whose true swing is just below it (docs/validation.md 37.2). Not covered: bare laminate, a metal block, one-shot tables (the node swing; warned).
     @param problem A Problem (heaters may carry profiles).
     @param resp StepResponse of the reference model, one row per heater.
     @param threshold_c Total oscillation (degC) that may be ignored.
@@ -404,9 +414,10 @@ def decide(problem, resp, threshold_c):
         kind = "wave" if w.kind == "square" else "table"
         duty = w.duty if w.kind == "square" else float("nan")
         osc = max(pk - vl, 0.0)
-        # The floor of the fast waves (docs/theory.md 10.5): the node structure of the layered models understates the swing of a short stretch, the closed form of the stack does not.
-        # It needs a square wave, copper under the part and a swing of the power
-        fast = _fast_swing(problem, i, w) if (w.repeat and w.kind == "square") else 0.0
+        # The floor of the fast waves (docs/theory.md 10.5, eq. 10.6): the node structure of the layered models understates the swing of a short stretch (the capacity of half a
+        # laminate gap sits on the copper node), the closed form of the stack does not. It needs a repeating profile (square wave or table), copper under the part and a swing of
+        # the power; it is applied whatever the model of the step response (FVM, FDM, Lumped, Analytic), since all of them share the node structure or are tuned on it
+        fast = _fast_swing(problem, i, w) if w.repeat else 0.0
         if fast > osc:
             osc = fast
         # A part over absent copper is reported at its face: the resolved curve adds the quasi-static face term of the power, so its swing adds to the node's. Without a face term
@@ -435,19 +446,27 @@ def decide(problem, resp, threshold_c):
 
 def _fast_swing(problem, index, wave):
     """!
-    @brief Peak-to-peak swing of a square wave at a heater from the closed-form impedance of the stack under it.
-    @param problem A Problem (h_top and h_bottom as the run uses them).
+    @brief Peak-to-peak swing of a repeating power profile at a heater from the closed-form impedance of the stack under it (docs/theory.md 10.5, eq. 10.5).
+    @details A square wave uses the exact pulse coefficients, a table the coefficients of its stretches (stackimpedance.profile_coefficients). The value is the swing at the centre
+             of the disc of the part's area on an infinite board: it leaves out vias, planes other than as layers of the column, the board edge and the other heaters.
+    @note Measured against the reviewer's Cartesian 3D reference (docs/validation.md 37.2): 0.995 to 1.08 on full copper; above 1 with vias (to 2.04 at 0.1 to 1 Hz), elongated parts (1.37)
+          and inner layers at 0.1 Hz (1.20), the safe side for a floor; 0.61 at 0.1 Hz for a part within its radius of a board side (warned by checks.check_fast_wave).
+    @param problem A Problem (h_top and h_bottom as the run uses them: the steady effective values with computed h).
     @param index Heater index.
-    @param wave SquareWave of that heater.
-    @return Swing in degC; 0 when the closed form does not apply (bare laminate, a metal block, no swing of the power).
+    @param wave SquareWave or repeating TableProfile of that heater.
+    @return Swing in degC; 0 when the closed form does not apply (bare laminate under the part, a metal block, no swing of the power).
     """
-    swing_w = wave.p_on - wave.p_off
-    if swing_w <= 0.0 or not 0.0 < wave.duty < 1.0:
+    if wave.kind == "square" and (wave.p_on <= wave.p_off or not 0.0 < wave.duty < 1.0):
+        return 0.0
+    if wave.kind != "square" and float(np.ptp(np.asarray(wave.powers, dtype=float))) <= 0.0:
         return 0.0
     col, status = stackimpedance.column_for_heater(problem, index)
     if col is None:
         return 0.0
-    return float(swing_w * col.swing(wave.period, wave.duty))
+    if wave.kind == "square":
+        return float((wave.p_on - wave.p_off) * col.swing(wave.period, wave.duty))
+    r = col.profile_ripple(wave)
+    return float(r.plus - r.minus)
 
 
 def ripple_waves(problem, decisions):
@@ -455,7 +474,7 @@ def ripple_waves(problem, decisions):
     @brief The ripple waveform of every heater whose regime is "average + ripple".
     @param problem A Problem.
     @param decisions Decisions from decide().
-    @return Dict heater index -> (stackimpedance.Ripple per watt of swing, swing of the power in W).
+    @return Dict heater index -> (stackimpedance.Ripple, scale): a square wave gives the wave per watt and its power swing p_on - p_off in W, a table the wave in K and 1.0.
     """
     out = {}
     for d in decisions:
@@ -463,8 +482,12 @@ def ripple_waves(problem, decisions):
             continue
         col, _ = stackimpedance.column_for_heater(problem, d.index)
         w = problem.heaters[d.index].profile
-        if col is not None:
+        if col is None:
+            continue
+        if w.kind == "square":
             out[d.index] = (col.ripple(w.period, w.duty), float(w.p_on - w.p_off))
+        else:
+            out[d.index] = (col.profile_ripple(w), 1.0)
     return out
 
 
@@ -732,10 +755,14 @@ def _add_ripple(result, problem, rip, times, gmax, hmax, dt):
     @details The curve of heater i is its hottest-point temperature in the run (its average power) plus the zero-mean wave of the stack under it, sampled at the times of the window
              (the wave keeps the phase of the power: both start with the on-state at t = 0 of every period) averaged over each step as the power of a step is, so a step longer than the
              period shows the mean of the wave (zero) and a short one the wave; it never aliases into a constant. The hottest point of the board changes by the change of the largest
-             heater value, ``t_max = gmax + max_j(th_j) - max_j(hmax_j)``, exact when the hottest point of the board is under a heater (it always is for a conducting board whose
-             only sources are the heaters). The peak and the valley of the result use the envelope of the waves, not their samples (a fast wave sampled at the steps of a slow window
+             heater value, ``t_max = gmax + max_j(th_j) - max_j(hmax_j)``, exact when the hottest point of the board is under a heater (always in the steady state of the
+             average powers; in a time-stepped window the hottest node can sit between parts for a moment after a source turns off, and the shift then moves it by the wave of the
+             heater, on the hot side by at most the ripple). The peak and the valley of the result use the envelope of the waves, not their samples (a fast wave sampled at the steps of a slow window
              would alias): peak = max over time of ``gmax + max_j(hmax_j + plus_j) - max_j(hmax_j)``, valley the same with the minus values, a lower bound of the true valley.
              Appends a warning that says what was done to each heater and records result.ripple.
+    @note Not corrected: the wave of a ripple heater at its neighbours (in phase, since every wave starts on at t = 0: about 17 % of the swing at 0.1 Hz with a 1 mm gap
+          between two 10 mm parts, 5 % at 1 Hz, under 0.4 % from 10 Hz, closed-form estimate on an infinite sheet, docs/validation.md 37.2), and the maps and frames, which show
+          the average field.
     @param result ProfileResult being filled.
     @param problem A Problem (heater names).
     @param rip Dict from ripple_waves().
@@ -752,9 +779,9 @@ def _add_ripple(result, problem, rip, times, gmax, hmax, dt):
         th[i] = hmax[i] + swing_w * wave.mean_over(times - dt, times)
         plus[i], minus[i] = swing_w * wave.plus, swing_w * wave.minus
         name = problem.heaters[i].name or f"Heater {i + 1}"
-        result.ripple.append({"index": int(i), "name": name, "period_s": float(wave.period), "duty": float(wave.duty), "swing_c": float(plus[i] - minus[i]),
+        result.ripple.append({"index": int(i), "name": name, "period_s": float(wave.period), "duty": float(wave.duty) if np.isfinite(wave.duty) else None, "swing_c": float(plus[i] - minus[i]),
                               "plus_c": float(plus[i]), "minus_c": float(minus[i])})
-        result.warnings.append(f"{name}: its wave is faster than the board model can follow (shortest stretch {num(min(wave.duty, 1.0 - wave.duty) * wave.period, 3)} s). The board is "
+        result.warnings.append(f"{name}: its wave is faster than the board model can follow (shortest stretch {num(problem.heaters[i].profile.shortest_feature(), 3)} s). The board is "
                                f"simulated at its average power and the temperature wave of the layers under the part ({num(plus[i] - minus[i], 3)} K peak to peak, from the closed-form "
                                "impedance of the stack) is added at the heater: it is in the curve of the heater, the board curve and the peak and minimum of the result, not in the maps "
                                "or the frames of the board.")
@@ -799,7 +826,9 @@ def _ripple_only(problem, decisions, options, adapter, rip, result, t_begin, pro
     result.t_max, result.t_heaters = _add_ripple(result, problem, rip, times, gmax, hmax, dt)
     field0 = adapter.frame(state).astype(np.float32)
     result.frames, result.frame_times = field0[None], np.array([window])
-    result.peak_map = adapter.shape_field(adapter.peak_values(state))
+    # The FVM and FDM give the field of the state as peak values; the Lumped and Analytic adapters give none (their peak map is the maximum of the frames), so the one frame is it
+    values = adapter.peak_values(state)
+    result.peak_map = field0 if values is None else adapter.shape_field(values)
     result.history_t, result.history_max = times, result.t_max
     l, i, j = np.unravel_index(int(np.argmax(result.peak_map)), result.peak_map.shape)
     off = getattr(adapter, "offset", 0.5)
