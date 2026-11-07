@@ -801,10 +801,10 @@ def orientation(path):
     Ra = np.logspace(3, 10, 200)
     Pr = 0.71
     up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.15 * Ra ** (1 / 3))
-    down = 0.27 * Ra ** 0.25
+    down = 0.475 * Ra ** 0.2                                                  # Face turned down: the 1/5 law of convection.py (Goldstein-Lau average)
     vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
     a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
-    a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down (half of face up at the same Ra up to 1e7)")
+    a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down, 0.475 Ra^(1/5) (0.62 of face up at Ra 1e3, 0.49 at 1e5)")
     a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu, general form; laminar form optional), Pr = 0.71")
     a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
     a.set_title("the laws of the program (theory section 8)", fontsize=9)
