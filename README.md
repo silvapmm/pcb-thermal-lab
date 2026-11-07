@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.5.2-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2710%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.6.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2710%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -69,9 +69,11 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
-## Coming in 2.6.0 (assembled on the integration branch, not released)
+## What is new in 2.6.0
 
-Version 2.6.0 is not released; the version in the code is still 2.5.2. The integration branch holds: a project package (`.pcbtz`: the project and the files it was imported from in one safe ZIP, with Save as, Export package and `convert`), one Layer box for the board and the Results maps and a clickable model name in the map card, the exact cover of the board outline and cut-cell links with an edge film (FVM and 3D solid), the laminate in a band along the board edge (FVM and FDM), 3D solid slabs by thickness with the face term, the Analytic model with its own edge parameter per layer and a local transient with vias and heatsinks, a capped first ring of the Lumped model and a warning near a side or a corner with a finer raster for a part smaller than two cells, a via barrel longer by half the copper thickness and a copper layer the drilled hole does not touch left uncoupled, the horizontal face turned down on `Nu = 0.475 Ra^(1/5)`, and bounds against hostile outlines. These move some numbers on purpose; the frozen reference is refrozen once at the release (`CHANGELOG.md`, Unreleased).
+Version 2.6.0 (2026-11-07) is the release of the model corrections that followed the independent reviews, and several of them move numbers on purpose (the frozen reference is refrozen once, `tests/regression/data/v2.6.0.json`). Models: the exact cover of the board outline and cut-cell links with an edge film (FVM and 3D solid); the laminate cut into sub-gaps in a band along the board edge (FVM and FDM); the 3D solid with slabs by thickness and the face term; the Analytic model with its own edge parameter per layer and a local transient with vias and heatsinks; a capped first ring of the Lumped model, a warning near a side or a corner and a finer raster for a part smaller than two cells; a via barrel longer by half the copper thickness, with a copper layer the drilled hole does not touch left uncoupled; the horizontal face turned down on `Nu = 0.475 Ra^(1/5)`; and fast square waves (the closed-form swing of the stack as a floor, plus an average and ripple regime for a fast heater). Interface: a project package (`.pcbtz`: the project and the files it was imported from in one safe ZIP, with Save as, Export package and `convert`) and its size preference, one Layer box for the board and the Results maps with a clickable model name in the map card, the Display View (Current and Smooth) on the board, and bounds against hostile outlines.
+
+Limits that remain (listed in `docs/versions.md`, 'Planned: 2.6.1'): the FDM has no cut-cell treatment; a board with an outline and imported copper keeps the cover-weighted links; the copper edge held inside the outline leaves a spread of 2 to 3 K at an edge coefficient of 200 W/m2K; Terrain contours are not drawn on the board.
 
 ## What is new in 2.5.2
 
@@ -167,6 +169,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.6.0** (2026-11-07): model corrections after the independent reviews (cut cells, laminate edge band, via barrel, Analytic per-layer edge, 3D solid slabs, face-down convection, fast square waves), the project package `.pcbtz`, a single Layer box, the Display views on the board; the frozen numbers refrozen once.
 - **2.5.2** (2026-11-07): fixes: non-finite and absurd lengths refused on load and never written, the Pulsonix placement preamble, the licence header on every file, the re-import of a different board, theory text corrections (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
 - **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
