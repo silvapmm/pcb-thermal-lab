@@ -60,15 +60,6 @@ def _plain_tip(text):
     return "<p style='white-space:pre'>" + html.escape(str(text)) + "</p>"
 
 
-def _wrapped_tip(text):
-    """!
-    @brief A long tooltip with text from the files: escaped like `_plain_tip`, but wrapped by Qt (a paragraph of one long line); empty text gives no tooltip.
-    @param text Plain text.
-    @return str rich-text tooltip that displays exactly `text`, or "".
-    """
-    return "<p>" + html.escape(str(text)) + "</p>" if text else ""
-
-
 class _Cancelled(Exception):
     """!@brief The window was closed while a slow call ran off the GUI thread: the caller stops and the window closes when the call has ended."""
 STEP_SUBTITLES = ["Choose the folder, ZIP or files, check the function of every file and the stack-up.",
@@ -722,9 +713,6 @@ class Step1Page(QWidget):
         names = [t.item(i, 1).text() if t.item(i, 1) else None for i in range(t.rowCount())]
         if names != [f.name for f in sx.files]:
             self._build_rows()
-        # Review: the BOM files are read here, before the rows are filled, so that the message of a refused BOM is in its row at the first refresh (the BOM line said "see the
-        # list" while the list did not have it yet)
-        sx.bom_set()
         claims = {}
         for f in sx.used():
             if f.role in UNIQUE:
@@ -810,7 +798,7 @@ class Step1Page(QWidget):
         text, check, tip = self.session.bom_line()
         self.bom_label.setVisible(bool(text))
         self.bom_label.setText(text)
-        self.bom_label.setToolTip(_wrapped_tip(tip))             # the warnings name the files: escaped (Qt reads markup in a tooltip)
+        self.bom_label.setToolTip(tip)
         self.bom_label.setStyleSheet(f"color: {c['alert'] if check else c['text']};")
 
     def _tool_changed(self, _):
@@ -1098,8 +1086,7 @@ class Step2Page(QWidget):
             bom_text = sx.bom_proposal_text(p)
             bi = QTableWidgetItem(bom_text)
             bi.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            tip = self._bom_tip(p, bom_text)
-            bi.setToolTip(_wrapped_tip(tip))                      # the part numbers come from the BOM: escaped
+            bi.setToolTip(self._bom_tip(p, bom_text))
             if bom_text in ("not fitted", "not in BOM"):
                 bi.setForeground(QColor(c["alert"]))
             elif not has or orphan:
