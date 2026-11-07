@@ -271,16 +271,17 @@ OUTLINES = [
 
 @pytest.mark.parametrize("outline,cell_mm", OUTLINES)
 def test_fvm_and_fdm_count_the_whole_perimeter_of_the_outline(outline, cell_mm):
-    # The edge conductances the solvers use, divided by h_side x slab, are the length of the outline they count
+    # The edge conductances the solvers use, divided by h_side x slab, are the length of the outline they count. All node layers are summed: along the edge the laminate band
+    # (laminate.edge_band) moves part of the slab from the copper nodes to the laminate nodes, the total is the same
     p = Problem.new(60.0, 60.0, 2).add_full_copper()
     p.set_outline(outline)
     b = p.board
     n = int(round(60.0 / cell_mm))
-    net = fvm.Network(p, n, n, assemble=False, with_blocks=False)
-    counted = net.g_side[:b.layers].sum() / (b.h_side * float(np.sum(b.slab_thicknesses()))) * 1000.0
+    net = fvm.Network(p, n, n, assemble=False, with_blocks=False, cut_cells=False)      # (the film of the cut cells is a reduction of the edge conductance, not of the length)
+    counted = net.g_side.sum() / (b.h_side * float(np.sum(b.slab_thicknesses()))) * 1000.0
     assert counted == pytest.approx(perimeter_mm(outline), rel=1e-3)
     nd = fdm.Network(p, cell_mm)
-    counted = nd.g_side[:b.layers].sum() / (b.h_side * float(np.sum(b.slab_thicknesses()))) * 1000.0
+    counted = nd.g_side.sum() / (b.h_side * float(np.sum(b.slab_thicknesses()))) * 1000.0
     assert counted == pytest.approx(perimeter_mm(outline), rel=1e-3)
 
 
@@ -310,7 +311,9 @@ def test_time_constant_of_a_curved_board_matches_the_closed_form(outline, cell_m
     p.board.h_side = 100.0
     n = int(round(60.0 / cell_mm))
     net = fvm.Network(p, n, n, assemble=False, with_blocks=False)
-    assert fvm.board_time_constant(net) == pytest.approx(closed_tau(p), rel=1e-3)
+    # Within 3e-3 (1e-3 before the laminate band): at 100 W/m2K the film of the half cell now sits on the laminate nodes of the edge band as well (the copper nodes took almost none),
+    # which the closed form does not have; measured +0.15 % (disc 1 mm) and +0.21 % (ellipse 1 mm), and within 1e-3 for the others
+    assert fvm.board_time_constant(net) == pytest.approx(closed_tau(p), rel=3e-3)
 
 
 def test_a_turned_square_gives_the_answer_of_the_square_on_the_grid():

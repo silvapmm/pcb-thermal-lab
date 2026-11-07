@@ -107,7 +107,10 @@ def test_mixed_regimes_match_the_fully_resolved_run():
     p.add_heater(1, 3.0, rect=(10, 20, 20, 30), name="fast", profile=SquareWave(p_on=10.0, period=0.05, duty=0.3))
     p.add_heater(1, 1.0, rect=(35, 20, 45, 30), name="slow", profile=SquareWave(p_on=4.0, period=2.0, duty=0.25))
     resp = profiles.step_response_fvm(p, 4.0)
-    mixed_dec = profiles.decide(p, resp, 1.0)
+    # The budget is 1.5 K here (1.0 K before the laminate edge band): the oscillation of the fast heater is read from the early, steeply rising part of the step response, on a
+    # time grid that follows the board time constant, and the band along the edge (+0.07 % on that constant) moved the interpolated value from 0.75 K to 1.20 K. The slow heater (9.5 K)
+    # is far from either budget.
+    mixed_dec = profiles.decide(p, resp, 1.5)
     assert [d.regime for d in mixed_dec] == ["average", "resolved"]
     full_dec = profiles.decide(p, resp, 0.0)
     opt = ProfileOptions(duration="cycles", cycles=4)

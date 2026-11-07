@@ -108,9 +108,10 @@ def test_the_cells_with_the_nodes_are_the_bare_cells_plus_the_margin():
 
 
 def test_copper_in_every_cell_is_the_earlier_model_bit_for_bit(monkeypatch):
-    # Two to six layers with copper everywhere, vias, a heater and the edge coefficient: the rule changes nothing, not even in the last bit
+    # Two to six layers with copper everywhere, vias and a heater: the rule changes nothing, not even in the last bit. Without an edge coefficient: with one, the laminate band
+    # along the edge cuts the gaps there on purpose (test_the_edge_band_cuts_the_gaps_along_the_edge_of_a_board_with_full_copper)
     for layers in (2, 4, 6):
-        p = Problem.new(40.0, 30.0, layers, 1.6, 35, ambient=25.0, h_top=10.0, h_bottom=12.0, h_side=5.0)
+        p = Problem.new(40.0, 30.0, layers, 1.6, 35, ambient=25.0, h_top=10.0, h_bottom=12.0, h_side=None)
         p.add_full_copper()
         p.add_heater(1, 2.0, rect=(10, 8, 18, 16), name="U")
         p.add_via(14, 12, 0.3)
@@ -124,6 +125,34 @@ def test_copper_in_every_cell_is_the_earlier_model_bit_for_bit(monkeypatch):
         b = fdm.Network(p, 1.0)
         monkeypatch.undo()
         assert a.nl == b.nl == layers and (a.K != b.K).nnz == 0 and np.array_equal(a.C, b.C)
+
+
+def test_the_edge_band_cuts_the_gaps_along_the_edge_of_a_board_with_full_copper():
+    # With an edge coefficient the cells that touch the edge, grown by the margin of the rule, carry the interior laminate nodes even over full copper (laminate.edge_band):
+    # the film of the edge acts on the laminate, which is cooler than the copper. Everything else is the earlier network.
+    p = Problem.new(40.0, 30.0, 2, 1.6, 35, ambient=25.0, h_top=10.0, h_bottom=12.0, h_side=5.0)
+    p.add_full_copper()
+    p.add_heater(1, 2.0, rect=(10, 8, 18, 16), name="U")
+    net, old = fvm.Network(p, 40, 30), fvm.Network(p, 40, 30, ladder=False)
+    plan = net.ladder.plans[0]
+    m = laminate.margin_cells(plan.d, net.dx)
+    assert plan.n == 4 and plan.flagged.any() and net.nl == 2 + 3
+    # Flagged: the border cells grown by the margin, nothing in the middle of the board
+    yy, xx = np.mgrid[0:30, 0:40]
+    dist = np.minimum.reduce([xx, 39 - xx, yy, 29 - yy])
+    assert np.array_equal(plan.flagged, dist <= m)
+    assert plan.flagged.sum() < 40 * 30 / 2
+    # Unknowns: the copper nodes everywhere plus 3 interior nodes in the band only
+    assert int((~net.drop).sum()) == 2 * 1200 + 3 * int(plan.flagged.sum())
+    # Capacity and the vertical conductance are conserved; the steady solution is a little hotter (the laminate at the edge is cooler than the copper, so less heat leaves there)
+    assert net.C.sum() == pytest.approx(old.C.sum(), rel=1e-12)
+    t_new, t_old = net.solve_steady()[0].max(), old.solve_steady()[0].max()
+    assert t_old < t_new < t_old + 0.5
+    # The FDM cuts its nodes in the same way and the edge coefficient 0 or None leaves both as they were
+    f = fdm.Network(p, 1.0)
+    assert f.ladder.plans[0].flagged.any() and f.ladder.plans[0].flagged[0, 0] and not f.ladder.plans[0].flagged[15, 20]
+    p.board.h_side = 0.0
+    assert not fvm.Network(p, 40, 30).ladder.refined() and not fdm.Network(p, 1.0).ladder.refined()
 
 
 def test_a_window_in_the_copper_is_close_to_the_independent_solver_and_the_earlier_network_was_not():

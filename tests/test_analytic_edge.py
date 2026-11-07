@@ -239,11 +239,33 @@ def test_mirror_symmetry_of_a_part_in_opposite_corners():
 
 @pytest.mark.parametrize("w,h,src,pos,hs", [(40, 30, 5, "centre", 10.0), (40, 30, 20, "centre", 10.0), (60, 40, 20, "centre", 10.0), (100, 80, 20, "centre", 10.0),
                                             (60, 40, 10, "corner", 50.0), (60, 40, 10, "corner", 200.0)])
-def test_uniform_boards_against_the_fvm(w, h, src, pos, hs):
-    """Measured against the FVM at 1 mm: within 0.4 % (the faces transfer was -0.3 to -0.7 % here for the centred sources and 12 to 37 % off at the corners)."""
+def test_uniform_boards_against_the_fvm(w, h, src, pos, hs, monkeypatch):
+    """Measured against the FVM at 1 mm: within 0.4 % (the faces transfer was -0.3 to -0.7 % here for the centred sources and 12 to 37 % off at the corners).
+    The FVM runs without the laminate band along the edge (the layered model of the Analytic: the edge film at the copper temperature); with the band see
+    test_the_analytic_reads_cooler_than_the_fvm_with_the_laminate_band."""
+    _without_edge_band(monkeypatch)
     p = _plate(w, h, src, hs, pos=pos)
     err = 100.0 * (_rise(p, "analytic") / _rise(p, "fvm") - 1.0)
     assert abs(err) < 0.5, err
+
+
+def _without_edge_band(monkeypatch):
+    """!
+    @brief Switch off the laminate band along the board edge of the FVM (laminate.edge_band), so that the FVM is the layered model the Analytic solves.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(laminate, "edge_band", lambda edge, d, dx, active: np.zeros(np.asarray(active).shape, dtype=bool))
+
+
+@pytest.mark.parametrize("hs,lo,hi", [(50.0, -2.0, -0.5), (200.0, -7.0, -3.5)])
+def test_the_analytic_reads_cooler_than_the_fvm_with_the_laminate_band(hs, lo, hi):
+    """Known limit, measured: the Analytic puts the edge film on the layer at the copper temperature (it has no laminate nodes), as the FVM did before the laminate band; the FVM
+    with the band is the model that agrees with a converged 3D reference (-2.3 % at most), so the Analytic reads cooler than it by -1.1 % (50 W/m2K) and -5.0 % (200 W/m2K) of the
+    rise on the 60 x 40 mm board with the 10 mm part in the corner (3.2 mm would be more)."""
+    p = _plate(60, 40, 10, hs, pos="corner")
+    err = 100.0 * (_rise(p, "analytic") / _rise(p, "fvm") - 1.0)
+    assert lo < err < hi, err
 
 
 def test_edge_cooled_bar_cooler_and_monotone():
@@ -323,8 +345,10 @@ def _t63(sr):
 
 
 @pytest.mark.parametrize("w,h,pos,hs", [(40, 30, "centre", 50.0), (60, 40, "corner", 50.0), (60, 40, "centre", 200.0)])
-def test_step_response_against_the_fvm(w, h, pos, hs):
-    """Unit step of a uniform board with edge loss: the steady resistance within 2 % and the time to 63 % within 7 % of the FVM (research: -3.3 to +6.0 %)."""
+def test_step_response_against_the_fvm(w, h, pos, hs, monkeypatch):
+    """Unit step of a uniform board with edge loss: the steady resistance within 2 % and the time to 63 % within 7 % of the FVM (research: -3.3 to +6.0 %).
+    The FVM runs without the laminate band (the layered model of the Analytic); with it the time to 63 % of the 60 x 40 mm board at 200 W/m2K is 18.5 s (Analytic) against 21.7 s."""
+    _without_edge_band(monkeypatch)
     p = _plate(w, h, 10, hs, pos=pos)
     o = lambda m: SolverOptions(models=(m,), cell_mm=2.0)         # noqa: E731
     ta, ra = _t63(step_response(p, "analytic", o("analytic")))
