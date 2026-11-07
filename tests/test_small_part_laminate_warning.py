@@ -122,8 +122,8 @@ def test_solid3d_warning_uses_the_slabs_by_thickness():
     assert len(both) == 2
 
 
-# Values of the FVM on board(2.0, 3.2) at 1 mm computed on develop (ec227ab) before this branch: the warning must not move them
-FROZEN_FVM_SMALL_BARE = (439.5514011355619, 454.13473446889503)      # (t_max, mean of the part with its face term) in degC
+# Values of the FVM on board(2.0, 3.2) at 1 mm computed on develop (ec227ab) before this branch, re-read on the integration tree after the edge film of fix/cut-cell-aperture-film (+0.0048 K on the hottest point: 439.5514, 454.1347 before): the warning must not move them
+FROZEN_FVM_SMALL_BARE = (439.5561918246224, 454.13952515795563)      # (t_max, mean of the part with its face term) in degC
 
 
 def test_wired_into_the_live_check_and_no_result_moves():

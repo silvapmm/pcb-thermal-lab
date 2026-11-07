@@ -94,7 +94,7 @@ def test_energy_balance_closes_and_finned_rise_follows_the_measured_change():
         assert (r.t_max - 25.0) / before[fins] - 1.0 > 0.05                                # +5.5 to +6.4 % against the old code
     p = board(None)
     p.board.h_bottom = 10.0
-    assert fvm.solve_steady(p, cell_mm=1.0).delta_t == pytest.approx(88.3307, abs=0.01)      # A plain plate does not move
+    assert fvm.solve_steady(p, cell_mm=1.0).delta_t == pytest.approx(88.3459, abs=0.01)      # A plain plate does not move by the finned-block change (88.3307 before the edge film of fix/cut-cell-aperture-film moved it by 0.015 K)
 
 
 @pytest.mark.parametrize("h_extra", [0.0, 7.0])
