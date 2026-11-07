@@ -178,10 +178,22 @@ def _interior_factors(x):
     return np.where(small, 1.0, f_r), np.where(small, 1.0, f_p)
 
 
-def ring_edges(rho_max, dx, dy, rings, min_width=None):
+def _equivalent_radius(foot, dx, dy):
+    """!
+    @brief Equivalent radius of a footprint: the radius of the disc with the area of the cells it touches.
+    @param foot Boolean array (ny, nx), True in the cells the footprint touches.
+    @param dx Cell size along x in m.
+    @param dy Cell size along y in m.
+    @return Radius in m, sqrt(N0 dx dy / pi) with N0 at least 1.
+    """
+    return math.sqrt(max(float(foot.sum()), 1.0) * dx * dy / math.pi)
+
+
+def ring_edges(rho_max, dx, dy, rings, min_width=None, a_eq=None):
     """!
     @brief Outer distances of the rings around a footprint: a geometric series from rho1 to the farthest cell, with edges closer than the minimum width merged.
-    @details rho1 = max(1.5 cells, 0.04 rho_max), at most rho_max / 2; then rho1 (rho_max / rho1)^(k / (rings - 1)). A ring thinner than the raster holds a
+    @details rho1 = max(1.5 cells, 0.04 rho_max), capped at max(1.5 cells, a_eq) when a_eq is given (the first ring is at most one equivalent radius of the footprint
+             wide), at most rho_max / 2; then rho1 (rho_max / rho1)^(k / (rings - 1)). A ring thinner than the raster holds a
              count of cells that does not match its width, so its contour length (area / width) and its resistance come out wrong (the result grew with the
              ring count: +3 to +13 % with 40 rings); edges closer than min_width cells are merged, so asking for more rings than the raster can show changes nothing.
     @param rho_max Distance of the farthest cell from the footprint in m.
@@ -189,9 +201,13 @@ def ring_edges(rho_max, dx, dy, rings, min_width=None):
     @param dy Cell size along y in m.
     @param rings Number of rings requested.
     @param min_width Minimum ring width in cells (None: RING_MIN_WIDTH).
+    @param a_eq Equivalent radius of the footprint in m (None: no cap). The first ring is at most this wide (never below 1.5 cells): without the cap its
+           width, 0.04 rho_max, grows with the board and a small part reads cool (a 1 mm part on a 200 x 150 mm uniform board -25 %).
     @return Array of edges [0, rho1, ..., rho_max (slightly enlarged)].
     """
     rho1 = max(1.5 * min(dx, dy), 0.04 * rho_max)
+    if a_eq is not None:                                   # the first ring is at most one equivalent radius of the footprint wide
+        rho1 = min(rho1, max(1.5 * min(dx, dy), a_eq))
     rho1 = min(rho1, rho_max * 0.5)
     edges = np.concatenate([[0.0], rho1 * (rho_max / rho1) ** (np.arange(rings) / max(rings - 1, 1))])
     edges[-1] = rho_max * 1.0000001
@@ -232,7 +248,7 @@ def _one_node_network(net, cov, layer, power, rings, vias=None):
 
     # --- Ring membership: 0 = footprint, 1..rings = geometric offsets from the footprint
     if rho_max > 0:
-        edges = ring_edges(rho_max, net.dx, net.dy, rings)
+        edges = ring_edges(rho_max, net.dx, net.dy, rings, a_eq=_equivalent_radius(foot, net.dx, net.dy))
         idx = np.where(foot, 0, 1 + np.minimum(np.searchsorted(edges[1:], dist, side="left"), len(edges) - 2))
     else:
         edges, idx = np.array([0.0]), np.zeros((ny, nx), dtype=int)
@@ -643,7 +659,7 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
     outside = ~foot
     rho_max = float(dist.max()) if outside.any() else 0.0
     if rho_max > 0:
-        edges = ring_edges(rho_max, net.dx, net.dy, rings)
+        edges = ring_edges(rho_max, net.dx, net.dy, rings, a_eq=_equivalent_radius(foot, net.dx, net.dy))
         idx = np.where(foot, 0, 1 + np.minimum(np.searchsorted(edges[1:], dist, side="left"), len(edges) - 2))
     else:
         edges, idx = np.array([0.0]), np.zeros((ny, nx), dtype=int)
