@@ -267,7 +267,7 @@ def _check_input(problem, models, cell_mm, live=False):
     @return List of warnings.
     """
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
-            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None))
+            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models))
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
@@ -1193,4 +1193,63 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
          "3 to 4 times high at a cell of 0.5 mm or coarser. The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
          "(higher or lower); use a finer cell (" + cell_where() + ") or the 3D solid.")
+    return out
+
+
+def uncoupled_vias(problem):
+    """!
+    @brief The vias whose drill rim touches no copper and no part on a layer (the rim rule of viawell), with those layers.
+    @param problem The Problem (imported copper counts as full contact, as in viawell).
+    @return List of (via index, list of 0-based layer indices), only the vias with at least one such layer and board under the drill disc.
+    """
+    b = problem.board
+    if not problem.vias or b.layers < 2:
+        return []                                               # A one-layer board has no gap: its vias join nothing
+    zone_index = viawell._zone_index(problem, b.layers)
+    out = []
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        if share <= 0.0:
+            continue                                            # Ignored by every model
+        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index)) if f <= 0.0]
+        if layers:
+            out.append((k, layers))
+    return out
+
+
+def _layers_text(layers):
+    """!
+    @brief "layer 1", "layers 1 and 3" or "layers 1, 2 and 3" from 0-based layer indices.
+    @param layers Non-empty list of 0-based layer indices.
+    @return Text with 1-based numbers.
+    """
+    nums = [str(l + 1) for l in layers]
+    if len(nums) == 1:
+        return f"layer {nums[0]}"
+    return "layers " + ", ".join(nums[:-1]) + " and " + nums[-1]
+
+
+def check_via_uncoupled(problem, models):
+    """!
+    @brief Warning for the vias that touch no copper on a layer and are therefore not connected to it (FVM and FDM): one aggregated message naming up to three.
+    @details The safe-side explanation (the effect is lost, the part reads too hot) is in the partial-copper warning, not repeated here.
+    @param problem The Problem.
+    @param models Model keys that will run (the warning applies to "fvm" and "fdm").
+    @return List of warning strings (empty or one message).
+    """
+    out = []
+    if not any(m in ("fvm", "fdm") for m in models):
+        return out
+    found = uncoupled_vias(problem)
+    if not found:
+        return out
+    names = [(problem.vias[k].name or f"Via {k + 1}", layers) for k, layers in found]
+    n = len(found)
+    if n == 1:
+        name, layers = names[0]
+        text = f"{name} touches no copper on {_layers_text(layers)} and is not connected there; draw its pad or plane if it is connected."
+    else:
+        listed = ", ".join(f"{nm} on {_layers_text(ly)}" for nm, ly in names[:PARTIAL_LISTED])
+        more = f", and {n - PARTIAL_LISTED} more" if n > PARTIAL_LISTED else ""
+        text = f"{n} vias touch no copper on a layer and are not connected there ({listed}{more}); draw their pads or planes if they are connected."
+    _add(out, "via", found[0][0], text)
     return out

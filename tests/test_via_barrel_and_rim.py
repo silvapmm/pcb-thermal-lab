@@ -325,3 +325,44 @@ def test_a_heater_over_the_drill_counts_as_contact():
     effect = _effect(_bare_pad, 1.0)
     assert 30.0 < effect < 40.0
     assert effect == pytest.approx(34.806, abs=0.01)
+
+
+def _outside_vias(n):
+    """!
+    @brief 10 x 10 mm board, full bottom plane, top copper only at x <= 3 mm, n vias of 0.3 mm in the bare area.
+    @param n Number of vias.
+    @return Problem.
+    """
+    p = _base()
+    p.add_zone(2, rect=(0, 0, W, W))
+    p.add_zone(1, rect=(0, 0, 3, W))
+    for k in range(n):
+        p.add_via(6.0, 2.0 + 1.5 * k, 0.3)
+    return p
+
+
+def test_a_via_touching_no_copper_on_a_layer_is_named():
+    from pcbthermal import checks
+    out = checks.check_via_uncoupled(_outside_vias(1), ("fvm",))
+    assert out == ["Via 1 touches no copper on layer 1 and is not connected there; draw its pad or plane if it is connected."]
+    assert out[0].kind == "via" and out[0].index == 0
+    assert checks.check_via_uncoupled(_outside_vias(1), ("lumped", "analytic")) == []
+
+
+def test_several_uncoupled_vias_are_aggregated_with_the_worst_three():
+    from pcbthermal import checks
+    out = checks.check_via_uncoupled(_outside_vias(5), ("fdm",))
+    assert len(out) == 1
+    assert out[0].startswith("5 vias touch no copper on a layer and are not connected there (Via 1 on layer 1, Via 2 on layer 1, Via 3 on layer 1, and 2 more); draw their pads or planes")
+    out2 = checks.check_input(_outside_vias(2), ("fvm",), 1.0)
+    assert any("2 vias touch no copper on a layer and are not connected there (Via 1 on layer 1, Via 2 on layer 1);" in w for w in out2)
+
+
+def test_vias_on_copper_or_under_a_part_are_not_flagged():
+    from pcbthermal import checks
+    assert checks.uncoupled_vias(_quarter(True)) == []
+    p = _base()
+    p.add_heater(1, 0.3, rect=(4, 4, 6, 6), name="Q")
+    p.add_zone(2, rect=(0, 0, W, W))
+    p.add_via(C, C, 0.3)
+    assert checks.uncoupled_vias(p) == []
