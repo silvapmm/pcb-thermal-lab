@@ -15,7 +15,7 @@
 import math
 from pathlib import Path
 
-# the repository root is the first parent that holds the program and the examples: the same file lives in research/release-regression-245/lib/ and in tests/regression/
+# the repository root is the first parent that holds the program and the examples: the same file lives in releases/regression-harness/lib/ and in tests/regression/
 REPO = next(p for p in Path(__file__).resolve().parents if (p / "pcbthermal").is_dir() and (p / "examples").is_dir())
 
 # Boards that the independent layered solver can represent (uniform conductivity per cell, insulated sides, one square source on the top copper).

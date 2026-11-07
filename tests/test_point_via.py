@@ -143,7 +143,7 @@ def test_the_lumped_model_keeps_its_vias():
     net = fvm.Network(p, 100, 80, assemble=False)
     d = p.board.gap_thicknesses()
     m = p.board.materials
-    barrel = sum(m.k_copper * v.thermal_area(p.board.via_plating, m.k_copper) / d for v in p.vias)
+    barrel = sum(m.k_copper * v.thermal_area(p.board.via_plating, m.k_copper) / viawell.barrel_length(p.board, d) for v in p.vias)
     assert net.gz_via.sum(axis=(1, 2)) == pytest.approx(barrel)                  # the barrel of every via, once
     assert net.gz.sum() < (net.gz + net.gz_via).sum()
     q = copy.deepcopy(p)

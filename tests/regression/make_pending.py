@@ -13,6 +13,8 @@
 
              .venv/bin/python tests/regression/make_pending.py lumped-zones --board plate_vias --model lumped \
                  --item "Zonal Lumped model" --branch feature/lumped-zones --why "..."
+
+         `--no-times` writes only the steady records and `--times-only` only the times to 63 % (a change that moves one kind and not the other).
 """
 
 import argparse
@@ -52,10 +54,12 @@ def main(argv=None):
     ap.add_argument("--branch", required=True, help="branch of the change")
     ap.add_argument("--why", required=True, help="why the records move (one or two sentences)")
     ap.add_argument("--evidence", default="", help="where the shift is measured and explained")
+    ap.add_argument("--no-times", action="store_true", help="write only the steady records (a change that moves no time to 63 %%, or whose times belong to another pending file)")
+    ap.add_argument("--times-only", action="store_true", help="write only the times to 63 %% (the steady records of the named boards do not move)")
     a = ap.parse_args(argv)
     frozen = F.load(T.FROZEN_FILE)
     s = frozen["settings"]
-    records, transients = {}, {}
+    records, transients, skipped = {}, {}, {}
     for board in a.board:
         if board not in frozen["boards"]:
             print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
@@ -66,23 +70,29 @@ def main(argv=None):
             if not keys:
                 print(f"refused: no record {board}|{model} in {T.FROZEN_FILE.name}")
                 return 2
-            for k in keys:
+            for k in ([] if a.times_only else keys):
                 rec = H.run_one(p, board, model, float(k.split("|")[2]), s["max_unknowns"], s["solid_cap"])
+                if rec["status"] == "skipped":
+                    # A change that adds unknowns can push a record over the size cap of the harness: it leaves the frozen set and is held as skipped
+                    skipped[k] = rec.get("reason", "skipped")
+                    continue
                 if rec["status"] != "ok":
                     print(f"refused: {k} did not run ({rec['status']}: {rec.get('reason', '')})")
                     return 2
                 records[k] = {"class": "moved", "metrics": C.metrics_of(rec)}
             tk = f"{board}|{model}"
-            if tk in frozen["transients"]:
+            if tk in frozen["transients"] and not a.no_times:
                 t = H.t63(p, model, s["transient_cell"])
                 if t["status"] == "ok":
                     transients[tk] = {"class": "moved", "t63": {q["name"]: q["t63_s"] for q in t["parts"] if q["t63_s"] is not None}}
     out = {"format": F.FORMAT, "base_version": frozen["version"], "item": a.item, "branch": a.branch, "why": a.why, "evidence": a.evidence,
            "records": records, "transients": transients}
+    if skipped:
+        out["skipped"] = skipped
     path = HERE / "data" / "pending" / f"{a.name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"wrote {path} ({len(records)} records, {len(transients)} times to 63 %)")
+    print(f"wrote {path} ({len(records)} records, {len(skipped)} now skipped, {len(transients)} times to 63 %)")
     return 0
 
 

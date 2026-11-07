@@ -82,11 +82,360 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
-# Sub-samples per cell side for everything that measures how much of a cell is on the board or in a part that crosses the outline.
-# ONE constant shared by Board.cover (FVM, 3D solid), part_weights (FVM, FDM, 3D solid, analysis) and the FDM node cover, so that the board share
-# a model gives a cut cell and the share of the part in it are sampled on the same lattice (a 4 x 4 board cover against 8 x 8 part weights gave an
-# edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gives 1.47 K).
+# Sub-samples per cell side for the sampled rules that remain: the part weights of a pair of polygons that cannot be clipped exactly (a polygon
+# that crosses itself, or a concave part of more than _EAR_MAX_VERTICES vertices on a concave outline). The board cover (FVM, FDM, 3D solid) and the weights of the usual part are exact (`exact_coverage`) since
+# fix/exact-board-cover; before it ONE lattice was shared by the cover and the weights (a 4 x 4 board cover against 8 x 8 part weights gave an
+# edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gave 1.47 K; the exact cover gives about 0.65 K).
 BOARD_SAMPLES = 8
+
+
+# Cells whose exact coverage is closer than this to 0 or 1 are snapped to it: the column sums below carry a rounding noise of a few 1e-10 of a cell
+_EXACT_SNAP = 1e-9
+
+
+def exact_coverage(poly, nx, ny, dx, dy):
+    """!
+    @brief Exact fraction of every grid cell that a simple polygon covers (no sampling).
+    @details For a polygon traversed once, the length of the vertical section that lies inside it and between two horizontal grid lines is
+             the sum over the edges that the vertical line crosses of +/- (clamp(y_edge, lower, upper) - lower), the sign being that of the
+             direction of the edge (the lower edges of a counter-clockwise polygon go to the right, the upper ones to the left). Integrated
+             over a grid column, the cell covers follow from the differences of one function of the grid lines,
+             Phi(Y) = sum_e s_e integral of min(y_e(x), Y) dx, which is piecewise linear in Y per edge piece. Each (edge, column) piece
+             contributes Y * width below its lowest point, a constant above its highest point (both accumulated by cumulative sums over the
+             grid lines) and an explicit trapezoid-minus-triangle value only on the grid lines it crosses, so the work is that of the cells
+             the outline cuts, vectorised, and a board of 1000 vertices on a 0.25 mm grid takes milliseconds. A zero-width bridge (two
+             opposite edges on the same line, as the clip of a concave polygon leaves) cancels exactly. The same area as clipping each cell
+             with `clip_polygon`, and exactly the polygon area (checked against analytic areas in the tests).
+    @param poly Polygon vertices (n, 2) in metres, either orientation, not crossing itself.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Array (ny, nx) with the covered fraction in [0, 1]; values within 1e-9 of 0 or 1 are snapped to them.
+    @throws ValueError If the edges cross more than OUTLINE_MAX_CROSSINGS grid lines (too many long edges for this cell).
+    """
+    p = np.asarray(poly, dtype=float)
+    out = np.zeros((ny, nx))
+    if len(p) < 3:
+        return out
+    # The work below is one entry per (edge, column) and per grid line an edge crosses (about 120 bytes each): bound it as `face_apertures` does, before anything is
+    # allocated (the board cover is built before the links, also by the memory verdict of the window; a non-finite extent compares False and is left to the caller)
+    if outline_extent(p) / max(min(dx, dy), 1e-300) > OUTLINE_MAX_CROSSINGS:
+        raise ValueError(_too_many_crossings())
+    orient = np.sign(polygon_area_signed(p))
+    if orient == 0:
+        return out
+    x0, y0 = p[:, 0], p[:, 1]
+    x1, y1 = np.roll(x0, -1), np.roll(y0, -1)
+    # Edges to the right are the lower ones of a counter-clockwise polygon (inside above them): sign -1; to the left +1; a vertical edge adds nothing
+    sgn = np.where(x1 > x0, -orient, orient)
+    left = np.minimum(x0, x1)
+    right = np.maximum(x0, x1)
+    yl = np.where(x0 <= x1, y0, y1)                                    # Height at the left end of the edge
+    yr = np.where(x0 <= x1, y1, y0)                                    # Height at the right end
+    keep = (right > left) & (right > 0.0) & (left < nx * dx)
+    sgn, left, right, yl, yr = sgn[keep], left[keep], right[keep], yl[keep], yr[keep]
+    if sgn.size == 0:
+        return out
+    # One piece per (edge, column): the columns an edge spans, with the x range of the edge inside each one
+    c0 = np.maximum(np.floor(left / dx).astype(np.int64), 0)
+    c1 = np.minimum(np.floor(right / dx).astype(np.int64), nx - 1)
+    cnt = np.maximum(c1 - c0 + 1, 0)
+    e = np.repeat(np.arange(sgn.size), cnt)
+    col = np.repeat(c0, cnt) + (np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt))
+    xa = np.maximum(left[e], col * dx)
+    xb = np.minimum(right[e], (col + 1) * dx)
+    w = xb - xa
+    ok = w > 0.0
+    e, col, xa, xb, w = e[ok], col[ok], xa[ok], xb[ok], w[ok]
+    slope = (yr[e] - yl[e]) / (right[e] - left[e])
+    ya = yl[e] + slope * (xa - left[e])
+    yb = yl[e] + slope * (xb - left[e])
+    s = sgn[e]
+    lo, hi = np.minimum(ya, yb), np.maximum(ya, yb)
+    # Grid lines Y_k = k dy, k = 0..ny: k <= klo lie at or below the piece, k >= khi at or above it, those between cross it
+    klo = np.floor(lo / dy).astype(np.int64)
+    khi = np.maximum(np.ceil(hi / dy).astype(np.int64), klo + 1)
+    phi = np.zeros((ny + 1, nx))
+    # Below the piece: min(y, Y) = Y, so the sum is Y_k times the signed widths of the pieces with klo >= k (a reverse cumulative sum)
+    low = np.zeros((ny + 1, nx))
+    sel = klo >= 0
+    np.add.at(low, (np.minimum(klo[sel], ny), col[sel]), s[sel] * w[sel])
+    low = np.cumsum(low[::-1], axis=0)[::-1]
+    phi += (np.arange(ny + 1) * dy)[:, None] * low
+    # Above the piece: min(y, Y) = y, a constant from khi on (a forward cumulative sum)
+    high = np.zeros((ny + 1, nx))
+    sel = khi <= ny
+    np.add.at(high, (np.maximum(khi[sel], 0), col[sel]), (s * w * 0.5 * (ya + yb))[sel])
+    phi += np.cumsum(high, axis=0)
+    # On the lines that cross the piece: integral of y minus integral of max(y - Y, 0), the second being a trapezoid or a triangle
+    k_from = np.maximum(klo + 1, 0)
+    k_to = np.minimum(khi - 1, ny)
+    n = np.maximum(k_to - k_from + 1, 0)
+    if n.sum():
+        r = np.repeat(np.arange(n.size), n)
+        k = np.repeat(k_from, n) + (np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n))
+        Y = k * dy
+        pq = ya[r] - Y, yb[r] - Y
+        pp, qq = np.maximum(pq[0], 0.0), np.maximum(pq[1], 0.0)
+        span = np.abs(pq[0]) + np.abs(pq[1])
+        mixed = pq[0] * pq[1] < 0.0
+        # Mixed signs: a triangle of height (positive end)^2 / (|p| + |q|) / 2 per unit of width; same signs: the trapezoid (zero when both are below)
+        tri = np.where(mixed, (pp * pp + qq * qq) / np.where(span > 0.0, 2.0 * span, 1.0), 0.5 * (pp + qq))
+        np.add.at(phi, (k, col[r]), s[r] * w[r] * (0.5 * (ya[r] + yb[r]) - tri))
+    out = np.diff(phi, axis=0) / (dx * dy)
+    out = np.clip(out, 0.0, 1.0)
+    out[out < _EXACT_SNAP] = 0.0
+    out[out > 1.0 - _EXACT_SNAP] = 1.0
+    return out
+
+
+def _line_lengths(poly, n_lines, spacing, n_seg, seg, axis, shift):
+    """!
+    @brief Inside length over each segment of each interior grid line of one family (helper of `face_apertures`).
+    @details All the crossings of the outline edges with the lines are found at once (each edge gives the lines its span covers, half-open so that a vertex on a line counts once),
+             sorted by (line, position), given the signs +1 (enter) and -1 (leave) by their rank on the line (even-odd), and the inside length below every grid node,
+             F(y) = sum over the crossings below y of s_k (y - w_k), is evaluated with prefix sums; the fraction of a segment is the difference of F over it.
+    @param poly Polygon (n, 2) in metres.
+    @param n_lines Interior grid lines of the family (j = 1 .. n_lines).
+    @param spacing Distance between the lines in metres.
+    @param n_seg Segments per line (cells along the line).
+    @param seg Segment length in metres.
+    @param axis 0: vertical lines x = j spacing (segments along y); 1: horizontal lines.
+    @param shift Offset of the evaluated line from j spacing in metres.
+    @return Array (n_seg, n_lines) of fractions in [0, 1].
+    """
+    a = np.asarray(poly, dtype=float)
+    b = np.roll(a, -1, axis=0)
+    u0, u1 = (a[:, 0], b[:, 0]) if axis == 0 else (a[:, 1], b[:, 1])
+    w0, w1 = (a[:, 1], b[:, 1]) if axis == 0 else (a[:, 0], b[:, 0])
+    lo, hi = np.minimum(u0, u1), np.maximum(u0, u1)
+    # Candidate lines of every edge with one line of slack: the exact half-open test below decides on the same position for every edge
+    j0 = np.floor((lo - shift) / spacing).astype(np.int64)
+    j1 = np.ceil((hi - shift) / spacing).astype(np.int64)
+    cnt = np.clip(j1 - j0 + 1, 0, None)
+    e = np.repeat(np.arange(len(a)), cnt)
+    j = j0[e] + (np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt))
+    pos = j * spacing + shift
+    keep = (j >= 1) & (j <= n_lines) & (((u0[e] <= pos) & (u1[e] > pos)) | ((u1[e] <= pos) & (u0[e] > pos)))
+    e, j, pos = e[keep], j[keep], pos[keep]
+    w = w0[e] + (pos - u0[e]) / (u1[e] - u0[e]) * (w1[e] - w0[e])
+    order = np.lexsort((w, j))
+    j, w = j[order], w[order]
+    out = np.zeros((n_seg, n_lines))
+    if not len(j):
+        return out
+    start = np.r_[0, np.flatnonzero(np.diff(j)) + 1]
+    stop = np.r_[start[1:], len(j)]
+    rank = np.arange(len(j)) - np.repeat(start, stop - start)
+    s = np.where(rank % 2 == 0, 1.0, -1.0)          # Even-odd: the crossings enter and leave in turn along the line
+    nodes = np.arange(n_seg + 1) * seg
+    for a_, b_ in zip(start, stop):                  # One vectorised evaluation per crossed line
+        ww, ss = w[a_:b_], s[a_:b_]
+        k = np.searchsorted(ww, nodes, side="left")
+        c1 = np.r_[0.0, np.cumsum(ss)]
+        c2 = np.r_[0.0, np.cumsum(ss * ww)]
+        out[:, j[a_] - 1] = np.diff(nodes * c1[k] - c2[k]) / seg
+    return np.clip(out, 0.0, 1.0)
+
+
+# Bounds on the work an outline can ask of the cut-cell and edge-distance code (a project file is hostile: 20 000 long zigzag edges would otherwise need
+# tens of millions of pieces or crossings and several GB). Normal outlines (a few thousand edges, a few thousand cells long) are three orders below them.
+OUTLINE_MAX_PIECES = 2_000_000
+OUTLINE_MAX_CROSSINGS = 10_000_000
+# The same bounds for a board, checked once by Board.validate whatever the cell: the edges may span at most OUTLINE_MAX_CROSSINGS cells of the finest cell a run
+# accepts (0.05 mm, SolverOptions), 500 m along x and y (a 600 mm round board of 20 000 vertices spans 2.4 m, the largest imported outline tried 0.78 m); at most
+# OUTLINE_MAX_VERTICES vertices (a few Python steps per edge in the edge length; real outlines have tens to a few thousand); at most POLYGON_MAX_PAIRS pairs of edges
+# with overlapping boxes, the work of `polygon_is_simple` (a 20 000-vertex circle has 4.4e4, a star of 20 000 long spikes 9.2e7 and 2 s per call)
+OUTLINE_FINEST_CELL = 5e-5
+OUTLINE_MAX_EXTENT = OUTLINE_MAX_CROSSINGS * OUTLINE_FINEST_CELL
+OUTLINE_MAX_VERTICES = 100_000
+POLYGON_MAX_PAIRS = 20_000_000
+
+
+def outline_extent(poly):
+    """!
+    @brief Total extent of the edges of a closed polygon along x and along y (the sum of |dx| + |dy| over its edges).
+    @param poly Polygon (n, 2), any length unit; non-finite coordinates give a non-finite sum.
+    @return float Extent in the unit of the polygon.
+    """
+    p = np.asarray(poly, dtype=float)
+    return float(np.abs(p - np.roll(p, -1, axis=0)).sum()) if len(p) else 0.0
+
+
+def _box_pairs(lo, hi):
+    """!
+    @brief Number of pairs of intervals that overlap, counted as the box sweep of `polygon_is_simple` counts its candidates (sorted by the lower end).
+    @param lo Lower ends of the intervals.
+    @param hi Upper ends of the intervals.
+    @return int Candidate pairs.
+    """
+    order = np.argsort(lo, kind="stable")
+    lo, hi = lo[order], hi[order]
+    return int(np.maximum(np.searchsorted(lo, hi, side="right") - (np.arange(len(lo)) + 1), 0).sum())
+
+
+def polygon_check_pairs(poly):
+    """!
+    @brief Pairs of edges that `polygon_is_simple` has to test (boxes that overlap along its sweep axis), the smaller of the two axes, as it sweeps.
+    @param poly Polygon (n, 2), any length unit, finite.
+    @return int Candidate pairs.
+    """
+    p = np.asarray(poly, dtype=float)
+    if len(p) < 4:
+        return 0
+    b = np.roll(p, -1, axis=0)
+    return min(_box_pairs(np.minimum(p[:, k], b[:, k]), np.maximum(p[:, k], b[:, k])) for k in (0, 1))
+
+
+def outline_crossings(poly, spacing):
+    """!
+    @brief Upper bound of the crossings of an outline with the grid lines of a cell: the total extent of its edges along x and y over the cell.
+    @param poly Outline polygon (n, 2) in metres; non-finite coordinates raise.
+    @param spacing Cell size in metres (positive).
+    @return float Number of grid lines the edges span, summed over both families.
+    @throws ValueError If a coordinate is not finite.
+    """
+    p = np.asarray(poly, dtype=float)
+    if not np.isfinite(p).all():
+        raise ValueError("the board outline has a coordinate that is not a finite number")
+    d = np.abs(p - np.roll(p, -1, axis=0))
+    return float(d.sum() / max(spacing, 1e-300))
+
+
+def _too_many_crossings():
+    """!
+    @brief The plain message of a polygon whose edges cross too many grid lines at the cell of the run.
+    @return str Message.
+    """
+    return (f"the board outline has too many long edges for this cell size (they cross more than {OUTLINE_MAX_CROSSINGS // 1_000_000} million grid lines): "
+            "use a coarser cell or a simpler outline")
+
+
+def face_apertures(poly, nx, ny, dx, dy, cover=None):
+    """!
+    @brief Open fraction of every interior face of the grid: the part of the face (the cell side shared by two neighbours) that lies on the board.
+    @details This is the length of the outline-inside part of a grid-line segment over the segment (the aperture of a cut-cell scheme: Johansen and Colella 1998 eq. 15 to 16;
+             Barrett, Fogelson and Griffith 2022 eq. 10 to 11). It is built from the sorted crossings of the outline with the grid lines, the same signed-sum construction that
+             `exact_coverage` integrates over a column, and costs about the perimeter over the cell: 20 000 vertices on a 0.25 mm grid take about 0.1 s and a few MB. An outline edge
+             that lies on a grid line has board on one side only, so each line is evaluated just left and just right of it (1e-9 of a cell) and the smaller value is kept: such a
+             face gets 0, which is right (nothing crosses the outline). Values within 1e-9 of 0 or 1 are snapped to them, and with `cover` given, a face between two whole cells
+             (cover 1 both) is exactly 1, so that an outline on the grid lines reproduces the links of a rectangle bit for bit.
+    @param poly Outline polygon (n, 2) in metres, either orientation, not crossing itself.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param cover Optional board cover (ny, nx) of the cells (see `exact_coverage`).
+    @return Tuple (ax, ay): ax (ny, nx - 1) the open fraction of the face between cell (i, j) and (i, j + 1), ay (ny - 1, nx) between (i, j) and (i + 1, j).
+    @throws ValueError If a coordinate is not finite or the outline crosses more than OUTLINE_MAX_CROSSINGS grid lines (too many edges for this cell).
+    """
+    p = np.asarray(poly, dtype=float)
+    if len(p) >= 3 and outline_crossings(p, min(dx, dy)) > OUTLINE_MAX_CROSSINGS:
+        raise ValueError(_too_many_crossings())
+    ax, ay = np.zeros((ny, max(nx - 1, 0))), np.zeros((max(ny - 1, 0), nx))
+    if len(p) >= 3:
+        ex, ey = 1e-9 * dx, 1e-9 * dy
+        if nx > 1:
+            ax = np.minimum(_line_lengths(p, nx - 1, dx, ny, dy, 0, -ex), _line_lengths(p, nx - 1, dx, ny, dy, 0, ex))
+        if ny > 1:
+            ay = np.minimum(_line_lengths(p, ny - 1, dy, nx, dx, 1, -ey), _line_lengths(p, ny - 1, dy, nx, dx, 1, ey)).T
+    for a in (ax, ay):
+        a[a < _EXACT_SNAP] = 0.0
+        a[a > 1.0 - _EXACT_SNAP] = 1.0
+    if cover is not None:
+        c = np.asarray(cover)
+        ax[(c[:, :-1] >= 1.0) & (c[:, 1:] >= 1.0)] = 1.0
+        ay[(c[:-1] >= 1.0) & (c[1:] >= 1.0)] = 1.0
+    return ax, ay
+
+
+def signed_distance_to_outline(poly, x, y):
+    """!
+    @brief Signed distance from points to the closest point of a polygon outline (positive inside, negative outside).
+    @details The outline is cut into pieces of at most 1/2000 of the bounding-box diagonal, a k-d tree of their mid-points gives the 6 nearest pieces of every point, the exact
+             point-to-segment distance to those 6 is taken, and the answer is accepted when no other piece can be nearer (its mid-point is farther than the candidate distance
+             plus half a piece); the few points that fail this test are measured against every segment that has a piece within that reach (the same
+             answer as against every segment; the piece is coarser than 1/2000 of the diagonal only when the perimeter exceeds 1000 diagonals, so that there are at most OUTLINE_MAX_PIECES pieces). The sign is that of the side of the nearest segment (the orientation is
+             known from the signed area); a point whose nearest point is a vertex of the outline gets the even-odd test of `points_in_polygon`, which a vertex needs (at a
+             reflex corner the side of one segment is not the side of the board).
+    @param poly Closed polygon (n, 2) in metres.
+    @param x X of the points (1-D array, metres).
+    @param y Y of the points (1-D array, metres).
+    @return Array of distances in metres, shape of x.
+    @throws ValueError If a coordinate of the outline is not finite.
+    """
+    from scipy.spatial import cKDTree
+    p = np.asarray(poly, dtype=float)
+    if not np.isfinite(p).all():
+        raise ValueError("the board outline has a coordinate that is not a finite number")
+    x = np.atleast_1d(np.asarray(x, dtype=float))
+    y = np.atleast_1d(np.asarray(y, dtype=float))
+    out = np.zeros(x.shape)
+    if len(x) == 0 or len(p) < 3:
+        return out
+    a, b = p, np.roll(p, -1, axis=0)
+    ab = b - a
+    seg_len = np.hypot(ab[:, 0], ab[:, 1])
+    # Pieces: every segment cut into equal parts, so that the distance to a mid-point bounds the distance to its piece within half a piece
+    diag = float(np.hypot(*(p.max(axis=0) - p.min(axis=0))))
+    # The piece count is bounded: a long zigzag outline would otherwise need perimeter / (diag / 2000) pieces (40 million for 20 000 edges of the diagonal);
+    # a coarser piece only widens the certified search (more points fall back to the exact test), it never changes the answer
+    piece = max(diag / 2000.0, float(seg_len.sum()) / OUTLINE_MAX_PIECES, 1e-12)
+    parts = np.maximum(np.ceil(seg_len / piece).astype(np.int64), 1)
+    seg_of = np.repeat(np.arange(len(p)), parts)
+    k_in = np.arange(parts.sum()) - np.repeat(np.cumsum(parts) - parts, parts)
+    pa = a[seg_of] + ab[seg_of] * (k_in / parts[seg_of])[:, None]
+    pb = a[seg_of] + ab[seg_of] * ((k_in + 1) / parts[seg_of])[:, None]
+    mid = 0.5 * (pa + pb)
+    pab = pb - pa
+    half = 0.5 * np.hypot(pab[:, 0], pab[:, 1])
+    pll = np.maximum((pab ** 2).sum(axis=1), 1e-300)
+    pts = np.column_stack([x, y])
+    k = int(min(6, len(mid)))
+    tree = cKDTree(mid)
+    dm, im = tree.query(pts, k=k)
+    dm, im = dm.reshape(len(pts), k), im.reshape(len(pts), k)
+    # Exact distance to the k candidate pieces
+    t = np.clip(((pts[:, None, 0] - pa[im, 0]) * pab[im, 0] + (pts[:, None, 1] - pa[im, 1]) * pab[im, 1]) / pll[im], 0.0, 1.0)
+    d = np.hypot(pts[:, None, 0] - pa[im, 0] - t * pab[im, 0], pts[:, None, 1] - pa[im, 1] - t * pab[im, 1])
+    best = d.argmin(axis=1)
+    rows = np.arange(len(pts))
+    dist, piece_best, t_best = d[rows, best], im[rows, best], t[rows, best]
+    # Certified when no piece beyond the k-th can be nearer: its mid-point is at least dm[:, -1] away, so it is at least dm[:, -1] - half away
+    bad = (dm[:, -1] - half.max()) < dist if len(mid) > k else np.zeros(len(pts), bool)
+    first_piece = np.cumsum(parts) - parts
+    bad_idx = np.flatnonzero(bad)
+    # The exact test of a point that is not certified needs only the segments with a piece whose mid-point lies within its candidate distance plus the
+    # longest half piece (the nearest point lies on such a piece; 1e-9 of the diagonal keeps a segment at the same distance in the set): the k-d tree gives them,
+    # so the test costs the pieces near the point instead of every segment (a star of 80 000 long spikes at a 0.5 mm cell took about 40 s with every segment).
+    # The candidate segments are sorted and measured with the formula of the whole-segment test, so the nearest one and its distance are those of that test
+    reach = half.max() + 1e-9 * max(diag, 1e-300)
+    near = []
+    for c0 in range(0, len(bad_idx), 4096):
+        near.extend(tree.query_ball_point(pts[bad_idx[c0:c0 + 4096]], r=dist[bad_idx[c0:c0 + 4096]] + reach))
+    for i, cand in zip(bad_idx, near):
+        segs = np.unique(seg_of[np.asarray(cand, dtype=np.int64)])
+        tt = np.clip(((x[i] - a[segs, 0]) * ab[segs, 0] + (y[i] - a[segs, 1]) * ab[segs, 1]) / np.maximum(seg_len[segs] ** 2, 1e-300), 0.0, 1.0)
+        dd = np.hypot(x[i] - a[segs, 0] - tt * ab[segs, 0], y[i] - a[segs, 1] - tt * ab[segs, 1])
+        jj = int(dd.argmin())                       # The lowest segment index among equal distances, as over every segment
+        j, tj = int(segs[jj]), tt[jj]
+        # The piece and the parameter within it of the nearest point, so that the vertex test below sees an end of the segment (the first piece with
+        # the parameter of the whole segment hid the far end: a point nearest to a vertex then got the side of one segment, wrong near a corner)
+        kp = int(min(max(np.floor(tj * parts[j]), 0), parts[j] - 1))
+        dist[i], piece_best[i], t_best[i] = dd[jj], first_piece[j] + kp, tj * parts[j] - kp
+    # Side of the nearest segment: the left of the direction a -> b is the inside of a counter-clockwise polygon
+    orient = 1.0 if polygon_area_signed(p) >= 0 else -1.0
+    sg = seg_of[piece_best]
+    cross = ab[sg, 0] * (y - a[sg, 1]) - ab[sg, 1] * (x - a[sg, 0])
+    inside = orient * cross > 0
+    # A vertex of the outline is where a piece at the end of its segment is nearest at its end (a joint inside a segment lies on a straight line: the side test holds)
+    at_start = (k_in[piece_best] == 0) & (t_best <= 0.0)
+    at_end = (k_in[piece_best] == parts[sg] - 1) & (t_best >= 1.0)
+    vertex = at_start | at_end
+    if vertex.any():
+        inside[vertex] = points_in_polygon(x[vertex], y[vertex], p)
+    return np.where(inside, dist, -dist)
 
 
 def _sample_mask(poly, nx, ny, dx, dy, samples, clip=None):
@@ -218,30 +567,124 @@ def _coverage_edge_cells(p, i0, i1, j0, j1, dx, dy, samples):
     return box
 
 
+# Largest concave part that is cut into triangles for the exact weights (ear clipping is quadratic in the vertices); a bigger one is sampled
+_EAR_MAX_VERTICES = 400
+
+
+def _triangulate(poly):
+    """!
+    @brief Cut a simple polygon into triangles (ear clipping), so that a concave polygon can be clipped exactly by convex pieces.
+    @details Collinear and repeated vertices are dropped first (they add no area); a vertex is an ear when its turn has the sign of the polygon and no
+             other vertex lies in or on its triangle. The triangles cover the polygon once, so the sum of their exact cell areas is the exact cell area of
+             the polygon.
+    @param poly Polygon vertices (n, 2) in metres, either orientation, not crossing itself.
+    @return list of numpy.ndarray triangles (3, 2) in metres, counter-clockwise, or None when no ear is found (a degenerate polygon).
+    """
+    p = np.asarray(poly, dtype=float)
+    if polygon_area_signed(p) < 0:
+        p = p[::-1]
+    pts = [tuple(v) for v in p]
+    scale = max(float(np.ptp(p[:, 0])), float(np.ptp(p[:, 1])), 1e-30)
+    tol = 1e-12 * scale * scale
+
+    def cross(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    tris = []
+    guard = 0
+    while len(pts) > 3 and guard < 4 * len(p) * len(p):
+        guard += 1
+        n = len(pts)
+        # Drop a collinear or repeated vertex: it changes nothing in the polygon
+        flat = next((i for i in range(n) if abs(cross(pts[i - 1], pts[i], pts[(i + 1) % n])) <= tol), None)
+        if flat is not None:
+            del pts[flat]
+            continue
+        for i in range(n):
+            a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+            if cross(a, b, c) <= 0.0:
+                continue                                                  # A reflex vertex is never an ear
+            # No other vertex in the triangle or on its sides (a vertex on a side would leave a sliver outside the polygon)
+            if any(cross(a, b, q) >= -tol and cross(b, c, q) >= -tol and cross(c, a, q) >= -tol
+                   for q in pts if q not in (a, b, c)):
+                continue
+            tris.append(np.array([a, b, c]))
+            del pts[i]
+            break
+        else:
+            return None
+    if len(pts) == 3 and abs(cross(*pts)) > tol:
+        tris.append(np.array(pts))
+    return tris
+
+
+def _part_on_board(poly, outline):
+    """!
+    @brief The part of a polygon that lies on the board, as polygons, by exact clipping.
+    @details Sutherland-Hodgman needs one convex operand: a convex part (every rectangle and drawn footprint) clips the outline, or a convex
+             outline clips the part. When both are concave the part is cut into triangles (`_triangulate`) and each triangle clips the outline, so
+             the weights stay exact and do not jump when a vertex move makes a part concave. A concave outline cut by a convex piece can leave
+             zero-width bridges, which have no area and cancel in `exact_coverage`. A polygon that crosses itself (read by the even-odd rule of the
+             models) is not clipped.
+    @param poly Part polygon vertices (n, 2) in metres.
+    @param outline Board outline vertices (m, 2) in metres.
+    @return list of numpy.ndarray pieces (k, 2) in metres whose areas add up to the part on the board, or None when the pair cannot be clipped exactly.
+    """
+    pa, ob = np.asarray(poly, dtype=float), np.asarray(outline, dtype=float)
+    if polygon_self_intersects(ob) or polygon_self_intersects(pa):
+        return None
+    if _is_convex(pa):
+        return [clip_polygon(ob, pa)]
+    if _is_convex(ob):
+        return [clip_polygon(pa, ob)]
+    if len(pa) > _EAR_MAX_VERTICES:
+        return None
+    tris = _triangulate(pa)
+    if tris is None:
+        return None
+    # The outline is cut to the box of the part once, so that every triangle clips a short polygon and not the whole outline
+    x0, y0 = pa.min(axis=0)
+    x1, y1 = pa.max(axis=0)
+    local = clip_polygon(ob, np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]))
+    if len(local) < 3:
+        return []
+    return [clip_polygon(local, t) for t in tris]
+
+
 def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=None):
     """!
     @brief Weight of every grid cell in the heating of a part: the share of the cell that is inside the part AND on the board.
     @details A part that crosses the board outline must heat the board only where it lies on it. The product of the two coverages
              (part x board) is exact only when one of them covers the whole cell; on a cell cut by both it is wrong (a part that covers
              the whole cell gets the right weight, but a part edge and the outline in the same cell give part cover x board cover instead of
-             the area that is in both). The intersection is taken sample by sample on the same points.
-             When the model represents the board share of a cell by its own cover (sampled more coarsely than the part), the weight is
-             the share of the cell's board samples that are in the part, times that cover: the heat density on the board part of the cell
-             is then the part's density, consistently with the board area the model gives the cell (otherwise a cut cell whose cover reads
-             1/4 against a part weight of 3/8 gets 1.5 times the density; measured +1.3 K on a small T at 0.5 mm). The caller normalises the
-             weights so that the total power is exact.
+             the area that is in both).
+             With an outline the weight is the exact area of the part on the board in each cell over the area of the cell (the part is clipped to
+             the outline (a concave part on a concave outline is cut into triangles first) and the result is intersected with the cells by `exact_coverage`). It is also the share of the board part of the cell that
+             the part covers times the exact board cover of the cell (`Board.cover`), so the heat density on the board part of every cell is the
+             part's density, consistently with the board area the model gives the cell. When the pair cannot be clipped (a polygon that
+             crosses itself, or a concave part of more than _EAR_MAX_VERTICES vertices on a concave outline) the older rule is used: the intersection is taken sample by sample on the same points; if the model
+             represents the board share of the cell by its own cover, the weight is the share of the cell's board samples that are in the part, times
+             that cover. The caller normalises the weights so that the total power is exact.
     @param poly Part polygon vertices (n, 2) in metres.
     @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board (then the result is coverage_fraction).
     @param nx Number of cells along x.
     @param ny Number of cells along y.
     @param dx Cell width in metres.
     @param dy Cell height in metres.
-    @param samples Sub-samples per cell side.
-    @param cover Optional board cover of every cell used by the model (ny, nx), in [0, 1]; None gives the plain intersection share.
+    @param samples Sub-samples per cell side (rectangular board and the sampled fallback only).
+    @param cover Optional board cover of every cell used by the model (ny, nx), in [0, 1]; used only by the sampled fallback (the exact weight needs no
+           normalisation); None gives the plain intersection share.
     @return Array of shape (ny, nx) with values in [0, 1].
     """
     if outline is None:
         return coverage_fraction(poly, nx, ny, dx, dy, samples)
+    pieces = _part_on_board(poly, outline)
+    if pieces is not None:
+        out = np.zeros((ny, nx))
+        for piece in pieces:
+            if len(piece) >= 3:
+                out += exact_coverage(piece, nx, ny, dx, dy)
+        return np.minimum(out, 1.0)
     out = np.zeros((ny, nx))
     got = _sample_mask(poly, nx, ny, dx, dy, samples, clip=outline)
     if got is None:
@@ -332,6 +775,12 @@ def _is_convex(poly):
     @return bool True for a convex polygon.
     """
     p = np.asarray(poly, dtype=float)
+    # A repeated vertex is an edge of no length whose turns read 0 on both sides: at a reflex corner it hid the turn, so an L with its inner
+    # corner repeated was taken as convex and clipping by it gave the whole box (found by the review of fix/exact-board-cover)
+    d1 = np.roll(p, -1, axis=0) - p
+    p = p[np.abs(d1).max(axis=1) > 1e-12 * max(float(np.abs(p).max()), 1e-30)]
+    if len(p) < 3:
+        return False
     d1 = np.roll(p, -1, axis=0) - p
     d2 = np.roll(d1, -1, axis=0)
     cross = d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]
@@ -641,11 +1090,24 @@ def edge_length_on_board(poly, nx, ny, dx, dy, active):
     lost = (out > 0) & ~active
     if not lost.any() or not active.any():
         return out * active
+    far = None
     for i, j in zip(*np.nonzero(lost)):
         # Search the 5 x 5 window around the cell first (the nearest board cell is almost always a neighbour); fall back to the whole grid
         i0, j0 = max(i - 2, 0), max(j - 2, 0)
         ci, cj = np.nonzero(active[i0:i + 3, j0:j + 3])
-        ci, cj = (ci + i0, cj + j0) if ci.size else np.nonzero(active)
+        if ci.size:
+            ci, cj = ci + i0, cj + j0
+        else:
+            # The whole grid through a k-d tree of the board cells (scanning every cell for every such cell cost cells x lost cells: minutes for an outline of
+            # thin spikes); the cells within a hair of the nearest distance, in the order of the scan, are then measured as the scan measured them
+            if far is None:
+                from scipy.spatial import cKDTree
+                ai, aj = np.nonzero(active)
+                far = (ai, aj, cKDTree(np.column_stack([aj * dx, ai * dy])))
+            ai, aj, tree = far
+            d0 = tree.query([j * dx, i * dy])[0]
+            sel = np.sort(np.asarray(tree.query_ball_point([j * dx, i * dy], r=d0 * (1.0 + 1e-6) + 1e-12 * max(dx, dy)), dtype=np.int64))
+            ci, cj = ai[sel], aj[sel]
         d = np.hypot((cj - j) * dx, (ci - i) * dy)
         best = d <= d.min() * (1.0 + 1e-9)                      # Every equally near cell gets an equal share
         np.add.at(out, (ci[best], cj[best]), out[i, j] / int(best.sum()))
@@ -660,7 +1122,8 @@ def polygon_is_simple(poly):
     @return bool.
     @note Same rule as the all-pairs test (strict sign change of both orientation tests, so touching
           and collinear overlaps are not crossings) but about O(n log n + k): the edges are sorted by
-          the left end of their box and only pairs whose boxes overlap are tested, in vectorised blocks
+          the lower end of their box along the axis with fewer candidate pairs (`polygon_check_pairs`)
+          and only pairs whose boxes overlap are tested, in vectorised blocks
           (k is the number of overlapping boxes; it is n^2 / 2 at worst, a star of long spikes:
           2.3 s at 20 000 vertices). Two edges that cross properly always have overlapping boxes, so
           the box test drops no real crossing. It differs from the old all-pairs loop in one place,
@@ -687,6 +1150,10 @@ def polygon_is_simple(poly):
     xhi = np.maximum(a[:, 0], b[:, 0]) + pad
     ylo = np.minimum(a[:, 1], b[:, 1]) - pad
     yhi = np.maximum(a[:, 1], b[:, 1]) + pad
+    # Sweep along the axis with fewer candidate pairs: the pairs kept after both box tests are the same and the crossing test is symmetric in the two edges,
+    # so the answer is the same, but a serpentine of short edges stacked along y (all overlapping in x) costs n log n instead of n^2 / 2
+    if _box_pairs(ylo, yhi) < _box_pairs(xlo, xhi):
+        xlo, xhi, ylo, yhi = ylo, yhi, xlo, xhi
     order = np.argsort(xlo, kind="stable")
     idx, a, b, xlo, xhi, ylo, yhi = idx[order], a[order], b[order], xlo[order], xhi[order], ylo[order], yhi[order]
     m = len(idx)

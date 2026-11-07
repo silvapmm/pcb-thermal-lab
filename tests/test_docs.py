@@ -4,7 +4,7 @@
 @file test_docs.py
 @brief Documentation gate: every module, class, function and method must be documented in Doxygen style.
 
-@details Rules enforced on the `pcbthermal` package, on `examples/`, on `tools/` and on `research/<topic>/scripts/`:
+@details Rules enforced on the `pcbthermal` package, on `examples/`, on `tools/` and on `research/<topic>/scripts/`, `releases/**/scripts/` and `releases/regression-harness/lib/`:
 - a module docstring with @file and @brief,
 - a class docstring with @brief,
 - a function or method docstring with @brief (constructors may list only their parameters),
@@ -21,7 +21,9 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examples").glob("*.py"))
                  + list((ROOT / "tools").rglob("*.py"))      # tools/ (the OCR tool) follows the same Doxygen rule
-                 + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"])      # research/<topic>/scripts (the Gerber research is kept by its own session)
+                 + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"]
+                 + list((ROOT / "releases").glob("**/scripts/*.py"))      # releases/<version>/*/scripts and the harness scripts
+                 + list((ROOT / "releases" / "regression-harness" / "lib").glob("*.py")))
 
 
 def _returns_value(fn):
@@ -108,14 +110,18 @@ def test_theory_document_covers_every_model_and_formula_family():
 
 
 def test_theory_convection_claims_are_true():
-    """The horizontal-face laws are not in Lienhard, Example 8.1 uses the laminar form, and the face turned down has its limit written."""
+    """The horizontal-face laws are not in Lienhard, Example 8.1 uses the laminar form, and the face turned down has the 1/5 law with its limit written."""
     text = (ROOT / "docs" / "theory.md").read_text()
     # The false statements found by the review of the sources must not return
     assert "the same forms are read in [Lienhard2024]" not in text
     assert "general form reproduces the worked example" not in text
     # What the pages of Lienhard print, and the limit of the face turned down
-    for needle in ("Raithby-Hollands", "Example 8.1", "laminar** form 8.13a", "Limit of the face turned down", "exponent 1/5",
+    for needle in ("Raithby-Hollands", "Example 8.1", "laminar** form 8.13a", "Face turned down and its limit", "exponent 1/5",
                    "No convection coefficient of the program has been compared with a measurement"):
         assert needle in text, f"docs/theory.md lost '{needle}'"
     models = (ROOT / "docs" / "models.md").read_text()
-    assert "face turned down" in models and "conservative side" in models
+    assert "face turned down" in models and "edge-circulation limit" in models
+    # The face down is the 1/5 law; the McAdams form and the unconfirmed Incropera constant are not presented as the program's law
+    assert "hot face down `Nu = 0.475 Ra^{1/5}`" in text and "hot face down `Nu = 0.27" not in text
+    assert "was NOT confirmed" in text and "conservative side" not in text.split("Face turned down and its limit")[1][:3000]
+    assert "down: `0.475 Ra^(1/5)`" in models and "down: `0.27" not in models

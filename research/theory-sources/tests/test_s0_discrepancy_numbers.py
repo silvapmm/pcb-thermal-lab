@@ -26,11 +26,20 @@ def test_up_face_against_yovanovich_jafarpur_bounds():
     assert 2.8e2 < rows[(40, 30, 5)]["ra_ap"] < 3.0e2 and 1.7e4 < rows[(100, 80, 20)]["ra_ap"] < 1.9e4
 
 
-def test_board_impact_of_the_yj_bound():
-    """!@brief README 9.1: board maximum -1.1, +0.6, +1.0, +0.7 % and mean -2.0, +1.8, +4.0, +3.9 % on the four canonical boards (FVM 2 mm)."""
+def test_board_impact_of_the_yj_bound(monkeypatch):
+    """!@brief README 9.1: board maximum -1.1, +0.6, +1.0, +0.7 % and mean -2.0, +1.8, +4.0, +3.9 % on the four canonical boards (FVM 2 mm).
+    @param monkeypatch pytest fixture. The README numbers were taken with the 2.5.x lower-face law (0.27 Ra^(1/4)); 2.6.0 (fix/face-down-convection) uses 0.475 Ra^(1/5), which moves
+           the baseline of the comparison: with the 2.5.x law restored the README numbers are reproduced; with the 2.6.0 law the bound's effect is +0.35, +1.04, +1.09, +0.68 % on
+           the maximum and +0.55, +3.16, +4.65, +4.06 % on the mean (asserted below)."""
     original = hf.cv.h_natural_horizontal
+    with monkeypatch.context() as m:
+        m.setattr(hf.cv, "DOWN_COEFFICIENT", 0.27)
+        m.setattr(hf.cv, "DOWN_EXPONENT", 0.25)
+        rows = hf.board_impact()
+        for r, dmax, dmean in zip(rows, (-1.1, 0.6, 1.0, 0.7), (-2.0, 1.8, 4.0, 3.9)):
+            assert abs(100 * r["d_max"] - dmax) < 0.06 and abs(100 * r["d_mean"] - dmean) < 0.06, r["board"]
     rows = hf.board_impact()
-    for r, dmax, dmean in zip(rows, (-1.1, 0.6, 1.0, 0.7), (-2.0, 1.8, 4.0, 3.9)):
+    for r, dmax, dmean in zip(rows, (0.35, 1.04, 1.09, 0.68), (0.55, 3.16, 4.65, 4.06)):
         assert abs(100 * r["d_max"] - dmax) < 0.06 and abs(100 * r["d_mean"] - dmean) < 0.06, r["board"]
     # The in-memory replacement must be undone, or every later test would run on the substitute
     assert hf.cv.h_natural_horizontal is original

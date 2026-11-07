@@ -8,8 +8,8 @@
          is computed by the FVM (fvm.step_responses at 1 mm, the reference), the Lumped, the Analytic as in the program and the Analytic with the calibration variants
          of lib/calib_variants.py. Printed: steady resistance, time to 63 %, the largest difference of the whole curve (in percent of the steady resistance) and
          the error of the time to 63 % against the FVM.
-         Run from the repository root: .venv/bin/python research/analytic-2-6/scripts/study_transient_both.py [--variants program,two,two_max]
-         [--local 16,24] [--cell 1.0] [--calibrate-on all|vias]  (the review's run: --variants program --local 16 --cell 0.5 --calibrate-on vias)
+         Run from the repository root: .venv/bin/python research/analytic-2-6/scripts/study_transient_both.py [--variants current,program,two,two_max]
+         [--local 16,24] [--cell 1.0] [--calibrate-on all|vias]  ("program" is the v2.5.1 one-factor calibration, frozen in lib/analytic_v251.py; "current" is the live 2.6.0 local modal system; the review's run: --variants program --local 16 --cell 0.5 --calibrate-on vias)
 """
 
 import argparse

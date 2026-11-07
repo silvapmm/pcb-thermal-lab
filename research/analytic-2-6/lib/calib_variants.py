@@ -22,10 +22,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
-from pcbthermal import analytic   # noqa: E402
+import analytic_v251 as analytic   # noqa: E402  (frozen v2.5.1 text: 2.6.0 replaced the one-factor calibration by the local modal system, so the variants are built on the old module)
+from pcbthermal import analytic as _live   # noqa: E402
 from pcbthermal.geometry import polygon_area   # noqa: E402
 
 _ORIGINAL = analytic._calibrated_dynamics
+_LIVE_STEP = _live.step_responses
 
 
 def _smeared(problem, sh, n_terms, sv, shs):
@@ -120,8 +122,13 @@ def calibrated(variant):
 
 def install(name):
     """!
-    @brief Replace (or restore) analytic._calibrated_dynamics.
-    @param name "program", "two" or "two_max".
+    @brief Choose the Analytic step response that the program entry point runs.
+    @param name "program" (the v2.5.1 one-factor calibration, the program of the study), "two" or "two_max" (variants built on it) or "current" (the live 2.6.0 program,
+           which has the local modal system instead of a calibration).
     @return None.
     """
+    if name == "current":
+        _live.step_responses = _LIVE_STEP
+        return
     analytic._calibrated_dynamics = _ORIGINAL if name == "program" else calibrated(name)
+    _live.step_responses = analytic.step_responses

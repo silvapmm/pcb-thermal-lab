@@ -1,6 +1,6 @@
 # Results across program versions
 
-Every number comes from result sets of the regression harness (`research/release-regression-245`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item, or when the notes of the pair (taken from the CHANGELOG and docs/versions.md of the later version) name one; otherwise it is left unclassified or called unexplained. The example boards are read from the current tree for every version: a release that does not know a field of the file ignores it.
+Every number comes from result sets of the regression harness (`releases/regression-harness`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item, or when the notes of the pair (taken from the CHANGELOG and docs/versions.md of the later version) name one; otherwise it is left unclassified or called unexplained. The example boards are read from the current tree for every version: a release that does not know a field of the file ignores it.
 
 Versions compared (oldest first): v2.0.0, v2.1.0, v2.2.0, v2.3.0, v2.4.0, v2.4.1, v2.4.2, v2.4.3, v2.4.4, v2.4.5, v2.5.0.
 
@@ -90,11 +90,11 @@ What did not run, and why:
 | t_outline | analytic | not_available | not_available | not_available | not_available | 141.070 | 141.070 | 141.070 | 141.070 | 141.070 | 141.070 | 136.772 |
 | t_outline | solid3d | not_available | not_available | not_available | not_available | 191.539 | 191.539 | 187.177 | 187.177 | 187.177 | 187.177 | 187.177 |
 
-![hottest point of three canonical boards per model across versions](../research/release-regression-245/figures/fig_05_version_hottest_canonical_boards.png)
+![hottest point of three canonical boards per model across versions](../releases/regression-harness/figures/fig_05_version_hottest_canonical_boards.png)
 
 *Figure 05 (`figures/fig_05_version_hottest_canonical_boards.png`): hottest point of three canonical boards per model across versions; one line per model.*
 
-![mean error of the rise against the independent layered solver, per model across versions](../research/release-regression-245/figures/fig_06_version_error_vs_reference.png)
+![mean error of the rise against the independent layered solver, per model across versions](../releases/regression-harness/figures/fig_06_version_error_vs_reference.png)
 
 *Figure 06 (`figures/fig_06_version_error_vs_reference.png`): mean error of the rise against the independent layered solver, per model across versions; one line per model.*
 
@@ -511,7 +511,7 @@ Records where the hottest point is the same but another number moved (layer mean
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_12_version_shift_v2.4.5_vs_v2.5.0.png)
+![shift of the hottest point](../releases/regression-harness/figures/fig_12_version_shift_v2.4.5_vs_v2.5.0.png)
 
 *Figure 12 (`figures/fig_12_version_shift_v2.4.5_vs_v2.5.0.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
 
@@ -542,7 +542,7 @@ No table of expected shifts exists for this pair, so the shifts are not classifi
 > ### Documentation
 > - A frozen-numbers regression test in `tests/regression/`: the five models on 17 regression boards at 2 mm and the times to 63 % against the reference numbers of 2.4.5 (`data/v2.4.5.json`), one tolerance policy; the 2, 1 and 0.5 mm sets are run at the release. Tests only; no program number changes.
 > - `docs/theory.md` rewritten for the models as implemented (one structure per model, sources by key with their reading status, no history: the numbers it quoted are in `docs/validation.md` 25 and the history in `docs/versions.md`).
-> - The numbers of `docs/validation.md`, `docs/calculators.md` and the research folders re-run on the 2.4.5 program (`research/reproduction-245`, and the final review): the comparison with the 3D solids (sections 3 and 3.1: the FVM is now 0.1 to 0.7 % from the finite-element solid on the four boards, +2.9 % on a one-sided heater-sized pad, where it was 0.4 to 2.2 % and −4.9 %), the parts and the top path (section 9, 0.1 to 1.2 K), the example board cut to a T (section 23) and the JEDEC row of the Power Calculator (+3.0 to +3.9 %).
+> - The numbers of `docs/validation.md`, `docs/calculators.md` and the research folders re-run on the 2.4.5 program (`releases/2.4.5/reproduction`, and the final review): the comparison with the 3D solids (sections 3 and 3.1: the FVM is now 0.1 to 0.7 % from the finite-element solid on the four boards, +2.9 % on a one-sided heater-sized pad, where it was 0.4 to 2.2 % and −4.9 %), the parts and the top path (section 9, 0.1 to 1.2 K), the example board cut to a T (section 23) and the JEDEC row of the Power Calculator (+3.0 to +3.9 %).
 
 </details>
 
@@ -830,7 +830,7 @@ Records where the hottest point is the same but another number moved (layer mean
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_08_version_shift_v2.4.4_vs_v2.4.5.png)
+![shift of the hottest point](../releases/regression-harness/figures/fig_08_version_shift_v2.4.4_vs_v2.4.5.png)
 
 *Figure 08 (`figures/fig_08_version_shift_v2.4.4_vs_v2.4.5.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
 
@@ -1330,7 +1330,7 @@ Records where the hottest point is the same but another number moved (layer mean
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_09_version_shift_v2.4.1_vs_v2.4.2.png)
+![shift of the hottest point](../releases/regression-harness/figures/fig_09_version_shift_v2.4.1_vs_v2.4.2.png)
 
 *Figure 09 (`figures/fig_09_version_shift_v2.4.1_vs_v2.4.2.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
 
@@ -2039,7 +2039,7 @@ Records where the hottest point is the same but another number moved (layer mean
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_10_version_shift_v2.1.0_vs_v2.2.0.png)
+![shift of the hottest point](../releases/regression-harness/figures/fig_10_version_shift_v2.1.0_vs_v2.2.0.png)
 
 *Figure 10 (`figures/fig_10_version_shift_v2.1.0_vs_v2.2.0.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
 
@@ -2191,6 +2191,6 @@ None.
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_11_version_shift_v2.0.0_vs_v2.1.0.png)
+![shift of the hottest point](../releases/regression-harness/figures/fig_11_version_shift_v2.0.0_vs_v2.1.0.png)
 
 *Figure 11 (`figures/fig_11_version_shift_v2.0.0_vs_v2.1.0.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*

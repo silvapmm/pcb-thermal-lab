@@ -22,7 +22,8 @@ import numpy as np
 
 from . import defaults
 from .fileschema import ProjectFormatError, check_problem_dict, guard
-from .geometry import BOARD_SAMPLES, coverage_fraction, discs_board_share, polygon_area, polygon_is_simple
+from .geometry import (OUTLINE_MAX_EXTENT, OUTLINE_MAX_VERTICES, POLYGON_MAX_PAIRS, exact_coverage, coverage_fraction, discs_board_share, outline_extent,
+                       polygon_area, polygon_check_pairs, polygon_is_simple)
 
 
 @dataclass
@@ -234,21 +235,22 @@ class Board:
         """
         return self.outline is not None
 
-    def cover(self, nx, ny, dx, dy, samples=BOARD_SAMPLES, minimum=0.01):
+    def cover(self, nx, ny, dx, dy, minimum=0.01):
         """!
         @brief Fraction of every grid cell that lies on the board.
-        @details All ones for a rectangular board; otherwise the coverage of the outline polygon. Cells with less than `minimum` are taken as off the board.
+        @details All ones for a rectangular board; otherwise the exact area of the outline polygon in each cell
+                 (`geometry.exact_coverage`, no sampling; the area of the cover equals the polygon area up to the cells below `minimum`).
+                 Cells with less than `minimum` are taken as off the board.
         @param nx Number of cells along x.
         @param ny Number of cells along y.
         @param dx Cell width in metres.
         @param dy Cell height in metres.
-        @param samples Sub-samples per cell side (geometry.BOARD_SAMPLES, shared with the part weights and the FDM node cover).
         @param minimum Smallest coverage kept.
         @return Array (ny, nx) with values in [0, 1].
         """
         if self.outline is None:
             return np.ones((ny, nx))
-        c = coverage_fraction(self.outline, nx, ny, dx, dy, samples)
+        c = exact_coverage(self.outline, nx, ny, dx, dy)
         return np.where(c >= minimum, c, 0.0)
 
     def board_area(self):
@@ -387,9 +389,20 @@ class Board:
             o = np.asarray(self.outline, dtype=float)
             if o.ndim != 2 or o.shape[1] != 2 or len(o) < 3:
                 raise ValueError("the board outline needs at least three vertices")
+            if not np.isfinite(o).all():
+                raise ValueError("the board outline has a coordinate that is not a finite number")
             tol = 1e-9
             if o.min() < -tol or o[:, 0].max() > self.width + tol or o[:, 1].max() > self.height + tol:
                 raise ValueError("the board outline must lie inside the width x height box")
+            # A project file is hostile: bound the work the outline can ask of every later step (the simple-polygon test, the cover, the cut-cell links, the edge
+            # distance and length) whatever the cell, before the first of them; real outlines are two to four orders of magnitude below each bound (geometry.py)
+            if len(o) > OUTLINE_MAX_VERTICES:
+                raise ValueError(f"the board outline has {len(o)} vertices, more than the {OUTLINE_MAX_VERTICES} the program accepts: simplify the outline")
+            if outline_extent(o) > OUTLINE_MAX_EXTENT:
+                raise ValueError(f"the edges of the board outline add up to {outline_extent(o):.0f} m along x and y, more than the {OUTLINE_MAX_EXTENT:.0f} m "
+                                 "the program accepts: simplify the outline (fewer or shorter edges)")
+            if polygon_check_pairs(o) > POLYGON_MAX_PAIRS:
+                raise ValueError(f"the board outline has too many edges that overlap each other to be checked ({len(o)} vertices): simplify the outline")
             if polygon_area(o) <= 0 or not polygon_is_simple(o):
                 raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:

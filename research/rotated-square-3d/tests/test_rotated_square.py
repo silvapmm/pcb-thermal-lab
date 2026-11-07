@@ -93,7 +93,9 @@ def test_variant_modules_are_built_from_the_source_and_the_program_is_unchanged(
     for name in rotsq.VARIANTS:
         mod = rotsq.variant_solid3d(name)
         assert hasattr(mod, "Solid") and hasattr(mod, "solve_steady")
-    assert rotsq.variant_solid3d("program") is program
+    # "program" is the 2.5.x module (read from the tag v2.5.1: 2.6.0 changed solid3d.py); "current" is the live one
+    assert rotsq.variant_solid3d("current") is program
+    assert rotsq.variant_solid3d("program") is not program
     assert rotsq.variant_solid3d("cutcell") is not program
 
 
@@ -160,7 +162,10 @@ def test_square_reference_is_the_program_rectangle_on_cells_the_edge_does_not_cu
     p = Problem.new(20.0, 20.0, 2, h_side=2000.0).add_full_copper()
     p.add_heater(1, 2.0, rect=(8, 8, 12, 12), name="U")
     b = p.board
-    prog = solid3d.solve_steady(p, cell_mm=1.0).t_max - b.ambient
+    # The independent solver has one slab per gap and layer, as the 2.5.x program (read from the tag v2.5.1): equal to rounding. The 2.6.0 solid (feature/solid3d-slabs-by-thickness)
+    # cuts the gap into slabs by thickness and reads 61.107 K where the 2.5.x one and this solver read 61.619 K (-0.83 %); that difference is the slab item, stated here.
+    prog = rotsq.variant_solid3d("program").solve_steady(p, cell_mm=1.0).t_max - b.ambient
+    assert abs(solid3d.solve_steady(p, cell_mm=1.0).t_max - b.ambient - prog) / prog < 0.012
     ref = square3d.solve_quarter(0.02, 0.004, 2.0, axisym3d.slabs_of(p), b.h_top, b.h_bottom, 2000.0, 10)
     assert abs(ref["t_centre"] - prog) < 1e-9 * prog
     assert abs(ref["balance"] - 1.0) < 1e-9

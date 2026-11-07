@@ -20,7 +20,8 @@ from .. import defaults
 from ..api import SolverOptions, default_options
 from ..fileschema import ProjectFormatError, check_problem_dict
 from ..model import Dielectric, Heater, Problem, Heatsink, Via, Zone, new_problem, via_fill_k
-from ..project import Project, load_project, project_from_dict, project_to_dict, save_project
+from .. import package as pkg
+from ..project import Project, project_from_dict, project_to_dict
 
 KINDS = ("zone", "heater", "heatsink", "via")
 _LISTS = {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}
@@ -89,6 +90,7 @@ class Document(QObject):
     changed = Signal()          # The problem or the options changed (views must refresh)
     state_changed = Signal()    # File name or modified flag changed (window title)
     edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
+    project_replaced = Signal() # A different project was opened, created or imported (not an edit, not a re-import): view choices such as the layer start again
 
     def __init__(self, project=None):
         """!
@@ -97,6 +99,7 @@ class Document(QObject):
         super().__init__()
         self.project = project or Project(problem=new_problem(), options=default_options())
         self.path = None
+        self.save_notes = []                          # What the last save could not store (texts), shown by the window
         self.stack = QUndoStack(self)
         self.stack.cleanChanged.connect(self._clean_changed)
 
@@ -155,7 +158,9 @@ class Document(QObject):
         @brief Replace the project by a snapshot (used by undo and redo).
         @param snap Snapshot dict.
         """
+        extras = self.project.package                 # The images and stored files are not in the JSON snapshot: carry them over
         self.project = project_from_dict(copy.deepcopy(snap), validate=False)
+        self.project.package = extras
         self.changed.emit()
 
     def _set_project(self, project, path):
@@ -167,6 +172,7 @@ class Document(QObject):
         self.project, self.path = project, path
         self.stack.clear()
         self.stack.setClean()
+        self.project_replaced.emit()                      # Before changed, so that the views refresh with the layer already reset
         self.changed.emit()
         self.state_changed.emit()
 
@@ -212,7 +218,7 @@ class Document(QObject):
         @brief Load a project file (native, project or legacy editor JSON).
         @param path File path.
         """
-        self._set_project(load_project(path), path if not path.endswith("legacy") else None)
+        self._set_project(pkg.load_any(path), path if not path.endswith("legacy") else None)
 
     def open_problem(self, problem, name=None):
         """!
@@ -275,19 +281,21 @@ class Document(QObject):
         self.edit(text, mutate)
         return kept
 
-    def save(self, path=None):
+    def save(self, path=None, as_package=None, include_sources=None):
         """!
         @brief Save the project.
         @param path Target path (default: the current path).
+        @param as_package True to write a `.pcbtz` package, False for JSON, None: the format of the open file (a package stays a package) or the suffix of the path.
+        @param include_sources True/False to store the source files of the import in the package (None: as the package already does).
         @return str or None: the backup copy of the old file that the save made (the format of the file changed), else None.
         @throws ValueError If no path is known.
         """
         path = path or self.path
         if not path:
             raise ValueError("no file name")
-        backup = save_project(path, self.project)
+        backup, self.save_notes = pkg.save_any(path, self.project, as_package=as_package, include_sources=include_sources)
         self.path = path
-        self.problem.name = os.path.basename(path).replace(".pcbt.json", "").replace(".json", "")
+        self.problem.name = os.path.basename(path).replace(".pcbt.json", "").replace(".pcbtz", "").replace(".json", "")
         self.stack.setClean()
         self.state_changed.emit()
         return backup

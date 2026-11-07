@@ -71,9 +71,12 @@ def test_basis_beta_zero_is_cosine():
     assert np.allclose(b.lam, np.arange(10) * np.pi / 0.06)
 
 
-def test_robin_reproduces_program():
+def test_robin_reproduces_program(monkeypatch):
     """!
     @brief The copy with the Robin basis equals analytic.solve_steady, which since the Robin edge entered the program (uniform board, and the example board with its vias and heatsinks) is the same treatment; the old faces copy now differs from the program on purpose.
+    @param monkeypatch pytest fixture: the copy has ONE edge parameter beta for all layers (the 2.5.0 Robin edge). 2.6.0 added the per-layer edge loop for layers with unequal
+           copper (feature/analytic-edge-and-local-transient), which moves the example board by 1.1e-4 K (the layers differ); `EDGE_MISMATCH_MIN` set huge switches the loop off
+           (the branch keeps the common-beta code bit for bit below it) so that the example board is compared like with like.
     @return None.
     """
     for p in (uniform(), uniform(h_side=200.0, x0=0.0, y0=0.0)):
@@ -84,6 +87,7 @@ def test_robin_reproduces_program():
         faces = ae.solve(p, 1.0, edge="faces")
         assert np.abs(faces["T"] - ref.T).max() > 1e-3
     p = example_board()
+    monkeypatch.setattr(analytic, "EDGE_MISMATCH_MIN", 1e30)
     ref = analytic.solve_steady(p, cell_mm=1.0)
     mine = ae.solve(p, 1.0, edge="robin")
     assert np.abs(mine["T"] - ref.T).max() < 1e-6

@@ -58,11 +58,16 @@ def test_decision_averages_the_fast_heater_and_resolves_the_slow_one():
     p = example_with_profiles()
     resp = profiles.step_response_fvm(p, 2.0)
     d = profiles.decide(p, resp, 1.0)
-    assert [x.regime for x in d] == ["average", "resolved"]
-    assert d[0].oscillation < 1.0 < d[1].oscillation
-    # With a huge threshold everything is averaged; with a zero threshold every wave that oscillates is resolved
+    # Fast-wave item (research/fast-wave-oscillation, docs/validation.md 37): U1 at 100 Hz has a node swing of 0.393 K (below the 1 K budget) but the closed form of the stack under it
+    # gives 2.013 K (an independent axisymmetric solver 2.02 K), so it is no longer averaged: it is over the budget and too fast for the node, hence "average + ripple".
+    assert [x.regime for x in d] == [profiles.REGIME_RIPPLE, "resolved"]
+    assert d[0].ripple_swing == pytest.approx(2.013, abs=0.003) and d[0].oscillation == pytest.approx(d[0].ripple_swing)
+    node = profiles.wave_response(resp, 0, p.heaters[0].profile)
+    assert node[0] - node[1] == pytest.approx(0.393, abs=0.005)       # the node swing of the program, unchanged: the floor is the closed form
+    assert d[1].oscillation > 1.0
+    # With a huge threshold everything is averaged; with a zero threshold every wave that oscillates is resolved, a fast one with its ripple
     assert [x.regime for x in profiles.decide(p, resp, 1e6)] == ["average", "average"]
-    assert [x.regime for x in profiles.decide(p, resp, 0.0)] == ["resolved", "resolved"]
+    assert [x.regime for x in profiles.decide(p, resp, 0.0)] == [profiles.REGIME_RIPPLE, "resolved"]
 
 
 def test_error_budget_is_shared_between_heaters():
@@ -73,7 +78,8 @@ def test_error_budget_is_shared_between_heaters():
     resp = profiles.step_response_fvm(p, 2.0)
     one = profiles.decide(p, resp, 1e6)[0].oscillation
     d = profiles.decide(p, resp, 1.5 * one)               # Room for only one heater's oscillation
-    assert sorted(x.regime for x in d) == ["average", "resolved", "resolved"]
+    # Fast-wave item: the closed-form swing of the stack (identical for the three equal parts) is the oscillation; the two that do not fit the budget get the ripple, not a time-stepped curve
+    assert sorted(x.regime for x in d) == ["average", profiles.REGIME_RIPPLE, profiles.REGIME_RIPPLE]
 
 
 def test_fvm_matches_the_exact_rc_response_of_a_uniform_board(monkeypatch):
@@ -102,20 +108,30 @@ def test_fvm_matches_the_exact_rc_response_of_a_uniform_board(monkeypatch):
 
 
 def test_mixed_regimes_match_the_fully_resolved_run():
-    # Averaging the fast heater changes the answer by no more than the oscillation that was neglected
+    # Averaging the fast heater and adding its closed-form ripple against the time-stepped run of the same heater (fast-wave item, docs/validation.md 37).
     p = Problem.new(60, 50, 2).add_full_copper()
     p.add_heater(1, 3.0, rect=(10, 20, 20, 30), name="fast", profile=SquareWave(p_on=10.0, period=0.05, duty=0.3))
-    p.add_heater(1, 1.0, rect=(35, 20, 45, 30), name="slow", profile=SquareWave(p_on=4.0, period=2.0, duty=0.25))
+    p.add_heater(1, 1.0, rect=(35, 20, 45, 30), name="slow", profile=SquareWave(p_on=4.0, period=20.0, duty=0.25))
     resp = profiles.step_response_fvm(p, 4.0)
-    mixed_dec = profiles.decide(p, resp, 1.0)
-    assert [d.regime for d in mixed_dec] == ["average", "resolved"]
-    full_dec = profiles.decide(p, resp, 0.0)
-    opt = ProfileOptions(duration="cycles", cycles=4)
+    # The budget is 1.5 K. The closed form gives the 20 Hz wave of the 10 mm part 6.35 K (the independent 3D reference 6.375 K, the node structure alone 0.75 K), so it is over the budget and,
+    # with a shortest stretch of 15 ms, gets the ripple. The slow heater (shortest stretch 5 s, far above 4 s) is time-stepped as before.
+    mixed_dec = profiles.decide(p, resp, 1.5)
+    assert [d.regime for d in mixed_dec] == [profiles.REGIME_RIPPLE, "resolved"]
+    assert mixed_dec[0].oscillation == pytest.approx(6.35, abs=0.02)
+    opt = ProfileOptions(duration="cycles", cycles=2)
     mixed = profiles.run_fvm(p, mixed_dec, opt, cell_mm=4.0)
-    full = profiles.run_fvm(p, full_dec, opt, cell_mm=4.0)
-    assert full.steps > 5 * mixed.steps                                 # Averaging the fast heater is much cheaper
-    assert abs(full.peak - mixed.peak) <= mixed_dec[0].oscillation + 0.15
-    assert abs(float(np.mean(full.t_max)) - float(np.mean(mixed.t_max))) < 0.15
+    # The time-stepped run of the same heater, as the program did before (the node structure): forced by hand
+    old_dec = profiles.decide(p, resp, 1.5)
+    old_dec[0].regime = "resolved"
+    old = profiles.run_fvm(p, old_dec, opt, cell_mm=4.0)
+    assert old.steps > 5 * mixed.steps                                  # The ripple costs no time steps
+    r = mixed.ripple[0]
+    assert r["name"] == "fast" and r["swing_c"] == pytest.approx(6.35, abs=0.02)
+    # The peak of the result has the whole wave on top of the mean of the heater; the time-stepped node structure has 0.75 K of it
+    assert mixed.peak > old.peak + 2.0
+    assert mixed.peak == pytest.approx(mixed.ripple_peak_c)
+    # The mean of the curve is not moved by a zero-mean wave sampled at steps (the wave is averaged over each step, never aliased into a constant)
+    assert abs(float(np.mean(mixed.t_heaters[0])) - float(np.mean(mixed.t_heaters_mean[0]))) < 0.05
 
 
 def test_models_agree_on_a_profile_run():
@@ -129,7 +145,7 @@ def test_models_agree_on_a_profile_run():
     f = sim.profile_results["fvm"]
     assert f.steady_average_max < f.peak < f.steady_peak_max                  # The bracket holds
     assert f.peak_map.max() == pytest.approx(f.peak, abs=0.01)                # The map is consistent with the series
-    assert any("smears" in w for w in sim.warnings)                          # The analytic transient says what it ignores
+    assert any("couplings" in w for w in sim.warnings)                       # The analytic transient says what it approximates (vias as couplings of a block of modes)
 
 
 def test_run_options_duration_start_and_limits():

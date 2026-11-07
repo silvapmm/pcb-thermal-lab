@@ -107,12 +107,16 @@ def libs():
 FROZEN = {"lumped_unit": 360.2915219685997, "lumped_array": 32.27347498914426, "analytic_array": 33.81517429819902}
 
 
-def test_lumped_off_is_the_program_of_f2d5c03(libs):
+def test_lumped_off_is_the_program_of_f2d5c03(libs, monkeypatch):
     """!
     @brief The patched Lumped with mode "off" gives the program's result at `f2d5c03` to the last digit (values frozen from that commit), on a lattice cell and on the via array.
     @param libs Fixture.
+    @param monkeypatch pytest fixture. 2.6.0 lengthens the via barrel by half the copper (fix/via-barrel-and-rim-uncoupling, +0.13 % on the unit cell: 360.2915 K to 360.7554 K);
+           with `BARREL_COPPER_FRACTION` set to zero the program gives the frozen number to the last digit, which is the check of this test.
     @return None.
     """
+    from pcbthermal import viawell
+    monkeypatch.setattr(viawell, "BARREL_COPPER_FRACTION", 0.0)
     for key, prob in (("lumped_unit", cases.unit_cell(4, 0.3, 385.0)), ("lumped_array", cases.array(4, 3, 3.5, 0.3, 385.0))):
         with lp.patched("off"):
             b = pc.max_rise(prob, "lumped", 0.5)

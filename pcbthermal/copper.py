@@ -774,6 +774,25 @@ REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these 
                          "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and the finite-volume "
                          "model itself reads the smallest parts hotter still at a finer cell; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
                          "use the finite-volume model for the result")
+CUT_CELLS_IMPORTED_NOTE = ("the board has an outline and imported copper: in the finite-volume model a cell that the outline cuts is joined to its neighbours by its sheet scaled "
+                           "by the share of the cell on the board, and the edge film acts on the cell centre (with drawn copper the program joins such a cell through the open part "
+                           "of its sides and puts the film in series with the conduction to the edge, which the imported copper cannot use yet). Near a slanted or curved edge the "
+                           "peak then depends on where the edge falls on the grid, by up to a few tenths of a kelvin at an edge coefficient of 10 W/m2K and by more for a cooled edge")
+
+
+def outline_cuts_cells(board):
+    """!
+    @brief True when the board has an outline that is not its whole box, so that some cells can be cut by it (an imported outline is often the plain rectangle of the box).
+    @param board A Board.
+    @return bool.
+    """
+    if not board.has_outline():
+        return False
+    from .geometry import polygon_area_signed
+    # The outline lies inside its box (the box is the bounding box of the board), so an area equal to the box area means the outline IS the box
+    return abs(polygon_area_signed(np.asarray(board.outline, float))) < board.width * board.height * (1.0 - 1e-9)
+
+
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
                    "than the flow-based faces of the layered models (see the finite-volume model for the reference)")
 
@@ -797,6 +816,8 @@ def model_warnings(problem, model, cell_mm=None):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
+        if model == "fvm" and outline_cuts_cells(problem.board):
+            out.append(CUT_CELLS_IMPORTED_NOTE)
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
             out.append(coarse_cell_warning())
             if cell_mm > SCREENING_CELL_MM + 1e-9:

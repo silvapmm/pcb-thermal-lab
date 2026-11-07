@@ -65,7 +65,7 @@ def test_small_pad_reaches_the_operating_point_and_not_a_thermal_runaway_warning
     root = brentq(lambda pb: pb - power + part_split(h, board_tmax(p, pb, opts), power, amb)[1], 1e-6, power, xtol=1e-5)
     tj_exact = part_split(h, board_tmax(p, root, opts), power, amb)[0]
     assert row["t_junction"] == pytest.approx(tj_exact, abs=0.1)
-    assert row["t_junction"] == pytest.approx(92.1, abs=0.1)         # 90.9 before fix/laminate-nodes: the rule adds the face drop of a part over the bare laminate next to its pad
+    assert row["t_junction"] == pytest.approx(91.9, abs=0.1)         # 90.9 before fix/laminate-nodes (the rule adds the face drop of a part over the bare laminate next to its pad), 92.1 before fix/face-down-convection (the face turned down is a 1/5 law, cooler by 0.2 K)
     # Energy and the series-parallel closure
     assert row["power_top_w"] + row["power_board_w"] == pytest.approx(power)
     assert row["t_junction"] - amb == pytest.approx(h.top_resistance() * row["power_top_w"], rel=1e-6)
