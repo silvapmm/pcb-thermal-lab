@@ -968,6 +968,8 @@ One temperature node through the thickness is the mean of the layer: the surface
 
 ## 23. A part across the board outline
 
+**Note (2.6.0, `fix/exact-board-cover`):** the board cover and the part weights are now exact areas, not the 8 x 8 samples; the tables of this section up to 23.1 are those of 2.4.5 to 2.5.1 (sampled cover) and are kept as the history, the new numbers are in 23.1.
+
 Since 2.4.5 (and, with the board cover sampled 8 x 8, `fix/board-cover-8x8`) a part that crosses the board outline heats only the part of each cell that is on the board (`geometry.part_weights`, `docs/theory.md` 1.3, `tests/test_part_across_outline.py`). Before, the FVM, the FDM and the 3D solid gave a cut cell the power density of the whole cell, on a board area smaller than the cell. The numbers below come from the program as it is now and, for the "before" columns, from the same program with the old rule put back by hand (the weight `coverage_fraction` of the part alone); the figures are 34 to 37 of `docs/theory.md` 1.3 (`python research/theory/scripts/make_fig_part_outline.py`).
 
 **The example board cut to a T** (100 × 80 mm, `h_side` 10 W/m²K, outline of `research/outline/scripts/outline_rectangle_study.py`), hottest point in degC at cells 1 / 2/3 / 0.5 / 1/3 mm. At 2/3 and 1/3 mm the edges of the T lie on grid lines and no cell is cut:
@@ -1012,6 +1014,57 @@ The FVM rows are printed by `python research/theory/scripts/make_fig_part_outlin
 **The FDM hot spot of the part-across-outline board.** In the FDM the part of a footprint that was off the board used to be spread over the edge nodes; it is now weighted by the part on the board. On the part-across-outline board the FDM hot spot moves -16.2 / -21.8 / -5.7 K at 2 / 1 / 0.5 mm (252.03 -> 230.23 degC at 1 mm), the FVM -1.7 / -13.7 / -3.7 K and the 3D solid -1.7 / -14.1 / -3.8 K; before the three models spread 231.7 to 252.0 degC, now they agree within 1.4 K, and against the independent layered reference (0.2 mm cells, isotropic) all are within 0.6 % of the 214.64 K rise (before: FDM +8.5 / +10.9 / +2.6 %, FVM up to +7 %).
 
 **Limit.** A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines (the scatter of the "now" rows is this residual). Treating the cut cell by its real shape (option P1 of `research/rotated-square-3d`) is in the chapter "Planned" of `versions.md`. Board of 40 mm turned 20 degrees (board and part) at 1 mm: +1.25 K with h = 100 and +3.52 K with h = 1000 above the continuum of the independent solver (it was +1.09 and +3.41 K before the 8 x 8 cover; the other turns, 45 degrees included, were not rerun: before the cover they read +1.1 to +1.8 and +3.4 to +3.6 K); the 8 x 8 cover moved it by +0.1 to +0.3 K in the FVM and, at h = 2000 on a 20 mm board, by +1.5 K in the 3D solid.
+
+### 23.1 Exact board cover (`fix/exact-board-cover`)
+
+`Board.cover` (FVM, 3D solid), the FDM node cover and the weights of a part across the outline are the exact areas of the outline and of the part on the board in each cell (`geometry.exact_coverage`, `geometry.part_weights`; `docs/theory.md` 1.3.2), not the 8 x 8 samples. Everything below is printed by `research/rotated-square-3d/scripts/study_exact_cover.py` (`area`, `turn`, `tee`, `balance`; the sampled rule is put back by a context manager with a copy of the code of 2.5.1), the frame references are cached in `research/rotated-square-3d/out/`.
+
+**Area of the cover** of the 20 mm square (relative error against the polygon area, before the 0.01 cut-off of `Board.cover`): exact 2e-16 at every turn; sampled 8 x 8: +6.4e-3 at 45 degrees and 1 mm (+2.0e-3 at 0.5 mm), -3.8e-3 at 18.435 degrees (slope 1/3) and 1 mm, 1.6e-4 at 5 degrees, 0 at 0, 10, 30 degrees.
+
+**Turn spread** (hottest temperature of the 20 mm square, 3 mm 2 W part, two copper planes, `h_side` 10 W/m2K, FVM, against the board solved in its own frame at 1/8 and 1/16 mm with a second-order Richardson step, the part shifted half a coarse cell; turns 0 to 45 degrees in steps of 5; K):
+
+| cell | rule | error at 0 / 20 / 45 degrees | spread over the turns |
+| --: | :-- | :-- | --: |
+| 1 mm | sampled 8 x 8 | +1.397 / +1.464 / +0.466 | 0.998 |
+| 1 mm | exact | +1.397 / +1.439 / +1.473 | 0.076 |
+| 0.5 mm | sampled 8 x 8 | -0.057 / -0.035 / -0.313 | 0.286 |
+| 0.5 mm | exact | -0.057 / -0.035 / +0.001 | 0.058 |
+
+The offset of +1.4 K at 1 mm is the cell-centred read-out of a 3 mm part on 1 mm cells (the same at every turn, so not a cut-cell effect); only the dependence on the turn is what the cover fixes.
+
+**Edge-shift scatter** of the small T (neck edge moved over one cell in twelfths, error of the hottest point against the same model at 1/12 mm, where the edge is on grid lines; max minus min over the twelve positions, K, and the mean error):
+
+| model, cell | sampled 8 x 8 | exact |
+| :-- | --: | --: |
+| FVM, 1 mm | 1.47 (mean +1.38) | 0.65 (+1.39) |
+| FVM, 0.5 mm | 0.83 (+0.26) | 0.48 (+0.25) |
+| FDM, 1 mm | 2.02 (-0.99) | 1.38 (-0.99) |
+| FDM, 0.5 mm | 0.96 (-0.37) | 0.90 (-0.38) |
+
+The mean bias is unchanged (it comes from the conduction of the cut cell, not from its area): the remaining scatter is what the cut-cell links of the chapter "Planned" of `versions.md` address. The 3D solid was not swept here (its reference at 1/12 mm is beyond the unknown limit); its frozen records and heat balance are below.
+
+**Balance and power.** Heat balance of the turned square (1 mm, turns 0, 17, 45 degrees): 1e-13 (FVM), 1e-13 (FDM), 3e-11 (3D solid); the area of a 3 mm part on the board from its weights is the polygon area to 1e-12 at every turn. `tests/test_exact_cover.py` holds the total power and the balance of a part across the edge of a 24-gon at three shifts and turns in the three models.
+
+**Independent check (review).** The cell areas of `geometry.exact_coverage` agree with shapely (cell boxes intersected with the polygon) to 1e-12 of a cell on 400 simple polygons (random star-shaped, vertices and edges on grid lines, collinear and repeated vertices, a vertex-touching bow tie, thin strips and necks, offsets of 1e-12 m, cells of 0.05 to 2.5 mm), the only larger difference being the snap of 1e-9; the part weights agree to 4e-12 on 1150 pairs of every convex/concave combination. Against the independent layered solver (`tests/helpers/layered3d.py`, Richardson of 1/4 and 1/8 mm, 20 mm square of two copper planes, isotropic laminate 0.3 W/mK, insulated edges, a 3 mm 2 W part turned with the board, turns 0 / 15 / 30 / 45 degrees, error of the FVM in K): at 1 mm sampled -2.45 / -2.20 / -1.74 / -2.80 (spread 1.06), exact -2.45 / -2.13 / -1.75 / -1.78 (0.70); at 0.5 mm sampled spread 0.47, exact 0.32. The cover removes the 45-degree outlier; what is left is the cut-cell scatter of the turned part itself (the 0.08 K of the table above is for a part aligned with the grid).
+
+**Frozen numbers (`tests/regression`, 2 / 1 / 0.5 mm, 317 passed with the pending files; only boards with an outline move, nothing else):** hottest point, K, new minus 2.5.0
+
+| board and model | 2 mm | 1 mm | 0.5 mm |
+| :-- | --: | --: | --: |
+| `part_across_outline`, FVM | -0.547 | -0.452 | +0.118 |
+| `part_across_outline`, FDM | -0.533 | -0.432 | +0.116 |
+| `part_across_outline`, 3D solid | -0.558 | -0.497 | +0.123 |
+| `round_outline`, FVM | +0.005 | +0.010 | +0.005 |
+| `round_outline`, FDM | +0.001 | +0.012 | +0.004 |
+| `round_outline`, 3D solid | +0.009 | +0.008 | +0.003 |
+
+The time to 63 % of `part_across_outline` moves from 33.50 to 33.65 s (FVM) and from 33.16 to 33.31 s (FDM), `round_outline` by 0.005 s. The Lumped and Analytic fields do not move (they solve the equivalent rectangle); only the mean temperature of the parts read on the board does: Analytic `part_across_outline` -0.14 / -0.14 / +0.18 K, `round_outline` +0.23 / +0.23 / +0.07 K, `t_outline` -0.04 / -0.04 / -0.007 K, `example_cut_to_T` -0.024 / -0.013 K (2 mm, parts U1 and U2), Lumped `example_cut_to_T` +0.005 / -0.015 K. `t_outline` and `example_cut_to_T` in the FVM, FDM and 3D solid, and the other 13 boards, are unchanged.
+
+**Cost.** The cover of a 200 mm round board of 1000 vertices: 0.22 / 0.51 / 1.35 s at 1 / 0.5 / 0.25 mm sampled, 0.6 / 1.7 / 7 ms exact; a 20 mm disc of 64 vertices 2 to 8 ms against 0.1 to 0.2 ms.
+
+![The exact cover against the sampled one](images/exact_board_cover.png)
+
+*Figure (`images/exact_board_cover.png`): the cells of the 20 mm square turned 45 degrees coloured by the sampled minus the exact cover, and the area of the cover for every turn.*
 
 ## 24. Warnings of the limits of the models
 

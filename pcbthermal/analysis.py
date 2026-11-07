@@ -11,7 +11,7 @@ where needed, the Problem that produced it.
 import numpy as np
 from scipy import ndimage
 
-from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_centroid
+from .geometry import BOARD_SAMPLES, exact_coverage, part_weights, points_in_polygon, polygon_centroid
 
 
 def _require_field(result):
@@ -71,8 +71,8 @@ def _board_mask(result, outline):
     @brief Which samples of a result field lie on the board (cells or nodes the models take as on the board).
     @details Off the board the FVM, FDM and 3D solid pin the field to the ambient (and the Lumped and Analytic fields, stretched back from
              the rectangle of the same area, hold values that belong to no board), so a statistic over a polygon that crosses the outline
-             must leave those samples out. The test is the one of the models: board cover of at least 0.01, sampled BOARD_SAMPLES x BOARD_SAMPLES (8 x 8) on the cells
-             (FVM, 3D solid) and the same lattice averaged on the nodes (FDM).
+             must leave those samples out. The test is the one of the models: exact board cover of at least 0.01 on the cells
+             (FVM, 3D solid) and the same cover averaged on the nodes (FDM).
     @param result A SteadyResult with a field.
     @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board.
     @return Boolean array (ny, nx) of the field, or None for a rectangular board (every sample is on it).
@@ -82,7 +82,7 @@ def _board_mask(result, outline):
     ny, nx = result.T.shape[1:]
     if result.grid == "nodes":
         # The node control volume shares the four cells around the node (as fdm._node_average does)
-        c = coverage_fraction(outline, nx - 1, ny - 1, result.dx, result.dy, BOARD_SAMPLES)
+        c = exact_coverage(outline, nx - 1, ny - 1, result.dx, result.dy)
         acc = np.zeros((ny, nx))
         cnt = np.zeros((ny, nx))
         for di in (0, 1):
@@ -90,7 +90,7 @@ def _board_mask(result, outline):
                 acc[di:di + ny - 1, dj:dj + nx - 1] += c
                 cnt[di:di + ny - 1, dj:dj + nx - 1] += 1.0
         return acc / cnt >= 0.01
-    return coverage_fraction(outline, nx, ny, result.dx, result.dy, BOARD_SAMPLES) >= 0.01
+    return exact_coverage(outline, nx, ny, result.dx, result.dy) >= 0.01
 
 
 def _footprint_stats(result, polygon, layer, outline=None, face=False):
@@ -116,7 +116,7 @@ def _footprint_stats(result, polygon, layer, outline=None, face=False):
         cov = points_in_polygon(X.ravel(), Y.ravel(), polygon).reshape(X.shape).astype(float)
     else:
         # Share of every cell in the polygon and on the board (the plain coverage without an outline)
-        # Same lattice as the models on an outline; the plain 4 x 4 coverage of a rectangular board is kept (its numbers do not change)
+        # Exact with an outline, or the models' lattice in their sampled fallback (a polygon that crosses itself); the plain 4 x 4 coverage of a rectangular board is kept
         cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
     if on_board is not None:
         cov = cov * on_board

@@ -344,7 +344,7 @@ class Solid:
         # --- Heaters on the copper slab of their layer, power exact over the footprint
         Q = np.zeros(n)
         for h in problem.heaters:
-            # Part and board by sample, scaled to the board cover of the cell; 8 x 8 keeps the area of a small turned part
+            # Exact area of the part on the board in every cell (equal to its share of the exact board cover times that cover)
             w = part_weights(h.polygon, b.outline, nx, ny, dx, dy, cover=bcov) * self.active
             if w.sum() <= 0:                                     # A part off the board: its power goes to the nearest board cell
                 cx, cy = polygon_centroid(h.polygon)
