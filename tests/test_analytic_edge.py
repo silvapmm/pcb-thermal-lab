@@ -281,13 +281,14 @@ def test_no_edge_loss_is_the_insulated_cosine_series(h_side):
 
 def test_insulated_numbers_are_those_of_the_cosine_code():
     """A value stored from the cosine code before the Robin basis (develop, insulated edge, 1 mm): a 4-layer board with vias and a heatsink (the review found that this
-    test stored no value; the number below is printed by develop and by this branch alike, and the T board is pinned in test_part_across_outline)."""
+    test stored no value; the number below was printed by develop and by the Robin branch alike until the barrel length d + 0.5 t_cu of fix/via-barrel-and-rim-uncoupling moved it
+    from 71.02539703239057 (+0.091 K, 0.15 % of the rise: the sixteen vias conduct less), and the T board is pinned in test_part_across_outline)."""
     p = _plate(60, 40, 8, None, layers=4)
     p.add_via_array((26, 16, 34, 24), 4, 4, diameter=0.3)
     p.add_heatsink(4, 200.0, rect=(10, 10, 20, 20))
     r = analytic.solve_steady(p, cell_mm=1.0)
-    assert r.t_max == pytest.approx(71.02539703239057, abs=1e-9)
-    assert r.power_out["heatsinks"] == pytest.approx(0.5137099714589006, abs=1e-12)
+    assert r.t_max == pytest.approx(71.11675482396726, abs=1e-9)
+    assert r.power_out["heatsinks"] == pytest.approx(0.5136421134196508, abs=1e-12)
     assert sum(r.power_out.values()) == pytest.approx(r.power_in, rel=1e-6)
 
 
