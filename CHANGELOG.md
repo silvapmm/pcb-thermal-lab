@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Re-import of a different board** (`fix/different-board-reimport`; interface only, no solver or frozen number changes): when the new Gerber files are another board than the stored import (outline differs by more than 5 %, no byte-identical file, no file name in common), the re-import dialog offers and preselects **New project from these files**, Cancel stays the default and Continue is not painted as the primary button; step 2 no longer fills in the parts of the old board by designator, and Replace or Update on such a board carry no part over (no orphans, no removal list, imported heaters dropped, hand-drawn elements kept). The project name follows the new board when it is a new project. A comparison table with no rows is hidden. Same-board re-imports are unchanged (`tests/test_reimport_matrix.py`, new `tests/test_reimport_different_board.py`).
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).

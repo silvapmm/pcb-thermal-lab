@@ -1414,27 +1414,54 @@ class ImportSession:
         return item["function"] if item["function"] in UNIQUE else f"{item['function']}: {(item['new'] or item['old']).name}"
 
     @staticmethod
+    def _same_core(old_box, new_box, old_files, new_files, tol: float = 0.05) -> tuple:
+        """!
+        @brief The rule that tells a revision of the same board from another board.
+        @details The board is DIFFERENT when any one of three things holds: the width or the height of the outline box differs by more than `tol` of the stored one; none of the new
+                 files is byte-identical to a stored one; no file name is shared. A revision of a layout normally keeps names or contents of some files and the size of the board.
+        @param old_box Stored box [x0, y0, x1, y1] in mm (or empty).
+        @param new_box Box of the new files in mm (or empty).
+        @param old_files Stored ImportFile list.
+        @param new_files New ImportFile list.
+        @param tol Relative difference of width or height accepted.
+        @return tuple (same bool, reasons list of str).
+        """
+        reasons = []
+        if len(old_box) == 4 and len(new_box) == 4:
+            ow, oh = old_box[2] - old_box[0], old_box[3] - old_box[1]
+            nw, nh = new_box[2] - new_box[0], new_box[3] - new_box[1]
+            if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
+                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
+        if old_files and new_files and not ({f.sha256 for f in old_files} & {f.sha256 for f in new_files}):
+            reasons.append("none of the files is byte-identical to a stored one")
+        if not ({f.name for f in old_files} & {f.name for f in new_files}):
+            reasons.append("no file name in common")
+        return not reasons, reasons
+
+    @staticmethod
     def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
         """!
-        @brief Decide whether new files look like the same board as a stored import (outline box within 5 %, a shared file name or hash).
+        @brief Decide whether new files look like the same board as a stored import (outline box within 5 %, a shared file name or hash; see `_same_core`).
         @param old Stored import.
         @param new Record of the new files.
         @param tol Relative difference of width or height accepted.
         @return tuple (same bool, reasons list of str).
         """
-        reasons = []
-        if len(old.box_mm) == 4 and len(new.box_mm) == 4:
-            ow, oh = old.box_mm[2] - old.box_mm[0], old.box_mm[3] - old.box_mm[1]
-            nw, nh = new.box_mm[2] - new.box_mm[0], new.box_mm[3] - new.box_mm[1]
-            if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
-                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
-        if old.files and new.files and not ({f.sha256 for f in old.files} & {f.sha256 for f in new.files}):
-            reasons.append("none of the files is byte-identical to a stored one")
-        if not ({f.name for f in old.files} & {f.name for f in new.files}):
-            reasons.append("no file name in common")
-        return not reasons, reasons
+        return ImportSession._same_core(list(old.box_mm), list(new.box_mm), old.files, new.files, tol)
 
-    def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None) -> dict:
+    def looks_different(self, stored: ImportRecord) -> bool:
+        """!
+        @brief The same test as `same_board`, made before the import is built (from the files in use and the box of the board read by `load`), so that step 2 can leave the stored
+               parts out for another board.
+        @param stored The stored ImportRecord.
+        @return bool True when the files look like another board; False when they look like a revision or nothing can be told yet.
+        """
+        b = self.board()
+        if b is None or not self.files:
+            return False
+        return not self._same_core(list(stored.box_mm), list(b.box), stored.files, self.import_files())[0]
+
+    def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None, carry: bool = True) -> dict:
         """!
         @brief Merge the new import (`build_problem` was just run) into the stored record by the chosen command.
         @details "replace" and "update": copper, drills and outline come from the new files; a part with the same designator keeps its power and edits, a part that left the files is an
@@ -1447,6 +1474,7 @@ class ImportSession:
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
         @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
+        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files.
         @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators), `typed` (designators whose power, tick, Tj max
                 or role the user changed in step 2: these values win over the stored ones, see `take_stored_parts`).
         """
@@ -1481,6 +1509,13 @@ class ImportSession:
             changes += [c for c in res.changes if "orphan" not in c] if rematch else [f"{p.designator}: added" for p in parts if p.designator not in stored]
             typed, lines = self._apply_step2(parts)
             return {"record": rec, "changes": lines + self._drop_kept_power(changes, typed), "parts": parts, "orphans": [], "typed": typed}
+        if not carry:
+            # Another board: a designator of the old board names an unrelated part here, so nothing is matched, nothing is orphaned and the powers start from the files
+            parts = copy.deepcopy(self.parts())
+            typed, lines = self._apply_step2(parts)
+            rec = copy.deepcopy(new)
+            rec.parts = parts
+            return {"record": rec, "changes": lines + ["another board: the stored parts were not carried over"], "parts": parts, "orphans": [], "typed": typed}
         res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
         typed, lines = self._apply_step2(res.parts)
         rec = copy.deepcopy(new)
@@ -1548,7 +1583,7 @@ def editor_part_values(record: ImportRecord, problem: Problem) -> None:
             p.edits["use"] = False                             # the user deleted its heater in the editor: the re-import does not make it again (as `carry_over`)
 
 
-def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_record: ImportRecord, typed=()) -> List[str]:
+def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_record: ImportRecord, typed=(), carry_parts: bool = True) -> List[str]:
     """!
     @brief Bring the heaters of the open project in line with the record of an Add files: a heater for every new part that heats, the heater of a stored part moved with it when the new
            placement or paste file moved the part, and the step-2 values of the parts the user changed there.
@@ -1616,7 +1651,7 @@ def _same_polygon(a, b, tol=1e-7) -> bool:
     return a.shape == b.shape and bool(np.all(np.abs(a - b) <= tol))
 
 
-def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord, typed=()) -> List[str]:
+def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord, typed=(), carry_parts: bool = True) -> List[str]:
     """!
     @brief Bring what the user did in the editor after an import into the Problem of a Replace or Update, so that a re-import loses nothing the files do not give.
     @details The files give the copper, the outline, the vias and the parts; the user gives the rest. Kept, in the Gerber frame (moved by the change of the board box):
@@ -1633,6 +1668,7 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     @param new_record The merged ImportRecord; its parts are changed in place.
     @param typed Designators whose power, heat-source tick, Tj max and role the user changed in step 2 of the re-import (`ImportSession.step2_edits`): for these the values of the
                  merged record win over the editor's (the other fields of the heater are still the editor's).
+    @param carry_parts False for another board: the heaters of the stored parts are dropped (they name unrelated parts), only what the user drew by hand is kept.
     @return list of text lines (what was kept), for the status line and the record warnings.
     """
     ob, nb = list(old_record.box_mm), list(new_record.box_mm)
@@ -1664,6 +1700,8 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     seen, edited, drawn = set(), [], []
     for h in old_problem.heaters:
         des = h.name if h.name in part_poly else next((d for d, poly in part_poly.items() if _same_polygon(poly, h.polygon)), None)
+        if des is not None and not carry_parts:
+            continue                                                       # a heater of the other board's part: it has no meaning here
         if des is None:
             q = copy.deepcopy(h)
             q.polygon, q.layer = np.asarray(h.polygon, float) + shift, layer_of(h.layer)
@@ -1689,7 +1727,7 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
             if h.role:
                 p.edits["role"] = "Source" if h.role == "source" else "Component"
     # 2. An imported heat source whose heater the user deleted stays deleted
-    deleted = [p.designator for p in old_record.parts if p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen and p.designator not in typed]
+    deleted = [p.designator for p in old_record.parts if carry_parts and p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen and p.designator not in typed]
     if deleted:
         new_problem.heaters = [h for h in new_problem.heaters if h.name not in deleted]
         for d in deleted:

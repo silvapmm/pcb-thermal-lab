@@ -9,7 +9,7 @@
          proposed stack-up, the outline, the drills and a zoomable preview of the selected layer. Step 2, parts: the parts from the paste layer, the placement file and the X3 layer with power, Tj max,
          role and the Source column, the shape of the heat source (always editable), the frame check and a preview whose red openings are clicked to make a heat source. Step 3, model: the copper
          mapping (faces; the others under Advanced), the pixel, the cell, the vias, the memory verdict and the warnings. Import builds the project; when the open project already holds an import the
-         ReimportDialog asks Replace, Update, Add files or Cancel.
+         ReimportDialog asks Replace, Update, Add files, New project or Cancel.
 """
 
 import gc
@@ -1502,7 +1502,7 @@ class ReimportDialog(QDialog):
         self.warn.setWordWrap(True)
         if not same:
             self.warn.setText(f'<span style="color:{c["bad"]}"><b>This looks like a different board:</b> ' + "; ".join(html.escape(r) for r in reasons) +
-                              ". Replacing it makes orphans of the parts that are not in the new files (kept with their power, not heating). Consider a new project instead.</span>")
+                              ". The parts of the stored board name other parts here, so Replace and Update do not carry them over. A new project from these files is the usual choice.</span>")
         lay.addWidget(self.warn)
         self.radios = {}
         grp = QButtonGroup(self)
@@ -1510,6 +1510,7 @@ class ReimportDialog(QDialog):
                              "changed in the editor; a power, tick, Tj max or role you changed in step 2 of this window wins. Heaters, zones, heatsinks and vias you drew stay, and so does the stack-up when the layer count is the same. "
                              "Parts that disappeared stay as orphans (not heating) unless you tick them to remove."),
                  "update": ("Update after a layout revision", "Like replace, plus a table of what changed: moved, new, removed, resized and rotated parts. Nothing is lost silently."),
+                 "new": ("New project from these files", "Open the new files as a new project, as File - Import Gerber board does on an empty window. Nothing of the open project is kept; you are asked to save it first."),
                  "add": ("Add files to the existing import", "A placement file, an extra paste layer or a component layer: their new parts are added and the stored parts keep everything. "
                          "The stored copper, outline and vias are not touched, so a copper, outline or drill file is not taken here: use Replace or Update for it. "
                          "Files that claim a function the import already has are shown to choose.")}
@@ -1525,7 +1526,9 @@ class ReimportDialog(QDialog):
             th.hint(d)
             d.setContentsMargins(22, 0, 0, 0)
             lay.addWidget(d)
-        self.radios["update" if (same and any(d["change"] != "kept" for d in self.diff)) else "replace"].setChecked(True)
+        self.different = not same
+        # A different board: the new project is preselected; the replace commands stay available (hand-drawn elements are kept, no part is carried over)
+        self.radios["new" if self.different else ("update" if any(d["change"] != "kept" for d in self.diff) else "replace")].setChecked(True)
         self.table = QTableWidget(0, 4)
         self.table.verticalHeader().setVisible(False)
         self.table.setToolTip("The comparison for the chosen command.")
@@ -1542,16 +1545,18 @@ class ReimportDialog(QDialog):
         lay.addWidget(foot)
         bb = QDialogButtonBox(QDialogButtonBox.Cancel)
         self.go = bb.addButton("Continue", QDialogButtonBox.AcceptRole)
-        self.go.setObjectName("primary")
         self.go.setToolTip("Apply the chosen command to the project as one undo step.")
-        self.different = not same
         if self.different:
-            # A different board: Enter must not replace the import; Cancel is the default and Continue is one click away
+            # A different board: Enter must not replace the import or discard the project, so Cancel is the default (it protects the open work) and Continue, a plain button, is one click away.
+            # On a revision of the same board Continue is the primary action
+            
             self.go.setDefault(False)
             self.go.setAutoDefault(False)
             cancel = bb.button(QDialogButtonBox.Cancel)
             cancel.setAutoDefault(True)
             cancel.setDefault(True)
+        else:
+            self.go.setObjectName("primary")
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
@@ -1561,7 +1566,7 @@ class ReimportDialog(QDialog):
     def mode(self):
         """!
         @brief The chosen command.
-        @return "replace", "update" or "add".
+        @return "replace", "update", "add" or "new".
         """
         return next(k for k, r in self.radios.items() if r.isChecked())
 
@@ -1576,6 +1581,7 @@ class ReimportDialog(QDialog):
         t = self.table
         t.blockSignals(True)
         t.setRowCount(0)
+        t.setVisible(True)
         mode = self.mode
         self.combos, self.checks = {}, {}
         if mode == "add":
@@ -1607,10 +1613,19 @@ class ReimportDialog(QDialog):
                                  "choose Replace or Update to apply it."))
             # A Continue that can only do nothing used to close the window and leave the project as it was: the user took that for a failure
             self.go.setEnabled(n_added + len(self.combos) > 0)
+        elif mode == "new":
+            self.go.setEnabled(True)
+            self.note.setText("The open project is not changed by this choice: the files open as a new project and you are asked to save the open one first. "
+                              "The parts and powers are those of step 2 of this window.")
+            t.setVisible(False)
+            t.blockSignals(False)
+            return
         else:
             self.go.setEnabled(True)
             t.setHorizontalHeaderLabels(["Part", "Change", "Detail", "Kept from the stored import" if mode != "replace" else "Action"])
             rows = [d for d in self.diff if d["change"] != "kept"] if mode == "update" else [d for d in self.diff if d["change"] == "removed"]
+            if self.different:
+                rows = []                                       # nothing is matched by designator on another board: no list of removals, no orphans
             t.setRowCount(len(rows))
             oldp = {p.designator: p for p in self.old.parts}
             for k, d in enumerate(rows):
@@ -1631,10 +1646,15 @@ class ReimportDialog(QDialog):
             counts = {k: sum(1 for d in self.diff if d["change"] == k) for k in ("new", "removed")}
             moved = sum(1 for d in self.diff if "moved" in d["change"])
             resized = sum(1 for d in self.diff if "resized" in d["change"])
-            self.note.setText(f"{n_keep} part(s) have a power to keep. New {counts['new']}, removed {counts['removed']}, moved {moved}, resized {resized}. Removed parts stay as orphans unless ticked.")
+            if self.different:
+                self.note.setText("Another board: no part of the stored import is carried over (no powers, no orphans); the parts come from the new files. "
+                                  "Heaters, zones, heatsinks and vias you drew by hand stay where they are, check that they fall on the new board.")
+            else:
+                self.note.setText(f"{n_keep} part(s) have a power to keep. New {counts['new']}, removed {counts['removed']}, moved {moved}, resized {resized}. Removed parts stay as orphans unless ticked.")
         t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         t.horizontalHeader().setStretchLastSection(True)
         t.blockSignals(False)
+        t.setVisible(t.rowCount() > 0)                           # an empty box says nothing (the same board with editor work only): the note below says what happens
 
     def remove_refs(self):
         """!
@@ -1785,6 +1805,7 @@ class ImportBoardWindow(QDialog):
         self.record = None                                    # The ImportRecord to store in the project
         self.mode = "new"                                     # "new", or the re-import command "replace", "update" or "add"
         self.changes = []                                     # Text lines of what a re-import changed
+        self.carry_parts = True                               # False when a re-import replaces the project by another board (no part is matched by designator)
         self.typed = set()                                    # Designators whose step-2 values (power, tick, Tj max, role) the user changed in a re-import
         self.ask_reimport = lambda dlg: dlg.exec() == QDialog.Accepted
         # The questions are attributes so that a test (or a script) can answer them without a modal box
@@ -1919,7 +1940,8 @@ class ImportBoardWindow(QDialog):
         self._take_stored_settings()
         if self.existing is not None and self.session.files and self.session.take_stored_roles(getattr(self.existing, "settings", None)):
             self.reload()                                       # a file the user had given a function (or left out) keeps it
-        if self.existing is not None and self.session.files:
+        # Another board: the designators of the stored board name unrelated parts here, so step 2 starts from the files (the dialog offers a new project)
+        if self.existing is not None and self.session.files and not self.session.looks_different(self.existing):
             self.session.take_stored_parts(self.existing)       # step 2 shows the powers the project has: what Replace and Update keep, and what the user may change
         self.page3.newname.blockSignals(True)
         self.page3.newname.setText("")
@@ -2103,7 +2125,14 @@ class ImportBoardWindow(QDialog):
             dlg = ReimportDialog(sx, self.existing, self)
             if not self.ask_reimport(dlg):
                 return False
-            res = sx.merge_import(dlg.mode, self.existing, dlg.remove_refs(), dlg.file_choice())
+            if dlg.mode == "new":
+                # A new project from the files: nothing of the open project is merged, the main window asks before it discards the open one
+                self.mode, self.changes, self.record, self.typed, self.carry_parts = "new", [], sx.record, set(), True
+                self.problem = prob
+                self.accept()
+                return True
+            self.carry_parts = not dlg.different
+            res = sx.merge_import(dlg.mode, self.existing, dlg.remove_refs(), dlg.file_choice(), carry=self.carry_parts)
             self.mode, self.changes, self.record, self.typed = dlg.mode, res["changes"], res["record"], set(res.get("typed", ()))
             if dlg.mode != "add":
                 prob.heaters = []                                 # the heaters come from the merged parts (they keep the powers of the stored import)

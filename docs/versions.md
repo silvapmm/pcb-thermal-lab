@@ -4,6 +4,12 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
+## Unreleased (2.5.2): re-import of a different board
+
+* **Re-import of a different board** (`fix/different-board-reimport`; `ImportSession._same_core`, `looks_different`, `merge_import(carry=)`, `carry_over(carry_parts=)`, `Document.reimport(carry_parts=)`, `ReimportDialog` choice `new`; tests `tests/test_reimport_different_board.py`, the 40+ cases of `tests/test_reimport_matrix.py` unchanged). The rule for 'different' is the existing one (outline box width or height differs by more than 5 %, or no byte-identical file, or no shared file name). Found by the reviewer replacing the RP2040 by the oswlight board: parts were carried by designator onto unrelated parts, the removal list and the orphans meant nothing and Continue was painted primary under a Cancel default. Now: a fourth choice 'New project from these files' is preselected for a different board (Cancel stays the default, Continue is a plain button, which protects the open work); step 2 does not fill in the stored parts; Replace and Update on such a board carry no part (no orphans, no list, imported heaters dropped, hand-drawn elements kept, a note asks to check their place); a table with no rows is hidden. Not done: a 'New project' chosen on a board that is the same one still carries the stored values of step 2.
+
+---
+
 ## 2.5.1 - 2026-11-06: display control, views of the maps, re-import, project-file checks and warning texts
 
 - *How 2.5.1 was tested*: two whole batteries on `develop`; the first found the Display popover deleted-object defect (fixed on `fix/display-popover-deleted`), the second on the final tree gave `2666 passed, 7 skipped, 2 xfailed in 2540.52s (0:42:20)` with the real boards present; the compatibility tests with the v2.4.5 tag (`PCBT_COMPAT_V245=1`) gave 4 passed, and the frozen numbers 317 passed at 2, 1 and 0.5 mm.
