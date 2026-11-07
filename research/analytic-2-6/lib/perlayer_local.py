@@ -18,8 +18,9 @@ import numpy as np
 import scipy.sparse.linalg as spla
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pcbthermal import analytic   # noqa: E402
+import analytic_v251 as analytic   # noqa: E402  (the v2.5.1 text: 2.6.0 has the per-layer edge loop in the program itself, which this module adds on top of the old solve)
 
 
 def _patched():
