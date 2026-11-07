@@ -637,12 +637,12 @@ def check_import(rows: int, cols: int, n_layers: int, cell_mm: float, fraction: 
     return peak
 
 
-def _counter(problem, model: str, n_diel: int = 4) -> Callable[[float], Tuple[int, int]]:
+def _counter(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int]]:
     """!
     @brief Function cell_mm -> (unknowns, plan cells) of a model, from the model's own counter.
     @param problem A Problem.
     @param model "fvm", "fdm" or "solid3d".
-    @param n_diel Slabs across every dielectric gap of the 3D solid, count.
+    @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @return Callable.
     """
     from . import fdm, fvm, solid3d
@@ -653,7 +653,7 @@ def _counter(problem, model: str, n_diel: int = 4) -> Callable[[float], Tuple[in
     return lambda c: (lambda r: (int(r[0]), int(r[2]) * int(r[3])))(solid3d.unknowns(problem, c, n_diel))
 
 
-def _bound(problem, model: str, n_diel: int = 4) -> Callable[[float], Tuple[int, int]]:
+def _bound(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int]]:
     """!
     @brief Function cell_mm -> (lower bound of the unknowns, plan cells) of a model, without sampling the copper: one node per copper layer and plan cell
            (FVM), per corner node (FDM), or the exact slab count (3D solid, already cheap).
@@ -661,7 +661,7 @@ def _bound(problem, model: str, n_diel: int = 4) -> Callable[[float], Tuple[int,
              exact count, whose copper sampling takes about 300 bytes per plan cell (0.31 GB for a million plan cells; tens of GB for a 0.5 m board at 0.05 mm).
     @param problem A Problem.
     @param model "fvm", "fdm" or "solid3d".
-    @param n_diel Slabs across every dielectric gap of the 3D solid, count.
+    @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @return Callable.
     """
     b = problem.board
@@ -717,7 +717,7 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
 
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
-          base: Optional[float] = None, n_diel: int = 4, quiet: bool = False,
+          base: Optional[float] = None, n_diel=None, quiet: bool = False,
           laminate_params: Optional[Tuple[float, int]] = None) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
@@ -736,7 +736,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param available Memory available now in bytes (None: read it); for tests.
     @param base Resident bytes the solving process will have (None: baseline_bytes(), this process read once; the window passes BASE_DEFAULT, since the solve runs in the
                 calculation process and not in the window's).
-    @param n_diel Slabs across every dielectric gap of the 3D solid (Solid's own argument), count.
+    @param n_diel Slabs across the dielectric gaps of the 3D solid (Solid's own argument): None for the rule of solid3d.slabs_per_gap, an int or a list per gap, count.
     @param quiet True for a check that is not a run (the solver panel at every edit, the Auto cell): no log lines, so that the log holds the estimates of the runs only.
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule the run will use (SolverOptions.laminate_params()), or None for the values in force: the sub-gaps add
                            node layers, so they change the unknowns that are counted.
@@ -761,7 +761,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     @param ram Physical memory in bytes (None: read).
     @param available Memory available now in bytes (None: read).
     @param base Resident bytes of the solving process (None: baseline_bytes()).
-    @param n_diel Slabs across every dielectric gap of the 3D solid, count.
+    @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @param quiet True: no log lines.
     @return List of Verdict.
     """

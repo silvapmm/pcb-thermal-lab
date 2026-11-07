@@ -122,4 +122,4 @@ def test_solid3d_finned_rise_after_the_correction():
     p.board.h_bottom = 10.0
     r = solid3d.solve_steady(p, cell_mm=1.0)
     assert abs(r.balance_error) < 1e-9
-    assert r.delta_t == pytest.approx(65.472, abs=0.01)
+    assert r.delta_t == pytest.approx(65.4588, abs=0.01)                         # 65.472 with four slabs per gap; the slabs by thickness (8 here) cool it by 0.013 K
