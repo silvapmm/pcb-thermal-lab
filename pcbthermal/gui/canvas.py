@@ -1284,11 +1284,11 @@ class BoardView(QGraphicsView):
             if kind != "via":
                 pts = self.doc.polygon_mm(getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i])
                 add = menu.addAction("Add a vertex here")
-                add.setToolTip("Adds a point on the nearest edge; drag it to reshape the polygon.")
+                add.setToolTip("Add a point on the nearest edge.")
                 add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
                 k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
                 dele = menu.addAction("Delete this vertex")
-                dele.setToolTip("Removes the vertex under the cursor; a polygon keeps at least three.")
+                dele.setToolTip("Delete the vertex under the cursor (a polygon keeps at least three).")
                 dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
                 dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
                 menu.addSeparator()

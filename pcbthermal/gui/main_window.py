@@ -107,10 +107,10 @@ class BackgroundDialog(QDialog):
         f = QFormLayout(self)
         self.file_label = QLabel(os.path.basename(self.path) or "no image")
         choose = QPushButton("Choose image…")
-        choose.setToolTip("Pick a PNG, JPEG or BMP image (a photo or a layout drawing) to trace the board from.")
+        choose.setToolTip("Pick a PNG, JPEG or BMP image.")
         choose.clicked.connect(self._choose)
         self.remove_btn = QPushButton("Remove image")
-        self.remove_btn.setToolTip("Take the background image out of the project (the image file itself is not touched).")
+        self.remove_btn.setToolTip("Remove the image from the project (the file stays).")
         self.remove_btn.clicked.connect(self._remove)
         row = QHBoxLayout()
         row.addWidget(self.file_label, 1)
@@ -469,7 +469,7 @@ class MainWindow(QMainWindow):
         self.a_save = self._act("Save", self.save_file, QKeySequence.Save)
         self.a_saveas = self._act("Save as…", self.save_file_as, QKeySequence.SaveAs)
         self.a_export_pkg = self._act("Export package…", lambda: package_actions.export_package(self),
-                                      tip="Write a copy of the project as one package file (.pcbtz): the project, its images and, if you choose, the source files of the import")
+                                      tip="Save a copy of the project as one .pcbtz package")
         self.a_ex_ref = self._act("Reference board (100 × 100 mm, 2 layers)", lambda: self._load_problem(reference_problem(), "reference"))
         self.a_ex_4l = self._act("Example 4-layer board (vias, heatsink, 2 heaters)", lambda: self._load_problem(example_board(), "example-4layer"))
         self.a_export_all = self._act("Export results to a folder…", self.export_results)
@@ -495,35 +495,35 @@ class MainWindow(QMainWindow):
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
         self.a_zin.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])   # Ctrl+= is the same key without Shift on most keyboards
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
-        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
+        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G)")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
-                                 "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
+                                 "Show the solver cells (Shift+G)")
         self.a_overlay = self._act("Temperature map on the board", self._toggle_overlay, "T", True, False,
-                                   "Show the temperature map of the last result on the board (T)")
+                                   "Show the temperature map on the board (T)")
         self.a_overlay.setEnabled(False)                       # Until a result exists; _update_map_button keeps the state and the tooltip
         # The keyboard route to the Display popover (the toolbar button takes no focus): opened active, with the keyboard in its controls
         self.a_display = self._act("Display settings…", lambda: self._toggle_display_popover(activate=True), "D",
-                                   tip="Open the Display panel of the tool bar from the keyboard (D): underlay, map opacity, view, contour step and colour map of the maps")
+                                   tip="Open the Display panel (D)")
         # The keyboard route to the model menu of the card of the map (the card itself answers the mouse only)
         self.a_model = self._act("Model of the map…", self._key_model_menu, "M",
-                                 tip="List the models of the result and choose the one shown by the map on the board and in Results - Temperature (M)")
+                                 tip="Choose the model shown by the map (M)")
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
-                                    "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
+                                    "Draw the imported copper under the elements")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
-                                  "Write the names of the zones, heatsinks and heaters of the active layer on the board (the designator for an imported part); on an imported board a part name that does not fit the part appears when you zoom in")
+                                  "Write the element names on the board")
         self.a_bg = self._act("Background image…", self.set_background,
-                              tip="Place a photo or layout image under the board to trace it by hand (not for a project imported from Gerber files)")
+                              tip="Place an image under the board to trace it")
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
         self.a_calc = self._act("Power Calculator…", self.show_calculator,
-                                tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
+                                tip="Find a part's power from a measured temperature")
         self.a_import = self._act("Import Gerber board…", self.show_import,
-                                  tip="Make a new project from fabrication files (Gerber copper, drills, outline, optional placement file): a folder, a ZIP archive or files")
-        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
+                                  tip="New project from Gerber, drill and placement files")
+        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
-                                 tip="Edit the material libraries and the defaults of a new board, new elements and the solver; they are kept in a JSON file")
+                                 tip="Edit the libraries and the defaults")
         self.a_guide = self._act("User guide", self.show_guide, "F1", tip="Parameters, models and how to read the results")
         self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
@@ -718,7 +718,7 @@ class MainWindow(QMainWindow):
         elif self._stale:
             tip, ok = "The result is outdated: run the simulation again", False
         else:
-            tip, ok = "Show the temperature map of the last result on the board (T)", True
+            tip, ok = "Show the temperature map on the board (T)", True
         a.setEnabled(ok)
         a.setToolTip(tip)
         a.setStatusTip(tip)
@@ -1390,7 +1390,7 @@ class MainWindow(QMainWindow):
         imp = self._is_imported()
         keep = imp and bool(self.doc.project.view.get("background"))
         self.a_bg.setEnabled(not imp or keep)
-        tip = BACKGROUND_IMPORTED_TIP if imp else "Place a photo or layout image under the board to trace it by hand (not for a project imported from Gerber files)"
+        tip = BACKGROUND_IMPORTED_TIP if imp else "Place an image under the board to trace it"
         if keep:
             tip = BACKGROUND_IMPORTED_TIP + " The image stored by an older version is kept; open this to remove it."
         self.a_bg.setToolTip(tip)

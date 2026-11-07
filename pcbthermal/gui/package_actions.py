@@ -171,7 +171,7 @@ def offer_stored_sources(win, dlg):
     box.setText("This project stores the files its board was imported from.")
     use = box.addButton("Use the stored files", QMessageBox.AcceptRole)
     box.addButton("Choose other files", QMessageBox.RejectRole)
-    use.setToolTip("Start the re-import from the files saved in the project package; you can still change them in the window.")
+    use.setToolTip("Re-import from the files stored in the package.")
     box.exec()
     if box.clickedButton() is not use:
         return

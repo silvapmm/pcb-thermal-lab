@@ -206,7 +206,7 @@ class PowerCalculator(QDialog):
         self.case.setToolTip("Which power goes into the part: the best case (lowest), the nominal, or the worst case (highest, to check margins). Each option has a hint.")
         self.use = QPushButton("Use as the power of this part")
         self.use.setMinimumWidth(240)
-        self.use.setToolTip("Write the selected power in the heater (it can be undone); the next simulation uses it. Nothing else changes.")
+        self.use.setToolTip("Write the selected power into the heater (undoable).")
         self.use.setEnabled(False)
         self.use.clicked.connect(self._use)
         row.addWidget(QLabel("Power to use"))

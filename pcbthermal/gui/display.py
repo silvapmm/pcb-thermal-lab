@@ -25,8 +25,7 @@ VIEW_TIP = ("How the map is drawn. Current: the cells as solved. Smooth: bicubic
 CONTOUR_TIP = ("Distance between the contour lines of the Terrain view; every second line is thicker and labelled. One value for each kind of map: the Temperature "
                "map in K and the Gradients map in K/mm, where 'auto' (the lowest value) picks a round step from the range of the map. Used only when View is Terrain.")
 CMAP_TIP = "Colour scale of every map: the Temperature and Gradients maps, the Animation and the map on the board."
-OPEN_TIP = ("Display: what is drawn under the temperature map (copper or the background image), the opacity of the map, how it is drawn (Current, Smooth, Terrain), "
-            "the contour step and the colour map. One choice for the Temperature, Gradients and Animation maps and the map on the board. A dot marks an active underlay.")
+OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (a dot: an active underlay)."
 
 
 class DisplayState(QObject):
