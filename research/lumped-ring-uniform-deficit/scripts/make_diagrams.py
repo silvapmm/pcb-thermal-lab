@@ -5,7 +5,8 @@
 @brief Drawings of the situation: the rings of the Lumped network around a 1 mm part on a small and on a large board, and the half ring that the strip formula replaces by a straight strip.
 @details Writes figures/fig_01_rings_small_and_large_board.png (the rings as lumped.ring_edges builds them for the program and for the proposal, to scale, centred part, 0.5 mm cell, ten rings;
          only the program's function is called, nothing is solved) and figures/fig_02_half_ring_strip_and_annulus.png (a wide first ring around a small footprint: the strip the program uses
-         against the annulus that the heat really crosses). Run: .venv/bin/python research/lumped-ring-uniform-deficit/scripts/make_diagrams.py
+         against the annulus that the heat really crosses); figures/fig_08_source_near_an_edge.png (review: the rings of a source near a straight insulated edge are cut by the edge,
+         and the true isotherms, drawn from the source and its mirror image, are not the distance contours that the network keeps at one temperature each). Run: .venv/bin/python research/lumped-ring-uniform-deficit/scripts/make_diagrams.py
 """
 
 import sys
@@ -34,9 +35,10 @@ def fig_rings():
     dx = 0.5e-3
     for j, (name, w, h) in enumerate(cases):
         rho_max = float(np.hypot(w / 2 - 0.5, h / 2 - 0.5)) * 1e-3          # farthest cell from a centred 1 mm part
-        for i, (label, fr) in enumerate((("program: first ring 0.04 x farthest distance", 0.04), ("proposal: first ring 1.5 cells", 0.0))):
-            LL.configure("strip", fr, 1.5, None)
-            edges = LL.MOD.ring_edges(rho_max, dx, dx, 10) * 1e3
+        for i, (label, cap) in enumerate((("program: first ring 0.04 x farthest distance", None), ("capped: first ring at most a_eq, at least 1.5 cells (1.5 cells here)", 1.0))):
+            LL.configure("strip", 0.04, 1.5, cap)
+            a_eq = np.sqrt(4 * dx * dx / np.pi)                              # the 1 mm part touches 2 x 2 cells of 0.5 mm
+            edges = LL.MOD.ring_edges(rho_max, dx, dx, 10, a_eq=a_eq) * 1e3
             ax = axs[i, j]
             ax.set_xlim(-12, 12)
             ax.set_ylim(-12, 12)
@@ -75,7 +77,38 @@ def fig_half_ring():
     dk.save(fig, FIG / "fig_02_half_ring_strip_and_annulus.png")
 
 
+def fig_near_edge():
+    """!
+    @brief Figure 8 (review): a source near a straight insulated edge. Left, the rings of the network (distance contours, cut by the edge), each held at one temperature; right,
+           the isotherms of the source with its mirror image (the exact field of a point source beside an insulated edge on an infinite sheet, illustrative, no vertical loss),
+           which bunch on the side away from the edge and spread along it.
+    @return None.
+    """
+    fig, axs = dk.canvas(10.0, 4.6, 1, 2, ratios=[1, 1])
+    d, s = 3.0, 3.0                                                          # source edge 3 mm from the board edge, 3 mm source
+    cx = d + s / 2
+    for ax in axs:
+        ax.set_xlim(-1.0, 22.0); ax.set_ylim(-11.0, 11.0); ax.set_aspect("equal")
+        ax.add_patch(Rectangle((-1.0, -11.0), 1.0, 22.0, facecolor="#dddddd", edgecolor="none"))
+        ax.plot([0, 0], [-11, 11], color="k", lw=1.5)
+        ax.add_patch(Rectangle((cx - s / 2, -s / 2), s, s, facecolor=dk.HEAT, edgecolor="k", zorder=3))
+        ax.text(-0.8, 10.3, "board edge\n(insulated)", fontsize=6, va="top")
+    ax = axs[0]
+    yy, xx = np.mgrid[-11:11:400j, 0:22:400j]
+    dist = np.hypot(np.maximum(np.abs(xx - cx) - s / 2, 0), np.maximum(np.abs(yy) - s / 2, 0))
+    ax.contour(xx, yy, dist, levels=[1.5, 2.5, 4.0, 6.0, 9.0], colors="#555555", linewidths=0.8)
+    ax.text(10.5, -10.5, "the network's rings: contours of the distance to the footprint,\ncut by the edge, each ring one temperature", fontsize=6.5, ha="center")
+    ax = axs[1]
+    r1 = np.hypot(xx - cx, yy)
+    r2 = np.hypot(xx + cx, yy)                                               # mirror image across x = 0
+    theta = -np.log(np.maximum(r1, 0.3)) - np.log(np.maximum(r2, 0.3))
+    ax.contour(xx, yy, theta, levels=np.linspace(theta.max() - 4.0, theta.max() - 1.2, 6), colors=dk.BLUE, linewidths=0.8, linestyles="solid")
+    ax.text(10.5, -10.5, "the field: isotherms of the source and its image (illustrative);\nthe ring cells next to the edge are hotter than the ring mean", fontsize=6.5, ha="center")
+    dk.save(fig, FIG / "fig_08_source_near_an_edge.png")
+
+
 if __name__ == "__main__":
     FIG.mkdir(exist_ok=True)
     fig_rings()
     fig_half_ring()
+    fig_near_edge()

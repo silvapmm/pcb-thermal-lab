@@ -2,8 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Figures of the numbers of the studies: deficit against board size, against the distance to an edge, on the parts of three imported boards, and the closed-form ratio of the strip to the annulus.
-@details Reads out/*.json written by the studies (study_board_size_sweep.py, study_edge_distance.py, study_imported_parts.py) and writes figures/fig_03 to fig_06. Run from the repository root
+@brief Figures of the numbers of the studies: deficit against board size, against the distance to an edge, on the parts of three imported boards, the closed-form ratio of the strip to the annulus, and (review) the ring means of the FVM against the Lumped nodes.
+@details Reads out/*.json written by the studies (study_board_size_sweep.py, study_edge_distance.py, study_imported_parts.py, study_ring_means.py) and writes figures/fig_03 to fig_07. Run from the repository root
          after the studies: .venv/bin/python research/lumped-ring-uniform-deficit/scripts/make_figures.py
 """
 
@@ -114,9 +114,34 @@ def fig_ratio():
     plt.close(fig)
 
 
+def fig_ring_means():
+    """!
+    @brief Figure 7 (review): the FVM temperature averaged over every Lumped ring against the Lumped ring node, program and capped first ring, for three cases of study_ring_means.py.
+    @return None.
+    """
+    rows = json.loads((OUT / "ring_means.json").read_text())
+    cases = ("1 mm, 200 x 150, centre", "3 x 1 mm, 200 x 150, centre", "3 mm, 100 x 80, 6.5 mm from the edge")
+    fig, axs = plt.subplots(1, 3, figsize=(11.0, 3.6))
+    for ax, case in zip(axs, cases):
+        for r in (x for x in rows if x["case"] == case):
+            col = "#d62728" if r["construction"] == "program" else "#1f77b4"
+            mid = [0.0] + [0.5 * (a + b) for a, b in zip(r["edges_mm"][:-1], r["edges_mm"][1:])]
+            n = min(len(mid), len(r["fvm_ring_mean"]))
+            ax.plot(mid[:n], r["fvm_ring_mean"][:n], "o-", color=col, mfc="none", label=f"FVM over the {r['construction']} rings")
+            ax.plot(mid[:n], r["lumped_node"][:n], "s--", color=col, label=f"Lumped node, {r['construction']} (drop 0-1: {r['drop_ratio']:.2f} of the FVM)")
+        ax.set_title(case, fontsize=8)
+        ax.set_xlabel("ring position (mid distance to the footprint, mm; ring 0 at 0)", fontsize=7)
+        ax.set_ylabel("rise (K)", fontsize=7)
+        ax.legend(fontsize=5.5)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_07_ring_means_fvm_and_lumped.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     FIG.mkdir(exist_ok=True)
     fig_board_size()
     fig_edge()
     fig_parts()
     fig_ratio()
+    fig_ring_means()

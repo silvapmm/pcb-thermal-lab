@@ -3,8 +3,8 @@
 """!
 @file study_frozen_impact.py
 @brief Which Lumped records of the frozen-numbers test (the 17 boards of tests/regression) the proposed first ring would move, and by how much; the FVM at 0.5 mm as a check where they move.
-@details The proposal (INTEGRATION.md) is a first ring of at most 1.5 cells (the candidate "first 1.5 cells" of lib/runner.py, or the one named in the environment variable LRU_PROPOSAL; the program uses max(1.5 cells, 0.04 rho_max)). It changes a board
-         only when 0.04 rho_max exceeds 1.5 cells. This script builds each board with tests/regression/regress_boards.py (read only), runs the Lumped at the cells of the test (2, 1 and
+@details The candidate is runner.PROPOSAL: by default the capped first ring of INTEGRATION.md 1 ("cap 1 a"); LRU_PROPOSAL="first 1.5 cells" gives the alternative of INTEGRATION.md 4 (the
+         program uses max(1.5 cells, 0.04 rho_max)). A candidate changes a board only when its first ring differs from the program's. This script builds each board with tests/regression/regress_boards.py (read only), runs the Lumped at the cells of the test (2, 1 and
          0.5 mm; the API clips the Lumped cell to 0.5..1 mm) with the program and with the candidate, and prints the maximum temperature of both and the difference. For the boards that move,
          the FVM at 0.5 mm (cached) shows which of the two is nearer. Run from the repository root:
          QT_QPA_PLATFORM=offscreen .venv/bin/python research/lumped-ring-uniform-deficit/scripts/study_frozen_impact.py (a few minutes).
@@ -45,7 +45,7 @@ def main():
     @return None.
     """
     rows = []
-    print("| board | cell | program (degC) | first 1.5 cells | difference (K) | FVM 0.5 mm | rise error: program / candidate (%) |")
+    print(f"| board | cell | program (degC) | {R.PROPOSAL} | difference (K) | FVM 0.5 mm | rise error: program / candidate (%) |")
     print("| :-- | --: | --: | --: | --: | --: | :-- |")
     for name in rb.board_names():
         p = rb.build(name)

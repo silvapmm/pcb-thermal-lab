@@ -74,7 +74,7 @@ def fvm_reference(key, p, cell_mm, side_mm, pos_mm):
     return tuple(cache[k])
 
 
-PROPOSAL = os.environ.get("LRU_PROPOSAL", "first 1.5 cells")      # the candidate that the studies call "the proposal"
+PROPOSAL = os.environ.get("LRU_PROPOSAL", "cap 1 a")      # the candidate that the studies call "the proposal" (INTEGRATION.md 1); "first 1.5 cells" is the alternative of INTEGRATION.md 4
 
 
 # Named candidates of the ring construction: (link, first_ring factor of rho_max, first ring in cells, first ring cap in equivalent radii)

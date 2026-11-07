@@ -107,3 +107,24 @@ def test_cap_leaves_large_footprints_bit_identical_and_small_ones_move():
         out[name] = (a, b)
     assert np.array_equal(out["big"][0].T, out["big"][1].T)
     assert out["small"][1].t_max > 1.15 * out["small"][0].t_max            # the program is more than 13 % cool here (README 3)
+
+
+def test_integration_patch_equals_the_study_copy():
+    """!
+    @brief The change exactly as INTEGRATION.md 1 writes it (lib/patch_program.py, applied to the program's text) gives the same fields as the study switch "cap 1 a" of lumped_log,
+           so the numbers of the studies are the numbers of the proposed change (review).
+    @return None.
+    """
+    import patch_program as PP
+    from pcbthermal import api
+    capped = PP.load_patched()
+    for side in (1.0, 3.0, 10.0):
+        p = S.board(w_mm=200, h_mm=150, side_mm=side)
+        LL.configure("strip", 0.04, 1.5, 1.0)
+        a = simulate(p, SolverOptions(models=("lumped",), cell_mm=0.5)).results["lumped"]
+        api.lumped = capped
+        try:
+            b = simulate(p, SolverOptions(models=("lumped",), cell_mm=0.5)).results["lumped"]
+        finally:
+            LL.install()
+        assert np.array_equal(a.T, b.T) and a.t_max == b.t_max
