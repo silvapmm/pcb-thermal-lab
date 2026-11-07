@@ -1011,7 +1011,8 @@ def test_read_warnings_are_said(window, tmp_path, capsys, monkeypatch):
     assert cli.main(["run", str(tmp_path / "t.pcbtz"), "--model", "analytic", "--out", str(tmp_path / "r"), "--no-plots", "--cell-mm", "2"]) == 0
     assert "Warning: package: images/bg.png" in capsys.readouterr().err
     seen = []
-    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: seen.append(a[2]) or QMessageBox.Ok))
+    # The box is built plain (a member name is never rich text), so it is the box's exec that is intercepted
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: seen.append(self.text()) or QMessageBox.Ok)
     window.open_file(str(tmp_path / "t.pcbtz"))
     assert seen and "images/bg.png" in seen[0]
 

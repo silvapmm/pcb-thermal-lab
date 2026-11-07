@@ -234,6 +234,27 @@ def _line_lengths(poly, n_lines, spacing, n_seg, seg, axis, shift):
     return np.clip(out, 0.0, 1.0)
 
 
+# Bounds on the work an outline can ask of the cut-cell and edge-distance code (a project file is hostile: 20 000 long zigzag edges would otherwise need
+# tens of millions of pieces or crossings and several GB). Normal outlines (a few thousand edges, a few thousand cells long) are three orders below them.
+OUTLINE_MAX_PIECES = 2_000_000
+OUTLINE_MAX_CROSSINGS = 10_000_000
+
+
+def outline_crossings(poly, spacing):
+    """!
+    @brief Upper bound of the crossings of an outline with the grid lines of a cell: the total extent of its edges along x and y over the cell.
+    @param poly Outline polygon (n, 2) in metres; non-finite coordinates raise.
+    @param spacing Cell size in metres (positive).
+    @return float Number of grid lines the edges span, summed over both families.
+    @throws ValueError If a coordinate is not finite.
+    """
+    p = np.asarray(poly, dtype=float)
+    if not np.isfinite(p).all():
+        raise ValueError("the board outline has a coordinate that is not a finite number")
+    d = np.abs(p - np.roll(p, -1, axis=0))
+    return float(d.sum() / max(spacing, 1e-300))
+
+
 def face_apertures(poly, nx, ny, dx, dy, cover=None):
     """!
     @brief Open fraction of every interior face of the grid: the part of the face (the cell side shared by two neighbours) that lies on the board.
@@ -250,8 +271,11 @@ def face_apertures(poly, nx, ny, dx, dy, cover=None):
     @param dy Cell height in metres.
     @param cover Optional board cover (ny, nx) of the cells (see `exact_coverage`).
     @return Tuple (ax, ay): ax (ny, nx - 1) the open fraction of the face between cell (i, j) and (i, j + 1), ay (ny - 1, nx) between (i, j) and (i + 1, j).
+    @throws ValueError If a coordinate is not finite or the outline crosses more than OUTLINE_MAX_CROSSINGS grid lines (too many edges for this cell).
     """
     p = np.asarray(poly, dtype=float)
+    if len(p) >= 3 and outline_crossings(p, min(dx, dy)) > OUTLINE_MAX_CROSSINGS:
+        raise ValueError("the board outline has too many long edges for this cell size (more than 1e7 crossings of the grid lines): use a coarser cell or a simpler outline")
     ax, ay = np.zeros((ny, max(nx - 1, 0))), np.zeros((max(ny - 1, 0), nx))
     if len(p) >= 3:
         ex, ey = 1e-9 * dx, 1e-9 * dy
@@ -281,9 +305,12 @@ def signed_distance_to_outline(poly, x, y):
     @param x X of the points (1-D array, metres).
     @param y Y of the points (1-D array, metres).
     @return Array of distances in metres, shape of x.
+    @throws ValueError If a coordinate of the outline is not finite.
     """
     from scipy.spatial import cKDTree
     p = np.asarray(poly, dtype=float)
+    if not np.isfinite(p).all():
+        raise ValueError("the board outline has a coordinate that is not a finite number")
     x = np.atleast_1d(np.asarray(x, dtype=float))
     y = np.atleast_1d(np.asarray(y, dtype=float))
     out = np.zeros(x.shape)
@@ -294,7 +321,9 @@ def signed_distance_to_outline(poly, x, y):
     seg_len = np.hypot(ab[:, 0], ab[:, 1])
     # Pieces: every segment cut into equal parts, so that the distance to a mid-point bounds the distance to its piece within half a piece
     diag = float(np.hypot(*(p.max(axis=0) - p.min(axis=0))))
-    piece = max(diag / 2000.0, 1e-12)
+    # The piece count is bounded: a long zigzag outline would otherwise need perimeter / (diag / 2000) pieces (40 million for 20 000 edges of the diagonal);
+    # a coarser piece only widens the certified search (more points fall back to the exact test), it never changes the answer
+    piece = max(diag / 2000.0, float(seg_len.sum()) / OUTLINE_MAX_PIECES, 1e-12)
     parts = np.maximum(np.ceil(seg_len / piece).astype(np.int64), 1)
     seg_of = np.repeat(np.arange(len(p)), parts)
     k_in = np.arange(parts.sum()) - np.repeat(np.cumsum(parts) - parts, parts)

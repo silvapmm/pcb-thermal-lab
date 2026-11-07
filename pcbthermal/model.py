@@ -388,6 +388,8 @@ class Board:
             o = np.asarray(self.outline, dtype=float)
             if o.ndim != 2 or o.shape[1] != 2 or len(o) < 3:
                 raise ValueError("the board outline needs at least three vertices")
+            if not np.isfinite(o).all():
+                raise ValueError("the board outline has a coordinate that is not a finite number")
             tol = 1e-9
             if o.min() < -tol or o[:, 0].max() > self.width + tol or o[:, 1].max() > self.height + tol:
                 raise ValueError("the board outline must lie inside the width x height box")
