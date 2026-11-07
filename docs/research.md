@@ -385,6 +385,12 @@ What it shows:
 24. Texas Instruments, *AN-2020 Thermal Design by Insight, Not Hindsight*, SNVA419C (2013), https://www.ti.com/lit/an/snva419c/snva419c.pdf (read: `θCu`, `θVIA`, copper weight, board area rule of thumb, heat heatsink on the bottom against the top).
 25. Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal Modeling and Design Optimization of PCB Vias and Pads*, IEEE Trans. Power Electronics (2019), https://tenglong.eng.cam.ac.uk/files/thermalmodelinganddesignoptimizationofpcbviasandpads.pdf (abstract and structure read: analytical via-array and pad models verified by CFD and measurements).
 
+## Open now: the swing of a fast power wave on full copper
+
+**Question.** One node per copper layer holds the copper and half of each adjacent gap at one temperature, so in a wave shorter than the time the heat needs to cross the laminate the FVM and FDM may understate the swing of a part over full copper; the average-or-resolve decision then averages a heater whose real swing is above the budget. Seen in the review of `fix/laminate-edge-band`: a 20 Hz, 30 % duty, 10 W wave on a 10 mm part of a 1.6 mm board reads 0.75 K in the FVM and 6.3 K in an independent 1D solution of the stack (`docs/validation.md` 36.3).
+
+**Status.** The investigation `research/fast-wave-oscillation/` is running; this entry states no result. When it ends, its findings are folded into the documents and `docs/versions.md` ('Planned', 'Swing of a fast power wave on full copper') and this entry leaves the file. The question is A28 of `research/ROADMAP.md`.
+
 ## Template (what this file looks like when nothing is pending)
 
 ```
