@@ -7,7 +7,7 @@ CHANGELOG.md CLAUDE.md` is empty.
 ## 1. Method
 
 `pytest -q research/<folder>/tests --timeout=900 --timeout-method=thread -p no:cacheprovider`, one folder per call, one call at a time, offscreen, with the library
-environment of `pcb-library/scripts/link_env.sh` (load average 3.3 to 4.3, peak memory under 1 GB). 45 folders have a `tests/` directory. Scripts (`study_*.py`,
+environment of `pcb-library/scripts/link_env.sh` (load average 3.3 to 4.3, peak memory under 1 GB). 45 folders had a `tests/` directory when the pass ran (44 research folders and the regression harness, now `releases/regression-harness`); `research/fast-wave-oscillation` was merged into the integration afterwards and is covered by section 6. Scripts (`study_*.py`,
 `make_figures.py`) were not re-run, except where a test imports them; see section 4.
 
 ## 2. Totals
@@ -76,7 +76,16 @@ sor-with-via-couplings, theory, via-contact-geometry, via-partial-copper, young-
 
 `tests/test_docs.py` and `tests/test_license_header.py` on this tree: 667 passed.
 
-## 6. What was read and what was not verified
+## 6. Final check on the release candidate
+
+A last sweep of every folder with a `tests/` directory (46: the 45 research folders and the harness, one folder per call) was made by the tester just before the move of the release
+folders, and the reviewer's final check re-ran on the integration tip `77c46444` the two folders it flagged and the harness. Two corrections to the statements above:
+`research/fast-wave-oscillation` (13 passed) was not part of the pass, and `research/lumped-zones-adoption` was red again on the final tree
+(`test_profile_runner_with_zones_ends_on_the_average_and_follows_the_wave`, 1 failed, 19 passed): since `fix/fast-wave-ripple` the 0.5 s stretch of its wave gets the regime
+`average + ripple`, so the patched and the unpatched adapters were never stepped and gave the same 82.011 K. The test now sets the regime `resolved` on purpose (what 2.5.x gave and
+what a stretch above `FAST_STRETCH_S` gives) and passes (20 passed). The other 44 folders gave the same lines in that sweep as after the repairs; the harness tests on the tip: 24 passed.
+
+## 7. What was read and what was not verified
 
 Test results are the printed pytest lines of two sweeps of all 45 folders (before and after the repairs). The causes were established by switching the single item off in memory
 (barrel fraction 0, `laminate.edge_band` returning no cell, `cut_cells=False`, the 2.5.x lower-face constants, the tag v2.5.1 text) and getting the earlier number back; where that

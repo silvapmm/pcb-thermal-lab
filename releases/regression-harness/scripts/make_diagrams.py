@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[1]))
+sys.path.insert(0, str(HERE.parents[2] / "research"))                    # the shared shapes stay in research/diagram_kit.py (this folder moved to releases/)
 
 import diagram_kit as dk                                                    # noqa: E402
 

@@ -348,6 +348,9 @@ def test_profile_runner_with_zones_ends_on_the_average_and_follows_the_wave():
     opt = profiles.ProfileOptions(threshold_c=0.0, duration="stable", stable_c=0.05, theta=0.5)
     resp = profiles.StepResponse("lumped", *lumped.step_responses(p, 10, 0.5))
     dec = profiles.decide(p, resp, 0.0)
+    # Since 2.6.0 (fix/fast-wave-ripple) a 0.5 s stretch gets the regime "average + ripple" (closed form, no time stepping), so the adapter under test would never run:
+    # the wave is resolved on purpose, which is what the decision gave in 2.5.x and what it gives for stretches above FAST_STRETCH_S
+    dec[0].regime = "resolved"
     with zref.VARIANTS["Z_none"]():
         res = lumped.run_profile(p, dec, opt, 10, 0.5)
         assert zl.LAST["nz"] == 2
