@@ -253,7 +253,7 @@ def edge_band(edge, d, dx, active):
     """!
     @brief The band of the board edge that carries the laminate nodes of a gap even over full copper: the cells (nodes) that touch the edge, grown by the margin of the rule.
     @details The laminate at the edge is fed through k_z and is cooler than the copper, so the edge film of a node that holds it at the copper temperature is overstated (the board reads
-             cold, docs/theory.md 3.2); cutting the gap there lets the film act on the laminate nodes. The width does not matter from one gap thickness on (research/laminate-edge-band 5, 6.1).
+             cold, docs/theory.md 1.4); cutting the gap there lets the film act on the laminate nodes. The width does not matter from one gap thickness on (research/laminate-edge-band 5, 6.1).
     @param edge Edge length in m of the board edge exposed in every cell or node (ny, nx); a value above zero marks a cell that touches the edge.
     @param d Gap thickness in m.
     @param dx Cell size (FVM) or node spacing (FDM) in m.
