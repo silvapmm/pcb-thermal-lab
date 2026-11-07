@@ -1,0 +1,4 @@
+# Text for docs/versions.md (chapter 'Planned')
+
+* **Lumped: a source near a board edge or corner reads 5 to 15 % cool** (fix, after the investigation `lumped-ring-uniform-deficit`): the ring network keeps one temperature per ring and cannot show the hotter side of a ring next to the source; the Analytic is exact there. More rings do not help (they are unstable without the merge of thin rings). It needs a different representation (an image term or rings that are not closed contours): an investigation first.
+* **Lumped: first ring always 1.5 cells wide** (decision after the capped first ring is in): raster-independent Lumped result (example board 86.29 degC at 1 and 0.5 mm), moves six frozen records at 2 mm and the example board's via arrays by 1 to 4 points; needs a pending-shift file; only if the maintainer wants it (`research/lumped-ring-uniform-deficit/INTEGRATION.md` 4).
