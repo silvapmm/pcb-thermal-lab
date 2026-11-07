@@ -11,7 +11,8 @@
          value is the one to compare with the publication, its program-condition value the one to compare with the program.
          Metric: R_solid = (mean source - mean wall) / Q, the wall being the film-cooled faces; k_e is the conductivity of the single layer of the same thickness, films and source that has the same R_solid
          (bisection, the paper's definition, equation 11). Published: k_e = 8.28 W/mK for the base stack (text, p. 462), 11.6 W/mK for case 2 (plot), cross-plane 0.42 at epsilon = 1 (text).
-         Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_coupon_program.py (about 4 minutes, under 1 GB).
+         Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_coupon_program.py [--face-term] (about 5 minutes and 2.7 GB resident at the
+         0.5 mm bisections; --face-term: the review's check of the face term with the film under the source, a few seconds).
 """
 
 import json
@@ -136,11 +137,47 @@ def program_rsolid(stack, side_mm, model, cell_mm=1.0, n_diel=None):
         return float("nan")
 
 
+def face_term_check(sides=(50.0, 36.0, 16.0)):
+    """!
+    @brief Review: the +2.3 % of the fvm and fdm at epsilon 1 on the base stack, tested. R_solid of the program with the face term of `analysis.heater_stats`
+           (q t / (2 k) with q = P / A, all the heat through the half slot), without it (the node value), and with the term scaled by the share of the heat that
+           does go down into the laminate (1 - the heat the film takes directly under the source, h A_src T_node / P), against the independent solver with the film under the source.
+    @param sides Source sides in mm (1 mm cells).
+    @return dict side -> model -> (solver, with face, node only, scaled, share down).
+    """
+    from pcbthermal import SolverOptions, simulate
+    from pcbthermal.analysis import _footprint_stats
+    print("\n=== (review) the face term with the film under the source, base stack, 1 mm cells ===")
+    print("   side  model | solver R_s | with the face term | node only | face term x share down (share)")
+    out = {}
+    for side in sides:
+        r_ref = solver_rsolid("base", side, True, 1e-3)
+        out[side] = {}
+        for m in ("fvm", "fdm"):
+            p = program_problem("base", side)
+            res = simulate(p, SolverOptions(models=(m,), cell_mm=1.0)).results[m]
+            T = np.asarray(res.T)
+            h = p.heaters[0]
+            face, _, _ = _footprint_stats(res, h.polygon, h.layer, None, face=True)
+            node, _, _ = _footprint_stats(res, h.polygon, h.layer, None, face=False)
+            walls = 0.5 * (T[0].mean() + T[-1].mean())
+            share = 1.0 - H * (node - p.board.ambient) * (side * 1e-3) ** 2 / POWER        # heat that does not leave by the film under the source
+            r_f, r_n = (face - walls) / POWER, (node - walls) / POWER
+            r_s = (node + share * (face - node) - walls) / POWER
+            out[side][m] = (r_ref, r_f, r_n, r_s, share)
+            print(f"   {side:4.0f}  {m:5s} | {r_ref:9.4f} | {r_f:9.4f} ({100 * (r_f / r_ref - 1):+5.2f} %) | {r_n:9.4f} ({100 * (r_n / r_ref - 1):+5.2f} %) |"
+                  f" {r_s:9.4f} ({100 * (r_s / r_ref - 1):+5.2f} %, {share:.3f})")
+    return out
+
+
 def main():
     """!
-    @brief Run the study and write out/coupon_program.json.
+    @brief Run the study and write out/coupon_program.json (with --face-term only the review's check of the face term, a few seconds).
     @return None.
     """
+    if "--face-term" in sys.argv:
+        (OUT / "coupon_face_term.json").write_text(json.dumps(face_term_check(), indent=1, default=float))
+        return
     res = {}
     for stack in ("case2", "base"):
         print(f"\n=== stack {stack} ===")

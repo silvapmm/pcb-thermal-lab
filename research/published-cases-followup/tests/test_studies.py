@@ -74,3 +74,26 @@ def test_square_cell_in_cartesian_3d_agrees_with_the_equal_area_disc():
     a = SH.SC.unit_cell(pitch=pitch, phi=phi, k_fill=SH.K_AIR)
     s = SH.CC.unit_cell(pitch, phi, SH.K_AIR, dx=pitch / 18)
     assert s == pytest.approx(a, rel=0.02)
+
+
+def test_review_face_term_over_counts_by_the_heat_the_film_takes_under_the_source():
+    # the +2.3 % of the fvm at epsilon 1 (source = coupon) is the face term charged on all the heat; scaled by the share that goes down it vanishes
+    out = CP.face_term_check(sides=(50.0,))[50.0]["fvm"]
+    r_ref, r_face, r_node, r_scaled, share = out
+    assert r_face / r_ref - 1 == pytest.approx(0.0234, abs=0.002)
+    assert r_node / r_ref - 1 == pytest.approx(-0.0226, abs=0.002)
+    assert share == pytest.approx(0.495, abs=0.005)
+    assert r_scaled == pytest.approx(r_ref, rel=0.002)
+
+
+def test_review_via_deficit_is_per_via_and_follows_the_barrel_length():
+    # one via unit reads the same per via as an 8 x 8 array (not an array effect); the reference is a few per cent above the fvm,
+    # and the reference with radially isothermal planes is only 2.4 % lower: the convergence in the planes is not the whole deficit
+    phi, pitch = 0.25e-3, 0.45e-3
+    ref = SH.VC.unit_cell(pitch, phi, SH.K_AIR, planes_over_hole=True, flux_over_hole=True)
+    iso = SH.VC.unit_cell(pitch, phi, SH.K_AIR, planes_over_hole=True, flux_over_hole=True, plane_kr_scale=1e4)
+    assert iso / ref - 1 == pytest.approx(-0.0237, abs=0.002)
+    one = SH.program_array(1, phi, SH.K_AIR, pitch * 1e3 / 3, "fvm")
+    two = SH.program_array(2, phi, SH.K_AIR, pitch * 1e3 / 3, "fvm") * 4
+    assert two == pytest.approx(one, rel=1e-3)
+    assert one / ref - 1 == pytest.approx(-0.0746, abs=0.003)

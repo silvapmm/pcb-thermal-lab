@@ -9,7 +9,7 @@
          vias, 1.86 K/W with 12 x 12 vias of 0.25 mm). Part B: equation 4 (parallel paths, no lateral flow in the layers) against the axisymmetric unit cell of `research/lumped-zones-adoption/lib/shen_case.py`
          (imports nothing of the program) for a sweep of the diameter and of the filler. Part C: the program on the array board (n x n vias on the pitch phi + s, the board exactly n pitches wide with insulated edges,
          full copper on four layers of 70 um, a uniform flux over the whole top, the bottom film so large that the bottom is the ambient): the array resistance R = (mean top temperature) / P against the unit cell;
-         cells of pitch / 3 and pitch / 2. Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_shen_vias.py [--no-program] (about 3 minutes, under 1 GB).
+         cells of pitch / 3 and pitch / 2. Part D (review): the cause of the deficit of the fvm (array size, convergence in the planes, length of the barrel). Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_shen_vias.py [--no-program] (about 3 minutes, under 1 GB).
 """
 
 import json
@@ -231,6 +231,41 @@ def part_c():
     return {"rows": rows, "grid": grid, "no_via": [t0, one_d]}
 
 
+def part_d():
+    """!
+    @brief Review: where the -6 to -8 % of the fvm comes from. The array size (1 x 1 against 8 x 8), the convergence of the heat in the planes onto the barrel
+           (the reference with radially isothermal planes) and the length of the barrel (the program's barrel conductance `k A / d` spans the dielectric gap d only,
+           the copper layers being nodes with no resistance through their thickness): the program re-run in memory with the barrel conductance scaled by
+           d / (d + t_cu / 2) and d / (d + t_cu) (`model.Via.thermal_area` patched for the run and restored; no file of the program is edited).
+    @return dict with the numbers printed.
+    """
+    from pcbthermal import model
+    phi, kf = 0.25e-3, K_AIR
+    pitch = phi + 0.2e-3
+    ref = VC.unit_cell(pitch, phi, kf, planes_over_hole=True, flux_over_hole=True)
+    ref_iso = VC.unit_cell(pitch, phi, kf, planes_over_hole=True, flux_over_hole=True, plane_kr_scale=1e4)
+    print("\nD. (review) Where the deficit of the fvm comes from: 0.25 mm air vias, one via unit, K/W")
+    print(f"   reference cell {ref:.2f}; the same with radially isothermal planes (no convergence onto the barrel) {ref_iso:.2f} ({100 * (ref_iso / ref - 1):+.2f} %)")
+    out = {"ref": ref, "ref_isothermal_planes": ref_iso, "array": {}, "barrel": {}}
+    for n in (1, 8):
+        for d in (3, 9):
+            v = program_array(n, phi, kf, pitch * 1e3 / d, "fvm") * n * n
+            out["array"][f"{n}|{d}"] = v
+            print(f"   fvm {n} x {n} vias, cell pitch/{d}: per via {v:.2f} ({100 * (v / ref - 1):+.2f} %)")
+    gap = (T_BOARD - N_CU * T_CU) / (N_CU - 1)
+    orig = model.Via.thermal_area
+    try:
+        for label, f in (("over the gap + t_cu / 2", gap / (gap + T_CU / 2)), ("over the gap + t_cu", gap / (gap + T_CU))):
+            model.Via.thermal_area = lambda self, plating, k, _f=f: orig(self, plating, k) * _f
+            for d in (3, 9):
+                v = program_array(1, phi, kf, pitch * 1e3 / d, "fvm")
+                out["barrel"][f"{label}|{d}"] = v
+                print(f"   fvm 1 x 1, barrel {label:24s} cell pitch/{d}: {v:.2f} ({100 * (v / ref - 1):+.2f} %)")
+    finally:
+        model.Via.thermal_area = orig
+    return out
+
+
 def main():
     """!
     @brief Run the parts and write out/shen_vias.json.
@@ -239,6 +274,7 @@ def main():
     res = {"A": part_a(), "B": part_b()}
     if "--no-program" not in sys.argv:
         res["C"] = part_c()
+        res["D"] = part_d()
     (OUT / "shen_vias.json").write_text(json.dumps(res, indent=1, default=float))
 
 

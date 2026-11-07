@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Schematic drawings of the published-cases follow-up: the strip cell and the four trace cases, the coupon stack and how the program represents it, the via unit of Shen and the two idealisations, and the plate with a source near an edge and its images.
 @details Pure drawing, no data; the numbers written in the drawings are those of README.md. Writes figures/fig_01_strip_cell_and_trace_cases.png, fig_02_coupon_stack_in_the_program.png,
-         fig_03_via_unit_idealisations.png and fig_04_plate_source_images.png (the next numbers, 05 to 10, are written by make_figures.py).
+         fig_03_via_unit_idealisations.png, fig_04_plate_source_images.png and, from the review, fig_11_via_barrel_and_face_term.png (05 to 10 are written by make_figures.py).
          Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/make_diagrams.py
 """
 
@@ -174,9 +174,66 @@ def plate_images(path):
     dk.save(fig, path)
 
 
+def review_sections(path):
+    """!
+    @brief The two findings of the review drawn as sections: (left) the barrel of a via as the layered models count it (only across the dielectric gaps, the copper
+           layer is one node) and as it is (it also crosses the copper, where the plane shunts it only near the barrel); (right) the heat of a source on an outer
+           layer with a film under it: part of it leaves through the film at once and never crosses the half layer that the face term of the report charges.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(14, 5.6, 1, 3, ratios=[1, 1, 1.15])
+    for k, ax in enumerate(axs[:2]):
+        ax.set_xlim(0, 7)
+        ax.set_ylim(0, 6)
+        z = [5.0, 3.4, 1.8]
+        for zz in z:
+            ax.add_patch(Rectangle((0.4, zz), 6.2, 0.36, fc=dk.COPPER, ec="k"))
+        for z0, z1 in ((3.76, 5.0), (2.16, 3.4)):
+            ax.add_patch(Rectangle((0.4, z0), 6.2, z1 - z0, fc=dk.FR4, ec="none", alpha=0.45, zorder=0))
+        ax.add_patch(Rectangle((3.0, 1.8), 0.16, 3.56, fc=dk.COPPER, ec="k", zorder=2))
+        ax.add_patch(Rectangle((3.84, 1.8), 0.16, 3.56, fc=dk.COPPER, ec="k", zorder=2))
+        ax.add_patch(Rectangle((3.16, 1.8), 0.68, 3.56, fc=dk.AIR, ec="none", zorder=1))
+        if k == 0:
+            ax.set_title("the layered models: barrel k A / d over the gap d only", fontsize=8)
+            for zz in z:
+                ax.plot([0.6, 6.4], [zz + 0.18] * 2, color="k", lw=0.8, ls=":")
+                ax.add_patch(Circle((5.6, zz + 0.18), 0.09, fc="k"))
+            for z0, z1 in ((3.76, 5.0), (2.16, 3.4)):
+                ax.annotate("", xy=(4.4, z0), xytext=(4.4, z1), arrowprops=dict(arrowstyle="<->", color=dk.HEAT))
+                ax.text(4.5, 0.5 * (z0 + z1), "d", color=dk.HEAT, fontsize=9)
+            ax.text(3.5, 0.9, "the copper layer is one node: the barrel crosses\nits thickness at no resistance", ha="center", fontsize=7.2)
+        else:
+            ax.set_title("the real via: the barrel also crosses the copper", fontsize=8)
+            ax.annotate("", xy=(4.4, 1.8), xytext=(4.4, 5.36), arrowprops=dict(arrowstyle="<->", color=dk.HEAT))
+            ax.text(4.5, 3.5, "d + t_cu per gap", color=dk.HEAT, fontsize=8)
+            for zz in z:
+                dk.arrow(ax, 1.4, zz + 0.18, 2.95, zz + 0.18, color=dk.BLUE)
+            ax.text(3.5, 0.9, "the plane shunts the barrel only near it;\nthe heat converges onto the barrel (2.4 %)", ha="center", fontsize=7.2)
+        ax.axis("off")
+    ax = axs[2]
+    ax.set_xlim(0, 7)
+    ax.set_ylim(0, 6)
+    ax.set_title("face term with a film under the source", fontsize=8)
+    ax.add_patch(Rectangle((0.4, 3.2), 6.2, 0.5, fc=dk.FR4, ec="k"))
+    ax.text(5.4, 3.45, "outer slot t", fontsize=7)
+    ax.add_patch(Rectangle((0.4, 1.4), 6.2, 1.8, fc=dk.FR4, ec="k", alpha=0.45))
+    ax.add_patch(Rectangle((1.4, 3.7), 4.2, 0.14, fc=dk.HEAT, ec="k"))
+    ax.plot([0.6, 6.4], [3.45, 3.45], color="k", lw=0.8, ls=":")
+    ax.text(0.5, 3.0, "node", fontsize=7)
+    for x in (2.0, 3.0, 4.0, 5.0):
+        dk.arrow(ax, x, 3.9, x, 4.6, color=dk.BLUE)
+        dk.arrow(ax, x + 0.3, 3.65, x + 0.3, 2.6, color=dk.HEAT)
+    ax.text(3.5, 4.9, "P_up leaves through the film at once", ha="center", fontsize=7.2, color=dk.BLUE)
+    ax.text(3.5, 1.0, "only P_down crosses the half slot:\ntrue drop P_down t / (2 k A); reported P t / (2 k A)", ha="center", fontsize=7.2)
+    ax.text(3.5, 0.2, "coupon, source = board: P_down / P = 0.495, +2.34 % -> +0.02 %", ha="center", fontsize=7.2)
+    ax.axis("off")
+    dk.save(fig, path)
+
+
 def main():
     """!
-    @brief Draw the four schematics.
+    @brief Draw the five schematics.
     @return None.
     """
     OUT.mkdir(exist_ok=True)
@@ -184,6 +241,7 @@ def main():
     coupon_stack(OUT / "fig_02_coupon_stack_in_the_program.png")
     via_unit(OUT / "fig_03_via_unit_idealisations.png")
     plate_images(OUT / "fig_04_plate_source_images.png")
+    review_sections(OUT / "fig_11_via_barrel_and_face_term.png")
 
 
 if __name__ == "__main__":

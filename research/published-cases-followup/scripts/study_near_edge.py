@@ -9,7 +9,7 @@
          two layers of 0.65 mm joined by a 1 um laminate gap whose drop, 6.5e-4 K at 100 W/m2, is 0.1 % of Rc), the film h = 1 / (R0 A) on the bottom face, the top and the edges insulated, a heater over the source.
          The thin-plate series is the continuum limit of the layered models (one node through the thickness); the difference between a program model and the series is the model, the difference between
          the series and the 3D solver is the through-thickness gradient of the real 1.3 mm plate, the difference from the printed Rc is the correlation of the article (accurate to about 5 %).
-         Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_near_edge.py (about 3 minutes, under 1 GB).
+         Run from the repository root: .venv/bin/python research/published-cases-followup/scripts/study_near_edge.py (about 1 minute, under 1 GB). Section 4 (review): a PCB-like board with a 5 mm part at the centre, an edge and a corner.
 """
 
 import json
@@ -131,7 +131,36 @@ def main():
         vals = {m: program_rc(g, g, m) for m in MODELS}
         res["sweep_corner"].append({"gap_mm": g, "series": s, "models": vals})
         print(f"   {g:6.1f}  {s[0]:8.4f} {s[1]:7.4f} | " + row_text(s, vals))
+    res["pcb"] = pcb_board()
     (OUT / "near_edge.json").write_text(json.dumps(res, indent=1, default=float))
+
+
+def pcb_board():
+    """!
+    @brief Review: the same question on a PCB-like board (100 x 100 mm, two layers of 35 um full copper, 1.6 mm, h = 10 W/m2K on both faces, insulated edges,
+           a 5 x 5 mm part of 1 W on layer 1) at the centre, at an edge and at a corner, the Lumped and the Analytic against the fvm at 0.25 mm (footprint mean and hottest point).
+           Run with PYTHONPATH set to another checkout to measure another version of the program on the same board.
+    @return list of dicts (position, fvm mean and max, analytic and lumped errors in %).
+    """
+    from pcbthermal import Problem, SolverOptions, analysis, simulate
+    print("\n4. (review) A PCB-like board: 100 x 100 mm, 2 x 35 um full copper, 1.6 mm, h 10 W/m2K, 5 x 5 mm part of 1 W; error against the fvm at 0.25 mm, %")
+    print("   position        fvm mean  max K | analytic mean | lumped mean  max")
+    rows = []
+    for name, (x, y) in (("centre", (47.5, 47.5)), ("edge, gap 0", (0.0, 47.5)), ("edge, gap 5", (5.0, 47.5)), ("corner, gap 0", (0.0, 0.0)), ("corner, gap 5", (5.0, 5.0))):
+        p = Problem.new(100.0, 100.0, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=0.0, h_top=10.0, h_bottom=10.0, h_side=0.0)
+        p.add_full_copper()
+        p.add_heater(1, 1.0, rect=(x, y, x + 5.0, y + 5.0), name="U")
+        st = {}
+        for m, c in (("fvm", 0.25), ("analytic", 0.5), ("lumped", 0.5)):
+            r = simulate(p, SolverOptions(models=(m,), cell_mm=c)).results[m]
+            s = analysis.heater_stats(r, p)[0]
+            st[m] = (s["t_mean"] - p.board.ambient, s["t_max"] - p.board.ambient)
+        f = st["fvm"]
+        row = {"position": name, "fvm": f, "analytic_mean": 100 * (st["analytic"][0] / f[0] - 1),
+               "lumped_mean": 100 * (st["lumped"][0] / f[0] - 1), "lumped_max": 100 * (st["lumped"][1] / f[1] - 1)}
+        rows.append(row)
+        print(f"   {name:14s} {f[0]:8.2f} {f[1]:6.2f} | {row['analytic_mean']:+12.2f} | {row['lumped_mean']:+10.1f} {row['lumped_max']:+5.1f}")
+    return rows
 
 
 if __name__ == "__main__":

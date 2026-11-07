@@ -23,7 +23,7 @@ import shen_case as SC  # noqa: E402
 K_CU = SC.K_CU
 
 
-def unit_cell(pitch, phi, k_fill, k_fr4_z=SC.K_FR4_THROUGH, k_fr4_r=SC.K_FR4_INPLANE, t_pth=SC.T_PTH, planes_over_hole=False, flux_over_hole=False, nr_out=48, nr_barrel=6, nr_hole=6, nz_cu=4, nz_gap=14):
+def unit_cell(pitch, phi, k_fill, k_fr4_z=SC.K_FR4_THROUGH, k_fr4_r=SC.K_FR4_INPLANE, t_pth=SC.T_PTH, planes_over_hole=False, flux_over_hole=False, plane_kr_scale=1.0, nr_out=48, nr_barrel=6, nr_hole=6, nz_cu=4, nz_gap=14):
     """!
     @brief Resistance of one via unit cell by an axisymmetric finite-volume solve.
     @param pitch Side of the square unit cell in m (the disc of the same area is solved).
@@ -34,6 +34,8 @@ def unit_cell(pitch, phi, k_fill, k_fr4_z=SC.K_FR4_THROUGH, k_fr4_r=SC.K_FR4_INP
     @param t_pth Plating thickness in m.
     @param planes_over_hole True: the copper planes are continuous across the drill.
     @param flux_over_hole True: the top flux is uniform over the whole cell, the drill included.
+    @param plane_kr_scale Multiplier of the radial conductivity of the copper planes outside the barrel (1: the real plane; a large value makes every plane
+           radially isothermal and so removes the convergence of the heat in the planes onto the barrel, the term that the review separates in study_shen_vias.py part D).
     @param nr_out Radial cells from the barrel to the cell wall.
     @param nr_barrel Radial cells across the plating.
     @param nr_hole Radial cells in the hole.
@@ -67,7 +69,8 @@ def unit_cell(pitch, phi, k_fill, k_fr4_z=SC.K_FR4_THROUGH, k_fr4_r=SC.K_FR4_INP
             elif rc[i] < r_bar:
                 kr[j, i] = kz[j, i] = K_CU
             elif is_cu_row[j]:
-                kr[j, i] = kz[j, i] = K_CU
+                kr[j, i] = K_CU * plane_kr_scale                      # radial: the plane (scaled only for the review's separation of the constriction)
+                kz[j, i] = K_CU
             else:
                 kr[j, i], kz[j, i] = k_fr4_r, k_fr4_z
     dr, dz = np.diff(r_e), np.diff(z_e)
