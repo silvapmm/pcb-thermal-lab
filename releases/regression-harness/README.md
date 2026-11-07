@@ -1,4 +1,6 @@
-# Release regression 2.4.5: the reference numbers
+# Release regression harness: the reference numbers of every release
+
+(Folder history: made for 2.4.5 as `research/release-regression-245`; it is the tool of every release and now lives here, `releases/regression-harness/`.)
 
 Status: **shake-down run done and reviewed** (quick and full set, tag v2.4.4 against the tree at develop 9e890be; the program version is still 2.4.4, so `reference/v2.4.5.json` is not generated: the generator refuses before the version bump). The first run showed that seven hypotheses of the table were wrong or had no size, and the table was corrected (section 6.3). The review (section 7) found that the harness could not fail on a covered board: an out-of-range shift was not an alarm, the bounds were up to 60 times wider than the shifts measured, and bounds in K were compared with checksums and counts (8 SOR numbers out of range went unreported); the classification, the table (measured limits per board, model and cell) and the frozen comparison were corrected, and the FDM shift of the part across the outline was checked against an independent solver (a correction, not a defect). Sections 1 to 5 are the text written before the run; section 6 holds the results of the first run (corrected where the review found them wrong); section 7 the review.
 
@@ -69,7 +71,7 @@ Memory is kept light: FVM and FDM above 400 000 unknowns and the 3D solid above 
 All from the repository root, with `.venv/bin/python`. The runs are long and use memory (the 0.5 mm cells on the example board); run them when the machine is free, and use `--quick` (2 mm only) for a first look (`study_baseline_release.py ... -- --quick`: the arguments after `--` go to `study_run_suite.py`). Times and memory of a full run have **not** been measured.
 
 ```sh
-R=research/release-regression-245/scripts
+R=releases/regression-harness/scripts
 # 1. the baseline: v2.4.4 extracted with git archive into a scratch folder outside the repository, run in a separate process
 .venv/bin/python $R/study_baseline_release.py --tag v2.4.4          # -> out/v2.4.4.json   (--dest DIR to choose the scratch folder)
 # 2. the same harness on the release candidate (the tree you are in)
@@ -79,7 +81,7 @@ R=research/release-regression-245/scripts
 # 4. diff and classify
 .venv/bin/python $R/study_diff.py out/v2.4.4.json out/rc.json        # -> out/diff_v2.4.4_vs_rc.{json,md}; --strict exits 1 on an alarm
 # 4b. once, on the reviewed candidate (full sets): measured limits per board, model and cell into the table (review, section 7.2)
-.venv/bin/python $R/study_tighten_table.py out/v2.4.4-full.json out/rc-full.json --out research/release-regression-245/reference/expected_shifts.json
+.venv/bin/python $R/study_tighten_table.py out/v2.4.4-full.json out/rc-full.json --out releases/regression-harness/reference/expected_shifts.json
 # 5. the error of each model against the independent solver, before and after
 .venv/bin/python $R/study_error_vs_reference.py out/v2.4.4.json out/rc.json
 # 6. when the candidate is final, with the version bumped in the tree: freeze
@@ -92,8 +94,8 @@ R=research/release-regression-245/scripts
 (`out/` is git-ignored. The freeze refuses while the diff has an alarm, when the program version of the run is not the one asked for, and when the file exists.) The tests of the folder: `tests/test_classify_logic.py` (pure logic, no program) and `tests/test_frozen_numbers.py` (skipped until `reference/v2.4.5.json` exists):
 
 ```sh
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/release-regression-245/tests
-PCBT_FROZEN_CELLS=2,1 .venv/bin/python -m pytest -q research/release-regression-245/tests/test_frozen_numbers.py     # more of the frozen file
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q releases/regression-harness/tests
+PCBT_FROZEN_CELLS=2,1 .venv/bin/python -m pytest -q releases/regression-harness/tests/test_frozen_numbers.py     # more of the frozen file
 ```
 
 ## 3. What is left

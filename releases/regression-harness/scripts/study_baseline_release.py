@@ -5,8 +5,8 @@
 @brief Question: what did the released program (v2.4.4) give on the regression boards? Extracts the tag with `git archive` into a scratch folder outside the repository and runs the suite on it in a separate Python process.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/study_baseline_release.py                 # tag v2.4.4 -> out/v2.4.4.json
-         .venv/bin/python research/release-regression-245/scripts/study_baseline_release.py --tag v2.4.4 --dest /path/outside/the/repo -- --quick    # after --: arguments of study_run_suite.py
+         .venv/bin/python releases/regression-harness/scripts/study_baseline_release.py                 # tag v2.4.4 -> out/v2.4.4.json
+         .venv/bin/python releases/regression-harness/scripts/study_baseline_release.py --tag v2.4.4 --dest /path/outside/the/repo -- --quick    # after --: arguments of study_run_suite.py
 
          Only the `pcbthermal` package is extracted (`git archive <tag> pcbthermal`; its data files are inside it). The scratch folder defaults to a new temporary folder, is refused
          if it lies inside the repository, and is kept (the run can be repeated with `--reuse-dest`). The child process gets the extracted tree as `--program-root`, so the working

@@ -5,7 +5,7 @@
 @brief Drawing of the flow of the release regression (no data, no solver): the two revisions, the same harness, the two result sets, the diff and the classes, the independent reference and the frozen file.
 @details Figure 01 of figures/ (the data figures from 02 on are drawn by make_figures.py, one numbering). It shows no number.
          File: fig_01_regression_flow.png.
-         Usage: .venv/bin/python research/release-regression-245/scripts/make_diagrams.py   (from the repository root).
+         Usage: .venv/bin/python releases/regression-harness/scripts/make_diagrams.py   (from the repository root).
 """
 
 import sys

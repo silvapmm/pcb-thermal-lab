@@ -3,8 +3,8 @@
 """!
 @file run_part_a.py
 @brief Runner of Part A of the reproduction pass of 2.5.0: runs the studies of eleven research folders one at a time, with a time limit and a pause when the machine is loaded.
-@details Usage: .venv/bin/python research/reproduction-250/scripts/run_part_a.py [--timeout S] [--only folder] [--late] [--force] (from the repository root). Outputs go to
-         `research/reproduction-250/out/<folder>/<script>.txt` (git-ignored) and the summary to `out/part_a.json`. A job that reaches the limit is killed and recorded as timeout.
+@details Usage: .venv/bin/python releases/2.5.0/reproduction/scripts/run_part_a.py [--timeout S] [--only folder] [--late] [--force] (from the repository root). Outputs go to
+         `releases/2.5.0/reproduction/out/<folder>/<script>.txt` (git-ignored) and the summary to `out/part_a.json`. A job that reaches the limit is killed and recorded as timeout.
          The child process group is stopped (SIGSTOP) while the load average stays above 7 or swap used is above 3 GB and resumed below 5 and 3 GB.
 """
 

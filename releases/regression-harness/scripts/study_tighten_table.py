@@ -10,7 +10,7 @@
          of more than the floor the other way is out of range); the may_move entries of the times to 63 % get `limits` on the relative change.
          Usage, from the repository root (the full sets, so that every cell is covered):
 
-         .venv/bin/python research/release-regression-245/scripts/study_tighten_table.py out/v2.4.4-full.json out/rc-full.json --out reference/expected_shifts.json
+         .venv/bin/python releases/regression-harness/scripts/study_tighten_table.py out/v2.4.4-full.json out/rc-full.json --out reference/expected_shifts.json
 
          Run it once on the reviewed candidate, read the printed table (every limit with what it was measured from) and commit the table; the next diff then alarms on any shift
          that is larger than the reviewed one by more than the margin, or that goes the other way.

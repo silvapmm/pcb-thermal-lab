@@ -5,13 +5,13 @@
 @brief Data figures of the release regression, drawn from the result sets in `out/`: the shift of the hottest point of every board and model, coloured by class (fig_02), and the error of each model against the independent solver before and after (fig_03).
 @details Usage, from the repository root, after `study_diff.py` and `study_references.py`:
 
-         .venv/bin/python research/release-regression-245/scripts/make_figures.py out/v2.4.4.json out/rc.json [--cell 1.0]
+         .venv/bin/python releases/regression-harness/scripts/make_figures.py out/v2.4.4.json out/rc.json [--cell 1.0]
 
          Files: fig_02_shift_map.png, fig_03_error_vs_reference.png (figures 01 is the flow diagram of make_diagrams.py). Nothing is drawn that the result sets do not hold.
 
          The result sets are not committed (they are git-ignored in out/), so the committed figure is fig_04_frozen_times.png, drawn from the frozen reference file alone:
 
-             .venv/bin/python research/release-regression-245/scripts/make_figures.py --frozen research/release-regression-245/reference/v2.4.5.json
+             .venv/bin/python releases/regression-harness/scripts/make_figures.py --frozen releases/regression-harness/reference/v2.4.5.json
 """
 
 import argparse

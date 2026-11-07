@@ -5,7 +5,7 @@
 @brief Question: which numbers of the final release candidate are frozen as the reference of the next versions? Writes `reference/v<version>.json` from the baseline and the final run.
 @details Usage, from the repository root, only after the 2.4.5 release candidate is final and `study_diff.py` shows no alarm:
 
-         .venv/bin/python research/release-regression-245/scripts/study_freeze_reference.py out/v2.4.4.json out/final.json --version 2.4.5
+         .venv/bin/python releases/regression-harness/scripts/study_freeze_reference.py out/v2.4.4.json out/final.json --version 2.4.5
 
          A record is frozen as `bit` when its numbers are equal in the baseline and in the final run (nothing in the release may change it: later versions are held to exact
          equality), otherwise as `moved` (held to 1e-6 K). The script refuses to freeze while `study_diff.py` still reports an alarm (an unexplained or must-not-move shift),

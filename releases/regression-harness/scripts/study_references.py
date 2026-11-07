@@ -5,8 +5,8 @@
 @brief Question: what does an independent layered 3D conduction solver give on the four reference-capable boards? Writes `out/references.json` (it does not depend on the revision, so it is solved once).
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/study_references.py                  # cells 2 and 1 mm (fast)
-         .venv/bin/python research/release-regression-245/scripts/study_references.py --cells 2 1 0.5  # the 0.5 mm solves are slow (minutes each)
+         .venv/bin/python releases/regression-harness/scripts/study_references.py                  # cells 2 and 1 mm (fast)
+         .venv/bin/python releases/regression-harness/scripts/study_references.py --cells 2 1 0.5  # the 0.5 mm solves are slow (minutes each)
 
          The solver is `research/solid3d-verification/lib/layered3d.py` (imports nothing from the program). The boards are the entries of `regress_boards.REFERENCE_SPECS`; the compared
          number is the rise of the hottest top-copper cell under the source on the same cell size as the model (see `regress_refsolve.py`).

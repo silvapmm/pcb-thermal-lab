@@ -3,7 +3,7 @@
 """!
 @file test_frozen_numbers.py
 @brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.6.0.json`) under one tolerance policy.
-@details The frozen file is made at a release by `research/release-regression-245/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
+@details The frozen file is made at a release by `releases/regression-harness/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
          `tests/regression/data/v<version>.json`; the test reads the newest. Tolerance policy (the same for every record, `regress_frozen.py`): temperatures 1e-8 K, field
          checksums 1e-10 relative, heat balance 1e-9 W, unknown counts and skipped status exactly, time to 63 % 1e-6 relative. Defaults: the 2 mm cell, all boards and models, with
          the times to 63 % (about 30 s). Environment variables:
@@ -15,7 +15,7 @@
          * `PCBT_FROZEN_FILE`: another frozen file.
 @note A failure is not automatically a defect: when a number moved for a reason that was decided (a model change), record the moved records as a pending shift in the same
       commit (`make_pending.py`, `data/pending/<topic>.json`: the item, the branch, why, the new numbers) and say why; the frozen file of the release is not edited, and the
-      pending files are folded into the refreeze of the next release (research/release-regression-245/INTEGRATION.md section 2) and deleted. If nobody decided the
+      pending files are folded into the refreeze of the next release (releases/regression-harness/INTEGRATION.md section 2) and deleted. If nobody decided the
       change, it is a regression.
 """
 
@@ -46,7 +46,7 @@ def _newest_file():
 FROZEN_FILE = _newest_file()
 MISSING = not FROZEN_FILE.exists()
 REASON = (f"frozen numbers {FROZEN_FILE.name} not found in tests/regression/data: make them at the release with "
-          "research/release-regression-245/scripts/study_freeze_reference.py (see CLAUDE.md, 'Branches and Versions')")
+          "releases/regression-harness/scripts/study_freeze_reference.py (see CLAUDE.md, 'Branches and Versions')")
 EXACT = os.environ.get("PCBT_FROZEN_EXACT", "0") == "1"
 
 

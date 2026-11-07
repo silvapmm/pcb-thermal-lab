@@ -1,6 +1,6 @@
 # Reproduction pass of 2.6.0: the research tests on the combined tree
 
-This branch (`research/reproduction-260`) starts from `feature/integration-260`, not from `develop` (an exception to the branch rule: the 2.6.0 program and the research
+This branch (`research/reproduction-260`, kept as the record; the folder is now `releases/2.6.0/reproduction`) starts from `feature/integration-260`, not from `develop` (an exception to the branch rule: the 2.6.0 program and the research
 folders to be re-run live only there). It edits research code, tests and documents only; `git diff feature/integration-260 --stat -- pcbthermal tests examples ico docs README.md
 CHANGELOG.md CLAUDE.md` is empty.
 
@@ -71,7 +71,7 @@ that the audit listed (fig 37) was not regenerated. The README numbers of the re
 
 The 28 unchanged folders: analytic-partial-copper, bare-spot-under-source, bochkov-robin-check, bom-role-and-close-hook, component-heatsink, convection-laws,
 effective-conductivity, fin-channel, fin-channel-sources, gap-subdivision, gerber-cad-profiles, gerber-import, gerber-models, gerber-nets, gerber-real-boards,
-lumped-near-edge, lumped-via-groups, paper-case-studies, plate-h-level, point-via-convergence, reduced-models-imported-passives, release-regression-245,
+lumped-near-edge, lumped-via-groups, paper-case-studies, plate-h-level, point-via-convergence, reduced-models-imported-passives, releases/regression-harness,
 sor-with-via-couplings, theory, via-contact-geometry, via-partial-copper, young-omega-tiles, zone-union.
 
 `tests/test_docs.py` and `tests/test_license_header.py` on this tree: 667 passed.

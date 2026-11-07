@@ -5,7 +5,7 @@
 @brief Question: is every number that moved between the last release and the tree under test covered by an item of the tree (a pending-shift file), or by nothing but the last bit of a floating-point sum? Writes the answer as JSON.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/study_pending_coverage.py out/v2.4.5.json out/develop-tip.json [--pending tests/regression/data/pending] [--out out/pending_coverage.json]
+         .venv/bin/python releases/regression-harness/scripts/study_pending_coverage.py out/v2.4.5.json out/develop-tip.json [--pending tests/regression/data/pending] [--out out/pending_coverage.json]
 
          Every metric of every record that differs between the two result sets is put in one of three classes: `last_bit` (absolute difference at most 1e-8 K or 1e-10 of the
          value, the policy of the frozen-numbers test), `covered` (the record is in a pending file of the tree and the new value equals the value stored there within the same

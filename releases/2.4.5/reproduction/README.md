@@ -46,9 +46,9 @@ Tests run on this branch after the changes (one `pytest` at a time): `tests/test
 
 ## 4. How to run again
 
-    .venv/bin/python research/reproduction-245/scripts/run_all.py [--folders a,b] [--timeout SECONDS] [--force] [--list] [--python PATH]
+    .venv/bin/python releases/2.4.5/reproduction/scripts/run_all.py [--folders a,b] [--timeout SECONDS] [--force] [--list] [--python PATH]
 
-`--python` runs the studies with another interpreter (`.venv-research` for zone-union and gerber-models). `JOBS` lists the studies in order, `SKIP` the ones not run and why; every output goes to `research/reproduction-245/out/<folder>/<script>.txt` and a summary to `out/reproduction.json`.
+`--python` runs the studies with another interpreter (`.venv-research` for zone-union and gerber-models). `JOBS` lists the studies in order, `SKIP` the ones not run and why; every output goes to `releases/2.4.5/reproduction/out/<folder>/<script>.txt` and a summary to `out/reproduction.json`.
 A run can be resumed. A script that a folder README says needs more than about 20 minutes is in `SKIP`.
 
 
@@ -132,7 +132,7 @@ lumped-analytic-vias: causes 1027, via_fill_rows 71, discretisation 82, real_boa
 
 ## Part A2: the long studies of gap-subdivision
 
-Completes the rows that Part A left as NOT RUN for gap-subdivision (they need `out/refs_pads.json`). Tree under test: the tip of `research/reproduction-245` (`8436db5`) with the program of 2.4.5 (`pcbthermal/` untouched). All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. The README numbers of `research/gap-subdivision` are not rewritten.
+Completes the rows that Part A left as NOT RUN for gap-subdivision (they need `out/refs_pads.json`). Tree under test: the tip of `releases/2.4.5/reproduction` (`8436db5`) with the program of 2.4.5 (`pcbthermal/` untouched). All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. The README numbers of `research/gap-subdivision` are not rewritten.
 
 ### Commands, times and results
 
@@ -205,7 +205,7 @@ Not run: 0.
 
 ## Part A3: the long studies of lumped-via-groups and lumped-analytic-vias
 
-Tree under test: tip of `research/reproduction-245` (detached), program of 2.4.5. All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. Reference files (fine grid, 1/16 mm) were built from scratch in `out/refcache` (git-ignored). Tolerance 0.5 % (no other tolerance in the folders). Nothing in `pcbthermal/`, `tests/`, the project documents or the README numbers was changed.
+Tree under test: tip of `releases/2.4.5/reproduction` (detached), program of 2.4.5. All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. Reference files (fine grid, 1/16 mm) were built from scratch in `out/refcache` (git-ignored). Tolerance 0.5 % (no other tolerance in the folders). Nothing in `pcbthermal/`, `tests/`, the project documents or the README numbers was changed.
 
 ### What was run
 
@@ -268,14 +268,14 @@ Reading: 2.4.5 halves the error of the program on this family (20.9 to 10.8 % me
 
 Folders: `point-via-convergence`, `sor-with-via-couplings`, `rotated-square-3d`, `models-comparison` (and the two project documents that
 `models-comparison/scripts/validation_study.py` and `solver_equivalence.py` feed: `docs/validation.md` sections 1, 2, 2.1 and 5).
-Tree under test: `develop` at `0d4159f` (the 2.4.5 candidate). Branch `research/reproduction-245-b`, created from `research/reproduction-245`
+Tree under test: `develop` at `0d4159f` (the 2.4.5 candidate). Branch `releases/2.4.5/reproduction-b`, created from `releases/2.4.5/reproduction`
 (which had no commit holding `run_all.py` yet, so the file was copied from the first tester's worktree). No README number was rewritten.
 
 ### 1. Commands and durations
 
 Runner (one job at a time, `OMP/OPENBLAS/MKL_NUM_THREADS=2`, `QT_QPA_PLATFORM=offscreen`, limit 1500 s per job):
 
-    .venv/bin/python research/reproduction-245/scripts/run_all.py --folders point-via-convergence,sor-with-via-couplings,rotated-square-3d,models-comparison
+    .venv/bin/python releases/2.4.5/reproduction/scripts/run_all.py --folders point-via-convergence,sor-with-via-couplings,rotated-square-3d,models-comparison
 
 | folder | script | result | seconds |
 | :-- | :-- | :-- | --: |
@@ -538,7 +538,7 @@ Folders of this part that have no `tests/`: outline, stackup, power-calculator, 
 
 ### 2. Commands and durations
 
-Runner (resumable, one job at a time): `.venv/bin/python research/reproduction-245/scripts/run_all.py --python <venv python> --folders outline,stackup,power-calculator,component-heatsink,block-and-fins,solid3d-verification,zone-union,fin-channel-sources,via-real-board,laminate-nodes,young-omega-tiles,gerber-models`. (The runner expands a folder that has no script, such as effective-conductivity, into every script, so those folders were run by hand, below.)
+Runner (resumable, one job at a time): `.venv/bin/python releases/2.4.5/reproduction/scripts/run_all.py --python <venv python> --folders outline,stackup,power-calculator,component-heatsink,block-and-fins,solid3d-verification,zone-union,fin-channel-sources,via-real-board,laminate-nodes,young-omega-tiles,gerber-models`. (The runner expands a folder that has no script, such as effective-conductivity, into every script, so those folders were run by hand, below.)
 
 | script | seconds | state |
 | :-- | --: | :-- |
@@ -555,7 +555,7 @@ Runner (resumable, one job at a time): `.venv/bin/python research/reproduction-2
 | young-omega-tiles: study_s3_boards / study_s4_example | 113 / 34 | **failed**, see 4.3 |
 | gerber-models: study_scalar_formulas / study_heater_size (with `.venv`) | 1 / 0 | failed: needs the downloaded boards and the research environment. Re-run by hand, below |
 
-By hand, same machine, one at a time (outputs in `research/reproduction-245/out/<folder>/`, git-ignored):
+By hand, same machine, one at a time (outputs in `releases/2.4.5/reproduction/out/<folder>/`, git-ignored):
 
 | script (venv) | seconds |
 | :-- | --: |

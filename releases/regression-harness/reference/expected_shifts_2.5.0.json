@@ -40,7 +40,7 @@
    "id": "J5",
    "title": "Symmetric-mode LU",
    "branch": "fix/symmetric-lu",
-   "evidence": "CLAUDE.md Decisions Log; research/reproduction-250",
+   "evidence": "CLAUDE.md Decisions Log; releases/2.5.0/reproduction",
    "moves": "last bits of the FVM, FDM, Lumped and 3D solid sums",
    "size": "below 1e-8 K (largest printed here 2.9e-12 K)"
   }

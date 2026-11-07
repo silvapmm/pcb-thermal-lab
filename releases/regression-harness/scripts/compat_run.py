@@ -5,8 +5,8 @@
 @brief Question: what did an OLD release of the program (v2.0.0 to v2.3.0, which lack the outline, the parts and other later APIs) give on the regression boards? Runs a tag with the same result-set format as `study_run_suite.py`, and records what the tag cannot do instead of stopping.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/compat_run.py --tag v2.0.0 --label v2.0.0 [--quick] [--dest DIR] [--reuse-dest]
-         .venv/bin/python research/release-regression-245/scripts/compat_run.py --program-root /path/to/tree --label develop     # a tree instead of a tag
+         .venv/bin/python releases/regression-harness/scripts/compat_run.py --tag v2.0.0 --label v2.0.0 [--quick] [--dest DIR] [--reuse-dest]
+         .venv/bin/python releases/regression-harness/scripts/compat_run.py --program-root /path/to/tree --label develop     # a tree instead of a tag
 
          `lib/` (byte-compared with `tests/regression/`) is not changed: this script imports the harness and replaces three of its functions in memory (`features`, `steady_problem`,
          `build`) by versions that do not assume the newest API. A board that the tag cannot build (an API it does not have: `set_outline`, a part with theta, a metal block ...)

@@ -8,11 +8,11 @@
          version to the reviewed sizes, it does not predict them. The 2.5.0 table has the same reading.
          Usage, from the repository root, with the sets `out/v2.5.2.json` and `out/final.json` made by the harness (`study_baseline_release.py`, `study_run_suite.py`):
 
-         .venv/bin/python research/release-regression-245/scripts/make_expected_shifts.py
+         .venv/bin/python releases/regression-harness/scripts/make_expected_shifts.py
 """
 
 import json,glob,os,sys,collections
-sys.path.insert(0,"research/release-regression-245/lib")
+sys.path.insert(0,"releases/regression-harness/lib")
 import regress_classify as C  # noqa: E402
 
 
@@ -22,7 +22,7 @@ def main():
 
     @return None
     """
-    bs=C.load_set("research/release-regression-245/out/v2.5.2.json"); fs=C.load_set("research/release-regression-245/out/final.json")
+    bs=C.load_set("releases/regression-harness/out/v2.5.2.json"); fs=C.load_set("releases/regression-harness/out/final.json")
     b=C.index(bs); f=C.index(fs)
     P={os.path.basename(fn)[:-5]:json.load(open(fn)) for fn in sorted(glob.glob("tests/regression/data/pending/*.json"))}
     ID={"analytic-per-layer-edge":"K1","analytic-local-transient":"K2","exact-board-cover-reading-t":"K3","exact-board-cover-reading-cut-t":"K3","exact-board-cover-solvers":"K3",
@@ -95,7 +95,7 @@ def main():
     trans={"must_not_move":[],"may_move":may+[{"id":"T0","boards":"*","models":"*","direction":"any","rel_change":[0,1e-6],"note":"round-off of the time to 63 %"}]}
     out={"format":1,"baseline":"v2.5.2","target":"2.6.0","how_to_read":"Same reading as expected_shifts_2.5.0.json. Items and rules come from the pending files of the integration branch (one per 2.6.0 item), checked by adding the pending shifts of every item that covers a record (study_pending_coverage and the additivity check of the refreeze: 1534 of 1545 metrics add up within 10 %; the other 11 are the 3D solid records where two items act on the same cells). The numeric limits are 1.25 times the shifts of this run: the table does not predict the sizes, it holds the next version to them.",
      "items":[{"id":a,"title":t,"branch":br,"evidence":ev,"moves":mv} for a,t,br,ev,mv in items],"rules":rules,"must_not_move":[],"transients":trans,"board_matrix":{}}
-    json.dump(out,open("research/release-regression-245/reference/expected_shifts_2.6.0.json","w"),indent=1)
+    json.dump(out,open("releases/regression-harness/reference/expected_shifts_2.6.0.json","w"),indent=1)
     print(len(rules),"rules",len(may),"transient rules"); print([r['item'] for r in rules if '??' in r['item']])
 
 

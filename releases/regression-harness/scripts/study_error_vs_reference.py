@@ -5,7 +5,7 @@
 @brief Question: how far is each model from the independent layered 3D solver on the four reference boards, before (v2.4.4) and after (the release candidate)?
 @details Usage, from the repository root (after `study_references.py`, `study_baseline_release.py` and `study_run_suite.py`):
 
-         .venv/bin/python research/release-regression-245/scripts/study_error_vs_reference.py out/v2.4.4.json out/rc.json
+         .venv/bin/python releases/regression-harness/scripts/study_error_vs_reference.py out/v2.4.4.json out/rc.json
 
          Prints and writes `out/error_vs_reference.md`: one row per board, cell and model with the reference rise, the relative error of the rise in both sets and the change in
          percentage points. The reference is solved on the same cell size as the model. The boards are the ones with a square source, one conductivity of laminate and insulated

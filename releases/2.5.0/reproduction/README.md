@@ -1,6 +1,6 @@
 # Reproduction pass of release 2.5.0: the research folders on the final tree
 
-The READMEs of the research folders hold numbers measured on older programs. This pass re-runs the studies of the folders that import the program on `develop` at `e97b62f` (the 2.5.0 candidate, version string still 2.4.5) and compares every printed table with the folder README and with the pass of 2.4.5 (`research/reproduction-245/README.md`); the frozen reference numbers of the release harness were compared with a run on the tag v2.4.5 (Part D). The program was not touched. Four testers worked in parallel, one job at a time each: A (this branch's owner), B, C, D (detached worktrees); a fifth, F, was given the long convection sweep and did not run it.
+The READMEs of the research folders hold numbers measured on older programs. This pass re-runs the studies of the folders that import the program on `develop` at `e97b62f` (the 2.5.0 candidate, version string still 2.4.5) and compares every printed table with the folder README and with the pass of 2.4.5 (`releases/2.4.5/reproduction/README.md`); the frozen reference numbers of the release harness were compared with a run on the tag v2.4.5 (Part D). The program was not touched. Four testers worked in parallel, one job at a time each: A (this branch's owner), B, C, D (detached worktrees); a fifth, F, was given the long convection sweep and did not run it.
 
 Items of 2.5.0 that can move a number: zonal Lumped (ZONES), Lumped footprint potentials (FOOT), Robin Analytic edge (ROBIN), laminate options, face term in the profile curves, via edge image (EDGEIMG), symmetric LU (SYMLU, last bits and memory), memory guard (GUARD), imported copper, laminar default for new projects, edge coefficient limit (HLIM), partial-copper warning.
 
@@ -13,10 +13,10 @@ Units differ by part (a study script, a table group, a harness result set), so t
 | A | analytic-2-6, analytic-edge-spatial, analytic-partial-copper, bare-spot-under-source, block-and-fins, component-heatsink, convection-laws, effective-conductivity, fin-channel, fin-channel-sources, gap-subdivision | study script | 62 | 58 | 4 | 0 | 4 |
 | B | gerber-cad-profiles, gerber-import, gerber-models, gerber-nets, gerber-real-boards | table group or output file | 35 | 20 | 15 | 0 | the scripts that do not import the program (about 30), 2 that need patched copies of the program |
 | C | horizontal-plate-h, laminate-2-6, models-comparison, lumped-analytic-vias, lumped-via-groups, lumped-zones-adoption, laminate-nodes, memory-guard | study | 62 compared (76 run) | 60 | 2 groups | 0 | 7 |
-| D | outline, paper-case-studies, plate-h-level, point-via-convergence, power-calculator, release-regression-245, rotated-square-3d, solid3d-verification, sor-with-via-couplings, stackup, theory-sources, theory, via-edge-image, via-fill, via-partial-copper, via-real-board, young-omega-tiles, zone-union | test run, harness result set or study | 70 | 55 | 15 | 0 | about 77 scripts (their tests pass) |
+| D | outline, paper-case-studies, plate-h-level, point-via-convergence, power-calculator, releases/regression-harness, rotated-square-3d, solid3d-verification, sor-with-via-couplings, stackup, theory-sources, theory, via-edge-image, via-fill, via-partial-copper, via-real-board, young-omega-tiles, zone-union | test run, harness result set or study | 70 | 55 | 15 | 0 | about 77 scripts (their tests pass) |
 | **all** | | | **229** | **193** | **36** | **0** | |
 
-**UNEXPLAINED: 0** in every part. Tests: B 197 passed; D 16 test runs green (frozen numbers 317 passed at 2, 1 and 0.5 mm, 24 passed in `release-regression-245/tests`, the folders' own tests and the docs and licence gates); C and A ran studies only (the folders' tests were not run in those parts).
+**UNEXPLAINED: 0** in every part. Tests: B 197 passed; D 16 test runs green (frozen numbers 317 passed at 2, 1 and 0.5 mm, 24 passed in `releases/regression-harness/tests`, the folders' own tests and the docs and licence gates); C and A ran studies only (the folders' tests were not run in those parts).
 
 Not run, with the reason (overall): `convection-laws/study_plate_mac.py` (about an hour, own solvers; given to tester F, whose shards were paused because the machine was out of swap; it does not import the program except for the law tables); the end of `bare-spot-under-source/study_review.py`, the mesh check of `component-heatsink/base_spreading_study.py` and `bare-spot-under-source/study_real_stormduino.py` (the last needs a one-hour reference run first) in Part A, stopped on the coordinator's order for a tight machine; the three `memory-guard` studies and `laminate-nodes/study_analytic.py` in Part C; the studies listed in Part D section 5 and Part B section 4.
 
@@ -64,6 +64,6 @@ Load of the machine during the pass: 1.5 at the start of Part A, 4 to 7 during, 
 
 ## 6. How to run again
 
-    .venv/bin/python research/reproduction-250/scripts/run_part_a.py [--only folder] [--late] [--force] --python .venv/bin/python
+    .venv/bin/python releases/2.5.0/reproduction/scripts/run_part_a.py [--only folder] [--late] [--force] --python .venv/bin/python
 
 `JOBS` lists the first pass, `LATE` the long jobs (the long gap-subdivision chain builds `out/refs_pads.json` and rewrites tracked CSV files: restore them with `git checkout`).

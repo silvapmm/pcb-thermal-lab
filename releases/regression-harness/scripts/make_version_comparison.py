@@ -5,8 +5,8 @@
 @brief Question: how do the results of the program differ between two versions, board by board and model by model? Writes a Markdown chapter and a figure from two result sets and the table of expected shifts.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/make_version_comparison.py out/v2.4.4.json out/v2.4.5.json \\
-                 --table research/release-regression-245/reference/expected_shifts_2.4.5.json
+         .venv/bin/python releases/regression-harness/scripts/make_version_comparison.py out/v2.4.4.json out/v2.4.5.json \\
+                 --table releases/regression-harness/reference/expected_shifts_2.4.5.json
 
          The inputs are two result sets written by `study_baseline_release.py` / `study_run_suite.py` (the tag runs of the harness). Everything printed is read from them:
          the hottest point before and after, the shift in K and in percent of the old rise over the ambient, the item of the release that the table links to the shift (rule to item),
@@ -617,7 +617,7 @@ def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, bo
     labels = [vlabel(x) for x in sets]
     pair_notes = pair_notes or {}
     md = ["# Results across program versions", "",
-          "Every number comes from result sets of the regression harness (`research/release-regression-245`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; "
+          "Every number comes from result sets of the regression harness (`releases/regression-harness`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; "
           "nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item, or when the notes of the pair (taken from the CHANGELOG and docs/versions.md of the later version) name one; "
           "otherwise it is left unclassified or called unexplained. The example boards are read from the current tree for every version: a release that does not know a field of the file ignores it.", ""]
     md += [f"Versions compared (oldest first): {', '.join(labels)}.", "", "## Which versions could run which boards and models", "", availability_table(sets), "What did not run, and why:", ""]
@@ -667,7 +667,7 @@ def main(argv=None):
     ap.add_argument("--table", default=str(ROOT / "reference" / "expected_shifts.json"), help="table of expected shifts of the later version")
     ap.add_argument("--out", default=None, help="Markdown output (default out/version_comparison_<base>_vs_<new>.md)")
     ap.add_argument("--fig-dir", default=str(ROOT / "figures"))
-    ap.add_argument("--link", default="../figures/", help="path prefix of the figures in the Markdown (for a file in docs/: ../research/release-regression-245/figures/)")
+    ap.add_argument("--link", default="../figures/", help="path prefix of the figures in the Markdown (for a file in docs/: ../releases/regression-harness/figures/)")
     ap.add_argument("--references", default=None, help="references.json of study_references.py (error against the independent solver)")
     ap.add_argument("--pair-notes", default=None, help="JSON with the hand-written notes of every pair, keys 'vA->vB'")
     ap.add_argument("--pending", default=None, help="folder of the pending-shift files (tests/regression/data/pending): checks every shift of the unreleased pair")

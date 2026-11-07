@@ -6,7 +6,7 @@
 
 All numbers below are printed by the scripts of this folder (run from the repository root with `.venv/bin/python research/sor-with-via-couplings/scripts/<script>.py`; the tests are in `tests/`). The maintainer's rule was followed: the simplest cases come first and each says which single effect it isolates.
 
-**Program of 2.4.5 (reproduction pass).** The studies run this folder's copy of the stencil on a network without the laminate nodes (`lib/boards.py` builds `fvm.Network(..., ladder=False)`, `lib/sorvia.py` asserts it), so the tables reproduce (`study_real_board.py`: 60.225 K, 2260 / 2390 / 189 sweeps at 1 mm, re-run by the review); they describe the SOR of the program before 2.4.5, not the block SOR now in the program, which agrees with the direct solver to 6e-9 K on the example board (`docs/validation.md` 5). The no-via sweeps of 8.2 and 8.3 moved with the Young omega (4169 / 8680 -> 1002 / 2070). Details: `research/reproduction-245/README.md`, Part B 3.3.
+**Program of 2.4.5 (reproduction pass).** The studies run this folder's copy of the stencil on a network without the laminate nodes (`lib/boards.py` builds `fvm.Network(..., ladder=False)`, `lib/sorvia.py` asserts it), so the tables reproduce (`study_real_board.py`: 60.225 K, 2260 / 2390 / 189 sweeps at 1 mm, re-run by the review); they describe the SOR of the program before 2.4.5, not the block SOR now in the program, which agrees with the direct solver to 6e-9 K on the example board (`docs/validation.md` 5). The no-via sweeps of 8.2 and 8.3 moved with the Young omega (4169 / 8680 -> 1002 / 2070). Details: `releases/2.4.5/reproduction/README.md`, Part B 3.3.
 
 ## 1. The situation
 

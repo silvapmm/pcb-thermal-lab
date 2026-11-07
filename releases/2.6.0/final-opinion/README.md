@@ -36,7 +36,7 @@ The Lumped model near a side or corner; a small part in the Lumped that is not r
 ### 1.4 The numbers a user will see
 
 * **Example board** (`examples/example_board.pcbt.json`, 1 mm, `run`): FVM 85.38, Lumped 86.79, Analytic 84.72 degC (2.5.2: 85.23, 86.63, 84.58). The run shows one warning (the Lumped with 9 vias under U1), the same as 2.5.2.
-* **Frozen numbers** (`tests/regression/data/v2.6.0.json` against `v2.5.0.json`, which 2.5.1 and 2.5.2 did not move): 145 of 251 steady records moved, by item (table `research/release-regression-245/reference/expected_shifts_2.6.0.json`, 0 alarms): Analytic 24 records (-0.0006 to +0.158 K), FDM 27 (+0.001 to +0.66 K), FVM 39 (-0.56 to +0.59 K, the extremes on `part_across_outline`), Lumped 15 (+0.016 to +0.158 K, the via barrel), 3D solid 40 (-1.44 to +0.013 K); two 3D records at 0.5 mm leave the harness (over the cap). Times to 63 %: example U1 Analytic -19.5 % (12.82 to 10.32 s), the others within about 1 %.
+* **Frozen numbers** (`tests/regression/data/v2.6.0.json` against `v2.5.0.json`, which 2.5.1 and 2.5.2 did not move): 145 of 251 steady records moved, by item (table `releases/regression-harness/reference/expected_shifts_2.6.0.json`, 0 alarms): Analytic 24 records (-0.0006 to +0.158 K), FDM 27 (+0.001 to +0.66 K), FVM 39 (-0.56 to +0.59 K, the extremes on `part_across_outline`), Lumped 15 (+0.016 to +0.158 K, the via barrel), 3D solid 40 (-1.44 to +0.013 K); two 3D records at 0.5 mm leave the harness (over the cap). Times to 63 %: example U1 Analytic -19.5 % (12.82 to 10.32 s), the others within about 1 %.
 * **What stays limited** (stated in the documents and warned): the FDM has no cut-cell treatment; imported copper on an outline board keeps the old links and film; the copper edge inside the outline leaves 2 to 3 K at `h_side` 200; the Lumped near an edge stays 4 to 15 % cool; the Lumped and Analytic keep the edge film at the copper temperature (Analytic -5 % on 1.6 mm, -15 % on 3.2 mm at 200 W/m2K); a via at a copper corner reads 15 to 85 % of its effect low; the convection has never been compared with a measured copper board.
 
 ## 2. Does the research need code? Verdict per investigation
@@ -50,8 +50,8 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | `bochkov-robin-check/` | none | confirms the adopted film (floor 0.25 is a safety net, `fvm.EDGE_FILM_FLOOR`). |
 | `laminate-edge-band/` | impl | `laminate.edge_band`, `plan_gaps(edge=)`; `docs/validation.md` 36; tests of the band. Lumped/Analytic edge laminate: later, only warned (A29). |
 | `laminate-2-6/` | impl (C), later (A local rule) | 3D slabs by thickness (`solid3d.py`); the source-aware local rule needs the three changes of its README 7 (A18). |
-| `analytic-2-6/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `reproduction-260`. |
-| `analytic-edge-spatial/` | earlier (2.5.0 Robin basis) | superseded in part by the per-layer edge; test restated in `reproduction-260`. |
+| `analytic-2-6/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `releases/2.6.0/reproduction`. |
+| `analytic-edge-spatial/` | earlier (2.5.0 Robin basis) | superseded in part by the per-layer edge; test restated in `releases/2.6.0/reproduction`. |
 | `via-contact-geometry/` | impl + later | `viawell.barrel_length`, `rim_copper_shares`; `tests/test_via_barrel_and_rim.py`. Later: the sector well at a copper corner (A30). |
 | `via-partial-copper/` | impl (warning, rim rule) / dropped (star coupling) | the star coupling (C) was not adopted (maintainer); what is left is A30. |
 | `lumped-ring-uniform-deficit/` | impl | `lumped.py` capped first ring; `docs/validation.md` 31. |
@@ -62,7 +62,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | `fast-wave-oscillation/` | impl | `stackimpedance.py`, `profiles.py`, `api.response_cell_mm`; `docs/validation.md` 37. Later: neighbours' waves, a via term in the column, partial copper under the part (section 3). |
 | `bom-role-and-close-hook/` | impl (hooks) / later (BOM role, deferred by the maintainer) | hooks in `import_window.py`, `import_session.py`; BOM code kept on its branch. |
 | `reduced-models-imported-passives/` | earlier (warning text) / later | the warning numbers must be re-measured after the capped first ring (Planned 'Fixes' 10). |
-| `reproduction-260/` | none | research tests only; 45 folders green after repairs, 0 unexplained. The studies themselves were not re-run (Planned 'Fixes' 9). |
+| `releases/2.6.0/reproduction/` | none | research tests only; 45 folders green after repairs, 0 unexplained. The studies themselves were not re-run (Planned 'Fixes' 9). |
 | `gerber-real-boards/` | earlier / later | default mapping open since 2.5.0 (section 3); heater modes (Planned feature 4). |
 | `gerber-models/`, `gerber-import/`, `gerber-cad-profiles/` | earlier / later | E items of `ROADMAP.md`; the hybrid vector features need shapely/GEOS (section 3). |
 | `gerber-nets/` | later | electro-thermal coupling, no code in the program. |
@@ -74,7 +74,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | `horizontal-plate-h/`, `plate-h-level/`, `theory-sources/` | none / decisions | answered by the program as it is; decisions in their INTEGRATION files. |
 | `gap-subdivision/`, `laminate-nodes/`, `point-via-convergence/`, `sor-with-via-couplings/`, `young-omega-tiles/`, `zone-union/`, `via-edge-image/`, `lumped-analytic-vias/`, `lumped-via-groups/`, `lumped-zones-adoption/`, `via-real-board/`, `via-fill/`, `effective-conductivity/`, `outline/`, `stackup/`, `block-and-fins/`, `component-heatsink/`, `power-calculator/`, `solid3d-verification/`, `models-comparison/` | earlier | implemented in 2.4.x / 2.5.0; their open points are in `REVIEW.md`; `solid3d-verification` needs its tables refreshed with the slabs (2.6.1 item 5, documents only). |
 | `theory/` | none | documents. |
-| `release-regression-245/`, `reproduction-245/`, `reproduction-250/` | none | harness and passes; the 2.6.0 refreeze is done. |
+| `releases/regression-harness/`, `releases/2.4.5/reproduction/`, `releases/2.5.0/reproduction/` | none | harness and passes; the 2.6.0 refreeze is done. |
 
 ## 3. Open decisions for the maintainer, with a recommendation
 
@@ -114,7 +114,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 
 **Documents**: README, CHANGELOG, versions, guide and theory agree with the code on the items checked (the CLI numbers, the ripple example, the item list, the shifts). Corrected here: `docs/validation.md` 7 (power profiles) still quoted the 2.5 decisions of the profile example (U1 0.4 K averaged, U2 84.9 K) and old steady values; `docs/models.md` 19.2 repeated a paragraph of 1195 characters (also in 2.5.2). Left for the maintainer and the tester: the README badge still says 2710 tests and `docs/versions.md` 2.6.0 has the 'How 2.6.0 was tested: TODO (tester)' line (both filled after the battery). The documentation, help, version and licence tests pass (687).
 
-**Investigations**: the register had no rows for `reproduction-250/` and `reproduction-260/`, its 2.6.0 status paragraph said that the reproduction pass had not run, several index statuses still said 'waits for the maintainer' for work implemented in 2.6.0, and `ROADMAP.md` carried four stale duplicate entries (A16, A17, A19, A20) and A28 as running: all corrected in this commit.
+**Investigations**: the register had no rows for `releases/2.5.0/reproduction/` and `releases/2.6.0/reproduction/`, its 2.6.0 status paragraph said that the reproduction pass had not run, several index statuses still said 'waits for the maintainer' for work implemented in 2.6.0, and `ROADMAP.md` carried four stale duplicate entries (A16, A17, A19, A20) and A28 as running: all corrected in this commit.
 
 **Tests and hygiene**: licence headers and version tests pass; no generated output added outside `research/*/figures` and `docs/images` (the new JSON files are the frozen references and a test table); each new research folder has its `.gitignore`.
 
@@ -129,6 +129,6 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 
 ## 6. What was read and what was not verified
 
-* **Read**: the CHANGELOG 2.6.0 section, `docs/versions.md` 2.6.0 and 'Planned', `research/REVIEW.md`, `research/README.md`, `research/ROADMAP.md`, `research/reproduction-260/README.md`; the diffs of `fvm.py`, `fdm.py`, `laminate.py`, `viawell.py`, `viaconstriction.py`; `checks.check_input`; `api.response_cell_mm`; the frozen files `v2.5.0.json`, `v2.6.0.json` and the table `expected_shifts_2.6.0.json` (shifts computed here record by record).
+* **Read**: the CHANGELOG 2.6.0 section, `docs/versions.md` 2.6.0 and 'Planned', `research/REVIEW.md`, `research/README.md`, `research/ROADMAP.md`, `releases/2.6.0/reproduction/README.md`; the diffs of `fvm.py`, `fdm.py`, `laminate.py`, `viawell.py`, `viaconstriction.py`; `checks.check_input`; `api.response_cell_mm`; the frozen files `v2.5.0.json`, `v2.6.0.json` and the table `expected_shifts_2.6.0.json` (shifts computed here record by record).
 * **Run**: the three example boards through the CLI; a compare run with computed h; the live-check timing (synthetic 500 parts / 8000 vias, CO60, RP2040) on 2.6.0 and on the tag v2.5.2; 95 random boards in five models on 2.6.0 and 100 in the Analytic on both trees; the offscreen views; `tests/test_via_barrel_and_rim.py`, `tests/test_point_via.py`, `tests/test_block_outline.py`, `tests/test_blocks.py`, `tests/regression` (2 mm), `tests/test_docs.py`, `tests/test_help.py`, `tests/test_license_header.py`, `tests/test_version.py`.
-* **Not verified**: the whole battery (the tester's, running in parallel on the integration worktree); the frozen numbers at 1 and 0.5 mm; the research studies themselves (only their tests ran in `reproduction-260`); `analytic.py`, `solid3d.py`, `stackimpedance.py`, `package.py` and the GUI diffs were not read line by line; the interaction of the package, the hooks and the display state beyond the tests; a real (cocoa) screen; the cause of the older Analytic balance error on outline boards with a strong edge (seeds 16 and 17 of the fuzz: -56 % and -120 % of the power, identical in 2.5.2): recorded as an unexplained result for a `fix/` after 2.6.0.
+* **Not verified**: the whole battery (the tester's, running in parallel on the integration worktree); the frozen numbers at 1 and 0.5 mm; the research studies themselves (only their tests ran in `releases/2.6.0/reproduction`); `analytic.py`, `solid3d.py`, `stackimpedance.py`, `package.py` and the GUI diffs were not read line by line; the interaction of the package, the hooks and the display state beyond the tests; a real (cocoa) screen; the cause of the older Analytic balance error on outline boards with a strong edge (seeds 16 and 17 of the fuzz: -56 % and -120 % of the power, identical in 2.5.2): recorded as an unexplained result for a `fix/` after 2.6.0.

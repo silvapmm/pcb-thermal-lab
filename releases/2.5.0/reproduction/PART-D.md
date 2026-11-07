@@ -1,7 +1,7 @@
 # Reproduction pass of release 2.5.0, part D
 
 Tester D, detached worktree of `develop` at `e97b62f` (program version string 2.4.5, the 2.5.0 candidate). Folders of this part: outline, paper-case-studies, plate-h-level,
-point-via-convergence, power-calculator, release-regression-245, rotated-square-3d, solid3d-verification, sor-with-via-couplings, stackup, theory-sources, theory,
+point-via-convergence, power-calculator, releases/regression-harness, rotated-square-3d, solid3d-verification, sor-with-via-couplings, stackup, theory-sources, theory,
 via-edge-image, via-fill, via-partial-copper, via-real-board, young-omega-tiles, zone-union. Interpreter `.venv` of the main checkout (`.venv-research` for the
 zone-union studies that import shapely). The program was not touched.
 
@@ -33,12 +33,12 @@ Scripts that failed on the tree failed on v2.4.5 too (two in young-omega-tiles) 
 or explained as stated in their rows. `study_cost`, `study_strips`, `study_square_reference` ran to the end but were not diffed against v2.4.5 (timings, or all-zero tables).
 **UNEXPLAINED: 0.**
 
-## 3. release-regression-245 (priority 1): the frozen reference and the version comparison
+## 3. releases/regression-harness (priority 1): the frozen reference and the version comparison
 
 Commands (from the repository root of the worktree):
 
     PCBT_FROZEN_CELLS=2,1,0.5 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/regression      -> 317 passed in 92.5 s
-    .venv/bin/python -m pytest -q research/release-regression-245/tests                                    -> 24 passed
+    .venv/bin/python -m pytest -q releases/regression-harness/tests                                    -> 24 passed
     study_baseline_release.py --tag v2.4.5 --label v2.4.5   (git archive of the tag)                        -> out/v2.4.5.json (255 records, 68 transients)
     study_run_suite.py --label tip                                                                           -> out/tip.json   (255 records, 68 transients)
 

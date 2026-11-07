@@ -5,8 +5,8 @@
 @brief Question: which numbers moved between two revisions, and is every shift explained by an item of the release? Diffs two result sets and classifies each shift against `reference/expected_shifts.json`.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/study_diff.py out/v2.4.4.json out/rc.json
-         .venv/bin/python research/release-regression-245/scripts/study_diff.py out/v2.4.4.json out/rc.json --strict      # exit code 1 on an alarm
+         .venv/bin/python releases/regression-harness/scripts/study_diff.py out/v2.4.4.json out/rc.json
+         .venv/bin/python releases/regression-harness/scripts/study_diff.py out/v2.4.4.json out/rc.json --strict      # exit code 1 on an alarm
 
          Writes `out/diff_<base>_vs_<new>.json` (every shift with its class and rules) and `out/diff_<base>_vs_<new>.md` (the tables below) and prints the Markdown:
          the counts per class, the alarms (`unexplained`, `must_not_move`), the shift of the maximum temperature of every record that moved, the changes of the time to 63 %, the SOR

@@ -6,10 +6,10 @@
 @details The list is the studies of the folders that import the program, in the order of JOBS (a script is run as `python <script> <args>` from the repository
          root, with the threads of the numerical libraries limited so that one job does not fill the machine). Every job has a time limit; a job that reaches it
          is killed and recorded as `timeout` (the README says "not run: reason"). Jobs that the README of the folder says take more than 20 minutes or need a
-         downloaded board are in SKIP with the reason. Outputs: `research/reproduction-245/out/<folder>/<script>.txt` (stdout and stderr) and
-         `research/reproduction-245/out/reproduction.json` (folder, script, args, status, return code, seconds), both git-ignored. A run that is interrupted
+         downloaded board are in SKIP with the reason. Outputs: `releases/2.4.5/reproduction/out/<folder>/<script>.txt` (stdout and stderr) and
+         `releases/2.4.5/reproduction/out/reproduction.json` (folder, script, args, status, return code, seconds), both git-ignored. A run that is interrupted
          can be resumed: a job whose `.txt` exists and whose entry says `ok` is not run again unless `--force` is given.
-Usage: .venv/bin/python research/reproduction-245/scripts/run_all.py [--folders a,b] [--timeout SECONDS] [--force] [--list]   (from the repository root)
+Usage: .venv/bin/python releases/2.4.5/reproduction/scripts/run_all.py [--folders a,b] [--timeout SECONDS] [--force] [--list]   (from the repository root)
 """
 
 import argparse

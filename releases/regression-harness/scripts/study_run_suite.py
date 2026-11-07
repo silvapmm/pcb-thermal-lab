@@ -5,8 +5,8 @@
 @brief Question: what are the numbers of one revision of the program on the regression boards? Runs the five models at 2, 1 and 0.5 mm (steady state, a short transient, the SOR) and writes a result set.
 @details Usage, from the repository root:
 
-         .venv/bin/python research/release-regression-245/scripts/study_run_suite.py --label rc                    # the tree you are in -> out/rc.json
-         .venv/bin/python research/release-regression-245/scripts/study_run_suite.py --program-root /path/to/tree --label v2.4.4
+         .venv/bin/python releases/regression-harness/scripts/study_run_suite.py --label rc                    # the tree you are in -> out/rc.json
+         .venv/bin/python releases/regression-harness/scripts/study_run_suite.py --program-root /path/to/tree --label v2.4.4
 
          `--program-root` is a folder that contains the `pcbthermal` package (the repository, or an extracted `git archive`; see `study_baseline_release.py`). The program under test is
          the only `pcbthermal` that is imported (the script refuses otherwise). `--quick` runs the 2 mm cell only. The output is `out/<label>.json` (git-ignored). Solve times are
