@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_window_flows.py
-@brief Flows of the main window that no other test drives: Preferences (each of the ten sections, Save and Reset), File - Open example, Save and Save As, a newer or damaged file,
+@brief Flows of the main window that no other test drives: Preferences (each of the eleven sections, Save and Reset), File - Open example, Save and Save As, a newer or damaged file,
        the keyboard (Del, Backspace, Ctrl+A, Ctrl+comma, the zoom keys, the tab keys, G and T) sent as key events, and the Animation tab (compute, play and pause, GIF export, the
        underlay combo).
 """
@@ -86,14 +86,14 @@ def _bump(widget):
     return widget.value()
 
 
-def test_preferences_has_ten_sections_and_each_one_applies_and_resets(win, qtbot, monkeypatch):
+def test_preferences_has_eleven_sections_and_each_one_applies_and_resets(win, qtbot, monkeypatch):
     opened = []
     monkeypatch.setattr(prefs.PreferencesDialog, "exec", lambda self: (opened.append(self), 0)[1])
     win.a_prefs.trigger()
     assert len(opened) == 1
     d = opened[0]
     qtbot.addWidget(d)
-    assert len(d.section_titles()) == 10 and d.section_titles()[6:] == ["Defaults for new projects", "Solver", "Gerber import", "Power Calculator"]
+    assert len(d.section_titles()) == 11 and d.section_titles()[6:] == ["Defaults for new projects", "Solver", "Gerber import", "Project package", "Power Calculator"]
     assert not defaults.has_user_file()
     changed = {}
     for row in range(d.sections.count()):
