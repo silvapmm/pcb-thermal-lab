@@ -91,7 +91,8 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # (fix/laminate-nodes: the example board has partial copper, so the laminate nodes and the vertical correction of the rule moved the FVM and FDM by +0.008 and +0.004 K)
     # (fix/cut-cell-aperture-film: the FVM's edge film is in series with the conduction to the edge, half a cell away on a rectangle: +0.0018 K here, 85.07464607663806 before)
     # (fix/laminate-edge-band: the example board has an edge coefficient, so the gaps along the edge are cut into laminate nodes: +0.00189 K (FVM, 85.07644609599882 before) and +0.00030 K (FDM, 84.26568445977094 before))
-    stored = {fvm: 85.07833441298632, fdm: 84.2659888750838, solid3d: 85.48327731195374}
+    # (2.6.0 integration: the tip before the edge band already read 85.20158 (FVM) and 84.41179 K (FDM), the merged via-barrel and lumped-near-edge branches had not re-baselined this test; the edge band adds +0.00189 and +0.00030 K)
+    stored = {fvm: 85.20347171898253, fdm: 84.41209008961394, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
