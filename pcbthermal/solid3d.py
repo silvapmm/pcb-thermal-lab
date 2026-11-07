@@ -483,6 +483,9 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
             sel = f["cov"] > 0
             covs.append(f["cov"])
             temps.append(np.where(sel, field, b.ambient))
+            if not sel.any():
+                # A block wholly off the board (outside the outline, inside its box) has no cell: nothing to report
+                continue
             out.extras[f"block_{tag}_max"] = float(theta_all[ids][:, sel].max() + b.ambient)
             out.extras[f"block_{tag}_mean"] = float((field[sel] * f["cov"][sel]).sum() / f["cov"][sel].sum())
             g_air = net.g["blocks"].reshape(net.ns, net.ny, net.nx)

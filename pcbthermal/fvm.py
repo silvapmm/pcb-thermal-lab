@@ -937,6 +937,9 @@ def attach_block_results(res, net, T_all, theta):
     res.arrays["block_flux"] = np.stack(flux)
     for k, bi in enumerate(net.block_info):
         sel = bi["cov"] > 0
+        if not sel.any():
+            # A block that lies wholly off the board (outside the outline, inside its box) has no cell: it carries no heat and has no temperature to report
+            continue
         tag = "top" if bi["face"] == 0 else "bottom"
         layer_theta = theta[bi["layer"]]
         res.extras[f"block_{tag}_max"] = float(T_all[bi["layer"]][sel].max())
