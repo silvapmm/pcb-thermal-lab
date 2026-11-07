@@ -5,6 +5,11 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed (`fix/hostile-outline-and-rich-text`; no result moves)
+
+- **A hostile outline cannot exhaust memory.** The edge distance of the 3D solid and of the FVM cut the outline into pieces of 1/2000 of the diagonal, so 20 000 long edges (a star or zigzag) needed about 13 million pieces and 1.4 GB (up to 4 GB for edges as long as the diagonal), and the cut-cell links built an array per grid line crossed. The pieces are now at most 2 million (a coarser piece only makes more points use the exact test; distances are unchanged and every outline of up to 1000 diagonals of perimeter keeps the 1/2000 piece), a run refuses an outline that crosses more than 1e7 grid lines at the cell with a plain message, a coordinate that is not a number is refused by `Board.validate` and the geometry functions, and the live list shows one plain warning for such an outline instead of running the other checks on it.
+- **File and member names are plain text in the package messages.** The message boxes and the privacy note of Export package that quote member or file names are plain text, so a name such as `<img src=...>` is shown as typed.
+
 ### Fixed (`fix/lumped-first-ring`; moves Lumped numbers on large boards, no frozen record)
 
 - The Lumped model read small parts cool on large boards (a 1 mm part on a 200 x 150 mm uniform board -25 % of the FVM): the first ring of its network was as wide as 0.04 of the distance to the farthest cell of the board; it is now at most one equivalent radius of the footprint wide (never below 1.5 cells). Boards where the first ring was already narrower (every board of the frozen numbers, the via studies and the example board) are bit-identical, and so are their step responses. The time to 63 % of a small part goes from 1.6 to 3.1 times the FVM's to 0.92 to 1.03 times. Small parts that are not square can now read hot instead of cool (3 x 1 mm +9 to +12 %, 6 x 2 mm at the 1 mm Lumped cell up to +12 %, on the safe side), and a part smaller than about an eighth of a cell lying across cell edges, which the Lumped puts in one cell and the FVM spreads over several, reads up to +27 %. A source near a board edge stays 4 to 15 % cool in the Lumped. `docs/validation.md` 31.
