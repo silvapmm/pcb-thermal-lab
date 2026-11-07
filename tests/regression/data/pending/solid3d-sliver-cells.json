@@ -1,0 +1,152 @@
+{
+ "base_version": "2.5.0",
+ "branch": "fix/solid3d-sliver-cells",
+ "evidence": "research/cut-cell-links README 10.1, docs/validation.md 33",
+ "format": 1,
+ "item": "3D solid cut-cell links (aperture) and edge film at the closest outline point",
+ "records": {
+  "example_cut_to_T|solid3d|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 5.845828871480824e-14,
+    "layer_mean[0]": 58.84189806347254,
+    "layer_mean[1]": 58.26367830843827,
+    "layer_mean[2]": 57.56386407968014,
+    "layer_mean[3]": 56.778931892570384,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.12937733467173,
+    "part:U1:t_max": 94.12937733467173,
+    "part:U1:t_mean": 88.19801296844771,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 99.7532765844177,
+    "part:U2:t_max": 81.7532765844177,
+    "part:U2:t_mean": 78.77320049637964,
+    "power_in": 5.5,
+    "t_max": 94.12937733467173,
+    "t_mean": 57.86209308604033,
+    "t_min": 47.892569515330976,
+    "t_sum": 398271.88229048264,
+    "t_sumsq": 21662168.660369344,
+    "unknowns": 32000
+   }
+  },
+  "part_across_outline|solid3d|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -4.873879078104437e-14,
+    "layer_mean[0]": 130.26835632642974,
+    "layer_mean[1]": 122.39944348076348,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 230.16057010332023,
+    "part:U:t_mean": 212.29483634433694,
+    "power_in": 4.0,
+    "t_max": 230.16057010332023,
+    "t_mean": 126.33389990359662,
+    "t_min": 106.40990953868126,
+    "t_sum": 1537803.269185143,
+    "t_sumsq": 197236989.5263253,
+    "unknowns": 64000
+   }
+  },
+  "part_across_outline|solid3d|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.41140440948584e-13,
+    "layer_mean[0]": 130.43546977451987,
+    "layer_mean[1]": 122.55351059253353,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 229.97807224596497,
+    "part:U:t_mean": 213.03683877075258,
+    "power_in": 4.0,
+    "t_max": 229.97807224596497,
+    "t_mean": 126.49449018352671,
+    "t_min": 106.59495451955574,
+    "t_sum": 390342.7952644557,
+    "t_sumsq": 50458928.3291132,
+    "unknowns": 16000
+   }
+  },
+  "part_across_outline|solid3d|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -8.881784197001252e-15,
+    "layer_mean[0]": 130.44991479803244,
+    "layer_mean[1]": 122.56774886997566,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 229.44847246906295,
+    "part:U:t_mean": 213.1504914420085,
+    "power_in": 4.0,
+    "t_max": 229.44847246906295,
+    "t_mean": 126.50883183400404,
+    "t_min": 106.67396797306981,
+    "t_sum": 97595.69440663146,
+    "t_sumsq": 12617615.291353732,
+    "unknowns": 4000
+   }
+  },
+  "round_outline|solid3d|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 3.629097022894712e-13,
+    "layer_mean[0]": 106.58613230963658,
+    "layer_mean[1]": 100.59574393495573,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 176.2069343771317,
+    "part:U:t_mean": 164.14017822809632,
+    "power_in": 5.0,
+    "t_max": 176.2069343771317,
+    "t_mean": 103.59093812229615,
+    "t_min": 96.07113886116109,
+    "t_sum": 2293184.8520494313,
+    "t_sumsq": 222492137.83400178,
+    "unknowns": 144000
+   }
+  },
+  "round_outline|solid3d|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.417621658423741e-13,
+    "layer_mean[0]": 106.57821710006485,
+    "layer_mean[1]": 100.58840103999404,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 176.08102232423707,
+    "part:U:t_mean": 164.64800298115705,
+    "power_in": 5.0,
+    "t_max": 176.08102232423707,
+    "t_mean": 103.58330907002944,
+    "t_min": 96.04724862617577,
+    "t_sum": 581018.0974909102,
+    "t_sumsq": 56563396.65583648,
+    "unknowns": 36000
+   }
+  },
+  "round_outline|solid3d|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -1.0658141036401503e-14,
+    "layer_mean[0]": 106.5906986476958,
+    "layer_mean[1]": 100.59996993802693,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 175.63111470402436,
+    "part:U:t_mean": 166.65480319097455,
+    "power_in": 5.0,
+    "t_max": 175.63111470402436,
+    "t_mean": 103.59533429286137,
+    "t_min": 96.00671358803518,
+    "t_sum": 147564.43397785528,
+    "t_sumsq": 14425917.92210898,
+    "unknowns": 9000
+   }
+  }
+ },
+ "transients": {},
+ "why": "A cell cut by the outline is joined through the open part of the shared face with the physical conductivity and its edge film is in series with the conduction to the closest outline point, instead of the cover-scaled conductivity: the sliver-cell overheating of the 3D solid is gone. Only boards with an outline move; the records listed here include those that the slabs-by-thickness shift (laminate-solid) also moved, which are no longer in that file."
+}

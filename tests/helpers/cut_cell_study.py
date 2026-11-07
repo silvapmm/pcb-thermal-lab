@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file cut_cell_study.py
-@brief The numbers of docs/validation.md 31 (cut-cell links and the edge film of the layered FVM) and the comparisons that tests/test_cut_cell_links.py reuses.
+@brief The numbers of docs/validation.md 32 (cut-cell links and the edge film of the layered FVM) and the comparisons that tests/test_cut_cell_links.py reuses.
 @details Question: how far does the hottest temperature of the layered FVM depend on where the board outline falls on the grid, and how far is it from the same continuum problem
          written without a cut cell? The reference is independent of the program: the board in its own frame (an aligned rectangle with the part turned and shifted by the inverse
          transformation) solved by `two_sheet.py` (its own assembly, the edge film in series with half a cell, three fine cells and an extrapolation). The error of a position is the
