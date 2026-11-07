@@ -322,4 +322,6 @@ def test_signed_distance_memory_is_bounded_on_a_long_outline():
     tracemalloc.stop()
     assert peak_bytes < 100e6, peak_bytes
     sub = slice(0, 2000, 97)
-    assert np.array_equal(d[sub], geometry.signed_distance_to_outline(poly, x[sub], y[sub], chunk=1))
+    # One point at a time (the integration tree keeps the k-d tree version of the FVM branch, which has no block argument)
+    one = np.concatenate([geometry.signed_distance_to_outline(poly, x[i:i + 1], y[i:i + 1]) for i in range(0, 2000, 97)])
+    assert np.array_equal(d[sub], one)
