@@ -355,5 +355,8 @@
   },
   "gerber": {
     "max_file_mb": 256
+  },
+  "package": {
+    "max_mb": 512
   }
 }
