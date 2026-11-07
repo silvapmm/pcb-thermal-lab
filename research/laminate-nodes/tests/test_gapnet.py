@@ -118,15 +118,22 @@ def test_ragged_and_sor_agree_with_direct():
     assert np.allclose(ths, th0, rtol=1e-5, atol=1e-7 * th0.max())
 
 
-def test_parallel_barrel_breaks_the_colouring_for_even_n():
+def test_parallel_barrel_breaks_the_colouring_for_even_n(monkeypatch):
     """!
     @brief With the barrel across the whole gap (the old copy) and n = 2 the graph has an odd cycle: the two-colour sweep is not defined (README 7).
+    @param monkeypatch pytest fixture. 2.6.0 (fix/via-barrel-and-rim-uncoupling) uncouples a plane that the rim of the drill misses; layer 2 of this board has no copper, so the
+           program drops the barrel coupling to it and the graph is bipartite again. The odd cycle is reproduced with the rim shares forced to full contact (the 2.5.x program).
     @return None.
     """
+    from pcbthermal import viawell
     spec = _spec("par", layers=2, shapes=[("pad", 6), ("none",)], vias=((6.0, 6.0),))
     p = BD.problem(spec)
+    with monkeypatch.context() as m:
+        m.setattr(viawell, "rim_copper_shares", lambda problem, v, n_layers, zone_index: [1.0] * n_layers)
+        net = GN.build(p, 1.0, RU.Rule(n_fixed=2, via_mode="parallel"))
+        assert GN.two_colour(net.K) is None
     net = GN.build(p, 1.0, RU.Rule(n_fixed=2, via_mode="parallel"))
-    assert GN.two_colour(net.K) is None
+    assert GN.two_colour(net.K) is not None                                # the 2.6.0 program: no barrel into the bare plane, no odd cycle
 
 
 def test_mixed_columns_with_even_n_are_not_bipartite_and_column_sor_solves_them():

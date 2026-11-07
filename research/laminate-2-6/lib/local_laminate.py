@@ -111,7 +111,9 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
     @return Function (board, fill, dx, active, s_max=None, n_max=None) -> list of LocalPlan.
     """
 
-    def plan(board, fill, dx, active, s_max=None, n_max=None):
+    flag_edge = edge                           # the option of this prototype; the inner `edge` argument below is the program's (2.6.0 passes edge lengths)
+
+    def plan(board, fill, dx, active, s_max=None, n_max=None, edge=None):
         """!
         @brief Local replacement of laminate.plan_gaps.
         @param board A Board.
@@ -120,6 +122,7 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
         @param active Boolean (ny, nx) of the cells on the board.
         @param s_max Longest sub-gap (None: parameters()).
         @param n_max Most sub-gaps (None: parameters()).
+        @param edge Edge lengths in m that 2.6.0 `laminate.plan_gaps` passes (its own band, adopted from research/laminate-edge-band); ignored: the prototype has its own edge rule.
         @return List of LocalPlan, one per gap.
         """
         assert board.layers >= 2, "the prototype is for boards of two or more layers"
@@ -130,7 +133,7 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
         dxx = board.width / nx
         parts = _part_info(problem, fill, dxx, dy)
         d_all = board.gap_thicknesses()
-        if edge:
+        if flag_edge:
             if board.has_outline():
                 # the cells the outline crosses (the same edge lengths the FVM uses for the edge conductance)
                 from pcbthermal.geometry import edge_length_on_board
@@ -147,7 +150,7 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
             d = float(d_all[g])
             n0 = laminate.n_for_gap(d, s_max, n_max)
             flagged = laminate.flag_cells(fill[g], fill[g + 1], d, dx, active) if n0 > 1 else np.zeros((ny, nx), dtype=bool)
-            if edge and n0 > 1:
+            if flag_edge and n0 > 1:
                 flagged = flagged | ring
             lvl = np.where(flagged, n0, 0)
             m0 = laminate.margin_cells(d, dx)

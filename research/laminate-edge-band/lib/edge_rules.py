@@ -93,7 +93,7 @@ def make_plan_gaps(band_width, only_when_edge=True):
     @return Function with the signature of laminate.plan_gaps.
     """
 
-    def plan(board, fill, dx, active, s_max=None, n_max=None):
+    def plan(board, fill, dx, active, s_max=None, n_max=None, edge=None):
         """!
         @brief laminate.plan_gaps plus the band.
         @param board A Board.
@@ -102,6 +102,7 @@ def make_plan_gaps(band_width, only_when_edge=True):
         @param active Boolean (ny, nx).
         @param s_max Longest sub-gap.
         @param n_max Most sub-gaps.
+        @param edge Edge lengths that 2.6.0 `laminate.plan_gaps` takes (its own band, adopted from this study); ignored here: the study applies its own rule below.
         @return List of GapPlan.
         """
         plans = _ORIG["plan_gaps"](board, fill, dx, active, s_max, n_max)
