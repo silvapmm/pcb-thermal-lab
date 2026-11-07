@@ -129,7 +129,7 @@ def test_models_agree_on_a_profile_run():
     f = sim.profile_results["fvm"]
     assert f.steady_average_max < f.peak < f.steady_peak_max                  # The bracket holds
     assert f.peak_map.max() == pytest.approx(f.peak, abs=0.01)                # The map is consistent with the series
-    assert any("smears" in w for w in sim.warnings)                          # The analytic transient says what it ignores
+    assert any("couplings" in w for w in sim.warnings)                       # The analytic transient says what it approximates (vias as couplings of a block of modes)
 
 
 def test_run_options_duration_start_and_limits():

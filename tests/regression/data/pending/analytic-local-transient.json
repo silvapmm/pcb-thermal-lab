@@ -1,0 +1,37 @@
+{
+ "base_version": "2.5.0",
+ "branch": "feature/analytic-edge-and-local-transient",
+ "evidence": "research/analytic-2-6 README 3 and 6.3; docs/validation.md 4.1",
+ "format": 1,
+ "item": "Local modal transient of the Analytic model",
+ "records": {},
+ "transients": {
+  "example_board|analytic": {
+   "class": "moved",
+   "t63": {
+    "U1": 10.425949786704429,
+    "U2": 2.585771654953901
+   }
+  },
+  "plate_lone_via|analytic": {
+   "class": "moved",
+   "t63": {
+    "U": 21.130299323246
+   }
+  },
+  "plate_vias|analytic": {
+   "class": "moved",
+   "t63": {
+    "U": 31.402601856451813
+   }
+  },
+  "profile_board|analytic": {
+   "class": "moved",
+   "t63": {
+    "U1": 10.425949786704429,
+    "U2": 2.585771654953901
+   }
+  }
+ },
+ "why": "Vias and heatsinks stay local in a coupled modal block of the lowest 16 x 16 modes with one factor on the via couplings fitted to the steady solve, instead of the smeared one-sided calibration; the time to 63 % of the boards with vias or a heatsink moves (example_board and profile_board also carry the per-layer edge of the steady model)."
+}

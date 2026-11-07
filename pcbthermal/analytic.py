@@ -12,7 +12,9 @@ g = (k_fr4_through / d) + smeared vias, and to ambient through h_top (layer 1) a
     S_l * laplacian(theta_l) - h_l * theta_l - g * (2*theta_l - theta_{l-1} - theta_{l+1}) = -q_l
 
 (the coupling terms drop at the outer layers) with a convective (Robin) board edge, S_l d theta_l / dn = -h_side s_l theta_l, written with one parameter common to the
-layers, beta = h_side sum(s_l) / sum(S_l) (1/m; s_l the layer slab thickness, on a board with an outline the perimeter of the real outline scales h_side). The series is in the
+layers, beta = h_side sum(s_l) / sum(S_l) (1/m; s_l the layer slab thickness, on a board with an outline the perimeter of the real outline scales h_side), as the
+basis of the series; the true parameter of layer l is beta_l = h_side s_l / S_l, and the difference S_l (beta_l - beta) is added back as a modal source and solved
+with GMRES around the whole solve (the per-layer edge; layers with the same s_l / S_l skip it and keep the common-beta result bit for bit). The series is in the
 eigenfunctions of that edge (Muzychka, Culham and Yovanovich 2003, AIAA 2003-4188, Part II, eqs. 12 to 21): along each direction (length L, half length Lh)
 
     even  cos(lam u),  lam Lh tan(lam Lh) = beta Lh;    odd  sin(lam u),  lam Lh cot(lam Lh) = -beta Lh,    u = x - L/2,
@@ -36,6 +38,8 @@ other modes add the lateral spreading penalty. The model needs laterally uniform
 - With vias the tile is min(1 mm, 0.75 of the median nearest-neighbour distance), at least 0.25 mm, the barrel conductance of a via that is alone at the scale of a
   tile is shared bilinearly among the four tiles around it, and the diagonal of G_mod gets a self-term that makes the tile read the temperature at the wall of the barrel
   instead of the tile mean (viaconstriction.py). Boards without vias keep the 2.5 to 5 mm tiles and are unchanged.
+- In time the vias and heatsinks stay local too: a coupled modal block of the lowest 16 x 16 modes holds their tile conductances (analytic_local.py), the via couplings
+  scaled by one factor fitted to the steady solve; the modes above it are the uniform ones.
 - A validity check adds warnings when the copper is far from uniform around the heaters.
 Strongly non-uniform copper is still beyond this model: use the FVM then.
 """
@@ -45,14 +49,23 @@ import math
 
 import numpy as np
 
+import scipy.linalg
 from scipy.optimize import brentq
+from scipy.sparse.linalg import LinearOperator, gmres
 from scipy.special import k0
 
 from . import blocks, copper, laminate, viaconstriction
+from .analytic_local import FACTOR_BRACKET, LocalSystem
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 from .numfmt import num
+
+EDGE_MISMATCH_MIN = 1e-9      # Relative spread of the per-layer edge parameters below which the layers count as equal (no loop, the common-beta code bit for bit)
+EDGE_GMRES_RTOL = 1e-6        # Relative residual of the per-layer edge loop (GMRES on the modal coefficients; 4 to 9 products measured)
+LOCAL_MODES = 16              # Modes per direction of the coupled block of the transient with vias and heatsinks (24 changes the time to 63 % by under 1.5 points)
+LOCAL_MAX_UNKNOWNS = 3000     # K x K x L of the block is lowered to stay under this (a dense eigenproblem: 42 MB and about 4 s at 1024)
+EDGE_GMRES_RESTART = 30       # GMRES restart length and maximum number of restarts of the per-layer edge loop
 
 
 def _equivalent_rectangle(poly, width, height):
@@ -309,7 +322,8 @@ def _effective_sheet(problem, cell_mm):
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @return Dict with b, m (board and materials), W, H, L, slab, nx, ny, dx, dy, xs, ys, tc, power, warnings,
-            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), h_eff, d_diel and g_diel.
+            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), beta_l (1/m, the edge
+            parameter of each layer, h_eff s_l / S_l), edge_mismatch (largest |beta_l - beta| / beta), h_eff, d_diel and g_diel.
     """
     problem.validate()
     b = problem.board
@@ -380,20 +394,34 @@ def _effective_sheet(problem, cell_mm):
     # h_side scaled so that the rectangle has the edge conductance of the real outline. 1/m; zero without h_side (the cosine basis).
     h_eff = (b.h_side or 0.0) * perimeter / (2.0 * (W + H))
     beta = float(h_eff * slab.sum() / S.sum())
+    # Edge parameter of each layer, h_eff s_l / S_l: the true Robin condition of layer l. The basis uses the common beta; the steady solve adds the difference as a modal
+    # source (solve_steady, per-layer edge). The mismatch is exactly zero for one layer and (to rounding) for layers with the same s_l / S_l, and then the loop is skipped.
+    beta_l = h_eff * slab / S
+    edge_mismatch = float(np.abs(beta_l - beta).max() / beta) if beta > 0.0 else 0.0
     edge_share = float(h_edge.sum() / h_tot) if h_tot > 0 else 0.0
     spread = float(S.max() / S.min())
     if beta > 0.0 and edge_share > 0.3 and (L == 1 or spread > (1.5 if L == 2 else 2.5)):
         # Calibrated on 54 boards outside the first study (research/analytic-edge-spatial README 8.3): it fires on the boards with a Robin error above 3 % and on none
         # of the 135 uniform ones
-        what = ("on a one-layer board the laminate edge is given to the copper" if L == 1
-                else f"the sheet conductances of the layers differ by {spread:.1f} times")
-        warnings.append(
-            f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the Analytic model shares it between the copper layers with one "
-            f"parameter ({what}): the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
-            "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
+        if L == 1:
+            warnings.append(
+                f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and on a one-layer board the laminate edge is given to the copper: "
+                "the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
+                "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
+        else:
+            # Per-layer edge (research/analytic-2-6 README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
+            # idealisation, which the per-layer edge solves exactly (within 0.5 % of an FVM with one link): the FVM with its sub-gaps and the 3D solid both read hotter.
+            # Review: on the 24 study boards with h_side 50 and 200 the Analytic is -0.5 to -5.8 % of the 3D solid; on small boards outside the study (30 x 20 mm, a 6 mm
+            # corner part, the edge 73 % of the loss) -7 to -10 %.
+            warnings.append(
+                f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the sheet conductances of the layers differ by {spread:.1f} times: "
+                "the Analytic model treats the edge of each layer separately, but it keeps one laminate link per gap, and its hottest temperature was measured too cool, "
+                "by up to about 6 % against the 3D solid on 60 x 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
+                "Use the FVM or, on a thick board with a large edge coefficient, the 3D solid.")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
-            "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "h_eff": h_eff, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
+            "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "beta_l": beta_l, "edge_mismatch": edge_mismatch, "h_eff": h_eff, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam,
+            "rho_cp_lam": rho_cp_lam}
 
 
 def _heater_unit_sources(problem, bx, by):
@@ -472,6 +500,126 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
     return out
 
 
+def _edge_mismatch_source(bx, by, a, S, dbeta):
+    """!
+    @brief Extra modal source of the edge of unlike layers: the difference between the true edge parameter of each layer and the common one of the basis.
+    @details Layer l has the Robin condition S_l dtheta/dn = -h_eff s_l theta, parameter beta_l = h_eff s_l / S_l, while the eigenfunctions have the common beta. By
+             Green's identity the weak form of the layer in that basis gets the term S_l (beta_l - beta) closed-integral(theta_l phi_m phi_n). The integral needs only the
+             rise on the four sides, and the orthogonality of the eigenfunctions along each side reduces it to two small matrix products:
+             qc_l,mn = -S_l (beta_l - beta) [ sum_e phi_m(x_e) / N_m (sum_m' phi_m'(x_e) a_l,m'n) + sum_e phi_n(y_e) / N_n (sum_n' phi_n'(y_e) a_l,mn') ]
+             (e the two ends of a direction, N the squared norms; docs/theory.md 6, research/analytic-2-6 README 2.1).
+    @param bx Basis along x.
+    @param by Basis along y.
+    @param a Modal coefficients (M, N, L) in K.
+    @param S Sheet conductance of every layer in W/K.
+    @param dbeta beta_l - beta of every layer in 1/m.
+    @return Array (M, N, L), the extra source in the units of the modal source.
+    """
+    ex, ey = bx.evaluate([0.0, bx.L]), by.evaluate([0.0, by.L])        # (2, M), (2, N): the eigenfunctions at the two ends of each direction
+    ex_n = ex.T / bx.norm[:, None]
+    ey_n = ey / by.norm[None, :]
+    out = np.empty_like(a)
+    for l in range(a.shape[2]):
+        al = a[:, :, l]
+        out[:, :, l] = -S[l] * dbeta[l] * (ex_n @ (ex @ al) + (al @ ey.T) @ ey_n)
+    return out
+
+
+def _per_layer_edge(respond, q, bx, by, S, dbeta, warnings):
+    """!
+    @brief Modal coefficients of the board with the true edge of every layer: the fixed point a = respond(q + qc(a)) solved with GMRES.
+    @details respond is the whole linear solve of the board (uniform modal solve, and the Green-function step of the vias and heatsinks), so the loop wraps it and the local
+             elements are inside it. The operator (I - respond qc) is a small perturbation of the identity (|beta_l - beta| S_l against S_l lambda^2 and the face and gap
+             terms): 4 to 9 products measured on 54 boards (research/analytic-2-6 README 2.3, 2.4). At the end one more pass at the converged source gives the
+             coefficients and the tile temperatures that belong together.
+    @param respond Function (q) -> (a, y): the linear response to a modal source (see solve_steady).
+    @param q Modal source of the heaters (M, N, L).
+    @param bx Basis along x.
+    @param by Basis along y.
+    @param S Sheet conductance of every layer in W/K.
+    @param dbeta beta_l - beta of every layer in 1/m.
+    @param warnings List of warnings, appended to when GMRES does not converge.
+    @return Tuple (a (M, N, L), y (tile temperatures or None), number of operator products).
+    """
+    a0, _ = respond(q)
+    shape, count = a0.shape, [0]
+
+    def mv(v):
+        count[0] += 1
+        x = v.reshape(shape)
+        return (x - respond(_edge_mismatch_source(bx, by, x, S, dbeta))[0]).ravel()
+
+    op = LinearOperator((a0.size, a0.size), matvec=mv, dtype=float)
+    sol, info = gmres(op, a0.ravel(), x0=a0.ravel(), rtol=EDGE_GMRES_RTOL, restart=EDGE_GMRES_RESTART, maxiter=EDGE_GMRES_RESTART)
+    x = sol.reshape(shape)
+    if info != 0:
+        warnings.append("the per-layer edge iteration of the Analytic model did not reach its tolerance in "
+                        f"{count[0]} products: the edge heat of the unlike layers is approximate")
+    a, y = respond(q + _edge_mismatch_source(bx, by, x, S, dbeta))
+    return a, y, count[0]
+
+
+def _local_conductances(problem, sh, bx, by):
+    """!
+    @brief The tile data of the local elements (vias, heatsinks, blocks) shared by the steady Green-function correction and the transient coupled block.
+    @details The tile grid (the via plan changes it), the via conductance of every tile across each gap (bilinear weights of a via alone at the scale of a tile), the heatsink
+             conductance of every tile, the metal blocks as graphs of tiles, the active tiles (a via, a heatsink or a block), the projections of the basis on them and the
+             via part of the local conductance matrix. The heatsink part of that matrix is diagonal and returned as a vector, so that the same sum as the earlier code is made.
+    @param problem A Problem.
+    @param sh Dict from _effective_sheet.
+    @param bx Basis along x.
+    @param by Basis along y.
+    @return Dict with ntx, nty, tw, th, vs (viaconstriction.ViaSet or None), via_weights, c_via (nty, ntx, L-1), g_heatsink (L, nty, ntx), bt (block graphs), active (Nt, 2) of
+            (row, col), PX (M, Nt) and PY (N, Nt) (integrals of the basis over each active tile, not divided by the tile size), Cv (Nt L, Nt L, the vias, W/K) and cs
+            (Nt L,): the heatsink conductance of every tile and layer. PX, PY, Cv and cs are None when there is no active tile.
+    """
+    b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
+    d_diel = sh["d_diel"]
+    ntx, nty, tw, th = _tile_grid(W, H, sh["lam"])
+    vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None
+    via_weights = None
+    if vs is not None:
+        # Vias: tile of min(1 mm, 0.75 nearest-neighbour distance) instead of 2.5 to 5 mm, so that the sink has the scale of the barrel (viaconstriction.py)
+        via_plan = viaconstriction.plan(problem, vs, (ntx, nty, tw, th), L)
+        (ntx, nty, tw, th), via_weights = via_plan["grid"], via_plan["weights"]
+    c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
+    for iv, v in enumerate(problem.vias if vs is not None else []):
+        cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+        for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
+            c_via[row, col] += w * cond
+    g_heatsink = np.zeros((L, nty, ntx))
+    for s in problem.heatsinks:
+        if s.is_block():
+            continue                                       # A block is a graph of tiles of its own (below)
+        g_heatsink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
+    bt = _block_tiles(problem, ntx, nty, tw, th, L) if blocks.has_blocks(problem) else []
+    in_block = np.zeros((nty, ntx), dtype=bool)
+    for e in bt:
+        in_block[tuple(e["tiles"].T)] = True
+    active = np.argwhere((c_via.sum(axis=2) > 0) | (g_heatsink.sum(axis=0) > 0) | in_block)        # (Nt, 2) = (row, col)
+    out = {"ntx": ntx, "nty": nty, "tw": tw, "th": th, "vs": vs, "via_weights": via_weights, "c_via": c_via, "g_heatsink": g_heatsink, "bt": bt,
+           "active": active, "PX": None, "PY": None, "Cv": None, "cs": None}
+    Nt = len(active)
+    if Nt:
+        rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
+        out["PX"] = np.stack([bx.project(x1, x2) for x1, x2, _, _ in rect], axis=1)   # (M, Nt)
+        out["PY"] = np.stack([by.project(y1, y2) for _, _, y1, y2 in rect], axis=1)   # (N, Nt)
+        Cv = np.zeros((Nt * L, Nt * L))
+        cs = np.zeros(Nt * L)
+        for r, (row, col) in enumerate(active):
+            for l in range(L - 1):
+                cv = c_via[row, col, l]
+                i1, i2 = r * L + l, r * L + l + 1
+                Cv[i1, i1] += cv
+                Cv[i2, i2] += cv
+                Cv[i1, i2] -= cv
+                Cv[i2, i1] -= cv
+            for l in range(L):
+                cs[r * L + l] += g_heatsink[l, row, col]
+        out["Cv"], out["cs"] = Cv, cs
+    return out
+
+
 def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     """!
     @brief Analytic steady-state solution of the multilayer fin problem.
@@ -530,42 +678,21 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
             A[:, :, l, l] += g[l]
             A[:, :, l, l + 1] -= g[l]
     Ainv = np.linalg.inv(A)                                  # (M, N, L, L)
-    a_mn = np.einsum("mnlk,mnk->mnl", Ainv, q_mn)            # (M, N, L)
 
     # --- Local corrections for vias and heatsinks through the tile Green-function system
     heatsink_extraction = 0.0
     block_power = 0.0
     hidden = {"top": 0.0, "bottom": 0.0}                         # Face heat of the area under the blocks, taken off the face totals
+    mismatch = bool(b.h_side) and sh["edge_mismatch"] > EDGE_MISMATCH_MIN       # Layers with different s_l / S_l: the per-layer edge loop below
+    loc = None
     if local_corrections and (problem.vias or problem.heatsinks):
-        ntx, nty, tw, th = _tile_grid(W, H, lam)
-        vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None
-        if vs is not None:
-            # Vias: tile of min(1 mm, 0.75 nearest-neighbour distance) instead of 2.5 to 5 mm, so that the sink has the scale of the barrel (viaconstriction.py)
-            via_plan = viaconstriction.plan(problem, vs, (ntx, nty, tw, th), L)
-            (ntx, nty, tw, th), via_weights = via_plan["grid"], via_plan["weights"]
-        c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
-        for iv, v in enumerate(problem.vias if vs is not None else []):
-            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
-            for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
-                c_via[row, col] += w * cond
-        g_heatsink = np.zeros((L, nty, ntx))
-        for s in problem.heatsinks:
-            if s.is_block():
-                continue                                       # A block is a graph of tiles of its own (below)
-            g_heatsink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
-        bt = _block_tiles(problem, ntx, nty, tw, th, L) if blocks.has_blocks(problem) else []
-        in_block = np.zeros((nty, ntx), dtype=bool)
-        for e in bt:
-            in_block[tuple(e["tiles"].T)] = True
-        active = np.argwhere((c_via.sum(axis=2) > 0) | (g_heatsink.sum(axis=0) > 0) | in_block)        # (Nt, 2) = (row, col)
+        lc = _local_conductances(problem, sh, bx, by)
+        ntx, nty, tw, th, vs, via_weights = lc["ntx"], lc["nty"], lc["tw"], lc["th"], lc["vs"], lc["via_weights"]
+        bt, active = lc["bt"], lc["active"]
         Nt = len(active)
         if Nt:
-            rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
-            PX = np.stack([bx.project(x1, x2) for x1, x2, _, _ in rect], axis=1)   # (M, Nt)
-            PY = np.stack([by.project(y1, y2) for _, _, y1, y2 in rect], axis=1)   # (N, Nt)
+            PX, PY = lc["PX"], lc["PY"]
             Ux, Uy = PX / tw, PY / th                         # Average of the eigenfunctions over each tile
-            # Tile averages of the uniform solution
-            y0 = np.stack([np.einsum("mr,mn,nr->r", Ux, a_mn[:, :, l], Uy) for l in range(L)], axis=1)  # (Nt, L)
             # Modal response between tiles: G[(r,l),(s,k)] for unit power injected uniformly in tile s, layer k
             Mg, Ng = min(M, 64), min(N, 64)
             Gm = np.zeros((Nt, L, Nt, L))
@@ -582,18 +709,9 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
             if vs is not None:
                 # The mosaic gives the tile MEAN; the barrel sees its wall: add the response of the tile to its own sink (self-term) to the diagonal
                 G = viaconstriction.add_self_terms(G, active, via_weights, vs, tw, th, S)
-            # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient
-            C = np.zeros((Nt * L, Nt * L))
-            for r, (row, col) in enumerate(active):
-                for l in range(L - 1):
-                    cv = c_via[row, col, l]
-                    i1, i2 = r * L + l, r * L + l + 1
-                    C[i1, i1] += cv
-                    C[i2, i2] += cv
-                    C[i1, i2] -= cv
-                    C[i2, i1] -= cv
-                for l in range(L):
-                    C[r * L + l, r * L + l] += g_heatsink[l, row, col]
+            # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient (on the diagonal)
+            C = lc["Cv"]
+            C[np.diag_indices_from(C)] += lc["cs"]
             pos = {(int(row), int(col)): r for r, (row, col) in enumerate(active)}
             for e in bt:                                       # Metal blocks: the Schur matrix couples the tiles of the board layer under the block
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
@@ -601,23 +719,54 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
             lhs = G @ C
             lhs[np.diag_indices_from(lhs)] += 1.0                  # I + G_mod C_loc in place: the identity matrix and the sum are two more matrices of (Nt L)^2 entries
-            y = np.linalg.solve(lhs, y0.reshape(-1))
-            del lhs
-            for e in bt:                                       # Heat taken by the exposed surface of every block
-                rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
-                phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
-                block_power += float((e["g_amb"] * phi).sum())
-                # The face under the block does not lose heat to the air; the plan mean below counts the whole face, so this part is taken off it
-                hidden["top" if e["side"] == 0 else "bottom"] += float((e["face"] * y[rows_e]).sum())
-            f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
-            heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
-                                        for r, (row, col) in enumerate(active) for l in range(L)))
-            # Add the response of the injected heat to the modal coefficients
-            Pxf = PX / tw
-            Pyf = PY / th
-            for k in range(L):
-                q_corr = np.einsum("mr,nr->mn", Pxf * f[:, k], Pyf) * (ex[:, None] * ey[None, :]) / (W * H)
-                a_mn += np.einsum("mnl,mn->mnl", Ainv[:, :, :, k], q_corr)
+            if mismatch:
+                # The per-layer loop solves with the same matrix many times: keep its LU (the dense matrix is overwritten by the factors, same memory)
+                lu = scipy.linalg.lu_factor(lhs, overwrite_a=True, check_finite=False)
+                solve_tiles = lambda rhs: scipy.linalg.lu_solve(lu, rhs, check_finite=False)       # noqa: E731
+            else:
+                solve_tiles = lambda rhs: np.linalg.solve(lhs, rhs)                                 # noqa: E731
+            loc = {"C": C, "Ux": Ux, "Uy": Uy, "PX": PX, "PY": PY, "solve": solve_tiles, "Nt": Nt, "pos": pos, "bt": bt, "active": active, "g_hs": lc["g_heatsink"]}
+
+    def respond(q):
+        """!
+        @brief Modal coefficients of the board (with the local elements) for a modal source: the uniform solution plus the Green-function correction, a linear map of q.
+        @param q Modal source (M, N, L) in W per mode unit.
+        @return Tuple (a (M, N, L), tile temperatures y (Nt L,) or None without local elements).
+        """
+        a = np.einsum("mnlk,mnk->mnl", Ainv, q)            # (M, N, L)
+        if loc is None:
+            return a, None
+        Nt = loc["Nt"]
+        # Tile averages of the uniform solution
+        y0 = np.stack([np.einsum("mr,mn,nr->r", loc["Ux"], a[:, :, l], loc["Uy"]) for l in range(L)], axis=1)  # (Nt, L)
+        y = loc["solve"](y0.reshape(-1))
+        f = -(loc["C"] @ y).reshape(Nt, L)                    # Heat injected into every tile and layer (W)
+        # Add the response of the injected heat to the modal coefficients
+        Pxf = loc["PX"] / tw
+        Pyf = loc["PY"] / th
+        for k in range(L):
+            q_corr = np.einsum("mr,nr->mn", Pxf * f[:, k], Pyf) * (ex[:, None] * ey[None, :]) / (W * H)
+            a += np.einsum("mnl,mn->mnl", Ainv[:, :, :, k], q_corr)
+        return a, y
+
+    # --- Per-layer edge: the basis has the common beta, each layer has its own beta_l; the difference S_l (beta_l - beta) is an extra modal source qc(a), and
+    #     a = respond(q + qc(a)) is solved with GMRES on (I - respond qc) a = respond(q). Equal layers: no mismatch, one pass, the code of the common beta bit for bit.
+    edge_iterations = 0
+    if mismatch:
+        a_mn, y, edge_iterations = _per_layer_edge(respond, q_mn, bx, by, S, sh["beta_l"] - sh["beta"], warnings)
+    else:
+        a_mn, y = respond(q_mn)
+    if loc is not None:
+        bt, pos = loc["bt"], loc["pos"]
+        for e in bt:                                       # Heat taken by the exposed surface of every block
+            rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
+            phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
+            block_power += float((e["g_amb"] * phi).sum())
+            # The face under the block does not lose heat to the air; the plan mean below counts the whole face, so this part is taken off it
+            hidden["top" if e["side"] == 0 else "bottom"] += float((e["face"] * y[rows_e]).sum())
+        g_hs = loc["g_hs"]
+        heatsink_extraction = float(sum(g_hs[l, row, col] * y[r * L + l]
+                                    for r, (row, col) in enumerate(loc["active"]) for l in range(L)))
 
     # --- Evaluate every layer at the cell centres by two matrix products
     cx_ = bx.evaluate(xs)                                    # (nx, M)
@@ -635,14 +784,17 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                             - b.h_top * W * H * mean[0] - b.h_bottom * W * H * mean[L - 1])}
     if b.h_side:
         # The edge loss, reported apart under the same key as the FVM: beta S_l times the rise of the layer integrated along the four sides, so the heat balance closes
-        p_out["sides"] = float(sum(_edge_loss(bx, by, a_mn[:, :, k], S[k], sh["beta"]) for k in range(L)))
+        # (per layer: beta_l S_l = h_eff s_l; with equal layers the common beta, so the balance of the earlier code is kept bit for bit)
+        beta_side = sh["beta_l"] if mismatch else np.full(L, sh["beta"])
+        p_out["sides"] = float(sum(_edge_loss(bx, by, a_mn[:, :, k], S[k], beta_side[k]) for k in range(L)))
     return SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],
         t_max_location=(int(l), (j + 0.5) * dx, (i + 0.5) * dy), T=T, dx=dx, dy=dy,
         power_out=p_out, warnings=warnings,
         extras={"fin_length_mm": lam * 1000.0, "sheet_conductance_w_per_k": float(S.sum()),
-                "uniform_board_rise_k": power / (h_tot * W * H) if h_tot > 0 else float("inf")},
+                "uniform_board_rise_k": power / (h_tot * W * H) if h_tot > 0 else float("inf"),
+                "edge_iterations": edge_iterations},
     )
 
 
@@ -689,12 +841,12 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
              layers. With the symmetric matrix C^(-1/2) A C^(-1/2) = V diag(lambda) V^T and b = V^T C^(1/2) a the
              modes decouple: b' = -lambda b + g(t), g = V^T C^(-1/2) q, so a constant power over a step has the exact
              propagator b+ = exp(-lambda dt) b + (1 - exp(-lambda dt)) / lambda g. The transient uses the uniform
-             (smeared) vias and heatsinks, as the steady model does when local corrections are off.
+             (smeared) vias and heatsinks, as the steady model does when local corrections are off; _local_dynamics keeps them local instead (a coupled block of the lowest modes) and calls this with both factors zero.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
-    @param via_scale Factor applied to the smeared via conductance (see _calibrated_dynamics).
-    @param heatsink_scale Factor applied to the smeared heatsink coefficient (see _calibrated_dynamics).
+    @param via_scale Factor applied to the smeared via conductance (0 for the board without vias, see _local_dynamics).
+    @param heatsink_scale Factor applied to the smeared heatsink coefficient (0 for the board without heatsinks).
     @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
             rth (heaters,), c_l (L,), cos_x (nx, M), cos_y (ny, N), points (heaters, 3) and tau (s).
     """
@@ -729,68 +881,69 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
     return sh
 
 
-def _smeared_steady_max(problem, sh, A, n_terms):
+def _local_dynamics(problem, cell_mm, n_terms, served=0):
     """!
-    @brief Maximum steady temperature rise of the smeared modal model, A a = q, for the heater powers of the problem.
-    @param problem A Problem (heater powers are used).
-    @param sh Dict from _effective_sheet.
-    @param A Matrix from _modal_matrix.
-    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
-    @return Maximum rise above ambient in kelvin.
-    """
-    W, H, L = sh["W"], sh["H"], sh["L"]
-    bx, by = _bases(sh, n_terms)
-    q = sum(h.power * src for h, src in zip(problem.heaters, _heater_unit_sources(problem, bx, by)))
-    a = np.linalg.solve(A, q[..., None])[..., 0]                         # (M, N, L)
-    cx = bx.evaluate(sh["xs"])
-    cy = by.evaluate(sh["ys"])
-    return float(max((cy @ a[:, :, l].T @ cx.T).max() for l in range(L)))
-
-
-def _calibrated_dynamics(problem, cell_mm, n_terms):
-    """!
-    @brief Modal dynamics whose smeared vias (or heatsinks) reproduce the steady maximum of the locally corrected model.
-    @details The transient cannot apply the local Green-function corrections of the steady model, so vias and heatsinks are smeared
-             over the board; a smeared via array under a heater has almost no effect (the example board came out 11 degC too hot).
-             One factor is chosen (bisection on its logarithm) so that the steady maximum with the actual powers equals the
-             steady maximum of solve_steady with local corrections: on the via conductance if the board has vias, otherwise on the
-             heatsink coefficient (scaling the heatsinks as well would cool the whole board and spoil the dynamics). With it the transient of
-             the example board follows the FVM within a few degC at every time (without it by up to 10 degC).
-    @param problem A Problem (heater powers are the ones used for the calibration).
+    @brief Modal dynamics of a board whose vias and heatsinks stay local: a coupled block of the lowest K x K modes inside the uniform system of the board without them.
+    @details Without vias and heatsinks this is _modal_dynamics unchanged. With them the tile conductances of the steady model (_local_conductances) enter a coupled modal
+             block (analytic_local.LocalSystem), calibrated by one factor on the via couplings so that the steady rise at the own point of the served heater equals that of
+             solve_steady for the same heater; the modes outside the block are the uniform ones. The eigenvalues, sources and output rows of the block are stored in the
+             (M, N, L) arrays of the uniform modes (the block is K x K x L of them), so that the step responses, the profile propagator and the frames use the same code.
+    @param problem A Problem (the heater powers are the ones used for the calibration; with one served heater of several, the others should have zero power).
     @param cell_mm Cell size (mm) of the sampling grid.
     @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
-    @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or heatsinks) and scaled
-            ("vias", "heatsinks" or None).
+    @param served Index of the heater whose own point sets the calibration.
+    @return Dict from _modal_dynamics with the extra keys local_max (degC, steady temperature at the served point, None without local elements), scaled ("local" or None),
+            local (the analytic_local.LocalSystem or None), local_factor (the factor on the via couplings, 1 without) and local_note (text when the factor hit the end of
+            its bracket, else None).
     """
     ambient = problem.board.ambient
-    d = _modal_dynamics(problem, cell_mm, n_terms)
-    d["local_max"], d["scaled"] = None, None
-    if not (problem.vias or problem.heatsinks) or problem.total_power() <= 0:
+    has_local = bool(problem.vias or problem.heatsinks)
+    if not has_local or problem.total_power() <= 0:
+        d = _modal_dynamics(problem, cell_mm, n_terms)                    # No local element, or no power to calibrate with: the uniform (smeared) system as before
+        d.update({"local_max": None, "scaled": None, "local": None, "local_factor": 1.0, "local_note": None})
         return d
-    local = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms).t_max - ambient
-    d["local_max"] = local + ambient
-    sh = _effective_sheet(problem, cell_mm)
-    which = "vias" if problem.vias else "heatsinks"
-
-    def steady(scale):
-        # Steady maximum of the smeared model with the chosen element scaled
-        a = _modal_matrix(problem, sh, n_terms, scale if which == "vias" else 1.0, scale if which == "heatsinks" else 1.0)
-        return _smeared_steady_max(problem, sh, a, n_terms)
-
-    if steady(1.0) <= local:
-        return d                                                          # Smeared is already no hotter: keep it
-    lo, hi = 0.0, math.log(1.0e4)
-    for _ in range(40):
-        mid = 0.5 * (lo + hi)
-        if steady(math.exp(mid)) > local:
-            lo = mid
-        else:
-            hi = mid
-        if hi - lo < 0.01:
-            break
-    scale = math.exp(0.5 * (lo + hi))
-    d = _modal_dynamics(problem, cell_mm, n_terms, scale if which == "vias" else 1.0, scale if which == "heatsinks" else 1.0)
-    d["local_max"], d["scaled"] = local + ambient, which
+    d = _modal_dynamics(problem, cell_mm, n_terms, 0.0, 0.0)             # the board without vias and heatsinks
+    d.update({"local_max": None, "scaled": None, "local": None, "local_factor": 1.0, "local_note": None})
+    bx, by = d["bases"]
+    # The steady solve first: its dense matrices are freed before the (also dense) block of the transient is built, so the peak memory is the larger of the two, not the sum
+    steady = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms)
+    lc = _local_conductances(problem, _effective_sheet(problem, cell_mm), bx, by)       # (the dict d holds the decay rates under the key lam, the sheet the fin length)
+    if not len(lc["active"]):
+        return d
+    L, W, H = d["L"], d["W"], d["H"]
+    K = max(min(LOCAL_MODES, n_terms, int(math.sqrt(LOCAL_MAX_UNKNOWNS / L))), 1)
+    tw, th = lc["tw"], lc["th"]
+    PX, PY = lc["PX"][:K] / tw, lc["PY"][:K] / th                         # Average of the first K eigenfunctions over each active tile
+    A = _modal_matrix(problem, d, n_terms, 0.0, 0.0)[:K, :K]
+    ls = LocalSystem(A, d["c_l"], bx.weight[:K], by.weight[:K], PX, PY, lc["Cv"], lc["cs"], W, H)
+    lay, iy, ix = d["points"][served]
+    wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
+    q_all = _heater_unit_sources(problem, bx, by)                          # 1 W of every heater
+    del lc["Cv"], lc["cs"]                                                 # (now held as projections inside the LocalSystem)
+    # Target: the steady rise per watt of the corrected steady model at the own point of the served heater, less what the modes outside the block carry
+    power = problem.heaters[served].power
+    target = float(steady.T[lay, iy, ix] - ambient) / power
+    outside = np.ones((n_terms, n_terms, 1), dtype=bool)
+    outside[:K, :K] = False
+    rest = float(np.sum(d["U"][served] * d["G"][served] / d["lam"] * outside))
+    s, ok = ls.calibrate(q_all[served][:K, :K], ls.output_row(wx[:K], wy[:K], lay), target - rest)
+    lam_b = ls.decompose()
+    lam = d["lam"].copy()
+    lam[:K, :K] = lam_b
+    G = d["G"].copy()
+    U = d["U"].copy()
+    for i, q in enumerate(q_all):
+        G[i, :K, :K] = ls.source_row(q[:K, :K])
+        l_i, iy_i, ix_i = d["points"][i]
+        U[i, :K, :K] = ls.point_row(bx.at(d["xs"][ix_i])[:K], by.at(d["ys"][iy_i])[:K], l_i)
+    ls.release()                                                         # Only the eigenvectors are used from here on: one system per heater keeps 1 dense matrix, not 4
+    back = d["back"].copy()
+    back[:K, :K] = 0.0                                                   # The block modes reach the field through LocalSystem.coefficients
+    d.update({"lam": lam, "G": G, "U": U, "back": back, "local": ls, "local_factor": float(s), "K": K,
+              "rth": np.einsum("hmnk,hmnk,mnk->h", U, G, 1.0 / lam), "scaled": "local", "local_max": float(steady.T[lay, iy, ix])})
+    if not ok:
+        d["local_note"] = (f"the coupling of the vias in the coupled block of the Analytic transient could not reach the steady value of the board with the factor limited "
+                           f"to {num(FACTOR_BRACKET[0], 3)} .. {num(FACTOR_BRACKET[1], 3)} (it took {num(s, 3)}): the time behaviour near the vias is approximate")
     return d
 
 
@@ -804,16 +957,20 @@ def _point_vector(d, point):
     lay, iy, ix = point
     bx, by = d["bases"]
     wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
-    return wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]
+    row = wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]
+    ls = d.get("local")
+    if ls is not None:
+        row[:ls.K, :ls.K] = ls.point_row(wx[:ls.K], wy[:ls.K], lay)       # the coupled block: eigen coordinates are not the modes of the uniform board
+    return row
 
 
 class _ModalSet:
     """!
     @brief The modal system or systems that describe a board for the transient.
     @details Without vias and heatsinks one system serves every heater. With them each heater gets its own system, calibrated
-             (see _calibrated_dynamics) with that heater alone, because a single scale cannot be right both for a heater above
-             a via array and for one far from it (on the example board it cooled the distant heater by 18 %). The
-             temperature at a heater is then the sum of the contributions of all the systems at its own hottest point.
+             (see _local_dynamics) with that heater alone, because a single factor cannot be right both for a heater above
+             a via array and for one far from it. The temperature at a heater is then the sum of the contributions of all the
+             systems at its own hottest point.
     """
 
     def __init__(self, problem, cell_mm, n_terms):
@@ -830,9 +987,9 @@ class _ModalSet:
                 solo = copy.deepcopy(problem)
                 for k, h in enumerate(solo.heaters):
                     h.power = 1.0 if k == j else 0.0                    # Unit power: only the shape of its response matters
-                self.ds.append(_calibrated_dynamics(solo, cell_mm, n_terms))
+                self.ds.append(_local_dynamics(solo, cell_mm, n_terms, j))
         else:
-            self.ds, self.serve = [_calibrated_dynamics(problem, cell_mm, n_terms)], [0] * nh
+            self.ds, self.serve = [_local_dynamics(problem, cell_mm, n_terms)], [0] * nh
         d0 = self.ds[0]
         self.d0 = d0
         self.points = [self.ds[self.serve[k]]["points"][k] for k in range(nh)]          # Own hottest point of every heater
@@ -841,8 +998,8 @@ class _ModalSet:
         self.rth = np.array([float(np.sum(self.U[self.serve[k]][k] * self.ds[self.serve[k]]["G"][k]
                                           / self.ds[self.serve[k]]["lam"])) for k in range(nh)])
         self.tau = max(d["tau"] for d in self.ds)
-        self.scaled = [(d["scaled"], d["via_scale"] if d["scaled"] == "vias" else d["heatsink_scale"], d["local_max"])
-                       for d in self.ds if d["local_max"] is not None]
+        self.scaled = [(d["scaled"], d["local_factor"], d["local_max"]) for d in self.ds if d["local_max"] is not None]      # factor on the via couplings of each system
+        self.notes = [d["local_note"] for d in self.ds if d["local_note"]]
 
     def drive(self, powers):
         """!
@@ -884,6 +1041,8 @@ class _ModalSet:
         total = 0.0
         for d, b in zip(self.ds, states):
             a = np.einsum("mnlk,mnk->mnl", d["back"], b)
+            if d.get("local") is not None:
+                a[:d["local"].K, :d["local"].K] += d["local"].coefficients(b[:d["local"].K, :d["local"].K])       # modes of the coupled block
             total = total + np.stack([d["cos_y"] @ a[:, :, l].T @ d["cos_x"].T for l in range(d["L"])])
         return total
 
@@ -941,20 +1100,18 @@ class _AnalyticAdapter:
         self.steady_average_max = float(self.frame(self.b_avg).max())
         self.steady_peak_max = float(self.frame(b_peak).max())
         self.warnings = []
+        scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
         if problem.heatsinks:
-            # Measured on 10 test boards (one 60 x 40 mm family, one 10 x 10 mm part, unit-step response only, FVM at 1 mm; research/analytic-2-6 README 3.1,
-            # reproduced by the review): the time to 63 % was -66.9 % to +112.7 % of the FVM at 1 mm with a heatsink (review: against the converged FVM -66 % to +84 %, +175 % on a 2-layer board with a 300 W/m2K heatsink) (-36.7 % with the heatsink under the part and no vias;
-            # the earlier review of validation 4.1 measured -3.6 % for a heatsink alone in a corner and +28 to +49 % with vias, another board); plain boards, one via and via arrays were +0.1 to +0.6 %. The Lumped model is not a safe alternative there (-41.8 % with the
-            # heatsink beside the part), so the text points to the FVM and FDM. Text only: no number moves (the local modal system is planned for 2.6.0).
-            scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
+            # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
+            # 0.5 mm, converged), research/analytic-2-6 README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
+            # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
+            # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
-            what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
-            scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
             self.warnings.append(
-                f"the analytic transient smears the vias and heatsinks over the board and, for every heater, scales the {what} "
-                f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near "
-                "them are approximate, use the FVM to confirm")
+                "the analytic transient keeps the vias as couplings in a block of the lowest modes of the board and, for every heater, scales their conductance "
+                f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near them are approximate, use the FVM to confirm")
+        self.warnings.extend(ms.notes)
 
     def prepare(self, dt):
         """!
@@ -976,7 +1133,11 @@ class _AnalyticAdapter:
         states = [np.zeros_like(b) for b in self.b_avg]
         # A uniform field is the (0, 0) mode with the same value on every layer; it lives in the first system
         d = self.ms.ds[0]
-        states[0][0, 0, :] = np.einsum("lk,l->k", d["V"][0, 0], np.sqrt(d["c_l"]) * (t0 - self.ambient))
+        if d.get("local") is None:
+            states[0][0, 0, :] = np.einsum("lk,l->k", d["V"][0, 0], np.sqrt(d["c_l"]) * (t0 - self.ambient))
+        else:
+            K = d["local"].K
+            states[0][:K, :K, :] = d["local"].uniform_state(t0 - self.ambient)       # its constant mode is mixed with the others in the block
         return states, t0
 
     def advance(self, states, dt, powers):
@@ -1016,19 +1177,21 @@ class _AnalyticAdapter:
         return None
 
 
-HEATSINK_TRANSIENT_KEY = "-66 % to +84 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+HEATSINK_TRANSIENT_KEY = "-8 % to +1 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
 
 
 def heatsink_transient_warning(scales=""):
     """!
-    @brief Text of the warning for the Analytic time behaviour of a board with a heatsink (the heatsinks are smeared over the board).
-    @param scales Calibration factors of the modal systems as text (empty for none).
+    @brief Text of the warning for the Analytic time behaviour of a board with a heatsink (vias and heatsinks are couplings of a block of the lowest modes).
+    @param scales Calibration factors of the via couplings of the modal systems as text (empty for none).
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
-    return ("the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was, on a sample of test boards, "
-            "from about -66 % to +84 % off the converged finite-volume result, and +175 % on one 2-layer board with a strong heatsink (300 W/m2K); "
-            "this is a sample, not a bound (one 60 x 40 mm family, step response only); use the FVM or the FDM for the time behaviour with a heatsink"
-            + (f" (calibration factors {scales})" if scales else ""))
+    return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
+            "of test boards, from about -8 % to +1 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
+            "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
+            "square wave read 5 to 7 % low; a board outline was not tested); "
+            "use the FVM or the FDM to confirm the time behaviour with a heatsink"
+            + (f" (via coupling factors {scales})" if scales else ""))
 
 
 def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=None):
@@ -1048,7 +1211,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     from . import profiles
     result = profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic", progress)
-    # A run with every heater averaged returns before the adapter's warnings are copied, yet the decision used the smeared step response: say it anyway
+    # A run with every heater averaged returns before the adapter's warnings are copied, yet the decision used the local step response: say it anyway
     if problem.heatsinks and not any(HEATSINK_TRANSIENT_KEY in w for w in result.warnings):
         result.warnings.append(heatsink_transient_warning())
     return result
@@ -1058,7 +1221,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     """!
     @brief Response to the heater powers switched on at t = 0 on a board at ambient temperature, in closed form.
     @details Every cosine mode follows b(t) = (1 - exp(-lambda t)) / lambda * g, so any time is evaluated directly with no
-             time stepping. Vias and heatsinks are smeared (see _modal_dynamics); use the FVM when they sit under the heaters.
+             time stepping. Vias and heatsinks stay local in a coupled block of the lowest modes (see _local_dynamics); the time behaviour near them is approximate, the FVM confirms it.
     @param problem A Problem (its heater powers; profiles are ignored, the average power is used).
     @param t_end Final time in seconds.
     @param n_out Number of output frames after t = 0.
