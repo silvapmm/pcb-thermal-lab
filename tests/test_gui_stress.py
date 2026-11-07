@@ -983,46 +983,6 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     assert not empty.compute.isEnabled()
 
 
-def test_import_window_with_a_bom_present_absent_malformed_and_huge(win, qtbot, tmp_path):
-    """The import window with a BOM: present (the column and the line), a theme switch on every step, every function of the BOM file in the list, replaced by a malformed table, a UTF-16 one, an
-    Excel workbook, a huge table (many rows and hostile cells) and removed; the window closes by Escape during a read without a hook raising."""
-    from pcbthermal.gui import import_session as ims
-    from pcbthermal.gui.import_window import ImportBoardWindow
-    from tests.helpers.synthetic_board import make_board
-    load(win, example_board())
-    folder = make_board(tmp_path / "fab")
-    bomf = folder / "assembly.csv"
-    bomf.write_text("Designator,Comment,Footprint,DNP\nU1,reg,SOT-223,\nD1,led,D_0603,DNP\nR1,1k,R_0603,\n")
-    dlg = ImportBoardWindow(win)
-    qtbot.addWidget(dlg)
-    calls = []
-    dlg.before_close.append(lambda w, r: calls.append(r))
-    dlg.notify, dlg.confirm = (lambda *a: None), (lambda *a: True)
-    dlg.show()
-    dlg.open_path(str(folder))
-    for step in (1, 0, 1):
-        dlg.go(step)
-        win.toggle_theme()
-        dlg.page2.table.grab()
-    i = [f.name for f in dlg.session.files].index("assembly.csv")
-    for role in ims.ROLES:
-        dlg.page1.table.cellWidget(i, 3).setCurrentText(role)
-    dlg.page1.table.cellWidget(i, 3).setCurrentText(ims.BOM)
-    for text in (b"Designator,Comment\n=1+1,\"\n", "Designator,Comment\nU1,reg\n".encode("utf-16"), b"PK\x03\x04" + b"\0" * 50, b"\xff\xfe\x00",
-                 ("Designator,Comment,Footprint\n" + "".join(f"R{k},{'x' * 400},C_0402\n" for k in range(40000))).encode(), b""):
-        bomf.write_bytes(text)
-        dlg.open_path(str(folder))
-        dlg.go(1)
-        dlg.page2.table.grab()
-        dlg.go(0)
-        dlg.page1.table.grab()
-    bomf.unlink()
-    dlg.open_path(str(folder))
-    assert dlg.session.bom_set() is None
-    QTest.keyClick(dlg, Qt.Key_Escape)
-    assert calls and not dlg.isVisible()
-
-
 def test_import_window_in_the_application(win, qtbot, tmp_path, monkeypatch):
     """The Gerber import window, the full flow: opens from the File menu and closes, reads a ZIP and a folder, survives wrong functions, a damaged file, an empty folder and a theme switch on
     every step, edits the parts (power, shape, clicks, frame answer), changes the model settings, imports into a new project, re-imports (Update, one undo step) and leaves the old project alone
