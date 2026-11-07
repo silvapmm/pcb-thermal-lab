@@ -366,8 +366,8 @@ class Network:
         @param cell Board area of every cell (m2), shape (ny, nx).
         @return Boolean array (new layers, ny, nx) of the new nodes that are pinned (unused or off the board), or None when no layer was added.
         """
-        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active)
         edge = self._edge_lengths() if b.h_side else np.zeros((self.ny, self.nx))
+        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active, edge=edge)
         res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
         self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
         self.ladder, self.drop = res.ladder, res.ladder.drop
@@ -965,7 +965,9 @@ def unknowns(problem, cell_mm=2.0):
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
         copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
-        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
+        # The band along the edge is counted too (it exists only with an edge coefficient)
+        edge = laminate.edge_lengths(b, nx, ny, dx, dy, active) if b.h_side else None
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active, edge=edge), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny

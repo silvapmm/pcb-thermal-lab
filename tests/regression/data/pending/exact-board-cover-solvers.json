@@ -59,63 +59,6 @@
     "t_sumsq": 49702326.13359753
    }
   },
-  "part_across_outline|fdm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.0875744749228033e-12,
-    "layer_mean[0]": 130.24365440457544,
-    "layer_mean[1]": 122.38437230402802,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 4.0,
-    "part:U:t_max": 229.28874684293953,
-    "part:U:t_mean": 211.27850169574182,
-    "power_in": 4.0,
-    "t_max": 229.28874684293953,
-    "t_mean": 126.31401335430174,
-    "t_min": 106.32347650102147,
-    "t_sum": 1577298.5037145473,
-    "t_sumsq": 202333762.9506988,
-    "unknowns": 13122
-   }
-  },
-  "part_across_outline|fdm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.8485213360008861e-13,
-    "layer_mean[0]": 130.24281111347122,
-    "layer_mean[1]": 122.3835372702092,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 4.0,
-    "part:U:t_max": 229.8019201878817,
-    "part:U:t_mean": 211.29067364421672,
-    "power_in": 3.999999999999999,
-    "t_max": 229.8019201878817,
-    "t_mean": 126.31317419184022,
-    "t_min": 106.320539819676,
-    "t_sum": 409722.0170146671,
-    "t_sumsq": 52886890.294572376,
-    "unknowns": 3362
-   }
-  },
-  "part_across_outline|fdm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -4.662936703425658e-15,
-    "layer_mean[0]": 130.23559434133807,
-    "layer_mean[1]": 122.37657734944023,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 4.0,
-    "part:U:t_max": 229.98777127552472,
-    "part:U:t_mean": 212.08606897201705,
-    "power_in": 3.999999999999999,
-    "t_max": 229.98777127552472,
-    "t_mean": 126.30608584538915,
-    "t_min": 106.33314421045888,
-    "t_sum": 107560.34423165141,
-    "t_sumsq": 13886071.202058729,
-    "unknowns": 882
-   }
-  },
   "part_across_outline|solid3d|0.5": {
    "class": "moved",
    "metrics": {
@@ -227,63 +170,6 @@
     "t_sumsq": 54270060.99040331
    }
   },
-  "round_outline|fdm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.0256684390697046e-12,
-    "layer_mean[0]": 106.57013990707866,
-    "layer_mean[1]": 100.5811290692896,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 5.0,
-    "part:U:t_max": 175.5562980281788,
-    "part:U:t_mean": 163.33896873291056,
-    "power_in": 5.0,
-    "t_max": 175.5562980281788,
-    "t_mean": 103.57563448818412,
-    "t_min": 95.99277498217782,
-    "t_sum": 2332620.070623231,
-    "t_sumsq": 226081070.24832532,
-    "unknowns": 29282
-   }
-  },
-  "round_outline|fdm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.659117287999834e-13,
-    "layer_mean[0]": 106.57501479621891,
-    "layer_mean[1]": 100.5856761778423,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 5.0,
-    "part:U:t_max": 175.4447967110658,
-    "part:U:t_mean": 162.96997319644083,
-    "power_in": 5.0,
-    "t_max": 175.4447967110658,
-    "t_mean": 103.5803454870306,
-    "t_min": 95.96886702067421,
-    "t_sum": 599813.452566853,
-    "t_sumsq": 58256079.97287506,
-    "unknowns": 7442
-   }
-  },
-  "round_outline|fdm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -7.993605777301127e-15,
-    "layer_mean[0]": 106.57655112464627,
-    "layer_mean[1]": 100.58723022584188,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 5.0,
-    "part:U:t_max": 175.00430945489757,
-    "part:U:t_mean": 161.5348477680278,
-    "power_in": 5.0,
-    "t_max": 175.00430945489757,
-    "t_mean": 103.58189067524407,
-    "t_min": 95.87304843445021,
-    "t_sum": 157618.02046934236,
-    "t_sumsq": 15347395.615602655,
-    "unknowns": 1922
-   }
-  },
   "round_outline|solid3d|0.5": {
    "class": "moved",
    "metrics": {
@@ -342,19 +228,6 @@
    }
   }
  },
- "transients": {
-  "part_across_outline|fdm": {
-   "class": "moved",
-   "t63": {
-    "U": 33.30663866784957
-   }
-  },
-  "round_outline|fdm": {
-   "class": "moved",
-   "t63": {
-    "U": 38.87701283679417
-   }
-  }
- },
+ "transients": {},
  "why": "The board cover and the part weights of a board with an outline are the exact areas (clipping) instead of the 8 x 8 sampling; the cut cells and the cells of the part across the outline change. (Its FVM records and times are in cut-cell-aperture-film.json, regenerated with both changes in the tree.)"
 }

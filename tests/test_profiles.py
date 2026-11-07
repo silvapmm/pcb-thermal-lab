@@ -107,7 +107,12 @@ def test_mixed_regimes_match_the_fully_resolved_run():
     p.add_heater(1, 3.0, rect=(10, 20, 20, 30), name="fast", profile=SquareWave(p_on=10.0, period=0.05, duty=0.3))
     p.add_heater(1, 1.0, rect=(35, 20, 45, 30), name="slow", profile=SquareWave(p_on=4.0, period=2.0, duty=0.25))
     resp = profiles.step_response_fvm(p, 4.0)
-    mixed_dec = profiles.decide(p, resp, 1.0)
+    # The budget is 1.5 K here (1.0 K before the laminate edge band). At the 4 mm cell the band is three cells deep (margin 2 cells), so the fast heater (x 10 to 20 mm) sits partly
+    # on it: there the copper node holds half a sub-gap of laminate instead of half the gap, its capacity is smaller and its early response faster (Z at the first step 1.59 times),
+    # and the oscillation goes from 0.75 K to 1.20 K. It is not the time grid of the step response (a grid six times finer, or a fixed end time, gives 0.72 / 1.26 K and 0.74 /
+    # 1.15 K; review). Both are far below the swing of a resolved laminate (about 6.3 K for this 20 Hz wave in an independent 1D solution, 0.75 K with one node per copper layer:
+    # docs/validation.md 36.2, a limit of the layered models in fast waves, not of this test). The slow heater (9.5 K) is far from either budget.
+    mixed_dec = profiles.decide(p, resp, 1.5)
     assert [d.regime for d in mixed_dec] == ["average", "resolved"]
     full_dec = profiles.decide(p, resp, 0.0)
     opt = ProfileOptions(duration="cycles", cycles=4)

@@ -1478,11 +1478,12 @@ class SolverPanel(QWidget):
         self.lam_n.setRange(1, 16)
         self.lam_n.setValue(4)
         self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
-                              "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
+                              "boundary, only where copper is absent next to it and, with an edge coefficient, in a band along the board edge (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
         self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 16, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
                               "sub-gaps, so with the default 0.40 mm a 1.6 mm two-layer board already has 4 and a larger number changes nothing unless the sub-gap is made smaller "
                               "too (8 needs 0.19 mm or less, 16 needs 0.09 mm or less). The error against a resolved 3D solid falls as 1/n (an island board: -3.9, -2.25 and -1.41 % with 4, 8 and 16 "
-                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
+                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper and in the band along the board edge, which the memory estimate counts. With an edge coefficient "
+                              "above 200 W/m2K more sub-gaps (and a finer cell) reduce the cool error of the edge laminate.")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
         self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")

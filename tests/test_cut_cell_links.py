@@ -24,7 +24,7 @@ import cut_cell_boards as bd                                    # noqa: E402
 import cut_cell_study as study                                  # noqa: E402
 import two_sheet as ind                                         # noqa: E402
 
-from pcbthermal import Problem, copper, fvm                     # noqa: E402
+from pcbthermal import Problem, copper, fvm, laminate                    # noqa: E402
 from pcbthermal.geometry import exact_coverage, face_apertures, signed_distance_to_outline   # noqa: E402
 
 
@@ -191,7 +191,8 @@ def test_without_h_side_and_without_an_outline_the_matrix_is_the_earlier_one_bit
     assert (a.K != b.K).nnz == 0
 
 
-def test_the_film_of_a_whole_edge_cell_is_in_series_with_half_a_cell():
+def test_the_film_of_a_whole_edge_cell_is_in_series_with_half_a_cell(monkeypatch):
+    without_edge_band(monkeypatch)
     # g = H L / (1 + H d / S) with d = dx / 2 on a rectangle (the corner has two edges, each with its own d)
     p = rectangle_problem(200.0, False)
     old = fvm.Network(p, 20, 16, cut_cells=False)
@@ -253,7 +254,8 @@ def test_matrix_is_symmetric_with_no_positive_off_diagonal_and_the_symmetric_lu_
     assert np.isfinite(theta).all()
 
 
-def test_sliver_below_the_minimum_cover_is_dropped_and_the_curve_is_continuous():
+def test_sliver_below_the_minimum_cover_is_dropped_and_the_curve_is_continuous(monkeypatch):
+    without_edge_band(monkeypatch)
     # The program jumped by +3.6 K at 200 W/m2K (and +9.8 K at 2000) between the cover 0.01 and 0.02 (the film of the sliver sat behind a link of 2c/(1+c))
     for hs, bound in ((200.0, 0.3), (2000.0, 0.3), (10.0, 0.4)):
         t = {c: fvm.solve_steady(study.sliver_board(c, hs), cell_mm=1.0).t_max for c in (0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0)}
@@ -261,6 +263,18 @@ def test_sliver_below_the_minimum_cover_is_dropped_and_the_curve_is_continuous()
     # the error against the independent reference (the same board as an aligned rectangle) is smooth in the cover: its range over 0.01, 0.02 and 0.1 is under 0.3 K
     err = [fvm.solve_steady(study.sliver_board(c, 200.0), cell_mm=1.0).t_max - study.sliver_reference(c, 200.0) for c in (0.01, 0.02, 0.1)]
     assert np.ptp(err) < 0.3, err
+
+
+def without_edge_band(monkeypatch):
+    """!
+    @brief Switch off the laminate band along the board edge (laminate.edge_band) for a test of the cut-cell geometry.
+    @details The tests that use it check what the cut-cell links do with the outline (the series film of the sheet, the continuity across a sliver, the spread over the position of
+             the outline, the independent references that carry no laminate nodes). The band changes the model they compare with (the laminate of the edge cells becomes nodes, the
+             board reads 1 to 5 % hotter at a cooled edge, tests/test_laminate_edge_band.py), so they run on the network of the earlier versions; the band has its own tests.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(laminate, "edge_band", lambda edge, d, dx, active: np.zeros(np.asarray(active).shape, dtype=bool))
 
 
 def old_treatment(monkeypatch):
@@ -273,6 +287,7 @@ def old_treatment(monkeypatch):
 
 
 def test_the_old_treatment_has_the_sliver_jump_and_the_new_one_does_not(monkeypatch):
+    without_edge_band(monkeypatch)
     new = {c: fvm.solve_steady(study.sliver_board(c, 200.0), cell_mm=1.0).t_max for c in (0.01, 0.02)}
     old_treatment(monkeypatch)
     old = {c: fvm.solve_steady(study.sliver_board(c, 200.0), cell_mm=1.0).t_max for c in (0.01, 0.02)}
@@ -280,7 +295,8 @@ def test_the_old_treatment_has_the_sliver_jump_and_the_new_one_does_not(monkeypa
     assert abs(new[0.02] - new[0.01]) < 0.3
 
 
-def test_the_two_sheet_solver_agrees_with_the_program_on_a_rectangle():
+def test_the_two_sheet_solver_agrees_with_the_program_on_a_rectangle(monkeypatch):
+    without_edge_band(monkeypatch)
     # The independent solver (its own assembly, film in series with half a cell) and the program's FVM on a 30 mm rectangle: 0.03 to 0.11 K at 1 to 0.25 mm
     p_args = (30, 30)
     for hs in (10.0, 200.0):
@@ -308,6 +324,7 @@ def frame_refs():
 @pytest.mark.parametrize("h_side", [10.0, 200.0, 2000.0])
 def test_spread_over_the_position_of_the_outline_against_the_frame_reference(h_side, frame_refs, monkeypatch):
     # The square, the part 3.5 mm off centre, 1 mm: the spread of the error over the positions is at most 0.15 K for h_side 10 to 2000 (the earlier links: 0.06, 1.2, 3.0 K)
+    without_edge_band(monkeypatch)
     refs = frame_refs.setdefault(h_side, {})
     new = np.array(list(study.errors("square", 3.5, h_side, 1.0, FRAME_POS, refs).values()))
     assert np.ptp(new) <= 0.15, new
@@ -318,14 +335,16 @@ def test_spread_over_the_position_of_the_outline_against_the_frame_reference(h_s
     assert np.ptp(new) <= np.ptp(old) + 0.02                 # and never worse at the default coefficient
 
 
-def test_the_strip_spread_at_half_a_millimetre():
+def test_the_strip_spread_at_half_a_millimetre(monkeypatch):
+    without_edge_band(monkeypatch)
     refs = {}
     e = np.array(list(study.errors("strip", 0.0, 200.0, 0.5, FRAME_POS, refs).values()))
     assert np.ptp(e) <= 0.15
 
 
 @pytest.mark.parametrize("angle", [0.0, 11.0, 22.5, 33.0, 45.0])
-def test_rotated_square_peak_is_nearly_independent_of_the_angle(angle):
+def test_rotated_square_peak_is_nearly_independent_of_the_angle(angle, monkeypatch):
+    without_edge_band(monkeypatch)
     # The same square turned: the peak moves by at most 0.2 K over five angles at 200 W/m2K, 1 mm (the earlier treatment: more than 1 K)
     peaks = [fvm.solve_steady(turned_square(a), cell_mm=1.0).t_max for a in (0.0, 11.0, 22.5, 33.0, 45.0)]
     assert max(peaks) - min(peaks) < 0.25

@@ -187,7 +187,7 @@ class Network:
             g_bottom0[L - 1] = b.h_bottom * area
             g_side0 = np.zeros((L, ny, nx))
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
-            plans = laminate.plan_gaps(b, fill, dx, self.active)
+            plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
             rule = laminate.build(b, fill, area, ncov, self.active, edge_nodes if b.h_side else np.zeros((ny, nx)), S, self.C, gz0, g_bottom0, g_side0, plans)
             # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them, as in the FVM)
             via_S = S
@@ -380,7 +380,9 @@ def unknowns(problem, cell_mm=2.0):
             active = np.where(c >= 0.01, c, 0.0) > 0
         else:
             active = np.ones((ny, nx), dtype=bool)
-        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
+        # The band along the edge is counted too (it exists only with an edge coefficient)
+        edge = laminate.edge_lengths(b, nx, ny, dx, dy, active, nodes=True) if b.h_side else None
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active, edge=edge), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny
