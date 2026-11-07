@@ -52,7 +52,7 @@ def local_matrix(problem, sh, bx, by, split=False):
         (ntx, nty, tw, th), weights = plan["grid"], plan["weights"]
     c_via = np.zeros((nty, ntx, max(L - 1, 0)))
     for iv, v in enumerate(problem.vias if vs is not None else []):
-        cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / sh["d_diel"]
+        cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / sh.get("d_barrel", sh["d_diel"])   # 2.6.0 barrel length
         for (row, col), w in weights[iv].items():
             c_via[row, col] += w * cond
     g_sink = np.zeros((L, nty, ntx))
