@@ -124,7 +124,11 @@ def make_build(eta_mode, eta_scale=1.0, halfcell=False):
     @brief Replacement of laminate.build that scales the laminate share of the edge conductance of the cells without interior nodes.
     @param eta_mode None (no change), "exact" (eta_laminate of the gap) or "const" (eta_scale for every gap).
     @param eta_scale Constant eta of the mode "const".
-    @param halfcell True: the edge film of the laminate nodes of the flagged cells is put in series with the conduction of half a cell (k_xy), g' = g / (1 + h_s dx / (2 k_xy)).
+    @param halfcell The edge film of the laminate behind half a cell of laminate (k_xy), g' = g / (1 + h_s dx / (2 k_xy)): "interior" on the interior laminate nodes only (the
+           finite-volume boundary condition of a cell-centred node, the rule the review recommends; the same factor that `fvm.Network._cut_edge_film` of the 2.6.0 integration tree
+           already applies to every node layer, so on that tree it must NOT be added again for the FVM); True or "both": also on the laminate held by the two copper nodes of a
+           flagged cell (the first prototype; "copper" for that part alone; the review found no physical basis for that part: the laminate of a copper node reaches the edge through the copper, and the term only
+           compensates the 1 / n error of the sub-gaps, strongly at a coarse cell); False: none.
     @return Function with the signature of laminate.build.
     """
 
@@ -150,6 +154,8 @@ def make_build(eta_mode, eta_scale=1.0, halfcell=False):
         if hs <= 0.0 or board.layers < 2:
             return res
         if halfcell:
+            on_copper = halfcell is True or halfcell in ("both", "copper")     # (review: "copper" is the second part alone, to measure it)
+            on_interior = halfcell is True or halfcell in ("both", "interior")
             dxc = math.sqrt(float(np.median(cell[cell > 0])))
             kz_h, kxy_h, _ = board.gap_properties()
             for g, p in enumerate(plans):
@@ -158,8 +164,10 @@ def make_build(eta_mode, eta_scale=1.0, halfcell=False):
                 f = 1.0 / (1.0 + hs * dxc / (2.0 * float(kxy_h[g])))          # series half-cell on the laminate film
                 # interior nodes of this gap: their layers follow the copper layers, gap by gap (n - 1 each)
                 first = board.layers + sum(q.n - 1 for q in plans[:g])
-                for j in range(first, first + p.n - 1):
+                for j in (range(first, first + p.n - 1) if on_interior else ()):
                     res.layers[j - board.layers]["g_side"] = res.layers[j - board.layers]["g_side"] * f
+                if not on_copper:
+                    continue
                 lam = p.d / (2.0 * p.n)                                           # laminate left in each adjacent copper node
                 for l in (g, g + 1):
                     res.g_side[l] = np.where(p.flagged, res.g_side[l] - (1.0 - f) * hs * lam * edge, res.g_side[l])

@@ -3,7 +3,7 @@
 """!
 @file study_harness_impact.py
 @brief What the edge rules would move on the 17 boards of the frozen-numbers harness (tests/regression): hottest temperature of the FVM and FDM, in K and in percent of the rise, and the unknowns.
-@details Boards from tests/regression/regress_boards.py (read only). Rules of lib/edge_rules.py: the band of one gap thickness with the half-cell film ("b1+hc"), the program's margin with it ("margin+hc"), and eta. A board without an edge
+@details Boards from tests/regression/regress_boards.py (read only). Rules of lib/edge_rules.py: the band of one gap thickness with the half-cell film ("b1+hc"), the program's margin with it ("margin+hc"), the margin band with the film on the interior nodes only ("margin+hci", the reviewed rule on develop), the margin band alone ("margin", the reviewed rule on a tree whose FVM already puts the film behind half a cell), and eta. A board without an edge
          coefficient, or with a metal block, or a one-layer board, is not touched by any rule; the run is skipped for it and it is listed as unchanged by construction.
          Run (repository root): .venv/bin/python research/laminate-edge-band/scripts/study_harness_impact.py [--cells 2,1] [--model fvm,fdm]
 """
@@ -19,7 +19,8 @@ from pcbthermal import SolverOptions, fdm, fvm, simulate
 sys.path.insert(0, str(_bootband.REPO / "tests" / "regression"))
 import regress_boards as RB                                     # noqa: E402
 
-RULES = {"b1+hc": dict(band_width=1.0, halfcell=True), "margin+hc": dict(band_width="margin", halfcell=True), "eta": dict(eta_mode="exact")}
+RULES = {"b1+hc": dict(band_width=1.0, halfcell=True), "margin+hc": dict(band_width="margin", halfcell=True), "margin+hci": dict(band_width="margin", halfcell="interior"),
+         "margin": dict(band_width="margin"), "eta": dict(eta_mode="exact")}
 
 
 def main(argv=None):

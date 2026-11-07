@@ -3,7 +3,8 @@
 """!
 @file make_figures.py
 @brief Figures of research/laminate-edge-band from the sweeps in out/ (run study_reference.py, study_sweep.py and study_harness_impact.py first): the error of the hottest rise against the edge
-       coefficient for the rules (fig_04), the width of the band with and without the half-cell film (fig_05), and the cost in unknowns (fig_06).
+       coefficient for the rules (fig_04), the width of the band with and without the half-cell film (fig_05), the cost in unknowns (fig_06), and the review's decomposition of the half-cell film against the converged reference
+       (fig_07, from study_review_variants.py).
 @details Run (repository root): .venv/bin/python research/laminate-edge-band/scripts/make_figures.py
 """
 
@@ -123,7 +124,39 @@ def fig_06():
     plt.close(fig)
 
 
+def fig_07():
+    """!
+    @brief Review: error against the cell of the band alone, the band with the film on the interior laminate nodes (the reviewed rule), the first prototype (also on the laminate of the
+           copper nodes) and the reviewed rule with 8 sub-gaps, on the FVM of develop, against the converged reference of study_review_reference.py; four cases.
+    @return None
+    """
+    d = load("review_variants_fvm_dev")
+    cases = [("3.2|200.0|corner", "3.2 mm, 200 W/m2K, corner"), ("1.6|200.0|corner", "1.6 mm, 200 W/m2K, corner"), ("3.2|2000.0|corner", "3.2 mm, 2000 W/m2K, corner"),
+             ("0.8|2000.0|corner", "0.8 mm, 2000 W/m2K, corner")]
+    rules = [("band", "band alone", "tab:orange", "-"), ("band+hcint", "band + film on interior nodes (reviewed)", "tab:green", "-"),
+             ("band+hc(prototype)", "band + film also on copper nodes (prototype)", "tab:red", "--"), ("band n8", "reviewed rule, 8 sub-gaps", "tab:blue", "-"),
+             ("band n16", "reviewed rule, 16 sub-gaps", "tab:cyan", ":")]
+    cells = [1.0, 0.5, 0.25]
+    fig, axs = plt.subplots(1, 4, figsize=(13, 3.9), sharey=False)
+    for ax, (k, title) in zip(axs, cases):
+        for r, lab, c, ls in rules:
+            ax.plot(cells, [d[f"30|20|2|{k}|{cell}"][r] for cell in cells], ls, marker="o", ms=3, color=c, label=lab)
+        ax.axhspan(-3, 3, color="gray", alpha=0.12)
+        ax.axhline(0, color="k", lw=0.6)
+        ax.set_xticks(cells, [str(c) for c in cells])
+        ax.set_xlabel("cell (mm)")
+        ax.set_title(title, fontsize=9)
+        ax.grid(alpha=0.3)
+    axs[0].set_ylabel("error of the hottest rise (%)")
+    h, lab = axs[0].get_legend_handles_labels()
+    fig.legend(h, lab, loc="lower center", ncol=5, fontsize=7.5, frameon=False)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    fig.savefig(_bootband.FIGURES / "fig_07_review_halfcell_decomposition.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_04()
     fig_05()
     fig_06()
+    fig_07()

@@ -172,3 +172,27 @@ def test_band_is_the_border_cells_plus_the_reach():
     m = ER.band_mask(b, active, dx, d, "margin")
     rows = np.where(m[:, active.shape[1] // 2])[0]
     assert rows[rows < active.shape[0] // 2].max() == laminate.margin_cells(d, dx)     # rows 0 .. margin from the border
+
+
+def test_interior_film_leaves_the_copper_nodes_and_scales_only_the_interior_nodes():
+    """!
+    @brief Review: the reviewed rule (halfcell="interior") multiplies the edge conductance of every interior laminate node by f = 1 / (1 + h_s dx / (2 k_xy)) exactly and leaves the
+           copper nodes as they are; "copper" does the opposite, and the two together are the first prototype (halfcell=True).
+    @return None
+    """
+    p = board(200.0)
+    dx = 0.5e-3
+    b, fill, cell, cover, active, edge, S, C, gz, gb, gs = _arrays(p, dx)
+    plans = ER.make_plan_gaps("margin")(b, fill, dx, active)
+    old = ER._ORIG["build"](b, fill, cell, cover, active, edge, S, C, gz, gb, gs, plans)
+    inner = ER.make_build(None, halfcell="interior")(b, fill, cell, cover, active, edge, S, C, gz, gb, gs, plans)
+    copper = ER.make_build(None, halfcell="copper")(b, fill, cell, cover, active, edge, S, C, gz, gb, gs, plans)
+    both = ER.make_build(None, halfcell=True)(b, fill, cell, cover, active, edge, S, C, gz, gb, gs, plans)
+    f = 1.0 / (1.0 + 200.0 * dx / (2.0 * float(b.gap_properties()[1][0])))
+    assert len(old.layers) == plans[0].n - 1 > 0
+    assert np.array_equal(inner.g_side, old.g_side)                              # copper nodes untouched
+    for a, o in zip(inner.layers, old.layers):
+        assert np.allclose(a["g_side"], f * o["g_side"], rtol=1e-14, atol=0.0)
+    for a, o in zip(copper.layers, old.layers):
+        assert np.array_equal(a["g_side"], o["g_side"])                          # "copper" leaves the interior nodes
+    assert np.allclose(both.g_side, copper.g_side) and all(np.allclose(a["g_side"], c["g_side"]) for a, c in zip(both.layers, inner.layers))

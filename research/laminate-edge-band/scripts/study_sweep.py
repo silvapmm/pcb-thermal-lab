@@ -5,7 +5,7 @@
 @brief Error of the hottest rise of the FVM (and FDM) against the independent 3D reference, for the program as it is and for the edge rules of lib/edge_rules.py, over thickness, edge coefficient,
        position of the part and cell; with the unknowns each rule costs.
 @details Cases and references: study_reference.py (out/refs.json). Rules: default; ring (nodes in the border cells only); band of 0.5, 1 and 2 gap thicknesses; the program's own margin
-         (ceil(d / dx) + 1 cells); eta (closed-form efficiency of the laminate, no unknowns); hc = the edge film of the laminate nodes in series with half a cell of conduction (suffix +hc). Output: out/sweep.json and a table on the screen.
+         (ceil(d / dx) + 1 cells); eta (closed-form efficiency of the laminate, no unknowns); hc = the edge film of the laminate nodes in series with half a cell of conduction, also on the laminate of the copper nodes (suffix +hc, first prototype); hci = on the interior laminate nodes only (suffix +hci, the reviewed rule); margin = the band alone. Output: out/sweep.json and a table on the screen.
          Run (repository root): .venv/bin/python research/laminate-edge-band/scripts/study_sweep.py [--cells 1,0.5] [--model fvm|fdm] [--four] [--rules a,b] [--refs refs|refs30] [--out name]
 """
 
@@ -21,7 +21,8 @@ from pcbthermal import SolverOptions, fdm, fvm, simulate
 
 RULES = {"default": {}, "ring": dict(band_width=0.0), "band0.5": dict(band_width=0.5), "band1": dict(band_width=1.0), "band2": dict(band_width=2.0), "eta": dict(eta_mode="exact"),
          "hc": dict(halfcell=True), "ring+hc": dict(band_width=0.0, halfcell=True), "b0.5+hc": dict(band_width=0.5, halfcell=True), "b1+hc": dict(band_width=1.0, halfcell=True),
-         "b1.5+hc": dict(band_width=1.5, halfcell=True), "b2+hc": dict(band_width=2.0, halfcell=True), "margin+hc": dict(band_width="margin", halfcell=True)}
+         "b1.5+hc": dict(band_width=1.5, halfcell=True), "b2+hc": dict(band_width=2.0, halfcell=True), "margin+hc": dict(band_width="margin", halfcell=True),
+         "margin+hci": dict(band_width="margin", halfcell="interior"), "margin": dict(band_width="margin")}
 
 
 def run_case(c, ref, cell, model, rules):
