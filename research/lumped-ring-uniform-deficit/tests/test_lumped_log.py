@@ -31,14 +31,11 @@ def _restore():
     LL.configure("strip", 0.04, 1.5, None)
 
 
-@pytest.mark.xfail(strict=True, reason="UNEXPLAINED shift of the 2.6.0 Lumped against the v2.5.1 text plus the first-ring cap: 1.1e-4 K (60 x 40 mm), 1.5e-5 K (100 x 80 mm, 4 layers) and "
-                   "1.2e-2 K (30 x 20 mm, one layer), on boards with no outline, no vias and no part smaller than two cells; the cap itself is bit-identical in intent "
-                   "(a_eq is the same footprint radius). Not isolated to an item of the version by the reproduction pass of 2.6.0; reported as a possible defect.")
 def test_defaults_are_the_program():
     """!
     @brief With the switches of the program the patched module gives the temperature field of the program to the last bit, on three boards.
     @details The patched module is built on the text of v2.5.1 (no first-ring cap); 2.6.0 adopted the cap (fix/lumped-first-ring, one equivalent radius of the footprint,
-             `FIRST_A` = 1.0 here), so the program is reproduced with the cap on, and the 2.5.x text without it differs by the cap item (1e-4 K on the 60 x 40 mm board).
+             `FIRST_A` = 1.0 here), so the program is reproduced with the cap on; the patched text also passes cut_cells=False as the program does (measured max |dT| = 0 on the three boards).
     @return None.
     """
     LL.configure("strip", 0.04, 1.5, 1.0)

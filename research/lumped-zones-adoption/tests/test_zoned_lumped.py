@@ -387,20 +387,24 @@ def test_shen_equations_and_the_unit_cell_solver():
     from pcbthermal import SolverOptions, simulate
     zref.pc.load_libraries()
     prob = sc.program_problem()
-    t = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
+    from pcbthermal import analysis
+    r = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"]
+    # like with like: the reference is the MEAN top temperature of the cell over 144, so the program's mean of the heater, not t_max (the hottest point sits in the via-free rim)
+    t = analysis.heater_stats(r, prob)[0]["t_mean"] - prob.board.ambient
     ref = sc.unit_cell(**dict(nr_out=96, nz_gap=28, nz_cu=8, nr_barrel=10, nr_hole=10)) / 144
-    # 2.6.0 (fix/via-barrel-and-rim-uncoupling) lengthens the barrel by half the copper thickness: 1.4728 K -> 1.5777 K here, so the program reads +8.0 % above this resolved
-    # axisymmetric reference (it was +0.8 %). The shift is explained by that item and measured here, not hidden: the item rests on research/via-contact-geometry
-    # (a 3D cell with the barrel through the copper), which this case does not reproduce; reported to the maintainer as a flagged difference.
-    assert t == pytest.approx(ref, rel=0.09)
+    # 2.6.0 (fix/via-barrel-and-rim-uncoupling) lengthens the barrel by half the copper thickness (a = 0.5): the mean reads 1.4395 K at 0.1 mm (1.4389 K at 0.05 mm), -1.5 % of
+    # this resolved reference; the old a = 0 reads 1.3364 K, -8.5 %. The earlier "+0.8 %" agreement was two errors cancelling: the barrel deficit (-8.5 %) against comparing
+    # t_max with the reference MEAN (about +9 %).
+    assert t == pytest.approx(ref, rel=0.03)
     from pcbthermal import viawell
     saved_fraction = viawell.BARREL_COPPER_FRACTION
-    viawell.BARREL_COPPER_FRACTION = 0.0                                       # the 2.5.x barrel (gap alone): the agreement the study was written with
+    viawell.BARREL_COPPER_FRACTION = 0.0                                       # the 2.5.x barrel (gap alone): -8.5 % of the reference
     try:
-        t0 = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
+        r0 = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"]
+        t0 = analysis.heater_stats(r0, prob)[0]["t_mean"] - prob.board.ambient
     finally:
         viawell.BARREL_COPPER_FRACTION = saved_fraction
-    assert t0 == pytest.approx(ref, rel=0.03)
+    assert t0 == pytest.approx(ref * (1 - 0.085), rel=0.01)
     assert t > t0                                                              # the longer barrel can only add resistance
 
 

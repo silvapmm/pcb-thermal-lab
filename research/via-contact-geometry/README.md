@@ -174,6 +174,10 @@ Read in `cee6de4c` (`via-star-coupling` README 5 and the commit message): the no
 * 2.1: 'moves under 0.5 % when refined' holds for the test case only; -0.8 % on the Shen stack.
 * 3.4 and the verdict called the 3D solid of the old comparison not converged, true; the 3D solid of 3.3 is not converged either for the quarter (7.2 (a)), which the README now says.
 
+### 7.5b Checked in the reproduction pass (Shen cell, program mean against the resolved cell)
+
+Comparing like with like (the program's heater mean `t_mean`, not `t_max`, against the mean top temperature of the resolved Shen cell over 144, 1.4611 K): a = 0 reads 1.3364 K at 0.1 mm and 1.3358 K at 0.05 mm (-8.5 %), a = 0.5 reads 1.4395 K and 1.4389 K (-1.5 %). Shen cell 210.40 K/W: a = 0 -8.9 %, a = 0.5 -1.9 %. A Cartesian 3D cell (plating resolved, dielectric isotropic 0.29 W/mK): planes whole 208.10 K/W, inner planes drilled 210.38 K/W; program a = 0 -7.9 / -8.9 %, a = 0.5 -0.8 / -1.9 %. Sweep of pitch 0.45 to 3 mm and copper 18 / 35 / 70 um: a = 0.5 within -2.1 to +0.15 %; the a that zeroes the error lies between 0.44 and 0.84; no density term is needed. The earlier +0.8 % agreement of the 2.5.x barrel was two errors cancelling (barrel deficit -8.5 %, max against mean about +9 %).
+
 ### 7.6 Not verified
 
 The contact cases against an independent reference (only the program's 3D solid; a resolved Cartesian cell of a 10 mm board does not fit in memory); the barrel rule on the 720 boards against the 3D cell (15 + 5 cases); pitches of 1 mm in the 3D cell; vias with antipads; imported boards; any measurement. The `published-cases-followup` A22 entry ('checked by a Cartesian 3D cell to 0.5 %') was read from its branch and not re-run.

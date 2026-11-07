@@ -19,23 +19,23 @@ environment of `pcb-library/scripts/link_env.sh` (load average 3.3 to 4.3, peak 
 | red before: stale copy of program code | 8 |
 | red before: number moved by an item of 2.6.0 (explained, test restated) | 8 |
 | red before: needing PCBT_REAL_BOARDS (skipped) | 0 (the variable was set; one test of memory-guard raised without it, now skips) |
-| green after the repairs | 45 (one strict xfail, section 3) |
-| unexplained shifts | 1 (Lumped, section 3) |
-| flagged for the maintainer (explained, but a result to look at) | 1 (via barrel against the resolved Shen cell, section 3) |
+| green after the repairs | 45 |
+| unexplained shifts | 0 |
 | not run | the studies and figure scripts (section 4) |
 
 (Some folders belong to two causes; each row of section 5 gives the cause of each failing test.)
 
 ## 3. For the maintainer
 
-* **Unexplained shift (strict xfail kept visible).** `research/lumped-ring-uniform-deficit/tests/test_lumped_log.py::test_defaults_are_the_program`: the Lumped model patched
-  from the v2.5.1 text plus the first-ring cap differs from the live 2.6.0 Lumped by 1.1e-4 K (60 x 40 mm, 2 layers), 1.5e-5 K (100 x 80 mm, 4 layers) and 1.2e-2 K (30 x 20 mm,
-  1 layer) on boards with no outline, no vias and no part under two cells. The cap, the near-edge refinement and the barrel do not act on these boards; the cause was not isolated
-  to an item of the version. Possible defect or a rounding-level change of the exact board cover; to be isolated by bisecting the integration merges.
-* **Explained, but the program moves away from an independent reference.** The 2.6.0 via barrel (`viawell.barrel_length`, half the copper thickness added to the gap) moves the FVM
-  at 0.1 mm on the 12 x 12 via array of `research/lumped-zones-adoption` from 1.4728 K (reference of the resolved axisymmetric cell 1.4611 K, +0.8 %) to 1.5777 K (+8.0 %). In the other
-  published case (`research/published-cases-followup`, Shen unit cell) the same item moves the program from -7.46 % to -0.30 % of its reference. The two cases pull in
-  opposite directions; the barrel fraction rests on `research/via-contact-geometry` only.
+* **Lumped patch against the live Lumped (repaired).** The patched v2.5.1 text of `research/lumped-ring-uniform-deficit` lacked the argument `cut_cells=False` that the program passes to
+  both `Network(...)` calls since `fix/cut-cell-aperture-film`, so it got the cut-cell edge film on rectangles (1.1e-4, 1.5e-5 and 1.2e-2 K on the three boards). With the argument added
+  (`lib/lumped_log.py`, `lib/patch_program.py`) the max |dT| is 0.000 on the three boards and `test_defaults_are_the_program` is a normal test. No defect of the program.
+* **Shen 12 x 12 array (explained, no longer flagged).** The '+8.0 %' compared the program's `t_max` (the hottest point, in the via-free rim and corners of the 5.6 mm board) with the
+  reference's MEAN top temperature over 144 (1.4611 K). Like for like (`analysis.heater_stats(...)[0]['t_mean']`): a = 0 (2.5.x) 1.3364 K / 1.3358 K (0.1 / 0.05 mm) = -8.5 %; a = 0.5 (2.6.0)
+  1.4395 K / 1.4389 K = -1.5 %. The old +0.8 % agreement was two errors cancelling (barrel deficit -8.5 % against the max/mean mismatch of about +9 %). Unit-cell result: Shen cell
+  210.40 K/W, a = 0 -8.9 %, a = 0.5 -1.9 %; the reviewer's Cartesian 3D cell (plating resolved, isotropic 0.29 W/mK): planes whole 208.10, inner planes drilled 210.38 K/W, program
+  a = 0 -7.9 / -8.9 %, a = 0.5 -0.8 / -1.9 %; sweep of pitch 0.45 to 3 mm and 18 / 35 / 70 um: a = 0.5 within -2.1 to +0.15 %, the a that zeroes the error 0.44 to 0.84; no density term needed.
+  The two published cases pull in the same direction.
 * Several research libraries copy program code. They now either read the program (`viawell.barrel_length`) or a frozen copy: `lib/analytic_v251.py` (v2.5.1 `analytic.py`,
   in `lumped-analytic-vias` and `analytic-2-6`), `git show v2.5.1:` for `solid3d.py` (rotated-square-3d) and `lumped.py` (lumped-ring-uniform-deficit).
 

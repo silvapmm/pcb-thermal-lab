@@ -85,5 +85,7 @@ def load_patched():
     mod.__file__ = orig.__file__
     sys.modules[name] = mod
     text = subprocess.run(["git", "-C", str(ROOT), "show", "v2.5.1:pcbthermal/lumped.py"], check=True, capture_output=True, text=True).stdout       # (2.6.0 has the cap built in)
+    # the live Network has the cut-cell edge film (fix/cut-cell-aperture-film) that the program's Lumped switches off; the v2.5.1 text has no such argument
+    text = text.replace("ladder=False)", "ladder=False, cut_cells=False)")
     exec(compile(patch_text(text), "lumped_capped", "exec"), mod.__dict__)
     return mod
