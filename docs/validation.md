@@ -1528,7 +1528,7 @@ The 62 via boards of the earlier Lumped studies (with and without vias), the exa
 * **Not smooth in the cap**: half an equivalent radius more or less moves a small part by up to 12 points; the value 1 was chosen for zero effect on the existing boards, not tuned.
 * **The 1 mm Lumped cell** (the API gives it for a user cell of 1 mm or more): a 1 mm part improves only from -20..-27 % to -15..-17 %; the raster is the limit there.
 * **A part smaller than about an eighth of a cell** is missed by the 4 x 4 coverage samples and put in the cell of its centroid (`lumped._footprint_coverage`), while the FVM spreads it over the cells it straddles: a 0.1 mm part across a cell corner of a 200 x 150 mm board reads +27.0 % against the FVM (it read -20.1 %); the same part inside one cell -40.2 % to -5.0 %. The disagreement is that of the footprints, older than the cap, which only makes it visible.
-* **A source near a board edge or corner** stays 4 to 15 % cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %).
+* **A source near a board edge or corner** stays cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %): 4 to 15 % in this investigation, up to 22 % at a corner on the sweep of section 35, which the live check warns.
 * **Equivalent rectangle of a board with an outline**: unchanged, 10 to 19 % cool next to the outline on oswlight (section 13).
 * **Not studied**: several heaters at once with a metal block or a heatsink, and the zonal network with a part just larger than a core.
 
@@ -1652,7 +1652,7 @@ At 200 the turned or shifted outlines are -0.7 to -1.2 K and the board aligned w
 
 ## 34. The via barrel length and the contact of the barrel with the plane
 
-Evidence: `research/via-contact-geometry` (README 2.2, 3.3, 4, 7.1 to 7.3), adopted on `fix/via-barrel-and-rim-uncoupling`. The section number 34 is the next free one after the numbers of the integration branch (31 to 33); this branch was cut from `develop`, where the last section is 30. Tests: `tests/test_via_barrel_and_rim.py`.
+Evidence: `research/via-contact-geometry` (README 2.2, 3.3, 4, 7.1 to 7.3), adopted on `fix/via-barrel-and-rim-uncoupling`. Tests: `tests/test_via_barrel_and_rim.py`.
 
 ### 34.1 The barrel length: `d + 0.5 t_cu`
 
@@ -1716,7 +1716,7 @@ The barrel rule on the 720 boards against the 3D cell (15 + 5 cases only), with 
 
 ## 35. The Lumped model near a side or a corner, and for a part smaller than its cell
 
-Section number 35 on purpose (36 is reserved for the laminate edge band, whose branch comes later; 31 to 34 are in this tree now). **After the integration**: the first-ring cap of section 31 (`fix/lumped-first-ring`) is in this tree, so the rows named `develop` below, measured without it, are history: the cap changes them, and the live values are those of the main columns. Evidence: `research/lumped-near-edge` (README 3, 6 and 10, reviewed; the studies ran on a tree with the capped first ring, which `develop` does not have, so the levels below were re-measured on this program where the text says so).
+**After the integration**: the first-ring cap of section 31 (`fix/lumped-first-ring`) is in this tree, so the rows named `develop` below, measured without it, are history: the cap changes them, and the live values are those of the main columns. Evidence: `research/lumped-near-edge` (README 3, 6 and 10, reviewed; the studies ran on a tree with the capped first ring, which `develop` does not have, so the levels below were re-measured on this program where the text says so).
 
 ### 35.1 How much too cool a part near an edge reads (study data, 180 cases)
 
@@ -1789,7 +1789,7 @@ The image-potential links of the study (a correction of the Lumped near a side) 
 
 ## 36. The laminate band along the board edge (FVM and FDM)
 
-*Section number 36 on purpose: 34 belongs to the via branch and 35 to the Lumped branch of the same release; this tree ends at 33.* Evidence: `research/laminate-edge-band` (README 11 Review, reference `lib/graded3d.py`, an independent 3D finite-volume solver on a graded mesh converged to 0.03 K). Tests: `tests/test_laminate_edge_band.py`. Boards: 30 x 20 mm, two layers of 35 um, a 10 mm, 2 W part in the corner or at the centre, faces 10 W/m2K, ambient 25 degC.
+Evidence: `research/laminate-edge-band` (README 11 Review, reference `lib/graded3d.py`, an independent 3D finite-volume solver on a graded mesh converged to 0.03 K). Tests: `tests/test_laminate_edge_band.py`. Boards: 30 x 20 mm, two layers of 35 um, a 10 mm, 2 W part in the corner or at the centre, faces 10 W/m2K, ambient 25 degC.
 
 ### 36.1 Error of the hottest rise against the converged 3D reference (cell 1 / 0.5 / 0.25 mm)
 
