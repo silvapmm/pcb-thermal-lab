@@ -1422,52 +1422,108 @@ class ImportSession:
         return item["function"] if item["function"] in UNIQUE else f"{item['function']}: {(item['new'] or item['old']).name}"
 
     @staticmethod
-    def _same_core(old_box, new_box, old_files, new_files, tol: float = 0.05) -> tuple:
+    def _parts_in_place(old_parts, new_parts, old_box, new_box, tol_mm: float = 1.0) -> tuple:
+        """!
+        @brief How many parts of a stored import sit, under the same designator, where a part of the new files sits: the strongest sign of a revision of the same board.
+        @details The centre of the polygon of each part with a polygon is compared in the Gerber frame of the files and also after the change of the board box (a revision may move
+                 the origin of the export); the better of the two counts is taken.
+        @param old_parts Stored ImportPart list.
+        @param new_parts ImportPart list of the new files.
+        @param old_box Stored box [x0, y0, x1, y1] in mm (or empty).
+        @param new_box Box of the new files in mm (or empty).
+        @param tol_mm Largest distance in mm between the two centres of a part that still counts as the same place.
+        @return tuple (designators in both with a polygon, of them at the same place).
+        """
+        def centres(parts):
+            """!
+            @brief Centre of the bounding box of the polygon of every part that has one (the box of the hull and of the pads is the same, so a shape the user changed
+                   between hull, box and pads moves it little).
+            @param parts ImportPart list.
+            @return dict designator -> (x, y) in mm.
+            """
+            out = {}
+            for p in parts:
+                if p.polygon_mm and not p.from_file.get("orphan"):
+                    a = np.asarray(p.polygon_mm, float)
+                    out[p.designator] = (a.min(axis=0) + a.max(axis=0)) / 2
+            return out
+        co, cn = centres(old_parts), centres(new_parts)
+        common = sorted(set(co) & set(cn))
+        if not common:
+            return 0, 0
+        shifts = [np.zeros(2)]
+        if len(old_box) == 4 and len(new_box) == 4:
+            shifts.append(np.array([new_box[0] - old_box[0], new_box[1] - old_box[1]], float))
+        best = max(sum(1 for d in common if np.hypot(*(cn[d] - co[d] - s)) <= tol_mm) for s in shifts)
+        return len(common), best
+
+    @staticmethod
+    def _same_core(old_box, new_box, old_files, new_files, tol: float = 0.05, old_parts=(), new_parts=()) -> tuple:
         """!
         @brief The rule that tells a revision of the same board from another board.
-        @details The board is DIFFERENT when any one of three things holds: the width or the height of the outline box differs by more than `tol` of the stored one; none of the new
-                 files is byte-identical to a stored one; no file name is shared. A revision of a layout normally keeps names or contents of some files and the size of the board.
+        @details When at least three designators with a heat-source polygon are in both sets, the parts decide: the board is the SAME when at least half of them sit at the same place
+                 (within 1 mm), whatever the files and the outline say, and DIFFERENT otherwise. Without that evidence the board is DIFFERENT when the width or the height of the
+                 outline box differs by more than `tol` of the stored one, or when no new file shares its content or its base name with a stored one (names compared without the
+                 folders of an archive and without case). Review: the first rule called a board different when no file was byte-identical, but every
+                 CAD export stamps the date in the files, so a plain re-export with one moved part (the placement file changes too) dropped the powers of the revision; a set renamed
+                 or re-zipped into a folder was taken for another board in the same way. Parts at the same place (three or more, at least half) make it the same board whatever
+                 the files are called.
         @param old_box Stored box [x0, y0, x1, y1] in mm (or empty).
         @param new_box Box of the new files in mm (or empty).
         @param old_files Stored ImportFile list.
         @param new_files New ImportFile list.
         @param tol Relative difference of width or height accepted.
+        @param old_parts Stored ImportPart list (empty: the parts are not used).
+        @param new_parts ImportPart list of the new files (empty: the parts are not used).
         @return tuple (same bool, reasons list of str).
         """
         reasons = []
+        n_common, n_place = ImportSession._parts_in_place(old_parts, new_parts, old_box, new_box)
+        in_place = n_common >= 3 and 2 * n_place >= n_common
+        if in_place:
+            return True, []                                    # the same parts at the same places: a revision (a grown outline, renamed or re-exported files)
         if len(old_box) == 4 and len(new_box) == 4:
             ow, oh = old_box[2] - old_box[0], old_box[3] - old_box[1]
             nw, nh = new_box[2] - new_box[0], new_box[3] - new_box[1]
             if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
                 reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
-        if old_files and new_files and not ({f.sha256 for f in old_files} & {f.sha256 for f in new_files}):
-            reasons.append("none of the files is byte-identical to a stored one")
-        if not ({f.name for f in old_files} & {f.name for f in new_files}):
-            reasons.append("no file name in common")
+        def base(name):
+            """!
+            @brief File name without the folders of an archive, in lower case.
+            @param name Stored file name.
+            @return str
+            """
+            return name.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        shared_content = bool({f.sha256 for f in old_files} & {f.sha256 for f in new_files})
+        shared_name = bool({base(f.name) for f in old_files} & {base(f.name) for f in new_files})
+        if old_files and new_files and not shared_content and not shared_name:
+            reasons.append("no file shares its name or its content with a stored one")
+        if n_common >= 3:
+            reasons.append(f"of the {n_common} parts with a stored designator only {n_place} sit at the same place")
         return not reasons, reasons
 
     @staticmethod
     def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
         """!
-        @brief Decide whether new files look like the same board as a stored import (outline box within 5 %, a shared file name or hash; see `_same_core`).
+        @brief Decide whether new files look like the same board as a stored import (see `_same_core`: the outline box, the files by name or content, the parts by place).
         @param old Stored import.
         @param new Record of the new files.
         @param tol Relative difference of width or height accepted.
         @return tuple (same bool, reasons list of str).
         """
-        return ImportSession._same_core(list(old.box_mm), list(new.box_mm), old.files, new.files, tol)
+        return ImportSession._same_core(list(old.box_mm), list(new.box_mm), old.files, new.files, tol, old.parts, new.parts)
 
     def looks_different(self, stored: ImportRecord) -> bool:
         """!
-        @brief The same test as `same_board`, made before the import is built (from the files in use and the box of the board read by `load`), so that step 2 can leave the stored
-               parts out for another board.
+        @brief The same test as `same_board`, made before the import is built (from the files in use, the box of the board read by `load` and the parts of step 2), so that step 2
+               can leave the stored parts out for another board.
         @param stored The stored ImportRecord.
         @return bool True when the files look like another board; False when they look like a revision or nothing can be told yet.
         """
         b = self.board()
         if b is None or not self.files:
             return False
-        return not self._same_core(list(stored.box_mm), list(b.box), stored.files, self.import_files())[0]
+        return not self._same_core(list(stored.box_mm), list(b.box), stored.files, self.import_files(), 0.05, stored.parts, self.parts())[0]
 
     def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None, carry: bool = True) -> dict:
         """!

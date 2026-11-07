@@ -488,9 +488,12 @@ def main_views(out_dir, board_dir):
     old.box_mm = [0.0, 0.0, 2 * (old.box_mm[2] - old.box_mm[0]), 1.5 * (old.box_mm[3] - old.box_mm[1])]
     for i, f in enumerate(old.files):
         f.name, f.sha256 = f"other_{i}.gbr", f"{i:064x}"
+    # The parts of another board sit elsewhere (the same parts at the same places make the files a revision of the same board)
+    for p in old.parts:
+        p.polygon_mm = [[x + 20.0, y + 15.0] for x, y in p.polygon_mm]
     w1.session.build_problem()
     rd = ReimportDialog(w1.session, old, w1)
-    rd.resize(900, 620)
+    rd.resize(900, 700)
     rd.show()
     save(rd, "import_reimport_different.png")
     rd.close()

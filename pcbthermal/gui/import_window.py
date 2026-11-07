@@ -1514,6 +1514,14 @@ class ReimportDialog(QDialog):
                  "add": ("Add files to the existing import", "A placement file, an extra paste layer or a component layer: their new parts are added and the stored parts keep everything. "
                          "The stored copper, outline and vias are not touched, so a copper, outline or drill file is not taken here: use Replace or Update for it. "
                          "Files that claim a function the import already has are shown to choose.")}
+        if not same:
+            # Review: the description said that parts with the same designator keep their power, which is false when no part is carried over to another board
+            texts["replace"] = ("Replace the previous import", "Copper, drills, outline and parts come from the new files. On another board no part of the stored import is carried over "
+                                "(no powers, no orphans) unless you tick the box below; the heaters, zones, heatsinks and vias you drew stay, and so does the stack-up when the layer "
+                                "count is the same.")
+            texts["update"] = ("Update after a layout revision", "Like replace. On another board there is no table of moved or removed parts, because a designator of the stored "
+                               "board names an unrelated part here; tick the box below if these files are in fact a revision of the same board.")
+        self.descs = {}
         for key, (t, tip) in texts.items():
             r = QRadioButton(t)
             r.setToolTip(tip)
@@ -1526,7 +1534,15 @@ class ReimportDialog(QDialog):
             th.hint(d)
             d.setContentsMargins(22, 0, 0, 0)
             lay.addWidget(d)
+            self.descs[key] = d
         self.different = not same
+        # The rule can be wrong (a revision whose files were all renamed and whose parts moved): the user can still carry the parts over by designator
+        self.carry_box = QCheckBox("Carry the parts of the stored import over by designator (these files are a revision of the same board)")
+        self.carry_box.setToolTip("Ticked: Replace and Update match the parts by designator as for a revision (powers, Tj max, roles and edits kept, parts that left the files become "
+                                  "orphans). Leave it unticked when the files are another board: a designator of the stored board then names an unrelated part.")
+        self.carry_box.toggled.connect(self._mode)
+        self.carry_box.setVisible(False)
+        lay.addWidget(self.carry_box)
         # A different board: the new project is preselected; the replace commands stay available (hand-drawn elements are kept, no part is carried over)
         self.radios["new" if self.different else ("update" if any(d["change"] != "kept" for d in self.diff) else "replace")].setChecked(True)
         self.table = QTableWidget(0, 4)
@@ -1537,7 +1553,9 @@ class ReimportDialog(QDialog):
         self.note.setWordWrap(True)
         th.hint(self.note)
         lay.addWidget(self.note)
-        foot = QLabel("The result is one undo step. What you changed in the editor after the import (powers and other part fields, heaters, zones, heatsinks and vias you drew, via fills, "
+        foot = QLabel(("The result is one undo step. On another board only what you drew by hand is kept (heaters, zones, heatsinks and vias, via fills, the stack-up when the "
+                       "layer count is the same), unless you carry the parts over; the status bar says what. Results of earlier runs stay in the project and are marked outdated; "
+                       "run again after the import.") if not same else "The result is one undo step. What you changed in the editor after the import (powers and other part fields, heaters, zones, heatsinks and vias you drew, via fills, "
                       "the stack-up when the layer count is the same) is kept, and the status bar says what. Results of earlier runs stay in the project and are marked outdated; "
                       "run again after the import.")
         foot.setWordWrap(True)
@@ -1549,7 +1567,6 @@ class ReimportDialog(QDialog):
         if self.different:
             # A different board: Enter must not replace the import or discard the project, so Cancel is the default (it protects the open work) and Continue, a plain button, is one click away.
             # On a revision of the same board Continue is the primary action
-            
             self.go.setDefault(False)
             self.go.setAutoDefault(False)
             cancel = bb.button(QDialogButtonBox.Cancel)
@@ -1561,6 +1578,14 @@ class ReimportDialog(QDialog):
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
         self._mode()
+
+    @property
+    def carry(self):
+        """!
+        @brief Whether Replace and Update match the stored parts by designator: always on the same board, on another board only when the user ticks the box.
+        @return bool
+        """
+        return not self.different or self.carry_box.isChecked()
 
     @property
     def mode(self):
@@ -1584,6 +1609,9 @@ class ReimportDialog(QDialog):
         t.setVisible(True)
         mode = self.mode
         self.combos, self.checks = {}, {}
+        self.carry_box.setVisible(self.different and mode in ("replace", "update"))
+        self.go.setToolTip("Open the files as a new project (you are asked to save the open one first)." if mode == "new"
+                           else "Apply the chosen command to the project as one undo step.")
         if mode == "add":
             t.setHorizontalHeaderLabels(["Function", "Stored import", "New file", "Choose"])
             rows = [s for s in self.sources if s["status"] != "only stored"]
@@ -1624,7 +1652,7 @@ class ReimportDialog(QDialog):
             self.go.setEnabled(True)
             t.setHorizontalHeaderLabels(["Part", "Change", "Detail", "Kept from the stored import" if mode != "replace" else "Action"])
             rows = [d for d in self.diff if d["change"] != "kept"] if mode == "update" else [d for d in self.diff if d["change"] == "removed"]
-            if self.different:
+            if not self.carry:
                 rows = []                                       # nothing is matched by designator on another board: no list of removals, no orphans
             t.setRowCount(len(rows))
             oldp = {p.designator: p for p in self.old.parts}
@@ -1646,7 +1674,7 @@ class ReimportDialog(QDialog):
             counts = {k: sum(1 for d in self.diff if d["change"] == k) for k in ("new", "removed")}
             moved = sum(1 for d in self.diff if "moved" in d["change"])
             resized = sum(1 for d in self.diff if "resized" in d["change"])
-            if self.different:
+            if not self.carry:
                 self.note.setText("Another board: no part of the stored import is carried over (no powers, no orphans); the parts come from the new files. "
                                   "Heaters, zones, heatsinks and vias you drew by hand stay where they are, check that they fall on the new board.")
             else:
@@ -2131,7 +2159,7 @@ class ImportBoardWindow(QDialog):
                 self.problem = prob
                 self.accept()
                 return True
-            self.carry_parts = not dlg.different
+            self.carry_parts = dlg.carry                          # the user can carry the parts over when the rule took a revision for another board
             res = sx.merge_import(dlg.mode, self.existing, dlg.remove_refs(), dlg.file_choice(), carry=self.carry_parts)
             self.mode, self.changes, self.record, self.typed = dlg.mode, res["changes"], res["record"], set(res.get("typed", ()))
             if dlg.mode != "add":
