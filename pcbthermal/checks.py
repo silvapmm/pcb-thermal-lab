@@ -289,7 +289,8 @@ def _check_input(problem, models, cell_mm, live=False):
             return [_outline_warning(f"The board outline has {len(b.outline)} edges that cross about {crossings / 1e6:.0f} million grid lines at this cell, more than the "
                                      f"{OUTLINE_MAX_CROSSINGS // 1_000_000} million the grid models accept, so the run would be refused. Simplify the outline (fewer or shorter edges) "
                                      "or use a coarser cell.")]
-    return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+    return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_lumped_near_edge(problem, models)
+            + check_lumped_small_part(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models))
 
 
@@ -449,6 +450,187 @@ def check_lumped_zones(problem, result):
         if rows[k, 1] < 10:
             _add(out, "heater", k, f"{name}: the core of the vias is {int(rows[k, 1])} raster cells across, coarser than a tenth of the core: the via effect of this part "
                                    "can be 20 % too small (the part too hot); use the FVM for via design.")
+    return out
+
+
+# Rule of the Lumped near-edge warning (research/lumped-near-edge 6.2 and 10.5): a heat source whose gap to the nearest board side is at most
+# max(NEAR_EDGE_SIDES equivalent sides, NEAR_EDGE_FLOOR_MM) is flagged (57 of 58 bad cases on the sweep, 35 of 37 on random boards)
+NEAR_EDGE_SIDES = 1.0
+NEAR_EDGE_FLOOR_MM = 5.0
+NEAR_EDGE_TOLERANCE_M = 1e-9      # Slack on the threshold: a gap of exactly 5 mm typed in mm is 0.005000000000000001 m
+
+
+def _segments_distance(a0, a1, b0, b1):
+    """!
+    @brief Smallest distance between every segment a and every segment b (zero where they cross or touch).
+    @param a0 Start points of the segments a, array (n, 2) in m.
+    @param a1 End points of the segments a, array (n, 2) in m.
+    @param b0 Start points of the segments b, array (m, 2) in m.
+    @param b1 End points of the segments b, array (m, 2) in m.
+    @return float smallest distance in m.
+    """
+    def point_segment(p, s0, s1):
+        # p (n, 2) against s0, s1 (m, 2): distances (n, m)
+        d = s1 - s0
+        den = np.maximum((d * d).sum(axis=1), 1e-300)
+        t = np.clip(((p[:, None, :] - s0[None]) * d[None]).sum(axis=2) / den[None], 0.0, 1.0)
+        q = s0[None] + t[..., None] * d[None]
+        return np.hypot(*(p[:, None, :] - q).transpose(2, 0, 1))
+
+    def orient(p, q, r):
+        return (q[..., 0] - p[..., 0]) * (r[..., 1] - p[..., 1]) - (q[..., 1] - p[..., 1]) * (r[..., 0] - p[..., 0])
+
+    # A proper crossing has the endpoints of each segment on opposite sides of the other
+    A0, A1, B0, B1 = a0[:, None, :], a1[:, None, :], b0[None], b1[None]
+    cross = (orient(A0, A1, B0) * orient(A0, A1, B1) < 0.0) & (orient(B0, B1, A0) * orient(B0, B1, A1) < 0.0)
+    if bool(cross.any()):
+        return 0.0
+    return float(min(point_segment(a0, b0, b1).min(), point_segment(a1, b0, b1).min(),
+                     point_segment(b0, a0, a1).min(), point_segment(b1, a0, a1).min()))
+
+
+def heater_side_gaps(problem, polygons, reaches=None):
+    """!
+    @brief Equivalent side of every heat source and its exact gap to the nearest side of the board, for many sources at once.
+    @details Rectangular board: the distance from the polygon to the four sides of the box (zero when it reaches or crosses one). Board with an outline: the distance from the
+             polygon to the outline (zero when the polygon crosses it or lies outside it), not to the equivalent rectangle the Lumped solves. The inside test of every vertex is
+             one call for all the polygons (it loops over the outline edges in Python, so a call per part cost seconds on an outline of thousands of points), and with a reach
+             only the outline segments whose box comes within the reach of the polygon's box are measured: a gap beyond the reach is returned as infinity.
+    @param problem A Problem.
+    @param polygons Sequence of footprint polygons, each a sequence of (x, y) in m.
+    @param reaches None (exact gaps), or one distance per polygon in m beyond which the exact gap is not needed.
+    @return list of tuples (side, gap) in m; side is the square root of the polygon area.
+    """
+    polys = [np.asarray(p, dtype=float) for p in polygons]
+    sides = [math.sqrt(max(polygon_area(p), 0.0)) for p in polys]
+    b = problem.board
+    if not b.has_outline():
+        out = []
+        for p, side in zip(polys, sides):
+            x0, y0 = p.min(axis=0)
+            x1, y1 = p.max(axis=0)
+            out.append((side, max(0.0, min(x0, b.width - x1, y0, b.height - y1))))
+        return out
+    if not polys:
+        return []
+    o0 = np.asarray(b.outline, dtype=float)
+    o1 = np.roll(o0, -1, axis=0)
+    lo, hi = np.minimum(o0, o1), np.maximum(o0, o1)              # Box of every outline segment
+    allv = np.concatenate(polys)
+    inside = points_in_polygon(allv[:, 0], allv[:, 1], o0)
+    ends = np.cumsum([len(p) for p in polys])
+    res = []
+    for k, (p, side) in enumerate(zip(polys, sides)):
+        if not bool(np.all(inside[ends[k] - len(p):ends[k]])):
+            res.append((side, 0.0))
+            continue
+        r = math.inf if reaches is None else float(reaches[k])
+        # A segment within r of the polygon has a point in the polygon's box grown by r, so its own box overlaps that grown box
+        sel = np.all(hi >= p.min(axis=0) - r, axis=1) & np.all(lo <= p.max(axis=0) + r, axis=1)
+        if not bool(sel.any()):
+            res.append((side, math.inf))
+            continue
+        res.append((side, _segments_distance(p, np.roll(p, -1, axis=0), o0[sel], o1[sel])))
+    return res
+
+
+def heater_side_gap(problem, polygon):
+    """!
+    @brief Equivalent side of a heat source and its exact gap to the nearest side of the board (see heater_side_gaps).
+    @param problem A Problem.
+    @param polygon Footprint polygon, sequence of (x, y) in m.
+    @return tuple (side, gap) in m; side is the square root of the polygon area.
+    """
+    return heater_side_gaps(problem, [polygon])[0]
+
+
+def check_lumped_near_edge(problem, models):
+    """!
+    @brief Warning, for the Lumped model only, about heat sources close to a side or a corner of the board (one aggregated line).
+    @details The ring network of a part sees neither the mirror image of an insulated side nor the radial flux that the side pushes away, so the hottest temperature of a part near
+             a side or a corner reads too cool: -6.6 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
+             40 x 40 and 100 x 80 mm) against the FVM at 0.5 mm, -8.2 % on average over the 120 of them that the rule flags (-3.3 % over the other 60), and -8.3 % over the 59
+             flagged of 120 random boards (-3.6 % over the other 61). These were measured with the capped first ring of the 2.6.0 integration; on develop at 2.5.2
+             (without it) the same cases read -9.4 % (sweep, flagged) and -8.5 % (random, flagged), and the rule catches 68 of the 86 sweep cases beyond -8 % (16 of the 18 missed
+             are a 2 mm part on the 100 x 80 mm board 10 to 30 mm from a side, the other two a 5 mm part 10 mm from a corner: the small-part deficit of the rings, not the side) and 34 of 38 random ones. The text
+             quotes the flagged means of both trees (8 to 9.5 %), since those are the parts it is shown for. A source is flagged when its gap to the nearest side is at most
+             max(its equivalent side, 5 mm); the rule catches 57 of the 58 cases more than 8 % too cool on the sweep and 35 of 37 on the random boards (research/lumped-near-edge 6.1).
+             Only geometry is used, so the warning is live. A board with an outline also gets the run's note about the equivalent rectangle (one line each).
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @return List with at most one warning (CheckWarning, tagged with the nearest flagged heater).
+    """
+    if "lumped" not in set(models):
+        return []
+    flagged = []
+    ks = [k for k, h in enumerate(problem.heaters) if h.power > 0.0 and polygon_area(h.polygon) > 0.0]
+    polys = [problem.heaters[k].polygon for k in ks]
+    # The threshold of each part, passed as the reach so that only the outline segments near the part are measured
+    limits = [max(NEAR_EDGE_SIDES * math.sqrt(polygon_area(p)), NEAR_EDGE_FLOOR_MM * 1e-3) + NEAR_EDGE_TOLERANCE_M for p in polys]
+    for k, lim, (side, gap) in zip(ks, limits, heater_side_gaps(problem, polys, limits)):
+        if gap <= lim:
+            h = problem.heaters[k]
+            flagged.append((gap, k, h.name or f"Heater {k + 1}"))
+    if not flagged:
+        return []
+    flagged.sort()
+    gap, k, name = flagged[0]
+    why = ("the Lumped model reads a part near a side or a corner of the board too cool, because its rings around the part do not see the side that sends the heat back: "
+           "on test boards the hottest temperature of a part this close to a side read 8 to 9.5 % of the rise too cool on average (120 cases of a sweep and 59 parts of "
+           "120 random boards) and up to 22 % at a corner; a sample, not a bound; use the FVM or the FDM.")
+    if len(flagged) == 1:
+        out = []
+        _add(out, "heater", k, f"{name}: the part is {gap * 1e3:.1f} mm from a side of the board; {why}",
+             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner); use the FVM.")
+        return out
+    names = ", ".join(n for _, _, n in flagged[:3]) + (f" and {len(flagged) - 3} more" if len(flagged) > 3 else "")
+    out = []
+    _add(out, "heater", k, f"{len(flagged)} parts ({names}) are within one side of the part (and at least 5 mm) of a side of the board (the nearest, {name}, {gap * 1e3:.1f} mm); {why}",
+         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner); use the FVM.")
+    return out
+
+
+def check_lumped_small_part(problem, models, cell_mm=1.0):
+    """!
+    @brief Warning, for the Lumped model only, when a heat source is smaller than two cells of its raster and the run cannot refine the raster (memory bound or a zoned part).
+    @details lumped.cell_for refines the raster to half the side of the smallest source (not below 0.125 mm) when that fits in lumped.SMALL_PART_MAX_BYTES and in the memory-guard
+             limit and no part of the board is zoned (a zoned board keeps the 0.5 mm raster of the zone model); otherwise the run keeps the 0.5 to 1 mm raster and this warning
+             says that such a part reads -19 to +6 % of the rise depending on where it sits in its cell. The equivalent rectangle and the zone test are built only when a source
+             is small enough to be refined (the heaters keep their size on the equivalent rectangle, so the smallest side is that of the problem).
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size requested in the options, in mm.
+    @return List with at most one warning.
+    """
+    if "lumped" not in set(models):
+        return []
+    clipped = min(max(cell_mm, 0.5), 1.0)
+    side = lumped._smallest_side_mm(problem)
+    if side is None or side >= lumped.SMALL_PART_CELLS * clipped or max(side / lumped.SMALL_PART_CELLS, lumped.SMALL_PART_MIN_CELL_MM) >= clipped:
+        return []                                                # No source the run would refine
+    # With an outline the Lumped solves the rectangle of the same area (the heaters keep their size, the box is smaller)
+    p = problem.equivalent_rectangle()[0] if problem.board.has_outline() else problem
+    zoned = None
+    if lumped.ZONES and len(p.vias) >= 2 and p.board.layers >= 2:
+        kept = p.drop_off_board_vias()
+        if len(kept.vias) >= 2:
+            vs = viaconstriction.ViaSet(kept)
+            # The same test as lumped.cell_for (every heater, as there), on the board the Lumped solves
+            zoned = next((h for h in kept.heaters if lumped.will_be_zoned(kept, h, vias=vs, prepared=True)), None)
+    head = ("a heat source is smaller than two cells of the Lumped raster; a part that small is spread over the whole cells it touches, so its hottest temperature "
+            "read -19 to +6 % of the rise off the resolved value depending on where it sits in its cell (sides of 0.1 to 0.5 mm at a 0.5 mm raster); ")
+    if zoned is not None:
+        if side >= lumped.SMALL_PART_CELLS * lumped.ZONE_CELL_MM:
+            return []                                            # Two cells of the zone raster or more: the part is not small there
+        why = (f"the finer raster that removes this (half the side of the part) is not used on this board, because {zoned.name or 'a part'} has a dense group of vias under "
+               "it and the zone model of the Lumped keeps the 0.5 mm raster; use the FVM for the small part.")
+    elif lumped.small_part_cell(p, clipped) is None:
+        why = ("the finer raster that removes this (half the side of the part) does not fit in the memory bound of this board, so the run keeps the coarser one; "
+               "use the FVM for the part.")
+    else:
+        return []                                                # The run refines the raster
+    out = []
+    _add(out, None, None, head + why, "a heat source is under two cells of the Lumped raster; it reads -19 to +6 % off; use the FVM.")
     return out
 
 

@@ -56,12 +56,12 @@ from scipy import ndimage
 from scipy.linalg import lu_factor, lu_solve
 from scipy.special import ive, k0
 
-from . import profiles, viaconstriction
+from . import memory, profiles, viaconstriction
 from .fvm import Network, board_time_constant
 
 RING_MIN_WIDTH = 1.0        # Minimum width of a ring in cells: thinner rings are merged (0 keeps the edges of the geometric series as they are)
 from . import blocks
-from .geometry import cell_index_of_point, coverage_fraction, polygon_centroid
+from .geometry import cell_index_of_point, coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
@@ -73,6 +73,10 @@ ZONES = True                        # False keeps every footprint as one node (a
 CORE_R = 0.7071                     # Radius of the core around a via in nearest-neighbour distances: 1 / sqrt(2) covers a square lattice (assumed, README 4.1)
 MAX_CORE = 0.92                     # Largest share of the footprint the core may cover before the footprint stays one node (assumed; with 94 to 99 % the zones read the part 6 to 14 % hot, README 9.7)
 FINE_MM = 0.1                       # Cell of the fine grid on which the share of the core is counted for the decision (mm): it does not depend on the user's raster
+SMALL_PART_CELLS = 2.0              # A heat source narrower than this many cells of the raster is refined (research/lumped-near-edge 10.4)
+SMALL_PART_MIN_CELL_MM = 0.125      # Finest raster of the refinement (mm): 0.0625 mm gained nothing more and costs four times the memory
+SMALL_PART_BYTES_PER_CELL = 1700.0  # Peak memory of the Lumped per raster cell on a 4-layer board (measured 0.97 GB at 512 000 cells; scaled by the layers above 4)
+SMALL_PART_MAX_BYTES = 1.0e9        # Largest estimated peak of a refined raster (bytes); the memory-guard limit of the machine can lower it, never raise it
 ZONE_CELL_MM = 0.5                  # Lumped raster of a board that has a zoned part (mm): the core must be a handful of cells across (README 4.3)
 MAX_ZONE_CELLS = 700                # Points kept per zone in the potential integrals (blocks of k x k cells above it)
 
@@ -838,11 +842,63 @@ def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None, prepared=Fal
     return 0.0 < share <= MAX_CORE
 
 
+def _smallest_side_mm(problem):
+    """!
+    @brief Equivalent side (square root of the area) of the smallest heat source with power, in mm.
+    @param problem A Problem.
+    @return float side in mm, or None when no source has power and an area.
+    """
+    sides = [math.sqrt(a) * 1e3 for h in problem.heaters if h.power > 0.0 and (a := polygon_area(h.polygon)) > 0.0]
+    return min(sides) if sides else None
+
+
+def small_part_cell(problem, clipped):
+    """!
+    @brief The finer Lumped raster for a heat source smaller than two cells, or None when the raster stays as it is.
+    @details A source narrower than the raster is spread over the whole cells it touches, so the hottest node depends on where the source sits in its cell: -19 to +6 % of the rise
+             at 0.5 mm for sides of 0.1 to 0.5 mm against the FVM at 0.0625 mm (the FVM at the same cell has the same spread, a grid effect). The raster of half the side of
+             the smallest source with power, not below SMALL_PART_MIN_CELL_MM, brings it to -0.8 to +1.6 % (15 cases). The raster is one per board, so one small part refines the
+             whole board. The Lumped has no memory guard of its own, so the refinement is refused (None) when its estimated peak, SMALL_PART_BYTES_PER_CELL per raster cell (scaled
+             by the layers above four), exceeds the smaller of SMALL_PART_MAX_BYTES and the memory-guard limit of the machine.
+    @param problem A Problem (the board the Lumped solves: for an outline, the equivalent rectangle).
+    @param clipped Raster of the run before the refinement, in mm.
+    @return float raster in mm, or None (no source under two cells, or the refinement does not fit in memory).
+    """
+    side = _smallest_side_mm(problem)
+    if side is None or side >= SMALL_PART_CELLS * clipped:
+        return None
+    cell = max(side / SMALL_PART_CELLS, SMALL_PART_MIN_CELL_MM)
+    if cell >= clipped:
+        return None                                              # The floor would not refine anything
+    b = problem.board
+    cells = (b.width * 1e3 / cell) * (b.height * 1e3 / cell)
+    peak = cells * SMALL_PART_BYTES_PER_CELL * max(b.layers, 4) / 4.0
+    if peak > min(SMALL_PART_MAX_BYTES, memory.limit_bytes()):
+        return None
+    return cell
+
+
+def small_part_refused(problem, cell_mm):
+    """!
+    @brief True when a heat source is smaller than two cells of the Lumped raster, the raster would be refined, and the finer raster does not fit in the memory bound
+           (the run keeps the raster and the live check says so).
+    @param problem A Problem (for an outline, the equivalent rectangle).
+    @param cell_mm Cell size requested in the options, in mm.
+    @return bool.
+    """
+    clipped = min(max(cell_mm, 0.5), 1.0)
+    side = _smallest_side_mm(problem)
+    if side is None or side >= SMALL_PART_CELLS * clipped or max(side / SMALL_PART_CELLS, SMALL_PART_MIN_CELL_MM) >= clipped:
+        return False
+    return small_part_cell(problem, clipped) is None
+
+
 def cell_for(problem, cell_mm):
     """!
     @brief The Lumped raster of a run: ZONE_CELL_MM when a heater will be zoned, else the requested cell clipped to 0.5 to 1.0 mm (the clip of every release up to 2.4.5).
     @details The raster is one per board, so one zoned part moves the whole board to 0.5 mm and the other parts' results move by the raster. A part that falls back to
-             one node keeps the clip: a part without vias or with one via per footprint loses nothing at 1.0 mm, and the example board stays bit-identical.
+             one node keeps the clip: a part without vias or with one via per footprint loses nothing at 1.0 mm, and the example board stays bit-identical. A board with a
+             heat source narrower than two cells (and no zoned part) gets the finer raster of small_part_cell, when its estimated memory fits; boards with no such source are untouched.
     @param problem A Problem.
     @param cell_mm Cell size requested in the options, in mm.
     @return float cell in mm.
@@ -854,6 +910,10 @@ def cell_for(problem, cell_mm):
                 log.info("Lumped raster %.2f mm instead of %.2f mm: %s has a dense group of vias under its footprint (zone model); the raster is one per board",
                          ZONE_CELL_MM, clipped, h.name or f"heater {k + 1}")
                 return ZONE_CELL_MM
+    fine = small_part_cell(problem, clipped)
+    if fine is not None:
+        log.info("Lumped raster %.3f mm instead of %.2f mm: a heat source is narrower than two cells; the raster is one per board", fine, clipped)
+        return fine
     return clipped
 
 
