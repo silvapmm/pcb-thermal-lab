@@ -145,6 +145,10 @@ class ProfileResultsTab(QWidget):
                               f"{r.windows} windows of {num(r.window)} s, {r.steps} steps of {num(r.dt, 3)} s, "
                               f"{'the cycle repeats' if r.converged else 'the cycle did not settle'}; "
                               f"steady (hottest at the face of a part) with the average power {r.steady_average_max:.1f} °C, with the peak power "
-                              f"{r.steady_peak_max:.1f} °C.")
+                              f"{r.steady_peak_max:.1f} °C."
+                              + (" Heaters with a ripple ("
+                                 + ", ".join(f"{x['name']} {num(x['swing_c'], 3)} K" for x in r.ripple)
+                                 + ") are held at their average power in the board run; their wave is added at the heater (curve, peak and minimum), not in the maps."
+                                 if r.ripple else ""))
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()
