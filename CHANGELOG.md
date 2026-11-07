@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+- **The via barrel is longer than the gap by half the copper thickness** (`fix/via-barrel-and-rim-uncoupling`, from `research/via-contact-geometry`; moves numbers on purpose): the barrel conductance over a gap is `k A / (d + 0.5 t_cu)` instead of `k A / d` in the FVM, FDM, Lumped and Analytic models (the 3D solid draws the barrel through its copper slabs and is unchanged). The old barrel conducted 5 to 29 % too well on multilayer boards with thick copper and thin prepregs (two independent references). On the five frozen boards with vias the steady maximum rises by 0.016 to 0.159 K (at most 0.26 % of the rise) and the times to 63 % fall by up to 1.0 %; boards without vias do not change.
+- **A copper layer that the drilled hole does not touch is left uncoupled from the via** (FVM and FDM): a via just outside a copper edge no longer over-reads its effect (+2.9 K, 3.5 % of the rise at a 1 mm cell, to a small loss on the safe side). A rim partly on copper scales the coupling by the share; full copper is bit-identical; imported copper is not tested. A via at the corner of a copper region or at the end of a track is not solved, and the partial-copper warning now says so with the measured numbers (the via effect reads 50 to 84 % low, the part 5 to 11 % of its rise too hot).
+
 ## [2.5.2] - 2026-11-07
 
 Fixes after 2.5.1: files that always save and reopen, the Pulsonix placement header, the licence header on every file, the re-import of a different board and theory text corrections. The solvers and the frozen numbers are unchanged.
