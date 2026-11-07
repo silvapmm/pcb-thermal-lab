@@ -89,7 +89,8 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # Values of the example board at a 2 mm cell: the helper falls back to the plain coverage without an outline. The FVM and FDM were re-baselined when
     # the point via became the mean-potential via (develop gave 85.3423 and 84.6643); the 3D solid is unchanged at this cell (the via is a fraction of a cell)
     # (fix/laminate-nodes: the example board has partial copper, so the laminate nodes and the vertical correction of the rule moved the FVM and FDM by +0.008 and +0.004 K)
-    stored = {fvm: 85.07464607663806, fdm: 84.26568445977094, solid3d: 85.48327731195374}
+    # (fix/cut-cell-aperture-film: the FVM's edge film is in series with the conduction to the edge, half a cell away on a rectangle: +0.0018 K here, 85.07464607663806 before)
+    stored = {fvm: 85.07644609599882, fdm: 84.26568445977094, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
