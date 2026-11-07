@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed (`feature/refreeze-260`; tests only, no program change)
+
+- **The frozen numbers are refrozen once for 2.6.0** (`tests/regression/data/v2.6.0.json`, from the tag v2.5.2 and the integration tree; table `research/release-regression-245/reference/expected_shifts_2.6.0.json`, 0 alarms): the ten pending shift files of the 2.6.0 items are folded in and deleted, the three hashes of the Current-view test are regenerated, and two 3D solid records at 0.5 mm (`t_outline`, `two_layer_partial`) are now skipped by the harness cap (the slabs by thickness raised them to 192 000 unknowns).
+
 ### Fixed (`fix/board-overlay-view-modes`; display only)
 
 - **The View of the Display panel works on the board**: with the temperature map on the board the View combo was greyed and stuck on Current (a deliberate choice of 2.5.1, which left the user with no way to change it). On the Board it now offers Current and Smooth (the temperatures are interpolated between the cells and then coloured, as in the Results maps; the reviewer replaced a first version that only blended the colours of the cells when the picture was scaled, which draws colours that are not on the bar); Terrain stays greyed with the tooltip *Terrain is shown in the Results tab*, and a Terrain chosen in the Results is drawn as Current on the board.
