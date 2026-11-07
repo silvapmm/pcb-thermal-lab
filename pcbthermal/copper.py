@@ -774,6 +774,10 @@ REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these 
                          "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and the finite-volume "
                          "model itself reads the smallest parts hotter still at a finer cell; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
                          "use the finite-volume model for the result")
+CUT_CELLS_IMPORTED_NOTE = ("the board has an outline and imported copper: in the finite-volume model the cells that the outline cuts keep the earlier links (the cell sheet scaled by "
+                           "the share of the cell on the board) and the edge film on the node; the open-face links and the film in series with the conduction to the edge are for "
+                           "drawn copper (the imported faces would need the outline as a mask at pixel level). Near a slanted or curved edge the peak then depends on where the "
+                           "edge falls on the grid, by a few tenths of a kelvin at the default edge coefficient and by more for a cooled edge")
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
                    "than the flow-based faces of the layered models (see the finite-volume model for the reference)")
 
@@ -797,6 +801,8 @@ def model_warnings(problem, model, cell_mm=None):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
+        if model == "fvm" and problem.board.has_outline():
+            out.append(CUT_CELLS_IMPORTED_NOTE)
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
             out.append(coarse_cell_warning())
             if cell_mm > SCREENING_CELL_MM + 1e-9:
