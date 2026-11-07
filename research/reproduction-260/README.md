@@ -59,7 +59,7 @@ that the audit listed (fig 37) was not regenerated. The README numbers of the re
 | laminate-edge-band | 2 failed | 7 passed | (a)+(b) same signature; the band is in the program, baseline 100.387 K against the study 100.328 K | band switched off for the baseline |
 | laminate-nodes | 1 failed | 20 passed | (b) rim uncoupling removes the barrel into a bare plane, no odd cycle | test reproduces it with full rim contact and asserts the 2.6.0 behaviour |
 | lumped-analytic-vias | 6 failed | 13 passed | (a) text anchors of `analytic.solve_steady`; (b) barrel +0.13 % on the Lumped unit cell (360.2915 -> 360.7554 K) | frozen v2.5.1 analytic; barrel fraction 0 reproduces the f2d5c03 number to the last digit |
-| lumped-ring-uniform-deficit | 1 error | 5 passed, 1 xfailed | (a) anchors of the first-ring cap, now in the program; (d) residual shift | patches read the tag v2.5.1; strict xfail |
+| lumped-ring-uniform-deficit | 1 error | 6 passed | (a) anchors of the first-ring cap, now in the program; (d) missing cut_cells=False in the patched text, repaired | patches read the tag v2.5.1 |
 | lumped-zones-adoption | 1 failed | 20 passed | (b) barrel, see section 3 | both numbers asserted |
 | memory-guard | 1 failed | 59 passed | (b) edge band: 452 -> 1568 unknowns (ratio 3.47; 200 -> 800 without); (c) a family needs PCBT_REAL_BOARDS | ratio stated both ways; skip without the variable |
 | published-cases-followup | 1 failed | 19 passed | (b) barrel, -7.46 % -> -0.30 % | expected value restated |
