@@ -16,6 +16,7 @@
          A patched copy is installed with install() into pcbthermal.api so that simulate() runs it; uninstall() restores the program.
 """
 
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -28,7 +29,10 @@ import pcbthermal  # noqa: E402
 from pcbthermal import api as _api  # noqa: E402
 from pcbthermal import lumped as _orig  # noqa: E402
 
-_SRC = Path(_orig.__file__).read_text()
+# 2.6.0 adopted the first-ring cap (fix/lumped-first-ring, the result of this study), so the anchors that add it to the program no longer exist in the live text: the patches are
+# applied to the text of the tag v2.5.1, the program they were written against.
+_ROOT = Path(__file__).resolve().parents[3]
+_SRC = subprocess.run(["git", "-C", str(_ROOT), "show", "v2.5.1:pcbthermal/lumped.py"], check=True, capture_output=True, text=True).stdout
 
 
 def _replace(text, old, new):
