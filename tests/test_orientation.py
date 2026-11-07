@@ -34,7 +34,7 @@ def board(orientation="horizontal", mode="computed", width=100.0, height=80.0):
 def test_horizontal_board_matches_the_textbook_formulas_written_out_by_hand():
     """!
     @brief The two horizontal faces against their laws written out: up 0.54 Ra^(1/4) (Lloyd and Moran / textbooks), down 0.475 Ra^(1/5).
-    @details The face turned down is the mean of the laminar Goldstein-Lau constants (0.44 to 0.527, Yovanovich and Jafarpur 1993, p 8) with the exponent 1/5 of every
+    @details The face turned down is the average of the Pr 0.71 integral-method results summarised by Goldstein and Lau (Yovanovich and Jafarpur 1993, p 8) with the exponent 1/5 of every
              published form read (Lienhard 2024 eq. 8.38, 8.39); the McAdams 0.27 Ra^(1/4) it replaced is not used. The constant 0.52 of Incropera and DeWitt was not confirmed.
     @return None.
     """
@@ -59,7 +59,7 @@ def _nu_down(ra):
     """!
     @brief Nusselt number of the face turned down at a given Rayleigh number, through the program's function.
     @param ra Rayleigh number (dimensionless) of the face, at air near 40 degC.
-    @return Nu = h L / k.
+    @return tuple (Nu = h L / k, the Rayleigh number the program computed, the air properties at 40 degC).
     """
     length, ambient = 0.02, 25.0
     props = air_properties(40.0)

@@ -43,7 +43,8 @@ def rayleigh(delta_t, length, props):
     return G * props["beta"] * abs(delta_t) * length ** 3 / (props["nu"] * props["alpha"])
 
 
-# Face turned down: Nu = C Ra^n on L = A/P. C is the mean of the Goldstein-Lau laminar constants (0.44 to 0.527; Yovanovich and Jafarpur 1993, p 8), n = 1/5
+# Face turned down: Nu = C Ra^n on L = A/P. C is the average of the Pr 0.71 integral-method results summarised by Goldstein and Lau (all their constants 0.44 to 0.527;
+# Yovanovich and Jafarpur 1993, p 8), n = 1/5
 DOWN_COEFFICIENT = 0.475
 DOWN_EXPONENT = 0.2
 
@@ -53,9 +54,10 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
     @brief Natural convection coefficient of a horizontal plate.
     @details Hot surface facing up: Nu = 0.54 Ra^(1/4) up to Ra = 1e7, then 0.15 Ra^(1/3); facing down: Nu = 0.475 Ra^(1/5).
              The characteristic length is area over perimeter. A cold surface swaps up and down.
-             The face-down law (DOWN_COEFFICIENT, DOWN_EXPONENT) is the mean of the laminar Goldstein and Lau constants, 0.44 to 0.527, at Pr 0.71, read in
+             The face-down law (DOWN_COEFFICIENT, DOWN_EXPONENT) is the average of the Pr 0.71 integral-method results (disk, square, infinite strip) that Goldstein and Lau
+             summarised (all their constants, heat and mass transfer, 0.44 to 0.527), read in
              Yovanovich and Jafarpur (1993, p 8, as the reviewed second-hand reading of research/convection-laws), with the exponent 1/5 that every
-             published form read for the lower side of a hot plate has (Lienhard 2024 eq. 8.38 and 8.39; VDI 0.486, Goldstein-Lau strip 0.524 for 40 < Ra < 8e3).
+             published form read for the lower side of a hot plate has (Lienhard 2024 eq. 8.38, Fujii-Imura 0.58 on the width, 0.44 on A/P, and 8.39; VDI 0.486, Goldstein-Lau strip 0.524 for 40 < Ra < 8e3).
              It replaces the McAdams form 0.27 Ra^(1/4) (research/face-down-convection). The constant 0.52 of Incropera and DeWitt (range 1e4 to 1e9) is the
              same level within 9 % but could not be confirmed from an open source and is not used. The printed ranges are 40 to 8e3 (strip) and 1e4 to 1e9
              (not confirmed); api._solve_computed_h warns outside 1e2 to 1e9 on the face down.
