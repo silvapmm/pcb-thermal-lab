@@ -1378,3 +1378,84 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
 
 **Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
+
+## 32. Cut cells: the open-fraction link and the edge film in series (FVM)
+
+*(Numbered 32 because the number 31 is taken by the star coupling of the via on its own branch.)* What the FVM did with a cell cut by the outline after the exact cover (section 23): the link between two cells was the harmonic mean of the cover-scaled sheets (a factor `c` too weak into a sliver) and the edge film `h_side` sat on the node behind that link. The branch `fix/cut-cell-aperture-film` joins cells by the **open fraction of the shared face** and puts the film **in series with the conduction from the node to the closest outline point** (theory 2.1.1; evidence `research/cut-cell-links`, whose README 10 is the reviewer's check of the prototype: every number below was run again on the program, with `tests/helpers/cut_cell_study.py`, and agrees with it). The reference is independent of the program: `tests/helpers/two_sheet.py` (its own assembly) on the board in its own frame, three cells of 1/4, 1/8, 1/16 mm extrapolated. Errors are the FVM peak minus that reference (K).
+
+### 32.1 The sliver defect
+
+A 30 mm board whose left edge column has the cover `c`, a 2 W part 2 mm from the edge, two copper layers, 1 mm cell (`study sliver`). **Before** (the program of `fix/exact-board-cover`) and **after**:
+
+| h_side (W/m²K) | c | peak before (°C) | error before | peak after (°C) | error after | reference (°C) |
+| --: | --: | --: | --: | --: | --: | --: |
+| 10 | 0.01 | 265.187 | -0.746 | 265.193 | -0.740 | 265.934 |
+| 10 | 0.02 | 265.031 | -0.770 | 264.939 | -0.863 | 265.801 |
+| 10 | 0.1 | 263.939 | -0.814 | 263.909 | -0.844 | 264.753 |
+| 10 | 1 | 253.337 | -0.658 | 253.342 | -0.652 | 253.995 |
+| 200 | 0.01 | 136.601 | -0.929 | 136.844 | -0.686 | 137.530 |
+| 200 | 0.02 | 140.207 | **+2.727** | 136.757 | -0.722 | 137.479 |
+| 200 | 0.05 | 138.108 | +0.779 | 136.613 | -0.717 | 137.330 |
+| 200 | 0.1 | 137.100 | +0.009 | 136.389 | -0.703 | 137.092 |
+| 200 | 1 | 132.519 | -0.803 | 132.748 | -0.574 | 133.321 |
+| 2000 | 0.01 | 80.133 | -1.181 | 80.809 | -0.505 | 81.314 |
+| 2000 | 0.02 | 89.976 | **+8.667** | 80.788 | -0.522 | 81.309 |
+| 2000 | 0.1 | 84.050 | +2.805 | 80.749 | -0.495 | 81.244 |
+| 2000 | 1 | 79.739 | -1.072 | 80.319 | -0.492 | 80.811 |
+
+The jump from `c` = 0.01 (the sliver is dropped) to 0.02 is **+3.61 K at 200 W/m²K and +9.84 K at 2000** before, **-0.09 and -0.02 K** after (at the default 10: -0.16 before, -0.26 after, both the same size as the bias of the 1 mm read-out). The mechanism is theory 2.1.1 (figure `cut_cell_sliver_heat_path.png`). The 3D solid has the same defect, larger (+15.9 K at 200), and is not changed here.
+
+### 32.2 The spread over the position of the outline
+
+Square of 20 mm (part 3 mm, 3.5 mm off the centre, 1 mm cell) and strip of 24 x 8 mm (part at the centre, 0.5 mm cell), two copper layers; the outline turned 0 to 45 degrees (step 5) and shifted diagonally by 1/8 to 7/8 of a cell (17 positions), the part and the cell centres fixed so that only the cut of the edge changes (`study frame`). Spread = range of the error over the positions; bias and worst |error| in K:
+
+| case | h_side | before: bias / spread / worst | after: bias / spread / worst |
+| :-- | --: | --: | --: |
+| square off 3.5 | 10 | +0.04 / 0.25 / 0.17 | -0.03 / 0.13 / 0.11 |
+| square off 3.5 | 50 | +0.11 / 0.37 / 0.25 | -0.08 / 0.11 / 0.15 |
+| square off 3.5 | 200 | +0.29 / **1.18** / 0.81 | -0.16 / **0.09** / 0.22 |
+| square off 3.5 | 2000 | +0.34 / **2.98** / 2.02 | -0.43 / **0.07** / 0.47 |
+| strip | 10 | +0.06 / 0.40 / 0.30 | -0.09 / 0.11 / 0.17 |
+| strip | 200 | +0.36 / 0.86 / 0.58 | -0.10 / 0.09 / 0.17 |
+| strip | 2000 | +0.60 / 1.87 / 1.33 | -0.10 / 0.10 / 0.16 |
+
+The reviewer's numbers for the prototype (1.18 and 2.98 K before; 0.09 and 0.08 K after at 200 and 2000) are reproduced. The spread after is at the resolution of the references (two references of the same problem differ by up to 0.07 K), and the remaining bias is the read-out of a 3 mm part on a 1 mm grid, common to the aligned board. The test `tests/test_cut_cell_links.py` keeps the spread of the square at most 0.15 K for `h_side` 10, 200 and 2000 on six positions, and at least three times smaller than the earlier treatment's at 200 and 2000.
+
+### 32.3 The floor of the film factor
+
+The factor `1 + H d / S` is floored at 0.25 (a rule of the program, not of the sources). On full copper it is not reached up to `h_side` 1e4; at 1e5 (the limit of `Board.validate`) the diagonal stays positive and no `g_side` exceeds four times the film alone (test). **Where the copper stops short of the outline** the edge cells are bare-laminate nodes with a small sheet and the floor binds from about 1000 W/m²K at 1 mm. Turned square of 20 mm (20 degrees), top copper 1.2 mm inside the outline, 1 mm cell (`study recess`): nodes at the floor and the peak (°C) for four floor values:
+
+| h_side | nodes at the floor | floor 0.25 (used) | 0.5 | 0.1 | 0.05 |
+| --: | --: | --: | --: | --: | --: |
+| 200 | 0 | 139.148 | 139.148 | 139.148 | 139.148 |
+| 1000 | 0 | 102.675 | 102.704 | 102.675 | 102.675 |
+| 2000 | 80 | 96.089 | 96.240 | 96.038 | 96.028 |
+| 5000 | 144 | 91.298 | 91.413 | 91.244 | 91.225 |
+
+At 2000 W/m²K the peak moves 0.06 K (0.25 to 0.05) and 0.15 K (0.25 to 0.5) of a 71 K rise (0.1 and 0.2 %): the value of the floor is not what sets the answer, and the answer there carries the other open problem (the copper edge itself cut by the grid, 2 to 3 K spread at 200 W/m²K for every scheme, `research/cut-cell-links` README 5.2: **not fixed**).
+
+### 32.4 Other checks
+
+* **Independent solver on a rectangle** (30 mm, 2 W, `h_side` 10 and 200, cells 1, 0.5, 0.25 mm): the FVM is within 0.15 K of `two_sheet.py` (0.03 to 0.11 K in the prototype's review; the difference is the placement of the film).
+* **Shapes**: apertures equal 4000-point sampling of every face within 1e-3 on an L, a T and a notch crossed twice, turned 0, 7, 23 and 45 degrees; an L and a T and their mirror images give the same peak to 1e-6 K; a disc closes the heat balance at 1, 0.5 and 0.25 mm and its peak converges; a rectangle drawn as an outline gives the rectangle's network (1e-9), and a rectangle with no `h_side` is the earlier matrix bit for bit.
+* **Matrix**: symmetric, no positive off-diagonal entry without vias (covers 0.011 to 1), the symmetric LU accepts it, the heat balance closes to 1e-9 steady and transient, and a board at rest in a warm ambient stays at it for `h_side` 10 to 1e5 (the ambient term scales with the same factor).
+* **Solvers**: direct, CG and block SOR agree (1e-6, 1e-6 and 1e-4 K) on a turned square with vias and a copper pattern.
+* **Cost**: 20 000 vertices on a 400 x 400 grid, 0.02 s for the apertures and 0.2 s for the distance of 2000 cut cells.
+
+### 32.5 What moves in the frozen numbers
+
+Only the FVM, with a non-zero `h_side`: 39 records and 13 times to 63 %, all in `tests/regression/data/pending/cut-cell-aperture-film.json` (the FVM records of `part_across_outline` and `round_outline` that `exact-board-cover-solvers.json` held are regenerated there with both changes in the tree). Shift of the hottest temperature (K) at 2 / 1 / 0.5 mm:
+
+| board | shift | board | shift |
+| :-- | --: | :-- | --: |
+| `part_across_outline` (against the exact cover) | -0.794 / -0.372 / -0.054 | `example_board`, `profile_board` | +0.002 / +0.001 / +0.001 |
+| `example_cut_to_T` | -0.012 / +0.001 / +0.001 | `hatched_copper` | +0.007 / +0.003 / +0.002 |
+| `round_outline` | -0.006 / -0.002 / -0.001 | `two_layer_partial` | +0.008 / +0.004 / +0.002 |
+| `t_outline` | +0.004 / +0.002 / +0.001 | `part_top_path` | +0.002 / +0.001 / +0.001 |
+| `plate_vias`, `plate_lone_via` | +0.001 / +0.001 / +0.000 | `finned_block`, `reference_board` | +0.001 / 0.000 / 0.000 |
+
+The times to 63 % move by 0.001 to 0.5 % (`part_across_outline` +1.1 %, `example_cut_to_T` U2 +0.5 %). The Lumped, Analytic, FDM and 3D solid records do not move. The boards with `h_side` 0 (`plate_uniform`, `plate_pad`, `one_layer_*`) do not move.
+
+### 32.6 Limits
+
+Imported copper on a board with an outline keeps the earlier links and the film on the node (warned: the peak depends on where the edge falls on the grid by a few tenths of a kelvin at the default coefficient); the FDM and the 3D solid keep the cover-scaled links; the copper edge held inside the outline is a second cut-cell problem that this does not address; a via inside a sliver cell keeps the cover-scaled sheet in its well (tested for energy balance only); no physical board was measured.
