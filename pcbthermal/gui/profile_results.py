@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from .. import plots
-from .results_view import _mpl_theme, _paint_figure
+from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from . import tips
 from ..numfmt import num
 
@@ -33,11 +33,10 @@ class ProfileResultsTab(QWidget):
         self.view.addItem("Temperature versus time", "series")
         self.view.addItem("Peak temperature map", "peak")
         self.view.addItem("Last window, frame by frame", "frames")
-        self.layer = QComboBox()
+        self.layer_value = 0                            # The layer of the toolbar choice (a single layer here)
         self.slider = QSlider(Qt.Horizontal)
         self.model.setToolTip("Model whose time simulation is shown.")
         self.view.setToolTip("What to show: temperature versus time, the map of the peak temperature, or the last window frame by frame.")
-        self.layer.setToolTip("Copper layer shown.")
         self.slider.setToolTip("Drag to go to a moment of the simulation.")
         self.info = QLabel()
         self.info.setWordWrap(True)
@@ -45,7 +44,7 @@ class ProfileResultsTab(QWidget):
         self.canvas = FigureCanvasQTAgg(self.fig)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         bar = QHBoxLayout()
-        for text, w in (("Model", self.model), ("Show", self.view), ("Layer", self.layer)):
+        for text, w in (("Model", self.model), ("Show", self.view)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
@@ -54,7 +53,7 @@ class ProfileResultsTab(QWidget):
         lay.addWidget(self.info)
         lay.addWidget(self.canvas, 1)
         lay.addWidget(self.slider)
-        for w in (self.model, self.view, self.layer):
+        for w in (self.model, self.view):
             w.currentIndexChanged.connect(self.redraw)
         self.slider.valueChanged.connect(self.redraw)
         self.redraw()
@@ -80,10 +79,26 @@ class ProfileResultsTab(QWidget):
         for name, r in sim.profile_results.items():
             if r.resolved:
                 self.model.addItem(tips.model_label(name), name)
-        self.layer.clear()
-        self.layer.addItems([f"{i + 1}" for i in range(sim.problem.board.layers)])
         self._updating = False
         self.redraw()
+
+    def set_layer(self, value):
+        """!
+        @brief Show the layer chosen in the toolbar.
+        @param value Layer index (0-based).
+        """
+        value = max(int(value), 0)
+        if value != self.layer_value:
+            self.layer_value = value
+            redraw_when_shown(self, self.redraw)           # A hidden tab is drawn when it is shown (the layer box moves every map at once)
+
+    def showEvent(self, e):
+        """!
+        @brief Draw the view that a layer change left pending while the tab was hidden.
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        redraw_pending(self, self.redraw)
 
     def _result(self):
         """!
@@ -114,7 +129,7 @@ class ProfileResultsTab(QWidget):
                 self.fig.add_subplot(111).text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
             self.info.setText("")
         else:
-            layer = max(self.layer.currentIndex(), 0)
+            layer = min(max(self.layer_value, 0), self.sim.problem.board.layers - 1)
             with _mpl_theme(self.theme):
                 if self.view.currentData() == "series":
                     plots.draw_profile_series(self.fig, r, self.sim.problem, self.sim.options.hotspot_c)

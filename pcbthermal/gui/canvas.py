@@ -317,6 +317,7 @@ class BoardView(QGraphicsView):
     cursor_moved = Signal(float, float)    # mm
     message = Signal(str)                  # status text
     element_created = Signal(str, int)     # kind, index
+    card_clicked = Signal(object)          # QPoint (global) under the model name of the card of the map: the window opens its model menu
 
     TOOLS = ("select", "zone", "heater", "heatsink", "via", "outline")
 
@@ -355,6 +356,7 @@ class BoardView(QGraphicsView):
         self._bg_reported = None                                 # The path already reported, so that a redraw does not repeat the message
         self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
+        self._card_hit = None                               # Rectangle (viewport pixels) of the model name of the card: the click target
         self._overlay_card = None                           # Card of the map on the board (model name, max and min), see set_overlay_card
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
@@ -671,6 +673,13 @@ class BoardView(QGraphicsView):
         self._overlay_card = dict(title=str(title), tmax=tmax, pmax=pmax_mm, tmin=tmin, pmin=pmin_mm)
         self.viewport().update()
 
+    def card_hit_rect(self):
+        """!
+        @brief The clickable part of the card of the map (its model name), in viewport pixels.
+        @return QRectF or None when no card is shown.
+        """
+        return QRectF(self._card_hit) if getattr(self, "_card_hit", None) is not None and self._overlay_card else None
+
     def clear_overlay(self, keep_card=False):
         """!
         @brief Remove the temperature overlay, its colour bar and its card.
@@ -754,6 +763,7 @@ class BoardView(QGraphicsView):
         """
         card = getattr(self, "_overlay_card", None)
         if not card:
+            self._card_hit = None
             return
         c = th.colors(self.theme)
         painter.save()
@@ -768,8 +778,10 @@ class BoardView(QGraphicsView):
         lines = []
         if not refused:
             lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C")]
-        w = max([fmb.horizontalAdvance(card["title"])] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
+        title = card["title"] + " \u25be"                # The small arrow says that the name opens the list of models
+        w = max([fmb.horizontalAdvance(title)] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
         h = fmb.height() + 2 * pad - 2 + row * len(lines)
+        self._card_hit = QRectF(x0, y0, w, fmb.height() + pad)
         bg = QColor(c["base"])
         bg.setAlphaF(0.85)
         painter.setPen(QPen(QColor(c["border"]), 1))
@@ -777,7 +789,7 @@ class BoardView(QGraphicsView):
         painter.drawRoundedRect(QRectF(x0, y0, w, h), 4, 4)
         painter.setFont(bold)
         painter.setPen(QColor(c["alert"] if refused else c["accent"]))
-        painter.drawText(QPointF(x0 + pad, y0 + pad + fmb.ascent() - 1), card["title"])
+        painter.drawText(QPointF(x0 + pad, y0 + pad + fmb.ascent() - 1), title)
         painter.setFont(font)
         for k, (col, text) in enumerate(lines):
             yy = y0 + pad - 2 + fmb.height() + row * k
@@ -1148,6 +1160,10 @@ class BoardView(QGraphicsView):
         @param e QMouseEvent of the press.
         """
         self.setFocus()
+        hit = self.card_hit_rect()
+        if e.button() == Qt.LeftButton and hit is not None and hit.contains(e.position()):
+            self.card_clicked.emit(e.globalPosition().toPoint())      # The model name of the card: the window lists the models (focus stays on the board)
+            return
         if e.button() == Qt.MiddleButton or (e.button() == Qt.LeftButton and self._space):
             self._panning, self._pan_last = True, e.position()
             self.viewport().setCursor(Qt.ClosedHandCursor)

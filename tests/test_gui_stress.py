@@ -109,10 +109,15 @@ def walk_results(win, qtbot):
         rv.tabs.setCurrentIndex(t)
         qtbot.wait(5)
     for tab in (rv.temp, rv.grad, rv.profile, rv.compare):
-        for name in ("model", "layer", "axis"):
+        for name in ("model", "axis"):
             combo = getattr(tab, name)
             for i in range(combo.count()):
                 combo.setCurrentIndex(i)
+        # The layer is the one choice of the toolbar: every entry of its list in the context of this tab (All layers, 2 x 2, layers, metal block in Temperature)
+        rv.tabs.setCurrentWidget(tab)
+        for i in range(win.layer_combo.count()):
+            win.layer_combo.setCurrentIndex(i)
+        win.layer_combo.setCurrentIndex(0)
         for chk in (tab.hot, tab.auto, tab.equiv):
             chk.setChecked(not chk.isChecked())
             chk.setChecked(not chk.isChecked())
@@ -131,8 +136,8 @@ def walk_results(win, qtbot):
                     d.set_kind(copper_on)
                     for cm in plots.CMAPS[:3]:
                         d.set_cmap(cm)
-                    for k in range(tab.layer.count()):
-                        tab.layer.setCurrentIndex(k)
+                    for k in (-2, -1, 0, rv.sim.problem.board.layers - 1) if tab is rv.temp else (0, rv.sim.problem.board.layers - 1):
+                        tab.set_layer(k)
         d.set_contour("gradient" if tab is rv.grad else "temperature", 0.0 if tab is rv.grad else 2.0)
         d.set_opacity(0)
         d.set_opacity(100)
@@ -147,8 +152,8 @@ def walk_results(win, qtbot):
         ts.model.setCurrentIndex(i)
         for j in range(ts.view.count()):
             ts.view.setCurrentIndex(j)
-            for k in range(ts.layer.count()):
-                ts.layer.setCurrentIndex(k)
+            for k in range(rv.sim.problem.board.layers):
+                ts.set_layer(k)
             ts.slider.setValue(ts.slider.maximum())
             ts.slider.setValue(0)
 
@@ -171,8 +176,8 @@ def animate(win, qtbot, model):
     qtbot.waitUntil(lambda: anim.tr is not None, timeout=120000)
     for v in (0, anim.slider.maximum() // 2, anim.slider.maximum()):
         anim.slider.setValue(v)
-    for i in range(anim.layer.count()):
-        anim.layer.setCurrentIndex(i)
+    for i in range(win.layer_combo.count()):                            # The Animation lists the layers only (the toolbar choice)
+        win.layer_combo.setCurrentIndex(i)
     anim.play.setChecked(True)
     qtbot.wait(80)
     anim.play.setChecked(False)
@@ -663,10 +668,10 @@ def test_metal_block_in_the_application(win, qtbot):
     rv.tabs.setCurrentWidget(rv.temp)
     for model in ("fvm", "fdm", "lumped"):
         rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
-        k = rv.temp.layer.findData(101)                                  # "Metal block (bottom)"
+        k = win.layer_combo.findData(101)                                # "Metal block (bottom)" in the toolbar box of the Temperature context
         assert k >= 0
-        rv.temp.layer.setCurrentIndex(k)                                 # Drawn for the models that have it, a message for the others
-        rv.temp.layer.setCurrentIndex(0)
+        win.layer_combo.setCurrentIndex(k)                               # Drawn for the models that have it, a message for the others
+        win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
     walk_results(win, qtbot)
     animate(win, qtbot, "fvm")
     animate(win, qtbot, "fdm")
@@ -1457,3 +1462,36 @@ def test_display_control_in_the_application(win, qtbot):
     win.doc.stack.undo()
     run(win, qtbot, models=("fvm", "lumped"))
     assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()
+
+
+def test_single_layer_choice_and_card_menu_in_the_application(win, qtbot):
+    """The one Layer box through a whole session: every entry of every context, every tab visited with All (2 x 2) and a metal block stored, the layer of the map on the board, a rerun, a change of the layer count, the card menu with each model and an edit that makes the result outdated."""
+    p = example_board()
+    p.add_heatsink(1, 10.0, rect=(15, 12, 45, 28), thickness_mm=3.0)
+    win._load_problem(p, "ex")
+    win.show()
+    run(win, qtbot, models=("fvm", "fdm", "lumped"))
+    win._hidden_overlay_key.trigger()
+    assert win.a_overlay.isChecked()
+    contexts = [(TAB_BOARD, None), (TAB_PROFILE, None)] + [(TAB_RESULTS, k) for k in range(win.results.tabs.count())]
+    for pick in (-2, -1, 101, 3, 0):
+        for tab_index, k in contexts:
+            win.tabs.setCurrentIndex(tab_index)
+            if k is not None:
+                win.results.tabs.setCurrentIndex(k)
+            for i in range(win.layer_combo.count()):                          # every entry of the list of this context
+                win.layer_combo.setCurrentIndex(i)
+                win.canvas.viewport().grab()
+            if win.layer_combo.findData(pick) >= 0:
+                win.layer_combo.setCurrentIndex(win.layer_combo.findData(pick))
+    for model_index in range(win.results.temp.model.count()):                  # the card name lists the models; each one can be picked
+        win._open_model_menu(win.mapToGlobal(win.rect().center()))
+        win._model_menu.actions()[model_index].trigger()
+        win._model_menu.close()
+        assert win.results.temp.model.currentIndex() == model_index
+    run(win, qtbot, models=("fvm", "lumped"))                                  # a rerun keeps the choice and the list follows the new result
+    win.doc.set_props("heater", 0, power=2.0)                                  # the result is outdated: the map leaves, the box still works
+    win.layer_combo.setCurrentIndex(0)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(-2))

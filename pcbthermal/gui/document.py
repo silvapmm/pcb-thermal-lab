@@ -90,6 +90,7 @@ class Document(QObject):
     changed = Signal()          # The problem or the options changed (views must refresh)
     state_changed = Signal()    # File name or modified flag changed (window title)
     edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
+    project_replaced = Signal() # A different project was opened, created or imported (not an edit, not a re-import): view choices such as the layer start again
 
     def __init__(self, project=None):
         """!
@@ -171,6 +172,7 @@ class Document(QObject):
         self.project, self.path = project, path
         self.stack.clear()
         self.stack.setClean()
+        self.project_replaced.emit()                      # Before changed, so that the views refresh with the layer already reset
         self.changed.emit()
         self.state_changed.emit()
 

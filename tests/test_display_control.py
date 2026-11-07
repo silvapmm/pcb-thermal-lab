@@ -183,7 +183,7 @@ def test_one_state_for_every_map_and_the_tabs_lost_their_controls(qtbot, tmp_pat
     for t in (r.temp, r.grad):
         for name in ("underlay", "opacity", "opacity_spin", "view", "contour", "contour_label", "cmap"):
             assert not hasattr(t, name), name
-        assert t.model.count() == 0 and t.layer.count() == 0                      # Model and Layer stay (filled by a run)
+        assert t.model.count() == 0 and not hasattr(t, "layer")                   # Model stays (filled by a run); the layer is the toolbar choice
     assert not hasattr(r.animation, "view") and not hasattr(r.animation, "cmap") and not hasattr(r.animation, "underlay")
     assert hasattr(r.temp, "hot") and hasattr(r.temp, "auto") and hasattr(r.temp, "vmin")           # Hotspot and limits stay
     win.display.set_view("smooth")
