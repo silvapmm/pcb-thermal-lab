@@ -17,7 +17,7 @@ A package is a ZIP file (deflate, readable by any zip tool) with these members:
   - any other member: preserved on a round trip (it may come from a later version).
 
 The file is HOSTILE, like a Gerber ZIP: the reader refuses an absolute or drive-lettered name, a backslash, a `..` component, a NUL or control character, a symbolic
-link, an encrypted member, a duplicate name and two names that differ only in case, more than MAX_MEMBERS members, a declared total above MAX_TOTAL_BYTES, a member above its
+link, an encrypted member, a duplicate name and two names that differ only in case, more than MAX_MEMBERS members, a declared total above `max_total_bytes()` (the preference `package.max_mb`), a member above its
 limit and a compression ratio above MAX_RATIO; every member is read in memory with a bound on the bytes really read and checked against the SHA-256 of the manifest (a project
 that does not match refuses the package; any other member that does not match is dropped with a warning). Nothing is written to disk by the reader. A nested ZIP is an
 unknown member: kept as bytes, never opened. The type of a file is found by its CONTENT (the ZIP signature), never by its extension. A ZIP without `manifest.json` is not a
@@ -30,6 +30,7 @@ import copy
 import hashlib
 import io
 import json
+import logging
 import os
 import posixpath
 import re
@@ -64,7 +65,12 @@ MAX_MEMBERS = 5000
 # Second review: a 6.5 MB package of four sources at ratio 164 took 1.4 GB before its project was refused, and a 0.12 MB project JSON of nested empty lists at ratio 565
 # took 1.9 GB in `json.loads` (about 43 bytes of Python objects per structural character). Real Gerber sets are at most 4.3 MB (the open boards of the local library) and
 # 509 real files above 64 kB compress at most 19 times, so the limits below are generous for real files and bound what a small hostile file can make the reader allocate.
-MAX_TOTAL_BYTES = 512 * 1024 ** 2                   # Declared uncompressed total (all of it is held in memory)
+# The declared uncompressed total is the ONE limit of the package a user may change: the machine preference `package.max_mb` (see `max_total_bytes`). Everything else
+# below (members, ratios, tokens, per-member sizes) is fixed on purpose: those bound what a small hostile file can make the reader allocate, whatever the total.
+MB = 1024 ** 2
+DEFAULT_TOTAL_MB = 512
+MIN_TOTAL_MB = 64
+MAX_TOTAL_MB = 4096
 MAX_RATIO = 200.0                                   # Uncompressed over compressed bytes of one member (a zip bomb)
 MAX_PROJECT_RATIO = 1000.0                          # The project JSON itself: repeated objects (identical vias copied in the editor) reach 255 and the archive's limit is kept
 RATIO_FREE_BYTES = 64 * 1024                        # A member this small is not judged by the ratio (a tiny file of zeros has a big ratio and no danger)
@@ -396,8 +402,11 @@ def _validate(zf):
         total += i.file_size
         packed += i.compress_size
         out[name], folded[fold] = i, name
-    if total > MAX_TOTAL_BYTES:
-        raise ProjectFormatError(f"the package declares {total} uncompressed bytes (limit {MAX_TOTAL_BYTES})")
+    limit = max_total_bytes()
+    if total > limit:
+        # Plain words and the setting by name: the whole package is held in memory while it is read and written, so the limit is the user's to raise on a machine with memory
+        raise ProjectFormatError(f"the package holds {total / MB:.0f} MB uncompressed, above the limit of {limit / MB:.0f} MB "
+                                 "(Preferences, Project package, 'Largest package'; the whole package is held in memory)")
     if total > OVERALL_FREE_BYTES and total > MAX_OVERALL_RATIO * max(packed, 1):
         raise ProjectFormatError(f"the package expands {total / max(packed, 1):.0f} times ({total} bytes from {packed}; limit {MAX_OVERALL_RATIO:.0f} above "
                                  f"{OVERALL_FREE_BYTES // 1024 ** 2} MB): zip bomb?")
@@ -595,6 +604,26 @@ def _manifest_bytes(members, extras):
     for k, v in extras.manifest_extra.items():
         m.setdefault(k, copy.deepcopy(v))
     return json.dumps(m, indent=2).encode("utf-8")
+
+
+def max_total_bytes():
+    """!
+    @brief The limit in force for the declared uncompressed total of a package, in bytes.
+    @details The Preferences value `package.max_mb` (shipped 512, range MIN_TOTAL_MB to MAX_TOTAL_MB, a machine preference not saved in a project). A value that is
+             missing, not a number or outside the range is ignored (the shipped value is used and the log says so), as for `gerber.max_file_mb`.
+    @return int Bytes.
+    """
+    mb = DEFAULT_TOTAL_MB
+    try:
+        from . import defaults                                               # Lazy, like the Gerber limit: the container has no other need of the defaults
+        value = float(defaults.load()["package"].get("max_mb", DEFAULT_TOTAL_MB))
+        if MIN_TOTAL_MB <= value <= MAX_TOTAL_MB:
+            mb = value
+        else:                                                                # NaN, infinite, negative or absurd
+            logging.getLogger(__name__).warning("package.max_mb = %r is outside %d to %d MB: %d MB is used", value, MIN_TOTAL_MB, MAX_TOTAL_MB, DEFAULT_TOTAL_MB)
+    except (KeyError, TypeError, ValueError, OSError, AttributeError):
+        logging.getLogger(__name__).warning("package.max_mb cannot be read from the defaults: %d MB is used", DEFAULT_TOTAL_MB)
+    return int(mb * MB)
 
 
 def save_package(path, project, include_sources=None):

@@ -58,7 +58,7 @@ def test_guide_gerber_walkthrough_glossary_and_validity():
     # Stale statements of the time when only the reader existed must be gone
     for stale in ("no import window", "no interface yet", "reader only", "moves the edge loss to the faces", "Largest opening only</i> is for"):
         assert stale not in html, stale
-    for word in ("Quick start: import a Gerber board", "Glossary of the warnings", "What is validated and what is not", "solver.memory_fraction", "gerber.max_file_mb",
+    for word in ("Quick start: import a Gerber board", "Glossary of the warnings", "What is validated and what is not", "solver.memory_fraction", "gerber.max_file_mb", "package.max_mb",
                  "copper over only part of its footprint", "Via touches no copper on a layer", "Analytic time simulation with a heatsink", "mirror image of the edge", "heater_shapes_rp2040.png",
                  "passive parts offer the hull and the box", "No measured copper board", "Orphan part"):
         assert word in html, word
