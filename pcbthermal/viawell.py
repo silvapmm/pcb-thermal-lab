@@ -21,7 +21,7 @@ symmetric, positive semidefinite, with zero row sum from the via.
 The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings and research/via-real-board.
 * Barrel length: the barrel conductance over a gap is k_cu A / (d + a t_bar), a = BARREL_COPPER_FRACTION = 0.5, t_bar the mean copper thickness of the two layers
   (`barrel_length`; the same length is used by the Lumped and Analytic models and not by the 3D solid, which draws the barrel through its copper slabs).
-* Contact: a layer whose zones touch none of the rim of the drill is left uncoupled, a rim partly on copper scales the well by the share (`rim_copper_shares`);
+* Contact: a layer whose zones and heaters touch none of the rim of the drill is left uncoupled, a rim partly on copper scales the well by the share (`rim_copper_shares`);
   a via at the corner of a copper region is NOT solved (the footprint was tuned for a full plane): it reads too hot, see checks.partial_copper_vias.
 * Edge image (FVM only): the lattice kernel has no image of a board edge, and the footprint sits at cell centres, not at the via, so a via within about one cell
   of a straight edge saw the image of the edge at the wrong distance (the via effect read +14.5 % high at 1 mm for a via 0.16 mm from the edge). The well
@@ -497,12 +497,12 @@ def barrel_length(board, d):
 
 def rim_copper_shares(problem, v, n_layers, zone_index):
     """!
-    @brief Share of the rim of the drill of a via that lies on copper, per layer.
+    @brief Share of the rim of the drill of a via that lies on copper or under a heater, per layer.
     @param problem The Problem (imported copper counts as full contact: the masks are not read here).
     @param v The Via.
     @param n_layers Number of layers L.
-    @param zone_index List per layer of (polygon, xmin, xmax, ymin, ymax) of the zones with fill above zero (see `_zone_index`).
-    @return list of L floats in [0, 1]; 0 means that the barrel touches no copper on that layer.
+    @param zone_index List per layer of (polygons, boxes) of the zones with fill above zero and of the heaters, boxes an array (n, 4) of xmin, xmax, ymin, ymax (see `_zone_index`).
+    @return list of L floats in [0, 1]; 0 means that the barrel touches no copper and no heater on that layer.
     """
     if problem.imported is not None:
         return [1.0] * n_layers
@@ -512,29 +512,36 @@ def rim_copper_shares(problem, v, n_layers, zone_index):
     out = []
     for l in range(n_layers):
         covered = np.zeros(RIM_SAMPLES, dtype=bool)
-        for poly, x0, x1, y0, y1 in zone_index[l]:
-            if v.x + r < x0 or v.x - r > x1 or v.y + r < y0 or v.y - r > y1:
-                continue                                              # the rim is outside the box of the zone
-            covered |= points_in_polygon(px, py, poly)
-            if covered.all():
-                break
+        polys, boxes = zone_index[l]
+        if len(polys):
+            # Only the shapes whose box meets the box of the rim (one vectorised test, so that a board with a thousand zones per layer stays cheap)
+            near = np.nonzero((boxes[:, 0] <= v.x + r) & (boxes[:, 1] >= v.x - r) & (boxes[:, 2] <= v.y + r) & (boxes[:, 3] >= v.y - r))[0]
+            for i in near:
+                covered |= points_in_polygon(px, py, polys[i])
+                if covered.all():
+                    break
         out.append(float(covered.mean()))
     return out
 
 
 def _zone_index(problem, n_layers):
     """!
-    @brief Zones of every layer with their bounding boxes, for the rim test.
+    @brief Zones and heaters of every layer with their bounding boxes, for the rim test.
+    @details A heater counts as contact on its layer: the power of a part enters the board over its footprint, so where the footprint covers the drill the
+             barrel takes that heat directly (the pad of the part is soldered to the via), drawn copper or not. Without this a via under a part drawn without a
+             zone was uncoupled from the part's layer and lost its whole effect (a 2 x 2 mm part on bare laminate over a 0.3 mm via: the via takes 36.5 K of a
+             144 K rise in a resolved 3D reference, the program read 0 K; with the heater as contact it reads 35 to 42 K, as before the rim rule).
     @param problem The Problem.
     @param n_layers Number of layers L.
-    @return list per layer of (polygon array, xmin, xmax, ymin, ymax) in m; zones with no copper (fill 0) are left out.
+    @return list per layer of (polygons, boxes): the polygon arrays in m and an array (n, 4) of their xmin, xmax, ymin, ymax; zones with no copper (fill 0) are left out.
     """
-    index = [[] for _ in range(n_layers)]
-    for z in problem.zones:
-        if 0 <= z.layer < n_layers and z.fill > 0.0:
-            p = np.asarray(z.polygon, dtype=float)
-            index[z.layer].append((p, p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()))
-    return index
+    polys = [[] for _ in range(n_layers)]
+    shapes = [(z.layer, z.polygon) for z in problem.zones if z.fill > 0.0] + [(h.layer, h.polygon) for h in problem.heaters]
+    for layer, poly in shapes:
+        if 0 <= layer < n_layers:
+            polys[layer].append(np.asarray(poly, dtype=float))
+    boxes = [np.array([[q[:, 0].min(), q[:, 0].max(), q[:, 1].min(), q[:, 1].max()] for q in ps]).reshape(-1, 4) for ps in polys]
+    return list(zip(polys, boxes))
 
 
 def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
@@ -605,7 +612,7 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
             # (which can be a bare one or a copper one by the side of the barrel); a footprint with copper on its whole rim keeps the earlier value, bit for bit
             s_cell = [sum(wk * float(S[l, k[0], k[1]]) / float(cover[k[0], k[1]]) for k, wk in w.items()) for l in range(L)]
         g_well = [well_conductance(s_cell[l], r_eff, r_t, c) if s_cell[l] > 0 else 0.0 for l in range(L)]
-        # Contact: a layer whose copper does not touch the rim of the drill is not joined to the barrel (the lattice of the footprint would otherwise carry heat
+        # Contact: a layer whose copper (zones, and the footprint of a heater) does not touch the rim of the drill is not joined to the barrel (the lattice of the footprint would otherwise carry heat
         # into a plane the barrel never reaches); a rim partly on copper scales the well by the share. Full contact leaves the well as it was (bit for bit).
         for l, f in enumerate(shares):
             if f < 1.0:

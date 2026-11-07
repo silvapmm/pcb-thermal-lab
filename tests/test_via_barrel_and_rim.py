@@ -293,5 +293,35 @@ def test_the_partial_copper_warning_names_the_corner_case():
     assert msgs, "the corner board must warn"
     text = str(msgs[0])
     assert "corner of a copper region" in text and "not solved" in text
-    assert "50 to 84 %" in text and "5 to 11 %" in text
+    assert "15 to 85 %" in text and "up to 11 %" in text and "safe side" in text
     assert "research/" not in text and "fix/" not in text and "feature/" not in text
+
+
+def _bare_pad(v):
+    """!
+    @brief A 2 x 2 mm, 0.3 W part drawn on layer 1 without a copper zone, over a lone via; full bottom plane.
+    @param v With the via.
+    @return Problem.
+    """
+    p = _base()
+    p.add_zone(2, rect=(0, 0, W, W))
+    p.add_heater(1, 0.3, rect=(C - 1, C - 1, C + 1, C + 1), name="Q")
+    if v:
+        p.add_via(C, C, 0.3)
+    return p
+
+
+def test_a_heater_over_the_drill_counts_as_contact():
+    """!
+    @brief The power of a part enters the board over its footprint, so a via under a part drawn without a copper zone keeps its coupling to that layer.
+    @details Review of fix/via-barrel-and-rim-uncoupling: with zones alone the rim share of the part's layer was 0 and the via did nothing (0 K), while a resolved 3D
+             reference (drilled 0.3 mm via, 25 um plating, anisotropic laminate) gives 36.5 K of a 144 K rise; with the heater as contact the FVM reads 34.8 / 42.3 / 38.6 K
+             at 1 / 0.5 / 0.25 mm, as before the rim rule.
+    @return None.
+    """
+    p = _bare_pad(True)
+    shares = viawell.rim_copper_shares(p, p.vias[0], 2, viawell._zone_index(p, 2))
+    assert shares == [1.0, 1.0]
+    effect = _effect(_bare_pad, 1.0)
+    assert 30.0 < effect < 40.0
+    assert effect == pytest.approx(34.806, abs=0.01)
