@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Runs the S2 studies (from the worktree or repository root); outputs in research/via-real-board/out/ (git-ignored). No network: the boards are read in place.
 PY=${PY:-/Volumes/SSD/PROJETOS/pcb-thermal-lab/.venv/bin/python}
 D=research/via-real-board

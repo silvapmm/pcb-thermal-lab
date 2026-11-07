@@ -230,7 +230,11 @@ What we want to **implement** in the program, each item once, with the evidence 
 
 ### 2.6.0 (next; any feature gives a minor number)
 
+- **Done on `fix/save-nonfinite-and-undo-reimport` (candidate fix for 2.5.2 or 2.6.0)**: a project that opens can always be saved and reopened. Lengths in a project file are bounded at 1e6 mm and other numbers at 1e100 (`fileschema.MAX_COORD_MM`, `MAX_NUMBER`), the writer never emits Infinity or NaN (`save_project`), and `Document.edit` undoes an edit that leaves a non-finite value. Undo after a re-import was checked and restores the record, masks and unknown keys whole (guard test). Tests `tests/test_save_nonfinite.py`, `tests/test_reimport_matrix.py`.
+
 Numbering rule (maintainer): only fixes give a patch number, any feature makes the next version 2.6.0. 2.5.1 is prepared on `develop` (see above); the items below are what remains. Display, text, test and tool items do not move a frozen number (317 at 2, 1 and 0.5 mm); the model items say so. Evidence: the backlog, the overlay and the zoom-resolution notes of the 2.5.1 planning (final opinion and fresh look of the 2.5.0 release, `research/REVIEW.md`, `research/theory/OCR_QUALITY.md` section 5).
+
+**Placement file preamble** (`fix/placement-preamble`, fix, done on its branch, not yet in `develop`): the placement reader skips up to 40 lines of free text before the header row and reads a `Units,<unit>` line (the Pulsonix position file was refused); the Parts warning about parts "matched by position" is shown only when a placement file was read. Test: `tests/test_placement_preamble.py`.
 
 **Display and project features** (2.6.0; each its own `feature/` branch; tooltips, user guide and `tests/test_help.py` in the same commit):
 

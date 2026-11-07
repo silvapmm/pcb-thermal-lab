@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Runs every study of the folder in turn (from the repository root); the outputs go to research/via-real-board/out/ (git-ignored).
 # Run it only on a quiet machine: the timings are not recorded, but the heavy cases use several GB. PY selects the interpreter.
 PY=${PY:-.venv/bin/python}

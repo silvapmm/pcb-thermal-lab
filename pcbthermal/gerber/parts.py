@@ -59,6 +59,10 @@ _SMALL_BOX_MM = 2.0
 # ------------------------------------------------------------------------------------------------------------------------------ placement files
 ## Largest placement file read (bytes): a real one of 60 000 rows is about 4 MB; a larger file is not read into memory.
 MAX_PLACEMENT_BYTES = 64 * 1024 * 1024
+## Free-text lines tolerated before the header row of a placement file (a title, a date, `Units,mm`: Pulsonix writes four); the search is bounded so a hostile file costs a fixed amount.
+MAX_PREAMBLE_LINES = 40
+## A line longer than this cannot be a header row; it is skipped without being parsed.
+MAX_HEADER_LINE_CHARS = 4096
 ## Header word (lower case, letters only) -> canonical field.
 _FIELDS = {
     "ref": "ref", "designator": "ref", "refdes": "ref", "reference": "ref",
@@ -118,18 +122,22 @@ def _header_unit(cell):
     return None if not m else {"mils": "mil", "inch": "in", "inches": "in"}.get(m.group(1), m.group(1))
 
 
-def parse_placement(text, name=""):
+def parse_placement(text, name="", info=None):
     """!
     @brief Read a placement file: the KiCad text report (`.pos`, `#` header, `## Unit = mm` comment), or a CSV (comma, semicolon or tab; JLCPCB, Altium, EasyEDA) with a header line.
-    @details Columns are found by name (reference, value, package, X, Y, rotation, side; case, spaces and punctuation ignored). Units: a `## Unit = inch` comment of a KiCad report, a unit in a
+    @details A free-text preamble before the header row is skipped (up to `MAX_PREAMBLE_LINES` lines; Pulsonix: a title, a date, `Units,mm`, a row of commas); a line
+             `Units,<mm|mil|in>` in it sets the unit. Columns are found by name (reference, value, package, X, Y, rotation, side; case, spaces and punctuation ignored). Units: a `## Unit = inch` comment of a KiCad report, a unit in a
              header cell ("PosX (mil)") or a suffix on each value ("492.1mil"); no unit means millimetres. With a semicolon or a tab as separator a decimal comma is read as a point.
     @param text Content of the file.
     @param name File name for the messages.
+    @param info Optional dict that receives `preamble_lines` (free-text lines before the header row that were skipped; blank lines and `#` or `##` comments not counted),
+                `header_line` (1-based line number of the header row) and `unit` ("mm", "mil" or "in" as read from the file).
     @return list of dicts with ref, value, package, x, y (mm), rot (degrees), side ("top"/"bottom"); value, package, rot and side a file lacks are "", 0.0 and "top". Rows are kept as
             written: a designator repeated is returned twice (`build_parts` keeps the first and warns).
-    @throws ValueError If no header with a reference column and X and Y columns is found, or a row (named by its line number) has a value that is not a finite number or no X or Y.
+    @throws ValueError If no header with a reference column and X and Y columns is found in the first `MAX_PREAMBLE_LINES` lines, or a row (named by its line number) has a value that is not a finite number or no X or Y.
     """
     header, rows, delim, unit = None, [], None, "mm"
+    header_line, preamble, first_text = 0, 0, None
     label = name or "file"
     text = text.lstrip("\ufeff")                                       # a byte order mark (Excel, some exporters) would hide the first `#` or header cell
     for lineno, ln in enumerate(text.splitlines(), start=1):
@@ -142,20 +150,37 @@ def parse_placement(text, name=""):
             continue
         if header is None:
             body = ln[1:].lstrip() if ln.startswith("#") else ln
-            # The separator: of the comma, semicolon and tab present, the one that splits the line into the most cells and gives a header (a semicolon header may hold a comma in
-            # "Pos X (mm, abs)"); blanks only when none does (the KiCad text report "Ref Val Package PosX ...")
-            tries = sorted(((len(next(csv.reader([body], delimiter=d))), d) for d in (",", ";", "\t") if d in body), reverse=True)
-            for _, d in tries + [(0, None)]:
-                cells = next(csv.reader([body], delimiter=d)) if d else body.split()
-                keys = [_field_of(c) for c in cells]
-                if "ref" in keys and "x" in keys and "y" in keys:
-                    header, delim = cells, d
-                    break
-            if header is not None:
-                continue
+            if len(body) <= MAX_HEADER_LINE_CHARS:
+                found = None
+                try:
+                    # The separator: of the comma, semicolon and tab present, the one that splits the line into the most cells and gives a header (a semicolon header may hold a comma in
+                    # "Pos X (mm, abs)"); blanks only when none does (the KiCad text report "Ref Val Package PosX ...")
+                    tries = sorted(((len(next(csv.reader([body], delimiter=d))), d) for d in (",", ";", "\t") if d in body), reverse=True)
+                    for _, d in tries + [(0, None)]:
+                        cells = next(csv.reader([body], delimiter=d)) if d else body.split()
+                        keys = [_field_of(c) for c in cells]
+                        if "ref" in keys and "x" in keys and "y" in keys:
+                            found = (cells, d)
+                            break
+                except (csv.Error, StopIteration):
+                    found = None                                      # a hostile line (a field beyond the csv limit) is just not a header
+                if found is not None:
+                    header, delim = found
+                    header_line = lineno
+                    continue
+                # A unit line of the preamble ("Units,mm," in a Pulsonix file)
+                mu = re.match(r"\s*units?\s*[,;:\t=]\s*([a-z]+)", body, re.I)
+                if mu and mu.group(1).lower() in _UNIT_MM:
+                    unit = {"mils": "mil", "inch": "in", "inches": "in"}.get(mu.group(1).lower(), mu.group(1).lower())
             if ln.startswith("#"):                                    # another comment line of the report
                 continue
-            raise ValueError(f"{label}: no placement header found (first line {ln[:60]!r})")
+            if ln.strip(" ,;\t"):                                     # a row of separators only (Pulsonix writes ",") is not text
+                preamble += 1
+                if first_text is None:
+                    first_text = ln[:60]
+            if lineno > MAX_PREAMBLE_LINES:
+                raise ValueError(f"{label}: no placement header found in the first {MAX_PREAMBLE_LINES} lines (first line {(first_text or '')!r})")
+            continue
         if ln.startswith("#"):
             continue
         if delim:
@@ -167,7 +192,11 @@ def parse_placement(text, name=""):
                 cells = ln.split()
         rows.append((lineno, cells))
     if header is None:
-        raise ValueError(f"{label}: empty placement file")
+        if first_text is None:
+            raise ValueError(f"{label}: empty placement file")
+        raise ValueError(f"{label}: no placement header found (no row names a reference column and X and Y; first line {first_text!r})")
+    if info is not None:
+        info.update({"preamble_lines": preamble, "header_line": header_line, "unit": unit})
     keys = [_field_of(c) for c in header]
     units = [_header_unit(c) or unit for c in header]
     out = []

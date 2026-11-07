@@ -7,6 +7,13 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Fixed
 - **Re-import of a different board** (`fix/different-board-reimport`; interface only, no solver or frozen number changes): when the new Gerber files are another board than the stored import (outline differs by more than 5 %, no byte-identical file, no file name in common), the re-import dialog offers and preselects **New project from these files**, Cancel stays the default and Continue is not painted as the primary button; step 2 no longer fills in the parts of the old board by designator, and Replace or Update on such a board carry no part over (no orphans, no removal list, imported heaters dropped, hand-drawn elements kept). The project name follows the new board when it is a new project. A comparison table with no rows is hidden. Same-board re-imports are unchanged (`tests/test_reimport_matrix.py`, new `tests/test_reimport_different_board.py`).
+- **A project that opens can always be saved and reopened** (`fix/save-nonfinite-and-undo-reimport`, a 2.5.2 or 2.6.0 candidate; solvers unchanged, frozen numbers unchanged): a polygon coordinate of 1e308 mm was a finite number, so the project opened, but saving multiplied it by 1000 back to millimetres, wrote `Infinity`, and the file was then refused (the project was lost). The loading check now refuses a length above 1e6 mm (1 km) and any other number above 1e100, naming the key path (`zones[0].polygon_mm[0]: ...`); `save_project` writes with `allow_nan=False` and fails before the file is touched (the old file stays); and `Document.edit` applies the loading check to the result of every edit (typed value, drag, scale, paste) and undoes an edit that would leave a non-finite or absurd value, saying so in the status bar (\"That value was refused: it would be larger than 1 km or not a number.\", once per refusal, no dialog; the check costs 0.2 ms on the RP2040 import and 1.0 ms on the CO60 per edit, so it stays on the whole dict). Tests `tests/test_save_nonfinite.py` (loader, writer, GUI edit, and a property check of random magnitudes up to the bound: save, load, save is stable).
+- **Undo after a re-import** (guard test, no code change): the suspicion that Undo kept the new stored source files could not be reproduced; the project stores no source bytes, only the record (names, sizes, hashes), the packed masks and the unknown keys, and `Document._restore` rebuilds all of them from the snapshot. `test_reimport_matrix.py` now holds Replace/Update, Undo, the same re-import again and Undo again.
+- **Placement file with a text preamble** (`fix/placement-preamble`; the Pulsonix position file, from `research/bom-role-and-close-hook`): the placement reader looked for the header row on the first line, so a file that starts with a title, a date and `Units,mm` (Pulsonix) was refused and no part got a designator. It now skips up to 40 lines of free text before the header row (a `Units,<mm|mil|in>` line sets the unit), counts the lines skipped, and the Parts step says on which line the header was found. A file with no header row is refused with "no placement header found" (the reason is in the notes of the files). The sentence "N parts were matched to the placement file by position" is no longer shown when the placement file was refused (nothing was matched). Files that already read give the same rows; no number of a solve moves.
+
+### Changed
+
+- The copyright and licence notice now starts every tracked shell script, HTML help page, `.gitignore` and `requirements*.txt`, not only the Python files; `tests/test_license_header.py` enforces it. No program behaviour changes.
 
 ## [2.5.1] - 2026-11-06
 
@@ -23,6 +30,7 @@ Fixes, display work and text corrections after 2.5.0; the solvers are unchanged 
 - **Imported copper drawn at up to 4096 pixels** on its longest side (was 2048): a long board such as the CO60 (285 x 95 mm) is drawn whole at its 0.1 mm pixel (2850 x 951) instead of in halves; about +8 MB per layer pixmap held (10.8 MB against 2.7 MB), and +33 MB of peak resident memory measured on the CO60 with both layers drawn.
 - **Overlay colour bar polish** (display only): the colour bar of Temperature on board no longer covers the bottom-right corner of the board or the scale bar (the fit-to-window zoom leaves a strip for it and the bar is placed where it touches neither), its ticks are round values (steps of 1, 2 or 5 times a power of ten, at most one decimal from steps of 0.1 up) instead of '184.743', and the overlay blanks the same cells as the Results map (cell centre inside the outline, `plots._off_board`) instead of every cell the outline touches at a rounded corner.
 - **OCR transcription prompt variants** (`fix/ocr-prompt-variants`; developer tool, not the program): `python -m tools.ocr transcribe --prompt-variant` selects another phrasing of the transcription prompt (`tools/ocr/data/prompt_variants.json`; `default` is `data/prompt.txt`), because the refusal filter of the online providers is stochastic and sensitive to the wording (documented in the tool's README).
+
 
 ### Changed
 - **Display polish** (`fix/display-polish-251d`; display only, no number moves): the key **D** opens the Display panel with the keyboard in its controls (same as View - Display settings…, a window-level action like G and T, so a D typed in a field is text); the Display panel closes on every tab change of the window or of the Results (mouse, Ctrl+1 to Ctrl+4, keyboard); the control row of the Temperature and Gradients tabs wraps (new `gui/flow.py`, Auto range, min and max go to a second line) so that the Results tab has no horizontal scroll bar at 1280 x 800 with both docks open. Tests in `tests/test_display_control.py` and `tests/test_shortcuts.py`.
@@ -181,6 +189,7 @@ The Solver settings (models, cell, solver, memory limit) and the Gerber import l
 - **Lumped warnings for the zone model** (`checks.check_lumped_zones`, after the run): a bound of up to 16 % of the rise for an array across the footprint edge, softer texts for an off-centre cluster and an elongated footprint, a raster coarser than a tenth of the core, and a note when a footprint with a group of vias was kept as one node (the core covers more than 92 % of it).
 - **Memory guard** (`feature/memory-guard`; `docs/theory.md` 2.7, `docs/validation.md` 26, `research/memory-guard`): the program reads the physical memory, estimates the peak memory of the FVM, the FDM and the 3D solid from their unknown count and the thickness of the graph, and refuses a run above the limit **before** allocating anything, naming the cell that fits (a cheap lower bound first, so a huge board is refused at once). New Preferences field **Memory limit** (fraction of the physical memory, default 0.60, 0.10 to 0.95; a machine preference, not saved in the project; an old project file's value is ignored). The solver panel shows the unknowns and the verdict (ok, slow, refused) of each model, **Run is disabled** with the reason when a model is refused, and **Auto** picks a cell that fits. A run above the memory available now only warns. Time simulations, animations and profile runs count twice the steady estimate. The command line exits with **code 3** on a refusal (2 stays argparse's usage error) and takes `--memory-fraction F`; the variable `PCBTHERMAL_MEMORY_BYTES` states the memory when the machine's limit is not visible. The estimate and the measured peak of each run are logged so that other machines can check the law. The Lumped and the Analytic models are not checked.
 
+
 ### Changed
 - **Analytic model: the convective board edge is in the series** (`feature/analytic-robin-edge`, from `research/analytic-edge-spatial`; `analytic.py`, `Problem.equivalent_rectangle`, `docs/theory.md` 6, `docs/validation.md` 4.1 and 13): the cosine series has insulated edges, so the edge coefficient `h_side` was left out and a board with it read hot (+3 to +22 % of the rise on 30 x 20 and 60 x 40 mm boards at the default 10 W/m2K, up to 2.5 times at 200 W/m2K). With `h_side` the series now uses the eigenfunctions of the convective edge (even `cos`, odd `sin`, roots of `λ (L/2) tan(λ L/2) = β (L/2)`, Muzychka, Culham and Yovanovich 2003, Part II), with one edge parameter for all the layers and the perimeter of the REAL outline on a board with an outline; the steady sheet, the tile correction of vias, heatsinks and metal blocks and the modal transient share the basis. On 135 uniform boards (parts at the centre, an edge or a corner, `h_side` 10 to 200 W/m2K) the hottest rise is within 0.12 % of the FVM on average and 0.32 % at most; vias and heatsinks within 0.25 %; the example board -1.0 / -1.2 / -1.9 % at `h_side` 10 / 50 / 200; the time to 63 % -3.3 to +5.9 %. Moved: the Analytic records of the boards with an edge coefficient (+0.1 to +0.7 % of the rise); boards without `h_side` are bit-identical (the cosine basis). The heat through the edge is `power_out["sides"]` and the heat balance closes. **The warning** (edge above 30 % of the loss and one layer, or two layers with sheet conductances differing by more than 1.5 times, or more layers by more than 2.5 times) says that the common parameter shares the edge between the layers (up to about 9 % either way, measured cool with the copper on the heated layer). An earlier version of this branch moved the edge loss to the faces of the layers (eq. 29 of the same paper); it was never released and is replaced by this entry (it was 12 to 37 % hot with a part at the edge). The Lumped model is not changed. The frozen Analytic records are held by the pending file `tests/regression/data/pending/analytic-edge.json`. A NaN, infinite or negative edge coefficient is now refused by `Board.validate` for every model (the FVM used to run a negative one as a heat source at the edge).
 - **Natural convection form: `laminar` is the default of NEW projects** (`fix/natural-convection-low-ra`; `Board.natural_form`, `defaults.json`, Preferences, Environment panel): the class `Board` and project files written before keep `general`, so old files give the same numbers. Only vertical boards with computed h change: -0.1 to -2 % of the rise on small boards and up to +0.3 % on large ones; the example board turned vertical is 0.22 K cooler (-0.36 % of the rise) in every model. A user who chose `general` explicitly before has nothing stored (`user_defaults.json` keeps only the differences from the shipped defaults) and now gets `laminar`; set `general` again in Preferences to keep it. Proposal A of `research/plate-h-level`.
@@ -242,6 +251,7 @@ The Solver settings (models, cell, solver, memory limit) and the Gerber import l
 - **Top path only on a component**: a heat source (role `source`) that carries `theta` and `theta_sa` from a file or the API ignores them; before, the report showed a top resistance with no heat through it, and with an interface under the source a hidden top path cooled the part by 39 K in the test case.
 - **Metal block beyond the board outline** is cut at the outline in the FVM, FDM and 3D solid; before, it drained into the cells off the board and the part read about 38 K too cold (FVM 66.8 against 104.7 degC on the test board) without any warning. The input check now measures the block against the outline.
 
+
 ### Changed
 - **Licence header**: every Python file starts with the copyright and MIT notice of Pedro Silva (PMS Labs); `tests/test_license_header.py` checks it for new files.
 
@@ -269,12 +279,14 @@ The Solver settings (models, cell, solver, memory limit) and the Gerber import l
 - Screenshots regenerated (three new: power calculator, 1 oz stack-up, vertical natural convection).
 - `docs/versions.md` shortened to one entry per version; the program roadmap is now its chapter "Planned" (`docs/roadmap.md` removed); the dates of our own work removed from the technical documents.
 
+
 ### Changed
 - Licences: everything of ours is MIT; the README lists the licence of every dependency and what the LGPL of Qt means for a bundled executable.
 - **Investigations in `research/`**: the studies of `examples/` moved to one folder per investigation (README with numbered results, `figures/`, `INTEGRATION.md`, `scripts/`); the index is `research/README.md`. Reproducing the block study corrected its case count to 74.
 - Plate check of the metal block: +0.6 %, -0.8 % and -4.6 % from Seri Lee's article (centre, edge, corner), not +4.5 %.
 
 ## [2.4.1] - 2026-10-22
+
 
 ### Changed
 - Licensing: the MIT License is now stated consistently in `LICENSE`, the README, the About box and `CLAUDE.md` (they previously said "All rights reserved"). Added a note that the results are a design aid, not validated against a physical board.
@@ -313,6 +325,7 @@ The Solver settings (models, cell, solver, memory limit) and the Gerber import l
 
 - The interface between a heatsink and the board or the package is **one dielectric sheet with its own material and thickness** (preset, thickness, conductivity, resulting K·cm²/W), for the metal block and for the heatsink on a part.
 
+
 ### Changed
 - Changing the number of layers loads the typical stack-up of the new count (a 4-layer board is now 1.586 mm).
 - Tool keys are now `S Z H C V O` (Select, Zone, Heater, Heatsink/Cooling, Via, board Outline); `V` is the via tool.
@@ -344,6 +357,7 @@ The finite-difference model in time, metal blocks, the Heatsink rename and a 3D 
 - `research/component-heatsink/scripts/component_study.py`: what a Component parametrisation adds on five real parts (one resistance to the pad adds 2 to 28 % of the rise, a top path matters only with a heatsink); results and the proposed minimal Component in `docs/versions.md` (chapter 'Planned') 1.9b.
 - `research/solid3d-verification/scripts/copper_dissipation.py` and `tests/test_copper.py`: the outer copper dissipates and spreads heat by itself and a heatsink works through the copper under it (FVM within 2.5 % of a 3D solid for pads of 20 mm and more).
 - **Metal block**: a Heatsink with a thickness (material, interface resistance, extra coefficient for fins) is a heat spreader in the FVM and FDM with lateral conduction, mass and a contact only over the copper it overlaps; block results (table, temperature view, report), checks, `example block`; validated against a 3D solid within 1.8 %.
+
 
 ### Changed
 - **Sink is now called Heatsink** everywhere (class, `add_heatsink`, `Problem.heatsinks`, JSON key `heatsinks`, application labels, documentation). Project files saved with the key `sinks` and the old editor files still open.
@@ -408,6 +422,7 @@ First release of the rebuilt program. The original wxPython application (1.0.0) 
 - Command line: `run`, `solvers`, `transient`, `convergence`, `convert`, `gui`, `example`, `--version`.
 - 94 tests, including a documentation gate that requires Doxygen-style documentation on every function.
 - Documentation: `docs/` (model guide, physics, old-versus-new comparison, findings log, candidate methods from the literature).
+
 
 ### Changed
 - FR-4 is anisotropic (0.3 W/mK through the thickness, 0.9 W/mK in the plane); vias are hollow barrels with plating thickness; heater power is injected exactly on any grid.

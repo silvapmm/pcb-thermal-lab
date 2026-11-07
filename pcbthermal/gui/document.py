@@ -9,6 +9,7 @@ conversion between the two happens in this module, so the rest of the GUI rarely
 """
 
 import copy
+import logging
 import os
 
 import numpy as np
@@ -17,11 +18,15 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from .. import defaults
 from ..api import SolverOptions, default_options
+from ..fileschema import ProjectFormatError, check_problem_dict
 from ..model import Dielectric, Heater, Problem, Heatsink, Via, Zone, new_problem, via_fill_k
 from ..project import Project, load_project, project_from_dict, project_to_dict, save_project
 
 KINDS = ("zone", "heater", "heatsink", "via")
 _LISTS = {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}
+
+
+logger = logging.getLogger(__name__)
 
 
 class _SnapshotCommand(QUndoCommand):
@@ -83,6 +88,7 @@ class Document(QObject):
 
     changed = Signal()          # The problem or the options changed (views must refresh)
     state_changed = Signal()    # File name or modified flag changed (window title)
+    edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
 
     def __init__(self, project=None):
         """!
@@ -176,6 +182,17 @@ class Document(QObject):
         mutator(self.project)
         after = self.snapshot()
         if before == after:
+            return
+        # Whatever the GUI path (typed value, drag, scale, paste), an edit that leaves a non-finite or absurd value would make a project that cannot be
+        # saved and reopened: the loading check is applied to the result and the edit is undone silently (the spin boxes already bound typed values)
+        try:
+            check_problem_dict(after["project"] if "project" in after else after)
+        except ProjectFormatError as exc:
+            logger.warning("edit '%s' refused: %s", text, exc)
+            self.project = project_from_dict(copy.deepcopy(before), validate=False)
+            self.changed.emit()
+            # The user must see why the value snapped back (one message per refusal, no dialog)
+            self.edit_refused.emit("That value was refused: it would be larger than 1 km or not a number.")
             return
         self.stack.push(_SnapshotCommand(self, text, before, after, merge_key))
         self.changed.emit()

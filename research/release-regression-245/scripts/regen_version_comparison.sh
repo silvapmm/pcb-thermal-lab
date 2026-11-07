@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Regenerates docs/version-comparison.md from the result sets in out/ (see make_version_comparison.py).
 # Order: study_run_suite.py --label v2.5.0 (the tree of the release); study_baseline_release.py / compat_run.py for every tag (labels v2.0.0 ... v2.4.5);
 # study_references.py; then this script, from the repository root.
