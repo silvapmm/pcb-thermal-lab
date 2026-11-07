@@ -209,6 +209,7 @@ class ImportSession:
         """!@brief Create an empty session."""
         self.files: List[SourceFile] = []
         self.source_text = ""                                 # What was opened (shown in the window)
+        self.paths = {}                                       # file name -> Path on the disk (folder or list of files; a ZIP member has none)
         self.name = "board"
         self.mapping = "faces"                                # Copper mapping key for the Model step
         self.cell_mm = 1.0
@@ -261,6 +262,7 @@ class ImportSession:
         self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
         self.user_profile = self.reuse_profile                # a new set starts from the detection, a re-import from the stored profile
         self._parts, self._listed, self._unmatched, self._res = [], [], [], None
+        self.paths = {}                                       # file name -> Path of a file read from a folder or a list of files (none for a ZIP)
         if isinstance(source, (list, tuple)):
             paths = [Path(p) for p in source]
             self.source_text = f"{len(paths)} files"
@@ -330,6 +332,7 @@ class ImportSession:
                     for block in iter(lambda: fh.read(1 << 20), b""):
                         sha.update(block)
             self._pending.append((f.name, size, sha.hexdigest(), head.decode("utf-8", "replace"), lambda p=f: limits.read_text(p), err))
+            self.paths[f.name] = f                                 # the file on the disk, so that a project package can store its original bytes
 
     def _add_archive(self, path):
         """!

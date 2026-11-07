@@ -21,6 +21,7 @@ from .. import copper, defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
+from ..package import background_bytes as package_background_bytes
 
 COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
@@ -552,11 +553,17 @@ class BoardView(QGraphicsView):
         """!
         @brief Add the background photo (from the project view settings) below everything else.
         """
+        self.background_error = ""
         cfg = self.doc.project.view.get("background")
         if not cfg:
             return
         path = cfg.get("path", "")
-        pm = QPixmap(path)
+        pm = QPixmap()
+        data = package_background_bytes(self.doc.project, path)   # an image stored in the project package is read from memory
+        if data is not None:
+            pm.loadFromData(data)
+        else:
+            pm = QPixmap(path)
         if pm.isNull():
             # The stored path is kept (the dialog shows it): only say, once per load, that the picture cannot be drawn
             name = os.path.basename(path) or "(no file name)"

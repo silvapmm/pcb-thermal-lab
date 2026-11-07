@@ -113,6 +113,7 @@ python3 -m venv .venv
 
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
+.venv/bin/python -m pcbthermal convert board.pcbt.json board.pcbtz         # project package (a ZIP: project, image and, on request, the Gerber and placement files); every command reads a .pcbtz
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM and the 3D solid)
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation

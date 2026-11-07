@@ -148,6 +148,15 @@ class GerberArchive:
         @return str The text, decoded leniently.
         @throws UnsafeArchiveError If the member holds more bytes than it declares or cannot be decompressed.
         """
+        return self.read_bytes(name).decode("utf-8", "replace")
+
+    def read_bytes(self, name):
+        """!
+        @brief Read a whole member into memory as its original bytes (no decoding), never more than the declared size; used to store the file unchanged in a project package.
+        @param name Member name.
+        @return bytes The content (CRC checked by the library).
+        @throws UnsafeArchiveError If the member holds more bytes than it declares or cannot be decompressed.
+        """
         info = self._infos[name]
         try:
             with self._zf.open(info) as fh:
@@ -157,7 +166,7 @@ class GerberArchive:
             raise UnsafeArchiveError(f"member {name!r} cannot be read (it holds more or other bytes than it declares?): {exc}") from exc
         if len(data) > info.file_size:
             raise UnsafeArchiveError(f"member {name!r} holds more bytes than it declares")
-        return data.decode("utf-8", "replace")
+        return data
 
     def members(self):
         """!

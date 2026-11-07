@@ -178,7 +178,7 @@ def test_save_and_save_as_write_a_project_file_and_clear_the_modified_flag(win, 
     assert win.windowTitle().startswith("mine *")
     win.a_save.trigger()                                                                  # no path yet: Save asks like Save as
     path = str(target) + ".pcbt.json"
-    assert asked == ["PCB Thermal projects (*.pcbt.json)"] and os.path.exists(path) and win.doc.path == path and not win.doc.modified and " *" not in win.windowTitle()
+    assert asked == ["PCB Thermal project (*.pcbt.json);;PCB Thermal project package (*.pcbtz)"] and os.path.exists(path) and win.doc.path == path and not win.doc.modified and " *" not in win.windowTitle()
     assert json.load(open(path))["format"] != FORMAT_2                                    # a project without imports is format 1
     # Save with unsaved changes writes in place, no dialog and no backup (the format did not change)
     asked.clear()
