@@ -60,7 +60,9 @@ def test_estimator_against_the_axisymmetric_reference(layers, side, f):
     assert I.square_swing(st, 1.0 / f, 0.3, a, 10.0, 10.0) == pytest.approx(mx - mn, rel=0.07)
 
 
-def test_the_program_understates_the_fast_wave():
+def test_the_program_no_longer_understates_the_fast_wave():
+    # Before fix/fast-wave-ripple the decision read 0.75 K here; the closed-form floor
+    # brought it to the reference swing (6.35 against 6.37 K), so the test now holds that.
     pytest.importorskip("pcbthermal")
     from pcbthermal import profiles
     from pcbthermal.model import Problem, SquareWave
@@ -70,5 +72,5 @@ def test_the_program_understates_the_fast_wave():
     st = A.Stack(layers=2)
     ref = A.Reference(st, A.part_radius(10e-3), A.rectangle_radius(60e-3, 40e-3), 10.0, 10.0)
     mx, mn = ref.square_wave(0.05, 0.3, "center")
-    assert d.oscillation == pytest.approx(0.75, abs=0.03)
+    assert d.oscillation == pytest.approx(6.37, abs=0.15)
     assert 10.0 * (mx - mn) == pytest.approx(6.37, abs=0.1)
