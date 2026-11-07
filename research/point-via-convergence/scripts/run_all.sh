@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Runs every study of the folder in turn (from the repository root); the outputs go to research/point-via-convergence/out/ (git-ignored). About one hour on a 10-core machine.
 PY=${PY:-.venv/bin/python}
 D=research/point-via-convergence
