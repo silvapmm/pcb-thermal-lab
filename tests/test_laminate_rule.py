@@ -319,10 +319,19 @@ def test_an_inner_node_of_a_thick_simple_stack_up_gives_up_only_the_laminate_it_
         p.add_zone(2, rect=(0, 0, SIZE / 2, SIZE))                  # inner layer bare on one half: both gaps refined there
         p.add_zone(3, rect=(0, 0, SIZE, SIZE))
         p.add_heater(1, 1.0, rect=(12, 12, 18, 18))
-        for net, old in ((fvm.Network(p, 30, 30), fvm.Network(p, 30, 30, ladder=False)),):
+        # The rule shares the edge conductance out among the nodes without losing any: checked on the network without the series film of the cut cells
+        # (fvm.Network._cut_edge_film), which then puts each node's share behind the conduction to the edge with that node's own sheet. A laminate node has a far smaller sheet
+        # than a copper node, so the film there is reduced (by 1.1e-4 to 1.3e-4 of the whole edge conductance on these boards, measured): the earlier check at 1e-12 on the
+        # default network could not hold once the film was in series, and it is replaced by the bound below
+        for kw in ({"cut_cells": False}, {}):
+            net, old = fvm.Network(p, 30, 30, **kw), fvm.Network(p, 30, 30, ladder=False, **kw)
             assert net.ladder.plans[0].n == 4 and net.ladder.plans[0].flagged.any()
             assert net.C.sum() == pytest.approx(old.C.sum(), rel=1e-12)
-            assert (net.g_amb.sum() - net.g_pin.sum()) == pytest.approx(old.g_amb.sum() - old.g_pin.sum(), rel=1e-12)
+            g_new, g_old = net.g_amb.sum() - net.g_pin.sum(), old.g_amb.sum() - old.g_pin.sum()
+            if kw:
+                assert g_new == pytest.approx(g_old, rel=1e-10)
+            else:
+                assert g_old * (1.0 - 1e-3) < g_new <= g_old * (1.0 + 1e-12)
             assert net.C[:3].min() > 0.0 and net.g_side.min() >= 0.0
         f = fdm.Network(p, 1.0)
         assert f.C[:3].min() > 0.0 and f.g_side.min() >= 0.0

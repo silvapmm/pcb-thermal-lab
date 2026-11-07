@@ -195,3 +195,38 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
     # it is part of the model-limit warnings of a run
     assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
+
+
+def test_a_warning_for_the_lumped_and_analytic_when_the_edge_is_cooled_strongly_for_the_thickness():
+    # check_reduced_edge_laminate (review): the Lumped and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
+    # 1.6 mm board with a corner part -5.2 % (Analytic) at 200 W/m2K against a converged independent 3D solver (77.66 K), where the FVM with the band is -0.6 %
+    w = checks.check_reduced_edge_laminate(plate(1.6, 100.0, "corner"), ("analytic",))
+    assert len(w) == 1 and "Analytic model keeps" in w[0] and "FVM or the FDM" in w[0]
+    assert "Lumped and Analytic models" in checks.check_reduced_edge_laminate(plate(3.2, 50.0, "corner"), ("fvm", "lumped", "analytic"))[0]
+    assert not checks.check_reduced_edge_laminate(plate(1.6, 50.0, "corner"), ("analytic",))              # 80 W/m2K mm: about -1 %, silent
+    assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("fvm", "fdm", "solid3d"))
+    assert not checks.check_reduced_edge_laminate(plate(3.2, None, "corner"), ("analytic",))
+    assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner", layers=1), ("analytic",))
+    text = checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("lumped",))[0]
+    assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    assert any("Lumped model keeps" in str(x) for x in checks.check_model_limits(plate(3.2, 200.0, "corner"), ("lumped",)))
+
+
+def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_reference():
+    # Review of the turn spread: the 20 mm square of tests/helpers/cut_cell_boards.edge_board (1.6 mm, 200 W/m2K, part 3 mm off-grid by 0.5 mm, both faces 10 W/m2K) turned by
+    # 0 / 22.5 / 45 degrees. With the band the peak spreads 1.0 K at 1 mm, 0.26 K at 0.5 mm and 0.05 K at 0.25 mm (measured): a discretisation error of the half-cell film on the
+    # laminate nodes (cell Biot number h_side dx / k_xy = 0.22 at 1 mm), which falls with the cell; the aligned square is the one that is off at 1 mm (+0.7 % of the rise, the
+    # turned ones -0.3 %) against the converged reference of research/laminate-edge-band lib/graded3d.py on the same board (113.31 K, 32 laminate sub-slabs).
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers"))
+    import cut_cell_boards as bd
+    ref = 113.31
+    for cell, spread in ((1.0, 1.2), (0.5, 0.35)):
+        peaks = []
+        for angle in (0.0, 22.5, 45.0):
+            p = bd.edge_board(angle=angle, h_side=200.0, pc=0.5, box=32.0)
+            p.board.h_bottom = 10.0
+            peaks.append(fvm.solve_steady(p, cell_mm=cell).t_max - 25.0)
+        assert max(peaks) - min(peaks) < spread, (cell, peaks)
+        assert all(abs(x / ref - 1.0) < 0.015 for x in peaks), (cell, peaks)
