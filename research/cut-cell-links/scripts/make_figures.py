@@ -3,7 +3,8 @@
 """!
 @file make_figures.py
 @brief Figures of the numbers the studies printed: error against the position of the outline, the sliver curve, the spread against h_side (README figures 03 to 05).
-@details Reads `out/sweep.json`, `out/small_cells.json` (written by `study_scheme_sweep.py` and `study_small_cells.py`) and writes `figures/fig_03_...` to `fig_05_...`.
+@details Reads `out/sweep.json`, `out/small_cells.json` (written by `study_scheme_sweep.py` and `study_small_cells.py`) and writes `figures/fig_03_...` to `fig_05_...`;
+         with `out/review_sliver.json` (`study_review.py sliver`) also `fig_07_sliver_models.png`.
 Usage: .venv/bin/python research/cut-cell-links/scripts/make_figures.py   (from the repository root, after the studies)
 """
 
@@ -78,7 +79,7 @@ def fig_sliver():
     @return None.
     """
     r = json.load(open(os.path.join(OUT, "small_cells.json")))
-    covers = sorted({float(k.split("|")[0]) for k in r})
+    covers = sorted({float(k.split("|")[0]) for k in r if not k.startswith("anomaly")})   # (the anomaly table of the review has its own keys)
     fig, ax = plt.subplots(figsize=(7.2, 4.4))
     for s in SCHEMES:
         ax.plot(covers, [r[f"{c:g}|{s}"]["tmax"] for c in covers], "o-", ms=4, color=COL[s], label=s)
@@ -92,8 +93,37 @@ def fig_sliver():
     plt.close(fig)
 
 
+def fig_sliver_models():
+    """!
+    @brief Figure 7 (added by the review): error of the hottest point against the cover of the edge column, minus its value at c = 1, for the FVM schemes, the FDM and the 3D solid
+           (reference: the independent two-sheet solver, `out/review_sliver.json` of `study_review.py sliver`).
+    @return None.
+    """
+    p = os.path.join(OUT, "review_sliver.json")
+    if not os.path.exists(p):
+        return
+    r = json.load(open(p))
+    covers = (0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0)
+    models = (("program", "FVM (program)", "#c00000"), ("aperture", "FVM aperture", "#7030a0"), ("aperture+film", "FVM aperture+film", "#2e7d32"),
+              ("fdm", "FDM", "#1f4e79"), ("solid3d", "3D solid", "#999999"))
+    fig, axes = plt.subplots(1, 2, figsize=(10.0, 3.8), sharey=True)
+    for ax, hs in zip(axes, ("200", "2000")):
+        for key, label, col in models:
+            e = np.array([r[f"{hs}|{c:g}"][key] for c in covers])
+            ax.plot(covers, e - e[-1], "o-", color=col, label=label, ms=4)
+        ax.set_xscale("log")
+        ax.axhline(0, color="0.6", lw=0.8)
+        ax.set_xlabel("cover c of the edge column")
+        ax.set_title(f"h_side {hs} W/m2K, cell 1 mm", fontsize=9)
+    axes[0].set_ylabel("error minus error at c = 1 (K)")
+    axes[1].legend(fontsize=8)
+    fig.savefig(os.path.join(FIG, "fig_07_sliver_models.png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     os.makedirs(FIG, exist_ok=True)
     fig_positions()
     fig_spread()
     fig_sliver()
+    fig_sliver_models()

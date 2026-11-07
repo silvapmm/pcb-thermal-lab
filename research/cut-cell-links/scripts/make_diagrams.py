@@ -5,7 +5,8 @@
 @brief Drawings of the cut cell: the quantities a scheme needs (cover, centroid, apertures, distance to the outline) and the chain of resistances from a node to the air in each scheme.
 @details No data and no program: fig_01 is the plan of a 3 x 3 patch of cells cut by a slanted outline with the apertures of the faces, the centres, the centroid of the board part and
          the closest outline point; fig_02 is the section along the normal to the outline (node, link, node, film) for the program, the aperture and the links schemes, and the
-         film of Bochkov and Gibou. Written to `figures/` (numbers 01 and 02; `make_figures.py` continues the numbering).
+         film of Bochkov and Gibou; fig_06 (added by the review) is the plan of an edge column whose board part is a sliver, with the heat path in the program and with the aperture.
+         Written to `figures/` (numbers 01, 02 and 06; `make_figures.py` draws 03 to 05 and 07).
 Usage: .venv/bin/python research/cut-cell-links/scripts/make_diagrams.py   (from the repository root)
 """
 
@@ -151,7 +152,56 @@ def fig_chains():
     plt.close(fig)
 
 
+def fig_sliver_paths():
+    """!
+    @brief Figure 6 (added by the review): plan of an edge column whose board part is a sliver (cover c = 0.02), with the heat path to the air in the program and with the aperture.
+    @details Two panels over the same three cells: the whole cell, the sliver cell (centre off the board) and the outline 0.02 of a cell inside it. Program: the link into the sliver is
+             the harmonic mean of S and c S over one cell, 2c/(1+c) S (about 0.04 S), so the film of the whole edge length that sits on the sliver node is nearly cut off and the
+             board edge behaves as insulated. Aperture: the face between the two cells is open over its whole height (a = 1), the link is S, and with the film the conduction from
+             the sliver node (0.48 of a cell outside the board) to the outline is subtracted (d < 0), so the chain is the real 0.52 cell of sheet plus the film.
+    @return None.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.4))
+    c = 0.12                                       # drawn wider than the 0.02 of the study, so that the strip can be seen
+    for ax, title, strong in ((axes[0], "program: link 2c/(1+c) S into the sliver", False), (axes[1], "aperture (+ film): link a S, a = 1; film after d < 0", True)):
+        ax.set_xlim(-0.4, 3.4)
+        ax.set_ylim(-0.95, 1.35)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_title(title, fontsize=9.5)
+        for i in range(3):
+            ax.add_patch(Rectangle((i, 0), 1, 1, fill=False, ec="0.55", lw=0.9))
+        # Board: from x = 1 - c to the right (the sliver is the strip [1 - c, 1] of the left cell)
+        ax.add_patch(Rectangle((1 - c, 0), 2 + c, 1, fc="#f4b183", ec="none", alpha=0.55))
+        ax.plot([1 - c, 1 - c], [-0.15, 1.15], color="#c00000", lw=2.4)
+        ax.text(1 - c - 0.04, 1.2, "outline", color="#c00000", fontsize=8, ha="right")
+        ax.text(0.5, -0.12, "sliver cell, c = 0.02\n(drawn wider; node off the board)", ha="center", va="top", fontsize=8)
+        ax.text(1.5, -0.12, "whole cell", ha="center", va="top", fontsize=8)
+        ax.text(2.5, -0.12, "whole cell", ha="center", va="top", fontsize=8)
+        for x in (0.5, 1.5, 2.5):
+            ax.plot([x], [0.5], "o", color="k", ms=6)
+        # Link into the sliver: thin (program) or full (aperture)
+        ax.plot([0.5, 1.5], [0.5, 0.5], color="#7030a0", lw=4.0 if strong else 0.6)
+        ax.text(1.2, 0.62, "a S = S" if strong else "0.04 S", ha="center", fontsize=8.5, color="#7030a0")
+        ax.plot([1.5, 2.5], [0.5, 0.5], color="#7030a0", lw=4.0)
+        # Film on the sliver node to the air (the whole edge length of the cell)
+        ax.annotate("", xy=(-0.3, 0.5), xytext=(0.45, 0.5), arrowprops=dict(arrowstyle="-|>", color="#2e7d32", lw=1.6))
+        ax.text(-0.05, 0.28, "film g0\n(to air)", ha="center", fontsize=7.5, color="#2e7d32")
+        # Heat arriving from the part (to the right)
+        ax.annotate("", xy=(2.55, 0.85), xytext=(3.3, 0.85), arrowprops=dict(arrowstyle="-|>", color="#c55a11", lw=1.4))
+        ax.text(3.3, 0.95, "heat from the part", ha="right", fontsize=7.5, color="#c55a11")
+        if strong:
+            ax.annotate("", xy=(0.5, 0.15), xytext=(1 - c, 0.15), arrowprops=dict(arrowstyle="<->", color="#548235", lw=1.0))
+            ax.text(0.74, 0.2, "d < 0", fontsize=7.5, color="#548235", ha="center")
+            ax.text(1.5, -0.72, "to the air: (1 - |d|) / S + 1 / g0\n= the real 0.52 cell of sheet and the film", ha="center", fontsize=7.8)
+        else:
+            ax.text(1.5, -0.72, "to the air: 25.5 / S + 1 / g0: the edge acts as insulated\n(+3.5 K at h_side 200, 1 mm, c = 0.02)", ha="center", fontsize=7.8)
+    fig.savefig(os.path.join(FIG, "fig_06_sliver_heat_path.png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     os.makedirs(FIG, exist_ok=True)
     fig_geometry()
     fig_chains()
+    fig_sliver_paths()

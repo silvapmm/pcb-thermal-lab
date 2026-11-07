@@ -7,7 +7,8 @@
          from the edge. For every scheme: the hottest temperature, the energy balance (heat to the air over the power), the symmetry and the sign pattern of the matrix
          (positive off-diagonals, smallest diagonal dominance), the extreme eigenvalues of the Jacobi-scaled matrix (the conditioning the iterative solvers see), whether the
          symmetric LU of `fvm.lu_factor` accepted it (no warning logged), and the largest link relative to a whole pair. The error against the board at a cell of 1/32 mm
-         (edge on a grid line) is printed for the covers that are a multiple of 1/32.
+         (edge on a grid line) is printed for the covers that are a multiple of 1/32. A last table gives the difference program - aperture at c = 0.02, 0.05, 0.1 for
+         h_side 10, 50, 200 and 2000 (the size of the sliver anomaly).
 Usage: .venv/bin/python research/cut-cell-links/scripts/study_small_cells.py   (from the repository root; about 2 minutes, below 0.5 GB)
 """
 
@@ -90,6 +91,15 @@ def main():
             err = f"{r.t_max - ref:+.3f}" if ref is not None else "-"
             out[f"{c:g}|{s}"] = dict(tmax=float(r.t_max), balance=q, **m, fallbacks=fall, err=None if ref is None else float(r.t_max - ref))
             print(f"| {c:g} | {s} | {r.t_max:.3f} | {q:.6f} | {m['asym']:.1e} | {m['pos_offdiag']} | {m['min_diag_dominance']:.2e} | {m['lam_min']:.2e} | {m['cond']:.1e} | {fall} | {err} |", flush=True)
+    # The size of the sliver anomaly against h_side (README 4; added by the review: these numbers were quoted without a script)
+    print("\n| c | " + " | ".join(f"program - aperture at h_side {h:g} (K)" for h in (10, 50, 200, 2000)) + " |\n| --: | --: | --: | --: | --: |")
+    for c in (0.02, 0.05, 0.1):
+        row = []
+        for h in (10.0, 50.0, 200.0, 2000.0):
+            d = cl.tmax(board(c, h), 1.0, "program") - cl.tmax(board(c, h), 1.0, "aperture")
+            out[f"anomaly|{c:g}|{h:g}"] = float(d)
+            row.append(f"{d:+.2f}")
+        print(f"| {c:g} | " + " | ".join(row) + " |", flush=True)
     with open(os.path.join(OUT, "small_cells.json"), "w") as f:
         json.dump(out, f, indent=1)
 

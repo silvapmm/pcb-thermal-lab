@@ -12,6 +12,7 @@
 * **What no scheme removes**: the copper edge held inside the outline (laminate nodes in the cut cells): spread 2 to 3 K at `h_side` 200 for every scheme (`aperture+film` 3.0 / 2.0 K, program 6.3 / 4.4 K at 1 / 0.5 mm, section 5.2); and the residual of the small T board (bias +1.4 K at 1 mm is present with the neck edge **on** a grid line, so it is not a cut-cell effect; its scatter over the edge positions, 0.4 to 0.9 K, is not reduced, section 3.2).
 * **Cost and impact**: unknowns and sparsity unchanged; the geometry of the prototype (Python loop over the cut cells, 0.4 ms each) must be vectorised for Gerber outlines (section 6). Frozen harness boards: with `aperture` only `part_across_outline` (-0.80 / -0.37 / -0.05 K at 2 / 1 / 0.5 mm), `example_cut_to_T` (-0.014 K at 2 mm) and `round_outline` (-0.006 / -0.002 / -0.001 K) move; with the film on the rectangles too every board with a non-zero `h_side` moves by at most 0.014 K (0.01 % of the rise) except those three (section 6).
 * **Decisions for the maintainer** are in `INTEGRATION.md` (section 8 there).
+* **Review** (section 10): the sliver defect, the spreads and the frozen shifts were reproduced against an independent solver that shares no code with the program; the film is Barrett and others eq. 12 to 14 (read); corrected: the film floor **is** reached at `h_side` 2000 when the copper stops short of the outline (bare-laminate nodes), the aperture at a re-entrant corner is exact (the suspicion of 3.2 is withdrawn: the T scatter is the resolution of the part and the read-out of the peak), the 0.5 mm spreads of `aperture+film` are at the resolution of the references (below about 0.1 K, not 0.01 to 0.06 K); found: **the 3D solid has the sliver defect four to five times larger** (+15.9 K at `h_side` 200, +1.6 K at the default 10, cover 0.02, 1 mm), the FDM does not have it.
 
 ## 1. Method
 
@@ -124,7 +125,7 @@ The 30 x 24 mm T whose 2 W part crosses the neck edge, neck edge at x = 10 + k/1
 | 200 | 1 | +1.28 / 0.68 | +1.06 / 0.83 | +1.20 / 0.79 | +0.93 / 0.98 | +1.10 / 0.96 |
 | 200 | 0.5 | +0.20 / 0.39 | +0.19 / 0.41 | +0.27 / 0.45 | +0.17 / 0.43 | +0.25 / 0.45 |
 
-**None of the schemes removes the scatter of the small T**, and the bias of +1.3 K at 1 mm is present with the neck edge exactly on a grid line (a = 10.000: +1.33 K for the program, `aperture` and `links`, which are then identical): it is not a cut-cell effect. The T has a re-entrant corner and a part across the edge; the scatter (0.4 to 0.9 K) probably comes from the corner cell and the part weights, but this was **not isolated**. One suspect named in the code: the aperture of a face is computed as the smaller of the inside lengths just left and right of it, exact only where the outline crosses the face once, which a re-entrant corner cell does not satisfy; a vectorised exact aperture should be checked on the corner cell before the T is judged.
+**None of the schemes removes the scatter of the small T**, and the bias of +1.3 K at 1 mm is present with the neck edge exactly on a grid line (a = 10.000: +1.33 K for the program, `aperture` and `links`, which are then identical): it is not a cut-cell effect. The T has a re-entrant corner and a part across the edge. *The first version of this section suspected the aperture at the re-entrant corner; the review (10.4) found that aperture exact and the scatter to be the resolution of the part's board share and the read-out of the peak, not the links.*
 
 ## 4. The small cell: conditioning, the M-matrix, the sliver anomaly
 
@@ -134,7 +135,7 @@ The 30 x 24 mm T whose 2 W part crosses the neck edge, neck edge at x = 10 + k/1
 
 *Figure 5 (`figures/fig_05_sliver_curve.png`): hottest temperature against the cover of the edge column. The program jumps by 3.6 K between c = 0.01 (the sliver is dropped) and c = 0.02; the aperture and link schemes are continuous.*
 
-**The anomaly of the program** (`out/small_cells.json`; the difference program - aperture at 1 mm, in K, `h_side` 10 / 50 / 200 / 2000): c = 0.02: +0.09 / +1.02 / +3.52 / +8.97; c = 0.05: +0.05 / +0.43 / +1.57 / +5.40; c = 0.1: +0.03 / +0.22 / +0.80 / +3.15. Mechanism: a sliver of cover c carries the whole edge film of its cell (the length of the outline inside it) but is reached through a link of `2c/(1+c)` of a whole one, so its film is almost cut off from the board (the board edge behaves as insulated next to it); the aperture of the face of a sliver is 1, so `aperture` reaches it fully. Errors against the board at 1/32 mm for the covers that are multiples of 1/32 (c = 1/32 to 1; the error also holds the common -0.8 K of the 1 mm read-out): program +1.60 K at c = 1/32, +0.49 K at 1/16, -0.15 at 1/8 ... -0.80 at c = 1; `aperture` -0.79, -0.78, -0.78, ... -0.80; `aperture+film` -0.72 to -0.57; `links` -0.88 to -0.80. So the curve of the program has a range of 2.4 K over the position of the edge, the aperture schemes 0.2 K or less.
+**The anomaly of the program** (`out/small_cells.json`, last table of the script, which the review added because these numbers had been quoted without a script; the difference program - aperture at 1 mm, in K, `h_side` 10 / 50 / 200 / 2000): c = 0.02: +0.09 / +1.02 / +3.52 / +8.97; c = 0.05: +0.05 / +0.43 / +1.57 / +5.40; c = 0.1: +0.03 / +0.22 / +0.80 / +3.15. Mechanism: a sliver of cover c carries the whole edge film of its cell (the length of the outline inside it) but is reached through a link of `2c/(1+c)` of a whole one, so its film is almost cut off from the board (the board edge behaves as insulated next to it); the aperture of the face of a sliver is 1, so `aperture` reaches it fully. Errors against the board at 1/32 mm for the covers that are multiples of 1/32 (c = 1/32 to 1; the error also holds the common -0.8 K of the 1 mm read-out): program +1.60 K at c = 1/32, +0.49 K at 1/16, -0.15 at 1/8 ... -0.80 at c = 1; `aperture` -0.79, -0.78, -0.78, ... -0.80; `aperture+film` -0.72 to -0.57; `links` -0.88 to -0.80. So the curve of the program has a range of 2.4 K over the position of the edge, the aperture schemes 0.2 K or less.
 This anomaly is a **defect of the present program** (it exists with the exact cover; it is not an artefact of the prototype, the program is the unmodified `fvm.solve_steady`). Its size at the default `h_side` is small (0.09 K at 10).
 
 ## 5. Interplay with vias, patterned copper, time, and the part across the outline
@@ -227,7 +228,7 @@ Errors against 229.225 at 2 / 1 / 0.5 mm: program +0.18 / +0.37 / +0.07 K, `aper
 | 1e5 | 1 | 1.34 | 0.84 | 0.13 | 0.11 | 0.10 | 72 |
 | 1e5 | 0.5 | 0.74 | 0.41 | 0.09 | 0.08 | 0.07 | 112 |
 
-The floor is not reached up to `h_side` 1e4 (a film beyond any physical edge) and, at the limit 1e5 W/m2K of `Board.validate`, it binds in 72 to 112 cells and the result barely depends on its value (0.07 to 0.13 K). The matrix stays positive because the floor keeps `g > 0`. For a thin board the criterion `H d / S`: with `H` = `h_side` times the slab (0.8 mm) and `S` about 0.015 W/K for 35 um copper on 1.6 mm FR-4, `|d| H / S` reaches 1 at `|d|` of about 9 mm at `h_side` 2000, 0.9 mm at 2e4 and 0.19 mm at 1e5; a thick plate or a thin copper layer makes it worse (S smaller), so the floor is a safety net that a test must keep (INTEGRATION).
+On this full-copper board the floor is not reached up to `h_side` 1e4 (a film beyond any physical edge) and, at the limit 1e5 W/m2K of `Board.validate`, it binds in 72 to 112 cells and the result barely depends on its value (0.07 to 0.13 K). **Correction of the review (10.5)**: where the copper stops short of the outline the edge cells are bare-laminate nodes, whose factor is `1 - h_side |d| / k_lam` (the slab cancels), so the floor binds from about `0.75 k_lam / |d|`, i.e. near 1000 W/m2K at 1 mm: 80 node cells at the floor at `h_side` 2000 on the turned square with the copper 1.2 mm inside (`study_review.py geometry`); the effect of the floor on the answer there was not measured. The matrix stays positive because the floor keeps `g > 0`. For a thin board the criterion `H d / S`: with `H` = `h_side` times the slab (0.8 mm) and `S` about 0.015 W/K for 35 um copper on 1.6 mm FR-4, `|d| H / S` reaches 1 at `|d|` of about 9 mm at `h_side` 2000, 0.9 mm at 2e4 and 0.19 mm at 1e5; a thick plate or a thin copper layer makes it worse (S smaller), so the floor is a safety net that a test must keep (INTEGRATION).
 
 ## 8. What the independent references and the tests say
 
@@ -241,15 +242,90 @@ The floor is not reached up to `h_side` 1e4 (a film beyond any physical edge) an
 * **Imported copper** is refused by the prototype (the faces of an imported layer are built from pixel masks times the cell cover, `copper.lateral`; the aperture would have to be applied there as the board mask at pixel level, so that the pixel sheet is zero outside the board instead of the cell sheet being scaled by the cover): **not tested**.
 * **Metal blocks** refused (the 3D solid, the FDM: see `INTEGRATION.md`).
 * The direct solver only; SOR/CG of the program use their own copy of the links and would need the same change.
-* The aperture of a face is the smaller of the inside lengths just left and right of it: exact when the outline crosses the face once (not at a re-entrant corner cell; the T residual of 3.2 may involve it).
+* The aperture of a face is the smaller of the even-odd inside lengths just left and right of it; the review checked it exact at re-entrant corners and on a face crossed twice (10.4).
 * The first-order residual of the strip with the centroid nodes and the 0.12 to 0.14 K floor at 1 mm are unexplained.
-* The `floor` of 0.25 and the use of the distance from the cell centre are choices of this study; the paper's own text was not read.
+* The `floor` of 0.25 is a choice of this study (Barrett and others have none); the distance from the cell centre is theirs (eq. 13). Bochkov and Gibou's own text was not read.
 * No measurement of a physical board.
+
+## 10. Review
+
+The reviewer re-ran the studies' key numbers and checked them against references that share no code with the schemes or with the program's treatment of an edge. Script `scripts/study_review.py` (subcommands `sliver`, `frame`, `tee`, `geometry`), library `lib/indep_sheet.py` (an independent two-sheet solver on an aligned rectangle: its own assembly, the edge film in series with half a cell, nothing imported from `pcbthermal`; within 0.03 to 0.11 K of the program on a 30 mm rectangle at 1 to 0.25 mm, the difference being the film placement) and `lib/vecaperture.py`; tests `tests/test_review.py`.
+
+### 10.1 The sliver defect, against the independent reference
+
+The board of section 4 at 1 mm; reference: the same board as an aligned rectangle in `indep_sheet` at 1/4, 1/8, 1/16 mm, extrapolated (the three values differ by at most 0.05 K). Error of the hottest point (K):
+
+| h_side | c | reference (degC) | program | aperture | aperture+film | FDM | 3D solid |
+| --: | --: | --: | --: | --: | --: | --: | --: |
+| 10 | 0.01 | 265.934 | -0.746 | -0.746 | -0.740 | -1.251 | +0.187 |
+| 10 | 0.02 | 265.801 | -0.770 | -0.865 | -0.863 | -1.312 | +1.844 |
+| 10 | 0.1 | 264.753 | -0.814 | -0.847 | -0.844 | -1.329 | +0.526 |
+| 10 | 1 | 253.995 | -0.658 | -0.658 | -0.652 | -1.504 | +0.232 |
+| 200 | 0.01 | 137.530 | -0.929 | -0.929 | -0.686 | -1.282 | +8.194 |
+| 200 | 0.02 | 137.479 | +2.727 | -0.793 | -0.722 | -1.307 | +24.075 |
+| 200 | 0.05 | 137.330 | +0.779 | -0.792 | -0.717 | -1.319 | +21.056 |
+| 200 | 0.1 | 137.092 | +0.009 | -0.786 | -0.703 | -1.336 | +17.679 |
+| 200 | 1 | 133.321 | -0.803 | -0.803 | -0.574 | -1.502 | +7.792 |
+| 2000 | 0.01 | 81.314 | -1.181 | -1.181 | -0.505 | -1.509 | +16.817 |
+| 2000 | 0.02 | 81.309 | +8.667 | -0.299 | -0.522 | -1.537 | +29.870 |
+| 2000 | 0.1 | 81.244 | +2.805 | -0.349 | -0.495 | -1.645 | +27.021 |
+| 2000 | 1 | 80.811 | -1.072 | -1.072 | -0.492 | -1.691 | +15.125 |
+
+(all seven covers in `out/review_sliver.json`). **The FVM defect is confirmed**: the program jumps by +3.66 K between c = 0.01 and 0.02 at 200 W/m2K and +9.85 K at 2000, the aperture schemes change smoothly with c (range over the seven covers 0.17 K for `aperture` and 0.15 K for `aperture+film` at 200 W/m2K; 0.88 and 0.05 K at 2000, where the film is what removes the rest). The "+0.09 K at the default 10" of section 4 is the difference program - aperture; against the reference the program is not worse than `aperture` at 10 W/m2K (both about -0.8 K).
+
+![sliver in the three grid models](figures/fig_07_sliver_models.png)
+
+*Figure 7 (`figures/fig_07_sliver_models.png`): error of the hottest point against the cover of the edge column, minus its value at c = 1, for the FVM schemes, the FDM and the 3D solid (independent reference, 1 mm).*
+
+![heat path of a sliver](figures/fig_06_sliver_heat_path.png)
+
+*Figure 6 (`figures/fig_06_sliver_heat_path.png`): plan of an edge column whose board part is a sliver: in the program the link into the sliver is about 0.04 S and the film on the sliver node is nearly cut off (the edge acts as insulated); with the aperture the face is open (a = 1) and the film follows the real 0.52 cell of sheet.*
+
+**New finding, a defect of the 3D solid** (the program, unmodified): the 3D solid has the same sliver defect, four to five times larger: +15.9 K between c = 0.01 and 0.02 at 200 W/m2K (13 % of the rise), +13 K at 2000, and **+1.6 K at the default 10** (0.7 % of a 240 K rise). Checked a second way, against the same board drawn as a rectangle in the 3D solid itself (no cut cell): +15.87 K at c = 0.02 and 1 mm, +11.69 K at 0.5 mm, +14.52 K at c = 0.01 and 0.5 mm (that column is a 0.02 sliver of a 0.5 mm cell), +1.72 K at 10 W/m2K. Mechanism as in the FVM (`solid3d.py` scales the in-plane conductivity of every slab by the cover and joins cells with the harmonic mean; the side film sits on the sliver). The FDM does not have it (its error changes smoothly by 0.25 K or less over c at 10 and 200 W/m2K, no jump; its node covers average four cells). The offset of the 3D solid at c = 1 (+7.8 K at 200, +15.1 K at 2000) is the known model difference at a stiff edge (the laminate at the edge, `research/ROADMAP.md` A16), not a cut cell. Since the 3D solid is the reference of the other models on outline boards (`docs/validation.md` 13 and 23), this is the most important finding of the review; it is written up in `INTEGRATION.md` 3.
+
+### 10.2 The frame reference and the spreads
+
+The study's frame references (the program on an aligned rectangle at 1/8 to 1/32 mm) were recomputed with `indep_sheet` (turned part sampled 8 x 8 per cell, 1/4 to 1/16 mm) on the square with the part 3.5 mm off (1 mm) and the strip (0.5 mm), on the study's 17 positions plus 7 shifts along x and 10 random turns of 0 to 45 degrees combined with random shifts (34 positions; box 32 mm so that every combination fits). The two references agree within 0.01 K on average and within a range of 0.05 to 0.07 K. Spread of the error (K), study's 17 positions / all 34:
+
+| case | h_side | cell | program | aperture | aperture+film |
+| :-- | --: | --: | --: | --: | --: |
+| square off 3.5 | 200 | 1 | 1.18 / 1.18 | 0.26 / 0.26 | 0.09 / 0.12 |
+| square off 3.5 | 2000 | 1 | 2.98 / 2.98 | 0.69 / 0.69 | 0.08 / 0.08 |
+| strip | 10 | 0.5 | 0.41 / 0.41 | 0.11 / 0.11 | 0.11 / 0.11 |
+| strip | 200 | 0.5 | 0.86 / 0.86 | 0.20 / 0.20 | 0.09 / 0.09 |
+
+The ranking and the size of the program's spread are reproduced (study: 1.17, 2.98, 0.42, 0.89 K); the extra positions do not widen the program's or the aperture's spread. The frame reference **is** independent of the scheme (a rigid motion of an in-plane isotropic board; the part, not the outline, is turned). Correction: the spreads of `aperture+film` below about 0.1 K are at the resolution of the references (two references of the same problem differ by up to 0.07 K), so "0.01 to 0.06 K at 0.5 mm" in the summary is read as "below about 0.1 K".
+
+### 10.3 The film formula
+
+[BarrettEtAl2022] was opened in its arXiv version (2102.07966, the ar5iv HTML, equations read through a fetch tool that quotes them): eq. 10 is the two-point flux through a face times its length fraction (the `aperture` link), eq. 11 the length fraction from the level set (the aperture), eq. 12 the Robin flux `L^Gamma (g - a q(r))` at the closest boundary point r, eq. 13 `q(x) = q(r) + d dq/dn(r)` with `d = phi / |grad phi|` (negative inside), eq. 14 the Robin condition at r. Eliminating `q(r)` with g = 0 gives the boundary conductance `a L / (1 + a |d| / D)` for a centre inside, which in sheet terms (`a` the film, `D` times the slab the sheet `S`, `a L` times the slab the `g0` of the program) is the prototype's `g0 / (1 + g0 d / (S L))` with `d` positive inside: **the formula, its sign and its dimensions are right** (`g0 d / (S L)` = `h_side t d / S`, dimensionless). The paper has **no floor**: the 0.25 is this study's. The paper's statement that the method is second order was not reproduced here; the disc of section 3.1 is consistent with it (rim loss exact, peak error falling 4 to 6 times per halving).
+
+### 10.4 Re-entrant corners and the small T
+
+The prototype's apertures were compared with 4000 point samples per face on a turned L, the small T and a notch whose spike crosses faces twice, turned 0, 7, 23, 45 degrees: equal within 2.4e-4 (the sampling resolution) on every face between two board cells; the faces that lie on the outline get 0 (board on one side only), which is right. `_inside_length` already sums the even-odd intervals on each side of a face, so a face crossed twice is handled; **the suspicion of 3.2 and of `INTEGRATION.md` 1.1 is withdrawn**.
+
+The small T was re-run with two read-outs, the hottest node and the mean over the part on the board (`heater_stats`), against the program at 1/12 and 1/24 mm (which differ by 0.02 K or less). At 10 W/m2K, 1 mm: program peak +1.42 / 0.63 K (bias / spread), part mean +2.22 / 0.48; `aperture` peak +1.07 / 0.61, part mean +2.14 / 0.41. The part mean of `aperture` rises smoothly from +1.99 to +2.39 K as the neck edge moves from 10 to 10.92 mm (the board share of the part narrows from 2 mm to about one cell), and the peak has a V of 0.6 K whose bottom is at the cell centre a = 10.5 mm (the hottest node changes cell): **the T scatter is the resolution of the part and the read-out of the peak**, which no link scheme addresses. (The bias common to the aligned case is the read-out of a 3 mm part on a 1 mm grid.)
+
+### 10.5 Geometry cost, the film floor, the solvers
+
+* **Vectorised aperture** (`lib/vecaperture.py`): the crossings of all edges with all grid lines at once, sorted per line, even-odd signs, prefix sums for the inside length below every grid node; an edge lying on a grid line is handled by evaluating just left and right of the line and keeping the smaller value. Equal to the prototype within 1e-5 (the prototype's own 1e-6-cell offset) on the L, the T and the notch at every turn; on a wavy 100 mm disc of **20 000 vertices at 0.25 mm** (400 x 400 cells, 13 447 partly open faces) **0.12 s and 6 MB** (the prototype takes 9 s on a tenth of the vertices). The same signed-clamp sum over the edges that cross a grid line is what `geometry.exact_coverage` integrates over a column, so in production the apertures can come from the same pass (the crossings of the column lines are shared).
+* **Film floor**: see the correction in section 7 (bare-laminate edge nodes reach the floor near 1000 W/m2K at 1 mm).
+* **CG**: Jacobi-preconditioned CG on the program's and the schemes' matrices: 129 / 132 iterations (sliver c = 0.02), 125 / 127 (turned square, 2000 W/m2K, 1 mm), 250 / 252 at 0.5 mm: no change. **SOR** was not run (the prototype refuses it; the program's `solve_sor` builds its own copy of the links, so adoption must change both; the matrices stay symmetric M-matrices, so the convergence of SOR for 0 < omega < 2 is kept).
+* **M-matrix, SPD, energy balance**: by construction (`a >= 0`, physical sheets positive, film positive above the floor) and confirmed by the study's checks and the folder's tests (15 + 15 pass).
+* **Frozen shifts**: `part_across_outline` -0.7961 / -0.3722 / -0.0541 K, `example_cut_to_T` -0.0138 K at 2 mm, `round_outline` -0.0060 / -0.0020 / -0.0007 K (aperture); film on the rectangles at 2 mm: `part_top_path` +0.0137, `two_layer_partial` +0.0080, `example_board` +0.0018 K: section 6 reproduced to the digit.
+
+### 10.6 Not verified by the review
+
+A via inside a sliver cell (the well uses the cover-scaled sheet), imported copper with a cut edge (`copper.lateral` scales every pixel sheet of a cut cell by the cell cover: the aperture must enter there as a pixel board mask), metal blocks, the SOR, the effect of the film floor on the answer with the copper held off the edge at 1000 W/m2K and above, the transient table of 5.3, the disc table of 3.1, the `links` columns, Bochkov and Gibou (2019) themselves, and a physical board.
+
+### 10.7 Verdict
+
+Go for closing the investigation. The `aperture+film` scheme is the literature's (Barrett and others eq. 10 to 14), removes a real defect of the FVM measured against an independent solver, and is cheap once vectorised. The study's claims stand except the corrections above (film floor, re-entrant corner, the 0.5 mm spreads at the reference resolution, the sliver numbers without a script). The 3D solid has the larger form of the same defect and should not stay the reference on outline boards without its own fix.
 
 ## What was read and what was not verified
 
-* **Read (earlier folder `rotated-square-3d`, `docs/literature.md`; not re-opened here)**: [SchwartzEtAl2006] printed pages 1 to 16 (R; eq. 11 to 13 on p. 7: truncation error `O(h)` on cut cells, second order in the solution), [CalhounLeVeque2000] pages 143 to 151 (R; **the Claim 2 on page 178 named in the task was not among the pages read**, so what is said here about small cells and implicit steps rests on p. 151 and on [JohansenColella1998] (R, pp. 1 to 18); status M for page 178), [BarrettEtAl2022] sections 1 to 3.1 and 3.3 (R; the Robin film with the signed distance, eq. 12 to 14, is the form implemented as `aperture+film`).
+* **Read (earlier folder `rotated-square-3d`, `docs/literature.md`; not re-opened here)**: [SchwartzEtAl2006] printed pages 1 to 16 (R; eq. 11 to 13 on p. 7: truncation error `O(h)` on cut cells, second order in the solution), [CalhounLeVeque2000] pages 143 to 151 (R; **the Claim 2 on page 178 named in the task was not among the pages read**, so what is said here about small cells and implicit steps rests on p. 151 and on [JohansenColella1998] (R, pp. 1 to 18); status M for page 178), [BarrettEtAl2022] sections 1 to 3.1 and 3.3 (R; the Robin film with the signed distance, eq. 12 to 14, is the form implemented as `aperture+film`; **re-opened by the review** in the arXiv version 2102.07966, ar5iv HTML, eq. 10 to 14 read and the formula derived again, section 10.3; no floor in the paper).
 * **Bochkov and Gibou (2019)**: not obtained (N). The journal copy is paywalled, `core.ac.uk/download/199470815.pdf` answered HTTP 403 from the fetch tool, and a search returns only the abstract and the MaRDI and INIS records (two finite-volume schemes for Robin conditions on piecewise smooth boundaries, one symmetric and one not). The film used here follows the description in [BarrettEtAl2022], **not** the paper's text; the paper's treatment of the cut cells at a Robin boundary, its well-posedness condition and its reconstruction of the integrals were not read. [PapacEtAl2010]: not obtained (N). Entries for `research/theory/BIBLIOGRAPHY.md` are in `docs/literature.md`.
 * **Reproduced**: no published numerical case was reproduced in this folder (the Johansen and Colella Problem 1 reproduction is in `rotated-square-3d`); the references are the aligned-rectangle frame problem, the axisymmetric reduction and the program at finer cells; the closed form of a round sheet with a film of the earlier folder was not repeated.
-* **Run here**: `study_scheme_sweep.py` (twice: the first run had the cache defect of 1.3), `study_small_cells.py`, `study_disc_tee.py`, `study_interplay.py all`, `study_harness_film.py`, `study_across_reference.py`, the 15 tests; `make_diagrams.py`, `make_figures.py`. Not reviewed.
-* **Not verified**: imported copper, metal blocks, the FDM and the 3D solid (design only), the aperture at a re-entrant corner cell, SOR and CG with the new links, the quality of the geometry for a Gerber outline with tens of thousands of cut cells (cost extrapolated from 2564 cut cells), the film for the Lumped and Analytic models (they run on the equivalent rectangle and do not see the grid), the film's behaviour beyond `h_side` 1e5 (refused by the program), a physical board.
+* **Run here**: `study_scheme_sweep.py` (twice: the first run had the cache defect of 1.3), `study_small_cells.py`, `study_disc_tee.py`, `study_interplay.py all`, `study_harness_film.py`, `study_across_reference.py`, the 15 tests; `make_diagrams.py`, `make_figures.py`. Reviewed (section 10): `study_review.py` all four parts, `study_small_cells.py` again (its last table added), the harness shifts spot-checked, 30 tests.
+* **Not verified**: imported copper, metal blocks, the FDM and the 3D solid (design only; the review measured only their sliver behaviour), SOR with the new links (CG checked by the review), the quality of the geometry for a Gerber outline with tens of thousands of cut cells (cost extrapolated from 2564 cut cells), the film for the Lumped and Analytic models (they run on the equivalent rectangle and do not see the grid), the film's behaviour beyond `h_side` 1e5 (refused by the program), a physical board.
