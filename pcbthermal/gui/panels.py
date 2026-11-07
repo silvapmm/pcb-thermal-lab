@@ -1323,7 +1323,10 @@ class WarningList(QTextBrowser):
         if event.type() == QEvent.ToolTip and self.warnings and not self.stale:
             block = self.cursorForPosition(event.pos()).blockNumber() - (1 if len(self.warnings) > 1 else 0)    # Block 0 is the count when there are several
             if 0 <= block < len(self.warnings):
-                QToolTip.showText(event.globalPos(), "\n".join(textwrap.wrap(str(self.warnings[block]), 90)), self)
+                # The text names elements of the project (heater, zone and part names, imported designators): Qt reads a tooltip that looks like markup as
+                # rich text, so it is escaped and its wrapped lines kept, and a name such as <img src=...> is shown as typed
+                wrapped = "\n".join(textwrap.wrap(str(self.warnings[block]), 90))
+                QToolTip.showText(event.globalPos(), "<p style='white-space:pre'>" + html.escape(wrapped) + "</p>", self)
                 return True
         return super().viewportEvent(event)
 

@@ -129,6 +129,101 @@ def test_live_check_gives_a_plain_warning_for_a_hostile_outline():
     assert "finite" in str(checks.check_input(nan, ("fvm",), cell_mm=1.0, live=True)[0])
 
 
+
+def _serpentine(n, x0=0.045, x1=0.055, y0=0.001, y1=0.099):
+    """!
+    @brief A simple serpentine of n short horizontal edges stacked along y (every edge overlaps every other in x), closed down the left side.
+    @param n Number of horizontal edges (even).
+    @param x0 Left end of the edges in m.
+    @param x1 Right end of the edges in m.
+    @param y0 Lowest edge in m.
+    @param y1 Highest edge in m.
+    @return numpy.ndarray (n + 2, 2) in m.
+    """
+    ys = np.linspace(y0, y1, n)
+    pts = []
+    for i, y in enumerate(ys):
+        pts += [[x0, y], [x1, y]] if i % 2 == 0 else [[x1, y], [x0 + 2e-4, y]]
+    return np.vstack([pts, [[x0 - 1e-3, y1], [x0 - 1e-3, y0]]])
+
+
+def test_board_validate_bounds_the_outline_whatever_the_cell():
+    """!
+    @brief Board.validate refuses, in plain words and at once, an outline whose edges span more than 500 m, one of more than 100 000 vertices and one whose
+           simple-polygon test would need more than 2e7 pairs of edges; a 600 mm round board of 20 000 vertices, a star of 8000 long spikes and a serpentine of
+           40 000 short edges are accepted (the serpentine is swept along y: it answers in well under a second).
+    @return None
+    """
+    import time
+    def board(outline, size=100):
+        prob = Problem.new(size, size, 2)
+        prob.board.outline = outline
+        return prob.board
+    with pytest.raises(ValueError, match="add up to .* m along x and y, more than the 500 m"):
+        board(_star(50000)).validate()                                           # 2858 m of edges on a 0.1 m board
+    with pytest.raises(ValueError, match="more than the 100000"):
+        th = np.arange(100002) * 2 * np.pi / 100002
+        board(np.column_stack([0.05 + 0.04 * np.cos(th), 0.05 + 0.04 * np.sin(th)])).validate()
+    with pytest.raises(ValueError, match="too many edges that overlap"):
+        board(_star(14000, c=0.0005, r_tip=0.0004999, r_valley=0.00005), 1).validate()   # a small star: little extent, every edge against every other
+    th = np.arange(20000) * 2 * np.pi / 20000
+    board(np.column_stack([0.3 + 0.2999 * np.cos(th), 0.3 + 0.2999 * np.sin(th)]), 600).validate()
+    board(_star(8000)).validate()
+    t = time.perf_counter()
+    board(_serpentine(40000)).validate()
+    assert time.perf_counter() - t < 2.0
+    sp = _serpentine(40000)
+    xs = np.minimum(sp[:, 0], np.roll(sp[:, 0], -1)), np.maximum(sp[:, 0], np.roll(sp[:, 0], -1))
+    assert geo.polygon_check_pairs(sp) < 1e6 < geo._box_pairs(*xs)                  # 8e8 pairs along x, the sweep along y has about 1e5
+
+
+def test_the_board_cover_is_bounded_before_it_allocates():
+    """!
+    @brief The exact cover (built before the links, also by the memory verdict of the window) refuses an outline beyond the crossing bound at the cell
+           before it allocates, so the memory verdict of a hostile outline costs a few MB instead of about 120 bytes per crossing.
+    @return None
+    """
+    import tracemalloc
+    from pcbthermal import memory
+    prob = Problem.new(100, 100, 2)
+    prob.board.outline = _star(50000)                                             # 1.1e7 crossings at 0.25 mm (not validated: the API path)
+    tracemalloc.start()
+    with pytest.raises(ValueError, match="too many long edges"):
+        memory.check(prob, ("fvm",), 0.25, base=memory.BASE_DEFAULT, refuse="return", quiet=True)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 50e6                                                            # 1.36 GB before the bound
+
+
+def test_far_lost_edge_cells_find_the_same_board_cells():
+    """!
+    @brief The edge length of a cell off the board with no board cell in its 5 x 5 window goes to the same nearest board cells as the scan of the whole
+           grid that the k-d tree replaced (bit for bit), on thin spikes at cells where such cells exist.
+    @return None
+    """
+    th = np.arange(400) * 2 * np.pi / 400
+    r = np.where(np.arange(400) % 2 == 0, 0.0499, 0.01)
+    p = np.column_stack([0.05 + r * np.cos(th), 0.05 + r * np.sin(th)])
+    far_cells = 0
+    for n in (200, 270):
+        d = 0.1 / n
+        active = geo.exact_coverage(p, n, n, d, d) >= 0.01
+        ref = geo.edge_length_per_cell(p, n, n, d, d)
+        for i, j in zip(*np.nonzero((ref > 0) & ~active)):                       # The earlier rule: the 5 x 5 window, else every board cell
+            i0, j0 = max(i - 2, 0), max(j - 2, 0)
+            ci, cj = np.nonzero(active[i0:i + 3, j0:j + 3])
+            if ci.size:
+                ci, cj = ci + i0, cj + j0
+            else:
+                ci, cj = np.nonzero(active)
+                far_cells += 1
+            dd = np.hypot((cj - j) * d, (ci - i) * d)
+            best = dd <= dd.min() * (1.0 + 1e-9)
+            np.add.at(ref, (ci[best], cj[best]), ref[i, j] / int(best.sum()))
+            ref[i, j] = 0.0
+        assert np.array_equal(geo.edge_length_on_board(p, n, n, d, d, active), ref * active)
+    assert far_cells > 0
+
 # ---------------------------------------------------------------------------------------------------------------------------------------- rich text
 def test_package_messages_are_plain_text(qtbot, monkeypatch):
     """!
@@ -171,3 +266,29 @@ def test_export_dialog_note_is_plain_text(qtbot, monkeypatch):
     assert notes, "the privacy note did not appear"
     assert all(lb.textFormat() == Qt.PlainText for lb in notes)
     assert "<img" not in notes[0].text()                  # the package already neutralises the member name; the label would not have shown it as markup either
+
+
+def test_warning_list_tooltip_shows_a_name_as_typed(qtbot, monkeypatch):
+    """!
+    @brief The full text of a live warning (it names heaters, zones and imported designators) is its tooltip: it is escaped, so a name with markup is shown as typed.
+    @param qtbot pytest-qt fixture.
+    @param monkeypatch pytest fixture.
+    @return None
+    """
+    from PySide6.QtCore import QEvent, QPoint
+    from PySide6.QtGui import QHelpEvent
+    from PySide6.QtWidgets import QToolTip
+    from pcbthermal.checks import CheckWarning
+    from pcbthermal.gui.panels import WarningList
+    w = WarningList()
+    qtbot.addWidget(w)
+    w.resize(500, 300)
+    a = CheckWarning(f"Heater {PLANT}: 9 vias under the footprint")
+    a.kind, a.index = "heater", 0
+    w.set_warnings([a])
+    w.show()
+    assert "<img" not in w.toHtml() and PLANT in w.toPlainText()
+    shown = []
+    monkeypatch.setattr(QToolTip, "showText", staticmethod(lambda pos, text, *args: shown.append(text)))
+    w.viewportEvent(QHelpEvent(QEvent.ToolTip, QPoint(10, 8), w.viewport().mapToGlobal(QPoint(10, 8))))
+    assert shown and "<img" not in shown[0] and "&lt;img src=&#x27;file:///etc/passwd&#x27;&gt;" in shown[0]

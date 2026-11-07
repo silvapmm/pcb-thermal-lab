@@ -286,8 +286,9 @@ def _check_input(problem, models, cell_mm, live=False):
         except ValueError as exc:
             return [_outline_warning(f"{exc}.")]
         if crossings > OUTLINE_MAX_CROSSINGS:
-            return [_outline_warning(f"The board outline has {len(b.outline)} edges that cross about {crossings:.2g} grid lines at this cell, more than the {OUTLINE_MAX_CROSSINGS:.0e} "
-                                     "the grid models accept, so the run would be refused. Simplify the outline (fewer or shorter edges) or use a coarser cell.")]
+            return [_outline_warning(f"The board outline has {len(b.outline)} edges that cross about {crossings / 1e6:.0f} million grid lines at this cell, more than the "
+                                     f"{OUTLINE_MAX_CROSSINGS // 1_000_000} million the grid models accept, so the run would be refused. Simplify the outline (fewer or shorter edges) "
+                                     "or use a coarser cell.")]
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None))
 
