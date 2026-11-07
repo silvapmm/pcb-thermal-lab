@@ -89,7 +89,6 @@ class Document(QObject):
     changed = Signal()          # The problem or the options changed (views must refresh)
     state_changed = Signal()    # File name or modified flag changed (window title)
     edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
-    edit_refused = Signal(str)  # An edit was undone because it would leave a non-finite or absurd value (text for the status bar)
 
     def __init__(self, project=None):
         """!
