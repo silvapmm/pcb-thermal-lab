@@ -185,6 +185,157 @@ def exact_coverage(poly, nx, ny, dx, dy):
     return out
 
 
+def _line_lengths(poly, n_lines, spacing, n_seg, seg, axis, shift):
+    """!
+    @brief Inside length over each segment of each interior grid line of one family (helper of `face_apertures`).
+    @details All the crossings of the outline edges with the lines are found at once (each edge gives the lines its span covers, half-open so that a vertex on a line counts once),
+             sorted by (line, position), given the signs +1 (enter) and -1 (leave) by their rank on the line (even-odd), and the inside length below every grid node,
+             F(y) = sum over the crossings below y of s_k (y - w_k), is evaluated with prefix sums; the fraction of a segment is the difference of F over it.
+    @param poly Polygon (n, 2) in metres.
+    @param n_lines Interior grid lines of the family (j = 1 .. n_lines).
+    @param spacing Distance between the lines in metres.
+    @param n_seg Segments per line (cells along the line).
+    @param seg Segment length in metres.
+    @param axis 0: vertical lines x = j spacing (segments along y); 1: horizontal lines.
+    @param shift Offset of the evaluated line from j spacing in metres.
+    @return Array (n_seg, n_lines) of fractions in [0, 1].
+    """
+    a = np.asarray(poly, dtype=float)
+    b = np.roll(a, -1, axis=0)
+    u0, u1 = (a[:, 0], b[:, 0]) if axis == 0 else (a[:, 1], b[:, 1])
+    w0, w1 = (a[:, 1], b[:, 1]) if axis == 0 else (a[:, 0], b[:, 0])
+    lo, hi = np.minimum(u0, u1), np.maximum(u0, u1)
+    # Candidate lines of every edge with one line of slack: the exact half-open test below decides on the same position for every edge
+    j0 = np.floor((lo - shift) / spacing).astype(np.int64)
+    j1 = np.ceil((hi - shift) / spacing).astype(np.int64)
+    cnt = np.clip(j1 - j0 + 1, 0, None)
+    e = np.repeat(np.arange(len(a)), cnt)
+    j = j0[e] + (np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt))
+    pos = j * spacing + shift
+    keep = (j >= 1) & (j <= n_lines) & (((u0[e] <= pos) & (u1[e] > pos)) | ((u1[e] <= pos) & (u0[e] > pos)))
+    e, j, pos = e[keep], j[keep], pos[keep]
+    w = w0[e] + (pos - u0[e]) / (u1[e] - u0[e]) * (w1[e] - w0[e])
+    order = np.lexsort((w, j))
+    j, w = j[order], w[order]
+    out = np.zeros((n_seg, n_lines))
+    if not len(j):
+        return out
+    start = np.r_[0, np.flatnonzero(np.diff(j)) + 1]
+    stop = np.r_[start[1:], len(j)]
+    rank = np.arange(len(j)) - np.repeat(start, stop - start)
+    s = np.where(rank % 2 == 0, 1.0, -1.0)          # Even-odd: the crossings enter and leave in turn along the line
+    nodes = np.arange(n_seg + 1) * seg
+    for a_, b_ in zip(start, stop):                  # One vectorised evaluation per crossed line
+        ww, ss = w[a_:b_], s[a_:b_]
+        k = np.searchsorted(ww, nodes, side="left")
+        c1 = np.r_[0.0, np.cumsum(ss)]
+        c2 = np.r_[0.0, np.cumsum(ss * ww)]
+        out[:, j[a_] - 1] = np.diff(nodes * c1[k] - c2[k]) / seg
+    return np.clip(out, 0.0, 1.0)
+
+
+def face_apertures(poly, nx, ny, dx, dy, cover=None):
+    """!
+    @brief Open fraction of every interior face of the grid: the part of the face (the cell side shared by two neighbours) that lies on the board.
+    @details This is the length of the outline-inside part of a grid-line segment over the segment (the aperture of a cut-cell scheme: Johansen and Colella 1998 eq. 15 to 16;
+             Barrett, Fogelson and Griffith 2022 eq. 10 to 11). It is built from the sorted crossings of the outline with the grid lines, the same signed-sum construction that
+             `exact_coverage` integrates over a column, and costs about the perimeter over the cell: 20 000 vertices on a 0.25 mm grid take about 0.1 s and a few MB. An outline edge
+             that lies on a grid line has board on one side only, so each line is evaluated just left and just right of it (1e-9 of a cell) and the smaller value is kept: such a
+             face gets 0, which is right (nothing crosses the outline). Values within 1e-9 of 0 or 1 are snapped to them, and with `cover` given, a face between two whole cells
+             (cover 1 both) is exactly 1, so that an outline on the grid lines reproduces the links of a rectangle bit for bit.
+    @param poly Outline polygon (n, 2) in metres, either orientation, not crossing itself.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param cover Optional board cover (ny, nx) of the cells (see `exact_coverage`).
+    @return Tuple (ax, ay): ax (ny, nx - 1) the open fraction of the face between cell (i, j) and (i, j + 1), ay (ny - 1, nx) between (i, j) and (i + 1, j).
+    """
+    p = np.asarray(poly, dtype=float)
+    ax, ay = np.zeros((ny, max(nx - 1, 0))), np.zeros((max(ny - 1, 0), nx))
+    if len(p) >= 3:
+        ex, ey = 1e-9 * dx, 1e-9 * dy
+        if nx > 1:
+            ax = np.minimum(_line_lengths(p, nx - 1, dx, ny, dy, 0, -ex), _line_lengths(p, nx - 1, dx, ny, dy, 0, ex))
+        if ny > 1:
+            ay = np.minimum(_line_lengths(p, ny - 1, dy, nx, dx, 1, -ey), _line_lengths(p, ny - 1, dy, nx, dx, 1, ey)).T
+    for a in (ax, ay):
+        a[a < _EXACT_SNAP] = 0.0
+        a[a > 1.0 - _EXACT_SNAP] = 1.0
+    if cover is not None:
+        c = np.asarray(cover)
+        ax[(c[:, :-1] >= 1.0) & (c[:, 1:] >= 1.0)] = 1.0
+        ay[(c[:-1] >= 1.0) & (c[1:] >= 1.0)] = 1.0
+    return ax, ay
+
+
+def signed_distance_to_outline(poly, x, y):
+    """!
+    @brief Signed distance from points to the closest point of a polygon outline (positive inside, negative outside).
+    @details The outline is cut into pieces of at most 1/2000 of the bounding-box diagonal, a k-d tree of their mid-points gives the 6 nearest pieces of every point, the exact
+             point-to-segment distance to those 6 is taken, and the answer is accepted when no other piece can be nearer (its mid-point is farther than the candidate distance
+             plus half a piece); the few points that fail this test are measured against every segment. The sign is that of the side of the nearest segment (the orientation is
+             known from the signed area); a point whose nearest point is a vertex of the outline gets the even-odd test of `points_in_polygon`, which a vertex needs (at a
+             reflex corner the side of one segment is not the side of the board).
+    @param poly Closed polygon (n, 2) in metres.
+    @param x X of the points (1-D array, metres).
+    @param y Y of the points (1-D array, metres).
+    @return Array of distances in metres, shape of x.
+    """
+    from scipy.spatial import cKDTree
+    p = np.asarray(poly, dtype=float)
+    x = np.atleast_1d(np.asarray(x, dtype=float))
+    y = np.atleast_1d(np.asarray(y, dtype=float))
+    out = np.zeros(x.shape)
+    if len(x) == 0 or len(p) < 3:
+        return out
+    a, b = p, np.roll(p, -1, axis=0)
+    ab = b - a
+    seg_len = np.hypot(ab[:, 0], ab[:, 1])
+    # Pieces: every segment cut into equal parts, so that the distance to a mid-point bounds the distance to its piece within half a piece
+    diag = float(np.hypot(*(p.max(axis=0) - p.min(axis=0))))
+    piece = max(diag / 2000.0, 1e-12)
+    parts = np.maximum(np.ceil(seg_len / piece).astype(np.int64), 1)
+    seg_of = np.repeat(np.arange(len(p)), parts)
+    k_in = np.arange(parts.sum()) - np.repeat(np.cumsum(parts) - parts, parts)
+    pa = a[seg_of] + ab[seg_of] * (k_in / parts[seg_of])[:, None]
+    pb = a[seg_of] + ab[seg_of] * ((k_in + 1) / parts[seg_of])[:, None]
+    mid = 0.5 * (pa + pb)
+    pab = pb - pa
+    half = 0.5 * np.hypot(pab[:, 0], pab[:, 1])
+    pll = np.maximum((pab ** 2).sum(axis=1), 1e-300)
+    pts = np.column_stack([x, y])
+    k = int(min(6, len(mid)))
+    dm, im = cKDTree(mid).query(pts, k=k)
+    dm, im = dm.reshape(len(pts), k), im.reshape(len(pts), k)
+    # Exact distance to the k candidate pieces
+    t = np.clip(((pts[:, None, 0] - pa[im, 0]) * pab[im, 0] + (pts[:, None, 1] - pa[im, 1]) * pab[im, 1]) / pll[im], 0.0, 1.0)
+    d = np.hypot(pts[:, None, 0] - pa[im, 0] - t * pab[im, 0], pts[:, None, 1] - pa[im, 1] - t * pab[im, 1])
+    best = d.argmin(axis=1)
+    rows = np.arange(len(pts))
+    dist, piece_best, t_best = d[rows, best], im[rows, best], t[rows, best]
+    # Certified when no piece beyond the k-th can be nearer: its mid-point is at least dm[:, -1] away, so it is at least dm[:, -1] - half away
+    bad = (dm[:, -1] - half.max()) < dist if len(mid) > k else np.zeros(len(pts), bool)
+    first_piece = np.cumsum(parts) - parts
+    for i in np.flatnonzero(bad):
+        tt = np.clip(((x[i] - a[:, 0]) * ab[:, 0] + (y[i] - a[:, 1]) * ab[:, 1]) / np.maximum(seg_len ** 2, 1e-300), 0.0, 1.0)
+        dd = np.hypot(x[i] - a[:, 0] - tt * ab[:, 0], y[i] - a[:, 1] - tt * ab[:, 1])
+        j = int(dd.argmin())
+        dist[i], piece_best[i], t_best[i] = dd[j], first_piece[j], tt[j]
+    # Side of the nearest segment: the left of the direction a -> b is the inside of a counter-clockwise polygon
+    orient = 1.0 if polygon_area_signed(p) >= 0 else -1.0
+    sg = seg_of[piece_best]
+    cross = ab[sg, 0] * (y - a[sg, 1]) - ab[sg, 1] * (x - a[sg, 0])
+    inside = orient * cross > 0
+    # A vertex of the outline is where a piece at the end of its segment is nearest at its end (a joint inside a segment lies on a straight line: the side test holds)
+    at_start = (k_in[piece_best] == 0) & (t_best <= 0.0)
+    at_end = (k_in[piece_best] == parts[sg] - 1) & (t_best >= 1.0)
+    vertex = at_start | at_end
+    if vertex.any():
+        inside[vertex] = points_in_polygon(x[vertex], y[vertex], p)
+    return np.where(inside, dist, -dist)
+
+
 def _sample_mask(poly, nx, ny, dx, dy, samples, clip=None):
     """!
     @brief Which sub-samples of the cells in the bounding box of a polygon lie inside it.
