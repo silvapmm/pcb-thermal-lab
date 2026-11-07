@@ -9,7 +9,8 @@ heater the board cells are grouped in "rings" by their distance to the heater fo
 
 - ring 0 is the footprint itself (the cells the heater covers),
 - ring k >= 1 holds the cells whose distance to the footprint lies in (E_{k-1}, E_k]; the edges E_k
-  grow geometrically from a few cell sizes up to the farthest board cell.
+  grow geometrically from a few cell sizes up to the farthest board cell; the width of the first ring is
+  capped at the footprint's equivalent radius (never below 1.5 cells), so that it does not grow with the board.
 
 Because the rings follow the real footprint and the real board outline, a long thin heater, an
 L-shaped one or one close to an edge all get the correct contour lengths: no circular

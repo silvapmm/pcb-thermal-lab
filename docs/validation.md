@@ -1328,18 +1328,20 @@ The rule is that of the program (`partial_copper_vias`), whose sheet is the laye
 
 ## 31. The first ring of the Lumped network (a small part on a large board)
 
-Evidence: `research/lumped-ring-uniform-deficit` (README, chapter 11 Review); the program's tests are `tests/test_lumped_first_ring.py`. The first ring of the Lumped network is at most one equivalent radius of the footprint wide (never below 1.5 cells; `docs/theory.md` 5, eq. 5.1). Before it the ring was `0.04` of the distance to the farthest cell of the board wide, and a small part read cool on a large uniform board. Percentages are the Lumped hottest rise against the FVM at 0.5 mm, uniform two-layer sheet (35 um, 1.6 mm, films 10 / 15 W/m2K, edge 10 W/m2K), centred square source, 1 W, Lumped cell 0.5 mm (reproduced on this tree before and after the change; the FVM values are those of the investigation).
+Evidence: `research/lumped-ring-uniform-deficit` (README, chapter 11 Review); the program's tests are `tests/test_lumped_first_ring.py`. The first ring of the Lumped network is at most one equivalent radius of the footprint wide (never below 1.5 cells; `docs/theory.md` 5, eq. 5.1). Before it the ring was `0.04` of the distance to the farthest cell of the board wide, and a small part read cool on a large uniform board. Percentages are the Lumped hottest rise against the FVM at 0.5 mm, uniform two-layer sheet (35 um, 1.6 mm, films 10 / 15 W/m2K, edge 10 W/m2K), centred square source, 1 W, Lumped cell 0.5 mm, all run on this tree before and after the change (the review). The investigation quoted an FVM at 0.25 mm for the boards up to 100 x 80 mm (95.00, 53.19, 44.63 K for the 1 mm part), which gave -1.4 / -13.7 % before and +1.0 / +0.3 % after on 60 x 40 / 100 x 80 mm; against the FVM at 0.5 mm of the same grid the numbers are those of the table.
 
 ### 31.1 Board size
 
 | board (mm) | source (mm) | FVM (K) | before | after |
 | :-- | --: | --: | --: | --: |
-| 30 x 20 | 1 / 3 | 95.00 / 82.91 | 0.0 / +1.2 % | 0.0 / +1.2 % |
-| 60 x 40 | 1 / 3 | 53.19 / 41.08 | -1.4 / +1.7 % | +1.0 / +1.7 % |
-| 100 x 80 | 1 / 3 | 44.63 / 32.52 | -13.7 / -1.2 % | +0.3 / -2.5 % |
+| 30 x 20 | 1 / 3 | 94.70 / 82.87 | +0.4 / +1.2 % | +0.4 / +1.2 % |
+| 60 x 40 | 1 / 3 | 52.89 / 41.04 | -0.9 / +1.8 % | +1.6 / +1.8 % |
+| 100 x 80 | 1 / 3 | 44.33 / 32.48 | -13.1 / -1.1 % | +1.0 / -2.4 % |
 | 200 x 150 | 1 / 3 | 42.81 / 30.96 | -25.3 / -8.8 % | +2.5 / -2.4 % |
 
-The 1 mm part on 100 x 80 mm against the independent 3D layered solver (`tests/helpers/layered3d.py`, 0.5 mm cells, two sub-slabs in the gap): 44.78 K Lumped against 44.81 K (-0.1 %; before the change -14 %). Other measurements of the investigation: 2 mm sources on 100 x 80 mm at 1, 2 and 4 layers, fill 1 and 0.6, 10 to 200 W/m2K, with and without edge convection, -5.5 to -10.8 % become -1.1 to -4.3 %; the 1 mm part off centre on 70 x 70 mm against the 3D solver -15.0 % becomes -3.0 %.
+A sweep of the source side from 0.5 to 40 mm (centred square; two layers, 35 um copper of 400 W/mK, 1.5 mm laminate of 0.4 W/mK, films 10 / 10 W/m2K, edge 10 W/m2K; FVM at 0.5 mm) finds no part that the cap makes markedly worse: on 60 x 40 mm 0.5 / 1 / 2 mm go from -9.3 / -0.9 / +2.5 % to -4.0 / +1.5 / -1.4 % and 3 mm and above do not move; on 200 x 150 mm 0.5 / 1 / 2 / 3 / 5 mm go from -40.4 / -25.4 / -13.5 / -8.6 / -4.9 % to -5.0 / +2.5 / -2.3 / -2.4 / -2.6 % and 10 mm and above do not move. The one source that reads slightly further from the reference is the 3 mm part on 100 x 80 mm (-1.1 to -2.4 %).
+
+The 1 mm part on 100 x 80 mm against the independent 3D layered solver (`tests/helpers/layered3d.py`, 0.5 mm cells, two sub-slabs in the gap; the same board in both: films 10 W/m2K on both faces, also under the source, insulated edges, isotropic laminate 0.4 W/mK, copper 400 W/mK): 44.93 K Lumped against 44.81 K (+0.3 %; before the change 38.69 K, -13.7 %; the FVM 44.51 K, -0.7 %). An earlier text quoted 44.78 K, which is the Lumped of the board of the table (films 10 / 15 W/m2K and an edge), not of the 3D board. On the same 3D reference (hottest source cell), sources of 0.5, 1, 3 and 10 mm on 30 x 20, 60 x 40 and 100 x 80 mm with 2 and 4 layers: before -29.5 to +1.2 %, after -7.8 to +1.2 %; the 0.5 mm source (one cell) stays the coolest (-2.8 / -4.7 / -6.7 % with two layers, -3.1 / -5.5 / -7.8 % with four, by board size), the 3 mm source on 100 x 80 mm moves from -1.5 to -2.7 % (two layers) and -2.3 to -3.6 % (four). Other measurements of the investigation: 2 mm sources on 100 x 80 mm at 1, 2 and 4 layers, fill 1 and 0.6, 10 to 200 W/m2K, with and without edge convection, -5.5 to -10.8 % become -1.1 to -4.3 %; the 1 mm part off centre on 70 x 70 mm against the 3D solver -15.0 % becomes -3.0 %.
 
 ### 31.2 Imported boards on the uniform sheet (one part at a time, 1 W, 0.5 mm)
 
@@ -1352,26 +1354,31 @@ The 1 mm part on 100 x 80 mm against the independent 3D layered solver (`tests/h
 
 On the imported copper the structure of the copper below the cell remains the cause (section 27.7). The numbers of the warning on imported copper (`copper.REDUCED_MODEL_WARNING`, 25 to 82 % on 42 parts of three boards) were measured before this change; they move by a few points (RP2040 mean -59.6 to -56.8 %) and the wording ("a sample, not a bound") stays valid. They were not re-measured for this section.
 
-### 31.3 Time responses (this tree, Lumped step response; FVM from the investigation)
+### 31.3 Time responses (Lumped step response on this tree; FVM t63 from the investigation, profile peaks re-run)
 
 | board | FVM: t63 (s) | before: t63 (s) | after: t63 (s) |
 | :-- | --: | --: | --: |
 | 1 mm part, 100 x 80 mm | 0.94 | 1.76 | 0.95 |
-| 3 mm part, 200 x 150 mm | 2.01 | 3.29 | 2.06 |
+| 3 mm part at (60, 50) mm, 200 x 150 mm | 2.01 | 3.29 | 2.06 |
 | 1 mm part (heater 1 of two), 200 x 150 mm | 0.77 | 2.42 | 0.71 |
 
-The time to 63 % of a small part was 1.6 to 3.1 times the FVM's and is now 0.92 to 1.03 times. The step responses and the profile runner use the same `ring_edges` as the steady run, so the square-wave peaks follow the steady state (1 mm part on 100 x 80 mm, three times the power, 20 s, duty 0.3, four cycles: 119.2 degC before, 138.3 degC after).
+The time to 63 % of a small part was 1.6 to 3.1 times the FVM's and is now 0.92 to 1.03 times. The step responses and the profile runner use the same `ring_edges` as the steady run, so the square-wave peaks follow the steady state (three times the power, 20 s, duty 0.3, four cycles, resolved, cell 0.5 mm, through `simulate`): the 1 mm part on 100 x 80 mm 119.19 degC before and 138.31 degC after against 137.08 degC in the FVM profile runner (-13.0 % to +0.9 % of the FVM peak); the 3 mm part at (60, 50) on 200 x 150 mm 86.33 and 98.62 degC against 100.41 degC (-14.0 % to -1.8 %).
 
-### 31.4 What does not move
+### 31.4 Boards not in the investigation (the review)
+
+Lumped hottest rise against the FVM at 0.5 mm, before and after (two layers of 35 um, 1.6 mm, edge 10 W/m2K, full copper): a 2 mm part on a 150 x 100 mm board (films 10 / 10 W/m2K) over a 60 x 50 mm, 3 mm aluminium block on the bottom face -12.4 % to -2.2 %; with films 10 / 15 W/m2K: a 1 mm part at (40, 40) mm on an L-shaped outline in a 200 x 150 mm box (run on the equivalent rectangle) -30.2 % to +5.7 %; a 1 mm part in the corner of a 200 x 150 mm board (films 10 / 15) -34.4 % to -5.9 %; a 2 mm part half off the board edge -26.3 % to -1.1 %; a 1 mm part across cell edges (nine cells touched) -20.5 % to +2.1 %; a 40 x 0.5 mm strip -1.6 % to -2.8 %; a 120 x 100 mm source unchanged.
+
+### 31.5 What does not move
 
 The 62 via boards of the earlier Lumped studies (with and without vias), the example, profile and reference boards at 2, 1 and 0.5 mm, and the step response and square-wave peak of the example and profile boards are bit-identical (the cap acts only when `0.04 E_max` exceeds both 1.5 cells and the equivalent radius of the footprint); `tests/regression` at 2, 1 and 0.5 mm gives 317 passed against `v2.5.0.json` with no pending file.
 
-### 31.5 Known limits (stated, not fixed)
+### 31.6 Known limits (stated, not fixed)
 
-* **New hot cases**: rectangles of aspect 3 read hot: 3 x 1 mm +10.1 % on 100 x 80 mm and +9.3 % on 200 x 150 mm (the review: up to +12.3 %; they were -2 to -17 %), 6 x 2 mm -1.7 % on 100 x 80 mm; a thin 10 x 0.5 mm tab -5.4 %. On the safe side, but a part of that shape on a large board is no longer cool.
-* **Two errors cancel for a small square part**: the capped ring is quantised (1.5 cells), its link is still short and the node of ring 1 hot; for the 1 mm part they nearly cancel (+0.3 to +2.5 %), so "-25 % becomes +2.5 %" is one shape at one cell.
+* **New hot cases**: rectangles of aspect 3 read hot: 3 x 1 mm +10.1 % on 100 x 80 mm and +9.3 % on 200 x 150 mm (the review of the investigation: up to +12.3 %; they were -2 to -17 %); 3 x 1 mm on 60 x 40 mm +0.7 % to +6.3 %; 6 x 2 mm -1.7 % on 100 x 80 mm at the 0.5 mm Lumped cell, but at the 1 mm cell -2.4 % to +9.6 % (100 x 80 mm) and -6.0 % to +12.0 % (200 x 150 mm); a thin 10 x 0.5 mm tab -5.4 %. On the safe side, but a part of that shape on a large board is no longer cool.
+* **Two errors cancel for a small square part**: the capped ring is quantised (1.5 cells), its link is still short and the node of ring 1 hot; for the 1 mm part they nearly cancel (+0.4 to +2.5 % from 30 x 20 to 200 x 150 mm), so "-25 % becomes +2.5 %" is one shape at one cell.
 * **Not smooth in the cap**: half an equivalent radius more or less moves a small part by up to 12 points; the value 1 was chosen for zero effect on the existing boards, not tuned.
-* **The 1 mm Lumped cell** (the API gives it for a user cell of 1 mm or more): a 1 mm part improves only from -21..-27 % to -15..-17 %; the raster is the limit there.
+* **The 1 mm Lumped cell** (the API gives it for a user cell of 1 mm or more): a 1 mm part improves only from -20..-27 % to -15..-17 %; the raster is the limit there.
+* **A part smaller than about an eighth of a cell** is missed by the 4 x 4 coverage samples and put in the cell of its centroid (`lumped._footprint_coverage`), while the FVM spreads it over the cells it straddles: a 0.1 mm part across a cell corner of a 200 x 150 mm board reads +27.0 % against the FVM (it read -20.1 %); the same part inside one cell -40.2 % to -5.0 %. The disagreement is that of the footprints, older than the cap, which only makes it visible.
 * **A source near a board edge or corner** stays 4 to 15 % cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %).
 * **Equivalent rectangle of a board with an outline**: unchanged, 10 to 19 % cool next to the outline on oswlight (section 13).
 * **Not studied**: several heaters at once with a metal block or a heatsink, and the zonal network with a part just larger than a core.

@@ -5,7 +5,7 @@
 @brief The first ring of the Lumped network is at most one equivalent radius of the footprint wide (research/lumped-ring-uniform-deficit, INTEGRATION.md 1 and 3).
 
 @details Before the cap the ring next to a small part was 0.04 of the distance to the farthest cell of the board wide, so the result of a 1 mm part on a uniform two-layer
-         sheet fell with the board (centred, against the FVM at 0.5 mm: 60 x 40 mm -1.4 %, 100 x 80 mm -13.7 %, 200 x 150 mm -25.3 %). The tests hold: the rule of `lumped.ring_edges`
+         sheet fell with the board (centred, against the FVM at 0.5 mm: 60 x 40 mm -0.9 %, 100 x 80 mm -13.1 %, 200 x 150 mm -25.3 %). The tests hold: the rule of `lumped.ring_edges`
          (cap, floor of 1.5 cells, no effect where the footprint is wide enough), the independent 3D layered solver and the FVM on a 100 x 80 mm sheet, the independence from the board
          size, the time to 63 % against the FVM step response, the shapes (aspect 1 and 3, a thin tab) and the bit identity of every board where the cap does not act (the example board,
          steady and step response).
@@ -125,7 +125,8 @@ def test_the_equivalent_radius_helper_counts_the_touched_cells():
 def test_one_mm_part_on_100_by_80_agrees_with_the_independent_3d_solver():
     """!
     @brief The 1 mm part at the centre of a 100 x 80 mm uniform sheet against the independent 3D layered solver (cell mean of the source cells, 0.5 mm).
-    @details Before the cap the Lumped read -13.7 % of the FVM here; with it the Lumped is within 1 % of the FVM and of the 3D solver (measured 44.78 against 44.81 K).
+    @details Insulated edges and films of 10 W/m2K on both faces in both models (the same board). Before the cap the Lumped read 38.69 K against 44.81 K (-13.7 %);
+             with it 44.93 K (+0.3 %; the FVM at 0.5 mm 44.51 K).
     @return None.
     """
     cu_t, gap, k_cu, k_fr4, h = 35e-6, 1.5e-3, 400.0, 0.4, 10.0
@@ -143,7 +144,7 @@ def test_one_mm_part_on_100_by_80_agrees_with_the_independent_3d_solver():
 
 def test_one_mm_part_on_100_by_80_is_within_a_few_percent_of_the_fvm():
     """!
-    @brief The same board with the program's film coefficients: the Lumped against the FVM at 0.5 mm (program before the cap: -13.7 %, after +1.0 %).
+    @brief The same board with the program's film coefficients: the Lumped against the FVM at 0.5 mm (program before the cap: -13.1 %, after +1.0 %).
     @return None.
     """
     p = sheet(100, 80, 1.0)
@@ -248,3 +249,30 @@ def test_the_cap_does_act_on_a_small_part_of_a_big_board(monkeypatch):
     _without_cap(monkeypatch)
     old = rise(p, "lumped")
     assert new > 1.2 * old
+
+
+def test_zoned_network_receives_the_cap_and_a_small_via_board_does_not_move(monkeypatch):
+    """!
+    @brief A part over a 3 x 3 via group (the zoned network, `_zone_network`) on a 24 mm board: both call sites pass the equivalent radius of the footprint, and the
+           field is that of the program without the cap to the last bit (0.04 E_max is under 1.5 cells there). Added by the review.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from test_via_constriction import array
+    p = array(3, 2.0, side=24.0, source=12.0)
+    assert lumped.will_be_zoned(p, p.heaters[0])
+    opts = SolverOptions(models=("lumped",), cell_mm=0.5)
+    original = lumped.ring_edges
+    seen = []
+
+    def spy(rho_max, dx, dy, rings, min_width=None, a_eq=None):
+        seen.append(a_eq)
+        return original(rho_max, dx, dy, rings, min_width, a_eq)
+
+    monkeypatch.setattr(lumped, "ring_edges", spy)
+    t_new = np.array(simulate(p, opts).results["lumped"].T)
+    assert seen and all(a is not None and a > 0 for a in seen)
+    _without_cap(monkeypatch)
+    t_old = np.array(simulate(p, opts).results["lumped"].T)
+    assert np.array_equal(t_new, t_old)
