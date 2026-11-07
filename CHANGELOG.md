@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **A project that opens can always be saved and reopened** (`fix/save-nonfinite-and-undo-reimport`, a 2.5.2 or 2.6.0 candidate; solvers unchanged, frozen numbers unchanged): a polygon coordinate of 1e308 mm was a finite number, so the project opened, but saving multiplied it by 1000 back to millimetres, wrote `Infinity`, and the file was then refused (the project was lost). The loading check now refuses a length above 1e6 mm (1 km) and any other number above 1e100, naming the key path (`zones[0].polygon_mm[0]: ...`); `save_project` writes with `allow_nan=False` and fails before the file is touched (the old file stays); and `Document.edit` applies the loading check to the result of every edit (typed value, drag, scale, paste) and undoes an edit that would leave a non-finite or absurd value, saying so in the status bar (\"That value was refused: it would be larger than 1 km or not a number.\", once per refusal, no dialog; the check costs 0.2 ms on the RP2040 import and 1.0 ms on the CO60 per edit, so it stays on the whole dict). Tests `tests/test_save_nonfinite.py` (loader, writer, GUI edit, and a property check of random magnitudes up to the bound: save, load, save is stable).
+- **Undo after a re-import** (guard test, no code change): the suspicion that Undo kept the new stored source files could not be reproduced; the project stores no source bytes, only the record (names, sizes, hashes), the packed masks and the unknown keys, and `Document._restore` rebuilds all of them from the snapshot. `test_reimport_matrix.py` now holds Replace/Update, Undo, the same re-import again and Undo again.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
