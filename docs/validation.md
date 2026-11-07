@@ -1375,3 +1375,36 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
 
 **Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
+
+## 31. The 3D solid at the cut cells of an outline
+
+The 3D solid used to join a cell cut by the outline with the cover-scaled conductivity and put the edge film on the node behind it (`theory.md` 4). A sliver of a cell (cover 0.01 to 0.1) was then connected by `2c/(1 + c)` of a full link and its film was nearly cut off, and the sliver read far too hot. Measured by the review of `research/cut-cell-links` (README 10.1) and reproduced here with the program on the exact board cover (`fix/exact-board-cover` merged into a scratch copy; the base of this branch samples the cover 8 x 8, so a sliver of 0.02 is a column of 0 or 0.125 there and the defect appears at 0.125). Now the lateral links use the aperture of the shared face with the physical conductivity and the edge film is in series with the conduction to the closest outline point (`theory.md` 4, (4.2)); rectangles are unchanged.
+
+**31.1 Sliver column, 1 mm** (the board of `research/cut-cell-links` section 4: 30 x 30 mm box, 2 layers, full copper, 2 W part, left edge column covered by c). Error of the hottest point against the independent two-sheet solver (`tests/helpers/indep_sheet.py`, cells 0.25 to 0.0625 mm extrapolated), K; the 3D solid has its own offset from a two-sheet model at a stiff edge (+7.5 K at 200 W/m2K, c = 1: the laminate at the edge, `research/ROADMAP.md` A16), so read the change over c:
+
+| h_side | c | before | now | same board drawn as a rectangle in the solid |
+| --: | --: | --: | --: | --: |
+| 10 | 0.01 | +0.15 | +0.15 | +0.06 |
+| 10 | 0.02 | +1.78 | +0.02 | +0.09 |
+| 10 | 0.1 | +0.48 | +0.03 | -0.36 |
+| 10 | 1 | +0.20 | +0.20 | +0.20 |
+| 200 | 0.01 | +7.86 | +7.89 | +7.85 |
+| 200 | 0.02 | +23.70 | +7.56 | +7.87 |
+| 200 | 0.1 | +17.25 | +7.07 | +7.38 |
+| 200 | 1 | +7.48 | +7.48 | +7.48 |
+
+The jump between c = 0.01 and 0.02 at 200 W/m2K goes from 15.8 K to -0.3 K; the range over the four covers from 15.8 K to 0.8 K (the rectangle drawn in the solid has 0.5 K). At 0.5 mm: outline minus rectangle at c = 0.02 and 200 W/m2K was +11.7 K, now -0.15 K. On the base with the sampled cover (column of 0.125): +8.6 K above the rectangle at 200 W/m2K, now -0.5 K.
+
+**31.2 A turned square** (`research/cut-cell-links/lib/boards.py` `edge_board` against `frame_board`: 20 mm board turned in a 32 mm box, the part 3.5 mm off the centre; the frame problem is an aligned rectangle with a turned part, solved in the 3D solid at 0.25 mm). Difference of the 1 mm outline solve from the 0.25 mm frame solve over turns 0, 10, 20, 30, 45 degrees and three shifts of 1/4 mm, exact cover:
+
+| h_side | before: bias / spread | now: bias / spread |
+| --: | --: | --: |
+| 10 | (not run) | -0.08 / 0.16 K |
+| 200 | +8.5 / 10.1 K (base cover 8 x 8) | -0.6 / 2.2 K |
+| 2000 | (not run) | -1.4 / 5.0 K |
+
+At 200 the turned or shifted outlines are -0.7 to -1.2 K and the board aligned with the grid +1.0 K (hs 2000: -1.0 to -2.9 and +2.1 K): the aligned edge keeps the half-cell film of a rectangle, the cut ones the film at the closest point, and the 1 mm cell does not resolve the laminate profile at the edge, so the two conventions differ by about 1.7 K (1.3 % of the rise); this residual is not removed. The alternative of flooring the distance at 0 (no negative distance for a centre off the board) lowers the turned cases to +0.3 .. -0.1 K at 200 W/m2K but leaves 1.4 K between the covers 0.02 and 0.1 of the sliver; the study's form (signed distance) was kept. On the base with the 8 x 8 cover the same table has an outlier of -1.1 K at 45 degrees at h_side 10, the sampled cover (the area of the board is off by 0.5 %), not the links.
+
+**31.3 Frozen numbers.** Only the 3D solid on boards with an outline moves: `part_across_outline` -0.04 / -1.17 / -1.47 K at 0.5 / 1 / 2 mm, `round_outline` -0.06 / -0.10 / -0.12 K, `example_cut_to_T` 0 / -0.013 K at 1 / 2 mm (hottest temperature against the 2.5.0 file; these three boards are also moved by the slabs by thickness, so their records are held in `tests/regression/data/pending/solid3d-sliver-cells.json` only). Tests: `tests/test_solid3d_sliver_cells.py`.
+
+**Not verified:** a physical board; imported copper, vias or blocks in a cut cell (the block slabs keep the cover-scaled links); the time of the aperture and the distance on a Gerber outline with tens of thousands of cut cells (the distance is chunked brute force: 2000 points x the number of sides per block); the 3D solid against a 3D reference with a cut edge (the reference here is a two-sheet model plus the solid's own rectangle).

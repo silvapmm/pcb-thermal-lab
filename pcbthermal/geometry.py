@@ -653,6 +653,96 @@ def edge_length_on_board(poly, nx, ny, dx, dy, active):
     return out * active
 
 
+def _line_inside_lengths(poly, n_lines, spacing, n_seg, seg, axis, shift):
+    """!
+    @brief Length of a polygon inside every segment of every interior grid line of one family.
+    @param poly Polygon (n, 2) in metres.
+    @param n_lines Interior grid lines of the family (j = 1 .. n_lines).
+    @param spacing Distance between the lines in metres.
+    @param n_seg Segments per line (cells along the line).
+    @param seg Segment length in metres.
+    @param axis 0 for the vertical lines x = j spacing (segments along y), 1 for the horizontal lines.
+    @param shift Offset of the evaluated line from j spacing in metres.
+    @return Array (n_seg, n_lines) of fractions in [0, 1].
+    """
+    a = np.asarray(poly, dtype=float)
+    b = np.roll(a, -1, axis=0)
+    u0, u1 = (a[:, 0], b[:, 0]) if axis == 0 else (a[:, 1], b[:, 1])
+    w0, w1 = (a[:, 1], b[:, 1]) if axis == 0 else (a[:, 0], b[:, 0])
+    lo, hi = np.minimum(u0, u1), np.maximum(u0, u1)
+    # Candidate lines of every edge with one line of slack; the half-open test below decides on the same position for every edge
+    j0 = np.floor((lo - shift) / spacing).astype(np.int64)
+    j1 = np.ceil((hi - shift) / spacing).astype(np.int64)
+    cnt = np.clip(j1 - j0 + 1, 0, None)
+    e = np.repeat(np.arange(len(a)), cnt)
+    j = j0[e] + (np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt))
+    pos = j * spacing + shift
+    keep = (j >= 1) & (j <= n_lines) & (((u0[e] <= pos) & (u1[e] > pos)) | ((u1[e] <= pos) & (u0[e] > pos)))
+    e, j, pos = e[keep], j[keep], pos[keep]
+    w = w0[e] + (pos - u0[e]) / (u1[e] - u0[e]) * (w1[e] - w0[e])
+    order = np.lexsort((w, j))
+    j, w = j[order], w[order]
+    out = np.zeros((n_seg, n_lines))
+    if not len(j):
+        return out
+    start = np.r_[0, np.flatnonzero(np.diff(j)) + 1]
+    stop = np.r_[start[1:], len(j)]
+    rank = np.arange(len(j)) - np.repeat(start, stop - start)
+    sgn = np.where(rank % 2 == 0, 1.0, -1.0)                      # Even-odd: the crossings enter and leave the polygon in turn along the line
+    nodes = np.arange(n_seg + 1) * seg
+    for a_, b_ in zip(start, stop):                               # One vectorised evaluation per crossed line
+        ww, ss = w[a_:b_], sgn[a_:b_]
+        k = np.searchsorted(ww, nodes, side="left")
+        c1 = np.r_[0.0, np.cumsum(ss)]
+        c2 = np.r_[0.0, np.cumsum(ss * ww)]
+        out[:, j[a_] - 1] = np.diff(nodes * c1[k] - c2[k]) / seg  # Inside length below every node of the line, differenced over the segments
+    return np.clip(out, 0.0, 1.0)
+
+
+def face_apertures(poly, nx, ny, dx, dy):
+    """!
+    @brief Open fraction of every interior face of the grid: the part of the face with the polygon (the board) on both sides.
+    @details The aperture of a cut-cell link (Johansen and Colella 1998; Barrett and others 2022 eq. 10 and 11): a cell cut by the outline is joined to a neighbour
+             through the open part of the shared face only, not through a conductivity scaled by the cell cover. It is the length of the grid line segment inside the polygon
+             over the segment length, found from the sorted crossings of the outline with the grid lines (the signed-clamp construction of `exact_coverage`), so the cost is
+             that of the crossings plus one search per crossed line. An outline side that lies on a grid line has board on one side only: each line is evaluated just left
+             and just right of its position (1e-9 of a cell) and the smaller value is kept, so such a face gets 0 (right) and a face crossed several times (a re-entrant corner)
+             counts every interval.
+    @param poly Closed polygon (n, 2) in metres.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Tuple (ax, ay): `ax` of shape (ny, nx - 1) is the aperture of the face between cell (i, j) and (i, j + 1), `ay` of shape (ny - 1, nx) the one between (i, j) and (i + 1, j).
+    """
+    ex, ey = 1e-9 * dx, 1e-9 * dy
+    ax = np.minimum(_line_inside_lengths(poly, nx - 1, dx, ny, dy, 0, -ex), _line_inside_lengths(poly, nx - 1, dx, ny, dy, 0, ex))
+    ay = np.minimum(_line_inside_lengths(poly, ny - 1, dy, nx, dx, 1, -ey), _line_inside_lengths(poly, ny - 1, dy, nx, dx, 1, ey)).T
+    return ax, ay
+
+
+def signed_distance_to_outline(poly, x, y, chunk=2000):
+    """!
+    @brief Signed distance from points to the closest point of a polygon outline (positive inside the polygon, negative outside).
+    @param poly Closed polygon (n, 2) in metres.
+    @param x X of the points in metres (1-D array).
+    @param y Y of the points in metres (1-D array).
+    @param chunk Points handled at a time (bounds the block of distances to chunk times the number of sides).
+    @return Array of distances in metres.
+    """
+    p = np.asarray(poly, dtype=float)
+    a, b = p, np.roll(p, -1, axis=0)
+    ab = b - a
+    ll = np.maximum((ab ** 2).sum(axis=1), 1e-300)
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    out = np.empty(len(x))
+    for s in range(0, len(x), chunk):
+        px, py = x[s:s + chunk, None], y[s:s + chunk, None]
+        t = np.clip(((px - a[:, 0]) * ab[:, 0] + (py - a[:, 1]) * ab[:, 1]) / ll, 0.0, 1.0)
+        out[s:s + chunk] = np.sqrt(((px - a[:, 0] - t * ab[:, 0]) ** 2 + (py - a[:, 1] - t * ab[:, 1]) ** 2).min(axis=1))
+    return np.where(points_in_polygon(x, y, p), out, -out)
+
+
 def polygon_is_simple(poly):
     """!
     @brief True if the polygon does not cross itself (no two non-adjacent edges cross properly).

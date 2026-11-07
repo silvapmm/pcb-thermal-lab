@@ -34,12 +34,14 @@ import scipy.sparse.linalg as spla
 
 from . import copper, laminate, memory, viawell
 from .fvm import ORDERING
-from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
+from .geometry import (part_weights, coverage_fraction, edge_length_on_board, face_apertures, nearest_active_cell, polygon_centroid,
+                       signed_distance_to_outline)
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
+EDGE_FILM_FLOOR = 0.25       # Smallest value of 1 + h d / k of the edge film on a cut cell: the film is at most four times stiffer than the plain film
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
 # The size of a 3D model is no longer a fixed number: pcbthermal/memory.py estimates the peak memory from the unknowns and refuses a run above a share of the
 # installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
@@ -216,6 +218,7 @@ class Solid:
                           "kx": np.maximum(np.broadcast_to(kx, (ny, nx)).astype(float), K_FLOOR),
                           "kz": np.maximum(np.broadcast_to(kz, (ny, nx)).astype(float), K_FLOOR)})
             if kind in ("cu", "fr4"):                    # Board slabs: the conducting cross-section is the share of the cell on the board
+                slabs[-1]["kphys"] = slabs[-1]["kx"].copy()          # The conductivity of the material itself (no cover factor), for the cut-cell links and film
                 slabs[-1]["kx"] = np.maximum(slabs[-1]["kx"] * bcov, K_FLOOR * 1e-3)
                 slabs[-1]["bcov"] = bcov
 
@@ -291,8 +294,24 @@ class Solid:
             cols.append(b_.ravel())
             vals.append(g.ravel())
 
+        # A board with an outline joins its cut cells through the open part of the shared face (the aperture, Johansen and Colella 1998), with the physical
+        # conductivity: the cover-scaled conductivity made the link into a thin sliver of a cell proportional to the sliver (2c / (1 + c) of a full link), so the heat of
+        # the edge column could not reach the sliver and the sliver cell read far too hot (13 % of the rise at 1 mm and a coefficient of 200 W/m2K). Rectangles keep their links
+        cut = b.has_outline()
+        if cut:
+            ap_x, ap_y = face_apertures(b.outline, nx, ny, dx, dy)
+            ap_x = ap_x * (self.active[:, :-1] & self.active[:, 1:])      # A cell off the board is joined to nothing
+            ap_y = ap_y * (self.active[:-1] & self.active[1:])
         for s, sl in enumerate(slabs):
-            k, dz = sl["kx"], sl["dz"]
+            dz = sl["dz"]
+            if cut and "kphys" in sl:
+                k = sl["kphys"]
+                g = ap_x * np.minimum(dz[:, :-1], dz[:, 1:]) * dy * 2.0 * k[:, :-1] * k[:, 1:] / ((k[:, :-1] + k[:, 1:]) * dx)
+                link(idx[s][:, :-1], idx[s][:, 1:], g)
+                g = ap_y * np.minimum(dz[:-1], dz[1:]) * dx * 2.0 * k[:-1] * k[1:] / ((k[:-1] + k[1:]) * dy)
+                link(idx[s][:-1], idx[s][1:], g)
+                continue
+            k = sl["kx"]
             g = np.minimum(dz[:, :-1], dz[:, 1:]) * dy * 2.0 * k[:, :-1] * k[:, 1:] / ((k[:, :-1] + k[:, 1:]) * dx)
             link(idx[s][:, :-1], idx[s][:, 1:], g)
             g = np.minimum(dz[:-1], dz[1:]) * dx * 2.0 * k[:-1] * k[1:] / ((k[:-1] + k[1:]) * dy)
@@ -336,13 +355,18 @@ class Solid:
         vh[bot_s] += tot * (1.0 - share)
         # Edges of the board
         if b.h_side and b.has_outline():
-            # Non-rectangular board: the outline length inside every cell, through half a cell of the slab's own material
+            # Non-rectangular board: the outline length inside every cell, the film in series with the conduction from the cell centre to the closest outline point
+            # (Robin condition at that point, Barrett and others 2022 eq. 12 to 14): g = g0 / (1 + h d / k) with d the signed distance, negative when the centre lies off the
+            # board (a sliver cell), floored at 0.25. The distance replaces the fixed half cell of the cover-scaled conductivity, which cut the film off the sliver
             edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             on = edge > 0
+            ii, jj = np.nonzero(on)
+            d_edge = signed_distance_to_outline(b.outline, (jj + 0.5) * dx, (ii + 0.5) * dy)
             for s in range(first_board, last_board + 1):
                 sl = slabs[s]
-                length, dz, kx = edge[on], sl["dz"][on], sl["kx"][on]
-                vs[s][on] += 1.0 / (1.0 / (b.h_side * length * dz) + (0.25 * (dx + dy)) / (kx * length * dz))
+                length, dz, kx = edge[on], sl["dz"][on], sl["kphys"][on]
+                g0 = b.h_side * length * dz
+                vs[s][on] += g0 / np.maximum(1.0 + b.h_side * d_edge / kx, EDGE_FILM_FLOOR)
         elif b.h_side:
             for s in range(first_board, last_board + 1):
                 sl = slabs[s]
