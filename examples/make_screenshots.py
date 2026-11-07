@@ -261,6 +261,11 @@ def main_import(out_dir, board_dir):
                 if q.designator == "C1":
                     q.polygon_mm = [[x + 0.8, y] for x, y in q.polygon_mm]
                     q.from_file["position_mm"] = [q.from_file["position_mm"][0] + 0.8, q.from_file["position_mm"][1]] if q.from_file.get("position_mm") else None
+            # A layout revision also changes files: the stored copy of the top paste layer is another version (other checksum), so the dialog says that some files differ
+            for f in old.files:
+                if "paste" in (f.function or "").lower():
+                    f.sha256 = "0" * 64
+                    break
             w2 = ImportBoardWindow(win, existing=old)
             w2.confirm = lambda *a: True
             w2.notify = lambda *a: None
