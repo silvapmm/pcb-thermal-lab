@@ -56,3 +56,19 @@ def test_the_check_measures_the_block_against_the_outline():
 def test_lumped_and_analytic_still_run_with_a_block_beyond_the_outline():
     sim = simulate(cut_board((10, 5, 50, 35)), SolverOptions(models=("fvm", "lumped", "analytic"), cell_mm=1.0))
     assert all(np.isfinite(sim.results[m].t_max) for m in ("fvm", "lumped", "analytic"))
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm", "lumped", "analytic", "solid3d"])
+def test_a_block_wholly_off_the_outline_runs_and_heats_nothing(model):
+    """!
+    @brief A block inside the box of the board but wholly outside its outline is ignored and the run does not crash.
+    @details Found by the final review of 2.6.0 (also in 2.5.2): the block read-out took the maximum over the block's cells on the board, an empty set, and the FVM and
+             FDM raised "zero-size array to reduction operation maximum". No block temperature is reported.
+    @param model Model key.
+    @return None.
+    """
+    with_block = cut_board((2, 5, 12, 15))
+    r = simulate(with_block, SolverOptions(models=(model,), cell_mm=1.0)).results[model]
+    assert np.isfinite(r.t_max)
+    assert "block_bottom_max" not in r.extras                   # no block cell: no block temperature is reported
+    # (the same board without the block is not compared bit for bit: a board with a metal block keeps the legacy two laminate nodes)

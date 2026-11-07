@@ -366,3 +366,31 @@ def test_vias_on_copper_or_under_a_part_are_not_flagged():
     p.add_zone(2, rect=(0, 0, W, W))
     p.add_via(C, C, 0.3)
     assert checks.uncoupled_vias(p) == []
+
+
+@pytest.mark.parametrize("solver", ["direct", "sor"])
+def test_a_via_on_bare_laminate_on_every_layer_runs_in_every_model(solver):
+    """!
+    @brief A via whose rim touches no copper and no heater on any layer (drawn before the zones) is uncoupled everywhere and every model runs.
+    @details Found by the final review of 2.6.0: the rim rule set every well to zero, the barrel nodes floated and `kron_barrel` raised a singular-matrix error in the FVM,
+             FDM and Lumped (2.5.2 ran the board). The via must couple nothing: the board equals the same board without it.
+    @param solver FVM linear solver.
+    @return None.
+    """
+    from pcbthermal import api
+    assert np.all(viawell.kron_barrel(np.array([1.0, 1.0, 1.0]), np.zeros(4)) == 0.0)
+    assert np.all(viawell.kron_barrel(np.array([1.0]), np.array([0.0, 2.0])) == 0.0)
+    t = {}
+    for with_via in (True, False):
+        p = Problem.new(40.0, 30.0, 4)
+        p.add_heater(1, 1.0, rect=(5, 5, 9, 9))
+        if with_via:
+            p.add_via(20.0, 15.0, 0.3)
+        o = api.default_options()
+        o.models = ("fvm", "fdm", "lumped", "analytic")
+        o.cell_mm = 1.0
+        o.linear_solver = solver
+        r = api.simulate(p, o)
+        t[with_via] = {m: r.results[m].t_max for m in o.models}
+    for m in ("fvm", "fdm"):
+        assert t[True][m] == pytest.approx(t[False][m], abs=1e-9)

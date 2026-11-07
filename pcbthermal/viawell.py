@@ -454,6 +454,10 @@ def kron_barrel(g_gap, g_well):
     g_gap = np.asarray(g_gap, dtype=float)
     g_well = np.asarray(g_well, dtype=float)
     n = len(g_well)
+    if np.count_nonzero(g_well > 0.0) < 2:
+        # A barrel joined to fewer than two layers carries no heat between them; with no well at all (a via whose rim touches no copper on any layer, rim rule of
+        # 2.6.0) the barrel nodes float and the elimination below would be singular, so the via couples nothing
+        return np.zeros((n, n))
     if np.isinf(g_well).any():
         # An infinite well: replace it by a conductance far above every other one in the star (the Schur complement then ties the mean to the barrel)
         finite = g_well[np.isfinite(g_well)]
