@@ -154,6 +154,22 @@ def _board(boards_cache, name):
     return boards_cache[name]
 
 
+def test_no_record_or_time_is_in_two_pending_files():
+    """!
+    @brief A frozen record (or time to 63 %) that two decided changes move has ONE entry, in one pending file, regenerated with both changes in the tree.
+    @details The files are applied in name order and the last wins, so a record in two files would silently hold the number of whichever sorts later, which neither change
+             produced alone: the branch that moves a record already in a pending file regenerates it into its own file and removes it from the older one.
+    @return None.
+    """
+    seen = {}
+    for path in _pending_files():
+        pend = json.loads(path.read_text(encoding="utf-8"))
+        for kind in ("records", "transients"):
+            for key in pend.get(kind, {}):
+                assert (kind, key) not in seen, f"{kind[:-1]} {key} is in both {seen[(kind, key)]} and {path.name}"
+                seen[(kind, key)] = path.name
+
+
 def test_pending_shifts_belong_to_the_frozen_release():
     """!
     @brief Every pending shift names the version of the newest frozen file, the change and its reason, and replaces only records and times that the frozen file holds.

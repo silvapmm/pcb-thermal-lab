@@ -152,7 +152,7 @@ The two pictures below explain why the product and the plain intersection fail i
 
 *Figure 35 (`images/fig_35_part_weight_rules.png`): the weight of that cell by the product of the covers, the plain intersection and the intersection normalised to the board cover (left), and the power density each puts on the board part of the cell relative to the density of the part (right; the correct value is 1).*
 
-*Limit.* The cut cell still conducts with its cover (a cell with half the board has half the conductance, whatever the part inside it), so a part over a cut edge reads a little hotter at fine cells than with the edge on the grid lines (the exact cover removed the part that came from the area, not the part that comes from the conduction: 0.65 K of scatter of the small T at 1 mm remains); treating the cut cell by its real shape (the cut-cell links) is an item of the chapter "Planned" of `versions.md`. **Where it is checked**: `validation.md` 23 (`research/rotated-square-3d`, `research/outline`).
+*Limit.* The exact cover fixed the volumes, the edge length and the weights, not the way a cut cell is joined to its neighbours and to the air: that is the cut-cell links and the edge film of 2.1.1 (the FVM; the FDM and the 3D solid keep the cover-scaled links, 0.65 K of scatter of the small T at 1 mm in the FDM, the larger sliver defect in the 3D solid, `validation.md` 32). **Where it is checked**: `validation.md` 23 and 32 (`research/rotated-square-3d`, `research/cut-cell-links`, `research/outline`).
 
 #### 1.3.3 A board with an outline in the Lumped and Analytic models
 
@@ -313,10 +313,36 @@ A part is the heat source of the model: a polygon on the board and a power. The 
 
       G_x = (2 S₁ S₂ /(S₁ + S₂)) · Δy/Δx        G_y = (2 S₁ S₂ /(S₁ + S₂)) · Δx/Δy              (2.1)
 
-  the **harmonic mean** of the two sheet conductances (a copper/FR-4 edge is a series, not an average); zero when both are zero [Patankar1980] (M).
+  the **harmonic mean** of the two sheet conductances (a copper/FR-4 edge is a series, not an average); zero when both are zero [Patankar1980] (M). On a board with an outline `S` is the *physical* sheet and the link carries the open fraction of the shared face, `a` (2.1.1); `a = 1` between whole cells.
 * *Vertical*, between layers `l` and `l+1` in a cell: `G_z = k_th Δx Δy / d` (the dielectric alone; in the cells where copper is absent next to the gap the gap is cut into laminate nodes, section 1.4). The barrel of a via is **not** added here: it is a mean-potential coupling of a footprint of cells (section 2.6).
-* *Ambient*: `G_amb = (h_top or h_bottom) Δx Δy` on the outer layers, plus `h_extra Δx Δy c_hs` under a plain heatsink (`c_hs` its coverage), plus `h_side Δ_edge · slab` on edge cells; under a metal block the board coefficient is multiplied by `1 − c` (section 7).
+* *Ambient*: `G_amb = (h_top or h_bottom) Δx Δy` on the outer layers, plus `h_extra Δx Δy c_hs` under a plain heatsink (`c_hs` its coverage), plus the edge film on edge cells, `g_side = H Δ_edge / (1 + H d / S)` with `H = h_side · slab` and `d` the distance from the node to the edge (2.1.1); under a metal block the board coefficient is multiplied by `1 − c` (section 7).
 * *Outline* (`geometry.edge_length_on_board`, also used by the FDM and the 3D solid): `Δ_edge` is the length of the outline inside the cell. The outline is sampled at a tenth of a cell and every sample is moved a thousandth of a cell inwards, so a side lying on a grid line belongs to the cell on the board; length that falls in a cell off the board goes to the nearest cell on the board. `Σ Δ_edge` is then the perimeter wherever the polygon falls on the grid. Cells off the board are decoupled and pinned to the ambient by 1 W/K (`g_pin`): this keeps the matrix regular and is not a path to the air.
+
+#### 2.1.1 Cut cells: the open-fraction link and the edge film in series (`fvm.Network._lateral_links`, `_cut_edge_film`; `geometry.face_apertures`, `signed_distance_to_outline`)
+
+![The quantities of a cut cell](images/cut_cell_quantities.png)
+
+*Figure (`images/cut_cell_quantities.png`, `research/cut-cell-links/figures/fig_01`): a 3 x 3 patch cut by a slanted outline: the board part (shaded), the cover `c` of a cell, its centre (the node), the apertures of the faces (the open length of each face, thick) and the distance `d` from the centre to the closest outline point; the heat leaves the board through the film on the outline.*
+
+A cell cut by the outline has the volume `c Δx Δy` (1.3.2) but its sides to the neighbours are open over a length `a Δ` that is *not* `c Δ`: the heat crosses the whole side that lies on the board. The earlier links scaled the sheet of a cut cell by `c` and took the harmonic mean, a factor about `c` too weak into a sliver; the edge film sat on the node, behind that weak link. The program now uses ([JohansenColella1998] eq. 15 to 16 (R) and [BarrettEtAl2022] eq. 10 to 14 (R), after [BochkovGibou2019] (R, read in the thesis chapter that holds it)):
+
+    G_x = a_x · harmonic(S₁/c₁, S₂/c₂) · Δy/Δx        G_y = a_y · harmonic(S₁/c₁, S₂/c₂) · Δx/Δy           (2.1a)
+
+with `S/c` the physical sheet of the cell and `a` the **aperture**: the fraction of the shared face that has board on both sides (`geometry.face_apertures`: the sorted crossings of the outline with every grid line, even-odd signs and prefix sums, the same signed construction that integrates the cover; 0.02 s for a 20 000-vertex outline on a 400 x 400 grid; a face that lies on an outline side has board on one side only, so `a = 0`; a face between two whole cells is exactly 1, so a rectangle, or an outline on the grid lines, gives the earlier links bit for bit; the edge film below changes on a rectangle too). The nodes stay at the cell centres. The edge film `H Δ_edge` (`H = h_side` times the slab) is put in series with the conduction from the node to the closest outline point (Robin condition at the closest boundary point: the symmetric scheme of [PapacEtAl2010] (N, cited through the thesis); eqs. 1.7, 1.13 and 1.14 of the thesis chapter that holds [BochkovGibou2019] (its numbering, not the paper's; the sign of `d` is opposite, positive outside), whose diagonal `μ α L / (μ − α d)` is the same expression; [BarrettEtAl2022] eq. 12 to 14; the thesis chapter that holds the 2019 paper was read in `research/bochkov-robin-check`, which also shows that the symmetric form chosen here has the same error as the non-symmetric one and keeps the symmetric LU). The ambient term is scaled with the same factor as the conductance (the change goes into `g_amb`), so a constant field is reproduced to round-off for any `h_side` (tested); the condition `μ − α d > 0` of Bochkov and Gibou fails for a node outside the board with a large cell Biot number, which the floor below covers:
+
+    g_side = g₀ / max(1 + g₀ d / (S Δ_edge), 0.25) = H Δ_edge / max(1 + H d / S, 0.25)                     (2.1b)
+
+`d` is the signed distance from the cell centre to the outline (`geometry.signed_distance_to_outline`; negative when the centre is off the board, which stiffens the film); on a rectangle the border cells use `d = Δx/2` (or `Δy/2`; a corner cell has two edges, each with its own `d`), so a rectangle and the same rectangle drawn as an outline give the same network when the cells are square (with `Δx ≠ Δy` the corner cell of the drawn outline takes the smaller half cell for both edges). `Δ_edge` cancels, so the formula needs only the distance. **The floor 0.25** is a rule of the program, not of the sources: it keeps `g_side` positive and at most four times the film alone where the denominator would vanish, which happens only for a node outside the board by more than `S/H` (bare-laminate nodes of a cut cell where the copper stops short of the outline, from about 1000 W/m²K at 1 mm; an edge coefficient beyond any physical film otherwise); with the copper 1.2 mm inside the outline of a turned square at 2000 W/m²K it binds in 80 node cells and the peak moves 0.06 K (0.25 to 0.05) and 0.15 K (0.25 to 0.5) of a 71 K rise (`validation.md` 32.3). Block layers keep the cover-scaled links; the vertical links, the via wells (they keep the cover-scaled sheet), the capacities and the sources are unchanged. The matrix keeps its size and pattern, stays symmetric, has no positive off-diagonal entry without vias and the heat balance closes (tests). The Lumped model, which never sees the links, reads the edge conductance without the series term (`cut_cells=False`). **Not covered**: a board with an outline and imported copper keeps the earlier links and the film on the node in every layer (the faces of an imported layer are built from pixel sheets times the cell cover; the aperture would have to enter as an outline mask at pixel level), and says so in the run's warnings; the FDM and the 3D solid keep the cover-scaled links (the 3D solid has the sliver defect, four to five times larger than the FVM had: its own branch).
+
+![Heat paths of a sliver cell](images/cut_cell_sliver_heat_path.png)
+
+*Figure (`images/cut_cell_sliver_heat_path.png`, `research/cut-cell-links/figures/fig_06`): plan of an edge column whose board part is a sliver. With the cover-scaled link (left) the link into the sliver is about 0.04 S and the film on the sliver node is nearly cut off (the edge acts as insulated, and the peak jumped by +3.6 K at 200 W/m²K between the covers 0.01 and 0.02); with the aperture (right) the face is open (a = 1) and the film follows the real conduction to the edge.*
+
+![The chain from a whole neighbour to the air](images/cut_cell_scheme_chains.png)
+
+*Figure (`images/cut_cell_scheme_chains.png`, `research/cut-cell-links/figures/fig_02`): the chain of resistances along the normal to the outline for the earlier links, the aperture, and the aperture with the film in series (the scheme of the program); the fourth, centroid nodes, was not adopted.*
+
+**Where it is checked**: `validation.md` 32 (the sliver curve, the spread over the position of the outline against an independent two-sheet solver, the disc, L and T, the frozen records) and `tests/test_cut_cell_links.py`.
 
 ### 2.2 The system
 
@@ -373,7 +399,7 @@ The board mean of a transient weights every cell by its board area. The **step r
 
 ### 2.5 Accuracy
 
-Second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The layered idealisation of section 1.2 is the model error that the 3D solid measures; the discretisation error is the change with the cell.
+Second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). At a cut cell the local truncation is first order over the volume fraction while the temperatures stay second order ([SchwartzEtAl2006] eq. 11 to 13 (R), as read in `research/rotated-square-3d`); the spread of the peak over the position of the outline on the grid is 0.03 to 0.15 K at 1 mm for the square at `h_side` 10 to 2000 W/m²K (the earlier links 0.06 to 3.0 K, `validation.md` 32). The layered idealisation of section 1.2 is the model error that the 3D solid measures; the discretisation error is the change with the cell.
 
 ### 2.6 The via on the grid (FVM and FDM; `viawell.py`)
 
@@ -880,6 +906,11 @@ The reading status: **R** read in full or in the pages that matter; **S** seen a
 
 | Key | Citation | Status | Where used |
 | :-- | :-- | :-- | :-- |
+| [JohansenColella1998] | H. Johansen, P. Colella, *A Cartesian grid embedded boundary method for Poisson's equation on irregular domains*, J. Comput. Phys. 147 (1998) 60-85 (read as the LBNL report LBNL-39908) | R (report pp. 1-18) | 2.1.1 (apertures) |
+| [SchwartzEtAl2006] | P. Schwartz, M. Barad, P. Colella, T. Ligocki, J. Comput. Phys. 211 (2006) 531-550 (read as the LBNL report) | R (printed pp. 1-16) | 2.1.1, 2.5 (order at a cut cell) |
+| [BarrettEtAl2022] | A. Barrett, A. L. Fogelson, B. E. Griffith, J. Comput. Phys. 449 (2022) 110805 (arXiv 2102.07966) | R (sections 1 to 3.1 and 3.3) | 2.1.1 (aperture links, Robin film at the closest point) |
+| [BochkovGibou2019] | D. Bochkov, F. Gibou, the symmetric and non-symmetric Robin schemes on Cartesian grids (2019), read as chapter 1 of D. Bochkov's thesis (eScholarship item 3qj3t08h) | R (the pages of eqs. 1.7, 1.10-1.14, 1.17-1.21; the rest of the chapter S) | 2.1.1 (film in series, condition 1.21; `research/bochkov-robin-check`) |
+| [PapacEtAl2010] | J. Papac, F. Gibou, C. Ratsch, J. Comput. Phys. 229 (2010) 875-889 | N (cited through the thesis) | 2.1.1 (origin of the symmetric Robin scheme) |
 | [Patankar1980] | S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, Hemisphere (McGraw-Hill), 1980 | M content, S citation | 2.1, 2.4 (finite volumes, harmonic mean, theta method; derived in the text) |
 | [Peaceman1978] | D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir simulation*, SPE J. 18 (3) (1978) 183-194 | S (abstract only); the radial value `e^(−π/2)` is read second hand in [Ibraguimov2022], [Lie2019Reservoir] and [Durlofsky2005] | 2.6 (well radius of a point sink; the constant 0.1985 is computed) |
 | [Saad2003] | Y. Saad, *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003 (open copy) | R (sections 3.3, 4.1, 4.2, 10.2) | 2.3 (Theorem 4.16, equation 4.47, printed pages 126 and 127, PDF pages 146 and 147; multicolouring; block relaxation) |

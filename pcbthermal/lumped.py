@@ -887,7 +887,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=True, ladder=False)       # A metal block is one more layer of the network; no laminate nodes of the rule (the Lumped keeps one link per gap)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=True, ladder=False, cut_cells=False)       # (the rings never see the links or the film in series: the earlier edge conductance) A metal block is one more layer of the network; no laminate nodes of the rule (the Lumped keeps one link per gap)
     L = net.nl
     nbl = net.n_board
     power = problem.total_power()
@@ -963,7 +963,7 @@ def _unit_networks(problem, rings, cell_mm):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False, cut_cells=False)     # (as above: the rings read the edge conductance without the series term)
     systems = []
     vias = viaconstriction.ViaSet(problem) if problem.vias else None
     for h in problem.heaters:
