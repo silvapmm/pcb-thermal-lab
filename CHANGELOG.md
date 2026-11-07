@@ -5,6 +5,12 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+- **Warning: the Lumped model near a side or a corner of the board** (`fix/lumped-near-edge-warning`, from `research/lumped-near-edge`; text only, no number moves): with the Lumped selected, a heat source whose exact gap to the nearest side of the board (to the real outline on a board with an outline; zero for a part that crosses it) is at most max(its equivalent side, 5 mm) gets one line in the live list and the Results summary (`checks.check_lumped_near_edge`): the hottest temperature of such a part read 6.6 % of the rise too cool on average over 180 test cases and up to 22 % at a corner, against the FVM (a sample, not a bound); use the FVM or the FDM. It flags 57 of the 58 cases more than 8 % too cool on the sweep and 35 of 37 on 120 random boards (63 and 24 false alarms, mostly 4 to 8 % too cool), and exactly three of the 17 frozen boards. `tests/test_lumped_near_edge.py`, `docs/validation.md` 35.
+
+### Changed
+- **The Lumped raster follows a heat source smaller than two cells** (same branch; moves only the Lumped numbers of boards with a powered source narrower than twice the raster): the raster, one per board, becomes half the side of the smallest powered source, not below 0.125 mm, when the estimate of 1.7 KB per raster cell fits in the smaller of 1 GB and the memory-guard limit (`lumped.small_part_cell`, `lumped.cell_for`); otherwise the raster is kept and the live list says that such a part reads -19 to +6 % of the rise off depending on where it sits in its cell. On the 24 mm board of the study the 0.2 mm part, 9.9 points apart between two positions in the cell, is 0.7 points apart; the level of the smallest parts stays 3.5 to 6.7 % too cool. A board with a zoned part keeps 0.5 mm; none of the 17 frozen boards has a source under 1 mm, so no frozen number moves (`tests/regression` at 2 mm unchanged).
+
 ## [2.5.2] - 2026-11-07
 
 Fixes after 2.5.1: files that always save and reopen, the Pulsonix placement header, the licence header on every file, the re-import of a different board and theory text corrections. The solvers and the frozen numbers are unchanged.

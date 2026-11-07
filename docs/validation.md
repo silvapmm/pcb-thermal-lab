@@ -1325,3 +1325,60 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
 
 **Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
+
+## 35. The Lumped model near a side or a corner, and for a part smaller than its cell
+
+Section number 35 on purpose: 31 to 34 belong to branches that are not in this tree yet. Evidence: `research/lumped-near-edge` (README 3, 6 and 10, reviewed; the studies ran on a tree with the capped first ring, which `develop` does not have, so the levels below were re-measured on this program where the text says so).
+
+### 35.1 How much too cool a part near an edge reads (study data, 180 cases)
+
+Two-layer full-copper boards of 40 x 40 and 100 x 80 mm, a square source of 2, 5 or 10 mm on layer 1 at a gap of 0 to 30 mm from one side (centred along it) or from a corner, edge film 10, 50 and 200 W/m2K; error of the Lumped at 0.5 mm against the FVM at 0.5 mm (the FVM at 0.25 mm confirms it to 0.2 %, an independent 3D solver to 0.2 % on five cases). Mean over the cases, range in brackets:
+
+| case | n | hottest node % | footprint mean % |
+| :-- | --: | --: | --: |
+| all | 180 | -6.6 [-22.0, +1.4] | -5.5 [-13.5, +1.6] |
+| side, gap 0 | 18 | -9.0 [-13.1, -6.7] | -5.6 [-8.9, -3.7] |
+| side, gap 5 mm | 18 | -4.3 [-8.3, 0.0] | -4.5 [-9.0, +0.1] |
+| side, gap 30 mm | 9 | -2.4 [-3.1, -1.4] | -2.7 [-3.5, -1.9] |
+| corner, gap 0 | 18 | -15.2 [-22.0, -12.2] | -8.1 [-13.5, -5.4] |
+| corner, gap 5 mm | 18 | -7.4 [-12.9, -1.6] | -7.3 [-12.8, -1.4] |
+| corner, gap 30 mm | 9 | -2.6 [-3.4, -1.3] | -3.0 [-3.7, -1.8] |
+
+The cause is not the clipping of the rings (areas, contour lengths and the edge loss are those of the cells that exist) but the links from the footprint outwards: the link to the first ring is the log potential of the part alone and lacks the mirror image of the side. ![Rings clipped by a side](images/lumped_near_edge_rings.png)
+
+*Figure (`images/lumped_near_edge_rings.png`): the rings of a footprint near a side and a corner, cut by the board (from `research/lumped-near-edge`, figure 1).*
+
+### 35.2 The warning rule (`checks.check_lumped_near_edge`)
+
+A heat source with power is flagged when its exact gap to the nearest side (to the box, or to the real outline on an outline board; zero when it crosses it) is at most max(1 equivalent side, 5 mm). "Bad" is more than 8 % of the rise too cool on the hottest node. Reproduced by `tests/test_lumped_near_edge.py` from the cases kept in `tests/data/lumped_near_edge_cases.json`:
+
+| set | bad cases | flagged and bad | false alarms |
+| :-- | --: | --: | --: |
+| sweep (180) | 58 | 57 | 63 |
+| 120 random single-part boards (30 to 100 mm, part 2 to 12 mm anywhere, edge film 5 to 200) | 37 | 35 | 24 |
+| the 17 frozen boards | 2 near-edge (`t_outline` -32 %, `part_across_outline` -16 %) | 2 | 1 (`example_cut_to_T`, -2.1 %) |
+
+The false alarms are mostly parts 4 to 8 % too cool (the Lumped has a deficit of 2 to 4 % even at 30 mm), so "false alarm" means "less than 8 % too cool". The flagged random boards read -8.3 % on average, the others -3.6 %. The two bare-pad boards of the 17 are too cool by another cause and are not flagged. A sample, not a bound. The rule is live (geometry only) and belongs to the Lumped alone; on an outline board the run's note about the equivalent rectangle is a second, different line.
+
+### 35.3 A source under two cells: the finer raster (`lumped.small_part_cell`)
+
+24 x 24 mm board, two layers of full copper, 1 W, a square source of 0.2 to 2 mm centred on a cell corner of the 0.5 mm raster (shift 0) and in a cell (shift 0.25 mm); error of the hottest rise against the FVM at 0.0625 mm, **measured on this program** (`develop`), before (raster 0.5 mm) and after (raster half the side, not below 0.125 mm):
+
+| side mm | raster after mm | before, corner / in a cell % | after, corner / in a cell % |
+| --: | --: | :-- | :-- |
+| 0.2 | 0.125 | -13.5 / -3.6 | -6.0 / -6.7 |
+| 0.3 | 0.15 | -10.5 / -0.3 | -3.5 / -4.4 |
+| 0.5 | 0.25 | -5.9 / +4.9 | +0.1 / +0.7 |
+| 0.75 | 0.375 | -1.6 / -1.7 | +3.7 / +0.9 |
+| 1.0 | 0.5 (not refined) | +1.6 / -0.3 | +1.6 / -0.3 |
+| 2.0 | 0.5 (not refined) | +1.6 / +0.7 | +1.6 / +0.7 |
+
+The position dependence is gone (the 0.2 mm part: 9.9 points between the two positions before, 0.7 after). The study quoted -0.8 to +1.6 % for the rule; that was on a tree with the capped first ring of the next version, which lifts the temperature of a tiny footprint by a few per cent. On `develop` the level of a 0.2 to 0.3 mm part stays 3.5 to 6.7 % too cool (the deficit of the rings of a small footprint), and the 0.75 mm part at shift 0 reads +3.7 % (it read -1.6 %): a refinement of the grid, not a correction of the ring construction. ![Sub-cell footprint](images/lumped_subcell_raster.png)
+
+*Figure (`images/lumped_subcell_raster.png`): hottest-node error against the raster for parts of 0.2 to 2 mm (study figure 5, tree with the capped first ring).*
+
+**Cost and the memory bound**: about 1.7 KB per raster cell on a 4-layer board (0.47 s and 0.97 GB for 100 x 80 mm at 0.125 mm; 150 x 120 mm with vias 2.09 GB; 200 x 150 mm at 0.125 mm about 3.3 GB and 300 x 200 mm about 6.5 GB, extrapolated). The memory guard does not cover the Lumped, so the rule has its own bound: the refinement is refused, the raster stays at 0.5 to 1 mm and the live check says so, when the estimate (1.7 KB per cell, scaled by the layers above four) exceeds the smaller of 1 GB and the memory-guard limit of the machine. The raster is one per board, so one small part moves the other parts of the board too (not measured); a board with a zoned part keeps the 0.5 mm raster of the zone model. **Frozen numbers**: none of the 17 boards has a source under 1 mm (the smallest is 6 mm), `tests/regression` at 2 mm unchanged (151 passed).
+
+### 35.4 What was not verified here
+
+The image-potential links of the study (a correction of the Lumped near a side) are not in the program: they compensate two links, and a cooled side reads up to +8.6 % hot with them. The rule was measured on single-part boards with the part centred along the side; off-centre placements were only sampled by the random boards. The Lumped at 1 mm was not run for the sub-cell spread. The memory estimate is a fit at 4 layers and the scaling by layers is an assumption.
