@@ -12,6 +12,7 @@
 import importlib
 import math
 import os
+import subprocess
 import sys
 import types
 
@@ -111,18 +112,19 @@ _CACHE = {}
 
 def variant_solid3d(name):
     """!
-    @brief A copy of the program's 3D solid module whose edge conductance is the variant `name`, built in memory from the source on disk.
-    @param name Key of VARIANTS ("program" returns the module of the program itself).
+    @brief A copy of the 3D solid module of v2.5.1 whose edge conductance is the variant `name`, built in memory from the source of the tag.
+    @param name Key of VARIANTS ("program": the 2.5.x program unchanged; "current": the live 2.6.0 module).
     @return Module object with the same names as `pcbthermal.solid3d` (use `.solve` and `.Network`).
     @throws ValueError If the expression to replace is not found exactly once in the source (the program changed).
     """
-    if name == "program":
+    if name == "current":
         return importlib.import_module("pcbthermal.solid3d")
     if name in _CACHE:
         return _CACHE[name]
+    # The text anchors of the variants belong to the 2.5.x 3D solid; 2.6.0 changed the module (slabs by thickness, sliver cells), so the text is read from the tag v2.5.1 and
+    # "program" is that program (the baseline of this study); "current" above is the live module.
     path = os.path.join(ROOT, "pcbthermal", "solid3d.py")
-    with open(path, encoding="utf-8") as fh:
-        src = fh.read()
+    src = subprocess.run(["git", "-C", ROOT, "show", "v2.5.1:pcbthermal/solid3d.py"], check=True, capture_output=True, text=True).stdout
     for old, new in VARIANTS[name]:
         if src.count(old) != 1:
             raise ValueError("an expression of solid3d.py was not found exactly once; the variants need updating: " + old[:60])

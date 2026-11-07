@@ -72,7 +72,9 @@ class CutCellNetwork(fvm.Network):
         """
         if any(s.is_block() for s in problem.heatsinks):
             raise ValueError("the cut-cell prototype does not handle metal blocks")
-        super().__init__(problem, nx, ny, assemble=False, with_blocks=with_blocks, ladder=ladder)
+        # 2.6.0 adopted the cut-cell links and film into the program (`cut_cells=True` by default); this prototype builds its own, on the earlier plain network
+        with _no_edge_band():
+            super().__init__(problem, nx, ny, assemble=False, with_blocks=with_blocks, ladder=ladder, cut_cells=False)
         b = problem.board
         self.geo = None
         if b.has_outline():
@@ -182,7 +184,9 @@ class CutCellNetwork(fvm.Network):
         @return scipy.sparse.csr_matrix.
         """
         K = super()._assemble()
-        if self.geo is None:
+        if self.geo is None or hasattr(fvm.Network, "_lateral_links"):
+            # 2.6.0: the program's assembly reads its links through `_lateral_links`, which this class overrides, so K already holds the cut-cell links (adding the
+            # difference again would count them twice)
             return K
         L, ny, nx = self.nl, self.ny, self.nx
         idx = np.arange(L * ny * nx).reshape(L, ny, nx)
@@ -211,17 +215,72 @@ def _patched_sor():
     import inspect
     import textwrap
     text = textwrap.dedent(inspect.getsource(fvm.Network.solve_sor))
-    start = text.index("    gx = self._harmonic(")
-    end = text.index("    gr[:, :, :-1], gl[:, :, 1:] = gx, gx")
-    if text.count("    gx = self._harmonic(") != 1 or start > end:
-        raise RuntimeError("the parent solve_sor changed: update _patched_sor")
-    text = text[:start] + "    gx, gy = self._links_for_solvers()\n" + text[end:]
+    new_call = "    gx, gy = self._lateral_links()"
+    if text.count(new_call) == 1:
+        # 2.6.0: the program's SOR already reads the links through `_lateral_links` (aperture and imported faces included); only the call is redirected to the solver links
+        text = text.replace(new_call, "    gx, gy = self._links_for_solvers()", 1)
+    else:
+        # 2.5.x text: the harmonic means are written out in the method
+        start = text.index("    gx = self._harmonic(")
+        end = text.index("    gr[:, :, :-1], gl[:, :, 1:] = gx, gx")
+        if text.count("    gx = self._harmonic(") != 1 or start > end:
+            raise RuntimeError("the parent solve_sor changed: update _patched_sor")
+        text = text[:start] + "    gx, gy = self._links_for_solvers()\n" + text[end:]
     ns = {}
     exec(compile(text, "<patched solve_sor>", "exec"), vars(fvm), ns)
     return ns["solve_sor"]
 
 
 CutCellNetwork.solve_sor = _patched_sor()
+
+
+@contextlib.contextmanager
+def _no_edge_band():
+    """!
+    @brief Switch off the laminate edge band of 2.6.0 (`laminate.edge_band`) for a block, so that the cut-cell scheme is studied on the earlier plan of the laminate nodes.
+    @return Context manager.
+    """
+    from pcbthermal import laminate
+    saved = laminate.edge_band
+    laminate.edge_band = lambda edge, d, dx, active: np.zeros(np.shape(active), dtype=bool)
+    try:
+        yield
+    finally:
+        laminate.edge_band = saved
+
+
+class _PlainNetwork(fvm.Network):
+    """!
+    @brief The FVM network of the 2.5.x program: the cover-scaled links and the film on the node (`cut_cells=False`), the baseline of this study.
+    @details 2.6.0 adopted the cut-cell links and film into the program (`cut_cells=True` by default), so "the program" of the study's tables is this class.
+    """
+
+    def __init__(self, problem, nx, ny, *args, **kwargs):
+        """!
+        @brief As `fvm.Network`, with the cut-cell treatment off unless asked for.
+        @param problem A validated Problem.
+        @param nx Cells along x.
+        @param ny Cells along y.
+        @param args Further positional arguments of `fvm.Network`.
+        @param kwargs Further keywords of `fvm.Network`.
+        """
+        kwargs.setdefault("cut_cells", False)
+        with _no_edge_band():                                      # the band is a separate 2.6.0 item (research/laminate-edge-band)
+            super().__init__(problem, nx, ny, *args, **kwargs)
+
+
+@contextlib.contextmanager
+def plain_program():
+    """!
+    @brief Run a block with the 2.5.x network (no cut-cell links, film on the node) in place of the program's `fvm.Network`.
+    @return Context manager (yields the network class).
+    """
+    original = fvm.Network
+    fvm.Network = _PlainNetwork
+    try:
+        yield _PlainNetwork
+    finally:
+        fvm.Network = original
 
 
 @contextlib.contextmanager
@@ -257,7 +316,7 @@ def tmax(problem, cell_mm, scheme="program", **kw):
     @brief Hottest board temperature of the layered FVM with the program's treatment or a cut-cell variant.
     @param problem Problem.
     @param cell_mm Cell size in mm.
-    @param scheme "program" (the unmodified `fvm.solve_steady`), "links", "links+strip" or "aperture".
+    @param scheme "program" (`fvm.solve_steady` on the 2.5.x network, `plain_program`), "links", "links+strip" or "aperture".
     @param kw More options for `using_cutcell` (samples, d_min, ap_min).
     @return Hottest temperature in degrees Celsius.
     """
@@ -278,9 +337,10 @@ def solve(problem, cell_mm, scheme="program", **kw):
     if flag == "exact":
         kw = dict(kw, exact=True)
     if base == "program":
-        if flag == "exact":
-            with cutcell_exact.using_exact_cover():
-                return fvm.solve_steady(problem, cell_mm=cell_mm)
-        return fvm.solve_steady(problem, cell_mm=cell_mm)
+        with plain_program():                                      # the 2.5.x program: the 2.6.0 one has the cut-cell links and film inside
+            if flag == "exact":
+                with cutcell_exact.using_exact_cover():
+                    return fvm.solve_steady(problem, cell_mm=cell_mm)
+            return fvm.solve_steady(problem, cell_mm=cell_mm)
     with using_cutcell(base, **kw):
         return fvm.solve_steady(problem, cell_mm=cell_mm)

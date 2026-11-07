@@ -66,7 +66,8 @@ def test_rectangle_matrix_is_the_programs():
     """
     p = Problem.new(20.0, 16.0, 2, h_side=10.0).add_full_copper()
     p.add_heater(1, 1.0, rect=(5, 5, 9, 9), name="U")
-    k0 = fvm.Network(p, 20, 16).K
+    with fc.plain_program():                                                # the 2.5.x network: 2.6.0 has the cut-cell film (and the edge band) inside
+        k0 = fvm.Network(p, 20, 16).K
     for mode in fc.MODES:
         fc.CutCellNetwork.mode = mode
         k1 = fc.CutCellNetwork(p, 20, 16).K
@@ -177,7 +178,8 @@ def test_transient_runs_with_the_cut_cell_network():
     @return None.
     """
     p = _square(20.0, 100.0)
-    t0 = fvm.solve_transient(p, 120.0, n_out=20, cell_mm=1.0)
+    with fc.plain_program():                                                # the baseline is the 2.5.x network (2.6.0 has the cut-cell treatment and the edge band inside)
+        t0 = fvm.solve_transient(p, 120.0, n_out=20, cell_mm=1.0)
     with fc.using_cutcell("links"):
         t1 = fvm.solve_transient(p, 120.0, n_out=20, cell_mm=1.0)
     assert np.isfinite(t1.frames).all() and t1.frames.min() >= p.board.ambient - 1e-9
@@ -215,7 +217,8 @@ def test_sor_with_cut_cell_links_equals_the_direct_solve():
         th_s, res, info = net.solve_sor(tol=1e-11)
     assert info["converged"] and np.abs(th_s - th_d).max() < 1e-6 * th_d.max()
     # And the SOR really saw the cut-cell links: the program's network gives another field on the same board
-    th_p, _ = fvm.Network(p, 30, 30).solve_steady("direct")
+    with fc.plain_program():                                                # (the 2.5.x network: the 2.6.0 program has the cut-cell links inside)
+        th_p, _ = fvm.Network(p, 30, 30).solve_steady("direct")
     assert np.abs(th_p - th_d).max() > 1e-3
 
 
