@@ -65,7 +65,7 @@ class AnimationTab(QWidget):
         self.scheme.setToolTip("Time stepping: implicit Euler is robust, Crank-Nicolson is more accurate.")
         self.spacing.setToolTip("Spacing of the frames in time: logarithmic shows the early heating in detail, linear spaces them evenly.")
         self.compute = QPushButton("Compute")
-        self.compute.setToolTip("Compute the response to the heater power switched on at t = 0 (runs in the background; Ctrl+. cancels it).")
+        self.compute.setToolTip("Simulate the heater power switched on at t = 0.")
         self.compute.setObjectName("primary")
         self.compute.clicked.connect(self._request)
         self.status = QLabel("Set the duration and compute the response to the heater power switched on at t = 0.")

@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+
+- Shorter hints on the buttons and the menu entries (about 3 to 8 words, one sentence; the 2.6.1 candidate `fix/shorter-button-hints`): what the label already says is not repeated, the reasons of a greyed control (*Run a simulation first*, *The result is outdated: run the simulation again*) and the hints of the parameter fields are unchanged, and the details that were in long hints (Subdivide, the typical stack-up templates, element names on an imported board, the Display dot) are in the user guide.
+
 ## [2.6.0] - 2026-11-07
 
 Version 2.6.0 is the release of the model corrections that followed the independent reviews of 2.5: the cut cells of a board with an outline (the exact board cover, the cut-cell links and the edge film), the laminate along the board edge, the via barrel and its rim, the Analytic per-layer edge and local transient, the 3D solid slabs by thickness, the Lumped first ring, the face turned down and the fast square waves. It also adds the project package `.pcbtz`, a single Layer choice with a clickable model name, the Display view modes on the board, the package size preference and new warnings. Several of these move numbers on purpose; the frozen numbers are refrozen once (`tests/regression/data/v2.6.0.json`).

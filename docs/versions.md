@@ -4,6 +4,10 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
+## Unreleased (2.6.1)
+
+* **Shorter button hints** (`fix/shorter-button-hints`, Reviewer pending, not merged): the hints of the buttons, the tool bar and the menu entries are one short sentence (the maintainer's request); parameter hints are unchanged; the details are in the user guide; `tests/test_tooltips.py` and the display tests pass unchanged.
+
 ## 2.6.0 - 2026-11-07: model corrections after the independent reviews, the project package
 
 * *How 2.6.0 was tested*: whole battery on the tip fc7a4ddd of the integration branch (with the open boards and the Gerber samples present; the code has not changed since, only documents): `3207 passed, 8 skipped, 2 xfailed, 1 warning in 2694.75s (0:44:54)`. The 8 skipped: 4 in `tests/test_format_compat_245.py`, which ran separately with `PCBT_COMPAT_V245=1` (5 passed in 2.80 s); 1 in `tests/test_no_secrets.py`, which ran separately with `PCBT_SCAN_KEY_VALUES=1` (4 passed in 2.39 s, nothing printed); 3 in `tests/test_ocr_tool.py` (no pymupdf). An earlier run on 1e9392d5 had two stale-test failures (the example board at a 2 mm cell, 85.2035 K against 85.0746 K in 2.5.2, and the eleven sections of the Preferences dialog), restated in commit 49b669cf. Frozen numbers with `PCBT_FROZEN_CELLS=2,1,0.5`: 317 passed in 126.68 s against `tests/regression/data/v2.6.0.json`. Research folders re-run after the last changes: lumped-zones-adoption 20, fast-wave-oscillation 13, via-contact-geometry 8, lumped-near-edge 7, laminate-edge-band 7, analytic-edge-spatial 19, `releases/regression-harness/tests` 24 passed; the other 40 research folders were green on the earlier tip (all 46 passed) and `pcbthermal/` did not change since. Project files of format 1 and 2 written by 2.5.2 open in 2.6.0 and the reverse; a 2.6.0 `.pcbtz` is refused by 2.5.2 with a `ProjectFormatError` and left untouched. The research folders: see `releases/2.6.0/reproduction`.

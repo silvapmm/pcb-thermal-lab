@@ -153,10 +153,9 @@ class BoardPanel(QWidget):
         self.v_del = QPushButton("Remove vertex")
         self.v_del.setToolTip("Remove the selected vertex (an outline needs at least three).")
         self.v_sub = QPushButton("Subdivide")
-        self.v_sub.setToolTip("Insert a vertex in the middle of every edge (twice as many vertices): the first step to turn a corner or a curve into a smooth outline "
-                              "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
+        self.v_sub.setToolTip("Add a vertex in the middle of every edge.")
         self.v_draw = QPushButton("Draw (O)")
-        self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
+        self.v_draw.setToolTip("Drag a rectangle, or click vertices in polygon mode.")
         # Two rows of two buttons: four in a row made the Board panel about 440 px wide
         for n, w in enumerate((self.v_add, self.v_del, self.v_sub, self.v_draw)):
             row.addWidget(w, n // 2, n % 2)
@@ -1503,7 +1502,7 @@ class SolverPanel(QWidget):
         self.run.setObjectName("primary")
         self.run.clicked.connect(self.run_requested)
         self.cancel = QPushButton("Cancel")
-        self.cancel.setToolTip("Stop the running calculation at once (Ctrl+.). Nothing is kept from the interrupted run.")
+        self.cancel.setToolTip("Stop the calculation (Ctrl+.); nothing is kept.")
         self.cancel.clicked.connect(self.cancel_requested)
         self.cancel.setVisible(False)
         self.progress = QProgressBar()

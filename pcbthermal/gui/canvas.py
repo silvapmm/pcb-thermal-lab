@@ -1284,7 +1284,7 @@ class BoardView(QGraphicsView):
             if kind != "via":
                 pts = self.doc.polygon_mm(getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i])
                 add = menu.addAction("Add a vertex here")
-                add.setToolTip("Adds a point on the nearest edge; drag it to reshape the polygon.")
+                add.setToolTip("Add a point on the nearest edge.")
                 add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
                 k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
                 dele = menu.addAction("Delete this vertex")
