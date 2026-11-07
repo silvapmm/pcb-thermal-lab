@@ -17,7 +17,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import blocks, convection, copper, laminate, lumped, solid3d, viaconstriction, viawell
-from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
+from .geometry import OUTLINE_MAX_CROSSINGS, outline_crossings, coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 from .uicontext import cell_where, laminate_where, using_ui
 
@@ -257,6 +257,17 @@ def check_input(problem, models, cell_mm=1.0, live=False, ui=None):
         return _check_input(problem, models, cell_mm, live)
 
 
+def _outline_warning(text):
+    """!
+    @brief A whole-design warning about the board outline.
+    @param text Full warning text.
+    @return CheckWarning tagged with no element.
+    """
+    out = []
+    _add(out, None, None, text, "The board outline is too complex for this cell (see the details).")
+    return out[0]
+
+
 def _check_input(problem, models, cell_mm, live=False):
     """!
     @brief Body of check_input, run in the context of the caller.
@@ -266,6 +277,18 @@ def _check_input(problem, models, cell_mm, live=False):
     @param live True for the live list (time cap of the partial-copper pass).
     @return List of warnings.
     """
+    # An outline of very many long edges is refused by the grid models (cut-cell links, edge distance) before any memory is taken: say so here, in plain words,
+    # and run no other check on it (the checks below sample the outline and the warning would only repeat the refusal)
+    b = problem.board
+    if b.has_outline():
+        try:
+            crossings = outline_crossings(np.asarray(b.outline, dtype=float), cell_mm * 1e-3)
+        except ValueError as exc:
+            return [_outline_warning(f"{exc}.")]
+        if crossings > OUTLINE_MAX_CROSSINGS:
+            return [_outline_warning(f"The board outline has {len(b.outline)} edges that cross about {crossings / 1e6:.0f} million grid lines at this cell, more than the "
+                                     f"{OUTLINE_MAX_CROSSINGS // 1_000_000} million the grid models accept, so the run would be refused. Simplify the outline (fewer or shorter edges) "
+                                     "or use a coarser cell.")]
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None))
 

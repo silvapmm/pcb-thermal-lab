@@ -10,6 +10,7 @@ Kept apart from `main_window.py` so that the window needs only a few calls. The 
 import hashlib
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QLabel, QMessageBox, QVBoxLayout
 
 from .. import package as pkg
@@ -21,6 +22,20 @@ SOURCES_TIP = ("Store the files the board was imported from (copper, mask, paste
                "gave one) inside the package, under their original names, so that a re-import can start from them. Off by default; the choice is remembered on this machine.")
 SOURCES_NOTE = ("Gerber file headers may carry folder paths and user names, and a third-party board keeps its owner's licence. The files are stored exactly as read "
                 "(no comment is removed).")
+
+
+def _plain_message(win, icon, title, text):
+    """!
+    @brief Show a message box whose text is never read as rich text (it quotes member and file names of a package, which are the author's and may be markup).
+    @param win Parent window.
+    @param icon QMessageBox icon.
+    @param title Window title.
+    @param text Message.
+    @return int the button pressed.
+    """
+    box = QMessageBox(icon, title, text, QMessageBox.Ok, win)
+    box.setTextFormat(Qt.PlainText)
+    return box.exec()
 
 
 def kind_of(role, name):
@@ -167,7 +182,7 @@ def offer_stored_sources(win, dlg):
     except Exception as exc:
         if folder:
             pkg.remove_extracted(folder)
-        QMessageBox.warning(win, "Cannot use the stored files", str(exc))
+        _plain_message(win, QMessageBox.Warning, "Cannot use the stored files", str(exc))
         return
 
     def remove_folder(session, reason):
@@ -207,6 +222,7 @@ class ExportPackageDialog(QDialog):
             text += f" Found in the first {pkg.PRIVACY_HEAD_BYTES // 1024} kB of {len(hints)} file(s): {shown}. Remove it from the files before sharing the package, or leave the box off."
         self.privacy = hints
         note = QLabel(text)
+        note.setTextFormat(Qt.PlainText)                # file names come from the package: never rich text
         note.setWordWrap(True)
         note.setToolTip(SOURCES_TIP)
         lay.addWidget(note)
@@ -251,7 +267,7 @@ def write_copy(win, path, include_sources):
         backup, notes = pkg.save_package(path, project, include_sources)
     except Exception as exc:
         project.package = before
-        QMessageBox.critical(win, "Cannot export", str(exc))
+        _plain_message(win, QMessageBox.Critical, "Cannot export", str(exc))
         return False
     project.package = before                                  # An export is a copy: the open project keeps its state
     win._report_backup(backup)
@@ -283,7 +299,7 @@ def save_as(win):
     try:
         backup = win.doc.save(path, as_package=as_package, include_sources=include)
     except Exception as exc:
-        QMessageBox.critical(win, "Cannot save", str(exc))
+        _plain_message(win, QMessageBox.Critical, "Cannot save", str(exc))
         return False
     win._report_backup(backup)
     report_notes(win)
@@ -303,7 +319,7 @@ def report_read_warnings(win):
     if not warnings:
         return
     shown = "\n".join(f"- {w}" for w in warnings[:12]) + (f"\n- and {len(warnings) - 12} more" if len(warnings) > 12 else "")
-    QMessageBox.warning(win, "Package opened with warnings", f"The project was opened, but some members of the package were not used as they are:\n\n{shown}")
+    _plain_message(win, QMessageBox.Warning, "Package opened with warnings", f"The project was opened, but some members of the package were not used as they are:\n\n{shown}")
 
 
 def report_notes(win):
