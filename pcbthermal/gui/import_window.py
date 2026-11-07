@@ -1969,8 +1969,11 @@ class ImportBoardWindow(QDialog):
         if self.existing is not None and self.session.files and self.session.take_stored_roles(getattr(self.existing, "settings", None)):
             self.reload()                                       # a file the user had given a function (or left out) keeps it
         # Another board: the designators of the stored board name unrelated parts here, so step 2 starts from the files (the dialog offers a new project)
-        if self.existing is not None and self.session.files and not self.session.looks_different(self.existing):
-            self.session.take_stored_parts(self.existing)       # step 2 shows the powers the project has: what Replace and Update keep, and what the user may change
+        if self.existing is not None and self.session.files:
+            if not self.session.looks_different(self.existing):
+                self.session.take_stored_parts(self.existing)   # step 2 shows the powers the project has: what Replace and Update keep, and what the user may change
+            else:
+                self.session.take_file_values()                 # the files' values are the reference, so a value typed in step 2 still wins if the user carries the parts over
         self.page3.newname.blockSignals(True)
         self.page3.newname.setText("")
         self.page3.newname.blockSignals(False)

@@ -41,6 +41,7 @@ TABLE_KEYS = {"type": "str", "times_s": "numlist", "power_w": "numlist", "repeat
 MAX_COORD_MM = 1e6
 # Largest magnitude of any other number (a conductivity, a power, a coefficient): far beyond physics, far below the float range, so products stay finite
 MAX_NUMBER = 1e100
+# The messages of check_value write these two bounds as text ("1e6, 1 km", "1e100"): Python's '{:g}' printed '1e+06', which is not how the program writes numbers; change both together
 REQUIRED = {"board": ("width_mm", "height_mm"), "zones": ("layer", "polygon_mm"), "heaters": ("layer", "polygon_mm", "power_w"), "vias": ("x_mm", "y_mm"),
             "heatsinks": ("layer", "polygon_mm", "h_extra")}
 
@@ -113,13 +114,13 @@ def check_value(path, value, kind):
     ok = True
     if kind == "num":
         ok = _is_num(value) and abs(float(value)) <= MAX_NUMBER
-        what = f"a number of magnitude at most {MAX_NUMBER:g}"
+        what = "a number of magnitude at most 1e100"
     elif kind == "coord":
         ok = _is_num(value) and abs(float(value)) <= MAX_COORD_MM
-        what = f"a number, a length in mm of magnitude at most {MAX_COORD_MM:g}"
+        what = "a number, a length in mm of magnitude at most 1e6 (1 km)"
     elif kind == "num?":
         ok = value is None or (_is_num(value) and abs(float(value)) <= MAX_NUMBER)
-        what = "a number or null"
+        what = "a number of magnitude at most 1e100 or null"
     elif kind == "int":
         ok = _is_num(value) and float(value).is_integer() and abs(value) < 1e9
         what = "an integer"
@@ -134,11 +135,11 @@ def check_value(path, value, kind):
         what = "a list of numbers"
     else:                                               # "poly"
         ok = isinstance(value, list) and all(_is_pair(p) for p in value)
-        what = f"a list of pairs of lengths in mm (magnitude at most {MAX_COORD_MM:g})"
+        what = "a list of pairs of lengths in mm (magnitude at most 1e6, 1 km)"
         if not ok and isinstance(value, list):          # Name the offending point, as the maintainer's example asks
             for i, p in enumerate(value):
                 if not _is_pair(p):
-                    raise ProjectFormatError(f"{path}[{i}]: expected a pair of finite lengths in mm (magnitude at most {MAX_COORD_MM:g}), got {describe(p)}")
+                    raise ProjectFormatError(f"{path}[{i}]: expected a pair of finite lengths in mm (magnitude at most 1e6, 1 km), got {describe(p)}")
     if not ok:
         raise ProjectFormatError(f"{path}: expected {what}, got {describe(value)}")
 
