@@ -827,7 +827,13 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     ax.plot(t, result.t_max, color="#888888", lw=4.0, alpha=0.5, zorder=1, label="hottest of the board (nodes and part faces)")
     for j, h in enumerate(problem.heaters):
         if h.profile is not None or len(problem.heaters) > 1:
-            ax.plot(t, result.t_heaters[j], lw=1.0, label=h.name or f"Heater {j + 1}")
+            line, = ax.plot(t, result.t_heaters[j], lw=1.0, label=h.name or f"Heater {j + 1}")
+            # A heater with a closed-form ripple: the band between the bottom and the top of its wave about its mean (the curve is sampled at the steps of the run and a fast wave
+            # would alias, the band does not)
+            for r in getattr(result, "ripple", []):
+                if r["index"] == j and result.t_heaters_mean is not None:
+                    ax.fill_between(t, result.t_heaters_mean[j] + r["minus_c"], result.t_heaters_mean[j] + r["plus_c"], color=line.get_color(), alpha=0.18, lw=0,
+                                    label=f"{h.name or f'Heater {j + 1}'}: ripple band ({num(r['swing_c'], 3)} K)")
     ax.axhline(result.steady_average_max, color="#2a9d8f", ls="--", lw=1.0, label="steady, average power")
     ax.axhline(result.steady_peak_max, color="#e63946", ls=":", lw=1.0, label="steady, peak power (bound)")
     if limit_c is not None:

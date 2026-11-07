@@ -31,20 +31,48 @@ is not attenuated: the decision stays conservative. Without a face term the deci
 The resolved heaters are then simulated together with the averaged ones in one time-stepping run (the response is
 linear). The power of a step is the exact mean of the wave over that step, so edges need not coincide with step
 boundaries and no energy is lost.
+
+**Fast waves** (docs/theory.md 10.5). The node structure of the layered models puts the capacity of about 0.77 mm of laminate on each copper node, so for a wave whose shortest
+stretch is below a few seconds the node swing is 2 to 12 times too small, in the decision and in a resolved curve alike. Two rules follow, both from the closed-form impedance
+of the stack under the part (stackimpedance):
+
+- the decision takes ``max(node swing, closed-form swing)`` for a square wave on a part with copper under it (a floor: the program never averages a wave that the closed form
+  says exceeds the budget);
+- a heater that stays over the budget and whose shortest stretch is below FAST_STRETCH_S (4 s, 2 s with three or more copper layers) gets the regime ``average + ripple``: it is not
+  time-stepped (that would need steps a twentieth of the stretch and the node cannot follow the wave anyway), the board run holds its average power, and the zero-mean wave of the
+  closed form is added at the heater. The ripple is at the heater's footprint node (the hot-spot value), never in the frames or the peak map of the board.
 """
 
 import math
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Dict, List, Optional
 
 import numpy as np
 import scipy.sparse as sp
 from scipy.interpolate import PchipInterpolator
 
-from . import fdm, fvm, laminate
+from . import fdm, fvm, laminate, stackimpedance
 from .fvm import lu_factor
 from .numfmt import num
+
+
+# Regime of a repeating square wave that is over the budget but too fast for the node structure of the layered models: average power in the board run, closed-form ripple at the heater
+REGIME_RIPPLE = "average + ripple"
+
+# A wave whose shortest stretch (on or off time) is below this gets the ripple instead of a time-stepped curve: on one or two copper layers the node swing is within 7.5 % of the truth from
+# 4 s up, and below it falls to 0.64 at 1 s and to a tenth at 100 Hz (research/fast-wave-oscillation 8.6); with three or more layers the slabs are thinner and the limit is 2 s
+FAST_STRETCH_S = 4.0
+FAST_STRETCH_MANY_LAYERS_S = 2.0
+
+
+def fast_stretch_limit(layers):
+    """!
+    @brief The shortest stretch below which the node structure of the layered models cannot follow a wave.
+    @param layers Number of copper layers of the board.
+    @return Time in seconds.
+    """
+    return FAST_STRETCH_S if layers <= 2 else FAST_STRETCH_MANY_LAYERS_S
 
 
 class ProfileError(ValueError):
@@ -166,6 +194,7 @@ class HeaterDecision:
     periodic_peak_rise: float                   # Periodic-steady-state peak rise (degC)
     periodic_valley_rise: float                 # Periodic-steady-state valley rise (degC)
     repeat: bool = True                         # False for a one-shot table (always resolved)
+    ripple_swing: float = 0.0                   # Peak-to-peak swing of the closed-form impedance of the stack under the part (degC); 0 where it does not apply (see stackimpedance.column_for_heater)
 
     @property
     def oscillation_percent(self):
@@ -375,6 +404,11 @@ def decide(problem, resp, threshold_c):
         kind = "wave" if w.kind == "square" else "table"
         duty = w.duty if w.kind == "square" else float("nan")
         osc = max(pk - vl, 0.0)
+        # The floor of the fast waves (docs/theory.md 10.5): the node structure of the layered models understates the swing of a short stretch, the closed form of the stack does not.
+        # It needs a square wave, copper under the part and a swing of the power
+        fast = _fast_swing(problem, i, w) if (w.repeat and w.kind == "square") else 0.0
+        if fast > osc:
+            osc = fast
         # A part over absent copper is reported at its face: the resolved curve adds the quasi-static face term of the power, so its swing adds to the node's. Without a face term
         # (full copper, a metal block, the models without it) face_rth is None or zero and the oscillation is the node's, bit for bit
         face = getattr(resp, "face_rth", None)
@@ -382,7 +416,7 @@ def decide(problem, resp, threshold_c):
             low = w.p_off if w.kind == "square" else float(np.min(w.powers))
             osc += (w.peak() - low) * float(face[i])
         out.append(HeaterDecision(i, h.name or f"Heater {i + 1}", kind, "average" if w.repeat else "resolved", avg, w.peak(),
-                                  w.period, duty, rise, osc, pk, vl, w.repeat))
+                                  w.period, duty, rise, osc, pk, vl, w.repeat, fast))
         if w.repeat:
             waves.append(i)                                              # A one-shot profile never takes part in the budget
     # Error budget: average the heaters with the smallest oscillations while their sum stays within the threshold
@@ -392,6 +426,45 @@ def decide(problem, resp, threshold_c):
             spent += out[i].oscillation
         else:
             out[i].regime = "resolved"
+            # Over the budget and faster than the node can follow: the ripple of the closed form instead of a time-stepped curve that would be 2 to 12 times too small
+            w = problem.heaters[i].profile
+            if out[i].ripple_swing > 0.0 and w.shortest_feature() < fast_stretch_limit(problem.board.layers):
+                out[i].regime = REGIME_RIPPLE
+    return out
+
+
+def _fast_swing(problem, index, wave):
+    """!
+    @brief Peak-to-peak swing of a square wave at a heater from the closed-form impedance of the stack under it.
+    @param problem A Problem (h_top and h_bottom as the run uses them).
+    @param index Heater index.
+    @param wave SquareWave of that heater.
+    @return Swing in degC; 0 when the closed form does not apply (bare laminate, a metal block, no swing of the power).
+    """
+    swing_w = wave.p_on - wave.p_off
+    if swing_w <= 0.0 or not 0.0 < wave.duty < 1.0:
+        return 0.0
+    col, status = stackimpedance.column_for_heater(problem, index)
+    if col is None:
+        return 0.0
+    return float(swing_w * col.swing(wave.period, wave.duty))
+
+
+def ripple_waves(problem, decisions):
+    """!
+    @brief The ripple waveform of every heater whose regime is "average + ripple".
+    @param problem A Problem.
+    @param decisions Decisions from decide().
+    @return Dict heater index -> (stackimpedance.Ripple per watt of swing, swing of the power in W).
+    """
+    out = {}
+    for d in decisions:
+        if d.regime != REGIME_RIPPLE:
+            continue
+        col, _ = stackimpedance.column_for_heater(problem, d.index)
+        w = problem.heaters[d.index].profile
+        if col is not None:
+            out[d.index] = (col.ripple(w.period, w.duty), float(w.p_on - w.p_off))
     return out
 
 
@@ -425,22 +498,28 @@ class ProfileResult:
     steady_peak_max: float = 0.0                # Steady maximum with every heater at its on-state power (degC)
     peak_location: Optional[tuple] = None       # (layer, x_m, y_m) of the hottest cell of the peak map
     warnings: List[str] = field(default_factory=list)
+    ripple: List[dict] = field(default_factory=list)           # Heaters in the regime "average + ripple": index, name, period_s, duty, swing_c (peak to peak), plus_c, minus_c (extremes about the mean)
+    ripple_peak_c: Optional[float] = None       # Highest hottest-point temperature of the window including the envelope of the ripples (degC); None without ripple heaters
+    t_heaters_mean: Optional[np.ndarray] = None  # With ripple heaters: the hottest temperature under every heater without the waves (n_heaters, n_times), the centre of the bands of the plot
+    ripple_min_c: Optional[float] = None        # Lowest hottest-point temperature of the window, ripples at the bottom of their wave (degC, a lower bound of the true valley)
 
     @property
     def peak(self):
         """!
         @brief Highest temperature of the last window.
-        @return Temperature in degC (the steady average maximum when nothing was resolved).
+        @return Temperature in degC (the steady average maximum when nothing was resolved; with ripple heaters the envelope of their waves is included, see ripple_peak_c).
         """
-        return float(self.t_max.max()) if self.t_max is not None else self.steady_average_max
+        base = float(self.t_max.max()) if self.t_max is not None else self.steady_average_max
+        return base if self.ripple_peak_c is None else max(base, self.ripple_peak_c)
 
     @property
     def minimum(self):
         """!
         @brief Lowest value of the hottest-point temperature in the last window.
-        @return Temperature in degC.
+        @return Temperature in degC (with ripple heaters the valley bound ripple_min_c is used when it is lower).
         """
-        return float(self.t_max.min()) if self.t_max is not None else self.steady_average_max
+        base = float(self.t_max.min()) if self.t_max is not None else self.steady_average_max
+        return base if self.ripple_min_c is None else min(base, self.ripple_min_c)
 
     @property
     def oscillation(self):
@@ -470,6 +549,7 @@ class ProfileResult:
                 "oscillation_c": self.oscillation, "steady_average_c": self.steady_average_max,
                 "steady_peak_c": self.steady_peak_max, "windows": self.windows, "steps": self.steps,
                 "dt_s": self.dt, "window_s": self.window, "converged": self.converged, "seconds": self.seconds,
+                "ripple": [dict(r) for r in self.ripple],
                 "decisions": [{"heater": d.name, "regime": d.regime, "average_w": d.average_power,
                                "oscillation_c": d.oscillation, "oscillation_percent": d.oscillation_percent}
                               for d in self.decisions]}
@@ -563,7 +643,10 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
                            dy=adapter.dy, steady_average_max=adapter.steady_average_max,
                            steady_peak_max=adapter.steady_peak_max)
     plan = plan_run(problem, decisions, options)
+    rip = ripple_waves(problem, decisions)                              # Heaters averaged in the board run whose closed-form wave is added at the heater
     if not plan["resolved"]:
+        if rip:
+            return _ripple_only(problem, decisions, options, adapter, rip, result, t_begin, progress)
         result.initial_c, result.converged, result.seconds = adapter.steady_average_max, True, time.time() - t_begin
         return result
     res, window, n_per, dt = plan["resolved"], plan["window"], plan["n_per"], plan["dt"]
@@ -618,6 +701,8 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
     result.window, result.dt, result.windows, result.steps, result.converged = window, dt, w + 1, total, converged
     result.times = (np.arange(1, n_per + 1) + w * n_per) * dt
     result.t_max, result.t_heaters = gmax, hmax
+    if rip:
+        result.t_max, result.t_heaters = _add_ripple(result, problem, rip, result.times, gmax, hmax, dt)
     result.frames, result.frame_times = np.asarray(frames), np.asarray(frame_t)
     result.peak_map = result.frames.max(axis=0) if peak_map is None else adapter.shape_field(peak_map)
     flat = np.concatenate(history)
@@ -634,6 +719,94 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
                                "signal is not followed over its whole period; the peak is the highest value seen in the last window")
     if plan["once"]:
         result.warnings.append("a one-shot profile is simulated once from its start state; its last power is held after the end")
+    result.warnings += list(getattr(adapter, "warnings", []))
+    result.seconds = time.time() - t_begin
+    if progress:
+        progress("Time simulation done", 1.0)
+    return result
+
+
+def _add_ripple(result, problem, rip, times, gmax, hmax, dt):
+    """!
+    @brief Add the closed-form waves of the "average + ripple" heaters to the curves of a window, and set the envelope of the peak and the valley.
+    @details The curve of heater i is its hottest-point temperature in the run (its average power) plus the zero-mean wave of the stack under it, sampled at the times of the window
+             (the wave keeps the phase of the power: both start with the on-state at t = 0 of every period) averaged over each step as the power of a step is, so a step longer than the
+             period shows the mean of the wave (zero) and a short one the wave; it never aliases into a constant. The hottest point of the board changes by the change of the largest
+             heater value, ``t_max = gmax + max_j(th_j) - max_j(hmax_j)``, exact when the hottest point of the board is under a heater (it always is for a conducting board whose
+             only sources are the heaters). The peak and the valley of the result use the envelope of the waves, not their samples (a fast wave sampled at the steps of a slow window
+             would alias): peak = max over time of ``gmax + max_j(hmax_j + plus_j) - max_j(hmax_j)``, valley the same with the minus values, a lower bound of the true valley.
+             Appends a warning that says what was done to each heater and records result.ripple.
+    @param result ProfileResult being filled.
+    @param problem A Problem (heater names).
+    @param rip Dict from ripple_waves().
+    @param times Times of the samples in s (absolute, from the start of the run; the end of each step).
+    @param gmax Hottest temperature of the board at those times (degC), without ripple.
+    @param hmax Hottest temperature under every heater at those times (n_heaters, n_times, degC), without ripple.
+    @param dt Length of the step that ends at every time, s.
+    @return Tuple (t_max, t_heaters) with the ripple included.
+    """
+    nh = hmax.shape[0]
+    plus, minus = np.zeros(nh), np.zeros(nh)
+    th = hmax.copy()
+    for i, (wave, swing_w) in rip.items():
+        th[i] = hmax[i] + swing_w * wave.mean_over(times - dt, times)
+        plus[i], minus[i] = swing_w * wave.plus, swing_w * wave.minus
+        name = problem.heaters[i].name or f"Heater {i + 1}"
+        result.ripple.append({"index": int(i), "name": name, "period_s": float(wave.period), "duty": float(wave.duty), "swing_c": float(plus[i] - minus[i]),
+                              "plus_c": float(plus[i]), "minus_c": float(minus[i])})
+        result.warnings.append(f"{name}: its wave is faster than the board model can follow (shortest stretch {num(min(wave.duty, 1.0 - wave.duty) * wave.period, 3)} s). The board is "
+                               f"simulated at its average power and the temperature wave of the layers under the part ({num(plus[i] - minus[i], 3)} K peak to peak, from the closed-form "
+                               "impedance of the stack) is added at the heater: it is in the curve of the heater, the board curve and the peak and minimum of the result, not in the maps "
+                               "or the frames of the board.")
+    result.t_heaters_mean = hmax
+    base = hmax.max(axis=0)
+    t_max = gmax + th.max(axis=0) - base
+    result.ripple_peak_c = float((gmax + (hmax + plus[:, None]).max(axis=0) - base).max())
+    result.ripple_min_c = float((gmax + (hmax + minus[:, None]).max(axis=0) - base).min())
+    return t_max, th
+
+
+# Samples of the window of a run whose heaters are all averaged or "average + ripple" (no time stepping, so no step to take the number from)
+RIPPLE_WINDOW_SAMPLES = 600
+
+
+def _ripple_only(problem, decisions, options, adapter, rip, result, t_begin, progress):
+    """!
+    @brief Result of a run in which nothing is time-stepped but some heaters carry a ripple: the steady average state of the board with the waves added at the heaters.
+    @details The window is the common period of the ripple heaters (the longest one when they have none within 50 times the longest), sampled in RIPPLE_WINDOW_SAMPLES points. The
+             frames and the peak map are the steady field of the average powers (one frame): the ripple is not in the board maps.
+    @param problem A Problem.
+    @param decisions Decisions from decide().
+    @param options ProfileOptions.
+    @param adapter Model adapter (see run_windows).
+    @param rip Dict from ripple_waves().
+    @param result ProfileResult being filled (steady maxima already set).
+    @param t_begin time.time() at the start.
+    @param progress Optional callback.
+    @return ProfileResult.
+    """
+    window, exact = _common_period([w.period for w, _ in rip.values()])
+    n = RIPPLE_WINDOW_SAMPLES
+    dt = window / n
+    state, result.initial_c = adapter.begin(replace(options, initial="average"))
+    g0, h0 = adapter.observe(state)
+    times = (np.arange(1, n + 1)) * dt
+    gmax = np.full(n, float(g0))
+    hmax = np.tile(np.asarray(h0, dtype=float)[:, None], (1, n))
+    result.resolved = True
+    result.window, result.dt, result.windows, result.steps, result.converged = window, dt, 1, 0, True
+    result.times = times
+    result.t_max, result.t_heaters = _add_ripple(result, problem, rip, times, gmax, hmax, dt)
+    field0 = adapter.frame(state).astype(np.float32)
+    result.frames, result.frame_times = field0[None], np.array([window])
+    result.peak_map = adapter.shape_field(adapter.peak_values(state))
+    result.history_t, result.history_max = times, result.t_max
+    l, i, j = np.unravel_index(int(np.argmax(result.peak_map)), result.peak_map.shape)
+    off = getattr(adapter, "offset", 0.5)
+    result.peak_location = (int(l), (j + off) * adapter.dx, (i + off) * adapter.dy)
+    if not exact:
+        result.warnings.append("the periods of the waves added at the heaters have no common multiple within 50 times the longest one, so the curve shows the longest period; the peak "
+                               "and the minimum are the envelope of every wave")
     result.warnings += list(getattr(adapter, "warnings", []))
     result.seconds = time.time() - t_begin
     if progress:

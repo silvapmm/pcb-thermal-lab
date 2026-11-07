@@ -127,7 +127,8 @@ class ProfilePage(QWidget):
         self.threshold = QDoubleSpinBox()
         self._spin(self.threshold, 0, 1000, 2, " °C")
         self.threshold.setToolTip("Oscillations (in total) smaller than this are ignored: the heater is replaced by its "
-                                  "average power. Larger oscillations are simulated in time.")
+                                  "average power. Larger oscillations are simulated in time; a wave whose shortest stretch is below 4 s (2 s with three or more copper layers) is not "
+                                  "simulated step by step but held at its average power with its temperature wave added at the heater (average + ripple).")
         self.start = QComboBox()
         self.start.addItem("Steady state of the average power", "average")
         self.start.addItem("A temperature I choose", "temperature")
@@ -171,7 +172,8 @@ class ProfilePage(QWidget):
         self.dec_table = QTableWidget(0, 7)
         self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dec_table.setToolTip("Decision for every heater: period, duty, average power, the temperature oscillation it would cause (°C and % of the rise) and the regime chosen.")
+        self.dec_table.setToolTip("Decision for every heater: period, duty, average power, the temperature oscillation it would cause (°C and % of the rise) and the regime chosen: constant, average, resolved (simulated in time) or average + ripple "
+                                  "(a fast wave held at its average power, with its temperature wave from the layers under the part added at the heater).")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)
@@ -633,6 +635,9 @@ class ProfilePage(QWidget):
             if plan["resolved"]:
                 self.status.setText(f"Decision from the {ref} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
                                     f"({num(plan['window'])} s per window); press F5 to run.")
+            elif any(d.regime == profiles.REGIME_RIPPLE for d in decisions):
+                self.status.setText(f"Decision from the {ref} step response: no heater needs time steps; the fast waves are held at their average power and their "
+                                    "temperature wave is added at the heater (average + ripple). Press F5 to run.")
             else:
                 self.status.setText(f"Decision from the {ref} step response: every heater is replaced by its average power; "
                                     "no time simulation is needed.")

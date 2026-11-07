@@ -16,7 +16,7 @@ import time
 import numpy as np
 from scipy import ndimage
 
-from . import blocks, convection, copper, laminate, lumped, solid3d, viaconstriction, viawell
+from . import blocks, convection, copper, laminate, lumped, solid3d, stackimpedance, viaconstriction, viawell
 from .geometry import OUTLINE_MAX_CROSSINGS, outline_crossings, coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 from .uicontext import cell_where, laminate_where, using_ui
@@ -291,7 +291,49 @@ def _check_input(problem, models, cell_mm, live=False):
                                      "or use a coarser cell.")]
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_lumped_near_edge(problem, models)
             + check_lumped_small_part(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
-            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models))
+            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models)
+            + check_fast_wave(problem))
+
+
+# The fast-wave warnings (docs/validation.md 37): the frequency from which a wave on bare laminate is warned about, and the slowest wave (period in s) for which a part near
+# a board edge is warned about
+FAST_BARE_HZ = 3.0
+EDGE_WAVE_PERIOD_S = 1.0
+
+
+def check_fast_wave(problem):
+    """!
+    @brief Warnings about power waves that the closed form of the fast-wave ripple does not cover (plain text, live).
+    @details The closed-form impedance of the stack under a part (stackimpedance) replaces the node swing of the layered models for a fast square wave where there is copper under the
+             part. It does not apply (a) on bare laminate, where the swing of the program is up to 2.2 times too small between 3 and 50 Hz and the face term makes it up to 2.4
+             times too large at 1 kHz, and it understates (b) a part whose gap to the nearest board side is shorter than the radius of its disc, for waves slower than 1 Hz (0.61
+             of the truth at 0.1 Hz for a 5 mm part 1 mm from two sides; the program is also low there). One line per case and heater. Only repeating square waves with a swing are examined.
+    @param problem A Problem.
+    @return List of warnings (CheckWarning, tagged with the heater).
+    """
+    out = []
+    for k, h in enumerate(problem.heaters):
+        w = h.profile
+        if w is None or getattr(w, "kind", "") != "square" or not w.repeat or w.p_on <= w.p_off or not 0.0 < w.duty < 1.0:
+            continue
+        name = h.name or f"Heater {k + 1}"
+        freq = 1.0 / w.period
+        col, status = stackimpedance.column_for_heater(problem, k)
+        if status == "bare" and freq >= FAST_BARE_HZ:
+            _add(out, "heater", k,
+                 f"{name}: the part has no copper under it on its layer and its power wave repeats {num(freq, 3)} times a second. The layered models cannot follow a wave that fast over "
+                 "bare laminate: between 3 and 50 Hz the temperature swing they compute is up to 2.2 times too small, and from about 300 Hz the allowance for the laminate over bare "
+                 "copper makes it too large (2.4 times at 1 kHz). Take the swing as an estimate, or put copper under the part.",
+                 f"{name}: a fast wave on bare laminate; the swing is not reliable (2.2 times too small near 10 Hz, 2.4 times too large at 1 kHz).")
+        elif col is not None and w.period > EDGE_WAVE_PERIOD_S:
+            side, gap = heater_side_gap(problem, h.polygon)
+            if gap < col.radius:
+                _add(out, "heater", k,
+                     f"{name}: the part is {num(gap * 1e3, 3)} mm from a side of the board and its power wave is slower than 1 Hz. The closed form used for the swing of a wave "
+                     "treats the board as infinite, so near a side it reads too low (0.61 of the true swing at 0.1 Hz for a 5 mm part 1 mm from two sides, 0.88 at 1 Hz), and the "
+                     "layered model is low there too. Take the swing as a lower estimate.",
+                     f"{name}: a slow wave near a side of the board; the swing is a lower estimate.")
+    return out
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
