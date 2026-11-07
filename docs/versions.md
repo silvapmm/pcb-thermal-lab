@@ -228,6 +228,8 @@ What we want to **implement** in the program, each item once, with the evidence 
 
 Numbering rule (maintainer): only fixes give a patch number, any feature makes the next version 2.6.0. 2.5.1 is prepared on `develop` (see above); the items below are what remains. Display, text, test and tool items do not move a frozen number (317 at 2, 1 and 0.5 mm); the model items say so. Evidence: the backlog, the overlay and the zoom-resolution notes of the 2.5.1 planning (final opinion and fresh look of the 2.5.0 release, `research/REVIEW.md`, `research/theory/OCR_QUALITY.md` section 5).
 
+**Placement file preamble** (`fix/placement-preamble`, fix, done on its branch, not yet in `develop`): the placement reader skips up to 40 lines of free text before the header row and reads a `Units,<unit>` line (the Pulsonix position file was refused); the Parts warning about parts "matched by position" is shown only when a placement file was read. Test: `tests/test_placement_preamble.py`.
+
 **Display and project features** (2.6.0; each its own `feature/` branch; tooltips, user guide and `tests/test_help.py` in the same commit):
 
 1. *Done in 2.5.1 (see above): the copper pixmap cap is 4096.* Was: **Copper pixmap cap 2048 to 4096** (feature, small; `gui/canvas.py` `COPPER_DISPLAY_PIXELS`; maintainer: "I like the copper at 4096"). The cap halves the resolution of the copper on a long board (CO60: 942 x 2876 mask drawn as 471 x 1438); at 4096 the pixmap costs about +8 MB and the process about +23 MB resident on CO60. It shows no more than the mask holds (0.1 mm pixel). Tests: pixmap size of CO60 at the new cap, colour of a mapped copper pixel; the "byte-identical to `develop`" canvas tests are re-baselined only for imported boards.

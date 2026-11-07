@@ -476,6 +476,8 @@ Not a model: the way a part (a heat source with a polygon, to which the user giv
 
 **Re-import (`merge_parts`).** The designator is the key: the power and the edits of a part that is still in the files are kept, its `from_file` is rewritten, a part that left the files is kept with `orphan` True. A part with a name the files do not give (`H<n>` picked by hand, `P<n>` from the proximity fallback; `grouping` "hand" or "proximity") is paired with the new parts by **position** (`move_mm` = 0.3 mm), so that a renumbered group keeps its power.
 
+**Placement file.** The header row (reference, X and Y columns) is searched in the first 40 lines of text (`parts.MAX_PREAMBLE_LINES`; a title, a date and a `Units,<unit>` line above it, as Pulsonix writes, are skipped; lines longer than 4096 characters are not parsed); the unit is the `Units` line, a `## Unit =` comment, a header cell or a value suffix, millimetres by default; the side is Top or Bottom and the rotation degrees counter-clockwise.
+
 **Limits.** The envelope table is small; an origin offset beyond 10 mm, or a rotated, mirrored or inch placement file, is not corrected, only reported; the proximity grouping is a marked fallback. Tested: `tests/test_gerber_parts.py`, `tests/test_gerber_components.py`. Design and numbers: `research/gerber-real-boards` 9 to 12.
 
 ### 19.3 CAD profiles: which program wrote the files

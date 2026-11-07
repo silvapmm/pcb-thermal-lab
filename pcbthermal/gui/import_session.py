@@ -786,10 +786,15 @@ class ImportSession:
             lay = self._layer(f)
             if lay is not None:
                 paste["top" if f.role == PASTE[0] else "bottom"] = lay
-        placement, comps = None, []
+        placement, comps, pnotes = None, [], []
         for f in self.used(PLACEMENT):
+            pinfo = {}
             try:
-                placement = parts_mod.parse_placement(f.text(), f.name)
+                placement = parts_mod.parse_placement(f.text(), f.name, pinfo)
+                if pinfo.get("preamble_lines"):
+                    # Said in plain words so that nobody wonders why the first rows of the file are not parts
+                    pnotes.append(f"{f.name}: the header row of the placement file is on line {pinfo['header_line']}; the {pinfo['preamble_lines']} lines of text above it "
+                                  f"(title, date, units) were skipped and the unit is {pinfo['unit']}")
             except ValueError as exc:
                 f.error = str(exc)
         for f in self.used(COMPONENT):
@@ -805,6 +810,8 @@ class ImportSession:
                 f.error = str(exc)
             res = parts_mod.PartsResult()
             res.info = {"warnings": [str(exc)], "frame": None, "counts": {}}
+        res.info.setdefault("warnings", []).extend(pnotes)
+        res.info["placement_read"] = placement is not None
         new = res.parts + res.listed
         old = self._parts + self._listed
         merged = parts_mod.merge_parts(old, new, res.shapes, openings=res.openings).parts if old else new
@@ -1146,7 +1153,8 @@ class ImportSession:
                        f"{fr['best'] * 100:.0f} % of the parts on their openings instead of {fr['given'] * 100:.0f} %")
         if fr and fr.get("misfit"):
             out.append("The placement file and the Gerber files do not fit (another origin beyond 10 mm, a rotation, a mirror or a unit): the parts matched by position are not reliable")
-        if self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
+        # Only when a placement file was actually read: a refused file (its reason is in the notes of the files) matched nothing by position
+        if info.get("placement_read") and self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
             n = sum(1 for p in self.parts() if p.from_file.get("source") == "placement by position")
             out.append(f"The paste layer names no parts, so {n} parts were matched to the placement file by position: each opening went to the part whose pad outline (from its package name, "
                        f"grown by 0.3 mm) contains it. Usually right; check in the preview that the parts you give a power sit on their own pads")
