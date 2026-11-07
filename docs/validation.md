@@ -1412,3 +1412,20 @@ Windows of a real board (CO60 with its plated holes as vias, `study_real_windows
 ### 31.6 What the star leaves, and the warning
 
 The warning "N of M vias have copper over only part of their footprint" stays, with the text re-measured: it fires on the copper-edge, track and bare cases, where the star still reads -34 to +32 % (edge, tracks) or two to nine times high (a via on bare laminate just outside a copper edge at 0.5 mm and coarser), and it no longer says that the FVM shows a cold spot. The island (-40 to -66 %) and the copper edge just past the via (-16 to -26 %) are not footprint-weight cases and the rule does not fire on them. Not verified: a physical board; a resolved 3D reference of the documented 30 mm board (needs more than 3 GB below 0.125 mm); the Gerber windows of `research/gerber-real-boards` beyond the CO60 windows above; the FDM next to a board edge (the image is the FVM's).
+
+### 31.7 Review: an independent reference set, and the verdict
+
+**Reviewed: no-go for the star as the default via** (the decision is the maintainer's; `research/via-star-coupling` README 5). Every number of 31.1 to 31.4 was reproduced on `29030c9` and on the branch, and the frozen test fails on exactly the declared records without the pending file. But on fifteen 10 x 10 mm boards that were not used to build the star (`research/via-star-coupling/scripts/study_reference_set.py`, 3D solid at 0.1 mm and 8 slabs, good to about 5 %), the signed error of the FVM via effect, before / after:
+
+| case | 1 mm | 0.5 mm | 0.25 mm |
+| :-- | --: | --: | --: |
+| full copper, drill 0.2 to 0.6 mm, 2 and 4 layers | unchanged | unchanged | unchanged |
+| full copper, drill 1.5 mm, 1 mm part over it | -23 / -23 % | -6 / +11 % | -5 / +15 % |
+| 3 x 3 array, 1.0 mm pitch (at 2 mm: -5 / +15 %) | -9 / 0 % | -3 / +1 % | -2 / 0 % |
+| via at the corner of a copper quadrant | -66 / +103 % | -57 / +55 % | -52 / +45 % |
+| 0.25 mm track ending on the via | -70 / -11 % | -54 / -24 % | -47 / -21 % |
+| via on bare laminate 0.3 mm outside a copper edge | +276 / +729 % | +250 / +563 % | +42 / +73 % |
+| the same, 0.6 mm outside | +406 / +1156 % | +46 / +94 % | +14 / +29 % |
+| via 0.35 mm from an edge, from a corner | unchanged | -4 / -4, -7 / -3 % | -5 / +1, -4 / -1 % |
+
+A positive error is a via effect too large, so the part reads too cool: the star turns the safe-side errors of the mean-potential via into unsafe-side ones where the copper touches only part of the barrel or does not touch it (7.7 K too cool in an 84 K rise at 1 mm for the via 0.3 mm outside the copper edge, 2.9 K before). **The star also short-circuits its footprint in the plane**: with the barrel plating set to 1 nm (the vias carry no heat) the example board moves 0.001 K before at every cell and, after, 0.22 K (FVM, 0.5 mm) and 0.65 K (FDM, 1 mm), which is the -0.455 K of the FDM record at 1 mm of 31.4 (the FDM's four-node footprints of the example's vias at half-millimetre positions). The 3D value 7.39 K of the copper edge through the via (4 slabs) is 4 to 6 % above its value converged through the thickness (6.93 K at 16 slabs, 0.1 mm), so the row of 31.2 is about 5 points too favourable to the star.
