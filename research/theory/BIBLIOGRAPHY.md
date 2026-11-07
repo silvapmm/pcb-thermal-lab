@@ -1158,3 +1158,9 @@ The reviewer compared the Claude transcriptions with the rendered page images (P
 * [YovanovichTeertstra2001], [Yovanovich1993Flat], [TeertstraReview], [TI-AN2020], [SuperLUGuide], [Mondragon2025], [Celik2008], [Lienhard2024], [SoleymaniKoohbanani2016], [NISTIR7648], [Schulenberg1984KfK], [ASHRAE2005Preprint] (PDF 4 equations 1 to 8 and PDF 9 added), [JafferJaffer2025]: as recorded in the section above, with the further pages of this pass (Mondragon2025 PDF 2 to 9; NISTIR7648 PDF 10, 12 to 14, Figs 5, 7, 8, 9; Schulenberg PDF 19, 37, 38, 44).
 
 Image-pass error rate of this run: 4 of 94 pages with a material or structural error (4.3 %); the material errors are of scope and symbol (a root covering one factor more, a subscript turned into a fraction, `tau` for `t`), not of digits.
+
+## Sources of `research/fast-wave-oscillation/` (reviewed)
+
+* **[Lienhard2024]**: adds section 5.6, the semi-infinite region with a harmonically oscillating boundary, equation 5.62 `Theta = e^(-xi) cos(Omega - xi)`, `xi = x sqrt(w / (2 alpha))` (PDF page 248, printed 234), **read** from the text layer of the local copy; reproduced by the reviewer's reference (`research/fast-wave-oscillation/tests/test_review_reference.py`, within 0.01 of the complex amplitude ratio). It is the only published closed form the folder reproduces; Lienhard attributes it to [CarslawJaeger] section 2.6.
+* **[CarslawJaeger]**: status unchanged, **M** for the content (the disc source on a sheet with a vertical admittance and the layered-slab impedance of E3 are own derivations, checked numerically against two independent references).
+* Transient multilayer substrate solutions by Gray and by Kokkas (Fourier and Laplace transforms), cited in [CulhamFourier2000] (its introduction, read): **N** (not obtained); no published numerical case of the swing of a fast wave in a layered board was found in the local library or reproduced.

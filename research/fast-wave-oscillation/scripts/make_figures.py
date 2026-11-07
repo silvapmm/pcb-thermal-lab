@@ -2,7 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Figures 2 to 4 of the study from out/sweep_e3.json and out/sweep.json (run study_fast_wave_sweep.py and study_estimator.py first).
+@brief Figures 2 to 4 of the study from out/sweep_e3.json and out/sweep.json (run study_fast_wave_sweep.py and study_estimator.py first), and figures 6 and 7 of the
+       review from out/review_*.json (run study_review_reference.py first).
 
 @details Run from the repository root: `.venv/bin/python research/fast-wave-oscillation/scripts/make_figures.py`.
 """
@@ -13,6 +14,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "..")))
 import matplotlib                                                    # noqa: E402
 
 matplotlib.use("Agg")
@@ -117,15 +120,73 @@ def fig_decision(d):
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig_04_wrong_decisions.png"), dpi=130)
 
 
+def fig_review():
+    """!
+    @brief Figure 6: the reviewer's 3D reference against the author's, the program and E3 (2 layers, duty 0.3, h 10), and E3 / reference on the cases the author did not test.
+    @return None.
+    """
+    s = json.load(open(os.path.join(OUT, "review_sample.json")))
+    c = json.load(open(os.path.join(OUT, "review_cases.json")))
+    bare = os.path.join(OUT, "review_bare.json")
+    if os.path.exists(bare):
+        b = json.load(open(bare))
+        c = [r for r in c if r["case"] not in {x["case"] for x in b}] + b
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4.4))
+    for side, col in ((2.0, "C0"), (10.0, "C2")):
+        row = sorted([r for r in s if r["layers"] == 2 and r["side"] == side and r["h"] == 10 and r["duty"] == 0.3], key=lambda r: r["f"])
+        f = [r["f"] for r in row]
+        ax[0].loglog(f, [r["ref"] for r in row], "-", color=col, lw=2, label=f"{side:g} mm: reviewer's 3D reference")
+        ax[0].loglog(f, [r["author_ref"] for r in row], "o", color=col, mfc="none", label="author's axisymmetric reference")
+        ax[0].loglog(f, [r["e3"] for r in row], "x", color=col, label="E3")
+        ax[0].loglog(f, [r["fvm"] for r in row], "--", color=col, label="program FVM, cell side/4")
+        ax[0].loglog(f, [r["fvm_2mm"] for r in row], ":", color=col, label="program FVM, 2 mm (application)")
+    ax[0].set_xlabel("frequency (Hz)"); ax[0].set_ylabel("swing per watt of on-power (K/W)"); ax[0].legend(fontsize=6.5); ax[0].grid(True, which="both", alpha=0.3)
+    ax[0].set_title("2 layers, duty 30 %, h 10 W/m2K", fontsize=9)
+    show = ["inner layer 2 of 4, 10 mm", "16 vias under the part, 10 mm, 4 layers", "elongated 2 x 10 mm", "near the corner, 5 mm at (1, 1)",
+            "no top copper at all, 10 mm", "computed h, 10 W steady (h_top 22.5, h_bottom 15.5)"]
+    for k, name in enumerate(show):
+        row = sorted([r for r in c if r["case"] == name and r["duty"] == 0.3], key=lambda r: r["f"])
+        ax[1].semilogx([r["f"] for r in row], [r["e3"] / r["ref"] for r in row], "-o", ms=3, color=f"C{k}", label=name)
+    ax[1].axhline(1.0, color="k", lw=0.8)
+    ax[1].set_ylim(0, 1.8); ax[1].set_xlabel("frequency (Hz)"); ax[1].set_ylabel("E3 / reviewer's reference"); ax[1].legend(fontsize=6.5); ax[1].grid(True, which="both", alpha=0.3)
+    ax[1].set_title("E3 (top-sheet formula, disc of equal area) on cases outside the author's family", fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig_06_review_reference_and_cases.png"), dpi=130)
+
+
+def fig_node_cost():
+    """!
+    @brief Figure 7: swing of the program's node structure with n laminate sub-gaps per gap over the resolved 1D column (10 mm part, 2 layers, duty 0.3).
+    @return None.
+    """
+    import study_resolved_curve as S
+    import review_rect3d as R
+    area, gap = 1e-4, 1.6e-3 - 2 * 35e-6
+    freqs = np.geomspace(0.3, 3000, 15)
+    exact = R.Response(S.column(area, 10.0, 6, S.graded(gap, 80, 0.3e-6), node_holds_half=False))
+    ex = np.array([exact.swing(1 / f, 0.3) for f in freqs])
+    fig, ax = plt.subplots(figsize=(6.5, 4.2))
+    for n, first, st in ((1, None, "k-"), (4, None, "C0--"), (16, None, "C0-"), (4, 5e-6, "C1--"), (8, 5e-6, "C1-")):
+        ch = R.Response(S.column(area, 10.0, 1, S.graded(gap, n, first)))
+        lab = f"{n} sub-gaps, " + ("equal" if first is None else f"graded, first {first * 1e6:.0f} um") + (" (the program today)" if n == 1 else "")
+        ax.semilogx(freqs, [ch.swing(1 / f, 0.3) / e for f, e in zip(freqs, ex)], st, label=lab)
+    ax.axhline(1.0, color="grey", lw=0.8)
+    ax.set_xlabel("frequency (Hz)"); ax.set_ylabel("swing / resolved column"); ax.set_ylim(0, 1.2); ax.grid(True, which="both", alpha=0.3); ax.legend(fontsize=7)
+    ax.set_title("cost of a correction by nodes (1D column, 10 mm part)", fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig_07_review_node_cost.png"), dpi=130)
+
+
 def main():
     """!
-    @brief Draw figures 2 to 4.
+    @brief Draw figures 2 to 4 and, when the review outputs exist, 6 and 7.
     @return None.
     """
     d = json.load(open(os.path.join(OUT, "sweep_e3.json")))
     fig_swing(d)
     fig_attribution()
     fig_decision(d)
+    if os.path.exists(os.path.join(OUT, "review_sample.json")):
+        fig_review()
+        fig_node_cost()
 
 
 if __name__ == "__main__":

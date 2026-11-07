@@ -3,7 +3,7 @@
 Question: with one node per copper layer the FVM and FDM understate the oscillation of fast square waves over full copper (`docs/validation.md` 36.2 and 36.3 of `fix/laminate-edge-band`: a 20 Hz, 30 %, 10 W wave on a 10 mm part of a 1.6 mm board reads 0.75 K, an independent 1D solution 6.3 K). Why, over which frequencies and sizes, how often the average-or-resolve decision (`profiles.decide`, budget 1 K) is wrong because of it, and what is the smallest correction. Nothing of the program is edited; the proposal is in [INTEGRATION.md](INTEGRATION.md).
 
 Run (repository root, `QT_QPA_PLATFORM=offscreen`, about 1.5 minutes in all, peak memory under 0.5 GB):
-`study_fast_wave_sweep.py` (writes `out/sweep.json`), `study_correction.py` (the rejected column difference), `study_estimator.py` (tables 3 to 5, writes `out/sweep_e3.json`), `study_impact.py`, `make_diagrams.py`, `make_figures.py`; tests: `research/fast-wave-oscillation/tests` (8 passed).
+`study_fast_wave_sweep.py` (writes `out/sweep.json`), `study_correction.py` (the rejected column difference), `study_estimator.py` (tables 3 to 5, writes `out/sweep_e3.json`), `study_impact.py`, `make_diagrams.py`, `make_figures.py`; tests: `research/fast-wave-oscillation/tests` (13 passed). The review (section 8) adds `study_review_reference.py [sample|cases|bare|example]` (about 45 minutes in all, peak memory 1.6 GB), `study_review_tables.py` and `study_resolved_curve.py` (1 minute); run `make_figures.py` after them for figures 6 and 7.
 
 ## 1. The reference and the situation
 
@@ -50,13 +50,15 @@ The program understates the swing **at every frequency from about 0.2 Hz up** (p
 
 **(b) The quasi-static face term of 2.5.x (part over bare laminate, no copper: 10 mm part, 2 layers, h 10; reference = pure FR-4 board, top face; duty 50 %).** Program / reference: 0.98 / 0.92 / 0.78 / 0.58 / 0.49 / 0.52 / 0.67 / **0.90** / 1.66 / 3.94 / 10.5 / 34 at 0.1 / 0.3 / 1 / 3 / 10 / 20 / 50 / 100 / 300 / 1 k / 3 k / 10 k Hz. The face term `Q t_cu / (2 k_z A)` is right where it was said to be (about 100 Hz: 0.635 against 0.641 K/W), overstates above (not attenuated: 0.58 K/W where the true value falls to 0.014 at 10 kHz; the safe side, as `profiles.py` says) and below 50 Hz the node (capacity again) underestimates by up to 2 times. So the bare case has both effects with the opposite sign at the two ends. The reference with the copper taken out is a bare-board idealisation: the program's bare node still holds `t_cu` of absent copper.
 
+**Corrected by the review (section 8.5): the ratios above 50 Hz in this paragraph are too high.** The reference read the bare surface in a cell-centred laminate cell 8.75 um thick, which reads low by about 0.45 of its width over the penetration depth (16 % at 100 Hz, 40 % at 1 kHz). With a thin surface cell the program / reference of a part on bare laminate is 0.46 / 0.50 / 0.63 / **0.82** / 1.33 / 2.38 / 4.11 at 10 / 20 / 50 / 100 / 300 / 1 k / 3 k Hz (duty 30 %): the face term crosses the truth between 100 and 300 Hz, not at 100 Hz, and overstates 2.4 times at 1 kHz, not 3.9 times. The conclusion (both effects, opposite signs at the two ends; the safe side above about 200 Hz) stands.
+
 ## 4. The decision today (question 2)
 
 ![where the decision is wrong](figures/fig_04_wrong_decisions.png)
 
 *Figure 4 (`fig_04_wrong_decisions.png`): 10 mm part, 2 layers, 30 %: the swing of the power and the frequency where the program averages (red) a wave whose true swing exceeds 1 K.*
 
-One heater, budget 1 K, swing of the power 0.5, 1, 2, 5, 10 and 20 W, all 864 cases (5184 decisions): the program **averages a wave whose true swing exceeds the budget in 948 decisions (18.3 %)**, never the other way (0 resolves of a wave that could be averaged: the node errors are all on the low side). By frequency (decisions of 432): 1 Hz 28, 3 Hz 66, 10 Hz 124, 20 Hz 152, **50 Hz 176**, 100 Hz 168, 300 Hz 124, 1 kHz 68, 3 kHz 36, 10 kHz 6. The worst: a 20 W swing on a 2 mm part at 1 kHz, 50 % (the program 0.8 K, the truth 9.97 K). With the shared budget (several heaters) the sum of the true swings is also higher than the budget by the same factors. The profile curves of a heater that is resolved carry the same error (the same node), so even a correct decision leaves a fast resolved ripple 8 to 12 times too small (fast waves that are resolved are rare: they cost one step per fraction of the period).
+One heater, budget 1 K, swing of the power 0.5, 1, 2, 5, 10 and 20 W, all 864 cases (5184 decisions): the program **averages a wave whose true swing exceeds the budget in 948 decisions (18.3 %)**, never the other way (0 resolves of a wave that could be averaged: the node errors are all on the low side). By frequency (decisions of 432): 1 Hz 28, 3 Hz 66, 10 Hz 124, 20 Hz 152, **50 Hz 176**, 100 Hz 168, 300 Hz 124, 1 kHz 68, 3 kHz 36, 10 kHz 6. The worst: a 20 W swing on a 2 mm part at 1 kHz, 50 % (the program 0.8 K, the truth 9.97 K). **Review (section 8.3): these counts use a step response at the cell side / 4; the application computes it at `max(cell, 2 mm)` (`api._step_response`), which makes a 2 mm part one cell and the count 24.7 % instead of 20.0 % on the review's sample, worst true swing averaged 37 K.** With the shared budget (several heaters) the sum of the true swings is also higher than the budget by the same factors. The profile curves of a heater that is resolved carry the same error (the same node), so even a correct decision leaves a fast resolved ripple 8 to 12 times too small (fast waves that are resolved are rare: they cost one step per fraction of the period).
 
 ## 5. The correction (question 3)
 
@@ -90,9 +92,13 @@ Which frozen numbers move: **none** of the 251 records and 58 times of `tests/re
 
 Tested only with a heater on the top copper of a full-copper board, a disc source, manual h, no vias, no other heater. Not tested: a heater on an inner or bottom layer (the same recursion from that layer, both directions), a partial copper, an elongated part, vias (they carry heat down: E3 overstates at the slow end, as the 97.9 against 84.9 K above, which is the safe side for a floor), the copper edges and the board edge. Because it overestimates at the slow end where the program is already right to 5 to 10 % above 5 s, the floor is applied **only for periods below the threshold of section 6**.
 
+**The review tested all of these (section 8.4)**: E3 holds within 0.98 to 1.04 for a bottom heater, a part off the centre and computed h; it overstates (the safe side) for a heater on an inner layer (1.07 to 1.57; the two-sided form of section 8.4 brings it to 1.00 to 1.03 above 0.3 Hz), vias (up to 1.56 at 0.1 Hz) and an elongated part (up to 1.36); it **understates** near the board edge at the slow end (0.61 at 0.1 Hz for a 5 mm part 1 mm from two edges) and on bare laminate (0.04 to 0.61: not applicable there). The 'program right above 5 s' of this paragraph is not true for short duties (section 8.6).
+
 ## 6. The warning rule if E3 is not adopted (question 4)
 
-The program's swing is within 10 % of the truth for `T >= T_w` and below it understates by a factor that grows to 8 to 12 (table 1). From the sweep, per slab of `s = thickness / layers`: `T_w = 5 s * (s / 0.8 mm)^2`: 5 s (0.2 Hz) for the 1.6 mm two-layer or one-layer board, 1.25 s for four layers (ratio 0.88 to 0.97 at 0.3 Hz, 0.66 to 0.87 at 1 Hz; the exponent is read from two thicknesses, not fitted further). The warning: *"the heater X switches faster than T_w; the layered models average through the laminate; the real swing is about 8 times larger than computed (up to 12 for 2 layers): use E3 or the 3D solid"*; it needs no run: the period and the stack are enough. A bare part: the same threshold, and above about 300 Hz the face term overstates (safe).
+The program's swing is within 10 % of the truth for `T >= T_w` and below it understates by a factor that grows to 8 to 12 (table 1). From the sweep, per slab of `s = thickness / layers`: `T_w = 5 s * (s / 0.8 mm)^2`: 5 s (0.2 Hz) for the 1.6 mm two-layer or one-layer board, 1.25 s for four layers (ratio 0.88 to 0.97 at 0.3 Hz, 0.66 to 0.87 at 1 Hz; the exponent is read from two thicknesses, not fitted further).
+
+**Corrected by the review (section 8.6): this rule is wrong as written.** The formula gives 20 s, not 5 s, for one layer (s = 1.6 mm), while the one-layer and two-layer boards behave the same (their top node holds the copper and about 0.77 mm of laminate in both). And the error is set by the **shortest stretch** of the wave, not by its period: at T = 10 s with a 10 % duty (1 s on) the program is at 0.69 of the truth on two layers, inside the rule's 'right' region. On the shortest stretch `t_s = min(D, 1 - D) T`: the program is within 7.5 % for `t_s >= 4 s` on every board of the review's sample, 0.89 to 0.94 for 2 to 4 s (one and two layers; four layers 0.95 to 0.97) and down to 0.64 (one and two layers) and 0.87 (four layers) for 1 to 2 s. The warning: *"the heater X switches faster than T_w; the layered models average through the laminate; the real swing is about 8 times larger than computed (up to 12 for 2 layers): use E3 or the 3D solid"*; it needs no run: the period and the stack are enough. A bare part: the same threshold, and above about 300 Hz the face term overstates (safe).
 
 ## 7. Conclusions
 
@@ -100,10 +106,98 @@ The program's swing is within 10 % of the truth for `T >= T_w` and below it unde
 2. It is the laminate capacity held by the single node, not the copper, not the lateral spreading (from 100 Hz up) and not the face term: the program understates the swing at every frequency above about 0.2 Hz, by 2 to 3 times at 1 to 3 Hz and by 8 to 12 times (4 layers 5 to 7) from 50 Hz to 1 kHz.
 3. The decision is wrong (averages a wave above the budget) in 948 of 5184 decisions (18 %) in the sweep, never the other way; it is wrong over the whole range of 1 Hz to 10 kHz for the powers of an electronic part (a few watts, a 10 mm part at 10 to 300 Hz).
 4. The smallest correction that works over the sweep is a closed-form estimator (E3: the impedance of the layered stack under a disc on the top sheet, no unknowns, 2 ms) used as a floor of the decision: 0 wrong averages, 12 borderline resolves; the column difference tried first is rejected (section 5.1). The curves of a resolved fast heater keep the error (section 4) and are a second step of the proposal (INTEGRATION.md).
+5. **After the review (section 8.8)**: 1 to 3 hold on an independent reference; E3 is safe away from the board edge on copper on any layer (with the two-sided form for an inner layer), fails near an edge at slow waves and on bare laminate; the window rule of section 6 is wrong (shortest stretch, not period); the decision of the application is worse than measured here because its step response uses at least a 2 mm cell; and the floor cannot be adopted without the correction of the curves (the resolved curve is 8.6 times too small, and the example board's run would be refused).
+
+## 8. Review
+
+Independent review of the folder (claims, code, numbers), with a reference written by the reviewer that shares no code with `lib/axisym_stack.py`, `lib/columns.py` or `lib/impedance.py`. Every number of this section is printed by `study_review_reference.py`, `study_review_tables.py` (saved as `out/review_tables.txt`) or `study_resolved_curve.py`.
+
+![the cases of the review](figures/fig_05_review_cases.png)
+
+*Figure 5 (`fig_05_review_cases.png`): the sections of the cases tested by the review beyond the author's family: a heater on an inner layer, a part on bare laminate, vias under the part, a 2 mm part on the 2 mm cell of the decision.*
+
+### 8.1 The reviewer's reference
+
+`lib/review_rect3d.py`: Cartesian 3D finite volumes of the **rectangular** board (60 x 40 mm) and the **rectangular** part, copper in 6 cells per layer, laminate graded from 0.5 um at each copper face (ratio 1.25), anisotropic laminate, faces h through the half cell, insulated edge; solved in the **frequency domain** (one complex sparse LU per frequency, 8 frequencies per decade from 1 mHz to 300 kHz, spline of log|H| and phase), the swing of the **hottest footprint cell at every instant** (the quantity of the program's step response) from the harmonic sum on 16 384 samples. It also holds a heater on any layer, copper removed in a rectangle, vias as copper columns (barrel area, the program's plating convention) and a bottom heatsink coefficient. Tests (`tests/test_review_reference.py`, 5 passed): heat out = 1 W to 1e-9; series circuit to 0.2 %; a bare slab against its exact impedance `1 / (A k gamma tanh(gamma d))` within 2 % at 1, 30 and 1000 Hz; the temperature wave in a semi-infinite solid against **Lienhard eq. 5.62** (`e^(-xi) cos(Omega - xi)`, PDF page 248, printed 234) within 0.01; the harmonic sum against implicit-Euler time steps on the same matrices within 2 %; the quarter model against the whole board within 0.2 %. Grid: a finer grid (in-plane cells 0.6 of the default, copper in 8 cells, laminate first cell 0.25 to 0.3 um and ratio 1.15 to 1.18) moves the 10 mm swings at 0.1 / 1 / 20 / 1000 Hz by 0.09 / 0.2 / 0.08 / 0.06 % and the 2 mm ones (against a coarser grid) by at most 0.3 %. **A pitfall found on the way**: a cell-centred surface cell of laminate reads the surface low by about 0.45 of its width over the penetration depth (12 % for 2 um at 1 kHz); the parts on bare laminate are read with a graded surface cell of 0.05 um (`top_first`).
+
+**The headline case**: 20 Hz, 30 %, 10 W, 10 mm part, 2 layers: **6.375 K** (author 6.37 K; implicit-Euler steps 6.41 K at 4000 steps a period), steady 33.26 K/W (author 33.05, program 33.13 K/W at 1 mm). The program's 0.747 / 0.758 K at 2 / 1 mm is reproduced. Ratio 8.4: **confirmed**.
+
+![the review's reference against the author's, the program and E3, and E3 on the new cases](figures/fig_06_review_reference_and_cases.png)
+
+*Figure 6 (`fig_06_review_reference_and_cases.png`): left, the swing per watt of a 2 mm and a 10 mm part (2 layers, 30 %) by the reviewer's reference (line), the author's (circles), E3 (crosses) and the program at the cell side / 4 (dashed) and at the 2 mm cell the application uses (dotted); right, E3 over the reviewer's reference on six cases outside the author's family.*
+
+### 8.2 The author's sweep against the reviewer's reference
+
+528 cases: 12 boards (1, 2, 4 layers x 2, 5, 10 mm at h 10, and 2 layers 2 and 10 mm, 4 layers 5 mm at h 30) x 11 frequencies (0.1 Hz to 3 kHz) x 4 duties. **Reviewer's / author's reference: 0.982 to 1.017, median 0.995** (the disc of equal area is within 2 % of the rectangle: -1.8 to -0.1 % from 0.1 to 100 Hz, up to +1.7 % at 3 kHz). Table 1 is reproduced to 0.02 (program / reference, duty 50 %, h 10, 0.1 Hz to 3 kHz: two layers 10 mm 0.93 0.71 0.38 0.21 0.13 0.12 0.11 0.10 0.09 0.07 0.04). The FDM equals the FVM (ratio 1.000 on all 528). **E3 / reference: 0.995 to 1.079, median 1.009** (above 1 Hz 0.995 to 1.022). Decisions (one heater, budget 1 K, 0.5 to 20 W, 3168 decisions): the program averages a wave above the budget in **634 (20.0 %)**, never the other way; the floor `max(program, E3)` in **0**, with 0 wrong resolves. Claims (1) and (3) are confirmed on an independent reference.
+
+### 8.3 A further defect of the program: the cell of the decision
+
+`api._step_response` computes the step response of the FVM and FDM at `max(cell, 2 mm)`, whatever the cell of the run. A 2 mm part is then one cell, and its decision swing is already wrong at slow waves: program at 2 mm / reference **0.66 to 0.67 at 0.1 Hz**, 0.37 to 0.51 at 1 Hz, 0.025 to 0.048 at 100 Hz (at the cell side / 4: 0.95, 0.73, 0.10); a 5 mm part 0.88 to 0.91 at 0.1 Hz. On the sample the application's decision averages a wave above the budget in **784 of 3168 (24.7 %), worst true swing 37.5 K** (20.0 % and 10.0 K at side / 4). The E3 floor covers it for the decision (0 wrong averages), but the steady peak and the resolved curves of a small part keep the coarse step response. Recorded as a program defect (INTEGRATION.md, item D).
+
+### 8.4 E3 on the cases the author did not test (claim 4)
+
+Duty 30 % and 50 %, 0.1 Hz to 3 kHz, 2 layers, h 10 unless stated (`out/review_tables.txt` section B):
+
+| case | program / reference, 10 Hz to 3 kHz | E3 / reference | decisions (132): program wrong averages; floor wrong averages / wrong resolves |
+| :-- | :-- | :-- | :-- |
+| heater on layer 2 of 4, 10 mm | 0.15 to 0.36 | 1.07 to 1.57 (two-sided: 0.997 to 1.16) | 15; 0 / 6 (two-sided 0 / 0) |
+| heater on layer 2 of 4, 5 mm | 0.16 to 0.40 | 1.07 to 1.40 (two-sided: 0.996 to 1.17) | 19; 0 / 3 (two-sided 0 / 0) |
+| heater on the bottom layer of 2 | 0.04 to 0.13 | 0.997 to 1.015 | 30; 0 / 0 |
+| 16 vias (0.3 mm, pitch 2.5 mm) under a 10 mm part, 2 layers | 0.05 to 0.14 | 1.32 at 0.1 Hz, 1.22 at 1 Hz, 0.997 to 1.07 from 10 Hz | 30; 0 / 0 |
+| the same, 4 layers | 0.14 to 0.27 | 1.56 at 0.1 Hz, 1.39 at 1 Hz, 0.997 to 1.06 from 10 Hz | 20; 0 / 0 |
+| elongated 2 x 10 mm | 0.07 to 0.21 | 1.24 to 1.36 from 0.1 to 20 Hz, 0.977 at 300 Hz | 31; 0 / 0 |
+| 10 mm part off the centre (8 mm from two edges) | 0.04 to 0.13 | 0.997 to 1.04 | 30; 0 / 0 |
+| 5 mm part 1 mm from two edges | 0.06 to 0.20 | **0.61 at 0.1 Hz, 0.71 at 0.3 Hz, 0.88 at 1 Hz**, 1.38 at 20 Hz | 28; 0 / 2 |
+| computed h, 1 W (h 14.5 / 10.1 W/m2K) and 10 W (22.5 / 15.5) | 0.05 to 0.14 | 0.997 to 1.015 | 31 and 30; 0 / 0 |
+| part on bare laminate (no top copper under it, or none on the layer) | 0.46 to 4.1 (node + face term) | 0.04 to 0.61 | 6; 6 / 8 (E3 does not apply) |
+| example board U1 (4 layers, 9 vias, bottom heatsink 30, h 10 / 15; 0.05 to 1000 Hz) | 0.18 to 0.26 from 10 Hz; 0.95 at 0.05 Hz | 1.42 at 0.05 Hz, 1.23 at 1 Hz, 0.99 to 1.03 from 10 Hz | 4 of 30; 0 / 0 |
+
+Where E3 fails: (i) **near the board edge at slow waves** it understates (0.61 to 0.88 below 1 Hz: the insulated edge reflects the heat, the disc on an infinite sheet does not see it); the floor then falls back to the program, which is also low there (0.62 at 0.3 Hz), so the floor gives no protection but makes nothing worse; (ii) **on bare laminate** E3 assumes a copper sheet and is not applicable (the proposal's gate, fill at least 0.9 under the part, is needed); the program there understates up to 2.2 times between 3 and 50 Hz, a gap no proposal covers (a warning, INTEGRATION.md); (iii) it **overstates** (safe side) for an inner-layer heater, vias, inner planes and elongated parts, by up to 1.57. **For an inner layer the cure is direct**: the admittance seen from the heater's copper is the sum of the stack above and the stack below (`lib/impedance_layer.py`, 30 lines on the author's recursion), which gives 0.996 to 1.03 above 0.3 Hz and removes the 6 and 3 wrong resolves. The U1 example of section 5.3 is confirmed: the reference gives **2.02 K** at 100 Hz (E3 2.01 K, program 0.39 K). The FDM equals the FVM within 0.5 % except under vias and near the edge at slow waves (0.93 to 0.98 of the FVM below 1 Hz).
+
+### 8.5 The bare case of section 3 (b)
+
+Corrected in place (section 3): the author's ratios above 50 Hz came from a thick surface cell; the program's face term crosses the truth between 100 and 300 Hz and overstates 2.4 times at 1 kHz.
+
+### 8.6 The window rule T_w
+
+Corrected in place (section 6). On the review's sample, where the rule (on the period) says the program is right, it is at 0.696 to 0.954 of the truth (2 layers, T >= 5 s) and 0.690 to 0.974 (4 layers, T >= 1.25 s); on the shortest stretch with the same T_w, 0.926 to 0.954 and 0.894 to 0.974. As a gate for the floor the rule is not needed: E3 never understates on copper away from an edge, and the price of applying it to a slow wave is a resolve of that wave, which costs few steps. Recommended: no gate on the period; the floor wherever the heater's layer has copper under the part.
+
+### 8.7 The resolved curve (question of the review: is the curve also wrong?)
+
+**Yes, by the same factor.** The 20 Hz, 30 %, 10 W wave resolved on purpose (budget 0, `profiles.run_fvm` and `run_fdm` at 1 mm, implicit Euler and Crank-Nicolson): the ripple of the heater's curve is **0.741 K** in all four runs (decision 0.758 K, reference 6.375 K). So a floor in the decision alone is not consistent: the decision says 'resolve, the swing is 6 K' and the run reports 0.74 K. And it is often not affordable: the example board with U1 (100 Hz) resolved needs **800 004 steps against the limit of 200 000** (`profiles.plan_run` refuses: shortest stretch 3 ms, window 20 s), so `examples/profile_board` and every test that runs its profile would end in a profile error, not in a changed number.
+
+The cost of a correction by nodes, on the 1D column of a 10 mm part (`study_resolved_curve.py`, swing over the resolved column at 1 / 10 / 20 / 100 / 1000 Hz):
+
+| laminate per gap in the program's node structure | 1 Hz | 10 Hz | 20 Hz | 100 Hz | 1 kHz |
+| :-- | --: | --: | --: | --: | --: |
+| 1 (the program) | 0.26 | 0.135 | 0.119 | 0.100 | 0.089 |
+| 4 equal sub-gaps | 0.76 | 0.43 | 0.38 | 0.32 | 0.28 |
+| 16 equal sub-gaps | 0.98 | 0.88 | 0.81 | 0.69 | 0.62 |
+| 6 graded, first 5 um | 0.68 | 0.96 | 0.95 | 0.89 | 0.98 |
+| 8 graded, first 5 um | 0.87 | 0.91 | 0.94 | 0.98 | 0.98 |
+| 8 graded, first 2 um | 0.80 | 0.93 | 0.90 | 0.98 | 0.96 |
+
+![the cost of a correction by nodes](figures/fig_07_review_node_cost.png)
+
+*Figure 7 (`fig_07_review_node_cost.png`): the swing of the program's node structure with 1, 4 and 16 equal or 4 and 8 graded laminate sub-gaps per gap, over the resolved 1D column (10 mm part, 2 layers, duty 30 %).*
+
+About 8 graded nodes per gap (a 4.5 times larger system on a two-layer board, more on four layers) bring the curve within 10 to 20 %, and the run still needs a step a twentieth of the shortest stretch (the step limit above). **The cheapest consistent fix is the author's proposal B made the rule**: a heater whose wave is faster than the node can follow is averaged in the board run, and its curve and peak get the E3 waveform (the harmonic sum, without its mean) added at that heater; no unknown, 2 ms per heater, no step limit, and the decision and the curve then say the same thing.
+
+### 8.8 Verdict of the review
+
+* Claim (1), the size of the error and the sweep: **confirmed** with an independent reference (2 % agreement between the two references; table 1 to 0.02).
+* Claim (2), the cause: **confirmed** for full copper (the node structure in 1D gives the program's number; the node fix converges only with many graded nodes). The bare case of 3 (b) is **corrected** (section 8.5).
+* Claim (3), the decision: **confirmed** (20.0 % wrong averages on the sample, 0 wrong resolves; definition in `profiles.decide`: the oscillation per heater, the budget shared among the repeating waves, smallest first, as the study reproduces), and worse in the application (24.7 %, section 8.3).
+* Claim (4), E3: **confirmed on the author's family and on bottom heaters, off-centre parts, computed h**; safe-side overstatement for inner layers, vias, planes and elongated parts; **fails near an edge at slow waves and on bare laminate** (section 8.4); the T_w rule is **wrong** (section 8.6).
+* Claim (5), the impact: the numbers (0.39 -> 2.01 K, 0.75 -> 6.36 K) are **confirmed**; the list of tests is **incomplete**: with the floor alone the example board's profile run is refused (800 004 steps), which also reaches `tests/test_fdm.py`, `tests/test_convection.py`, `tests/test_memory.py` and the stress and screenshot scripts through `example_profile_board()`.
+* Claim (6), the curves: the resolved curve has the same error (0.741 K against 6.375 K); proposal A cannot be adopted without B.
+
+**GO for closing and merging the investigation** with these corrections. For the program: adopt A and B together (with the two-sided E3 and the gate on copper), plus the decision cell (D), in 2.6.0, after the maintainer decides (INTEGRATION.md).
 
 ## What was read and what was not verified
 
 * **Read in full**: `CLAUDE.md` (research rules), `docs/validation.md` 36.2 and 36.3 and the `docs/versions.md` 'Planned' note of `fix/laminate-edge-band`, `pcbthermal/profiles.py` (decision, wave_response, face terms), `fvm.py` step_responses_from_network, the `fvm.Network` node rules (capacity, link), `laminate.py` (one-layer nodes). `tests/test_profiles.py` for the decisions.
 * **Reproduced**: the 0.75 K of the program and the 6.3 K of the independent solution (6.33 / 6.37 K here); every table above is printed by the scripts and saved in `out/` (git-ignored).
 * **Sources by key** (`research/theory/BIBLIOGRAPHY.md`): [CarslawJaeger] for the disc source on a sheet with a vertical loss and the layered slab impedance, **status M** (not opened: the forms of 5.2 are own derivations, checked against the numerical reference to 0.5 % and 5 % at 10 kHz); the semi-infinite step `2 q sqrt(t/pi)/e` is a textbook result checked numerically (status M). No published numerical case of a fast-wave swing was reproduced: the only external anchor is the 6.31 K of the independent 1D solution of the review of `fix/laminate-edge-band` (its script was not rerun).
-* **Not verified**: a heater on an inner or bottom layer; partial copper, vias, an elongated or rotated part, edges; a real board measurement (none exists); the time grid of the program above 3 kHz as the cause of ratios below 0.05; the Analytic and Lumped models (the study is of the FVM and FDM step responses; the FDM was not run, it shares the node structure); the 17 frozen boards' profile records: there are none (the harness removes profiles), and the tests listed in 5.3 were not run against the correction; computed h as a separate case (only h 10 and 30 W/m2K). The program-side numbers use the cell of side/4 (at most 1 mm) at 60 x 40 mm; the cell dependence of the program's swing was seen only at 1 and 2 mm (0.758 and 0.747 K).
+* **Review**: read in full the folder (README, INTEGRATION.md, every script, lib and test), `pcbthermal/profiles.py` (`decide`, `wave_response`, `plan_run`, `run_windows`), `api._step_response` and `_run_profiles`, `fvm.step_responses_from_network`, `fdm.step_responses`; re-ran every study of the author (all numbers reproduced: 6.372 / 6.334 / 0.753 K, 948 and 12 decisions, E3 0.994 to 1.111, the impact table) and wrote an independent reference (section 8.1). [Lienhard2024] eq. 5.62 (PDF page 248, printed 234) read from the text layer and reproduced by a test; [CarslawJaeger] stays M (Lienhard cites its section 2.6 for eq. 5.62; the book was not opened). No published numerical case of a fast-wave swing in a layered board was found: the library holds steady multilayer papers only (Culham, Muzychka, Yovanovich, Rodero) and the transient multilayer solutions they cite (Gray, Kokkas) were not obtained (status N). Not verified by the review: the Lumped and Analytic step responses (they make the decision when neither the FVM nor the FDM is selected), a board with an outline, a metal block, 10 kHz, several heaters sharing the budget, a measurement.
+* **Not verified** (by the author; the review covered the items marked 'review' in section 8.4): a heater on an inner or bottom layer; partial copper, vias, an elongated or rotated part, edges; a real board measurement (none exists); the time grid of the program above 3 kHz as the cause of ratios below 0.05; the Analytic and Lumped models (the study is of the FVM and FDM step responses; the FDM was not run, it shares the node structure); the 17 frozen boards' profile records: there are none (the harness removes profiles), and the tests listed in 5.3 were not run against the correction; computed h as a separate case (only h 10 and 30 W/m2K). The program-side numbers use the cell of side/4 (at most 1 mm) at 60 x 40 mm; the cell dependence of the program's swing was seen only at 1 and 2 mm (0.758 and 0.747 K).
