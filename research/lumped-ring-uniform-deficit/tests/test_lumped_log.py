@@ -33,10 +33,12 @@ def _restore():
 
 def test_defaults_are_the_program():
     """!
-    @brief With the default switches the patched module gives the temperature field of the program to the last bit, on three boards.
+    @brief With the switches of the program the patched module gives the temperature field of the program to the last bit, on three boards.
+    @details The patched module is built on the text of v2.5.1 (no first-ring cap); 2.6.0 adopted the cap (fix/lumped-first-ring, one equivalent radius of the footprint,
+             `FIRST_A` = 1.0 here), so the program is reproduced with the cap on; the patched text also passes cut_cells=False as the program does (measured max |dT| = 0 on the three boards).
     @return None.
     """
-    LL.configure("strip", 0.04, 1.5, None)
+    LL.configure("strip", 0.04, 1.5, 1.0)
     for kw in (dict(w_mm=60, h_mm=40, side_mm=3.0), dict(w_mm=100, h_mm=80, side_mm=1.0, layers=4, fill=0.6), dict(w_mm=30, h_mm=20, side_mm=6.0, layers=1)):
         p = S.board(**kw)
         LL.uninstall()

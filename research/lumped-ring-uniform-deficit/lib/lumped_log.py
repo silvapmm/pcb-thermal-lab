@@ -16,6 +16,7 @@
          A patched copy is installed with install() into pcbthermal.api so that simulate() runs it; uninstall() restores the program.
 """
 
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -28,7 +29,10 @@ import pcbthermal  # noqa: E402
 from pcbthermal import api as _api  # noqa: E402
 from pcbthermal import lumped as _orig  # noqa: E402
 
-_SRC = Path(_orig.__file__).read_text()
+# 2.6.0 adopted the first-ring cap (fix/lumped-first-ring, the result of this study), so the anchors that add it to the program no longer exist in the live text: the patches are
+# applied to the text of the tag v2.5.1, the program they were written against.
+_ROOT = Path(__file__).resolve().parents[3]
+_SRC = subprocess.run(["git", "-C", str(_ROOT), "show", "v2.5.1:pcbthermal/lumped.py"], check=True, capture_output=True, text=True).stdout
 
 
 def _replace(text, old, new):
@@ -53,6 +57,8 @@ def build():
     s = _SRC.replace("from . import profiles, viaconstriction", "from pcbthermal import profiles, viaconstriction")
     s = s.replace("from .fvm import", "from pcbthermal.fvm import").replace("from . import blocks", "from pcbthermal import blocks")
     s = s.replace("from .geometry import", "from pcbthermal.geometry import").replace("from .results import", "from pcbthermal.results import")
+    # the v2.5.1 text predates the cut-cell edge film (fix/cut-cell-aperture-film); the program's Lumped passes cut_cells=False to both Network calls (the rings never see the film), so the patch does too
+    s = s.replace("ladder=False)", "ladder=False, cut_cells=False)")
     s = _replace(s, "RING_MIN_WIDTH = 1.0 ", "RING_LINK = \"strip\"\nFIRST_RING = 0.04\nFIRST_CELLS = 1.5\nFIRST_A = None\nBESSEL = True\nPEAK = True\nRING_MIN_WIDTH = 1.0 ")
     s = _replace(s, "def ring_edges(rho_max, dx, dy, rings, min_width=None):", "def ring_edges(rho_max, dx, dy, rings, min_width=None, a_eq=None):")
     s = _replace(s, "    rho1 = max(1.5 * min(dx, dy), 0.04 * rho_max)\n",

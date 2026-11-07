@@ -32,11 +32,21 @@ PR = 0.71
 
 def program_down(ra):
     """!
-    @brief The program's lower-face law.
+    @brief The lower-face law of the program up to 2.5.x (McAdams, 0.27 Ra^(1/4)), the baseline of this study.
     @param ra Rayleigh number of A/P.
     @return Nu.
     """
     return 0.27 * np.asarray(ra, dtype=float) ** 0.25
+
+
+def current_down(ra):
+    """!
+    @brief The lower-face law of the program since 2.6.0 (fix/face-down-convection, the result of this study): DOWN_COEFFICIENT Ra^DOWN_EXPONENT = 0.475 Ra^(1/5).
+    @param ra Rayleigh number of A/P.
+    @return Nu.
+    """
+    from pcbthermal import convection
+    return convection.DOWN_COEFFICIENT * np.asarray(ra, dtype=float) ** convection.DOWN_EXPONENT
 
 
 def incropera7(ra):

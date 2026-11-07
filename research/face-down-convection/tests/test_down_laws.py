@@ -43,15 +43,16 @@ def test_fifth_power_laws_agree_within_ten_percent():
 
 def test_patch_with_the_program_law_is_the_program():
     """!
-    @brief use_down(program_down) gives bit-identical h on both faces and restores the function on exit.
+    @brief use_down(current_down) gives the program's h on both faces and restores the function on exit. The program is the 2.6.0 one (0.475 Ra^(1/5) on the lower face,
+           this study's result); `program_down` is the 2.5.x law (0.27 Ra^(1/4)) that the study started from.
     @return None.
     """
     original = convection.h_natural_horizontal
     for facing_up in (True, False):
         ref = original(60.0, 25.0, 0.02, facing_up)
-        with D.use_down(D.program_down) as calls:
+        with D.use_down(D.current_down) as calls:
             got = convection.h_natural_horizontal(60.0, 25.0, 0.02, facing_up)
-        assert got == ref and calls["n"] == 1
+        assert got[0] == pytest.approx(ref[0], rel=1e-12) and got[1] == ref[1] and calls["n"] == 1
     assert convection.h_natural_horizontal is original
 
 

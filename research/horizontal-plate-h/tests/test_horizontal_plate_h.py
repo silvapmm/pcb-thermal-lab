@@ -26,14 +26,14 @@ COARSE = dict(n_in=24, n_out=16, n_up=30, n_dn=22, dy0=8e-3, dx_tip=2e-2)
 
 def test_program_levels_are_the_program():
     """!
-    @brief The levels `program_up` and `program_down` give the program's own h_natural_horizontal for several sizes and temperatures.
+    @brief The levels `program_up` and `current_down` (the 2.6.0 lower-face law, 0.475 Ra^(1/5); `program_down` is the 2.5.x 0.27 Ra^(1/4) of the study) give the program's own h_natural_horizontal for several sizes and temperatures.
     @return None.
     """
     for length in (0.01, 0.025, 0.05):
         for ts in (30.0, 50.0, 80.0):
             for up in (True, False):
                 h, ra = convection.h_natural_horizontal(ts, 20.0, length, up)
-                nu = float((C.program_up if up else C.program_down)(ra))
+                nu = float((C.program_up if up else C.current_down)(ra))
                 k = convection.air_properties(0.5 * (ts + 20.0))["k"]
                 assert h == pytest.approx(nu * k / length, rel=1e-12)
 

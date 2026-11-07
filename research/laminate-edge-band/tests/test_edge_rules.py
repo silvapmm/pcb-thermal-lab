@@ -84,10 +84,18 @@ def test_band_adds_nodes_only_at_the_edge_and_warms_the_board():
     @brief The band raises the unknowns, and a board with an edge film reads hotter with it or with eta (less edge loss), never colder.
     @return None
     """
-    from pcbthermal import fvm
+    from pcbthermal import fvm, laminate
     p = board(200.0)
-    base = simulate(p, SolverOptions(cell_mm=1.0, models=("fvm",))).results["fvm"].t_max
-    u0 = fvm.unknowns(p, 1.0)[0]
+    # 2.6.0 (fix/laminate-edge-band) adopted the band of this study into the program, so the program's own band is switched off here: the baseline is the 2.5.x plan, and the
+    # study's rule (which calls the plan with no edge lengths) is added to it. With the program's band the same board reads 100.387 K, above the study's 100.328 K at band 1 d.
+    saved_band = laminate.edge_band
+    laminate.edge_band = lambda edge, d, dx, active: __import__("numpy").zeros(__import__("numpy").shape(active), dtype=bool)
+    try:
+        base = simulate(p, SolverOptions(cell_mm=1.0, models=("fvm",))).results["fvm"].t_max
+        u0 = fvm.unknowns(p, 1.0)[0]
+    finally:
+        laminate.edge_band = saved_band
+    assert simulate(p, SolverOptions(cell_mm=1.0, models=("fvm",))).results["fvm"].t_max > base       # the adopted band warms the board
     for kw in (dict(band_width=1.0), dict(eta_mode="exact")):
         with ER.rule(**kw):
             t = simulate(p, SolverOptions(cell_mm=1.0, models=("fvm",))).results["fvm"].t_max

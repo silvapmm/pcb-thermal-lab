@@ -20,6 +20,7 @@ for sub in (("analytic-2-6", "lib"), ("analytic-2-6", "scripts"), ("analytic-edg
 sys.path.insert(0, REPO)
 
 import boards26 as B                  # noqa: E402
+import analytic_v251                  # noqa: E402
 import local_modal as LM              # noqa: E402
 import perlayer_local as PL           # noqa: E402
 import robin_perlayer as RP           # noqa: E402
@@ -50,7 +51,9 @@ def test_per_layer_edge_matches_independent_finite_differences():
     ext = b + (b - a) / 3.0
     x = r["t_max"] - 25.0
     assert abs(x / ext - 1.0) < 0.003
-    assert abs((analytic.solve_steady(p, 1.0).t_max - 25.0) / ext - 1.0) > 0.05            # the common beta is 9.9 % off here
+    assert abs((analytic_v251.solve_steady(p, 1.0).t_max - 25.0) / ext - 1.0) > 0.05      # the common beta (the v2.5.1 program) is 9.9 % off here
+    # 2.6.0 (feature/analytic-edge-and-local-transient) adopted this iteration: the program now agrees with the independent finite differences, as the prototype does
+    assert abs((analytic.solve_steady(p, 1.0).t_max - 25.0) / ext - 1.0) < 0.003
     assert abs(r["balance"] - 1.0) < 1e-3                                                  # the heat leaves through the faces and the per-layer edge
 
 
@@ -93,8 +96,16 @@ def test_local_modal_time_to_63_beats_the_smeared_calibration():
     p = B.with_sink(B.plain())
     t, z, r = B.step(p, "fvm", 1.0)
     ref = B.t63(t, z[:1], r[:1])[0]
-    ti, zi, ri = B.step(p, "analytic", 1.0)
+    # The smeared one-factor calibration is the v2.5.1 program (frozen in lib/analytic_v251.py); 2.6.0 adopted the local system, so the live program is within 3 % as well
+    import calib_variants as cv
+    cv.install("program")
+    try:
+        ti, zi, ri = B.step(p, "analytic", 1.0)
+    finally:
+        cv.install("current")
     assert abs(B.t63(ti, zi[:1], ri[:1])[0] / ref - 1.0) > 0.3
+    tc, zc, rc = B.step(p, "analytic", 1.0)
+    assert abs(B.t63(tc, zc[:1], rc[:1])[0] / ref - 1.0) < 0.03
     tl, zl, rl, _ = LM.step_local(p, K=16)
     assert abs(B.t63(tl, zl, rl)[0] / ref - 1.0) < 0.03
 

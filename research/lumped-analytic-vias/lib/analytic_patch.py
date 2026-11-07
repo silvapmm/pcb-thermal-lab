@@ -223,7 +223,7 @@ def _tile_grid_vias(W, H, lam, problem):
     @param problem The Problem.
     @return Tuple (ntx, nty, tw, th) as the program's `_tile_grid`.
     """
-    from pcbthermal import analytic
+    import analytic_v251 as analytic                                          # the 2.5.1 text of the solver that this patch was written against
     ntx, nty, tw, th = analytic._tile_grid_program(W, H, lam)
     if (OPTIONS["tile_k"] <= 0 and OPTIONS["tile_cap"] <= 0) or not problem.vias:
         return ntx, nty, tw, th
@@ -269,7 +269,7 @@ def _compile_solver():
     @return The new function.
     @throws RuntimeError If an anchor is not found (the program changed).
     """
-    from pcbthermal import analytic
+    import analytic_v251 as analytic                                          # 2.6.0 restructured pcbthermal.analytic (per-layer edge, local dynamics): the text anchors live in the frozen v2.5.1 copy
     src = textwrap.dedent(inspect.getsource(analytic.solve_steady))
     k = src.find(_ANCHOR)
     if k < 0:

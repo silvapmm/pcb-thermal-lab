@@ -222,11 +222,15 @@ def build_edge(problem, d, S, cover, dx, dy, nx, ny, origin, active, mode="mirro
     blocks = []
     gz_via = np.zeros((L - 1, ny, nx))
     oy = origin * dy / dx
+    # 2.6.0 (fix/via-barrel-and-rim-uncoupling): the barrel is longer than the gap by half the copper thickness, and a plane the rim misses is uncoupled; this copy follows
+    # the program (it used the gap alone, k A / d, in the 2.5.x program this hook was written against)
+    d_barrel = viawell.barrel_length(b, d)
+    zone_index = viawell._zone_index(problem, L) if problem.vias else None
     for v, share in zip(problem.vias, problem.via_board_shares()):
         if share <= 0.0:
             continue
         STATS["vias"] += 1
-        gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d
+        gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d_barrel
         w, r_eff, r_t = viawell.footprint(v.x, v.y, v.diameter / 2.0, dx, origin, cover, dy, oy)
         if not w:
             continue
@@ -259,6 +263,10 @@ def build_edge(problem, d, S, cover, dx, dy, nx, ny, origin, active, mode="mirro
                 continue
             den = math.log(r_eff / r_t) + cs[l]
             g_well.append(math.inf if den <= 1e-12 else 2.0 * math.pi * s_cell[l] / den)
+        shares = viawell.rim_copper_shares(problem, v, L, zone_index)
+        if min(shares) < 1.0:
+            for l, f in enumerate(shares):
+                g_well[l] = 0.0 if f <= 0.0 else g_well[l] * f
         STATS["inf_wells"] += int(any(math.isinf(g) for g in g_well))
         keys = list(w)
         blocks.append((np.array([k[0] for k in keys]), np.array([k[1] for k in keys]), np.array([w[k] for k in keys]), viawell.kron_barrel(gv, g_well)))

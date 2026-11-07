@@ -53,7 +53,7 @@ def patch_text(text):
 
 def copy_tree(dst):
     """!
-    @brief Export the committed program, tests and examples into dst and patch dst/pcbthermal/lumped.py.
+    @brief Export the program, tests and examples of the tag v2.5.1 (the program this patch was written against; 2.6.0 has the cap built in) into dst and patch dst/pcbthermal/lumped.py.
     @param dst Destination folder (created; must be outside the repository).
     @return Path of dst.
     @throws RuntimeError When dst lies inside the repository.
@@ -62,7 +62,7 @@ def copy_tree(dst):
     if ROOT in dst.parents or dst == ROOT:
         raise RuntimeError("the patched copy must be outside the repository")
     dst.mkdir(parents=True, exist_ok=True)
-    blob = subprocess.run(["git", "archive", "HEAD", "pcbthermal", "tests", "examples"], cwd=ROOT, check=True, capture_output=True).stdout
+    blob = subprocess.run(["git", "archive", "v2.5.1", "pcbthermal", "tests", "examples"], cwd=ROOT, check=True, capture_output=True).stdout
     with tarfile.open(fileobj=io.BytesIO(blob)) as tar:
         tar.extractall(dst, filter="data")
     target = dst / "pcbthermal" / "lumped.py"
@@ -84,5 +84,8 @@ def load_patched():
     mod.__package__ = "pcbthermal"
     mod.__file__ = orig.__file__
     sys.modules[name] = mod
-    exec(compile(patch_text(Path(orig.__file__).read_text()), "lumped_capped", "exec"), mod.__dict__)
+    text = subprocess.run(["git", "-C", str(ROOT), "show", "v2.5.1:pcbthermal/lumped.py"], check=True, capture_output=True, text=True).stdout       # (2.6.0 has the cap built in)
+    # the live Network has the cut-cell edge film (fix/cut-cell-aperture-film) that the program's Lumped switches off; the v2.5.1 text has no such argument
+    text = text.replace("ladder=False)", "ladder=False, cut_cells=False)")
+    exec(compile(patch_text(text), "lumped_capped", "exec"), mod.__dict__)
     return mod

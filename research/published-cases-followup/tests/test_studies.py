@@ -96,4 +96,6 @@ def test_review_via_deficit_is_per_via_and_follows_the_barrel_length():
     one = SH.program_array(1, phi, SH.K_AIR, pitch * 1e3 / 3, "fvm")
     two = SH.program_array(2, phi, SH.K_AIR, pitch * 1e3 / 3, "fvm") * 4
     assert two == pytest.approx(one, rel=1e-3)
-    assert one / ref - 1 == pytest.approx(-0.0746, abs=0.003)
+    # 2.6.0 (fix/via-barrel-and-rim-uncoupling): the barrel is longer by half the copper, which closes this deficit of the program against the resolved cell: -7.46 % (2.5.x barrel)
+    # becomes -0.30 % (the other published case, research/lumped-zones-adoption, moves the other way: 0.8 % to 8.0 % above its reference; both are reported)
+    assert one / ref - 1 == pytest.approx(-0.00302, abs=0.0005)
