@@ -69,6 +69,10 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
+## Coming in 2.6.0 (assembled on the integration branch, not released)
+
+Version 2.6.0 is not released; the version in the code is still 2.5.2. The integration branch holds: a project package (`.pcbtz`: the project and the files it was imported from in one safe ZIP, with Save as, Export package and `convert`), one Layer box for the board and the Results maps and a clickable model name in the map card, the exact cover of the board outline and cut-cell links with an edge film (FVM and 3D solid), the laminate in a band along the board edge (FVM and FDM), 3D solid slabs by thickness with the face term, the Analytic model with its own edge parameter per layer and a local transient with vias and heatsinks, a capped first ring of the Lumped model and a warning near a side or a corner with a finer raster for a part smaller than two cells, a via barrel longer by half the copper thickness and a copper layer the drilled hole does not touch left uncoupled, the horizontal face turned down on `Nu = 0.475 Ra^(1/5)`, and bounds against hostile outlines. These move some numbers on purpose; the frozen reference is refrozen once at the release (`CHANGELOG.md`, Unreleased).
+
 ## What is new in 2.5.2
 
 Version 2.5.2 (2026-11-07) is a fixes release; the solvers and the frozen numbers are unchanged. A project that opens can always be saved and reopened (lengths above 1 km and non-finite numbers are refused on load and never written, with a message in the status bar after an edit), the placement file of Pulsonix with a text preamble is read, the licence header is on every tracked file, the re-import of Gerber files of a different board offers a new project and carries no part over by designator, and the theory text was corrected after the audit of the code against the papers.
