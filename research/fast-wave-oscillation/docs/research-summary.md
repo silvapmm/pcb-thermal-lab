@@ -1,0 +1,5 @@
+# Text for the project documents (when the work is adopted)
+
+**docs/research.md / docs/versions.md 'Planned'.** Swing of a fast power wave (investigated in `research/fast-wave-oscillation/`): one node per copper layer carries the capacity of 0.77 mm of laminate (1394 J/m2K against 120 J/m2K of the copper), so for a wave faster than about 5 s the FVM and FDM understate the swing at the part (2 to 3 times at 1 to 3 Hz, 8 to 12 times from 50 Hz to 1 kHz on 1.6 mm boards) and the average-or-resolve decision averages a wave above the budget in 18 % of 5184 decisions of a sweep. Proposed: the closed-form impedance of the layered stack under the part as a floor of the decision (no unknowns, 2 ms); the ripple of a resolved fast heater as a second step; a warning from the stack and the period if neither is adopted.
+
+**docs/validation.md (model limits).** The layered models understate the swing of waves faster than `T_w = 5 s (s / 0.8 mm)^2` (s = thickness / layers); measured against an axisymmetric modal reference with the copper and the laminate resolved through the thickness (README 2, tables 1 and 3).
