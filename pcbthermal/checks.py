@@ -480,6 +480,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                      "use the 3D solid.")
 
     out.extend(check_small_part_laminate(problem, models, cell_mm))
+    out.extend(check_edge_laminate(problem, models))
 
     if not problem.vias or b.layers < 2:
         return out                                              # A one-layer board has no gap: its vias join nothing and change no model
@@ -759,6 +760,39 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
                        "pad of the part's size, and the plan cell adds its own hot error for a part only a few cells wide (a 2 mm part read +4 to +9 % in all at a 0.25 mm cell, "
                        "+7 to +16 % at 0.5 mm and +17 to +30 % at 1 mm). The slabs are at most 0.2 mm thick (4 to 16 per insulating layer).",
                  f"{name}: small part on a thick laminate; the 3D solid reads it too hot (+3 to +6 % from its slabs, more at a coarse cell).")
+    return out
+
+
+# Edge coefficient above which the laminate at the board edge is under-resolved by the sub-gaps (W/m2K); a PCB in air has 5 to 50
+EDGE_LAMINATE_H = 200.0
+
+
+def check_edge_laminate(problem, models):
+    """!
+    @brief Warning for a board edge cooled by a large coefficient: the laminate along the edge is cut into too few sub-gaps and the layered FVM and FDM read it too cool (text only).
+    @details Along the edge the gap is cut into sub-gaps in a band (laminate.edge_band), so the edge film acts on the laminate nodes. What remains is the 1 / n error of the sub-gaps, which
+             grows with the edge coefficient (research/laminate-edge-band 11.2, 11.5, against a converged 3D reference, 2-layer 30 x 20 mm boards, 3.2 mm, cell 0.25 mm): with four sub-gaps
+             about -2.4 % at 200 W/m2K and -5.5 % at 500, with eight -2 % at 500 and with sixteen -2.8 % at 2000 W/m2K. On a thin board (0.8 mm) at 2000 W/m2K with a cell larger than the
+             gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). It needs two or more copper layers, an edge coefficient above
+             EDGE_LAMINATE_H, the layered FVM or FDM and a gap that the rule cuts.
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @return List with at most one warning (CheckWarning, about the whole design).
+    """
+    b = problem.board
+    if not ({"fvm", "fdm"} & set(models)) or b.layers < 2 or not (b.h_side or 0.0) > EDGE_LAMINATE_H or not laminate.uses_rule(problem):
+        return []
+    s_max, n_max = laminate.parameters()
+    if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
+        return []                                               # no gap is cut: nothing to resolve
+    out = []
+    _add(out, None, None,
+         f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
+         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell: about -2.4 % of the rise at 200 W/m2K and -5.5 % at 500 with the four sub-gaps, -2 % at 500 with eight; "
+         "-2.8 % at 2000 W/m2K even with sixteen). A larger "
+         f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce it; on a board of 1 mm or less with a cell larger than the gap, many sub-gaps can over-correct "
+         "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps). A board in air has an edge coefficient of 5 to 50 W/m2K, where the error is within 3 %.",
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-2 % at 200, -5.5 % at 500); raise {laminate_where('sub-gaps')} and refine the cell.")
     return out
 
 

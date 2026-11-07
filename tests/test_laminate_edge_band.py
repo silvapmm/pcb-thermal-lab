@@ -1,0 +1,197 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file test_laminate_edge_band.py
+@brief The laminate band along the board edge (laminate.edge_band, fix/laminate-edge-band; adopts research/laminate-edge-band after its review).
+@details With an edge coefficient the copper nodes held the whole slab of the edge, laminate included, at the copper temperature, so the edge film was overstated and the board read
+         cold (-15 % of the rise on a 3.2 mm two-layer board at 200 W/m2K). The gaps that are cut now also carry their interior laminate nodes in a band along the edge (the cells
+         that touch it grown by laminate.margin_cells), so the film acts on the laminate. The references are the hottest rises of an independent 3D finite-volume solver on a graded
+         mesh (research/laminate-edge-band 11.1; 30 x 20 mm, two layers of 35 um, part of 2 W and 10 mm, faces 10 W/m2K, ambient 25 degC), typed here as numbers.
+         Tests: the accuracy against them (FVM and FDM), the old error on the same boards, no change without an edge coefficient, the width of the band, the film applied once, the
+         unknown count, the heat balance with the symmetric LU, and the warning above 200 W/m2K.
+"""
+
+import logging
+
+import numpy as np
+import pytest
+
+from pcbthermal import Problem, SolverOptions, checks, fdm, fvm, laminate, simulate
+
+# Hottest rise in K of the converged 3D reference (key: thickness mm, h_side W/m2K, position of the part)
+REFERENCE = {(3.2, 200.0, "corner"): 80.11228, (3.2, 200.0, "centre"): 60.70826, (1.6, 200.0, "corner"): 92.14954, (0.8, 200.0, "corner"): 111.89275}
+
+
+def plate(thickness, h_side, pos, layers=2):
+    """!
+    @brief The 30 x 20 mm board of the reference cases.
+    @param thickness Board thickness in mm.
+    @param h_side Edge coefficient in W/m2K (None: insulated).
+    @param pos "corner" or "centre".
+    @param layers Copper layers.
+    @return Problem.
+    """
+    p = Problem.new(width_mm=30, height_mm=20, layers=layers, thickness_mm=thickness, copper_um=35.0, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=h_side)
+    for layer in range(1, layers + 1):
+        p.add_zone(layer, rect=(0, 0, 30, 20))
+    x0, y0 = (0.0, 0.0) if pos == "corner" else (10.0, 5.0)
+    p.add_heater(1, 2.0, rect=(x0, y0, x0 + 10, y0 + 10))
+    return p
+
+
+def rise(p, model, cell):
+    """!
+    @brief Hottest rise of one model.
+    @param p Problem.
+    @param model "fvm" or "fdm".
+    @param cell Cell size in mm.
+    @return float Rise in K.
+    """
+    return simulate(p, SolverOptions(cell_mm=cell, models=(model,))).results[model].t_max - 25.0
+
+
+def without_band(monkeypatch):
+    """!
+    @brief Switch off the band (the plan of the earlier versions).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(laminate, "edge_band", lambda edge, d, dx, active: np.zeros(np.asarray(active).shape, dtype=bool))
+
+
+@pytest.mark.parametrize("model,worst", [("fvm", -2.5), ("fdm", -2.8)])
+@pytest.mark.parametrize("cell", [0.5, 0.25])
+def test_the_band_alone_is_within_three_percent_of_the_converged_reference_at_200(model, worst, cell):
+    # Measured (research/laminate-edge-band 11.2, 11.4, 11.5): the FVM -2.3 / -1.7 / -0.9 / -1.0 % and the FDM -2.5 / -1.9 / -1.2 / -1.2 % at 0.5 mm on the four cases, none below
+    # the bounds, and never hotter than the reference at these cells; the program without the band: -15.2 / -11.2 % on the 3.2 mm board
+    for (t, hs, pos), ref in REFERENCE.items():
+        err = 100.0 * (rise(plate(t, hs, pos), model, cell) / ref - 1.0)
+        assert worst < err < 0.5, (t, hs, pos, err)
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_without_the_band_the_same_boards_read_far_too_cool(model, monkeypatch):
+    # This test fails on a tree whose plan has no band: the thick board loses 11 to 17 % of the rise
+    without_band(monkeypatch)
+    err = 100.0 * (rise(plate(3.2, 200.0, "corner"), model, 0.5) / REFERENCE[(3.2, 200.0, "corner")] - 1.0)
+    assert err < -10.0, err
+    err = 100.0 * (rise(plate(3.2, 200.0, "centre"), model, 0.5) / REFERENCE[(3.2, 200.0, "centre")] - 1.0)
+    assert err < -8.0, err
+
+
+@pytest.mark.parametrize("h_side", [None, 0.0])
+def test_without_an_edge_coefficient_the_networks_are_bit_for_bit_the_earlier_ones(h_side, monkeypatch):
+    # The band exists only with h_side above zero: the same matrices and solution with and without the function
+    for p in (plate(3.2, h_side, "corner"), plate(1.6, h_side, "centre", layers=4)):
+        a, b = fvm.Network(p, 30, 20), fdm.Network(p, 1.0)
+        ta, tb = a.solve_steady()[0], b.solve_steady()[0]
+        without_band(monkeypatch)
+        c, d = fvm.Network(p, 30, 20), fdm.Network(p, 1.0)
+        monkeypatch.undo()
+        assert (a.K != c.K).nnz == 0 and np.array_equal(a.C, c.C) and np.array_equal(ta, c.solve_steady()[0])
+        assert (b.K != d.K).nnz == 0 and np.array_equal(b.C, d.C) and np.array_equal(tb, d.solve_steady()[0])
+
+
+def test_one_layer_boards_and_boards_with_a_metal_block_keep_the_earlier_treatment(monkeypatch):
+    one = plate(1.6, 50.0, "corner", layers=1)
+    block = plate(1.6, 50.0, "corner")
+    block.add_heatsink(1, 20.0, rect=(0, 0, 12, 12), thickness_mm=3.0, name="block")
+    for p in (one, block):
+        a = fvm.Network(p, 30, 20)
+        without_band(monkeypatch)
+        b = fvm.Network(p, 30, 20)
+        monkeypatch.undo()
+        assert (a.K != b.K).nnz == 0
+
+
+@pytest.mark.parametrize("t,hs", [(3.2, 200.0), (1.6, 50.0)])
+def test_the_width_of_the_band_does_not_matter_from_one_gap_thickness(t, hs, monkeypatch):
+    # Within 0.5 point of the rise between a margin of one gap thickness and the program's margin (research/laminate-edge-band 5, 6.1)
+    p = plate(t, hs, "corner")
+    cell = 0.5
+    base = rise(p, "fvm", cell)
+    narrow = lambda d, dx: int(np.ceil(d / dx - 1e-9))                         # noqa: E731  (the thickness of the gap in cells, without the extra cell)
+    wide = lambda d, dx: int(np.ceil(d / dx - 1e-9)) + 4                       # noqa: E731
+    out = []
+    for fn in (narrow, wide):
+        monkeypatch.setattr(laminate, "margin_cells", fn)
+        out.append(rise(p, "fvm", cell))
+        monkeypatch.undo()
+    assert max(abs(100.0 * (r / base - 1.0)) for r in out) < 0.5, (base, out)
+
+
+def test_the_edge_film_of_the_interior_laminate_nodes_is_applied_once():
+    # g = h_side th L / (1 + h_side dx / (2 k_xy)) on a left-edge cell away from the corners: the cut-cell film runs once, after the band (not twice, not on the copper node)
+    p = plate(3.2, 200.0, "corner")
+    net = fvm.Network(p, 60, 40)
+    kz, kxy, _ = p.board.gap_properties()
+    d = float(p.board.gap_thicknesses()[0])
+    n = net.ladder.plans[0].n
+    th = d / n                                                            # thickness of one interior sub-gap node (the copper nodes keep half a sub-gap each)
+    j = 20
+    expect = 200.0 * th * net.dy / (1.0 + 200.0 * 0.5 * net.dx / kxy[0])
+    # interior layers: nodes 2 .. 2 + n - 2
+    for k in range(2, 2 + n - 1):
+        assert net.g_side[k, j, 0] == pytest.approx(expect, rel=1e-9), k
+
+
+def test_the_unknown_count_includes_the_band():
+    # fvm.unknowns and fdm.unknowns count as the network will (the memory guard and the display of the cell size use them)
+    p = plate(3.2, 200.0, "corner")
+    n_fvm, _, _, _ = fvm.unknowns(p, 0.5)
+    net = fvm.Network(p, 60, 40)
+    assert n_fvm == int((~net.drop).sum())
+    n_fdm, _, _, _ = fdm.unknowns(p, 0.5)
+    assert n_fdm == int((~fdm.Network(p, 0.5).drop).sum())
+    # the 30 x 20 mm, 3.2 mm board at 0.5 mm: 1.92 times the two copper nodes (research/laminate-edge-band 7)
+    assert n_fvm / (2 * 60 * 40) == pytest.approx(1.92, abs=0.02)
+    # without an edge coefficient there is no band and nothing to count
+    assert fvm.unknowns(plate(3.2, None, "corner"), 0.5)[0] == 2 * 60 * 40
+
+
+@pytest.mark.parametrize("pos", ["corner", "centre"])
+def test_heat_balance_and_the_symmetric_lu_with_the_band(pos, caplog):
+    # The band changes the matrix, not its symmetry or the conservation: the power is all lost (faces and edge), the symmetric LU passes its probe (no fallback warning)
+    p = plate(3.2, 500.0, pos)
+    with caplog.at_level(logging.WARNING, logger="pcbthermal.fvm"):
+        r = fvm.solve_steady(p, cell_mm=0.5)
+    assert abs(r.balance_error) < 1e-9
+    assert "non-symmetric" not in caplog.text and "default mode" not in caplog.text
+    net = fvm.Network(p, 60, 40)
+    K = net.K.tocsr()
+    assert abs(K - K.T).max() <= 1e-12 * abs(K).max()
+    assert abs(fdm.solve_steady(p, cell_mm=0.5).balance_error) < 1e-9
+
+
+def test_the_band_follows_the_outline():
+    # An outline board: the band is the cells the outline crosses, grown by the margin, on the board only
+    p = Problem.new(40.0, 40.0, 2, 1.6, 35, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=50.0)
+    p.add_full_copper()
+    p.set_outline([[0, 10], [20, 0], [40, 10], [40, 30], [20, 40], [0, 30]])
+    p.add_heater(1, 2.0, rect=(17, 17, 23, 23))
+    net = fvm.Network(p, 40, 40)
+    fl = net.ladder.plans[0].flagged
+    assert fl.any() and not fl[20, 20] and not (fl & ~net.active).any()
+    assert abs(fvm.solve_steady(p, cell_mm=1.0).balance_error) < 1e-9
+
+
+def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
+    # check_edge_laminate: edge coefficient above 200 W/m2K, two or more layers, a gap that is cut, FVM or FDM
+    hot, cool = plate(3.2, 500.0, "corner"), plate(3.2, 200.0, "corner")
+    w = checks.check_edge_laminate(hot, ("fvm",))
+    assert len(w) == 1 and "500" in w[0] and "too cool" in w[0] and "--laminate-n-max" in w[0]
+    assert checks.check_edge_laminate(hot, ("fdm", "lumped"))
+    assert not checks.check_edge_laminate(hot, ("lumped", "analytic", "solid3d"))
+    assert not checks.check_edge_laminate(cool, ("fvm", "fdm"))                      # 200 is the limit itself: silent
+    assert not checks.check_edge_laminate(plate(3.2, None, "corner"), ("fvm",))
+    assert not checks.check_edge_laminate(plate(3.2, 500.0, "corner", layers=1), ("fvm",))
+    thin = plate(0.8, 500.0, "corner")
+    with laminate.using(s_max=5.0e-3):                                                # no gap is cut: nothing to resolve
+        assert not checks.check_edge_laminate(thin, ("fvm",))
+    from pcbthermal.uicontext import using_ui
+    with using_ui("gui"):
+        text = checks.check_edge_laminate(hot, ("fvm",))[0]
+    assert "Laminate sub-gaps" in text and "--" not in text.replace("--laminate", "")
+    assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    # it is part of the model-limit warnings of a run
+    assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
