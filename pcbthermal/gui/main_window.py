@@ -844,7 +844,7 @@ class MainWindow(QMainWindow):
         # The limits by the rule of the Results map (Auto range over the samples on the board only), passed explicitly so the canvas does not rescale
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
         self.canvas.set_overlay(field, res.dx, res.dy, cmap=self.display.cmap, vmin=vmin, vmax=vmax,
-                                opacity=self.display.value(), nodes=nodes, mask=mask)
+                                opacity=self.display.value(), nodes=nodes, mask=mask, smooth=self.display.view == "smooth")
         ext = extreme_points(field, mask, res.dx, res.dy, nodes)
         if ext is not None:
             self.canvas.set_overlay_card(short, ext["tmax"], ext["pmax"], ext["tmin"], ext["pmin"])
@@ -869,7 +869,7 @@ class MainWindow(QMainWindow):
         on = self.a_overlay.isChecked()
         if what == "opacity" and on:
             self.canvas.set_overlay_opacity(self.display.value())
-        elif what == "cmap" and on:
+        elif what in ("cmap", "view") and on:
             self._toggle_overlay(True)
         self._editor_apply_underlay(on)
 

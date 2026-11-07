@@ -23,7 +23,9 @@ from . import theme as th
 from ..numfmt import num
 from ..package import background_bytes as package_background_bytes
 
-COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
+OVERLAY_SMOOTH_FACTOR = 8              # View Smooth on the board: the temperatures are interpolated on a grid this many times finer than the cells ...
+OVERLAY_SMOOTH_PIXELS = 2048           # ... with at most this many pixels on the longest side (a 0.25 mm cell on a 200 mm board: 2 times, 6 MB of colours)
+COPPER_DISPLAY_PIXELS = 4096          # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -607,7 +609,7 @@ class BoardView(QGraphicsView):
         if self._background is not None:
             self._background.setVisible(self.background_visible)
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C", smooth=False):
         """!
         @brief Draw a temperature map over the board, with a small colour bar in the corner of the view.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
@@ -620,6 +622,8 @@ class BoardView(QGraphicsView):
         @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
         @param mask Boolean array (ny, nx), True for the cells on the board; the others are transparent (None: every cell is drawn).
         @param unit Unit written on the colour bar.
+        @param smooth True for the View Smooth: the temperatures are interpolated between the cells (cubic spline on a grid OVERLAY_SMOOTH_FACTOR times finer,
+                      at most OVERLAY_SMOOTH_PIXELS a side), as the Smooth of the Results maps, and the picture is scaled smoothly; False for the cells as solved.
         """
         from matplotlib import colormaps
         from .fieldscale import colour_limits
@@ -629,23 +633,36 @@ class BoardView(QGraphicsView):
         lo, hi = colour_limits(field, vmin is None or vmax is None, vmin, vmax)
         # Cells without a value (NaN) or off the outline get alpha 0 so that the board shows through
         ok = np.isfinite(field) if mask is None else (np.isfinite(field) & np.asarray(mask, bool))
-        norm = np.clip((np.nan_to_num(field, nan=lo) - lo) / max(hi - lo, 1e-9), 0, 1)
+        values, k = field, 1
+        if smooth and ok.any():
+            # Smooth means what it means in the Results maps: the TEMPERATURES are interpolated (cubic spline, the cells off the board filled with the
+            # nearest value so they do not eat the kernel), then coloured; blending the colours of the cells would draw colours that are not on the bar
+            from scipy import ndimage
+            k = int(max(1, min(OVERLAY_SMOOTH_FACTOR, OVERLAY_SMOOTH_PIXELS // max(nx, ny))))
+            idx = ndimage.distance_transform_edt(~ok, return_distances=False, return_indices=True)
+            filled = np.asarray(field, np.float32)[tuple(idx)]
+            values = ndimage.zoom(filled, k, order=3, mode="nearest", grid_mode=True) if k > 1 else filled
+            ok = np.kron(ok, np.ones((k, k), bool))                        # The cells on the board keep their edges (Current draws the same)
+        norm = np.clip((np.nan_to_num(values, nan=lo) - lo) / max(hi - lo, 1e-9), 0, 1)
         rgba = (colormaps[cmap](norm) * 255).astype(np.uint8)
         rgba[..., 3] = np.where(ok, 255, 0)
         rgba = np.ascontiguousarray(rgba)
-        img = QImage(rgba.data, nx, ny, 4 * nx, QImage.Format_RGBA8888).copy()
+        h, w = rgba.shape[:2]
+        img = QImage(rgba.data, w, h, 4 * w, QImage.Format_RGBA8888).copy()
         item = QGraphicsPixmapItem(QPixmap.fromImage(img))
-        tr = QTransform().scale(dx * 1000.0, dy * 1000.0)                 # Row 0 sits at y = 0
+        sx, sy = dx * 1000.0 / k, dy * 1000.0 / k                          # One pixel is a cell, or 1/k of a cell when smoothed
+        tr = QTransform().scale(sx, sy)                                    # Row 0 sits at y = 0
         if nodes:
-            tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(dx * 1000.0, dy * 1000.0)
+            tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(sx, sy)
         item.setTransform(tr)
+        item.setTransformationMode(Qt.SmoothTransformation if smooth else Qt.FastTransformation)
         item.setOpacity(float(opacity))
         item.setZValue(0.5)
         item.setAcceptedMouseButtons(Qt.NoButton)
         self.scene().addItem(item)
         self._overlay = item
         # Kept so that a rebuild of the scene (layer change, selection, theme) draws the same map again, and for the colour bar
-        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit)
+        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit, smooth=bool(smooth))
         if self._at_fit_zoom() and not self._rebuilding:
             self.fit()                                                    # Leave the strip of the colour bar free
         self.viewport().update()

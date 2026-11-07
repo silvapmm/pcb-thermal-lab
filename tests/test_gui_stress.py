@@ -221,6 +221,12 @@ def test_every_example_with_every_model_and_view(win, qtbot, which, tmp_path):
             pop.opacity_spin.setValue(35)
             pop.flush()
             win.canvas.viewport().grab()
+        # The View on the board (Current, Smooth, Terrain drawn as Current), then every context again with the map on
+        pop.set_context("editor")
+        for mode in plots.VIEW_MODES:
+            pop.view.setCurrentIndex(pop.view.findData(mode))
+            win.canvas.viewport().grab()
+        pop.view.setCurrentIndex(pop.view.findData("current"))
         pop.underlay.setCurrentIndex(0)
         pop.opacity_spin.setValue(70)
         pop.flush()
