@@ -61,14 +61,16 @@ These rules are mandatory for all code and documentation in this repository.
 
    Use at least `@brief`, `@param`, and `@return` (plus `@throws`, `@note`,
    `@see` where useful). Start each file with a `@file` / `@brief` header block.
-4. **Licence header on every Python file** (maintainer, mandatory, always): the first two lines of every `.py` file (after a shebang or an encoding line, if any, and before the module docstring, which stays the first statement) are exactly:
+4. **Licence header on every source, script and configuration file** (maintainer, mandatory, always: 'something that must exist and be a RULE is putting that header, the one that mentions me and the licence, in ALL files'): the first two lines of every `.py` file (after a shebang or an encoding line, if any, and before the module docstring, which stays the first statement) are exactly:
 
    ```python
    #  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
    #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
    ```
 
-   It applies to `pcbthermal/`, `tests/`, `examples/` and `research/`, to every new file too, and `tests/test_license_header.py` fails for a file without it.
+   It applies to `pcbthermal/`, `tests/`, `examples/`, `research/` and `tools/`, to every new file too, and `tests/test_license_header.py` fails for a file without it.
+
+   **The same two sentences, in the comment syntax of the file, are the first lines of every other tracked file that can hold a comment**: shell scripts (after the shebang), HTML (a comment of four lines, `<!--`, the two sentences indented by two spaces, `-->`, right after the `<!DOCTYPE html>` line, which stays first for standards mode), and the files with `#` comments (`.gitignore`, `requirements*.txt`, `.toml`, `.yml`, `.yaml`, `.cfg`, `.ini`, `Makefile`: the same two `#` lines). **Exempt**: data that cannot hold a comment or is read as data (JSON, CSV, images, icons, patches, `tools/ocr/data/prompt.txt`), `LICENSE`, generated outputs, third-party material, the agent instructions in `.claude/`, and the Markdown documents (they carry the 'Author and license' statement of `README.md` and the About box; no header is added to them unless the maintainer asks). A new file of any covered type carries the header from its first commit, and `tests/test_license_header.py` (its list of files is the tracked files) fails naming the files that lack it.
 5. Keep the documentation in sync with the code: update docstrings and this file
    whenever behavior changes. `tests/test_docs.py` fails if a module, class, function or method in
    `pcbthermal/` or `examples/` lacks `@brief`, an `@param` per argument, or an `@return` for a returned value.
@@ -540,6 +542,8 @@ Release 2.5.1 (2026-11-06) is done: the maintainer tested it and approved; `deve
 - **Close-fin warning on the channel Rayleigh number** (`fix/fin-warning`, proposal A of `research/fin-channel`; release 2.4.4): the input check "air gap under 4 mm in still air" is gone and `checks.check_fin_channels` warns after the run when `Ra_b = g beta theta b^4 Pr / (nu^2 L) < 90` (`phi < 0.9`; theta the mean block excess from `arrays["block_T"]`, L the longer side of the block, air at ambient + theta/2), through the same auxiliary FVM run as the thick-plate check for the Lumped and Analytic. Of the 667 grid cases (of 1080) that lose 10 % or more of the finned-face conductance it misses 1, the old rule 367. The review weighted the block excess by `block_cov` (a block cut at the outline read 27 K instead of 35 K) and gave the 3D solid its own block temperature instead of the auxiliary FVM. Warning only: 30 runs of the finned block (five models, gaps 1.5 to 14.5 mm) are bit-identical to 2.4.3. The correction of the coefficient (proposal B) stays in the Planned chapter of `docs/versions.md` as a feature after the open items of the investigation.
 
 - **Released 2.4.3** (fixes only, so a patch number): block cut at the outline, union of zones with the self-intersection warning, top path only on a component, source-fields warning, unknown count, drill-diameter label, 3D via spread, interface cleanups and the licence header; `develop` merged into `main`, tag `v2.4.3`. Open for 2.5.0: the memory guard (feature).
+
+- **Licence header on all source, script and configuration files** (`fix/license-header-all-files`, 2.5.2 item; maintainer: the header that names him and the licence must be in ALL files): rule 4 now covers, besides `.py`, shell scripts, HTML (comment after the doctype), `.gitignore` and `requirements*.txt` (and `.toml`, `.yml`, `.cfg`, `.ini`, `Makefile` when they appear); exempt are data files, images, `LICENSE`, patches, `.claude/` and, until the maintainer decides, Markdown; `tests/test_license_header.py` enforces it.
 
 - **Licence header on every Python file** (maintainer): every `.py` file starts with two comment lines, the copyright of Pedro Silva (PMS Labs) and the MIT notice, before the module docstring; added to the 313 files that existed, and `tests/test_license_header.py` makes it a rule for every new file. The wording is the maintainer's ("All rights reserved" next to the MIT licence; the licence of the project is MIT, see `LICENSE`).
 
