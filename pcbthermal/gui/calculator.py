@@ -306,7 +306,7 @@ class PowerCalculator(QDialog):
             problem.heaters[k].theta = self.theta.value()                  # The θ typed here is used for this calculation only
         self.worker = ProcessWorker("inverse", problem, k, self.measured.value(), self.point.currentData(), self.ambient.value(),
                                     max(self.doc.options.cell_mm, 0.5), self.psi_jt.value(), self.band.isChecked(), {"design_level": self.design.currentData()},
-                                    self.doc.options.laminate_params())                # The board of the run: same laminate rule as the project
+                                    self.doc.options.laminate_params(), "gui")      # The board of the run: same laminate rule as the project
         self.worker.progress.connect(lambda text, _f: self.result.setText(f"Calculating… {text}"))
         self.worker.done.connect(self._done)
         self.worker.failed.connect(self._failed)

@@ -32,6 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
+from . import uicontext
 from .checks import check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
@@ -61,6 +62,8 @@ class SolverOptions:
     # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
     memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
+    # The front end that launched the run, which decides how the warnings name the controls ('gui' the window, 'cli' the command line and the API); never saved in a project
+    ui: str = "cli"
 
     def validate(self):
         """!
@@ -76,6 +79,8 @@ class SolverOptions:
             raise ValueError("linear_solver must be 'direct', 'cg' or 'sor'")
         if self.lumped_rings < 3 or self.analytic_modes < 20:
             raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
+        if self.ui not in uicontext.UIS:
+            raise ValueError(f"ui must be one of {uicontext.UIS}")
         if self.steady_power not in ("average", "peak"):
             raise ValueError("steady_power must be 'average' or 'peak'")
         if not memory.MIN_FRACTION <= self.memory_fraction <= memory.MAX_FRACTION:
@@ -100,6 +105,7 @@ class SolverOptions:
         """
         d = asdict(self)
         d.pop("memory_fraction", None)                  # The memory limit belongs to the machine, not to the project
+        d.pop("ui", None)                               # The front end belongs to the session, not to the project
         # The laminate numbers are saved only when they are not the default, so that projects of the earlier versions are written as before
         for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4)):
             if d.get(key) == default:
@@ -115,7 +121,7 @@ class SolverOptions:
         @param data Dict as produced by to_dict.
         @return Validated SolverOptions.
         """
-        known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__ and k != "memory_fraction"}   # Old files may hold the key: ignored
+        known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__ and k not in ("memory_fraction", "ui")}   # Old files may hold the key: ignored
         if "models" in known:
             known["models"] = tuple(known["models"])
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
@@ -926,7 +932,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options = options or SolverOptions()
     options.validate()
     # The laminate numbers of the run apply to every network, count and memory estimate made below (laminate.using)
-    with laminate.using(*options.laminate_params()):
+    with laminate.using(*options.laminate_params()), uicontext.using_ui(options.ui):     # The texts of the warnings follow the front end
         return _simulate(problem, options, progress)
 
 

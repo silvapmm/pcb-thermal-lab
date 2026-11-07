@@ -9,7 +9,8 @@
          74.2 x 74.2 mm plane of 70 um (the copper column of ROHM 64AN113E table 2 as its text extracts; JESD51-7 itself was not read), to show how much the
          agreement depends on that reading.
 
-Usage: .venv/bin/python research/power-calculator/scripts/study_cell_size.py   (from the repository root; about 15 minutes)
+Usage: .venv/bin/python research/power-calculator/scripts/study_cell_size.py   (from the repository root; the whole table in one process can pass 15 minutes: run
+       `--case csd|jedec|jedec_novia|plane --cell MM` for one cell of the table, one process each)
 """
 
 import os
@@ -46,11 +47,28 @@ def jedec_with_bottom_plane():
     return p
 
 
-def main():
+def one(case, cell_mm):
     """!
-    @brief Print the model RθJA of every row at every cell size.
+    @brief One case at one cell size (the whole table is one process per cell and case, so that a long case can be timed and stopped on its own).
+    @param case "csd", "jedec", "jedec_novia" or "plane" (the JEDEC board with a 74.2 mm plane of 70 um on the bottom).
+    @param cell_mm Cell size in mm.
     @return None.
     """
+    makers = {"csd": (cv.csd17308q3_board, 46.0), "jedec": (cv.jedec_2s2p_board, 32.5), "jedec_novia": (lambda: cv.jedec_2s2p_board(vias=False), 32.5),
+              "plane": (jedec_with_bottom_plane, 32.5)}
+    make, ref = makers[case]
+    v = model_theta_ja(make(), ref, cell_mm)
+    print(f"{case} {cell_mm:g} mm: model RθJA {v:.2f} K/W, calculator error {100 * (ref / v - 1):+.1f} % of power")
+
+
+def main():
+    """!
+    @brief Print the model RθJA of every row at every cell size (or, with `--case NAME --cell MM`, one case at one cell size).
+    @return None.
+    """
+    if "--case" in sys.argv:
+        one(sys.argv[sys.argv.index("--case") + 1], float(sys.argv[sys.argv.index("--cell") + 1]))
+        return
     print("Model RθJA (K/W) against the cell size, computed convection and radiation\n")
     print("| Board | datasheet | " + " | ".join(f"{c:g} mm" for c in CELLS) + " |")
     print("| :-- | --: | " + " | ".join("--:" for _ in CELLS) + " |")

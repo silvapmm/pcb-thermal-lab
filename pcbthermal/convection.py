@@ -101,7 +101,7 @@ def h_forced(t_surface, t_ambient, speed, length):
     @brief Forced convection coefficient of a flat plate parallel to the flow.
     @details Laminar Nu = 0.664 Re^(1/2) Pr^(1/3); above Re = 5e5 the mixed form Nu = (0.037 Re^(4/5) - 871) Pr^(1/3).
              The laminar mean value (Pohlhausen) is read in Lienhard and Lienhard, A Heat Transfer Textbook, p 311; Yovanovich (1993, eq. 26) is 3 % below it at Pr 0.71 and
-             Yovanovich and Teertstra (2001, eq. 18) 1 to 4 % above with the same 0.664 (research/theory-sources 9.1).
+             Yovanovich and Teertstra (2001, eq. 18, coefficient 0.742 of their eq. 17) 11 to 14 % above it, 1 to 4 % above with 0.664 put in its place (research/theory-sources 9.1).
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param speed Free-stream air speed in m/s (0 gives 0).

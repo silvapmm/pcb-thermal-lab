@@ -23,6 +23,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 
 from pcbthermal import SolverOptions, SquareWave, TableProfile, load_project, simulate
+from pcbthermal import plots
 from pcbthermal.examples import example_block_board, example_board, example_profile_board
 from pcbthermal.gui.document import Document
 from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow
@@ -108,7 +109,7 @@ def walk_results(win, qtbot):
         rv.tabs.setCurrentIndex(t)
         qtbot.wait(5)
     for tab in (rv.temp, rv.grad, rv.profile, rv.compare):
-        for name in ("model", "layer", "cmap", "axis"):
+        for name in ("model", "layer", "axis"):
             combo = getattr(tab, name)
             for i in range(combo.count()):
                 combo.setCurrentIndex(i)
@@ -119,6 +120,28 @@ def walk_results(win, qtbot):
             tab.pos.setValue(v)
         tab.vmin.setValue(30.0)
         tab.vmax.setValue(500.0)
+    # The shared display state (view, underlay, opacity, contour, colour map) on every model and layer of the two map tabs and the Animation (display only)
+    d = rv.display
+    for tab in (rv.temp, rv.grad):
+        for m in range(tab.model.count()):
+            tab.model.setCurrentIndex(m)
+            for mode in plots.VIEW_MODES:
+                d.set_view(mode)
+                for copper_on in ("none", "copper"):
+                    d.set_kind(copper_on)
+                    for cm in plots.CMAPS[:3]:
+                        d.set_cmap(cm)
+                    for k in range(tab.layer.count()):
+                        tab.layer.setCurrentIndex(k)
+        d.set_contour("gradient" if tab is rv.grad else "temperature", 0.0 if tab is rv.grad else 2.0)
+        d.set_opacity(0)
+        d.set_opacity(100)
+        d.set_kind("none")
+        d.set_view("current")
+        d.set_cmap(plots.CMAPS[0])
+    d.set_view("terrain")
+    rv.animation.redraw()                                                          # Terrain is drawn as Current in motion
+    d.set_view("current")
     ts = rv.time_sim
     for i in range(ts.model.count()):
         ts.model.setCurrentIndex(i)
@@ -183,6 +206,21 @@ def test_every_example_with_every_model_and_view(win, qtbot, which, tmp_path):
         win.results.temp.model.setCurrentIndex(i)
         win.a_overlay.setChecked(True)
         win._toggle_overlay(True)
+        # The Display popover on the board with the map on: every control and every context (the card, the rings and the bar follow)
+        pop = win.display_popover
+        for ctx in ("editor", "temperature", "gradient", "animation", "other"):
+            pop.set_context(ctx)
+            for j in range(pop.cmap.count()):
+                pop.cmap.setCurrentIndex(j)
+            pop.underlay.setCurrentIndex(pop.underlay.count() - 1)
+            pop.opacity_spin.setValue(35)
+            pop.flush()
+            win.canvas.viewport().grab()
+        pop.underlay.setCurrentIndex(0)
+        pop.opacity_spin.setValue(70)
+        pop.flush()
+        win._toggle_display_popover()
+        win._toggle_display_popover()
         win.a_overlay.setChecked(False)
     # Exports with the dialogs answered
     out = tmp_path / "out"
@@ -1276,7 +1314,7 @@ def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
             # The same warnings in the same order as a run starts with; the list shows each one's one-line form, the full text is its tooltip
             from pcbthermal.checks import line
             live = list(win.solver_panel.checks.warnings)
-            ref = check_input(win.doc.problem, models, max(cell, 0.5))
+            ref = check_input(win.doc.problem, models, max(cell, 0.5), ui="gui")
             assert [str(w) for w in live] == [str(w) for w in ref]
             assert all(len(line(w)) <= len(str(w)) for w in live)
     win.doc.stack.setClean()
@@ -1337,3 +1375,45 @@ def test_project_format_2_in_the_application(win, qtbot, tmp_path, popups):
     run(win, qtbot, ("fvm",))                                     # The models run on a format 2 project (the imports are not read by them yet)
     assert win.save_file() and not (tmp_path / "board.pcbt.json.bak2").exists()   # Already format 2: no new copy
     win.doc.stack.setClean()
+
+
+def test_display_control_in_the_application(win, qtbot):
+    """The Display control through a whole session: the map button before a run, after it and after an edit, the popover opened on every tab and every results sub-tab, every control of it, the key T with and without a result, a rerun, and the outline board with a refused model."""
+    win._load_problem(example_board(), "ex")
+    win.show()
+    assert not win.a_overlay.isEnabled()                                      # no result yet
+    win._hidden_overlay_key.trigger()                                         # the key says why
+    assert not win.a_overlay.isChecked() and win.statusBar().currentMessage()
+    win.display_button.click()                                                # the popover works before a run
+    assert win.display_popover.isVisible()
+    win.display_popover.underlay.setCurrentIndex(1)
+    win.display_popover.view.setCurrentIndex(win.display_popover.view.findData("smooth"))
+    win.display_button.click()
+    assert not win.display_popover.isVisible()
+    run(win, qtbot, models=("fvm", "lumped"))
+    assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()        # enabled but off after a run
+    win._hidden_overlay_key.trigger()
+    assert win.a_overlay.isChecked() and win.canvas._overlay is not None and win.canvas._overlay_card["title"] == "FVM"
+    for tab_index in (TAB_BOARD, TAB_RESULTS):
+        win.tabs.setCurrentIndex(tab_index)
+        for k in range(win.results.tabs.count() if tab_index == TAB_RESULTS else 1):
+            if tab_index == TAB_RESULTS:
+                win.results.tabs.setCurrentIndex(k)
+            win.display_button.click()
+            pop = win.display_popover
+            for mode in plots.VIEW_MODES:
+                pop.view.setCurrentIndex(pop.view.findData(mode))
+                pop.contour.setValue(pop.contour.maximum() if pop.contour.isEnabled() else pop.contour.value())
+            for j in range(pop.cmap.count()):
+                pop.cmap.setCurrentIndex(j)
+            pop.opacity_spin.setValue(10 * (k + 1))
+            pop.flush()
+            win.canvas.viewport().grab()
+            win.display_button.click()
+    win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
+    assert win.canvas._overlay_card["title"] == "Lumped"
+    win.doc.set_props("heater", 0, power=2.0)                                 # the first edit: the map leaves, the button greys
+    assert win.canvas._overlay is None and win.canvas._overlay_card is None and not win.a_overlay.isEnabled()
+    win.doc.stack.undo()
+    run(win, qtbot, models=("fvm", "lumped"))
+    assert win.a_overlay.isEnabled() and not win.a_overlay.isChecked()

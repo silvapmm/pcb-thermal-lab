@@ -16,8 +16,8 @@
          Printed: the heater mean rise of every solution and the errors against the 3D solution and against each network's own fine run.
          Then our IC board (one layer, 11 % copper, 0.8 mm cells, 6.4 mm heater), not in the means. With `--nodes`: two windows with 1, 2, 4 and 8 laminate nodes (the test of
          the explanation in README Review R2); with `--rect`: the rectangle board of 4.35 and 4.37 against the program's FVM (Review R4).
-         Run from the repository root: PYTHONPATH=<program> .venv/bin/python research/gerber-models/scripts/study_laminate_reference.py [--nodes] (about 7 minutes; one 3D solve of
-         290 000 unknowns per board, about 8 GB of memory).
+         Run from the repository root: PYTHONPATH=<program> .venv/bin/python research/gerber-models/scripts/study_laminate_reference.py [--nodes | --rect | --legacy-laminate] (`--legacy-laminate`: the main mode with the program's laminate rule switched off, two laminate nodes; about 7 minutes; one 3D solve of
+         290 000 unknowns per board; the symmetric-mode factor keeps the peak resident memory well under the 8 GB that the default solve needed).
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths of research/gerber-models in order)
@@ -91,7 +91,10 @@ def solve3d(mask, n_lam=8):
     q = np.zeros((nz, ny, nx))
     q[0, r0:r1, c0:c1] = 1.0 / ((r1 - r0) * (c1 - c0))
     K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(nz * ny * nx,) * 2).tocsr() + sp.diags(diag)
-    T = spla.spsolve(K.tocsc(), q.ravel()).reshape(nz, ny, nx)
+    # K is symmetric positive definite: the symmetric mode of SuperLU with the symmetric ordering gives the same solution with a much smaller factor
+    # (the default mode with COLAMD pivots as for a general matrix and peaked at about 8 GB on 290 000 unknowns)
+    lu = spla.splu(K.tocsc(), permc_spec="MMD_AT_PLUS_A", diag_pivot_thresh=0.0, options={"SymmetricMode": True})
+    T = lu.solve(q.ravel()).reshape(nz, ny, nx)
     return float(T[0, r0:r1, c0:c1].mean())
 
 
@@ -262,6 +265,11 @@ def nodes_sweep():
 
 
 if __name__ == "__main__":
+    if "--legacy-laminate" in sys.argv[1:]:
+        # Isolation of the 2.4.5 laminate rule (Review R2): the one-layer board with the two laminate nodes of the program before the rule (this process only)
+        from pcbthermal import laminate as _lam
+        _lam.uses_rule = lambda problem: False
+        _lam.LAMINATE_NODES = 2
     if "--nodes" in sys.argv[1:]:
         nodes_sweep()
     elif "--rect" in sys.argv[1:]:

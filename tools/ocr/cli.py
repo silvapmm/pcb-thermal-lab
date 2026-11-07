@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from tools.ocr import cipher, config, render, suspects, verify
+from tools.ocr import checks, cipher, config, render, suspects, verify
 from tools.ocr.keys import KeyError_, redact
 from tools.ocr.ledger import Ledger, parse_queue
 from tools.ocr.pipeline import ConfidentialError, Runner, combine
@@ -69,6 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--max-tokens", type=int, help="output token budget per request (Claude default 8192)")
         p.add_argument("--whole-page", action="store_true",
                        help="one request per page: no half-page crops, no fallback model (a cut page is kept with a note)")
+        p.add_argument("--prompt-variant", choices=sorted(config.prompt_variants()), default="default",
+                       help="phrasing of the prompt (data/prompt_variants.json): the filter that refuses some pages is "
+                            "stochastic and sensitive to the wording")
         p.add_argument("--subdir", help="write the pages into this subfolder of the provider's output folder "
                                         "(to keep an existing or reviewed page untouched)")
 
@@ -102,6 +105,17 @@ def build_parser() -> argparse.ArgumentParser:
     st_sub.add_parser("seed", help="fill the file from the headers and markers of md-final and from OCR_TO_VERIFY.md (never replaces)")
     map_p = sub.add_parser("map", help="write papers/notes/OCR_MAP.md and ocr_map.json (what is done and needed; offline)")
     map_p.add_argument("--root", help="repository root for the documents and the program (default: parent of the papers folder)")
+    fl = sub.add_parser("firstline", help="compare the first line of each machine page with the PDF text layer (offline, born-digital only)")
+    for sp in (fl, sub.add_parser("eqcheck", help="compare $ spans and \\tag numbers of each page with the text layer and the other provider (offline)")):
+        sp.add_argument("--stem", help="comma-separated stems (default: every stem with page files)")
+        sp.add_argument("--pages", help="'3,5-6' (PDF pages; default all)")
+        sp.add_argument("--sources", default=",".join(checks.DEFAULT_SOURCES),
+                        help="page folders: claude, claude-whole, retry, corrected, openrouter, gemini (default: the first four)")
+        sp.add_argument("--out", help="report file (default papers/notes/FIRSTLINE_REPORT.md or EQCHECK_REPORT.md)")
+    fl.add_argument("--lines", type=int, default=checks.FIRST_LINES_IN_LAYER, help="text-layer lines searched (default 12)")
+    fl.add_argument("--threshold", type=float, default=checks.MIN_OVERLAP, help="token overlap needed (default 0.6)")
+    au = sub.add_parser("audit", help="integrity of the assembled library: headers, markers, status, secrets, confidential files (offline)")
+    au.add_argument("--out", help="report file (default papers/notes/AUDIT_REPORT.md)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
@@ -167,6 +181,7 @@ def make_runner(a, papers: Path) -> Runner:
     return Runner(get_provider(a.provider), out,
                   Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi,
+                  prompt=config.variant_prompt(getattr(a, "prompt_variant", None)),
                   max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False))
 
 
@@ -345,7 +360,10 @@ def cmd_assemble(a, papers: Path) -> int:
     @param papers Papers folder.
     @return int Exit code.
     """
-    import fitz  # PyMuPDF, only needed here
+    try:
+        import pymupdf as fitz  # PyMuPDF, only needed here (the old module name `fitz` warns as deprecated)
+    except ImportError:
+        import fitz
     from . import assemble as asm, suspects as su
     root = Path(a.root) if a.root else papers.parent
     out = papers / "md-final"
@@ -411,7 +429,71 @@ def cmd_map(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"status": cmd_status, "map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def _check_args(a) -> tuple[set[str] | None, set[int] | None, tuple[str, ...]]:
+    """!
+    @brief Stems, pages and sources of `firstline` and `eqcheck` from the parsed options.
+    @param a Parsed arguments.
+    @return tuple (stems or None, pages or None, source labels).
+    @throws ValueError For an unknown source label or a bad page spec.
+    """
+    stems = {x.strip() for x in a.stem.split(",") if x.strip()} if a.stem else None
+    pages = set(config.parse_pages(a.pages)) if a.pages else None
+    sources = tuple(x.strip() for x in a.sources.split(",") if x.strip())
+    bad = [x for x in sources if x not in checks.SOURCE_DIRS]
+    if bad:
+        raise ValueError(f"unknown source {bad}; choose from {sorted(checks.SOURCE_DIRS)}")
+    return stems, pages, sources
+
+
+def cmd_firstline(a, papers: Path) -> int:
+    """!
+    @brief The `firstline` command: first-line check against the PDF text layer; writes `notes/FIRSTLINE_REPORT.md`.
+    @param a      Parsed arguments (`--stem`, `--pages`, `--sources`, `--lines`, `--threshold`, `--out`).
+    @param papers Papers folder.
+    @return int 0 (a flag is a place to look at, not a failure).
+    """
+    stems, pages, sources = _check_args(a)
+    res = checks.run_firstline(papers, stems, pages, sources, a.lines, a.threshold)
+    out = Path(a.out) if a.out else papers / "notes" / "FIRSTLINE_REPORT.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(checks.render_firstline(res), encoding="utf-8")
+    print(f"{len(res['rows'])} pages: {res['counts']} -> {out}")
+    return 0
+
+
+def cmd_eqcheck(a, papers: Path) -> int:
+    """!
+    @brief The `eqcheck` command: equation-structure check; writes `notes/EQCHECK_REPORT.md`.
+    @param a      Parsed arguments (`--stem`, `--pages`, `--sources`, `--out`).
+    @param papers Papers folder.
+    @return int 0.
+    """
+    stems, pages, sources = _check_args(a)
+    res = checks.run_eqcheck(papers, stems, pages, sources)
+    out = Path(a.out) if a.out else papers / "notes" / "EQCHECK_REPORT.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(checks.render_eqcheck(res), encoding="utf-8")
+    print(f"{res['checked']} pages, {sum(bool(r['issues']) for r in res['rows'])} with a mismatch -> {out}")
+    return 0
+
+
+def cmd_audit(a, papers: Path) -> int:
+    """!
+    @brief The `audit` command: integrity of the assembled library; writes `notes/AUDIT_REPORT.md`.
+    @param a      Parsed arguments (`--out`).
+    @param papers Papers folder.
+    @return int 0 when there is no error finding, else 1.
+    """
+    res = checks.audit(papers)
+    out = Path(a.out) if a.out else papers / "notes" / "AUDIT_REPORT.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(checks.render_audit(res), encoding="utf-8")
+    n = {lv: sum(1 for f in res["findings"] if f[0] == lv) for lv in ("error", "warn", "info")}
+    print(f"audit: {n} -> {out}")
+    return 1 if n["error"] else 0
+
+
+COMMANDS = {"firstline": cmd_firstline, "eqcheck": cmd_eqcheck, "audit": cmd_audit, "status": cmd_status, "map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 

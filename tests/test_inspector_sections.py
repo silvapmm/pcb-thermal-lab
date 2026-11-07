@@ -200,6 +200,12 @@ def test_side_panels_scroll_so_every_field_stays_reachable(win):
     form = win.inspector.form_host
     x_spin = next(s for s in form.findChildren(QAbstractSpinBox) if s.toolTip().startswith("X of"))
     area = win.dock_inspector.widget()
+    # The form was rebuilt by select(): until the pending layout events run, the scroll range is stale and ensureWidgetVisible can stop one pixel short
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+    area.widget().layout().activate()
+    area.ensureWidgetVisible(x_spin)
+    QApplication.processEvents()
     area.ensureWidgetVisible(x_spin)
     assert area.isAncestorOf(x_spin)
     top_left = x_spin.mapTo(area.viewport(), x_spin.rect().topLeft())

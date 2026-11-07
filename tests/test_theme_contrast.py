@@ -101,3 +101,14 @@ def test_disabled_text_is_dimmed(themed, role):
     normal, disabled = pal.color(QPalette.Normal, role), pal.color(QPalette.Disabled, role)
     assert _ratio(disabled, pal.color(QPalette.Normal, QPalette.Window)) < _ratio(normal, pal.color(QPalette.Normal, QPalette.Window)) - 1.0, \
         f"disabled {role} is not dimmed ({disabled.name()} against {normal.name()})"
+
+
+@pytest.mark.parametrize("name", ["dark", "light"])
+def test_results_map_copper_laminate_and_contour_tokens_are_distinct(name):
+    """!
+    @brief The grey copper, the laminate under it and the contour lines of the Results maps can be told apart in both themes.
+    @param name Theme name.
+    """
+    c = theme.colors(name)
+    assert _ratio(QColor(c["map_copper"]), QColor(c["map_laminate"])) >= 3.0
+    assert _ratio(QColor(c["map_contour"]), QColor(c["map_laminate"])) >= 4.5

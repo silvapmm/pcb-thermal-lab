@@ -55,7 +55,7 @@ A source in one cell of the five-point stencil has the potential of a hole of ra
 
 ## 10. Sources
 
-* Finite-volume discretisation, harmonic means at interfaces: [Patankar1980]. A balance on every cell conserves energy locally and globally: [EymardGallouetHerbin], [SpringerFVHeat], [Khouider].
+* Finite-volume discretisation, harmonic means at interfaces: [Patankar1980]. A balance on every cell conserves energy locally and globally: [EymardGallouetHerbin], [SpringerFVHeat], [Khouider] (B. Khouider, *Finite difference and finite volume methods for transport and conservation laws*, PIMS 2008, chapter 5, the conservative form; its heat-equation chapters are finite differences).
 * Direct sparse solver: [SciPySuperLU]. SOR, Young's optimum `omega = 2 / (1 + sqrt(1 - rho^2))` for consistently ordered matrices (Theorem 4.16, equation 4.47, pages 126 and 127), convergence for `0 < omega < 2` (Theorem 4.10), multicolouring: [Saad2003] (read); [Young1950] (the original, not obtained). The lattice sink and the well radius: [Peaceman1978] (S).
 * The rest is own computation: [L-validation].
 
