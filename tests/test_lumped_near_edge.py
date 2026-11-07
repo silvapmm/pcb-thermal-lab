@@ -117,11 +117,46 @@ def test_text_is_plain_tagged_and_aggregated():
     assert w.kind == "heater" and w.index == 0
     text, short = str(w), checks.line(w)
     assert "U: the part is 1.5 mm from a side of the board" in text
-    assert "6.6 %" in text and "22 %" in text and "sample, not a bound" in text and "FVM or the FDM" in text
+    assert "8 to 9.5 %" in text and "22 %" in text and "sample, not a bound" in text and "FVM or the FDM" in text
     assert not NAMES.search(text) and not NAMES.search(short) and len(short) < len(text)
     p.heaters[1].polygon = [(5e-3, 5e-3), (9e-3, 5e-3), (9e-3, 9e-3), (5e-3, 9e-3)]                 # a second flagged part
     (w2,) = _near(p)
     assert str(w2).startswith("2 parts (") and "U, Q1" in str(w2)
+
+
+def test_outline_gaps_with_a_reach_match_the_exact_gaps_and_stay_fast():
+    """!
+    @brief The live check measures only the outline segments within reach of each part: on random star outlines with turned parts inside, across and outside, the parts it
+           flags are those of the exact gap, and 500 parts on an outline of 8000 points take well under a second (a call of the inside test per part took 25 s).
+    @return None.
+    """
+    import time
+    rng = np.random.default_rng(7)
+    for _ in range(40):
+        p = Problem.new(200, 150, layers=2, thickness_mm=1.6, copper_um=35.0, h_top=10.0, h_bottom=15.0, h_side=10.0)
+        n = int(rng.integers(3, 40))
+        th = np.sort(rng.uniform(0, 2 * np.pi, n))
+        rr = rng.uniform(40, 74, n)
+        p.set_outline(list(zip(100 + rr * np.cos(th), 75 + rr * np.sin(th))))
+        polys = []
+        for _ in range(20):
+            x, y, s, a = rng.uniform(0, 200), rng.uniform(0, 150), rng.uniform(0.3, 12), rng.uniform(0, np.pi)
+            c, d, hh = np.cos(a), np.sin(a), rng.uniform(0.2, 1.0) * s / 2
+            polys.append([((x + c * u - d * v) * 1e-3, (y + d * u + c * v) * 1e-3) for u, v in ((-s / 2, -hh), (s / 2, -hh), (s / 2, hh), (-s / 2, hh))])
+        lims = [max(np.sqrt(checks.polygon_area(q)), 5e-3) + 1e-9 for q in polys]
+        exact = checks.heater_side_gaps(p, polys)
+        reach = checks.heater_side_gaps(p, polys, lims)
+        assert [g <= m for (_, g), m in zip(exact, lims)] == [g <= m for (_, g), m in zip(reach, lims)]
+        assert all(ge == gr for (_, ge), (_, gr), m in zip(exact, reach, lims) if ge <= m)
+    p = Problem.new(200, 150, layers=4, thickness_mm=1.6, copper_um=35.0, h_top=10.0, h_bottom=15.0, h_side=10.0)
+    th = np.linspace(0, 2 * np.pi, 8000, endpoint=False)
+    p.set_outline(list(zip(100 + 99 * np.cos(th), 75 + 74 * np.sin(th))))
+    for i in range(500):
+        x, y = 100 + rng.uniform(-60, 60), 75 + rng.uniform(-45, 45)
+        p.add_heater(1, 0.1, rect=(x - 1, y - 1, x + 1, y + 1), name=f"U{i}")
+    t0 = time.perf_counter()
+    checks.check_lumped_near_edge(p, ("lumped",))
+    assert time.perf_counter() - t0 < 2.0
 
 
 def test_the_rule_reproduces_the_study_rates():
@@ -137,9 +172,31 @@ def test_the_rule_reproduces_the_study_rates():
     assert sum(b for _, b in rnd) == 37
     assert sum(f and b for f, b in rnd) == 35
     assert sum(f and not b for f, b in rnd) == 24
-    # The means quoted in the text
+    # The means quoted in the text: the flagged cases (8.2 % on the sweep, 8.3 % on the random boards), the worst at a corner
     err = np.array([r[6] for r in DATA["sweep"]])
-    assert err.min() < -22.0 + 0.1
+    assert err.min() < -22.0 + 0.1 and DATA["sweep"][int(err.argmin())][3] == "corner"
+    assert np.mean([r[6] for (f, _), r in zip(sweep, DATA["sweep"]) if f]) == pytest.approx(-8.2, abs=0.05)
+    assert np.mean([e for (f, _), (_, _, e) in zip(rnd, DATA["random"]) if f]) == pytest.approx(-8.3, abs=0.05)
+
+
+def test_the_rule_on_develop_without_the_capped_first_ring():
+    """!
+    @brief The same cases re-run on develop at 2.5.2 (no capped first ring; DATA sweep_develop, random_develop): the flagged parts read -9.4 % and -8.5 % on average (the text
+           quotes 8 to 9.5 %), the rule catches 68 of the 86 sweep cases beyond -8 % and 34 of 38 random ones; of the 18 sweep cases it misses, 16 are a 2 mm part on the
+           100 x 80 mm board 10 to 30 mm from a side and 2 a 5 mm part 10 mm from a corner (the small-part deficit of the rings, which the capped first ring removes), not the side.
+    @return None.
+    """
+    fl = [bool(_near(_sweep_problem(r))) for r in DATA["sweep"]]
+    e = np.array(DATA["sweep_develop"])
+    bad = e < BAD
+    assert int(bad.sum()) == 86 and int((bad & np.array(fl)).sum()) == 68
+    assert np.mean(e[np.array(fl)]) == pytest.approx(-9.4, abs=0.05) and e.min() == pytest.approx(-22.0, abs=0.1)
+    missed = [r for r, f, b in zip(DATA["sweep"], fl, bad) if b and not f]
+    assert all(r[0] == 100.0 and r[4] >= 10.0 and (r[2] == 2.0 or (r[2] == 5.0 and r[3] == "corner")) for r in missed)
+    rf = np.array([g <= max(s, checks.NEAR_EDGE_FLOOR_MM) + 1e-6 for s, g, _ in DATA["random"]])
+    er = np.array(DATA["random_develop"])
+    assert int((er < BAD).sum()) == 38 and int(((er < BAD) & rf).sum()) == 34
+    assert np.mean(er[rf]) == pytest.approx(-8.5, abs=0.05)
 
 
 def test_the_frozen_boards_flag_exactly_three():
@@ -219,6 +276,25 @@ def test_the_refinement_is_refused_when_it_does_not_fit_and_the_check_says_so(mo
     monkeypatch.setattr(lumped.memory, "limit_bytes", lambda *a, **k: 0.3e9)    # a small machine: the 24 mm board needs 0.1 GB at 0.125 mm; a 100 x 80 board needs 0.9 GB
     assert lumped.small_part_cell(_board(24, 24, 0.2, (12, 12)), 0.5) == pytest.approx(0.125)
     assert lumped.small_part_cell(_board(100, 80, 0.2, (50, 40)), 0.5) is None
+
+
+def test_a_zoned_board_keeps_its_raster_and_the_check_says_so():
+    """!
+    @brief A board with a zoned part keeps the 0.5 mm raster of the zone model, so a 0.3 mm source beside it is not refined: the live check says why; a 1.2 mm source is
+           two cells of that raster or more and gets no line.
+    @return None.
+    """
+    p = _board(40, 40, 6.0, (20, 20), power=2.0)
+    for i in range(3):
+        for j in range(3):
+            p.add_via(18.8 + 1.2 * i, 18.8 + 1.2 * j, 0.3)
+    p.add_heater(1, 0.1, rect=(30, 30, 30.3, 30.3), name="R1")
+    assert lumped.cell_for(p, 1.0) == 0.5 and lumped.cell_for(p, 0.5) == 0.5
+    for cell in (0.5, 1.0):
+        (w,) = checks.check_lumped_small_part(p, ("lumped",), cell)
+        assert "U has a dense group of vias" in str(w) and not NAMES.search(str(w))
+    p.heaters[1].polygon = [(30e-3, 30e-3), (31.2e-3, 30e-3), (31.2e-3, 31.2e-3), (30e-3, 31.2e-3)]
+    assert checks.check_lumped_small_part(p, ("lumped",), 1.0) == []
 
 
 def _rise_errors(side, shift):

@@ -1332,17 +1332,19 @@ Section number 35 on purpose: 31 to 34 belong to branches that are not in this t
 
 ### 35.1 How much too cool a part near an edge reads (study data, 180 cases)
 
-Two-layer full-copper boards of 40 x 40 and 100 x 80 mm, a square source of 2, 5 or 10 mm on layer 1 at a gap of 0 to 30 mm from one side (centred along it) or from a corner, edge film 10, 50 and 200 W/m2K; error of the Lumped at 0.5 mm against the FVM at 0.5 mm (the FVM at 0.25 mm confirms it to 0.2 %, an independent 3D solver to 0.2 % on five cases). Mean over the cases, range in brackets:
+Two-layer full-copper boards of 40 x 40 and 100 x 80 mm, a square source of 2, 5 or 10 mm on layer 1 at a gap of 0 to 30 mm from one side (centred along it) or from a corner, edge film 10, 50 and 200 W/m2K; error of the Lumped at 0.5 mm against the FVM at 0.5 mm (the FVM at 0.25 mm confirms it to 0.2 %, an independent 3D solver to 0.2 % on five cases). **Measured with the capped first ring of the 2.6.0 integration tree**; the last column is the same case re-run by the review on `develop` at 2.5.2 (no capped first ring). Mean over the cases, range in brackets:
 
-| case | n | hottest node % | footprint mean % |
-| :-- | --: | --: | --: |
-| all | 180 | -6.6 [-22.0, +1.4] | -5.5 [-13.5, +1.6] |
-| side, gap 0 | 18 | -9.0 [-13.1, -6.7] | -5.6 [-8.9, -3.7] |
-| side, gap 5 mm | 18 | -4.3 [-8.3, 0.0] | -4.5 [-9.0, +0.1] |
-| side, gap 30 mm | 9 | -2.4 [-3.1, -1.4] | -2.7 [-3.5, -1.9] |
-| corner, gap 0 | 18 | -15.2 [-22.0, -12.2] | -8.1 [-13.5, -5.4] |
-| corner, gap 5 mm | 18 | -7.4 [-12.9, -1.6] | -7.3 [-12.8, -1.4] |
-| corner, gap 30 mm | 9 | -2.6 [-3.4, -1.3] | -3.0 [-3.7, -1.8] |
+| case | n | hottest node % | footprint mean % | hottest node on `develop` % |
+| :-- | --: | --: | --: | --: |
+| all | 180 | -6.6 [-22.0, +1.4] | -5.5 [-13.5, +1.6] | -8.2 [-22.0, +1.9] |
+| side, gap 0 | 18 | -9.0 [-13.1, -6.7] | -5.6 [-8.9, -3.7] | -10.3 [-15.0, -5.9] |
+| side, gap 5 mm | 18 | -4.3 [-8.3, 0.0] | -4.5 [-9.0, +0.1] | -6.1 [-15.1, 0.0] |
+| side, gap 30 mm | 9 | -2.4 [-3.1, -1.4] | -2.7 [-3.5, -1.9] | -4.8 [-8.3, -1.4] |
+| corner, gap 0 | 18 | -15.2 [-22.0, -12.2] | -8.1 [-13.5, -5.4] | -16.9 [-22.0, -12.9] |
+| corner, gap 5 mm | 18 | -7.4 [-12.9, -1.6] | -7.3 [-12.8, -1.4] | -9.3 [-18.1, -1.5] |
+| corner, gap 30 mm | 9 | -2.6 [-3.4, -1.3] | -3.0 [-3.7, -1.8] | -5.0 [-9.1, -1.3] |
+
+On `develop` the 5 and 10 mm parts read within 0 to 2.8 points of the study, case by case; the difference is the 2 mm part on the 100 x 80 mm board, which reads 7.6 to 20.5 % too cool at every gap, 30 mm included (the small-part deficit of the rings that the capped first ring removes, not the side).
 
 The cause is not the clipping of the rings (areas, contour lengths and the edge loss are those of the cells that exist) but the links from the footprint outwards: the link to the first ring is the log potential of the part alone and lacks the mirror image of the side. ![Rings clipped by a side](images/lumped_near_edge_rings.png)
 
@@ -1355,10 +1357,12 @@ A heat source with power is flagged when its exact gap to the nearest side (to t
 | set | bad cases | flagged and bad | false alarms |
 | :-- | --: | --: | --: |
 | sweep (180) | 58 | 57 | 63 |
+| sweep (180), on `develop` | 86 | 68 | 52 |
 | 120 random single-part boards (30 to 100 mm, part 2 to 12 mm anywhere, edge film 5 to 200) | 37 | 35 | 24 |
+| the same 120 boards, on `develop` | 38 | 34 | 25 |
 | the 17 frozen boards | 2 near-edge (`t_outline` -32 %, `part_across_outline` -16 %) | 2 | 1 (`example_cut_to_T`, -2.1 %) |
 
-The false alarms are mostly parts 4 to 8 % too cool (the Lumped has a deficit of 2 to 4 % even at 30 mm), so "false alarm" means "less than 8 % too cool". The flagged random boards read -8.3 % on average, the others -3.6 %. The two bare-pad boards of the 17 are too cool by another cause and are not flagged. A sample, not a bound. The rule is live (geometry only) and belongs to the Lumped alone; on an outline board the run's note about the equivalent rectangle is a second, different line.
+The false alarms are mostly parts 4 to 8 % too cool (the Lumped has a deficit of 2 to 4 % even at 30 mm), so "false alarm" means "less than 8 % too cool". The flagged parts read -8.2 % on average on the sweep (-3.3 % the others) and -8.3 % on the random boards (-3.6 % the others); on `develop` -9.4 % and -8.5 % (-5.8 % and -3.9 % the others), so the warning quotes 8 to 9.5 %. On `develop` 16 of the 18 sweep cases the rule misses are the 2 mm part on the 100 x 80 mm board 10 to 30 mm from a side and the other two a 5 mm part 10 mm from a corner: the deficit of a small footprint on a large board, which a side warning cannot catch and the capped first ring removes. The random-board numbers were reproduced on `develop` from the study's seed (same geometry), the `develop` columns are stored in `tests/data/lumped_near_edge_cases.json` and checked by `tests/test_lumped_near_edge.py`. The two bare-pad boards of the 17 are too cool by another cause and are not flagged. A sample, not a bound. The rule is live (geometry only) and belongs to the Lumped alone (cost measured by the review: 500 parts on a 200 x 150 mm board with 8000 vias, 0.01 s on the box and 0.02 to 0.3 s on outlines of 200 to 8000 points; the first version ran the inside test of the outline once per part, 25 s on 8000 points, and now runs it once for all the parts and measures only the outline segments within reach of each part, the flagged parts identical on 6000 random parts across 300 star outlines); on an outline board the run's note about the equivalent rectangle is a second, different line.
 
 ### 35.3 A source under two cells: the finer raster (`lumped.small_part_cell`)
 
@@ -1373,12 +1377,24 @@ The false alarms are mostly parts 4 to 8 % too cool (the Lumped has a deficit of
 | 1.0 | 0.5 (not refined) | +1.6 / -0.3 | +1.6 / -0.3 |
 | 2.0 | 0.5 (not refined) | +1.6 / +0.7 | +1.6 / +0.7 |
 
-The position dependence is gone (the 0.2 mm part: 9.9 points between the two positions before, 0.7 after). The study quoted -0.8 to +1.6 % for the rule; that was on a tree with the capped first ring of the next version, which lifts the temperature of a tiny footprint by a few per cent. On `develop` the level of a 0.2 to 0.3 mm part stays 3.5 to 6.7 % too cool (the deficit of the rings of a small footprint), and the 0.75 mm part at shift 0 reads +3.7 % (it read -1.6 %): a refinement of the grid, not a correction of the ring construction. ![Sub-cell footprint](images/lumped_subcell_raster.png)
+The same parts with the default request of 1 mm (raster 1 mm before; shift 0 and 0.5 mm), reproduced by the review: the gain is larger there, because the 1 mm raster spreads parts of up to 2 mm.
+
+| side mm | raster after mm | before, corner / in a cell % | after, corner / in a cell % |
+| --: | --: | :-- | :-- |
+| 0.2 | 0.125 | -11.9 / -11.9 | -6.0 / -6.4 |
+| 0.3 | 0.15 | -19.0 / -8.9 | -3.5 / -3.9 |
+| 0.5 | 0.25 | -14.7 / -4.2 | +0.1 / +1.1 |
+| 0.75 | 0.375 | -8.7 / +0.1 | +3.7 / +1.5 |
+| 1.0 | 0.5 | -8.0 / +3.4 | +1.6 / +2.3 |
+| 1.5 | 0.75 | -3.5 / -3.6 | +1.6 / -0.6 |
+| 2.0 | 1.0 (not refined) | -0.0 / -2.0 | -0.0 / -2.0 |
+
+The position dependence is gone (the 0.2 mm part: 9.9 points between the two positions before, 0.7 after). The study quoted -0.8 to +1.6 % for the rule; that was on a tree with the capped first ring of the next version, which lifts the temperature of a tiny footprint by a few per cent. On `develop` the level of a 0.2 to 0.3 mm part stays 3.5 to 6.7 % too cool (the deficit of the rings of a small footprint), and the 0.75 mm part at shift 0 reads +3.7 % (it read -1.6 %; on the hot side): a refinement of the grid, not a correction of the ring construction. Over the 26 cases of the two tables the largest error falls from -19.0 to -6.7 % of the rise (the largest too hot is +3.7 %), so the rule is worth having on `develop` too, mostly at the default 1 mm request. ![Sub-cell footprint](images/lumped_subcell_raster.png)
 
 *Figure (`images/lumped_subcell_raster.png`): hottest-node error against the raster for parts of 0.2 to 2 mm (study figure 5, tree with the capped first ring).*
 
-**Cost and the memory bound**: about 1.7 KB per raster cell on a 4-layer board (0.47 s and 0.97 GB for 100 x 80 mm at 0.125 mm; 150 x 120 mm with vias 2.09 GB; 200 x 150 mm at 0.125 mm about 3.3 GB and 300 x 200 mm about 6.5 GB, extrapolated). The memory guard does not cover the Lumped, so the rule has its own bound: the refinement is refused, the raster stays at 0.5 to 1 mm and the live check says so, when the estimate (1.7 KB per cell, scaled by the layers above four) exceeds the smaller of 1 GB and the memory-guard limit of the machine. The raster is one per board, so one small part moves the other parts of the board too (not measured); a board with a zoned part keeps the 0.5 mm raster of the zone model. **Frozen numbers**: none of the 17 boards has a source under 1 mm (the smallest is 6 mm), `tests/regression` at 2 mm unchanged (151 passed).
+**Cost and the memory bound**: about 1.7 KB per raster cell on a 4-layer board (0.47 s and 0.97 GB for 100 x 80 mm at 0.125 mm; the review measured the peak of the process on that board, 512 000 cells, at 0.70 / 0.93 / 1.05 / 1.21 GB for 2 / 4 / 6 / 8 layers (1.36 / 1.82 / 2.06 / 2.36 KB per cell, about 0.9 KB plus 0.18 KB per layer, process included), so the scaling by layers above four over-estimates 8 layers by about 45 % (the safe side) and the 4-layer estimate (0.87 GB) is about 7 % under the measured peak; 0.5 s for the steady solve and 0.5 s for the step responses of a profile at 0.125 mm, 0.93 GB; 150 x 120 mm with vias 2.09 GB; 200 x 150 mm at 0.125 mm about 3.3 GB and 300 x 200 mm about 6.5 GB, extrapolated). The memory guard does not cover the Lumped, so the rule has its own bound: the refinement is refused, the raster stays at 0.5 to 1 mm and the live check says so, when the estimate (1.7 KB per cell, scaled by the layers above four) exceeds the smaller of 1 GB and the memory-guard limit of the machine. The raster is one per board, so one small part moves the other parts of the board too (not measured); a board with a zoned part keeps the 0.5 mm raster of the zone model, and then the live check says that the small part is not refined (the review added that line: the first version was silent there, the part could read -19 % with no warning). **Frozen numbers**: none of the 17 boards has a source under 1 mm (the smallest is 6 mm), `tests/regression` at 2 mm unchanged (151 passed).
 
 ### 35.4 What was not verified here
 
-The image-potential links of the study (a correction of the Lumped near a side) are not in the program: they compensate two links, and a cooled side reads up to +8.6 % hot with them. The rule was measured on single-part boards with the part centred along the side; off-centre placements were only sampled by the random boards. The Lumped at 1 mm was not run for the sub-cell spread. The memory estimate is a fit at 4 layers and the scaling by layers is an assumption.
+The image-potential links of the study (a correction of the Lumped near a side) are not in the program: they compensate two links, and a cooled side reads up to +8.6 % hot with them. The rule was measured on single-part boards with the part centred along the side; off-centre placements were only sampled by the random boards. The memory estimate is a fit at 4 layers; the scaling by layers was measured by the review (35.3) and is on the safe side above four layers, about 7 % under at four. The near-edge numbers of the study tree were reproduced on `develop` for the sweep and the random boards (35.1, 35.2); the FVM 0.25 mm and the 3D solver checks of 35.1 were not re-run.
