@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 HERE = Path(__file__).resolve().parent
-# the harness (regress_*.py) lives next to the tests; it is also kept in research/release-regression-245/lib/ (test_harness_copy.py checks they are identical)
+# the harness (regress_*.py) lives next to the tests; it is also kept in releases/regression-harness/lib/ (test_harness_copy.py checks they are identical)
 sys.path.insert(0, str(HERE))
 
 

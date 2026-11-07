@@ -11,7 +11,7 @@
 
 Everything is measured on copies in memory (`lib/program_patch.py`, `lib/solid_patch.py`); `pcbthermal/` is untouched. What changes if it is adopted, the impact on the examples and the risks are in `INTEGRATION.md`; the text for the project documents is in `docs/`.
 
-**Program of 2.4.5 (reproduction pass).** The prototype treatments reproduce to the digit; the columns that run the program now run the adopted treatment and moved (worst error of the via effect 7.3 / 9.7 / 20.1 % -> 0.7 / 0.5 / 0.4 % at 1 / 0.5 / 0.25 mm; the sections 4.2, 4.3, 4.4, 6, 8 and 9 accordingly). Details: `research/reproduction-245/README.md`, Part B 3.2.
+**Program of 2.4.5 (reproduction pass).** The prototype treatments reproduce to the digit; the columns that run the program now run the adopted treatment and moved (worst error of the via effect 7.3 / 9.7 / 20.1 % -> 0.7 / 0.5 / 0.4 % at 1 / 0.5 / 0.25 mm; the sections 4.2, 4.3, 4.4, 6, 8 and 9 accordingly). Details: `releases/2.4.5/reproduction/README.md`, Part B 3.2.
 
 ## 1. Situation and method
 

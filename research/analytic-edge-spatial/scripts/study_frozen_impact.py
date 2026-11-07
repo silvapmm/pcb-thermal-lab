@@ -4,7 +4,7 @@
 @file study_frozen_impact.py
 @brief How many of the frozen-number boards would move if the Analytic edge treatment were the Robin basis, and by how much against the FVM?
 
-@details The 17 boards of the regression harness (research/release-regression-245/lib/regress_boards.py) at the 2 mm cell of the frozen numbers: for every board that has an edge
+@details The 17 boards of the regression harness (releases/regression-harness/lib/regress_boards.py) at the 2 mm cell of the frozen numbers: for every board that has an edge
          coefficient, no metal block (the copy in lib does not have it) and no top path (the copy does not run the split) it prints the hottest rise of the program's Analytic (edge moved to the faces), of the copy
          with the Robin basis, the FVM and the percent change the Robin basis brings to the Analytic and to its error against the FVM. A board with an outline is solved on its equivalent rectangle, as the program does.
 
@@ -17,7 +17,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
-sys.path.insert(0, os.path.join(REPO, "research", "release-regression-245", "lib"))
+sys.path.insert(0, os.path.join(REPO, "releases", "regression-harness", "lib"))
 
 import analytic_edge as ae   # noqa: E402
 import regress_boards        # noqa: E402
