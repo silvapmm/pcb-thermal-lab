@@ -112,3 +112,13 @@ def test_guide_states_the_background_image_rule():
     """
     html = GUIDE.read_text(encoding="utf-8")
     assert "View - Background image" in html and "only remove the image" in html
+
+
+def test_guide_describes_the_bom():
+    """!
+    @brief The guide says the BOM is found by its columns, that an Excel workbook is not read, that the role is a guess applied only by a button, and that a mark never ticks a part.
+    @return None
+    """
+    html = GUIDE.read_text(encoding="utf-8")
+    for word in ("BOM (bill of materials)", "found by its", "not read", "Use the BOM roles", "not fitted", "never sets a power", "assembly variant"):
+        assert word in html, word

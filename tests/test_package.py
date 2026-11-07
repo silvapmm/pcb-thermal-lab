@@ -668,7 +668,7 @@ def test_stored_sources_feed_a_reimport(window, tmp_path):
 
 def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
     """!
-    @brief The import window closes the session (and a ZIP archive with it) before any signal: the capture wrapped around `session.close` reads the files first, with their roles and kinds.
+    @brief The import window closes the session (and a ZIP archive with it) before any signal: the capture hooked on `before_close` reads the files first, with their roles and kinds.
     @param tmp_path Temporary folder.
     @return None
     """
@@ -682,13 +682,15 @@ def test_capture_reads_a_zip_before_the_session_closes(tmp_path):
         zf.writestr("parts_bom.csv", "Ref,Value\nU1,10k\n")
     session = ImportSession()
     session.set_files(zp)
-    dlg = SimpleNamespace(session=session, record=None)
+    dlg = SimpleNamespace(session=session, record=None, before_close=[])
     cap = pa.capture_on_close(dlg)
-    session.close()                                          # cancelled before a record exists: nothing is read
+    for fn in list(dlg.before_close):
+        fn(dlg, 0)                                           # cancelled before a record exists: nothing is read
     assert cap.files == []
-    session.set_files(zp)
     dlg.record = object()
-    session.close()                                          # what ImportBoardWindow.done does
+    for fn in list(dlg.before_close):
+        fn(dlg, 1)                                           # what ImportBoardWindow.done does, before it releases the session
+    session.close()
     got = {n: (k, fn) for n, _, k, fn, _ in cap.files}
     assert got["top.gtl"][0] == "gerber" and got["pos.csv"][0] == "placement" and got["parts_bom.csv"][0] == "bom"
     assert dict((n, b) for n, b, _, _, _ in cap.files)["top.gtl"] == GBR
@@ -777,6 +779,62 @@ def test_reimport_from_the_stored_files_through_the_window(window, tmp_path, mon
         assert sorted(window.doc.project.package.sources) == sorted(stored) and window.doc.project.package.sources["sources/board/F.gbr"] == f_gbr
     assert len(state["folders"]) == 3 and all(pkg.EXTRACT_PREFIX in t for t in state["folders"][1:])
     assert set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*"))) == before    # the private folder went with the window
+
+
+@pytest.mark.parametrize("ending", ["cancel", "other_files"])
+def test_the_stored_files_folder_goes_on_cancel_and_on_other_files(window, tmp_path, monkeypatch, ending):
+    """!
+    @brief Review of the before-release hook: the private folder of the stored files is removed when the window is cancelled after the offer opened it, and when the user opens
+           other files in the window (the hook runs before the worker); a cancel stores nothing new, and other files are what an Import then captures.
+    @param window The MainWindow.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @param ending "cancel" or "other_files".
+    @return None
+    """
+    import glob
+    import tempfile
+    from pcbthermal.gui import import_window as iw
+    from pcbthermal.gui import package_actions as pa
+    from tests.helpers.synthetic_board import make_board
+    src = make_board(tmp_path / "board")
+    state = {"source": src, "use_stored": True, "folders": []}
+    _drive_import(window, monkeypatch, state)
+    window.show_import()
+    out = tmp_path / "p.pcbtz"
+    assert pa.write_copy(window, str(out), True)
+    window.open_file(str(out))
+    stored = dict(window.doc.project.package.sources)
+    record = window.doc.project.imports[0].to_dict()
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*")))
+    other = make_board(tmp_path / "other")
+    (other / "F.gbr").write_bytes((other / "F.gbr").read_bytes() + b"G04 another revision*\n")
+    seen = {}
+
+    def fake_exec(dlg):
+        """!@brief Opened on the stored files by the offer; cancel, or open other files and import. @param dlg The window. @return int"""
+        dlg.confirm = lambda *a: True
+        dlg.notify = lambda title, text: pytest.fail(f"{title}: {text}")
+        seen["stored_open"] = pkg.EXTRACT_PREFIX in dlg.session.source_text
+        seen["extra"] = set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*"))) - before
+        if ending == "cancel":
+            dlg.reject()
+            return 0
+        dlg.open_path(str(other))
+        seen["after_open"] = set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*"))) - before
+        dlg.ask_reimport = lambda d: (d.radios["replace"].setChecked(True), True)[1]
+        return 1 if dlg.do_import() else 0
+    monkeypatch.setattr(iw.ImportBoardWindow, "exec", fake_exec)
+    state["source"] = None
+    window.show_import()
+    assert seen["stored_open"] and len(seen["extra"]) == 1                       # the offer opened a private folder
+    assert set(glob.glob(os.path.join(tempfile.gettempdir(), pkg.EXTRACT_PREFIX + "*"))) == before
+    if ending == "cancel":
+        assert window.doc.project.package.sources == stored and window.doc.project.imports[0].to_dict() == record
+    else:
+        assert seen["after_open"] == set()                                       # removed when the other files were opened, before the worker read them
+        got = window.doc.project.package.sources
+        assert got != stored and any(b.endswith(b"G04 another revision*\n") for b in got.values())
 
 
 def test_extraction_names_are_safe_on_every_file_system(tmp_path):

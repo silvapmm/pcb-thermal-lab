@@ -128,6 +128,20 @@ class GerberArchive:
         """
         return [n for n in self._infos if not (n.startswith("__MACOSX/") or n.rsplit("/", 1)[-1] in (".DS_Store", "Thumbs.db"))]
 
+    def read_head_bytes(self, name, n=HEAD_BYTES):
+        """!
+        @brief Read only the first bytes of a member, undecoded.
+        @param name Member name.
+        @param n    Number of bytes.
+        @return bytes
+        @throws UnsafeArchiveError If the member cannot be read.
+        """
+        try:
+            with self._zf.open(self._infos[name]) as fh:
+                return fh.read(n)
+        except _ZIP_ERRORS as exc:
+            raise UnsafeArchiveError(f"member {name!r} cannot be read: {exc}") from exc
+
     def read_head(self, name, n=HEAD_BYTES):
         """!
         @brief Read only the first bytes of a member (enough for the file attributes and the Excellon header).
@@ -135,11 +149,7 @@ class GerberArchive:
         @param n    Number of bytes.
         @return str The text, decoded leniently.
         """
-        try:
-            with self._zf.open(self._infos[name]) as fh:
-                return fh.read(n).decode("utf-8", "replace")
-        except _ZIP_ERRORS as exc:
-            raise UnsafeArchiveError(f"member {name!r} cannot be read: {exc}") from exc
+        return self.read_head_bytes(name, n).decode("utf-8", "replace")
 
     def read_text(self, name):
         """!

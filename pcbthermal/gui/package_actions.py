@@ -35,6 +35,8 @@ def kind_of(role, name):
         return "drill"
     if role == imp.PLACEMENT:
         return "placement"
+    if role == imp.BOM:
+        return "bom"
     if role == imp.COMPONENT:
         return "x3"
     if "bom" in low and low.rsplit(".", 1)[-1] in ("csv", "txt", "xls", "xlsx", "tsv", "xml", "json"):
@@ -95,22 +97,24 @@ class SourceCapture:
 
 def capture_on_close(dlg):
     """!
-    @brief Make the import window hand over its source files when it closes its session.
-    @details The window closes the session (and a ZIP archive with it) in `done()`, before any signal; this wraps `session.close` so that, when an import record exists,
-             the files are read first. A cancelled window without a record reads nothing.
-    @param dlg The ImportBoardWindow.
+    @brief Make the import window hand over its source files when it closes.
+    @details Registers a hook on `dlg.before_close` (run by `done()` before the session, and a ZIP archive with it, is released): when an import record exists the files are read
+             first. A cancelled window without a record reads nothing. The hook has no veto and shares the list with other features, so nothing is replaced.
+    @param dlg The ImportBoardWindow (or any object with `session`, `record` and a `before_close` list).
     @return SourceCapture, filled when the window closes.
     """
     cap = SourceCapture()
-    session = dlg.session
-    original = session.close
 
-    def close():
-        """!@brief Read the files of the session (once), then close it as before."""
+    def capture(window, result):
+        """!
+        @brief Read the files of the session (once).
+        @param window The import window.
+        @param result Dialog result code.
+        @return None
+        """
         if dlg.record is not None and not cap.files:
-            cap.files, cap.notes = session_files(session)
-        original()
-    session.close = close
+            cap.files, cap.notes = session_files(dlg.session)
+    dlg.before_close.append(capture)
     return cap
 
 
@@ -143,8 +147,8 @@ def offer_stored_sources(win, dlg):
     @brief Offer a re-import the files stored in the project and, if the user agrees, open them in the import window.
     @details The files are written to a private folder that lives until the window closes its session: the session reads the files lazily (the placement file and the
              paste layers when the parts are built, every file again when the capture stores them), so the folder must not be removed right after `open_path` (review: it
-             was, and the import then failed with FileNotFoundError and the stored files were lost). The removal is chained after `session.close` (and after the capture of
-             `capture_on_close`, which reads the files first), and also happens when the user opens other files in the window (`set_files` closes the session first).
+             was, and the import then failed with FileNotFoundError and the stored files were lost). The removal is a `before_release` hook of the session (it runs after the `before_close`
+             hooks, among them the capture of `capture_on_close`, which reads the files first), and also when the user opens other files in the window.
     @param win The MainWindow.
     @param dlg The ImportBoardWindow, before it is shown (after `capture_on_close`).
     @return None
@@ -167,17 +171,16 @@ def offer_stored_sources(win, dlg):
             pkg.remove_extracted(folder)
         QMessageBox.warning(win, "Cannot use the stored files", str(exc))
         return
-    session = dlg.session
-    previous = session.close
 
-    def close():
-        """!@brief Close the session as before (the capture reads the files first), then remove the private folder of the stored files."""
-        try:
-            previous()
-        finally:
-            pkg.remove_extracted(folder)
-            session.close = previous                         # once removed, a later close (a new set_files) is the plain one again
-    session.close = close
+    def remove_folder(session, reason):
+        """!
+        @brief Remove the private folder of the stored files when the session is released (window closed, or other files opened).
+        @param session The ImportSession.
+        @param reason "close" or "new_files".
+        @return None
+        """
+        pkg.remove_extracted(folder)
+    dlg.session.before_release.append(remove_folder)
 
 
 class ExportPackageDialog(QDialog):
