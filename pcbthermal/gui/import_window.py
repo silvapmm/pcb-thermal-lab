@@ -917,7 +917,7 @@ class Step2Page(QWidget):
         fl.addWidget(self.frame_text)
         row = QHBoxLayout()
         self.accept_btn, self.reject_btn = QPushButton("Move the placement file by the offset"), QPushButton("Keep the file as it is")
-        self.accept_btn.setToolTip("Shift the placement file to the proposed offset.")
+        self.accept_btn.setToolTip("Shift the placement file by the proposed offset.")
         self.reject_btn.setToolTip("Use the positions as written.")
         self.accept_btn.clicked.connect(lambda: self._answer(True))
         self.reject_btn.clicked.connect(lambda: self._answer(False))

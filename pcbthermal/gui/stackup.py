@@ -401,7 +401,7 @@ class StackupPage(QWidget):
         self.scale.addItem("True proportions", True)
         self.scale.setToolTip("True proportions draw each layer with its real thickness ratio (35 µm copper next to 1.5 mm of laminate is a thin line).")
         self.typical = QPushButton("Load typical stack-up")
-        self.typical.setToolTip("Load a typical stack-up for this number of layers.")
+        self.typical.setToolTip("Replace the stack-up by a typical one for this number of layers (undoable).")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
         self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)

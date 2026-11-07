@@ -1288,7 +1288,7 @@ class BoardView(QGraphicsView):
                 add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
                 k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
                 dele = menu.addAction("Delete this vertex")
-                dele.setToolTip("Removes the vertex under the cursor; a polygon keeps at least three.")
+                dele.setToolTip("Delete the vertex under the cursor (a polygon keeps at least three).")
                 dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
                 dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
                 menu.addSeparator()

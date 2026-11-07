@@ -469,7 +469,7 @@ class MainWindow(QMainWindow):
         self.a_save = self._act("Save", self.save_file, QKeySequence.Save)
         self.a_saveas = self._act("Save as…", self.save_file_as, QKeySequence.SaveAs)
         self.a_export_pkg = self._act("Export package…", lambda: package_actions.export_package(self),
-                                      tip="Save the project as one .pcbtz package")
+                                      tip="Save a copy of the project as one .pcbtz package")
         self.a_ex_ref = self._act("Reference board (100 × 100 mm, 2 layers)", lambda: self._load_problem(reference_problem(), "reference"))
         self.a_ex_4l = self._act("Example 4-layer board (vias, heatsink, 2 heaters)", lambda: self._load_problem(example_board(), "example-4layer"))
         self.a_export_all = self._act("Export results to a folder…", self.export_results)
@@ -520,7 +520,7 @@ class MainWindow(QMainWindow):
                                 tip="Find a part's power from a measured temperature")
         self.a_import = self._act("Import Gerber board…", self.show_import,
                                   tip="New project from Gerber, drill and placement files")
-        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation")
+        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
                                  tip="Edit the libraries and the defaults")

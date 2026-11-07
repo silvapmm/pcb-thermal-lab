@@ -286,7 +286,7 @@ class PreferencesDialog(QDialog):
         add = QPushButton("Add row")
         add.setToolTip("Add an entry at the end: give it a name and its values.")
         rem = QPushButton("Delete row")
-        rem.setToolTip("Remove the selected entry from the list (a shipped entry comes back with Reset).")
+        rem.setToolTip("Remove the selected entry (Reset brings a shipped one back).")
         add.clicked.connect(lambda _c=False, lib=lib: self._add_row(lib))
         rem.clicked.connect(lambda _c=False, lib=lib: self._delete_row(lib))
         row.addWidget(add)
