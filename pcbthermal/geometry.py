@@ -721,13 +721,18 @@ def face_apertures(poly, nx, ny, dx, dy):
     return ax, ay
 
 
-def signed_distance_to_outline(poly, x, y, chunk=2000):
+DISTANCE_BLOCK = 1_000_000     # Point-side pairs per block of signed_distance_to_outline: about 8 MB per temporary array, whatever the size of the outline
+
+
+def signed_distance_to_outline(poly, x, y, chunk=None):
     """!
     @brief Signed distance from points to the closest point of a polygon outline (positive inside the polygon, negative outside).
+    @details Brute force over the sides, in blocks of points: the block holds at most DISTANCE_BLOCK point-side pairs, so the memory does not grow with the outline
+             (a fixed block of 2000 points took 1.4 GB on an outline of 20 000 sides, outside the memory guard's estimate of the solve).
     @param poly Closed polygon (n, 2) in metres.
     @param x X of the points in metres (1-D array).
     @param y Y of the points in metres (1-D array).
-    @param chunk Points handled at a time (bounds the block of distances to chunk times the number of sides).
+    @param chunk Points handled at a time (None: DISTANCE_BLOCK over the number of sides, at least 1).
     @return Array of distances in metres.
     """
     p = np.asarray(poly, dtype=float)
@@ -735,6 +740,8 @@ def signed_distance_to_outline(poly, x, y, chunk=2000):
     ab = b - a
     ll = np.maximum((ab ** 2).sum(axis=1), 1e-300)
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    if chunk is None:
+        chunk = max(1, DISTANCE_BLOCK // max(len(p), 1))
     out = np.empty(len(x))
     for s in range(0, len(x), chunk):
         px, py = x[s:s + chunk, None], y[s:s + chunk, None]

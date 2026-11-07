@@ -303,3 +303,23 @@ def test_signed_distance_to_outline_of_a_square():
     sq = [[0, 0], [10, 0], [10, 10], [0, 10]]
     d = geometry.signed_distance_to_outline(sq, np.array([5.0, 1.0, -3.0, 13.0]), np.array([5.0, 5.0, 5.0, 14.0]))
     assert d == pytest.approx([5.0, 1.0, -3.0, -math.hypot(3.0, 4.0)])
+
+
+def test_signed_distance_memory_is_bounded_on_a_long_outline():
+    """!
+    @brief An outline of 20 000 sides and 2000 points: the distances need less than 100 MB of temporary arrays (a fixed block of 2000 points took 1.4 GB, review) and equal
+           those of a block of one point.
+    """
+    import tracemalloc
+    a = np.linspace(0, 2 * np.pi, 20000, endpoint=False)
+    r = 20e-3 * (1 + 0.05 * np.sin(37 * a))
+    poly = np.c_[25e-3 + r * np.cos(a), 25e-3 + r * np.sin(a)]
+    th = np.linspace(0, 2 * np.pi, 2000)
+    x, y = 25e-3 + 20e-3 * np.cos(th), 25e-3 + 20e-3 * np.sin(th)
+    tracemalloc.start()
+    d = geometry.signed_distance_to_outline(poly, x, y)
+    peak_bytes = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak_bytes < 100e6, peak_bytes
+    sub = slice(0, 2000, 97)
+    assert np.array_equal(d[sub], geometry.signed_distance_to_outline(poly, x[sub], y[sub], chunk=1))

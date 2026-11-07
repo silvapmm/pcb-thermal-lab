@@ -5,33 +5,6 @@
  "format": 1,
  "item": "3D solid cut-cell links (aperture) and edge film at the closest outline point",
  "records": {
-  "example_cut_to_T|solid3d|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -2.777576148880392e-13,
-    "layer_mean[0]": 58.857817903500546,
-    "layer_mean[1]": 58.25929648866432,
-    "layer_mean[2]": 57.55752957361283,
-    "layer_mean[3]": 56.770679877109416,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.83785558620905,
-    "part:U1:t_max": 94.83785558620905,
-    "part:U1:t_mean": 88.84145632726182,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 100.26603654290646,
-    "part:U2:t_max": 82.26603654290646,
-    "part:U2:t_mean": 79.0583192979385,
-    "power_in": 5.5,
-    "t_max": 94.83785558620905,
-    "t_mean": 57.86133096072178,
-    "t_min": 47.78133972879681,
-    "t_sum": 1581836.7862174925,
-    "t_sumsq": 85672915.650341,
-    "unknowns": 128000
-   }
-  },
   "example_cut_to_T|solid3d|2": {
    "class": "moved",
    "metrics": {
