@@ -186,8 +186,8 @@ class BoardPanel(QWidget):
         self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
         self.orientation.addItem("Vertical (on its edge)", "vertical")
         self.orientation.setToolTip("How the board is mounted (computed heat transfer only). Horizontal: layer 1 is the top face and looks up, the last layer looks "
-                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
-                                    "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
+                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: Nu = 0.54 Ra^(1/4) "
+                                    "against 0.475 Ra^(1/5) in the natural convection correlations). Vertical: the plate correlation with the board height on both faces. "
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
         self.natural_form = QComboBox()
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
