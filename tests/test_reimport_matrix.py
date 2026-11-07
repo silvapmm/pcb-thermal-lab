@@ -177,6 +177,18 @@ def variant(base, tmp_path, name, **edits):
     return d
 
 
+def swap_designators(text):
+    """!
+    @brief Put the designators U1, Q1 and D1 of the synthetic set on each other's parts (paste `TO.C` attributes and placement rows), so that the names are the same and the parts
+           are not: another board for the re-import.
+    @param text Content of the paste or placement file.
+    @return str
+    """
+    for a, b in (("U1", "@1"), ("Q1", "U1"), ("D1", "Q1"), ("@1", "D1")):
+        text = text.replace(f"TO.C,{a}*", f"TO.C,{b}*").replace(f'"{a}"', f'"{b}"')   # not the aperture codes D10, D11
+    return text
+
+
 # The clear window of the top copper gets a corner pulled out: the copper really changes (a pad flashed on the pour would not)
 COPPER_EDIT = ("X10000000Y20000000D01*\nX8000000Y20000000D01", "X10000000Y20000000D01*\nX12000000Y22000000D01*\nX8000000Y20000000D01")
 
@@ -241,6 +253,39 @@ def test_changed_copper_is_taken_by_replace_and_update_and_undone_in_one_step(ap
     assert snapshot(app.doc) == before
     app.doc.stack.redo()
     assert snapshot(app.doc) == after
+
+
+@pytest.mark.parametrize("mode", ["replace", "update"])
+def test_undo_of_a_reimport_restores_the_whole_record_and_a_second_reimport_matches_the_first(app, base, tmp_path, mode):
+    """!
+    @brief Guard (a reviewer read in the code that undo kept the new stored sources): the project holds no source bytes, only the record (file names,
+           sizes, hashes), the packed masks and the unknown keys, and Document._restore rebuilds all of them from the snapshot.
+    @details After Undo the record, the masks, the unknown top-level keys and the unknown keys of the record are the old ones, and the same re-import done
+             again gives exactly the state the first one gave, so nothing of the new files stayed behind.
+    @param app The application driver.
+    @param base Folder of the first import.
+    @param tmp_path Temporary folder.
+    @param mode Re-import command.
+    @return None.
+    """
+    app.run(base, "replace", powers={"U1": 3.0})
+    # Keys a later version wrote: they must survive a save and an undo, on the project and on its record
+    app.doc.project.extra["future_key"] = {"a": 1}
+    app.doc.project.imports[0].extra["record_future"] = "x"
+    before = app.doc.snapshot()
+    new = variant(base, tmp_path, "rev", F_gbr=COPPER_EDIT)
+    app.run(new, mode)
+    first = app.doc.snapshot()
+    assert first != before
+    app.doc.stack.undo()
+    assert app.doc.snapshot() == before
+    assert app.doc.project.extra == {"future_key": {"a": 1}}
+    assert app.doc.project.imports[0].extra == {"record_future": "x"}
+    assert [f.sha256 for f in app.doc.project.imports[0].files] == [f["sha256"] for f in before["imports"][0]["files"]]
+    app.run(new, mode)
+    assert app.doc.snapshot() == first
+    app.doc.stack.undo()
+    assert app.doc.snapshot() == before
 
 
 def test_add_never_takes_copper_and_the_message_says_which_file_was_left(app, base, tmp_path):
@@ -627,6 +672,10 @@ def test_a_different_board_makes_cancel_the_default_button(app, base, tmp_path):
     app.run(base, "replace", powers={"U1": 3.0})
     other = make_board(tmp_path / "other", inner=0)
     (other / "edge.gbr").write_text((other / "edge.gbr").read_text().replace("X40000000", "X80000000"))
+    # Review: the same parts at the same places make a grown outline a revision, so the other board also has its designators on each other's pads
+    for f in ("pasteF.gbr", "pos.csv"):
+        text = (other / f).read_text()
+        (other / f).write_text(swap_designators(text))
     app.run(other, "replace", cancel="dialog")
     dlg = app.dialogs[-1]
     assert dlg.different and "this looks like a different board" in dlg.warn.text().lower()

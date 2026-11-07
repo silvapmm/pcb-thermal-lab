@@ -261,6 +261,11 @@ def main_import(out_dir, board_dir):
                 if q.designator == "C1":
                     q.polygon_mm = [[x + 0.8, y] for x, y in q.polygon_mm]
                     q.from_file["position_mm"] = [q.from_file["position_mm"][0] + 0.8, q.from_file["position_mm"][1]] if q.from_file.get("position_mm") else None
+            # A layout revision also changes files: the stored copy of the top paste layer is another version (other checksum), so the dialog says that some files differ
+            for f in old.files:
+                if "paste" in (f.function or "").lower():
+                    f.sha256 = "0" * 64
+                    break
             w2 = ImportBoardWindow(win, existing=old)
             w2.confirm = lambda *a: True
             w2.notify = lambda *a: None
@@ -488,9 +493,12 @@ def main_views(out_dir, board_dir):
     old.box_mm = [0.0, 0.0, 2 * (old.box_mm[2] - old.box_mm[0]), 1.5 * (old.box_mm[3] - old.box_mm[1])]
     for i, f in enumerate(old.files):
         f.name, f.sha256 = f"other_{i}.gbr", f"{i:064x}"
+    # The parts of another board sit elsewhere (the same parts at the same places make the files a revision of the same board)
+    for p in old.parts:
+        p.polygon_mm = [[x + 20.0, y + 15.0] for x, y in p.polygon_mm]
     w1.session.build_problem()
     rd = ReimportDialog(w1.session, old, w1)
-    rd.resize(900, 620)
+    rd.resize(900, 700)
     rd.show()
     save(rd, "import_reimport_different.png")
     rd.close()

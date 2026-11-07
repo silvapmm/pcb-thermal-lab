@@ -441,6 +441,17 @@ class ImportSession:
             self._stored_values[p.designator] = self._step2_fields(p)
         return len(self._stored_values)
 
+    def take_file_values(self) -> int:
+        """!
+        @brief For files that look like ANOTHER board: step 2 starts from the values of the files, and they become the reference against which a change in step 2 is the user's.
+        @details Review: step 2 of another board skipped `take_stored_parts` and left `_stored_values` empty (or stale from an earlier set of files of the same window), so with
+                 the box 'Carry the parts of the stored import over by designator' ticked a power typed in step 2 was dropped and the stored power kept (U1 typed 7 W read 3 W).
+                 With the values of the files as the reference, a value changed in step 2 wins as on the same board.
+        @return int Number of parts recorded.
+        """
+        self._stored_values = {p.designator: self._step2_fields(p) for p in self.parts() if not parts_mod._positional(p)}
+        return len(self._stored_values)
+
     def step2_edits(self) -> dict:
         """!
         @brief The parts of a re-import whose step-2 fields the user changed from the stored values (`take_stored_parts`).
@@ -786,10 +797,15 @@ class ImportSession:
             lay = self._layer(f)
             if lay is not None:
                 paste["top" if f.role == PASTE[0] else "bottom"] = lay
-        placement, comps = None, []
+        placement, comps, pnotes = None, [], []
         for f in self.used(PLACEMENT):
+            pinfo = {}
             try:
-                placement = parts_mod.parse_placement(f.text(), f.name)
+                placement = parts_mod.parse_placement(f.text(), f.name, pinfo)
+                if pinfo.get("preamble_lines"):
+                    # Said in plain words so that nobody wonders why the first rows of the file are not parts
+                    pnotes.append(f"{f.name}: the header row of the placement file is on line {pinfo['header_line']}; the {pinfo['preamble_lines']} lines of text above it "
+                                  f"(title, date, units) were skipped and the unit is {pinfo['unit']}")
             except ValueError as exc:
                 f.error = str(exc)
         for f in self.used(COMPONENT):
@@ -805,6 +821,8 @@ class ImportSession:
                 f.error = str(exc)
             res = parts_mod.PartsResult()
             res.info = {"warnings": [str(exc)], "frame": None, "counts": {}}
+        res.info.setdefault("warnings", []).extend(pnotes)
+        res.info["placement_read"] = placement is not None
         new = res.parts + res.listed
         old = self._parts + self._listed
         merged = parts_mod.merge_parts(old, new, res.shapes, openings=res.openings).parts if old else new
@@ -1146,7 +1164,8 @@ class ImportSession:
                        f"{fr['best'] * 100:.0f} % of the parts on their openings instead of {fr['given'] * 100:.0f} %")
         if fr and fr.get("misfit"):
             out.append("The placement file and the Gerber files do not fit (another origin beyond 10 mm, a rotation, a mirror or a unit): the parts matched by position are not reliable")
-        if self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
+        # Only when a placement file was actually read: a refused file (its reason is in the notes of the files) matched nothing by position
+        if info.get("placement_read") and self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
             n = sum(1 for p in self.parts() if p.from_file.get("source") == "placement by position")
             out.append(f"The paste layer names no parts, so {n} parts were matched to the placement file by position: each opening went to the part whose pad outline (from its package name, "
                        f"grown by 0.3 mm) contains it. Usually right; check in the preview that the parts you give a power sit on their own pads")
@@ -1414,27 +1433,110 @@ class ImportSession:
         return item["function"] if item["function"] in UNIQUE else f"{item['function']}: {(item['new'] or item['old']).name}"
 
     @staticmethod
+    def _parts_in_place(old_parts, new_parts, old_box, new_box, tol_mm: float = 1.0) -> tuple:
+        """!
+        @brief How many parts of a stored import sit, under the same designator, where a part of the new files sits: the strongest sign of a revision of the same board.
+        @details The centre of the polygon of each part with a polygon is compared in the Gerber frame of the files and also after the change of the board box (a revision may move
+                 the origin of the export); the better of the two counts is taken.
+        @param old_parts Stored ImportPart list.
+        @param new_parts ImportPart list of the new files.
+        @param old_box Stored box [x0, y0, x1, y1] in mm (or empty).
+        @param new_box Box of the new files in mm (or empty).
+        @param tol_mm Largest distance in mm between the two centres of a part that still counts as the same place.
+        @return tuple (designators in both with a polygon, of them at the same place).
+        """
+        def centres(parts):
+            """!
+            @brief Centre of the bounding box of the polygon of every part that has one (the box of the hull and of the pads is the same, so a shape the user changed
+                   between hull, box and pads moves it little).
+            @param parts ImportPart list.
+            @return dict designator -> (x, y) in mm.
+            """
+            out = {}
+            for p in parts:
+                if p.polygon_mm and not p.from_file.get("orphan"):
+                    a = np.asarray(p.polygon_mm, float)
+                    out[p.designator] = (a.min(axis=0) + a.max(axis=0)) / 2
+            return out
+        co, cn = centres(old_parts), centres(new_parts)
+        common = sorted(set(co) & set(cn))
+        if not common:
+            return 0, 0
+        shifts = [np.zeros(2)]
+        if len(old_box) == 4 and len(new_box) == 4:
+            shifts.append(np.array([new_box[0] - old_box[0], new_box[1] - old_box[1]], float))
+        best = max(sum(1 for d in common if np.hypot(*(cn[d] - co[d] - s)) <= tol_mm) for s in shifts)
+        return len(common), best
+
+    @staticmethod
+    def _same_core(old_box, new_box, old_files, new_files, tol: float = 0.05, old_parts=(), new_parts=()) -> tuple:
+        """!
+        @brief The rule that tells a revision of the same board from another board.
+        @details When at least three designators with a heat-source polygon are in both sets, the parts decide: the board is the SAME when at least half of them sit at the same place
+                 (within 1 mm), whatever the files and the outline say, and DIFFERENT otherwise. Without that evidence the board is DIFFERENT when the width or the height of the
+                 outline box differs by more than `tol` of the stored one, or when no new file shares its content or its base name with a stored one (names compared without the
+                 folders of an archive and without case). Review: the first rule called a board different when no file was byte-identical, but every
+                 CAD export stamps the date in the files, so a plain re-export with one moved part (the placement file changes too) dropped the powers of the revision; a set renamed
+                 or re-zipped into a folder was taken for another board in the same way. Parts at the same place (three or more, at least half) make it the same board whatever
+                 the files are called.
+        @param old_box Stored box [x0, y0, x1, y1] in mm (or empty).
+        @param new_box Box of the new files in mm (or empty).
+        @param old_files Stored ImportFile list.
+        @param new_files New ImportFile list.
+        @param tol Relative difference of width or height accepted.
+        @param old_parts Stored ImportPart list (empty: the parts are not used).
+        @param new_parts ImportPart list of the new files (empty: the parts are not used).
+        @return tuple (same bool, reasons list of str).
+        """
+        reasons = []
+        n_common, n_place = ImportSession._parts_in_place(old_parts, new_parts, old_box, new_box)
+        in_place = n_common >= 3 and 2 * n_place >= n_common
+        if in_place:
+            return True, []                                    # the same parts at the same places: a revision (a grown outline, renamed or re-exported files)
+        if len(old_box) == 4 and len(new_box) == 4:
+            ow, oh = old_box[2] - old_box[0], old_box[3] - old_box[1]
+            nw, nh = new_box[2] - new_box[0], new_box[3] - new_box[1]
+            if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
+                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
+        def base(name):
+            """!
+            @brief File name without the folders of an archive, in lower case.
+            @param name Stored file name.
+            @return str
+            """
+            return name.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        shared_content = bool({f.sha256 for f in old_files} & {f.sha256 for f in new_files})
+        shared_name = bool({base(f.name) for f in old_files} & {base(f.name) for f in new_files})
+        if old_files and new_files and not shared_content and not shared_name:
+            reasons.append("no file shares its name or its content with a stored one")
+        if n_common >= 3:
+            reasons.append(f"of the {n_common} parts with a stored designator only {n_place} sit at the same place")
+        return not reasons, reasons
+
+    @staticmethod
     def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
         """!
-        @brief Decide whether new files look like the same board as a stored import (outline box within 5 %, a shared file name or hash).
+        @brief Decide whether new files look like the same board as a stored import (see `_same_core`: the outline box, the files by name or content, the parts by place).
         @param old Stored import.
         @param new Record of the new files.
         @param tol Relative difference of width or height accepted.
         @return tuple (same bool, reasons list of str).
         """
-        reasons = []
-        if len(old.box_mm) == 4 and len(new.box_mm) == 4:
-            ow, oh = old.box_mm[2] - old.box_mm[0], old.box_mm[3] - old.box_mm[1]
-            nw, nh = new.box_mm[2] - new.box_mm[0], new.box_mm[3] - new.box_mm[1]
-            if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
-                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
-        if old.files and new.files and not ({f.sha256 for f in old.files} & {f.sha256 for f in new.files}):
-            reasons.append("none of the files is byte-identical to a stored one")
-        if not ({f.name for f in old.files} & {f.name for f in new.files}):
-            reasons.append("no file name in common")
-        return not reasons, reasons
+        return ImportSession._same_core(list(old.box_mm), list(new.box_mm), old.files, new.files, tol, old.parts, new.parts)
 
-    def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None) -> dict:
+    def looks_different(self, stored: ImportRecord) -> bool:
+        """!
+        @brief The same test as `same_board`, made before the import is built (from the files in use, the box of the board read by `load` and the parts of step 2), so that step 2
+               can leave the stored parts out for another board.
+        @param stored The stored ImportRecord.
+        @return bool True when the files look like another board; False when they look like a revision or nothing can be told yet.
+        """
+        b = self.board()
+        if b is None or not self.files:
+            return False
+        return not self._same_core(list(stored.box_mm), list(b.box), stored.files, self.import_files(), 0.05, stored.parts, self.parts())[0]
+
+    def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None, carry: bool = True) -> dict:
         """!
         @brief Merge the new import (`build_problem` was just run) into the stored record by the chosen command.
         @details "replace" and "update": copper, drills and outline come from the new files; a part with the same designator keeps its power and edits, a part that left the files is an
@@ -1447,6 +1549,7 @@ class ImportSession:
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
         @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
+        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files.
         @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators), `typed` (designators whose power, tick, Tj max
                 or role the user changed in step 2: these values win over the stored ones, see `take_stored_parts`).
         """
@@ -1481,6 +1584,13 @@ class ImportSession:
             changes += [c for c in res.changes if "orphan" not in c] if rematch else [f"{p.designator}: added" for p in parts if p.designator not in stored]
             typed, lines = self._apply_step2(parts)
             return {"record": rec, "changes": lines + self._drop_kept_power(changes, typed), "parts": parts, "orphans": [], "typed": typed}
+        if not carry:
+            # Another board: a designator of the old board names an unrelated part here, so nothing is matched, nothing is orphaned and the powers start from the files
+            parts = copy.deepcopy(self.parts())
+            typed, lines = self._apply_step2(parts)
+            rec = copy.deepcopy(new)
+            rec.parts = parts
+            return {"record": rec, "changes": lines + ["another board: the stored parts were not carried over"], "parts": parts, "orphans": [], "typed": typed}
         res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
         typed, lines = self._apply_step2(res.parts)
         rec = copy.deepcopy(new)
@@ -1616,7 +1726,7 @@ def _same_polygon(a, b, tol=1e-7) -> bool:
     return a.shape == b.shape and bool(np.all(np.abs(a - b) <= tol))
 
 
-def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord, typed=()) -> List[str]:
+def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord, typed=(), carry_parts: bool = True) -> List[str]:
     """!
     @brief Bring what the user did in the editor after an import into the Problem of a Replace or Update, so that a re-import loses nothing the files do not give.
     @details The files give the copper, the outline, the vias and the parts; the user gives the rest. Kept, in the Gerber frame (moved by the change of the board box):
@@ -1633,6 +1743,7 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     @param new_record The merged ImportRecord; its parts are changed in place.
     @param typed Designators whose power, heat-source tick, Tj max and role the user changed in step 2 of the re-import (`ImportSession.step2_edits`): for these the values of the
                  merged record win over the editor's (the other fields of the heater are still the editor's).
+    @param carry_parts False for another board: the heaters of the stored parts are dropped (they name unrelated parts), only what the user drew by hand is kept.
     @return list of text lines (what was kept), for the status line and the record warnings.
     """
     ob, nb = list(old_record.box_mm), list(new_record.box_mm)
@@ -1664,6 +1775,8 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
     seen, edited, drawn = set(), [], []
     for h in old_problem.heaters:
         des = h.name if h.name in part_poly else next((d for d, poly in part_poly.items() if _same_polygon(poly, h.polygon)), None)
+        if des is not None and not carry_parts:
+            continue                                                       # a heater of the other board's part: it has no meaning here
         if des is None:
             q = copy.deepcopy(h)
             q.polygon, q.layer = np.asarray(h.polygon, float) + shift, layer_of(h.layer)
@@ -1689,7 +1802,7 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
             if h.role:
                 p.edits["role"] = "Source" if h.role == "source" else "Component"
     # 2. An imported heat source whose heater the user deleted stays deleted
-    deleted = [p.designator for p in old_record.parts if p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen and p.designator not in typed]
+    deleted = [p.designator for p in old_record.parts if carry_parts and p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen and p.designator not in typed]
     if deleted:
         new_problem.heaters = [h for h in new_problem.heaters if h.name not in deleted]
         for d in deleted:

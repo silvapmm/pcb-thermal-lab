@@ -563,7 +563,7 @@ def test_the_reimport_dialog_asks_and_the_window_returns_the_merge(window, board
     assert {p.designator: p.power for p in w2.record.parts}["U1"] == 2.0           # the update keeps the stored power, the new session has none
     dlg = ReimportDialog(w2.session, old)
     qtbot.addWidget(dlg)
-    assert set(dlg.radios) == {"replace", "update", "add"} and dlg.radios["replace"].isChecked()
+    assert set(dlg.radios) == {"replace", "update", "add", "new"} and dlg.radios["replace"].isChecked()
     dlg.radios["add"].setChecked(True)
     assert dlg.mode == "add" and dlg.table.columnCount() == 4 and dlg.table.rowCount() >= 1
     assert dlg.file_choice() == {} and dlg.remove_refs() == []

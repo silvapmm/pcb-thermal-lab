@@ -17,9 +17,9 @@ import numpy as np
 
 # Keys of the native structure by the kind of value they must hold. "num" is a finite number (int or float, not a bool), "num?" a number or null
 # (null has a meaning: `h_side` null is an insulated edge, which the program writes itself), "int" an integer-valued number, "str" a text,
-# "bool" a boolean, "poly" a list of pairs of numbers, "numlist" a list of numbers.
+# "coord" a finite length in mm of at most MAX_COORD_MM, "bool" a boolean, "poly" a list of pairs of numbers, "numlist" a list of numbers.
 BOARD_KEYS = {
-    "width_mm": "num", "height_mm": "num", "thickness_mm": "num", "layers": "int", "ambient_c": "num", "h_top": "num", "h_bottom": "num", "h_side": "num?",
+    "width_mm": "coord", "height_mm": "coord", "thickness_mm": "num", "layers": "int", "ambient_c": "num", "h_top": "num", "h_bottom": "num", "h_side": "num?",
     "via_plating_mm": "num", "h_mode": "str", "emissivity_top": "num", "emissivity_bottom": "num", "air_speed_m_per_s": "num", "orientation": "str",
     "h_calibration": "num", "template_inner_oz": "num", "natural_form": "str", "k_copper": "num", "k_fr4_through": "num", "k_fr4_inplane": "num",
     "rho_copper": "num", "cp_copper": "num", "rho_fr4": "num", "cp_fr4": "num"}
@@ -30,12 +30,18 @@ HEATER_KEYS = {
     "psi_jb_k_per_w": "num", "power_tc_per_k": "num", "theta_jc_top_k_per_w": "num", "theta_sa_k_per_w": "num", "interface_kcm2_per_w": "num",
     "contact_area_mm2": "num", "pad_thickness_mm": "num", "pad_k_w_per_mk": "num", "role": "str", "base_interface_kcm2_per_w": "num",
     "base_pad_thickness_mm": "num", "base_pad_k_w_per_mk": "num", "family": "str", "heatsink": "str"}
-VIA_KEYS = {"x_mm": "num", "y_mm": "num", "diameter_mm": "num", "filled": "bool", "name": "str", "fill_k_w_per_mk": "num", "fill": "str"}
+VIA_KEYS = {"x_mm": "coord", "y_mm": "coord", "diameter_mm": "num", "filled": "bool", "name": "str", "fill_k_w_per_mk": "num", "fill": "str"}
 HEATSINK_KEYS = {
     "layer": "int", "polygon_mm": "poly", "h_extra": "num", "name": "str", "thickness_mm": "num", "k_w_per_mk": "num", "rho_cp_j_per_m3k": "num",
     "contact_r_m2k_per_w": "num", "fin_height_mm": "num", "fin_thickness_mm": "num", "fin_pitch_mm": "num", "pad_thickness_mm": "num", "pad_k_w_per_mk": "num"}
 SQUARE_KEYS = {"type": "str", "p_on_w": "num", "p_off_w": "num", "period_s": "num", "duty": "num"}
 TABLE_KEYS = {"type": "str", "times_s": "numlist", "power_w": "numlist", "repeat": "bool"}
+# Largest length accepted in a file, in mm (1 km): beyond it a coordinate is not a board, and the conversion to metres or the scaling of a window (x 1000
+# back to mm on saving) can overflow to infinity, which JSON cannot hold, so a project that opened could not be reopened after being saved
+MAX_COORD_MM = 1e6
+# Largest magnitude of any other number (a conductivity, a power, a coefficient): far beyond physics, far below the float range, so products stay finite
+MAX_NUMBER = 1e100
+# The messages of check_value write these two bounds as text ("1e6, 1 km", "1e100"): Python's '{:g}' printed '1e+06', which is not how the program writes numbers; change both together
 REQUIRED = {"board": ("width_mm", "height_mm"), "zones": ("layer", "polygon_mm"), "heaters": ("layer", "polygon_mm", "power_w"), "vias": ("x_mm", "y_mm"),
             "heatsinks": ("layer", "polygon_mm", "h_extra")}
 
@@ -87,6 +93,15 @@ def _is_num(v):
         return False
 
 
+def _is_pair(p):
+    """!
+    @brief True for a point: two finite lengths in mm, each of magnitude at most MAX_COORD_MM.
+    @param p Value.
+    @return bool.
+    """
+    return isinstance(p, (list, tuple)) and len(p) == 2 and all(_is_num(x) and abs(float(x)) <= MAX_COORD_MM for x in p)
+
+
 def check_value(path, value, kind):
     """!
     @brief Check one value against its kind.
@@ -98,11 +113,14 @@ def check_value(path, value, kind):
     """
     ok = True
     if kind == "num":
-        ok = _is_num(value)
-        what = "a number"
+        ok = _is_num(value) and abs(float(value)) <= MAX_NUMBER
+        what = "a number of magnitude at most 1e100"
+    elif kind == "coord":
+        ok = _is_num(value) and abs(float(value)) <= MAX_COORD_MM
+        what = "a number, a length in mm of magnitude at most 1e6 (1 km)"
     elif kind == "num?":
-        ok = value is None or _is_num(value)
-        what = "a number or null"
+        ok = value is None or (_is_num(value) and abs(float(value)) <= MAX_NUMBER)
+        what = "a number of magnitude at most 1e100 or null"
     elif kind == "int":
         ok = _is_num(value) and float(value).is_integer() and abs(value) < 1e9
         what = "an integer"
@@ -113,15 +131,15 @@ def check_value(path, value, kind):
         ok = isinstance(value, (bool, np.bool_))
         what = "true or false"
     elif kind == "numlist":
-        ok = isinstance(value, list) and all(_is_num(x) for x in value)
+        ok = isinstance(value, list) and all(_is_num(x) and abs(float(x)) <= MAX_NUMBER for x in value)
         what = "a list of numbers"
     else:                                               # "poly"
-        ok = isinstance(value, list) and all(isinstance(p, (list, tuple)) and len(p) == 2 and all(_is_num(x) for x in p) for p in value)
-        what = "a list of pairs of numbers"
+        ok = isinstance(value, list) and all(_is_pair(p) for p in value)
+        what = "a list of pairs of lengths in mm (magnitude at most 1e6, 1 km)"
         if not ok and isinstance(value, list):          # Name the offending point, as the maintainer's example asks
             for i, p in enumerate(value):
-                if not (isinstance(p, (list, tuple)) and len(p) == 2 and all(_is_num(x) for x in p)):
-                    raise ProjectFormatError(f"{path}[{i}]: expected a pair of numbers, got {describe(p)}")
+                if not _is_pair(p):
+                    raise ProjectFormatError(f"{path}[{i}]: expected a pair of finite lengths in mm (magnitude at most 1e6, 1 km), got {describe(p)}")
     if not ok:
         raise ProjectFormatError(f"{path}: expected {what}, got {describe(value)}")
 

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Extra packages of the Gerber import research (not needed by the program itself).
 # The studies run with NumPy and SciPy only (the independent reader native_gerber.py); gerbonara and shapely are only the cross-check route.
 # Install in the research environment, which is kept apart from the program's .venv (from the repository root):

@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Runs the S1 studies and the board statistics (from the repository root or the worktree root); outputs in research/via-real-board/out/ (git-ignored).
 PY=${PY:-/Volumes/SSD/PROJETOS/pcb-thermal-lab/.venv/bin/python}
 D=research/via-real-board

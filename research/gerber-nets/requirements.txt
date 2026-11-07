@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # NumPy and SciPy only; the program's own dependencies (see the repository requirements.txt) for the studies that run pcbthermal; matplotlib for the figures.
 # Same virtual environment as research/gerber-import (see its requirements.txt).
 numpy>=1.24

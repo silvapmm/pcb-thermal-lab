@@ -277,8 +277,13 @@ def save_project(path, project):
     @param path File path.
     @param project The Project.
     @return str or None: the path of the backup copy made by this save, None when none was needed.
+    @throws ValueError If the project holds a non-finite number (nothing is written).
     """
-    text = json.dumps(project_to_dict(project), indent=2)
+    try:
+        # allow_nan=False: Python would write Infinity or NaN, which is not JSON and which this program then refuses to read, so the project would be lost
+        text = json.dumps(project_to_dict(project), indent=2, allow_nan=False)
+    except ValueError as exc:
+        raise ValueError(f"the project cannot be saved because it holds a value that is not a finite number ({exc}); the file on disk was not touched") from exc
     target = os.path.realpath(os.fspath(path))
     backup = None
     new = FORMAT_2 if project.imports else FORMAT_1

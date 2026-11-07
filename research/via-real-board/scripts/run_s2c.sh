@@ -1,4 +1,6 @@
 #!/bin/sh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # Third round: the 3D solid on windows and the rows of docs/validation.md (run after run_s2b.sh, one process at a time).
 PY=${PY:-/Volumes/SSD/PROJETOS/pcb-thermal-lab/.venv/bin/python}
 D=research/via-real-board
