@@ -1649,3 +1649,67 @@ At 200 the turned or shifted outlines are -0.7 to -1.2 K and the board aligned w
 **33.4 Review.** Re-run on the base and on this branch: the table of 33.1 to 0.1 K (+0.01 instead of +0.02 at h_side 10, c = 0.02), the turned square of 33.2 at the program's 8 x 8 cover (turns 0 to 45 degrees in steps of 5, frame at 0.5 mm: bias -0.10 / -0.82 / -1.96 K and spread 1.17 / 1.98 / 4.01 K at h_side 10 / 200 / 2000, against +0.47 / +9.16 / +9.64 K and 0.88 / 10.33 / 9.89 K on the base; the spread at 10 is the 45-degree point, -1.0 K, which the base shows too as a dip from its +0.5 K bias). **The +7.5 K offset at 200 W/m2K is real**: an independent 3D finite-volume box written for the review (no program code; the same slabs, edge films in series with half a cell) gives 140.80 / 140.59 / 140.23 degC at 1 / 0.5 / 0.25 mm with 8 laminate slabs (140.48 with 16 at 0.5 mm) against 133.32 degC of the two-sheet model, so about +6.8 K is the laminate at the edge (the heat must reach the middle of a 1.5 mm laminate edge through k = 0.3 W/mK) and the rest the 1 mm cell. **The aligned-against-cut residual is the cell, not the distance**: at 200 W/m2K the turned square at 0 / 20 / 45 degrees gives 138.39 / 136.57 / 136.20 degC at 1 mm, 137.69 / 137.15 / 137.00 at 0.5 mm and 137.40 / 137.25 / 137.23 at 0.25 mm, its frame 137.40 / 137.32 / 137.30 at 0.25 mm: the aligned edge converges from above and the cut ones from below, and the residual falls to 0.17 K at 0.25 mm. **Neighbouring paths** (T outline, h_side 50, part at the cut top edge of the stem, 1 mm): a metal block across cut cells, a one-layer board, four vias in cut cells and imported copper on an outline all keep the heat balance (1e-13 W) and a symmetric matrix with no positive off-diagonal entry; the hottest point moves -3.9 / -5.9 / -5.9 / -6.8 K. The T in grid convergence (1 / 0.5 / 0.25 mm): one layer 187.90 / 184.26 / 183.65 degC on the base, 181.99 / 182.73 / 182.90 here; two layers 217.15 / 213.73 / 213.04 and 211.25 / 212.04 / 212.16: the error at 1 mm goes from about +5 K to about -1 K; the two limits differ by about 0.5 K (0.3 % of the rise), not resolved here. **Copper of a cut cell (a limit, shared with the FVM):** the copper fill is the fraction of the whole cell (`copper.problem_fill`, 4 x 4 samples), not of its board part, so a plane drawn along the outline instead of over the box gives a cut cell less copper (sliver board, c = 0.1, 200 W/m2K: +1.35 K here, +3.0 K on the base; c = 0.5: +0.34 K). `signed_distance_to_outline` took 1.4 GB on an outline of 20 000 sides (a fixed block of 2000 points); the review bounds its block by point-side pairs (0.12 GB at 50 000 sides and 5000 points, 2 s), with a test.
 
 **Not verified:** a physical board; the 3D solid against a 3D reference with a cut edge (the references are a two-sheet model, the solid's own rectangle or frame, and the review's 3D box for the aligned edge); a Gerber outline in a full run.
+
+## 34. The via barrel length and the contact of the barrel with the plane
+
+Evidence: `research/via-contact-geometry` (README 2.2, 3.3, 4, 7.1 to 7.3), adopted on `fix/via-barrel-and-rim-uncoupling`. The section number 34 is the next free one after the numbers of the integration branch (31 to 33); this branch was cut from `develop`, where the last section is 30. Tests: `tests/test_via_barrel_and_rim.py`.
+
+### 34.1 The barrel length: `d + 0.5 t_cu`
+
+The barrel conductance of a gap was `k_cu A / d`; it is now `k_cu A / (d + a t_bar)` with `a = 0.5` (theory 2.6, equation 2.7b). Two references for the constant (research README 2.2 and 7.1; the numbers are those of the investigation, not re-run here):
+
+| reference | boards | best `a` for 35 um copper and more | FVM error of the via resistance, `a = 0` -> `a = 0.5` |
+| :-- | :-- | :-- | :-- |
+| axisymmetric unit cell | 720 (2 to 6 layers, 18 to 70 um, gaps, drills, fills) | 0.44 to 0.48 | mean -9.1 % -> +0.8 % (range -32.8 .. -0.6 % -> -4.6 .. +11.8 %), 4 and 6 layers |
+| Cartesian 3D cell, plating resolved (`tests/helpers/layered3d.py`), planes whole | 15 | 0.50 to 0.73 (mean 0.59) | mean -14.2 % -> -1.8 %, worst -3.7 % |
+| the same, inner planes drilled (the real via) | 15 | 0.50 to 0.82 (mean 0.66) | mean -15.5 % -> -3.4 %, worst -6.1 % to -6.5 % |
+
+Negative: the via conducts too well in the model, the part reads too cool (the unsafe side). With `a = 0.5` at most 3.9 % (planes whole) or 6.5 % (inner planes drilled) of the via resistance is left on the unsafe side. 18 um copper with thin gaps and a small barrel resistance goes the other way (+29 -> +35 % of the via resistance): that is the target radius of the well (theory 1.5), not the barrel, and is not hidden by a rule in the thickness.
+
+**Frozen numbers** (five boards with vias at 2, 1 and 0.5 mm, steady maximum; the pending file `tests/regression/data/pending/via-barrel-and-rim-uncoupling.json`, 60 records and the times to 63 % of 18 board-model pairs; reproduced here by the tree before and after, not copied from the research):
+
+| model | records that move | shift of the maximum, K |
+| :-- | --: | :-- |
+| FVM | 15 of 15 | +0.028 to +0.149 |
+| FDM | 15 of 15 | +0.032 to +0.149 |
+| Lumped | 15 of 15 | +0.016 to +0.158 |
+| Analytic | 15 of 15 | +0.037 to +0.158 |
+| time to 63 % (28 part values) | 18 of 18 | -1.007 to +0.002 % |
+
+The example board at 2 mm: FVM +0.125 K, FDM +0.146 K (held by a test). Boards without vias do not move; the 3D solid is not changed (it draws the barrel through its copper slabs). `analytic.solve_steady` of the 4-layer test board with sixteen vias and a heatsink: 71.0254 -> 71.1168 degC.
+
+### 34.2 The contact of the barrel with the plane
+
+A plane whose zones and heaters touch none of the rim of the drill is left uncoupled; a rim partly on copper multiplies the well by the share; the sheet conductance of the well is then the footprint mean. Via effect (maximum rise without the via minus with it) in the FVM, K, with the barrel rule and the rim rule, against the investigation's value of the same variant (`out/contact_b05.json`, `contact_geo`) and its 3D solid at 0.1 mm and 8 slabs (a program model, good to about 5 % on partial cases):
+
+| case (3D effect) | cell, mm | this tree | investigation | error against the 3D solid, K (per cent of the rise) |
+| :-- | --: | --: | --: | --: |
+| quarter (5.52 K, rise 60.5 K) | 1.0 / 0.5 / 0.25 | 1.223 / 1.880 / 2.429 | 1.223 / 1.880 / 2.429 | -4.30 (-7.1) / -3.64 (-6.0) / -3.09 (-5.1) |
+| track 0.25 mm (12.28 K, 91.1 K) | 1.0 / 0.5 / 0.25 | 1.991 / 4.436 / 6.108 | 1.990 / 4.436 / 6.108 | -10.29 (-11.3) / -7.84 (-8.6) / -6.17 (-6.8) |
+| via 0.3 mm outside a copper edge (1.05 K, 82.1 K) | 1.0, 0.5, 0.25 | 0.000 | 0.000 | -1.05 (-1.3) |
+| via 0.6 mm outside (0.56 K, 83.9 K) | 1.0, 0.5, 0.25 | 0.000 | 0.000 | -0.56 (-0.7) |
+| via 1.0 mm outside (0.27 K, 87.9 K) | 1.0, 0.5, 0.25 | 0.000 | 0.000 | -0.27 (-0.3) |
+
+Before the rim rule (the barrel rule alone) a via 0.3 mm outside the edge read +2.90 K (+3.5 % of the rise) at 1 mm and +2.62 K at 0.5 mm too cool: the worst unsafe error of the set, now a loss of the via effect on the safe side. The quarter and the track are on the safe side as before and a little further (quarter -3.62 -> -4.30 K, track -8.55 -> -10.29 K at 1 mm). All 30 steady maxima and all times of the frozen boards are unchanged by the contact rule (every via of the five boards sits on full copper; the rim shares are 1). The partial-copper boards of `tests/test_via_partial_copper_warning.py` (hatched half plane) are not uncoupled: hatching counts as copper.
+
+**Independent check (review).** The 3D solid above is a program model (its via uses the program's footprint rule and its quarter effect still falls with the slabs: 5.82 / 5.52 / 5.39 K at 4 / 8 / 16). The review solved the cases again with a separate 3D finite-volume code that imports nothing from the program (scratch script, not committed: a graded tensor grid from 25 um cells within 0.45 mm of the via to 0.25 mm, the 0.3 mm drill with its 25 um plating resolved as copper cells whose conductivity is scaled to the exact annulus area and the hole as air, the inner copper drilled, FR-4 0.9 W/mK in the plane and 0.3 through, 12 graded laminate slabs, 50 W/m2K on both faces under the source too, sides insulated; energy balance 1 to 1e-11). Via effect in K, and the FVM and FDM of this branch at 1 / 0.5 / 0.25 mm:
+
+| case | independent 3D (40 um / 25 um cells) | FVM | FDM | reading |
+| :-- | :-- | :-- | :-- | :-- |
+| quarter (rise 62.9 K) | 5.70 / 5.70 | 1.22 / 1.88 / 2.43 | 2.39 / 3.89 / 4.75 | low: the part 1.5 to 7.1 % of the rise too hot (safe) |
+| three quarters of the rim on copper (rise 43.0 K) | 1.43 (25 um) | 1.11 / 1.07 / 1.12 | 0.86 / 1.05 / 1.12 | low, safe |
+| quarter, part 0.2 mm from the via (rise 67.5 K) | 8.37 (25 um) | 1.90 / 2.60 / 3.63 | 3.53 / 6.32 / 7.28 | low, safe (up to 9.6 % of the rise) |
+| track 0.25 mm | 10.34 / 10.89 (rises with the refinement; the 3D solid 12.28) | 1.99 / 4.44 / 6.11 | 2.26 / 3.74 / 5.76 | low, safe |
+| half plane, the copper edge through the via (rise 46.2 K) | 2.63 (25 um) | 1.19 / 1.54 / 1.70 | 2.06 / 2.34 / 2.59 | low, safe |
+| via 0.3 mm outside a copper edge (rise 84.6 K) | 1.18 (25 um) | 0 | 0 | the effect lost, 1.4 % of the rise (safe) |
+| a 2 x 2 mm part drawn without a zone over the via (rise 144 K) | 36.5 (25 um) | 34.8 / 42.3 / 38.6 | | with the heater as contact; 0 before the review's fix |
+
+So the corner of a copper region is on the safe side with the adopted rule in every variant tried (the +2.3 K unsafe value of the research belongs to the sheet-conductance weights, which were not adopted), and the numbers of the warning are taken over the FVM and the FDM (15 to 85 % low, up to 11 % of the rise too hot). **Corrected by the review**: the first version of the rim rule counted only zones, so a via under a part drawn without a copper zone was uncoupled from the part's layer and lost its whole effect (0 K against 36.5 K, a quarter of the rise); a heater now counts as contact on its layer (`viawell._zone_index`; test `test_a_heater_over_the_drill_counts_as_contact`), which gives the numbers of `develop` back on such a board. Hatching with `fill` < 1 counts as full contact (not checked against a resolved hatch).
+
+**Not solved, stated in the warning** (`checks.check_via_partial_copper`): a via at the corner of a copper region or at the end of a track (the correct well is that of a sector; the local upscaling is open); imported copper (the rim share is 1, the masks are not read, so a via just outside the edge of an imported plane keeps the old over-reading, 3 to 4 times high at 0.5 mm and coarser); the weights by sheet conductance were examined and not adopted (a via at a copper corner would read +2.3 K, 3.8 % of the rise, the unsafe way, at 1 mm; a via beside a part on bare laminate 84 to 93 % too weak). The positive off-diagonal entries of the matrix (theory 2.2) stay; no maximum principle is guaranteed.
+
+A via whose rim touches no copper and no part on a layer is also named in a live warning (`checks.check_via_uncoupled`: "Via V3 touches no copper on layer 1 and is not connected there; draw its pad or plane if it is connected."), so that the loss of its effect (the safe side, above) is not silent; the warning moves no number.
+
+### 34.3 What was not verified
+
+The barrel rule on the 720 boards against the 3D cell (15 + 5 cases only), with a pitch of 1 mm in the 3D cell, with antipads; the Lumped and Analytic calibrations (`theory.md` 5.1 and 6.1) were fitted against the FVM with the old barrel and were not re-fitted; the Lumped and Analytic shift was measured by the review on the five frozen boards (their error against the FVM moves by at most 0.05 points of the rise) and on a sweep of 24 boards (2, 4, 6 layers; 0.8 and 1.6 mm; 35 and 70 um; one via or a 4 x 4 array under a 6 mm part; 0.5 mm): the error of their via effect against the FVM moves by at most 2.3 points (Lumped, one via, already about -50 %) and 1.9 points (Analytic), with either sign, so the barrel rule neither improves nor worsens them and the calibrations were not re-fitted; the step responses, profiles and transients of the contact cases run (not compared with a reference); any physical board. Cost of the rim test (it runs in the network build, not in the live check; the bounding-box prefilter is vectorised since the review): 0.50 s for 8500 vias on four layers of a 200 x 150 mm board with ten zones each and 0.86 s with a thousand zones each (1.75 s with the first, per-zone loop); boards with imported copper skip it. On the imported boards (barrel rule only) the shift is small: RP2040 (43 vias, U1 1 W, 0.5 mm) FVM / FDM / Lumped / Analytic +0.005 / +0.004 / +0.005 / +0.003 K; CO60 (359 vias, C1 1 W, 1 mm) +0.002 / +0.003 / +0.005 / +0.007 K, solve time and peak memory unchanged (1.2 GB; 2.6 GB at 0.5 mm, symmetric LU without fallback).

@@ -290,7 +290,7 @@ def _check_input(problem, models, cell_mm, live=False):
                                      f"{OUTLINE_MAX_CROSSINGS // 1_000_000} million the grid models accept, so the run would be refused. Simplify the outline (fewer or shorter edges) "
                                      "or use a coarser cell.")]
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
-            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None))
+            + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models))
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
@@ -1107,8 +1107,8 @@ def partial_copper_vias(problem, cell_mm):
              (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
              further; this check keeps the plain footprint.
              Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
-             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread in both directions: 31 to 68 % low for a copper edge
-             through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser.
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 15 to 85 % low at a copper corner or a track end (FVM and FDM, cells of 1 to 0.25 mm)
+             (31 to 68 % before the rim rule of viawell.build), and for a via just outside a copper edge lost (drawn copper) or, on imported copper, 3 to 4 times high at 0.5 mm or coarser.
     @param problem The Problem.
     @param cell_mm Cell size in mm.
     @return Tuple (partial, n_checked): partial is a list of (via index, layer index, ratio of the smallest to the largest sheet conductance), one entry per via
@@ -1188,8 +1188,10 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
     @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
-             is misread because it goes both ways (the FVM reads 31 to 68 % low for a copper edge through the via or a track ending on it, 3 to 4 times high for a via just outside a
-             copper edge at a cell of 0.5 mm or coarser), and the cold spot below the barrel is a numerical artefact of the fixed footprint weights.
+             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 15 to 85 % low (FVM and FDM, cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
+             up to 11 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
+             1.2 K or 1.4 % of the rise too hot; on imported copper the rim is not tested and the old 3 to 4 times high at 0.5 mm or coarser remains), and the cold spot below the
+             barrel is a numerical artefact of the fixed footprint weights.
     @param problem The Problem.
     @param models Model keys that will run (the warning applies to "fvm" and "fdm").
     @param cell_mm Cell size in mm.
@@ -1213,9 +1215,69 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     _add(out, "via", worst[0][0],
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
-         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM: 31 to 68 % low for a copper edge "
-         "through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser), and the cold spot that the FVM can "
-         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
+         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower. A via at the corner of a copper region or at the end of a track "
+         "is not solved: its effect reads 15 to 85 % low and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
+         "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper that contact is not tested, and there the effect can read "
+         "3 to 4 times high at a cell of 0.5 mm or coarser. The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
          "(higher or lower); use a finer cell (" + cell_where() + ") or the 3D solid.")
+    return out
+
+
+def uncoupled_vias(problem):
+    """!
+    @brief The vias whose drill rim touches no copper and no part on a layer (the rim rule of viawell), with those layers.
+    @param problem The Problem (imported copper counts as full contact, as in viawell).
+    @return List of (via index, list of 0-based layer indices), only the vias with at least one such layer and board under the drill disc.
+    """
+    b = problem.board
+    if not problem.vias or b.layers < 2:
+        return []                                               # A one-layer board has no gap: its vias join nothing
+    zone_index = viawell._zone_index(problem, b.layers)
+    out = []
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        if share <= 0.0:
+            continue                                            # Ignored by every model
+        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index)) if f <= 0.0]
+        if layers:
+            out.append((k, layers))
+    return out
+
+
+def _layers_text(layers):
+    """!
+    @brief "layer 1", "layers 1 and 3" or "layers 1, 2 and 3" from 0-based layer indices.
+    @param layers Non-empty list of 0-based layer indices.
+    @return Text with 1-based numbers.
+    """
+    nums = [str(l + 1) for l in layers]
+    if len(nums) == 1:
+        return f"layer {nums[0]}"
+    return "layers " + ", ".join(nums[:-1]) + " and " + nums[-1]
+
+
+def check_via_uncoupled(problem, models):
+    """!
+    @brief Warning for the vias that touch no copper on a layer and are therefore not connected to it (FVM and FDM): one aggregated message naming up to three.
+    @details The safe-side explanation (the effect is lost, the part reads too hot) is in the partial-copper warning, not repeated here.
+    @param problem The Problem.
+    @param models Model keys that will run (the warning applies to "fvm" and "fdm").
+    @return List of warning strings (empty or one message).
+    """
+    out = []
+    if not any(m in ("fvm", "fdm") for m in models):
+        return out
+    found = uncoupled_vias(problem)
+    if not found:
+        return out
+    names = [(problem.vias[k].name or f"Via {k + 1}", layers) for k, layers in found]
+    n = len(found)
+    if n == 1:
+        name, layers = names[0]
+        text = f"{name} touches no copper on {_layers_text(layers)} and is not connected there; draw its pad or plane if it is connected."
+    else:
+        listed = ", ".join(f"{nm} on {_layers_text(ly)}" for nm, ly in names[:PARTIAL_LISTED])
+        more = f", and {n - PARTIAL_LISTED} more" if n > PARTIAL_LISTED else ""
+        text = f"{n} vias touch no copper on a layer and are not connected there ({listed}{more}); draw their pads or planes if they are connected."
+    _add(out, "via", found[0][0], text)
     return out
