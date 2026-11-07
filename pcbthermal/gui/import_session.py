@@ -1583,7 +1583,7 @@ def editor_part_values(record: ImportRecord, problem: Problem) -> None:
             p.edits["use"] = False                             # the user deleted its heater in the editor: the re-import does not make it again (as `carry_over`)
 
 
-def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_record: ImportRecord, typed=(), carry_parts: bool = True) -> List[str]:
+def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_record: ImportRecord, typed=()) -> List[str]:
     """!
     @brief Bring the heaters of the open project in line with the record of an Add files: a heater for every new part that heats, the heater of a stored part moved with it when the new
            placement or paste file moved the part, and the step-2 values of the parts the user changed there.
