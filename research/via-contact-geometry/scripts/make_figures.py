@@ -2,8 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Figures from the data of the studies: the barrel-length sweep (fig_03) and the reference set (fig_04).
-@details Reads out/barrel.json (study_barrel_length.py) and out/contact.json, out/solid_8.json (study_contact_set.py, study_reference_set.py). Run from the repository root:
+@brief Figures from the data of the studies: the barrel-length sweep (fig_03), the reference set (fig_04) and the review's two-reference check of the barrel rule (fig_05).
+@details Reads out/barrel.json (study_barrel_length.py) and out/contact.json, out/solid_8.json (study_contact_set.py, study_reference_set.py), out/reference3d.json and out/reference3d_holes.json (study_barrel_reference3d.py). Run from the repository root:
          `.venv/bin/python research/via-contact-geometry/scripts/make_figures.py`.
 """
 
@@ -48,12 +48,12 @@ def set_fig():
     res = json.load(open(_bootstrap.OUT / "contact.json"))
     solid = json.load(open(_bootstrap.OUT / "solid_8.json"))
     names = ["quarter", "track 0.25", "bareout g0.3", "bareout g0.6", "bareout g1.0"]
-    variants = ("current", "sheet", "contact")
+    variants = ("current", "sheet", "contact_geo", "contact")
     fig, axs = plt.subplots(1, 2, figsize=(11, 3.8), sharey=True)
     for ax, cell in zip(axs, (1.0, 0.5)):
         for k, v in enumerate(variants):
             vals = [res[f"{v}|{n}|fvm|{cell}"] - solid[f"{n}|solid|0.1|8"] for n in names]
-            ax.bar(np.arange(len(names)) + 0.27 * (k - 1), vals, 0.27, label=v)
+            ax.bar(np.arange(len(names)) + 0.2 * (k - 1.5), vals, 0.2, label=v)
         ax.axhline(0, color="k", lw=0.7)
         ax.set_xticks(range(len(names)))
         ax.set_xticklabels(names, rotation=20, fontsize=8)
@@ -63,7 +63,45 @@ def set_fig():
     fig.savefig(_bootstrap.FIGURES / "fig_04_partial_copper_errors.png", dpi=130, bbox_inches="tight")
 
 
+def reference_fig():
+    """!
+    @brief The review's check of the barrel rule: the extra length a that zeroes the FVM error, case by case, against the axisymmetric cell and the Cartesian 3D cell (planes whole, inner planes drilled).
+    @return None.
+    """
+    def a_zero(e0, e5):
+        """!
+        @brief The a that makes the error zero, linear between a = 0 and a = 0.5.
+        @param e0 Error at a = 0, per cent.
+        @param e5 Error at a = 0.5, per cent.
+        @return float.
+        """
+        return 0.5 * e0 / (e0 - e5)
+
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4))
+    sets = (("reference3d.json", "3D cell, planes whole over the drill", "o"), ("reference3d_holes.json", "3D cell, inner planes drilled", "s"))
+    for fname, lab, mk in sets:
+        rows = json.load(open(_bootstrap.OUT / fname))
+        x = [r["t_cu"] / (1e3 * r["gap"]) for r in rows if r["fill"] == "air"]
+        y = [a_zero(r["fvm_err"]["e-1/4|0.0"], r["fvm_err"]["e-1/4|0.5"]) for r in rows if r["fill"] == "air"]
+        axs[0].scatter(x, y, marker=mk, label=lab, s=22)
+        axs[1].scatter(x, [r["fvm_err"]["e-1/4|0.5"] for r in rows if r["fill"] == "air"], marker=mk, label=lab, s=22)
+    ax_rows = json.load(open(_bootstrap.OUT / "barrel.json"))["rows"]
+    pick = [r for r in ax_rows if r["fill"] == "air" and r["t_cu"] >= 35e-6 and r["layers"] > 2]
+    axs[0].scatter([r["t_cu"] / r["gap"] for r in pick], [a_zero(r["err"]["fvm|0.0"], r["err"]["fvm|0.5"]) for r in pick], marker=".", color="grey", s=8, label="axisymmetric cell (sweep, 4 and 6 layers, air, >= 35 um)")
+    axs[0].axhline(0.5, color="k", lw=0.7, ls="--")
+    axs[0].set_ylim(0, 1.2)
+    axs[0].set_ylabel("a that zeroes the FVM error")
+    axs[1].axhline(0, color="k", lw=0.7)
+    axs[1].set_ylabel("FVM error of R with a = 0.5, % (below 0: part too cool)")
+    for ax in axs:
+        ax.set_xscale("log")
+        ax.set_xlabel("t_cu / d")
+        ax.legend(fontsize=7)
+    fig.savefig(_bootstrap.FIGURES / "fig_05_barrel_references.png", dpi=130, bbox_inches="tight")
+
+
 if __name__ == "__main__":
     barrel_fig()
     set_fig()
+    reference_fig()
     sys.exit(0)

@@ -8,7 +8,9 @@
          copper has k_cu in both directions, the dielectric k_z through and k_r in the plane, the hole is filled with a material of conductivity k_fill, the plating of
          thickness t_pth is copper. The result is R = (mean temperature of the top face) / (heat of the cell) in K/W. Same discretisation family as the cell of
          `research/published-cases-followup` (rewritten here for an arbitrary stack; checked against the one-dimensional series circuit without a via and, for the
-         stack of Shen and others, against the number that study prints, in tests/test_axicell.py).
+         stack of Shen and others, against the 207.52 K/W that study prints, in tests/test_via_contact_geometry.py; the review compared it with the independent
+         Cartesian 3D solver tests/helpers/layered3d.py in scripts/study_barrel_reference3d.py). It leaves out a film on the bottom face, which the program's boards
+         of the barrel study carry (1e7 W/m2K): add 1 / (h pitch^2) to compare.
 """
 
 import math

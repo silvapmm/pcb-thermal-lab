@@ -27,6 +27,15 @@ def test_axicell_without_via_is_the_series_circuit():
     assert abs(r / exact - 1.0) < 1e-3
 
 
+def test_axicell_reproduces_the_shen_stack_of_published_cases_followup():
+    """!
+    @brief The cell on the stack of research/published-cases-followup 6.4 (4 x 70 um, 1.6 mm, drill 0.25 mm, air, pitch 0.45 mm) gives the 207.52 K/W that study prints.
+    @return None.
+    """
+    r = AX.unit_cell(0.45e-3, 0.25e-3, 0.026, AX.equal_gap_stack(4, 1.6e-3, 70e-6))
+    assert abs(r - 207.52) < 0.01
+
+
 def test_axicell_via_lowers_resistance_and_converges():
     """!
     @brief A copper-plated via lowers R; the answer changes by under 0.5 % when the radial and vertical grids are refined.
