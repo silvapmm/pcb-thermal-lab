@@ -463,9 +463,38 @@ class BoardView(QGraphicsView):
         finally:
             self._rebuilding = False
         self._update_handles()
+        self.refit_if_board_changed()
         self._fit_labels()
         self.viewport().update()
         self.selection_changed.emit(self.selected_elements())
+
+    def refit_if_board_changed(self, force=False):
+        """!
+        @brief Fit the view again when the board is no longer the one the view was fitted to and the view does not show it well (a re-import of another board, its undo or redo).
+        @details Without this the view keeps the zoom and centre of the old board: a smaller board is a speck in a corner and a larger one runs off the screen, which looked like an
+                 empty project. An edit of the board size in the dock keeps the zoom the user chose unless the board is no longer seen (less than half of it in the view, or a
+                 quarter of the area it would have fitted).
+        @param force True to fit whenever the size of the board changed.
+        @return bool True when the view was fitted again.
+        """
+        b = self.doc.problem.board
+        box = (b.width * 1000.0, b.height * 1000.0)
+        old = getattr(self, "_fit_box", None)
+        if not self._fitted or old is None:
+            return False
+        if abs(box[0] - old[0]) <= 1e-9 * max(box) and abs(box[1] - old[1]) <= 1e-9 * max(box):
+            return False
+        if not force and not self._at_fit_zoom():
+            vis = self.mapToScene(self.viewport().rect()).boundingRect().intersected(QRectF(0.0, 0.0, box[0], box[1]))
+            shown = vis.width() * vis.height() / max(box[0] * box[1], 1e-12)
+            s_now = abs(self.transform().m11())
+            vw, vh = max(self.viewport().width(), 50), max(self.viewport().height(), 50)
+            s_fit = 0.9 * min(vw / box[0], vh / box[1])
+            if shown >= 0.5 and s_now >= 0.5 * s_fit:
+                self._fit_box = box                       # still well seen: the user's zoom stays
+                return False
+        self.fit()
+        return True
 
     def _add_imported_copper(self):
         """!
@@ -981,6 +1010,7 @@ class BoardView(QGraphicsView):
         self.setTransform(QTransform().scale(s, -s))
         self.centerOn(W / 2 + strip / (2.0 * s), H / 2)
         self._fit_scale = s
+        self._fit_box = (W, H)
         self._fitted = True
         self._fit_labels()
 
