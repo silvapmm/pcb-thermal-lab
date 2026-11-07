@@ -1325,3 +1325,53 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
 
 **Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
+
+## 31. The first ring of the Lumped network (a small part on a large board)
+
+Evidence: `research/lumped-ring-uniform-deficit` (README, chapter 11 Review); the program's tests are `tests/test_lumped_first_ring.py`. The first ring of the Lumped network is at most one equivalent radius of the footprint wide (never below 1.5 cells; `docs/theory.md` 5, eq. 5.1). Before it the ring was `0.04` of the distance to the farthest cell of the board wide, and a small part read cool on a large uniform board. Percentages are the Lumped hottest rise against the FVM at 0.5 mm, uniform two-layer sheet (35 um, 1.6 mm, films 10 / 15 W/m2K, edge 10 W/m2K), centred square source, 1 W, Lumped cell 0.5 mm (reproduced on this tree before and after the change; the FVM values are those of the investigation).
+
+### 31.1 Board size
+
+| board (mm) | source (mm) | FVM (K) | before | after |
+| :-- | --: | --: | --: | --: |
+| 30 x 20 | 1 / 3 | 95.00 / 82.91 | 0.0 / +1.2 % | 0.0 / +1.2 % |
+| 60 x 40 | 1 / 3 | 53.19 / 41.08 | -1.4 / +1.7 % | +1.0 / +1.7 % |
+| 100 x 80 | 1 / 3 | 44.63 / 32.52 | -13.7 / -1.2 % | +0.3 / -2.5 % |
+| 200 x 150 | 1 / 3 | 42.81 / 30.96 | -25.3 / -8.8 % | +2.5 / -2.4 % |
+
+The 1 mm part on 100 x 80 mm against the independent 3D layered solver (`tests/helpers/layered3d.py`, 0.5 mm cells, two sub-slabs in the gap): 44.78 K Lumped against 44.81 K (-0.1 %; before the change -14 %). Other measurements of the investigation: 2 mm sources on 100 x 80 mm at 1, 2 and 4 layers, fill 1 and 0.6, 10 to 200 W/m2K, with and without edge convection, -5.5 to -10.8 % become -1.1 to -4.3 %; the 1 mm part off centre on 70 x 70 mm against the 3D solver -15.0 % becomes -3.0 %.
+
+### 31.2 Imported boards on the uniform sheet (one part at a time, 1 W, 0.5 mm)
+
+| board | parts | before: mean (range) | after: mean (range) |
+| :-- | --: | :-- | :-- |
+| RP2040 (re-run for this section) | 27 | -10.6 % (-16.0 to -2.0) | -4.2 % (-12.4 to 0.0) |
+| CO60 (investigation) | 5 | -19.6 % (-29.7 to -9.5) | -8.0 % (-11.5 to -4.6) |
+| oswlight (36 x 36 mm, small board: no effect by construction; investigation) | 51 | -9.0 % (-19.0 to +8.3) | -8.1 % (-19.0 to +8.3) |
+| RP2040 with the imported copper (investigation) | 27 | -59.6 % | -56.8 % |
+
+On the imported copper the structure of the copper below the cell remains the cause (section 27.7). The numbers of the warning on imported copper (`copper.REDUCED_MODEL_WARNING`, 25 to 82 % on 42 parts of three boards) were measured before this change; they move by a few points (RP2040 mean -59.6 to -56.8 %) and the wording ("a sample, not a bound") stays valid. They were not re-measured for this section.
+
+### 31.3 Time responses (this tree, Lumped step response; FVM from the investigation)
+
+| board | FVM: t63 (s) | before: t63 (s) | after: t63 (s) |
+| :-- | --: | --: | --: |
+| 1 mm part, 100 x 80 mm | 0.94 | 1.76 | 0.95 |
+| 3 mm part, 200 x 150 mm | 2.01 | 3.29 | 2.06 |
+| 1 mm part (heater 1 of two), 200 x 150 mm | 0.77 | 2.42 | 0.71 |
+
+The time to 63 % of a small part was 1.6 to 3.1 times the FVM's and is now 0.92 to 1.03 times. The step responses and the profile runner use the same `ring_edges` as the steady run, so the square-wave peaks follow the steady state (1 mm part on 100 x 80 mm, three times the power, 20 s, duty 0.3, four cycles: 119.2 degC before, 138.3 degC after).
+
+### 31.4 What does not move
+
+The 62 via boards of the earlier Lumped studies (with and without vias), the example, profile and reference boards at 2, 1 and 0.5 mm, and the step response and square-wave peak of the example and profile boards are bit-identical (the cap acts only when `0.04 E_max` exceeds both 1.5 cells and the equivalent radius of the footprint); `tests/regression` at 2, 1 and 0.5 mm gives 317 passed against `v2.5.0.json` with no pending file.
+
+### 31.5 Known limits (stated, not fixed)
+
+* **New hot cases**: rectangles of aspect 3 read hot: 3 x 1 mm +10.1 % on 100 x 80 mm and +9.3 % on 200 x 150 mm (the review: up to +12.3 %; they were -2 to -17 %), 6 x 2 mm -1.7 % on 100 x 80 mm; a thin 10 x 0.5 mm tab -5.4 %. On the safe side, but a part of that shape on a large board is no longer cool.
+* **Two errors cancel for a small square part**: the capped ring is quantised (1.5 cells), its link is still short and the node of ring 1 hot; for the 1 mm part they nearly cancel (+0.3 to +2.5 %), so "-25 % becomes +2.5 %" is one shape at one cell.
+* **Not smooth in the cap**: half an equivalent radius more or less moves a small part by up to 12 points; the value 1 was chosen for zero effect on the existing boards, not tuned.
+* **The 1 mm Lumped cell** (the API gives it for a user cell of 1 mm or more): a 1 mm part improves only from -21..-27 % to -15..-17 %; the raster is the limit there.
+* **A source near a board edge or corner** stays 4 to 15 % cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %).
+* **Equivalent rectangle of a board with an outline**: unchanged, 10 to 19 % cool next to the outline on oswlight (section 13).
+* **Not studied**: several heaters at once with a metal block or a heatsink, and the zonal network with a part just larger than a core.

@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed (`fix/lumped-first-ring`; moves Lumped numbers on large boards, no frozen record)
+
+- The Lumped model read small parts cool on large boards (a 1 mm part on a 200 x 150 mm uniform board -25 % of the FVM): the first ring of its network was as wide as 0.04 of the distance to the farthest cell of the board; it is now at most one equivalent radius of the footprint wide (never below 1.5 cells). Boards where the first ring was already narrower (every board of the frozen numbers, the via studies and the example board) are bit-identical, and so are their step responses. The time to 63 % of a small part goes from 1.6 to 3.1 times the FVM's to 0.92 to 1.03 times. Small parts that are not square can now read hot instead of cool (3 x 1 mm +9 to +12 %, on the safe side). A source near a board edge stays 4 to 15 % cool in the Lumped. `docs/validation.md` 31.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).
