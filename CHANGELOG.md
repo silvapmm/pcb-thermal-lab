@@ -5,8 +5,13 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
-### Documentation
-- **Theory sources checked against the code** (`docs/theory-source-checks-252`, documents only, no number moves): `docs/theory.md` 7.5 and 11 now say that the Seri Lee numbers come from a re-implementation of the plate model inside the study and that on the Muzychka cross only the independent 3D solver agrees (the program reads 2.1 % of the rise low, 9 to 10 % on the first case); section 6 limits the thin-sheet match with equation 21 to `t/L <= 0.1` (-3.6 to -6.1 % at 0.3); section 2.7 says the FDM memory exponent 1.34 is slightly above 4/3; section 8 checks the laminar form against Ostrach (1953) (R) instead of LeFevre (M); the Saad pages carry the PDF numbers; the Gerber G37 deviation and the fact that the Lumped and Analytic constants are fitted against the program's own FVM are stated.
+## [2.5.2] - 2026-11-07
+
+Fixes after 2.5.1: files that always save and reopen, the Pulsonix placement header, the licence header on every file, the re-import of a different board and theory text corrections. The solvers and the frozen numbers are unchanged.
+
+### Added
+- No new feature; see Fixed and Changed.
+
 
 ### Fixed
 - **Re-import of a different board** (`fix/different-board-reimport`; interface only, no solver or frozen number changes): when the new Gerber files are another board than the stored import, the re-import dialog offers and preselects **New project from these files**, Cancel stays the default and Continue is not painted as the primary button; step 2 no longer fills in the parts of the old board by designator, and Replace or Update on such a board carry no part over (no orphans, no removal list, imported heaters dropped, hand-drawn elements kept). The project name follows the new board when it is a new project. A comparison table with no rows is hidden. **Which files are another board** (corrected by the review: the first rule called a board different when no file was byte-identical, and every CAD export stamps the date in its files, so a re-export of the same board with one moved part lost its powers; a renamed set or a ZIP with a folder did too): when at least three designators with a heat source are in both sets, the board is the same if at least half of them sit at the same place (within 1 mm) and another board otherwise; without such parts, the outline box (5 %) or no file shared by base name or content. A box under the choices, **Carry the parts of the stored import over by designator**, lets the user carry the parts when the rule is wrong. Same-board re-imports are unchanged (`tests/test_reimport_matrix.py`, new `tests/test_reimport_different_board.py`).
@@ -17,6 +22,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ### Changed
 
 - The copyright and licence notice now starts every tracked shell script, HTML help page, `.gitignore` and `requirements*.txt`, not only the Python files; `tests/test_license_header.py` enforces it. No program behaviour changes.
+- **Theory sources checked against the code** (`docs/theory-source-checks-252`, documents only, no number moves): `docs/theory.md` 7.5 and 11 now say that the Seri Lee numbers come from a re-implementation of the plate model inside the study and that on the Muzychka cross only the independent 3D solver agrees (the program reads 2.1 % of the rise low, 9 to 10 % on the first case); section 6 limits the thin-sheet match with equation 21 to `t/L <= 0.1` (-3.6 to -6.1 % at 0.3); section 2.7 says the FDM memory exponent 1.34 is slightly above 4/3; section 8 checks the laminar form against Ostrach (1953) (R) instead of LeFevre (M); the Saad pages carry the PDF numbers; the Gerber G37 deviation and the fact that the Lumped and Analytic constants are fitted against the program's own FVM are stated.
 
 ## [2.5.1] - 2026-11-06
 

@@ -348,6 +348,8 @@ The main session keeps the conversation with the maintainer (in Portuguese), dec
 
 ## Where to continue (2.5.2 and 2.6.0)
 
+**2.5.2 is assembled and its version commit is on `develop`** (`pcbthermal.__version__` 2.5.2, CHANGELOG `[2.5.2] - 2026-11-07`; local only, no push, `main` and the tag `v2.5.2` are the maintainer's after the whole battery, the tester's reproduction check and the final opinion). The current release on `main` is still v2.5.1.
+
 Release 2.5.1 (2026-11-06) is done: the maintainer tested it and approved; `develop` is merged into `main` (`--no-ff`) and the annotated tag `v2.5.1` is made, **both local until the maintainer pushes** (no push and no GitHub release yet). Whole batteries `2666 passed, 7 skipped, 2 xfailed`, frozen numbers 317 at 2, 1 and 0.5 mm unchanged against `v2.5.0.json`, the final opinion GO. The next version is **2.5.2** (fixes: non-finite values, the Pulsonix placement header, the licence header rule, polish of the re-import with a different board) and **2.6.0** (features: the project package, the BOM role and close hook, a single Layer, the exact board cover, the Analytic per-layer edge and local transient, the 3D solid slabs, the Lumped first ring; the via star coupling was NOT adopted); the lists are in `docs/versions.md` 'Planned'. After the push by the maintainer: remove the finished `worktree-agent-*` worktrees and branches (no commit may exist only on them). The local, git-ignored library of papers is in `papers/` (see `papers/README.md`).
 
 ## Decisions Log

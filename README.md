@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.5.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2666%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.5.2-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2666%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -68,6 +68,10 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+
+## What is new in 2.5.2
+
+Version 2.5.2 (2026-11-07) is a fixes release; the solvers and the frozen numbers are unchanged. A project that opens can always be saved and reopened (lengths above 1 km and non-finite numbers are refused on load and never written, with a message in the status bar after an edit), the placement file of Pulsonix with a text preamble is read, the licence header is on every tracked file, the re-import of Gerber files of a different board offers a new project and carries no part over by designator, and the theory text was corrected after the audit of the code against the papers.
 
 ## What is new in 2.5.1
 
@@ -158,6 +162,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.5.2** (2026-11-07): fixes: non-finite and absurd lengths refused on load and never written, the Pulsonix placement preamble, the licence header on every file, the re-import of a different board, theory text corrections (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
 - **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.5** (2026-11-01): fixes only: vias converge with the cell in the FVM and FDM and are coupled in the SOR, the Lumped and Analytic models carry the constriction of the heat on a via, laminate nodes for patterned copper, a part across the board outline is weighted by its intersection, one factorisation for the top-path split, the SOR relaxation factor, and warnings of the limits of the models. Details in [`CHANGELOG.md`](CHANGELOG.md).
