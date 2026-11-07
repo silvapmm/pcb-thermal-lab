@@ -43,8 +43,12 @@ def _grid(problem, cell_mm):
     return int(round(problem.board.width * 1000.0 / cell_mm)), int(round(problem.board.height * 1000.0 / cell_mm))
 
 
-def test_options_off_reproduce_the_prototype_matrix_bit_for_bit():
-    """!@brief With board_only, fold and image off the hook builds the same matrix as program_patch's mw_disc."""
+def test_options_off_reproduce_the_prototype_matrix_bit_for_bit(monkeypatch):
+    """!@brief With board_only, fold and image off the hook builds the same matrix as program_patch's mw_disc.
+    @param monkeypatch pytest fixture. The prototype is the 2.5 program (barrel = gap alone); 2.6.0 lengthens the barrel by half the copper
+           (fix/via-barrel-and-rim-uncoupling), which the hook follows, so the fraction is set to zero here to compare like with like."""
+    from pcbthermal import viawell
+    monkeypatch.setattr(viawell, "BARREL_COPPER_FRACTION", 0.0)
     p = pc.array_board()
     nx, ny = _grid(p, 0.5)
     with pp.patched("mw_disc", eta=ETA):
