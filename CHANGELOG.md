@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+
+- The copyright and licence notice now starts every tracked shell script, HTML help page, `.gitignore` and `requirements*.txt`, not only the Python files; `tests/test_license_header.py` enforces it. No program behaviour changes.
+
 ## [2.5.1] - 2026-11-06
 
 Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).

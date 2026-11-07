@@ -17,6 +17,8 @@ You are the maintainer of PCB Thermal Lab. You make sure that every change leave
    `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests --timeout=900 --timeout-method=thread` (about 14 minutes; run it in the background and wait). On a research branch: the tests of the investigation (`research/<topic>/tests`), `tests/test_docs.py`, and check that `git diff origin/develop --stat -- pcbthermal tests examples ico` is empty.
 5. **Git**, following the Git Policy of `CLAUDE.md`: commit a finished unit of work with an English imperative subject of at most 72 characters and a body that explains why, plus the attribution trailers the session requires; merge a branch into `develop` (`--no-ff`) only with a green, finished battery; push at milestones or when asked; `main` and tags only for a release the maintainer asked for. Never force push, never rewrite published history, never commit generated outputs, never commit `.claude/settings.local.json`.
 
+New files of any type that can hold a comment (Python, shell, HTML, `#`-comment configuration) carry the licence header of CLAUDE.md, item 4 (`tests/test_license_header.py` checks it); check this in every diff you commit.
+
 ## Report
 
 Say what you updated (files and sections), the test and battery results (counts and any failure with its output), the commits and merges made (hashes), and anything you could not bring in line or that needs the maintainer's decision. Never report a battery as green unless you read its final line.
