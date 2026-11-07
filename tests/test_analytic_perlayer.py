@@ -128,7 +128,9 @@ def test_against_the_fvm_on_boards_with_very_different_copper(fills, pos, hs):
     p = _board(fills, h_side=hs, pos=pos, advanced=len(fills) == 4)
     f = fvm.solve_steady(p, cell_mm=0.5).t_max - T0
     e = (analytic.solve_steady(p, 1.0).t_max - T0) / f - 1.0
-    assert -0.045 < e < 0.015
+    # The bound was -4.5 % against the FVM of 2.5.2. On the integration tree the FVM carries the edge film of the cut-cell branch (fix/cut-cell-aperture-film), which
+    # reads these h_side = 200 boards about 0.8 % hotter, so the Analytic sits at -4.9 / -4.6 / -2.1 % of it; the bound follows the FVM, the Analytic is unchanged.
+    assert -0.055 < e < 0.015
 
 
 def test_products_of_the_loop_are_few():
