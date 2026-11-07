@@ -607,7 +607,7 @@ class BoardView(QGraphicsView):
         if self._background is not None:
             self._background.setVisible(self.background_visible)
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C", smooth=False):
         """!
         @brief Draw a temperature map over the board, with a small colour bar in the corner of the view.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
@@ -620,6 +620,7 @@ class BoardView(QGraphicsView):
         @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
         @param mask Boolean array (ny, nx), True for the cells on the board; the others are transparent (None: every cell is drawn).
         @param unit Unit written on the colour bar.
+        @param smooth True for the View Smooth: the cells are interpolated (bilinear) when the map is scaled, False for the cells as solved.
         """
         from matplotlib import colormaps
         from .fieldscale import colour_limits
@@ -639,13 +640,14 @@ class BoardView(QGraphicsView):
         if nodes:
             tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(dx * 1000.0, dy * 1000.0)
         item.setTransform(tr)
+        item.setTransformationMode(Qt.SmoothTransformation if smooth else Qt.FastTransformation)
         item.setOpacity(float(opacity))
         item.setZValue(0.5)
         item.setAcceptedMouseButtons(Qt.NoButton)
         self.scene().addItem(item)
         self._overlay = item
         # Kept so that a rebuild of the scene (layer change, selection, theme) draws the same map again, and for the colour bar
-        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit)
+        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit, smooth=bool(smooth))
         if self._at_fit_zoom() and not self._rebuilding:
             self.fit()                                                    # Leave the strip of the colour bar free
         self.viewport().update()
