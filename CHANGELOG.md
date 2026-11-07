@@ -9,6 +9,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 Version 2.6.0 is the release of the model corrections that followed the independent reviews of 2.5: the cut cells of a board with an outline (the exact board cover, the cut-cell links and the edge film), the laminate along the board edge, the via barrel and its rim, the Analytic per-layer edge and local transient, the 3D solid slabs by thickness, the Lumped first ring, the face turned down and the fast square waves. It also adds the project package `.pcbtz`, a single Layer choice with a clickable model name, the Display view modes on the board, the package size preference and new warnings. Several of these move numbers on purpose; the frozen numbers are refrozen once (`tests/regression/data/v2.6.0.json`).
 
+### Compatibility
+
+- Older programs (2.5.2 and before) refuse a `.pcbtz` package cleanly (a `ProjectFormatError`, the file untouched) but the message says the file is not UTF-8 text or may be damaged, not that it is a package.
+
 ### Added
 
 - **Preferences: Project package, Largest package (MB)** (`package.max_mb`, shipped 512, range 64 to 4096; a machine preference like `gerber.max_file_mb`, not saved in projects): the limit on the total uncompressed size of a `.pcbtz`, for the reader and the writer. A package above it is refused with a message that names the setting; above 512 MB the page notes that the whole package is held in memory. The member, compression-ratio, member-count and JSON-size limits stay fixed. *(`feature/package-size-preference`)*
