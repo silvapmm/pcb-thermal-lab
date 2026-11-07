@@ -20,12 +20,16 @@ IMAGE_TAIL = '''
 
 # ---- appended by lib/variants.py: potentials of the footprint including its mirror images in the board edges
 _footprint_potentials_plain = _footprint_potentials
+IMAGE_MAX_CELLS = 3600        # review: cell-resolved image potentials up to 3600 footprint cells (a 30 mm part at 0.5 mm; about 0.5 GB of distance matrices)
 
 
 def _footprint_potentials(cov, dx, dy):
     """Log potentials of the footprint plus the 8 mirror images (insulated edges, one tiling): T = -(P / 2 pi S) (phi_real + phi_images)."""
     idx = np.argwhere(cov > 0)
-    if len(idx) > _MAX_POTENTIAL_CELLS:
+    # Review: the first version fell back to the program's block potentials (no images) above _MAX_POTENTIAL_CELLS (900 cells, a 15 mm part at 0.5 mm). Those block
+    # potentials are not on the same footing as the cell-resolved ring means U of the potential links, and that mismatch, not the 64-source sample, made a centred 20 mm
+    # part 2 to 3 points cooler and a 20 mm part in a corner -31 % (program -24 %). Cell-resolved potentials with images up to IMAGE_MAX_CELLS.
+    if len(idx) > IMAGE_MAX_CELLS:
         return _footprint_potentials_plain(cov, dx, dy)
     w = cov[cov > 0]
     ny, nx = cov.shape
@@ -59,11 +63,11 @@ def _footprint_potentials(cov, dx, dy):
 POT_TAIL = '''
 
 # ---- appended by lib/variants.py: the total log potential of the footprint and its images at every cell
-def _total_potential(cov, dx, dy, ny, nx, images=True, max_src=64):
-    """U(x) = mean over the footprint cells (and the 8 images) of ln |x - source|, at every cell centre (m units, floor 0.447 cell)."""
+def _total_potential(cov, dx, dy, ny, nx, images=True, max_src=None):
+    """U(x) = mean over the footprint cells (and the 8 images) of ln |x - source|, at every cell centre (m units, floor 0.447 cell). max_src None: every cell (the review's default; 64 was the first version)."""
     idx = np.argwhere(cov > 0)
     w = cov[cov > 0].astype(float)
-    if len(idx) > max_src:
+    if max_src is not None and len(idx) > max_src:
         sel = np.linspace(0, len(idx) - 1, max_src).astype(int)
         w = np.add.reduceat(w, sel) if False else w[sel] * (w.sum() / w[sel].sum())
         idx = idx[sel]

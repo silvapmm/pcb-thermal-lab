@@ -88,3 +88,21 @@ def test_potlinks_reduces_the_deficit_at_a_corner():
     b = B.readout(p, "lumped", 0.5, 10, pos)[1]
     assert a / f - 1 < -0.15
     assert abs(b / f - 1) < 0.08
+
+
+def test_large_footprint_keeps_the_images_and_every_source_cell():
+    """!
+    @brief Regression of the review: a footprint above the program's 900-cell block threshold (a 20 mm part at 0.5 mm) still gets the cell-resolved image potentials, and the ring-mean
+           potential of the links uses every footprint cell by default. The first version fell back to the block potentials without images there, which made a centred 20 mm part
+           2 to 3 points cooler and a 20 mm part in a corner -31 % instead of -8 %.
+    @return None.
+    """
+    m = V.load("potlinks")
+    corner = np.zeros((160, 200))
+    corner[0:40, 0:40] = 1.0                                     # 1600 cells, above _MAX_POTENTIAL_CELLS
+    assert int(corner.sum()) > m._MAX_POTENTIAL_CELLS
+    img = m._footprint_potentials(corner, 5e-4, 5e-4)
+    plain = m._footprint_potentials_plain(corner, 5e-4, 5e-4)
+    assert img[0] != pytest.approx(plain[0], abs=0.05)           # the images act (the fallback returned the plain values)
+    import inspect
+    assert inspect.signature(m._total_potential).parameters["max_src"].default is None
