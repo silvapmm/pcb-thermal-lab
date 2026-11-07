@@ -389,7 +389,19 @@ def test_shen_equations_and_the_unit_cell_solver():
     prob = sc.program_problem()
     t = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
     ref = sc.unit_cell(**dict(nr_out=96, nz_gap=28, nz_cu=8, nr_barrel=10, nr_hole=10)) / 144
-    assert t == pytest.approx(ref, rel=0.03)
+    # 2.6.0 (fix/via-barrel-and-rim-uncoupling) lengthens the barrel by half the copper thickness: 1.4728 K -> 1.5777 K here, so the program reads +8.0 % above this resolved
+    # axisymmetric reference (it was +0.8 %). The shift is explained by that item and measured here, not hidden: the item rests on research/via-contact-geometry
+    # (a 3D cell with the barrel through the copper), which this case does not reproduce; reported to the maintainer as a flagged difference.
+    assert t == pytest.approx(ref, rel=0.09)
+    from pcbthermal import viawell
+    saved_fraction = viawell.BARREL_COPPER_FRACTION
+    viawell.BARREL_COPPER_FRACTION = 0.0                                       # the 2.5.x barrel (gap alone): the agreement the study was written with
+    try:
+        t0 = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
+    finally:
+        viawell.BARREL_COPPER_FRACTION = saved_fraction
+    assert t0 == pytest.approx(ref, rel=0.03)
+    assert t > t0                                                              # the longer barrel can only add resistance
 
 
 def test_fallback_decision_does_not_jump_with_the_raster():
