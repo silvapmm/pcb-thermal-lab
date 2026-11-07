@@ -256,8 +256,7 @@ class MainWindow(QMainWindow):
         self.canvas.selection_changed.connect(self._on_canvas_selection)
         self.canvas.cursor_moved.connect(lambda x, y: self.coord_label.setText(f"x {x:7.2f} mm   y {y:7.2f} mm"))
         self.canvas.message.connect(lambda m: self.statusBar().showMessage(m))
-        self.doc.edit_refused.connect(lambda m: self.statusBar().showMessage(m, 8000))
-        self.doc.edit_refused.connect(lambda m: self.statusBar().showMessage(m, 8000))
+        self.doc.edit_refused.connect(lambda m: self.statusBar().showMessage(m, 8000))   # once: a second connection drew the message twice
         self.canvas.element_created.connect(self._on_created)
         self.elements.selection_requested.connect(self._on_list_selection)
         self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))

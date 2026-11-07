@@ -441,6 +441,17 @@ class ImportSession:
             self._stored_values[p.designator] = self._step2_fields(p)
         return len(self._stored_values)
 
+    def take_file_values(self) -> int:
+        """!
+        @brief For files that look like ANOTHER board: step 2 starts from the values of the files, and they become the reference against which a change in step 2 is the user's.
+        @details Review: step 2 of another board skipped `take_stored_parts` and left `_stored_values` empty (or stale from an earlier set of files of the same window), so with
+                 the box 'Carry the parts of the stored import over by designator' ticked a power typed in step 2 was dropped and the stored power kept (U1 typed 7 W read 3 W).
+                 With the values of the files as the reference, a value changed in step 2 wins as on the same board.
+        @return int Number of parts recorded.
+        """
+        self._stored_values = {p.designator: self._step2_fields(p) for p in self.parts() if not parts_mod._positional(p)}
+        return len(self._stored_values)
+
     def step2_edits(self) -> dict:
         """!
         @brief The parts of a re-import whose step-2 fields the user changed from the stored values (`take_stored_parts`).

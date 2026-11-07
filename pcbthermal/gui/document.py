@@ -184,7 +184,7 @@ class Document(QObject):
         if before == after:
             return
         # Whatever the GUI path (typed value, drag, scale, paste), an edit that leaves a non-finite or absurd value would make a project that cannot be
-        # saved and reopened: the loading check is applied to the result and the edit is undone silently (the spin boxes already bound typed values)
+        # saved and reopened: the loading check is applied to the result, the edit is undone and `edit_refused` tells the status bar (the spin boxes already bound typed values)
         try:
             check_problem_dict(after["project"] if "project" in after else after)
         except ProjectFormatError as exc:

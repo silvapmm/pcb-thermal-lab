@@ -229,3 +229,32 @@ def test_the_outline_rule_alone_without_parts(app, base, tmp_path):
     for width, different in (("41960000", False), ("42040000", True)):
         app.run(variant(bare, tmp_path, "b" + width, edge_gbr=("X40000000", "X" + width)), "replace", cancel="dialog")
         assert app.dialogs[-1].different is different
+
+
+def test_a_power_typed_in_step_2_wins_when_the_user_carries_the_parts_of_another_board(app, base, tmp_path, monkeypatch):
+    # Review of 2.5.2: step 2 of another board did not record the reference values, so with the carry box ticked U1 typed 7 W in step 2 read the stored 3 W
+    app.run(base, "replace", powers={"U1": 3.0, "Q1": 1.0})
+    from pcbthermal.gui import import_window as iw
+    real = iw.ReimportDialog._mode
+
+    def tick(dlg, *a):
+        """!
+        @brief Tick the carry box once the dialog is built.
+        @param dlg The dialog.
+        @param a Signal arguments.
+        @return None
+        """
+        if hasattr(dlg, "go") and dlg.different and not dlg.carry_box.isChecked():
+            dlg.carry_box.setChecked(True)
+            return None
+        return real(dlg, *a)
+    monkeypatch.setattr(iw.ReimportDialog, "_mode", tick)
+    app.run(other_board(base, tmp_path), "update", powers={"U1": 7.0})
+    assert app.dialogs[-1].different and app.dialogs[-1].carry
+    assert {h.name: h.power for h in app.doc.problem.heaters if h.power} == {"U1": 7.0, "Q1": 1.0}
+
+
+def test_the_refused_edit_message_is_connected_once(app):
+    # Review of 2.5.2: the main window connected `edit_refused` twice, so every refusal was shown twice
+    from PySide6.QtCore import SIGNAL
+    assert app.doc.receivers(SIGNAL("edit_refused(QString)")) == 1
