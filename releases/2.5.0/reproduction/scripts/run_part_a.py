@@ -19,7 +19,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FOLDER = os.path.dirname(HERE)
-ROOT = os.path.dirname(os.path.dirname(FOLDER))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(FOLDER)))  # releases/<version>/reproduction -> repository root
 OUT = os.path.join(FOLDER, "out")
 SUMMARY = os.path.join(OUT, "part_a.json")
 

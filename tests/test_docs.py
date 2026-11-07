@@ -23,7 +23,7 @@ SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examp
                  + list((ROOT / "tools").rglob("*.py"))      # tools/ (the OCR tool) follows the same Doxygen rule
                  + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"]
                  + list((ROOT / "releases").glob("**/scripts/*.py"))      # releases/<version>/*/scripts and the harness scripts
-                 + list((ROOT / "releases" / "regression-harness" / "lib").glob("*.py")))      # research/<topic>/scripts (the Gerber research is kept by its own session)
+                 + list((ROOT / "releases" / "regression-harness" / "lib").glob("*.py")))
 
 
 def _returns_value(fn):
