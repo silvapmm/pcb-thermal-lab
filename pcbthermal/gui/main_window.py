@@ -1356,7 +1356,7 @@ class MainWindow(QMainWindow):
     def show_import(self):
         """!
         @brief Open the Gerber import window; a finished import is loaded as a new unsaved project, or, when the open project already holds an import, applied to it as one undo step
-               (the window asked Replace, Update, Add files or Cancel).
+               (the window asked Replace, Update, Add files, New project or Cancel).
         """
         existing = None
         if self.doc.project.imports:
@@ -1376,7 +1376,7 @@ class MainWindow(QMainWindow):
         typed = getattr(dlg, "typed", set())
         synced = []
         # Add files: the heaters of the new parts, the heaters of the stored parts the new files moved, and the step-2 values (review: the heaters stayed where they were)
-        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})", typed=typed,
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})", typed=typed, carry_parts=getattr(dlg, "carry_parts", True),
                                  add=lambda project: synced.extend(sync_add_heaters(dlg.session, project.problem, old, dlg.record, typed)))
         kept = kept + synced
         self._refresh_layers()

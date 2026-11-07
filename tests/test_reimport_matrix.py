@@ -177,6 +177,18 @@ def variant(base, tmp_path, name, **edits):
     return d
 
 
+def swap_designators(text):
+    """!
+    @brief Put the designators U1, Q1 and D1 of the synthetic set on each other's parts (paste `TO.C` attributes and placement rows), so that the names are the same and the parts
+           are not: another board for the re-import.
+    @param text Content of the paste or placement file.
+    @return str
+    """
+    for a, b in (("U1", "@1"), ("Q1", "U1"), ("D1", "Q1"), ("@1", "D1")):
+        text = text.replace(f"TO.C,{a}*", f"TO.C,{b}*").replace(f'"{a}"', f'"{b}"')   # not the aperture codes D10, D11
+    return text
+
+
 # The clear window of the top copper gets a corner pulled out: the copper really changes (a pad flashed on the pour would not)
 COPPER_EDIT = ("X10000000Y20000000D01*\nX8000000Y20000000D01", "X10000000Y20000000D01*\nX12000000Y22000000D01*\nX8000000Y20000000D01")
 
@@ -660,6 +672,10 @@ def test_a_different_board_makes_cancel_the_default_button(app, base, tmp_path):
     app.run(base, "replace", powers={"U1": 3.0})
     other = make_board(tmp_path / "other", inner=0)
     (other / "edge.gbr").write_text((other / "edge.gbr").read_text().replace("X40000000", "X80000000"))
+    # Review: the same parts at the same places make a grown outline a revision, so the other board also has its designators on each other's pads
+    for f in ("pasteF.gbr", "pos.csv"):
+        text = (other / f).read_text()
+        (other / f).write_text(swap_designators(text))
     app.run(other, "replace", cancel="dialog")
     dlg = app.dialogs[-1]
     assert dlg.different and "this looks like a different board" in dlg.warn.text().lower()
