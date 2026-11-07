@@ -357,7 +357,7 @@ class DisplayPopover(QFrame):
             self.contour.setValue(s.contour_temp)
         self.contour.blockSignals(False)
         self.contour_label.setText("Contour every (Gradients)" if grad else "Contour every (Temperature)")
-        # What applies where: the editor map has no View or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
+        # What applies where: the editor map has no Terrain or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
         editor, anim = ctx == "editor", ctx == "animation"
         # View stays usable on the board (Current and Smooth); only Terrain is greyed, with the reason as the tooltip of the entry
         self.view.setEnabled(True)

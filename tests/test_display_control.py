@@ -636,3 +636,40 @@ def test_the_view_can_be_chosen_on_the_board_and_is_kept(qtbot, tmp_path, sim):
     win.doc.stack.undo()
     win.doc.stack.redo()
     assert len(win.doc.problem.heaters) == n
+
+
+def test_smooth_on_the_board_interpolates_the_temperatures_like_the_results_map(qtbot, tmp_path, sim):
+    """!
+    @brief Smooth on the board means what it means in the Results maps: the temperatures are interpolated between the cells and then coloured, so every
+           pixel is a colour of the bar (blending the colours of the cells is not), and the picture covers the same board as Current.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    from matplotlib import colormaps
+
+    from pcbthermal.gui import canvas as canvas_mod
+
+    win = _win(qtbot, tmp_path)
+    _with_result(win, sim)
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    win.a_overlay.setChecked(True)
+    item = win.canvas._overlay
+    cur_rect, (nx, ny) = item.sceneBoundingRect(), (item.pixmap().width(), item.pixmap().height())
+    win.display.set_view("smooth")
+    item = win.canvas._overlay
+    k = item.pixmap().width() // nx
+    assert k == min(canvas_mod.OVERLAY_SMOOTH_FACTOR, canvas_mod.OVERLAY_SMOOTH_PIXELS // max(nx, ny)) and k > 1
+    assert item.pixmap().height() == k * ny
+    r = item.sceneBoundingRect()
+    assert abs(r.width() - cur_rect.width()) < 1e-6 and abs(r.height() - cur_rect.height()) < 1e-6 and abs(r.left() - cur_rect.left()) < 1e-6
+    # every pixel is a colour of the bar (a nearest entry of the 256-colour table within rounding)
+    img = item.pixmap().toImage().convertToFormat(item.pixmap().toImage().Format.Format_RGBA8888)
+    px = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())[:, : 4 * img.width()].reshape(img.height(), img.width(), 4)
+    rgb = px[px[..., 3] > 0][:, :3].astype(int)
+    table = (colormaps[win.display.cmap](np.linspace(0, 1, 256))[:, :3] * 255).astype(int)
+    far = np.abs(rgb[:, None, :] - table[None, :, :]).sum(axis=2).min(axis=1)
+    assert far.max() <= 6
+    # back to Current: one pixel per cell again
+    win.display.set_view("current")
+    assert win.canvas._overlay.pixmap().width() == nx

@@ -437,8 +437,9 @@ def main_views(out_dir, board_dir):
         win.a_overlay.setChecked(True)
         win.canvas.fit()
         save(win, "editor_overlay.png")
-        # The Display popover opened from the Board tab, drawn over the window (it is a separate window, so it is pasted in at its place) and cropped to the top
-        win.display.set_view("current")
+        # The Display popover opened from the Board tab, drawn over the window (it is a separate window, so it is pasted in at its place) and cropped to the top;
+        # the View shows Smooth, which works on the board (Terrain is the greyed entry)
+        win.display.set_view("smooth")
         win.display.set_kind("copper")
         win._toggle_display_popover()
         app.processEvents()
