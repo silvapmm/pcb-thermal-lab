@@ -288,8 +288,9 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
-        # A saved geometry from a larger screen (or a damaged settings file) must not give a window bigger than this screen
-        clamp_to_screen(self)
+            # A saved geometry from a larger screen (or a damaged settings file) must not give a window bigger than this screen. Only the restored one: the
+            # default size is left to the window system as before (the offscreen tests lay the window out at 1480 x 900)
+            clamp_to_screen(self)
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False

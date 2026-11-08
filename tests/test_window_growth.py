@@ -163,3 +163,62 @@ def test_importing_other_boards_over_an_open_project_keeps_the_main_window(app, 
             assert win.width() == before[0]
             assert win.sizeHint().width() <= 1.2 * before[1] and win.minimumSizeHint().width() <= 1.2 * before[2]
             assert win.width() <= screen_width(win) or before[0] > screen_width(win)
+
+
+def test_the_status_line_wraps_the_reason_on_up_to_three_lines(qtbot):
+    """!
+    @brief The status line says why Next is disabled: a reason that fits two lines is drawn whole (no ellipsis), a longer one takes three lines and ends with an ellipsis;
+           the width it asks for stays zero and the whole text is the tooltip and the accessible description (review: one elided line hid the reason).
+    @param qtbot pytest-qt fixture.
+    """
+    lab = ElidedLabel("", max_lines=3)
+    qtbot.addWidget(lab)
+    lab.resize(400, 60)
+    words = "Two files claim 'Placement (pick and place)': cpl_jlc.csv and pos.csv"
+    lab.setText(words)
+    lines = lab._lines(400)
+    assert 1 <= len(lines) <= 2 and " ".join(lines) == words                    # the whole reason, wrapped at spaces
+    lab.setText("Next is disabled: " + "; ".join(f"{LONG}{i} cannot be read" for i in range(20)))
+    lines = lab._lines(400)
+    assert len(lines) == 3 and lines[-1].endswith("…")
+    assert all(lab.fontMetrics().horizontalAdvance(t) <= 400 for t in lines)    # a word longer than the line is cut inside the word
+    assert lab.heightForWidth(400) == 3 * lab.fontMetrics().lineSpacing() + 2
+    assert lab.minimumSizeHint().width() == 0 and lab.sizeHint().width() == 0
+    assert lab.toolTip() == lab.text() == lab.accessibleDescription()
+
+
+def test_the_import_window_status_shows_the_reason_whole_at_its_size(qtbot, tmp_path):
+    """!
+    @brief The import window at its normal size shows a typical reason for a disabled Next whole on the status line (not cut to one line).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    win = iw.ImportBoardWindow()
+    qtbot.addWidget(win)
+    win.resize(1000, 700)
+    win.show()
+    reason = ("Next is disabled: Two files claim 'Placement (pick and place)': cpl_jlc_very_long_name_of_the_assembly_house.csv and "
+              "pos_very_long_name_of_the_cad_export.csv; No drill file: no vias are imported")
+    win.status.setText(reason)
+    QApplication.processEvents()
+    lines = win.status._lines(win.status.contentsRect().width())
+    assert " ".join(lines) == reason and win.status.height() >= len(lines) * win.status.fontMetrics().lineSpacing()
+
+
+def test_a_normal_saved_geometry_is_restored_unchanged(qtbot, tmp_path):
+    """!
+    @brief A saved main-window geometry that fits the screen is restored as it was (the clamp only acts on a window larger than its screen).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    first = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(first)
+    area = first.screen().availableGeometry()
+    first.setGeometry(area.left() + 20, area.top() + 30, min(700, area.width() - 40), min(500, area.height() - 40))
+    size = first.size()
+    settings = QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat)
+    settings.setValue("geometry", first.saveGeometry())
+    settings.sync()
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    assert win.size() == size

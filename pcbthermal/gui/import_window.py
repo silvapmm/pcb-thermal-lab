@@ -1867,7 +1867,8 @@ class ImportBoardWindow(QDialog):
             self.stack.addWidget(sc)
         lay.addWidget(self.stack, 1)
         row = QHBoxLayout()
-        self.status = ElidedLabel("")                                       # it lists file names: cut with an ellipsis, the whole text is the tooltip
+        # It lists file names and says why Next is disabled: up to three wrapped lines, the rest cut with an ellipsis, the whole text in the tooltip
+        self.status = ElidedLabel("", max_lines=3)
         th.hint(self.status)
         row.addWidget(self.status, 1)
         self.help_btn, self.close_btn = QPushButton("Help"), QPushButton("Close")

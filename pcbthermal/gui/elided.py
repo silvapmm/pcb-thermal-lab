@@ -9,25 +9,30 @@
 """
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QFontMetrics, QPainter
+from PySide6.QtGui import QFontMetrics, QGuiApplication, QPainter
 from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy
 
 
 class ElidedLabel(QLabel):
     """!
-    @brief QLabel that shows its text on one line, cut with an ellipsis at the right when it does not fit; the full text is the tooltip.
+    @brief QLabel whose text never asks the layout for width: wrapped on at most `max_lines` lines (anywhere when a word is longer than the line), the last line cut with an
+           ellipsis when the text does not fit; the full text is the tooltip and the accessible description.
     """
 
-    def __init__(self, text="", parent=None):
+    def __init__(self, text="", parent=None, max_lines=1):
         """!
         @param text Initial text (plain text; it may list file names).
         @param parent Qt parent widget or None.
+        @param max_lines Most lines shown (1 = one line cut with an ellipsis); the height follows the lines the text needs at the current width, up to this number.
         """
         super().__init__(parent)
         self._full = ""
+        self.max_lines = max(1, int(max_lines))
         self.setTextFormat(Qt.PlainText)
         # Ignored horizontally: the layout gives the label what is left and never asks for more
-        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        policy = QSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        policy.setHeightForWidth(self.max_lines > 1)
+        self.setSizePolicy(policy)
         self.setText(text)
 
     def setText(self, text):
@@ -38,6 +43,7 @@ class ElidedLabel(QLabel):
         self._full = str(text)
         super().setText("")                       # the painting is done here; the base class keeps no text to measure
         self.setToolTip(self._full)
+        self.setAccessibleDescription(self._full)  # a screen reader gets the whole text, not the cut one
         self.updateGeometry()
         self.update()
 
@@ -48,40 +54,113 @@ class ElidedLabel(QLabel):
         """
         return self._full
 
+    def _lines(self, width):
+        """!
+        @brief The lines drawn at a width: the text wrapped (at spaces, anywhere inside a word longer than the line), at most `max_lines`, the last one elided.
+        @param width Width in pixels.
+        @return list of str (empty for an empty text).
+        """
+        if not self._full:
+            return []
+        fm = QFontMetrics(self.font())
+        width = max(int(width), 1)
+        if self.max_lines == 1:
+            return [fm.elidedText(self._full.replace("\n", " "), Qt.ElideRight, width)]
+        out, rest = [], " ".join(self._full.split())
+        while rest and len(out) < self.max_lines - 1:
+            if fm.horizontalAdvance(rest) <= width:
+                break
+            # The longest prefix that fits, cut at the last space when there is one
+            n = len(rest)
+            lo, hi = 1, n
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if fm.horizontalAdvance(rest[:mid]) <= width:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            cut = rest.rfind(" ", 0, lo + 1)
+            cut = cut if cut > 0 else lo
+            out.append(rest[:cut].rstrip())
+            rest = rest[cut:].lstrip()
+        if rest:
+            # The last line as it is when it fits (elidedText measures a little wider and would cut a line that fits), else cut with an ellipsis
+            out.append(rest if fm.horizontalAdvance(rest) <= width else fm.elidedText(rest, Qt.ElideRight, width))
+        return out
+
+    def _height(self, lines):
+        """!
+        @brief Height in pixels for a number of lines (at least one).
+        @param lines Number of lines.
+        @return int
+        """
+        return max(1, lines) * self.fontMetrics().lineSpacing() + 2 * self.margin() + 2
+
+    def hasHeightForWidth(self):
+        """!
+        @brief Only a label of several lines has a height that depends on its width.
+        @return bool
+        """
+        return self.max_lines > 1
+
+    def heightForWidth(self, width):
+        """!
+        @brief The height of the lines the text needs at a width (at most `max_lines`).
+        @param width Width in pixels.
+        @return int
+        """
+        return self._height(len(self._lines(width - 2 * self.margin())))
+
     def minimumSizeHint(self):
         """!
         @brief Zero width: the text never asks the layout for room.
         @return QSize
         """
-        return QSize(0, super().minimumSizeHint().height() or self.fontMetrics().height())
+        return QSize(0, self._height(1))
 
     def sizeHint(self):
         """!
-        @brief A small width and one line of height (the label takes what the layout gives).
+        @brief Zero width and the height of the lines at the current width (the label takes the width the layout gives).
         @return QSize
         """
-        return QSize(0, self.fontMetrics().height() + 2 * self.margin() + 2)
+        return QSize(0, self.heightForWidth(self.width()) if self.max_lines > 1 else self._height(1))
+
+    def resizeEvent(self, event):
+        """!
+        @brief A new width may need another number of lines: ask the layout again.
+        @param event QResizeEvent.
+        """
+        super().resizeEvent(event)
+        if self.max_lines > 1:
+            self.updateGeometry()
 
     def paintEvent(self, event):
         """!
-        @brief Draw the text cut with an ellipsis to the width of the label.
+        @brief Draw the lines of the text, the last one cut with an ellipsis, to the width of the label.
         @param event QPaintEvent (unused).
         """
         painter = QPainter(self)
         r = self.contentsRect()
-        text = QFontMetrics(self.font()).elidedText(self._full, Qt.ElideRight, max(r.width(), 0))
-        painter.setPen(self.palette().windowText().color())
-        painter.drawText(r, int(self.alignment()), text)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        step = self.fontMetrics().lineSpacing()
+        lines = self._lines(r.width())
+        # Vertical place of the block of lines as the alignment asks (one line: as before)
+        top = r.top() + max(0, (r.height() - len(lines) * step) // 2) if self.alignment() & Qt.AlignVCenter else r.top()
+        halign = int(self.alignment() & Qt.AlignHorizontal_Mask)
+        for i, line in enumerate(lines):
+            painter.drawText(r.left(), top + i * step, r.width(), step, halign | int(Qt.AlignVCenter), line)
 
 
 def clamp_to_screen(widget, margin=0):
     """!
     @brief Make a top-level window no larger than the available area of its screen (pixels) and keep it on the screen.
+    @details The screen is the one under the centre of the window (several monitors: a window restored on a large external monitor keeps its size there).
     @param widget Top-level QWidget.
     @param margin Pixels kept free on each side of the available area.
     @return bool True when the size or the position was changed.
     """
-    screen = widget.screen() or QApplication.primaryScreen()
+    # The screen under the centre of the window (a geometry restored on a second, larger monitor is judged against that monitor), else the widget's screen
+    screen = QGuiApplication.screenAt(widget.geometry().center()) or widget.screen() or QApplication.primaryScreen()
     if screen is None:
         return False
     area = screen.availableGeometry().adjusted(margin, margin, -margin, -margin)
