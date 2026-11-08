@@ -95,3 +95,50 @@ def test_library_boards_replaced_by_each_other_are_shown_whole(app, order, mode)
     app.doc.stack.undo()
     assert app.doc.problem.board.width == pytest.approx(w0)
     assert_fitted(app)
+
+
+def test_a_zoom_in_stays_when_the_board_size_is_typed_in_the_dock(app):
+    """!
+    @brief Review: the first rule fitted the view again whenever less than half of the board was in view, so a user zoomed in on a corner who typed a new width lost the zoom.
+    @param app The App of the matrix tests.
+    """
+    import numpy as np
+    from pcbthermal.model import Heater
+    app.win.resize(1300, 800)
+    app.win.show()
+    app.doc.edit("heater", lambda p: p.problem.heaters.append(Heater(name="H", power=1.0, layer=0,
+                 polygon=np.array([[0.01, 0.01], [0.02, 0.01], [0.02, 0.02], [0.01, 0.02]]))))
+    c = app.win.canvas
+    c.fit()
+    c.zoom(4.0)
+    c.centerOn(15.0, 15.0)
+    s = c.transform().m11()
+    bp = app.win.board_panel
+    bp.width.setValue(bp.width.value() + 1.0)
+    bp.width.editingFinished.emit()
+    assert app.doc.problem.board.width == pytest.approx(0.101)
+    assert c.transform().m11() == pytest.approx(s)                                    # the size changed, the user is still looking at the board
+    app.doc.stack.undo()
+    assert c.transform().m11() == pytest.approx(s)
+
+
+def test_a_zoom_in_does_not_survive_a_replace_by_another_board(app, base, tmp_path):
+    """!
+    @brief A re-import of another board fits the view even when the user had zoomed in: the old zoom and centre mean nothing on the new board.
+    @param app The App of the matrix tests.
+    @param base Folder of the synthetic set.
+    @param tmp_path Temporary folder.
+    """
+    app.win.resize(1300, 800)
+    app.win.show()
+    app.run(base, "replace")
+    c = app.win.canvas
+    c.fit()
+    c.zoom(4.0)
+    c.centerOn(10.0, 10.0)
+    app.run(other_board(base, tmp_path), "replace")
+    assert_fitted(app)
+    c.zoom(4.0)
+    c.centerOn(10.0, 10.0)
+    app.doc.stack.undo()
+    assert_fitted(app)
