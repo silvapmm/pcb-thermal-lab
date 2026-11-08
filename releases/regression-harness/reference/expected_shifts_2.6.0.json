@@ -1,0 +1,2592 @@
+{
+ "format": 1,
+ "baseline": "v2.5.2",
+ "target": "2.6.0",
+ "how_to_read": "Same reading as expected_shifts_2.5.0.json. Items and rules come from the pending files of the integration branch (one per 2.6.0 item), checked by adding the pending shifts of every item that covers a record (study_pending_coverage and the additivity check of the refreeze: 1534 of 1545 metrics add up within 10 %; the other 11 are the 3D solid records where two items act on the same cells). The numeric limits are 1.25 times the shifts of this run: the table does not predict the sizes, it holds the next version to them.",
+ "items": [
+  {
+   "id": "K1",
+   "title": "Analytic per-layer edge",
+   "branch": "feature/analytic-edge-and-local-transient",
+   "evidence": "research/analytic-2-6; docs/theory.md 6",
+   "moves": "Analytic on boards with an edge coefficient"
+  },
+  {
+   "id": "K2",
+   "title": "Analytic local modal transient",
+   "branch": "feature/analytic-edge-and-local-transient",
+   "evidence": "research/analytic-2-6",
+   "moves": "time to 63 % of the Analytic on boards with vias"
+  },
+  {
+   "id": "K3",
+   "title": "Exact board cover (and its part read-out)",
+   "branch": "fix/exact-board-cover",
+   "evidence": "research/rotated-square-3d; docs/theory.md 1.3",
+   "moves": "boards with an outline across a part: FVM, FDM, 3D solid"
+  },
+  {
+   "id": "K4",
+   "title": "Cut-cell aperture links and edge film (FVM)",
+   "branch": "fix/cut-cell-aperture-film",
+   "evidence": "research/rotated-square-3d",
+   "moves": "FVM on boards with an outline or a block/copper edge in a cell"
+  },
+  {
+   "id": "K4b",
+   "title": "3D solid cut-cell links and edge film at the closest outline point (sliver cells)",
+   "branch": "fix/solid3d-sliver-cells",
+   "evidence": "research/rotated-square-3d",
+   "moves": "3D solid on boards with an outline"
+  },
+  {
+   "id": "K5",
+   "title": "3D solid slabs by thickness and the face term",
+   "branch": "feature/solid3d-slabs-by-thickness",
+   "evidence": "research/laminate-2-6 README 5",
+   "moves": "3D solid on every board (more unknowns, hence two 0.5 mm records over the harness cap)"
+  },
+  {
+   "id": "K6",
+   "title": "Laminate edge band",
+   "branch": "fix/laminate-edge-band",
+   "evidence": "research/laminate-2-6",
+   "moves": "FVM and FDM on boards with an edge coefficient"
+  },
+  {
+   "id": "K7",
+   "title": "Via barrel length d + 0.5 t_cu and rim uncoupling",
+   "branch": "fix/via-barrel-and-rim-uncoupling",
+   "evidence": "research/via-partial-copper; docs/theory.md 2.6",
+   "moves": "every model on boards with vias"
+  },
+  {
+   "id": "K0",
+   "title": "Items with no harness board that moves",
+   "branch": "Lumped first ring; Lumped near-edge raster; face-down convection 0.475 (harness boards use a manual h); fast-wave ripple (harness has no profile)",
+   "evidence": "docs/versions.md 2.6.0",
+   "moves": "none: a shift attributed to them would be a defect"
+  },
+  {
+   "id": "K8",
+   "title": "Round-off",
+   "branch": "last bits of the sums (order of the operations)",
+   "evidence": "CLAUDE.md Decisions Log (symmetric LU)",
+   "moves": "at most 1e-8 K"
+  }
+ ],
+ "rules": [
+  {
+   "id": "R1",
+   "item": "K1",
+   "boards": [
+    "hatched_copper",
+    "part_top_path",
+    "two_layer_partial"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "two_layer_partial|analytic|2": {
+     "abs_k": [
+      0,
+      0.039734
+     ]
+    },
+    "two_layer_partial|analytic|1": {
+     "abs_k": [
+      0,
+      0.039734
+     ]
+    },
+    "two_layer_partial|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.041938
+     ]
+    },
+    "part_top_path|analytic|2": {
+     "abs_k": [
+      0,
+      0.012249
+     ],
+     "abs_w": [
+      0,
+      2.190143583880033e-05
+     ]
+    },
+    "part_top_path|analytic|1": {
+     "abs_k": [
+      0,
+      0.012249
+     ],
+     "abs_w": [
+      0,
+      2.190143583880033e-05
+     ]
+    },
+    "part_top_path|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.012825
+     ],
+     "abs_w": [
+      0,
+      2.1757942815225917e-05
+     ]
+    },
+    "hatched_copper|analytic|2": {
+     "abs_k": [
+      0,
+      0.02949
+     ]
+    },
+    "hatched_copper|analytic|1": {
+     "abs_k": [
+      0,
+      0.02949
+     ]
+    },
+    "hatched_copper|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.031097
+     ]
+    }
+   }
+  },
+  {
+   "id": "R2",
+   "item": "K1+K3+K7",
+   "boards": [
+    "example_cut_to_T"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_cut_to_T|analytic|2": {
+     "abs_k": [
+      0,
+      0.198019
+     ]
+    },
+    "example_cut_to_T|analytic|1": {
+     "abs_k": [
+      0,
+      0.198019
+     ]
+    },
+    "example_cut_to_T|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.195069
+     ]
+    }
+   }
+  },
+  {
+   "id": "R3",
+   "item": "K1+K7",
+   "boards": [
+    "example_board",
+    "profile_board"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.176384
+     ]
+    },
+    "example_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.176384
+     ]
+    },
+    "example_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.181371
+     ]
+    },
+    "profile_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.176384
+     ]
+    },
+    "profile_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.176384
+     ]
+    },
+    "profile_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.181371
+     ]
+    }
+   }
+  },
+  {
+   "id": "R4",
+   "item": "K3",
+   "boards": [
+    "part_across_outline",
+    "round_outline",
+    "t_outline"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "round_outline|analytic|2": {
+     "abs_k": [
+      0,
+      0.288981
+     ]
+    },
+    "round_outline|analytic|1": {
+     "abs_k": [
+      0,
+      0.288981
+     ]
+    },
+    "round_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.093059
+     ]
+    },
+    "t_outline|analytic|2": {
+     "abs_k": [
+      0,
+      0.054456
+     ]
+    },
+    "t_outline|analytic|1": {
+     "abs_k": [
+      0,
+      0.054456
+     ]
+    },
+    "t_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.008241
+     ]
+    },
+    "part_across_outline|analytic|2": {
+     "abs_k": [
+      0,
+      0.175251
+     ]
+    },
+    "part_across_outline|analytic|1": {
+     "abs_k": [
+      0,
+      0.175251
+     ]
+    },
+    "part_across_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.229885
+     ]
+    }
+   }
+  },
+  {
+   "id": "R5",
+   "item": "K3+K4b",
+   "boards": [
+    "part_across_outline",
+    "round_outline"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "round_outline|solid3d|2": {
+     "abs_k": [
+      0,
+      0.139306
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "round_outline|solid3d|1": {
+     "abs_k": [
+      0,
+      0.107732
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "round_outline|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.064867
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "part_across_outline|solid3d|2": {
+     "abs_k": [
+      0,
+      1.795089
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "part_across_outline|solid3d|1": {
+     "abs_k": [
+      0,
+      1.272055
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "part_across_outline|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.090603
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    }
+   }
+  },
+  {
+   "id": "R6",
+   "item": "K3+K7",
+   "boards": [
+    "example_cut_to_T"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_cut_to_T|lumped|2": {
+     "abs_k": [
+      0,
+      0.188553
+     ]
+    },
+    "example_cut_to_T|lumped|1": {
+     "abs_k": [
+      0,
+      0.188553
+     ]
+    },
+    "example_cut_to_T|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.191277
+     ]
+    }
+   }
+  },
+  {
+   "id": "R7",
+   "item": "K4",
+   "boards": [
+    "finned_block",
+    "hatched_copper",
+    "part_top_path",
+    "two_layer_partial"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "two_layer_partial|fvm|2": {
+     "abs_k": [
+      0,
+      0.028083
+     ]
+    },
+    "two_layer_partial|fvm|1": {
+     "abs_k": [
+      0,
+      0.015328
+     ]
+    },
+    "two_layer_partial|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.008057
+     ]
+    },
+    "finned_block|fvm|2": {
+     "abs_k": [
+      0,
+      0.000932
+     ],
+     "abs_w": [
+      0,
+      5.906214166295776e-05
+     ]
+    },
+    "finned_block|fvm|1": {
+     "abs_k": [
+      0,
+      0.000472
+     ],
+     "abs_w": [
+      0,
+      2.9551739201272298e-05
+     ]
+    },
+    "finned_block|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.000238
+     ],
+     "abs_w": [
+      0,
+      1.477760461554567e-05
+     ]
+    },
+    "part_top_path|fvm|2": {
+     "abs_k": [
+      0,
+      0.011267
+     ],
+     "abs_w": [
+      0,
+      7.775620898625712e-05
+     ]
+    },
+    "part_top_path|fvm|1": {
+     "abs_k": [
+      0,
+      0.006322
+     ],
+     "abs_w": [
+      0,
+      4.0507786429888615e-05
+     ]
+    },
+    "part_top_path|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.003348
+     ],
+     "abs_w": [
+      0,
+      2.0412295592964202e-05
+     ]
+    },
+    "hatched_copper|fvm|2": {
+     "abs_k": [
+      0,
+      0.013595
+     ]
+    },
+    "hatched_copper|fvm|1": {
+     "abs_k": [
+      0,
+      0.006861
+     ]
+    },
+    "hatched_copper|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.003437
+     ]
+    }
+   }
+  },
+  {
+   "id": "R8",
+   "item": "K4b",
+   "boards": [
+    "example_cut_to_T"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_cut_to_T|solid3d|2": {
+     "abs_k": [
+      0,
+      0.052471
+     ]
+    }
+   }
+  },
+  {
+   "id": "R9",
+   "item": "K5",
+   "boards": [
+    "finned_block",
+    "hatched_copper",
+    "one_layer_full",
+    "one_layer_pad",
+    "part_top_path",
+    "plate_lone_via",
+    "plate_pad",
+    "plate_uniform",
+    "plate_vias",
+    "reference_board",
+    "t_outline",
+    "two_layer_partial"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "reference_board|solid3d|2": {
+     "abs_k": [
+      0,
+      0.004842
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "reference_board|solid3d|1": {
+     "abs_k": [
+      0,
+      0.004896
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_uniform|solid3d|2": {
+     "abs_k": [
+      0,
+      0.006747
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_uniform|solid3d|1": {
+     "abs_k": [
+      0,
+      0.006836
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_uniform|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.006859
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_pad|solid3d|2": {
+     "abs_k": [
+      0,
+      0.321794
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_pad|solid3d|1": {
+     "abs_k": [
+      0,
+      0.578899
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_pad|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.907915
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_vias|solid3d|2": {
+     "abs_k": [
+      0,
+      0.003446
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_vias|solid3d|1": {
+     "abs_k": [
+      0,
+      0.008578
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_vias|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.008323
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_lone_via|solid3d|2": {
+     "abs_k": [
+      0,
+      0.024365
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_lone_via|solid3d|1": {
+     "abs_k": [
+      0,
+      0.022591
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "plate_lone_via|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.020925
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "t_outline|solid3d|2": {
+     "abs_k": [
+      0,
+      0.010805
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "t_outline|solid3d|1": {
+     "abs_k": [
+      0,
+      0.011623
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "two_layer_partial|solid3d|2": {
+     "abs_k": [
+      0,
+      0.047534
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "two_layer_partial|solid3d|1": {
+     "abs_k": [
+      0,
+      0.08692
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "one_layer_full|solid3d|2": {
+     "abs_k": [
+      0,
+      0.000766
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "one_layer_full|solid3d|1": {
+     "abs_k": [
+      0,
+      0.000779
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "one_layer_full|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.000783
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "one_layer_pad|solid3d|2": {
+     "abs_k": [
+      0,
+      0.064075
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "one_layer_pad|solid3d|1": {
+     "abs_k": [
+      0,
+      0.115007
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "one_layer_pad|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.184772
+     ],
+     "rel": [
+      0,
+      1.0
+     ]
+    },
+    "finned_block|solid3d|2": {
+     "abs_k": [
+      0,
+      0.019518
+     ],
+     "rel": [
+      0,
+      0.5
+     ]
+    },
+    "finned_block|solid3d|1": {
+     "abs_k": [
+      0,
+      0.019767
+     ],
+     "rel": [
+      0,
+      0.5
+     ]
+    },
+    "finned_block|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.0199
+     ],
+     "rel": [
+      0,
+      0.5
+     ]
+    },
+    "part_top_path|solid3d|2": {
+     "abs_k": [
+      0,
+      0.037245
+     ],
+     "abs_w": [
+      0,
+      0.0012082028252721755
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "part_top_path|solid3d|1": {
+     "abs_k": [
+      0,
+      0.064629
+     ],
+     "abs_w": [
+      0,
+      0.00207916687147619
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "part_top_path|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.089219
+     ],
+     "abs_w": [
+      0,
+      0.00283253486744961
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "hatched_copper|solid3d|2": {
+     "abs_k": [
+      0,
+      1.498405
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "hatched_copper|solid3d|1": {
+     "abs_k": [
+      0,
+      1.498115
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    },
+    "hatched_copper|solid3d|0.5": {
+     "abs_k": [
+      0,
+      1.497975
+     ],
+     "rel": [
+      0,
+      0.83333
+     ]
+    }
+   }
+  },
+  {
+   "id": "R10",
+   "item": "K6",
+   "boards": [
+    "part_across_outline",
+    "reference_board",
+    "round_outline",
+    "t_outline"
+   ],
+   "models": [
+    "fdm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "reference_board|fdm|2": {
+     "abs_k": [
+      0,
+      0.006589
+     ],
+     "rel": [
+      0,
+      0.41522
+     ]
+    },
+    "reference_board|fdm|1": {
+     "abs_k": [
+      0,
+      0.010402
+     ],
+     "rel": [
+      0,
+      0.28527
+     ]
+    },
+    "reference_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.011939
+     ],
+     "rel": [
+      0,
+      0.2172
+     ]
+    },
+    "round_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.019935
+     ],
+     "rel": [
+      0,
+      0.55411
+     ]
+    },
+    "round_outline|fdm|1": {
+     "abs_k": [
+      0,
+      0.062942
+     ],
+     "rel": [
+      0,
+      0.38095
+     ]
+    },
+    "round_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.059669
+     ],
+     "rel": [
+      0,
+      0.2843
+     ]
+    },
+    "t_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.163588
+     ],
+     "rel": [
+      0,
+      0.57533
+     ]
+    },
+    "t_outline|fdm|1": {
+     "abs_k": [
+      0,
+      0.117383
+     ],
+     "rel": [
+      0,
+      0.40301
+     ]
+    },
+    "t_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.095911
+     ],
+     "rel": [
+      0,
+      0.30992
+     ]
+    },
+    "part_across_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.28475
+     ],
+     "rel": [
+      0,
+      0.89286
+     ]
+    },
+    "part_across_outline|fdm|1": {
+     "abs_k": [
+      0,
+      0.224011
+     ],
+     "rel": [
+      0,
+      0.67928
+     ]
+    },
+    "part_across_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.827061
+     ],
+     "rel": [
+      0,
+      0.49726
+     ]
+    }
+   }
+  },
+  {
+   "id": "R11",
+   "item": "K6",
+   "boards": [
+    "part_across_outline",
+    "reference_board",
+    "round_outline",
+    "t_outline"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "reference_board|fvm|2": {
+     "abs_k": [
+      0,
+      0.007434
+     ],
+     "rel": [
+      0,
+      0.423
+     ]
+    },
+    "reference_board|fvm|1": {
+     "abs_k": [
+      0,
+      0.008772
+     ],
+     "rel": [
+      0,
+      0.288
+     ]
+    },
+    "reference_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.010215
+     ],
+     "rel": [
+      0,
+      0.21825
+     ]
+    },
+    "round_outline|fvm|2": {
+     "abs_k": [
+      0,
+      0.546041
+     ],
+     "rel": [
+      0,
+      0.5
+     ]
+    },
+    "round_outline|fvm|1": {
+     "abs_k": [
+      0,
+      0.49248
+     ],
+     "rel": [
+      0,
+      0.35625
+     ]
+    },
+    "round_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.244328
+     ],
+     "rel": [
+      0,
+      0.26562
+     ]
+    },
+    "t_outline|fvm|2": {
+     "abs_k": [
+      0,
+      0.268186
+     ],
+     "rel": [
+      0,
+      0.58125
+     ]
+    },
+    "t_outline|fvm|1": {
+     "abs_k": [
+      0,
+      0.152952
+     ],
+     "rel": [
+      0,
+      0.40625
+     ]
+    },
+    "t_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.103735
+     ],
+     "rel": [
+      0,
+      0.31133
+     ]
+    },
+    "part_across_outline|fvm|2": {
+     "abs_k": [
+      0,
+      0.69928
+     ],
+     "rel": [
+      0,
+      0.92813
+     ]
+    },
+    "part_across_outline|fvm|1": {
+     "abs_k": [
+      0,
+      0.277715
+     ],
+     "rel": [
+      0,
+      0.65625
+     ]
+    },
+    "part_across_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.737232
+     ],
+     "rel": [
+      0,
+      0.50273
+     ]
+    }
+   }
+  },
+  {
+   "id": "R12",
+   "item": "K6+K7",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "plate_lone_via",
+    "plate_vias",
+    "profile_board"
+   ],
+   "models": [
+    "fdm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|fdm|2": {
+     "abs_k": [
+      0,
+      0.183007
+     ],
+     "rel": [
+      0,
+      0.13025
+     ]
+    },
+    "example_board|fdm|1": {
+     "abs_k": [
+      0,
+      0.176044
+     ],
+     "rel": [
+      0,
+      0.06951
+     ]
+    },
+    "example_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.178214
+     ],
+     "rel": [
+      0,
+      0.03584
+     ]
+    },
+    "profile_board|fdm|2": {
+     "abs_k": [
+      0,
+      0.183007
+     ],
+     "rel": [
+      0,
+      0.13025
+     ]
+    },
+    "profile_board|fdm|1": {
+     "abs_k": [
+      0,
+      0.176044
+     ],
+     "rel": [
+      0,
+      0.06951
+     ]
+    },
+    "profile_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.178214
+     ],
+     "rel": [
+      0,
+      0.03584
+     ]
+    },
+    "example_cut_to_T|fdm|2": {
+     "abs_k": [
+      0,
+      0.17293
+     ],
+     "rel": [
+      0,
+      0.15754
+     ]
+    },
+    "example_cut_to_T|fdm|1": {
+     "abs_k": [
+      0,
+      0.187648
+     ],
+     "rel": [
+      0,
+      0.07875
+     ]
+    },
+    "example_cut_to_T|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.188523
+     ],
+     "rel": [
+      0,
+      0.04082
+     ]
+    },
+    "plate_vias|fdm|2": {
+     "abs_k": [
+      0,
+      0.08793
+     ],
+     "rel": [
+      0,
+      0.65557
+     ]
+    },
+    "plate_vias|fdm|1": {
+     "abs_k": [
+      0,
+      0.088388
+     ],
+     "rel": [
+      0,
+      0.45955
+     ]
+    },
+    "plate_vias|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.095062
+     ],
+     "rel": [
+      0,
+      0.35346
+     ]
+    },
+    "plate_lone_via|fdm|2": {
+     "abs_k": [
+      0,
+      0.073858
+     ],
+     "rel": [
+      0,
+      0.65557
+     ]
+    },
+    "plate_lone_via|fdm|1": {
+     "abs_k": [
+      0,
+      0.055675
+     ],
+     "rel": [
+      0,
+      0.45955
+     ]
+    },
+    "plate_lone_via|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.053021
+     ],
+     "rel": [
+      0,
+      0.35346
+     ]
+    }
+   }
+  },
+  {
+   "id": "R13",
+   "item": "K6+K7",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "plate_lone_via",
+    "plate_vias",
+    "profile_board"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|fvm|2": {
+     "abs_k": [
+      0,
+      0.161032
+     ],
+     "rel": [
+      0,
+      0.13404
+     ]
+    },
+    "example_board|fvm|1": {
+     "abs_k": [
+      0,
+      0.177589
+     ],
+     "rel": [
+      0,
+      0.07061
+     ]
+    },
+    "example_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.178613
+     ],
+     "rel": [
+      0,
+      0.03614
+     ]
+    },
+    "profile_board|fvm|2": {
+     "abs_k": [
+      0,
+      0.161032
+     ],
+     "rel": [
+      0,
+      0.13404
+     ]
+    },
+    "profile_board|fvm|1": {
+     "abs_k": [
+      0,
+      0.177589
+     ],
+     "rel": [
+      0,
+      0.07061
+     ]
+    },
+    "profile_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.178613
+     ],
+     "rel": [
+      0,
+      0.03614
+     ]
+    },
+    "example_cut_to_T|fvm|2": {
+     "abs_k": [
+      0,
+      0.172211
+     ],
+     "rel": [
+      0,
+      0.15067
+     ]
+    },
+    "example_cut_to_T|fvm|1": {
+     "abs_k": [
+      0,
+      0.191159
+     ],
+     "rel": [
+      0,
+      0.07981
+     ]
+    },
+    "example_cut_to_T|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.189655
+     ],
+     "rel": [
+      0,
+      0.04111
+     ]
+    },
+    "plate_vias|fvm|2": {
+     "abs_k": [
+      0,
+      0.113447
+     ],
+     "rel": [
+      0,
+      0.675
+     ]
+    },
+    "plate_vias|fvm|1": {
+     "abs_k": [
+      0,
+      0.094622
+     ],
+     "rel": [
+      0,
+      0.46667
+     ]
+    },
+    "plate_vias|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.096971
+     ],
+     "rel": [
+      0,
+      0.35625
+     ]
+    },
+    "plate_lone_via|fvm|2": {
+     "abs_k": [
+      0,
+      0.061869
+     ],
+     "rel": [
+      0,
+      0.675
+     ]
+    },
+    "plate_lone_via|fvm|1": {
+     "abs_k": [
+      0,
+      0.066831
+     ],
+     "rel": [
+      0,
+      0.46667
+     ]
+    },
+    "plate_lone_via|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.05554
+     ],
+     "rel": [
+      0,
+      0.35625
+     ]
+    }
+   }
+  },
+  {
+   "id": "R14",
+   "item": "K7",
+   "boards": [
+    "plate_lone_via",
+    "plate_vias"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "plate_vias|analytic|2": {
+     "abs_k": [
+      0,
+      0.082081
+     ]
+    },
+    "plate_vias|analytic|1": {
+     "abs_k": [
+      0,
+      0.082081
+     ]
+    },
+    "plate_vias|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.082898
+     ]
+    },
+    "plate_lone_via|analytic|2": {
+     "abs_k": [
+      0,
+      0.046363
+     ]
+    },
+    "plate_lone_via|analytic|1": {
+     "abs_k": [
+      0,
+      0.046363
+     ]
+    },
+    "plate_lone_via|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.049357
+     ]
+    }
+   }
+  },
+  {
+   "id": "R15",
+   "item": "K7",
+   "boards": [
+    "example_board",
+    "plate_lone_via",
+    "plate_vias",
+    "profile_board"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|lumped|2": {
+     "abs_k": [
+      0,
+      0.198095
+     ]
+    },
+    "example_board|lumped|1": {
+     "abs_k": [
+      0,
+      0.198095
+     ]
+    },
+    "example_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.188738
+     ]
+    },
+    "profile_board|lumped|2": {
+     "abs_k": [
+      0,
+      0.198095
+     ]
+    },
+    "profile_board|lumped|1": {
+     "abs_k": [
+      0,
+      0.198095
+     ]
+    },
+    "profile_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.188738
+     ]
+    },
+    "plate_vias|lumped|2": {
+     "abs_k": [
+      0,
+      0.086959
+     ]
+    },
+    "plate_vias|lumped|1": {
+     "abs_k": [
+      0,
+      0.086959
+     ]
+    },
+    "plate_vias|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.086959
+     ]
+    },
+    "plate_lone_via|lumped|2": {
+     "abs_k": [
+      0,
+      0.020403
+     ]
+    },
+    "plate_lone_via|lumped|1": {
+     "abs_k": [
+      0,
+      0.020403
+     ]
+    },
+    "plate_lone_via|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.020662
+     ]
+    }
+   }
+  },
+  {
+   "id": "S15",
+   "item": "K6+K7",
+   "boards": [
+    "example_board"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.161032
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S16",
+   "item": "K6+K7",
+   "boards": [
+    "plate_lone_via"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.061869
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S17",
+   "item": "K6+K7",
+   "boards": [
+    "plate_vias"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.113447
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S18",
+   "item": "K4",
+   "boards": [
+    "two_layer_partial"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.028083
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "R0",
+   "item": "K8",
+   "boards": "*",
+   "models": "*",
+   "cells": "*",
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    1e-08
+   ],
+   "abs_w": [
+    0,
+    1e-08
+   ],
+   "rel": [
+    0,
+    0
+   ],
+   "status": "derived",
+   "note": "round-off of the order of the sums"
+  }
+ ],
+ "must_not_move": [],
+ "transients": {
+  "must_not_move": [],
+  "may_move": [
+   {
+    "id": "T1",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2433
+    ],
+    "item": "K2+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T2",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0117
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T3",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T4",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0126
+    ],
+    "item": "K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T5",
+    "boards": [
+     "example_cut_to_T"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T6",
+    "boards": [
+     "example_cut_to_T"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T7",
+    "boards": [
+     "finned_block"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T8",
+    "boards": [
+     "hatched_copper"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T9",
+    "boards": [
+     "part_across_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T10",
+    "boards": [
+     "part_across_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T11",
+    "boards": [
+     "part_top_path"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T12",
+    "boards": [
+     "plate_lone_via"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.013
+    ],
+    "item": "K2+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T13",
+    "boards": [
+     "plate_lone_via"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T14",
+    "boards": [
+     "plate_lone_via"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T15",
+    "boards": [
+     "plate_lone_via"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T16",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0136
+    ],
+    "item": "K2+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T17",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T18",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T19",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T20",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2433
+    ],
+    "item": "K2+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T21",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0117
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T22",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6+K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T23",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0126
+    ],
+    "item": "K7",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T24",
+    "boards": [
+     "reference_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T25",
+    "boards": [
+     "reference_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T26",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T27",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T28",
+    "boards": [
+     "t_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T29",
+    "boards": [
+     "t_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K6",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T30",
+    "boards": [
+     "two_layer_partial"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "K4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T0",
+    "boards": "*",
+    "models": "*",
+    "direction": "any",
+    "rel_change": [
+     0,
+     1e-06
+    ],
+    "note": "round-off of the time to 63 %"
+   }
+  ]
+ },
+ "board_matrix": {}
+}

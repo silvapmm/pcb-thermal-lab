@@ -150,7 +150,7 @@ def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=
             (ntx, nty, tw, th), via_weights = plan["grid"], plan["weights"]
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))
         for iv, v in enumerate(problem.vias if vs is not None else []):
-            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / sh.get("d_barrel", d_diel)   # 2.6.0: the barrel is longer than the gap by half the copper (viawell.barrel_length)
             for (row, col), w in via_weights[iv].items():
                 c_via[row, col] += w * cond
         g_hs = np.zeros((L, nty, ntx))

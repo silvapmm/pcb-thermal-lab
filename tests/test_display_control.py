@@ -132,11 +132,13 @@ def test_popover_controls_per_context(qtbot, tmp_path, sim):
     win = _win(qtbot, tmp_path)
     _with_result(win, sim)
     pop, r = win.display_popover, win.results
-    # the board: Underlay, Map opacity and Colour map; View and Contour greyed
+    # the board: Underlay, Map opacity, Colour map and View (Current, Smooth); Terrain and Contour greyed
     win.tabs.setCurrentIndex(TAB_BOARD)
     assert pop.context == "editor"
     assert pop.underlay.isEnabled() and pop.opacity.isEnabled() and pop.opacity_spin.isEnabled() and pop.cmap.isEnabled()
-    assert not pop.view.isEnabled() and not pop.contour.isEnabled()
+    assert pop.view.isEnabled() and not pop.contour.isEnabled()
+    terrain = pop.view.model().item(pop.view.findData("terrain"))
+    assert not terrain.isEnabled() and "Results tab" in terrain.toolTip() and pop.view.model().item(pop.view.findData("smooth")).isEnabled()
     # the Temperature map: everything, the contour step in K and only with Terrain
     win.tabs.setCurrentIndex(TAB_RESULTS)
     r.tabs.setCurrentWidget(r.temp)
@@ -183,7 +185,7 @@ def test_one_state_for_every_map_and_the_tabs_lost_their_controls(qtbot, tmp_pat
     for t in (r.temp, r.grad):
         for name in ("underlay", "opacity", "opacity_spin", "view", "contour", "contour_label", "cmap"):
             assert not hasattr(t, name), name
-        assert t.model.count() == 0 and t.layer.count() == 0                      # Model and Layer stay (filled by a run)
+        assert t.model.count() == 0 and not hasattr(t, "layer")                   # Model stays (filled by a run); the layer is the toolbar choice
     assert not hasattr(r.animation, "view") and not hasattr(r.animation, "cmap") and not hasattr(r.animation, "underlay")
     assert hasattr(r.temp, "hot") and hasattr(r.temp, "auto") and hasattr(r.temp, "vmin")           # Hotspot and limits stay
     win.display.set_view("smooth")
@@ -597,3 +599,77 @@ def test_a_deferred_close_after_the_popover_was_deleted_raises_nothing(qtbot, tm
     win._on_tab_changed()
     win._toggle_display_popover()
     assert not win._in_display_popover(win)
+
+
+def test_the_view_can_be_chosen_on_the_board_and_is_kept(qtbot, tmp_path, sim):
+    """!
+    @brief Bug report on 2.5.2: with the map on the board the View stayed on Current. Current and Smooth now work there, Terrain says where it is shown.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    win = _win(qtbot, tmp_path)
+    _with_result(win, sim)
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    win._toggle_display_popover()
+    pop = win.display_popover
+    win.a_overlay.setChecked(True)
+    assert pop.view.isEnabled() and win.canvas._overlay.transformationMode() == Qt.FastTransformation
+    pop.view.setCurrentIndex(pop.view.findData("smooth"))                         # the user's own click on the combo
+    assert win.display.view == "smooth" and win.canvas._overlay.transformationMode() == Qt.SmoothTransformation
+    assert win.canvas._overlay_args["smooth"] is True
+    # a rebuild of the scene (layer change) keeps the smooth map, and so does another tab and back
+    win.canvas.rebuild()
+    assert win.canvas._overlay.transformationMode() == Qt.SmoothTransformation
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    assert win.display.view == "smooth" and win.canvas._overlay.transformationMode() == Qt.SmoothTransformation
+    assert win.canvas._overlay is not None and pop.view.currentData() == "smooth"
+    # Terrain chosen in the Results is drawn as Current on the board, and the entry explains itself
+    win.display.set_view("terrain")
+    assert win.canvas._overlay.transformationMode() == Qt.FastTransformation
+    assert not pop.view.model().item(pop.view.findData("terrain")).isEnabled()
+    pop.view.setCurrentIndex(pop.view.findData("current"))
+    assert win.display.view == "current" and win.canvas._overlay is not None
+    # undo and redo are not touched by the display choice
+    n = len(win.doc.problem.heaters)
+    win.doc.stack.undo()
+    win.doc.stack.redo()
+    assert len(win.doc.problem.heaters) == n
+
+
+def test_smooth_on_the_board_interpolates_the_temperatures_like_the_results_map(qtbot, tmp_path, sim):
+    """!
+    @brief Smooth on the board means what it means in the Results maps: the temperatures are interpolated between the cells and then coloured, so every
+           pixel is a colour of the bar (blending the colours of the cells is not), and the picture covers the same board as Current.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    from matplotlib import colormaps
+
+    from pcbthermal.gui import canvas as canvas_mod
+
+    win = _win(qtbot, tmp_path)
+    _with_result(win, sim)
+    win.tabs.setCurrentIndex(TAB_BOARD)
+    win.a_overlay.setChecked(True)
+    item = win.canvas._overlay
+    cur_rect, (nx, ny) = item.sceneBoundingRect(), (item.pixmap().width(), item.pixmap().height())
+    win.display.set_view("smooth")
+    item = win.canvas._overlay
+    k = item.pixmap().width() // nx
+    assert k == min(canvas_mod.OVERLAY_SMOOTH_FACTOR, canvas_mod.OVERLAY_SMOOTH_PIXELS // max(nx, ny)) and k > 1
+    assert item.pixmap().height() == k * ny
+    r = item.sceneBoundingRect()
+    assert abs(r.width() - cur_rect.width()) < 1e-6 and abs(r.height() - cur_rect.height()) < 1e-6 and abs(r.left() - cur_rect.left()) < 1e-6
+    # every pixel is a colour of the bar (a nearest entry of the 256-colour table within rounding)
+    img = item.pixmap().toImage().convertToFormat(item.pixmap().toImage().Format.Format_RGBA8888)
+    px = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())[:, : 4 * img.width()].reshape(img.height(), img.width(), 4)
+    rgb = px[px[..., 3] > 0][:, :3].astype(int)
+    table = (colormaps[win.display.cmap](np.linspace(0, 1, 256))[:, :3] * 255).astype(int)
+    far = np.abs(rgb[:, None, :] - table[None, :, :]).sum(axis=2).min(axis=1)
+    assert far.max() <= 6
+    # back to Current: one pixel per cell again
+    win.display.set_view("current")
+    assert win.canvas._overlay.pixmap().width() == nx

@@ -348,6 +348,9 @@ def test_profile_runner_with_zones_ends_on_the_average_and_follows_the_wave():
     opt = profiles.ProfileOptions(threshold_c=0.0, duration="stable", stable_c=0.05, theta=0.5)
     resp = profiles.StepResponse("lumped", *lumped.step_responses(p, 10, 0.5))
     dec = profiles.decide(p, resp, 0.0)
+    # Since 2.6.0 (fix/fast-wave-ripple) a 0.5 s stretch gets the regime "average + ripple" (closed form, no time stepping), so the adapter under test would never run:
+    # the wave is resolved on purpose, which is what the decision gave in 2.5.x and what it gives for stretches above FAST_STRETCH_S
+    dec[0].regime = "resolved"
     with zref.VARIANTS["Z_none"]():
         res = lumped.run_profile(p, dec, opt, 10, 0.5)
         assert zl.LAST["nz"] == 2
@@ -387,9 +390,25 @@ def test_shen_equations_and_the_unit_cell_solver():
     from pcbthermal import SolverOptions, simulate
     zref.pc.load_libraries()
     prob = sc.program_problem()
-    t = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
+    from pcbthermal import analysis
+    r = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"]
+    # like with like: the reference is the MEAN top temperature of the cell over 144, so the program's mean of the heater, not t_max (the hottest point sits in the via-free rim)
+    t = analysis.heater_stats(r, prob)[0]["t_mean"] - prob.board.ambient
     ref = sc.unit_cell(**dict(nr_out=96, nz_gap=28, nz_cu=8, nr_barrel=10, nr_hole=10)) / 144
+    # 2.6.0 (fix/via-barrel-and-rim-uncoupling) lengthens the barrel by half the copper thickness (a = 0.5): the mean reads 1.4395 K at 0.1 mm (1.4389 K at 0.05 mm), -1.5 % of
+    # this resolved reference; the old a = 0 reads 1.3364 K, -8.5 %. The earlier "+0.8 %" agreement was two errors cancelling: the barrel deficit (-8.5 %) against comparing
+    # t_max with the reference MEAN (about +9 %).
     assert t == pytest.approx(ref, rel=0.03)
+    from pcbthermal import viawell
+    saved_fraction = viawell.BARREL_COPPER_FRACTION
+    viawell.BARREL_COPPER_FRACTION = 0.0                                       # the 2.5.x barrel (gap alone): -8.5 % of the reference
+    try:
+        r0 = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"]
+        t0 = analysis.heater_stats(r0, prob)[0]["t_mean"] - prob.board.ambient
+    finally:
+        viawell.BARREL_COPPER_FRACTION = saved_fraction
+    assert t0 == pytest.approx(ref * (1 - 0.085), rel=0.01)
+    assert t > t0                                                              # the longer barrel can only add resistance
 
 
 def test_fallback_decision_does_not_jump_with_the_raster():

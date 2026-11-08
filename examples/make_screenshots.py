@@ -401,18 +401,18 @@ def main_views(out_dir, board_dir):
         res = win.results
         # The Temperature tab: all four layers in a grid, smooth, with the copper under the map
         res.tabs.setCurrentWidget(res.temp)
-        pick(res.temp.layer, -2)
+        pick(win.layer_combo, -2)                           # The Layer box of the tool bar is the one layer choice (Temperature lists All (2 x 2))
         win.display.set_view("smooth")                      # One display choice for every map (the Display button of the tool bar)
         win.display.set_kind("copper")
         save(win, f"results_views{suffix}.png")
         if not suffix:
             # The Terrain view and the Gradients tab (the light theme is enough: the dark one only recolours them)
-            pick(res.temp.layer, 0)
+            pick(win.layer_combo, 0)
             win.display.set_view("terrain")
             win.display.set_contour("temperature", 5.0)
             save(win, "results_terrain.png")
             res.tabs.setCurrentWidget(res.grad)
-            pick(res.grad.layer, 0)
+            pick(win.layer_combo, 0)
             save(win, "results_gradient.png")
         if suffix:
             win.doc.stack.setClean()
@@ -437,8 +437,9 @@ def main_views(out_dir, board_dir):
         win.a_overlay.setChecked(True)
         win.canvas.fit()
         save(win, "editor_overlay.png")
-        # The Display popover opened from the Board tab, drawn over the window (it is a separate window, so it is pasted in at its place) and cropped to the top
-        win.display.set_view("current")
+        # The Display popover opened from the Board tab, drawn over the window (it is a separate window, so it is pasted in at its place) and cropped to the top;
+        # the View shows Smooth, which works on the board (Terrain is the greyed entry)
+        win.display.set_view("smooth")
         win.display.set_kind("copper")
         win._toggle_display_popover()
         app.processEvents()

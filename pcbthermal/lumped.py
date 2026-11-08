@@ -9,7 +9,8 @@ heater the board cells are grouped in "rings" by their distance to the heater fo
 
 - ring 0 is the footprint itself (the cells the heater covers),
 - ring k >= 1 holds the cells whose distance to the footprint lies in (E_{k-1}, E_k]; the edges E_k
-  grow geometrically from a few cell sizes up to the farthest board cell.
+  grow geometrically from a few cell sizes up to the farthest board cell; the width of the first ring is
+  capped at the footprint's equivalent radius (never below 1.5 cells), so that it does not grow with the board.
 
 Because the rings follow the real footprint and the real board outline, a long thin heater, an
 L-shaped one or one close to an edge all get the correct contour lengths: no circular
@@ -55,12 +56,12 @@ from scipy import ndimage
 from scipy.linalg import lu_factor, lu_solve
 from scipy.special import ive, k0
 
-from . import profiles, viaconstriction
+from . import memory, profiles, viaconstriction
 from .fvm import Network, board_time_constant
 
 RING_MIN_WIDTH = 1.0        # Minimum width of a ring in cells: thinner rings are merged (0 keeps the edges of the geometric series as they are)
 from . import blocks
-from .geometry import cell_index_of_point, coverage_fraction, polygon_centroid
+from .geometry import cell_index_of_point, coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
@@ -72,6 +73,10 @@ ZONES = True                        # False keeps every footprint as one node (a
 CORE_R = 0.7071                     # Radius of the core around a via in nearest-neighbour distances: 1 / sqrt(2) covers a square lattice (assumed, README 4.1)
 MAX_CORE = 0.92                     # Largest share of the footprint the core may cover before the footprint stays one node (assumed; with 94 to 99 % the zones read the part 6 to 14 % hot, README 9.7)
 FINE_MM = 0.1                       # Cell of the fine grid on which the share of the core is counted for the decision (mm): it does not depend on the user's raster
+SMALL_PART_CELLS = 2.0              # A heat source narrower than this many cells of the raster is refined (research/lumped-near-edge 10.4)
+SMALL_PART_MIN_CELL_MM = 0.125      # Finest raster of the refinement (mm): 0.0625 mm gained nothing more and costs four times the memory
+SMALL_PART_BYTES_PER_CELL = 1700.0  # Peak memory of the Lumped per raster cell on a 4-layer board (measured 0.97 GB at 512 000 cells; scaled by the layers above 4)
+SMALL_PART_MAX_BYTES = 1.0e9        # Largest estimated peak of a refined raster (bytes); the memory-guard limit of the machine can lower it, never raise it
 ZONE_CELL_MM = 0.5                  # Lumped raster of a board that has a zoned part (mm): the core must be a handful of cells across (README 4.3)
 MAX_ZONE_CELLS = 700                # Points kept per zone in the potential integrals (blocks of k x k cells above it)
 
@@ -178,10 +183,22 @@ def _interior_factors(x):
     return np.where(small, 1.0, f_r), np.where(small, 1.0, f_p)
 
 
-def ring_edges(rho_max, dx, dy, rings, min_width=None):
+def _equivalent_radius(foot, dx, dy):
+    """!
+    @brief Equivalent radius of a footprint: the radius of the disc with the area of the cells it touches.
+    @param foot Boolean array (ny, nx), True in the cells the footprint touches.
+    @param dx Cell size along x in m.
+    @param dy Cell size along y in m.
+    @return Radius in m, sqrt(N0 dx dy / pi) with N0 at least 1.
+    """
+    return math.sqrt(max(float(foot.sum()), 1.0) * dx * dy / math.pi)
+
+
+def ring_edges(rho_max, dx, dy, rings, min_width=None, a_eq=None):
     """!
     @brief Outer distances of the rings around a footprint: a geometric series from rho1 to the farthest cell, with edges closer than the minimum width merged.
-    @details rho1 = max(1.5 cells, 0.04 rho_max), at most rho_max / 2; then rho1 (rho_max / rho1)^(k / (rings - 1)). A ring thinner than the raster holds a
+    @details rho1 = max(1.5 cells, 0.04 rho_max), capped at max(1.5 cells, a_eq) when a_eq is given (the first ring is at most one equivalent radius of the footprint
+             wide), at most rho_max / 2; then rho1 (rho_max / rho1)^(k / (rings - 1)). A ring thinner than the raster holds a
              count of cells that does not match its width, so its contour length (area / width) and its resistance come out wrong (the result grew with the
              ring count: +3 to +13 % with 40 rings); edges closer than min_width cells are merged, so asking for more rings than the raster can show changes nothing.
     @param rho_max Distance of the farthest cell from the footprint in m.
@@ -189,9 +206,13 @@ def ring_edges(rho_max, dx, dy, rings, min_width=None):
     @param dy Cell size along y in m.
     @param rings Number of rings requested.
     @param min_width Minimum ring width in cells (None: RING_MIN_WIDTH).
+    @param a_eq Equivalent radius of the footprint in m (None: no cap). The first ring is at most this wide (never below 1.5 cells): without the cap its
+           width, 0.04 rho_max, grows with the board and a small part reads cool (a 1 mm part on a 200 x 150 mm uniform board -25 %).
     @return Array of edges [0, rho1, ..., rho_max (slightly enlarged)].
     """
     rho1 = max(1.5 * min(dx, dy), 0.04 * rho_max)
+    if a_eq is not None:                                   # the first ring is at most one equivalent radius of the footprint wide
+        rho1 = min(rho1, max(1.5 * min(dx, dy), a_eq))
     rho1 = min(rho1, rho_max * 0.5)
     edges = np.concatenate([[0.0], rho1 * (rho_max / rho1) ** (np.arange(rings) / max(rings - 1, 1))])
     edges[-1] = rho_max * 1.0000001
@@ -232,7 +253,7 @@ def _one_node_network(net, cov, layer, power, rings, vias=None):
 
     # --- Ring membership: 0 = footprint, 1..rings = geometric offsets from the footprint
     if rho_max > 0:
-        edges = ring_edges(rho_max, net.dx, net.dy, rings)
+        edges = ring_edges(rho_max, net.dx, net.dy, rings, a_eq=_equivalent_radius(foot, net.dx, net.dy))
         idx = np.where(foot, 0, 1 + np.minimum(np.searchsorted(edges[1:], dist, side="left"), len(edges) - 2))
     else:
         edges, idx = np.array([0.0]), np.zeros((ny, nx), dtype=int)
@@ -643,7 +664,7 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
     outside = ~foot
     rho_max = float(dist.max()) if outside.any() else 0.0
     if rho_max > 0:
-        edges = ring_edges(rho_max, net.dx, net.dy, rings)
+        edges = ring_edges(rho_max, net.dx, net.dy, rings, a_eq=_equivalent_radius(foot, net.dx, net.dy))
         idx = np.where(foot, 0, 1 + np.minimum(np.searchsorted(edges[1:], dist, side="left"), len(edges) - 2))
     else:
         edges, idx = np.array([0.0]), np.zeros((ny, nx), dtype=int)
@@ -821,11 +842,63 @@ def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None, prepared=Fal
     return 0.0 < share <= MAX_CORE
 
 
+def _smallest_side_mm(problem):
+    """!
+    @brief Equivalent side (square root of the area) of the smallest heat source with power, in mm.
+    @param problem A Problem.
+    @return float side in mm, or None when no source has power and an area.
+    """
+    sides = [math.sqrt(a) * 1e3 for h in problem.heaters if h.power > 0.0 and (a := polygon_area(h.polygon)) > 0.0]
+    return min(sides) if sides else None
+
+
+def small_part_cell(problem, clipped):
+    """!
+    @brief The finer Lumped raster for a heat source smaller than two cells, or None when the raster stays as it is.
+    @details A source narrower than the raster is spread over the whole cells it touches, so the hottest node depends on where the source sits in its cell: -19 to +6 % of the rise
+             at 0.5 mm for sides of 0.1 to 0.5 mm against the FVM at 0.0625 mm (the FVM at the same cell has the same spread, a grid effect). The raster of half the side of
+             the smallest source with power, not below SMALL_PART_MIN_CELL_MM, brings it to -0.8 to +1.6 % (15 cases). The raster is one per board, so one small part refines the
+             whole board. The Lumped has no memory guard of its own, so the refinement is refused (None) when its estimated peak, SMALL_PART_BYTES_PER_CELL per raster cell (scaled
+             by the layers above four), exceeds the smaller of SMALL_PART_MAX_BYTES and the memory-guard limit of the machine.
+    @param problem A Problem (the board the Lumped solves: for an outline, the equivalent rectangle).
+    @param clipped Raster of the run before the refinement, in mm.
+    @return float raster in mm, or None (no source under two cells, or the refinement does not fit in memory).
+    """
+    side = _smallest_side_mm(problem)
+    if side is None or side >= SMALL_PART_CELLS * clipped:
+        return None
+    cell = max(side / SMALL_PART_CELLS, SMALL_PART_MIN_CELL_MM)
+    if cell >= clipped:
+        return None                                              # The floor would not refine anything
+    b = problem.board
+    cells = (b.width * 1e3 / cell) * (b.height * 1e3 / cell)
+    peak = cells * SMALL_PART_BYTES_PER_CELL * max(b.layers, 4) / 4.0
+    if peak > min(SMALL_PART_MAX_BYTES, memory.limit_bytes()):
+        return None
+    return cell
+
+
+def small_part_refused(problem, cell_mm):
+    """!
+    @brief True when a heat source is smaller than two cells of the Lumped raster, the raster would be refined, and the finer raster does not fit in the memory bound
+           (the run keeps the raster and the live check says so).
+    @param problem A Problem (for an outline, the equivalent rectangle).
+    @param cell_mm Cell size requested in the options, in mm.
+    @return bool.
+    """
+    clipped = min(max(cell_mm, 0.5), 1.0)
+    side = _smallest_side_mm(problem)
+    if side is None or side >= SMALL_PART_CELLS * clipped or max(side / SMALL_PART_CELLS, SMALL_PART_MIN_CELL_MM) >= clipped:
+        return False
+    return small_part_cell(problem, clipped) is None
+
+
 def cell_for(problem, cell_mm):
     """!
     @brief The Lumped raster of a run: ZONE_CELL_MM when a heater will be zoned, else the requested cell clipped to 0.5 to 1.0 mm (the clip of every release up to 2.4.5).
     @details The raster is one per board, so one zoned part moves the whole board to 0.5 mm and the other parts' results move by the raster. A part that falls back to
-             one node keeps the clip: a part without vias or with one via per footprint loses nothing at 1.0 mm, and the example board stays bit-identical.
+             one node keeps the clip: a part without vias or with one via per footprint loses nothing at 1.0 mm, and the example board stays bit-identical. A board with a
+             heat source narrower than two cells (and no zoned part) gets the finer raster of small_part_cell, when its estimated memory fits; boards with no such source are untouched.
     @param problem A Problem.
     @param cell_mm Cell size requested in the options, in mm.
     @return float cell in mm.
@@ -837,6 +910,10 @@ def cell_for(problem, cell_mm):
                 log.info("Lumped raster %.2f mm instead of %.2f mm: %s has a dense group of vias under its footprint (zone model); the raster is one per board",
                          ZONE_CELL_MM, clipped, h.name or f"heater {k + 1}")
                 return ZONE_CELL_MM
+    fine = small_part_cell(problem, clipped)
+    if fine is not None:
+        log.info("Lumped raster %.3f mm instead of %.2f mm: a heat source is narrower than two cells; the raster is one per board", fine, clipped)
+        return fine
     return clipped
 
 
@@ -870,7 +947,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=True, ladder=False)       # A metal block is one more layer of the network; no laminate nodes of the rule (the Lumped keeps one link per gap)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=True, ladder=False, cut_cells=False)       # (the rings never see the links or the film in series: the earlier edge conductance) A metal block is one more layer of the network; no laminate nodes of the rule (the Lumped keeps one link per gap)
     L = net.nl
     nbl = net.n_board
     power = problem.total_power()
@@ -946,7 +1023,7 @@ def _unit_networks(problem, rings, cell_mm):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False, cut_cells=False)     # (as above: the rings read the edge conductance without the series term)
     systems = []
     vias = viaconstriction.ViaSet(problem) if problem.vias else None
     for h in problem.heaters:

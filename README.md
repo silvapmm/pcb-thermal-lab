@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.5.2-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-2710%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.6.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3217%20collected-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -14,7 +14,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
 - **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general and a laminar form (`Board.natural_form`; the laminar form is the default of new projects, old files keep the general one, and a low face Rayleigh number is warned).
-- **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face); animation of the heat evolution with GIF export.
+- **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face; a fast wave on a part with copper under it is held at its average power with its temperature wave, computed in closed form from the layers, added at the heater); animation of the heat evolution with GIF export.
 
 **Tools**
 - **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
@@ -25,7 +25,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Gerber reader** (`pcbthermal.gerber`, used by **File - Import Gerber board**, `docs/models.md` 19.4): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6). It also recognises which CAD program wrote a set of files (KiCad, Altium, EAGLE, Allegro and others) from their headers, only to propose layer names, never to decide (`docs/models.md` 19.3).
 - **Gerber import window** (**File - Import Gerber board**, three steps: files and layers, parts, model): parts from the paste layers, the placement file and X3 component layers, with the heat source shaped as the exposed pad or tab (proposed for QFN, DFN, SOT-223, DPAK), the convex hull or the bounding box; plated holes become vias; re-import with Replace, Update or Add files keeps what you did in the editor; a project with imports is saved in **project format 2** (needs 2.5.0 or later; older programs refuse it, `.bak` copies are kept). The user guide has a walkthrough, a glossary of the warnings and a table of what is validated and what is not.
 - **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models read the copper only as the average of a cell, so the pads and narrow tracks of small parts are invisible to them, and they warn that they read too cool (on 42 parts of three imported boards 25 to 82 % and 17 to 77 % at a 0.5 mm cell; a sample, not a bound).
-- **Views of the result maps**: Current, Smooth and Terrain (relief with contour lines), the copper of the layer under the map with an adjustable opacity, and all layers in a 2 x 2 grid (display only).
+- **Views of the result maps**: Current, Smooth and Terrain (relief with contour lines), the copper of the layer under the map with an adjustable opacity, and all layers in a 2 x 2 grid (display only). One **Layer** box in the main tool bar is the drawing layer, the layer of the map on the board and the layer of every Results map (Temperature adds All layers, All (2 x 2) and the metal block); the model name in the card of the map on the board opens a menu of the models.
 - **Display control** (display only): the **Map** button (key `T`) shows the temperature map on the board (a card with the model, the maximum and the minimum, and a ring on each point), and the **Display** button of the tool bar sets how every map is drawn: Underlay (nothing, the copper or the background image; only the entries valid for the project), Map opacity (default 70 %), View (Current, Smooth, Terrain), Contour every and Colour map. One choice for the Temperature and Gradients maps, the Animation and the board.
 - **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
 - **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
@@ -68,6 +68,12 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+
+## What is new in 2.6.0
+
+Version 2.6.0 (2026-11-07) is the release of the model corrections that followed the independent reviews, and several of them move numbers on purpose (the frozen reference is refrozen once, `tests/regression/data/v2.6.0.json`). Models: the exact cover of the board outline and cut-cell links with an edge film (FVM and 3D solid); the laminate cut into sub-gaps in a band along the board edge (FVM and FDM); the 3D solid with slabs by thickness and the face term; the Analytic model with its own edge parameter per layer and a local transient with vias and heatsinks; a capped first ring of the Lumped model, a warning near a side or a corner and a finer raster for a part smaller than two cells; a via barrel longer by half the copper thickness, with a copper layer the drilled hole does not touch left uncoupled; the horizontal face turned down on `Nu = 0.475 Ra^(1/5)`; and fast square waves (the closed-form swing of the stack as a floor, plus an average and ripple regime for a fast heater). Interface: a project package (`.pcbtz`: the project and the files it was imported from in one safe ZIP, with Save as, Export package and `convert`) and its size preference, one Layer box for the board and the Results maps with a clickable model name in the map card, the Display View (Current and Smooth) on the board, and bounds against hostile outlines.
+
+Limits that remain (listed in `docs/versions.md`, 'Planned: 2.6.1'): the FDM has no cut-cell treatment; a board with an outline and imported copper keeps the cover-weighted links; the copper edge held inside the outline leaves a spread of 2 to 3 K at an edge coefficient of 200 W/m2K; Terrain contours are not drawn on the board.
 
 ## What is new in 2.5.2
 
@@ -113,6 +119,7 @@ python3 -m venv .venv
 
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
+.venv/bin/python -m pcbthermal convert board.pcbt.json board.pcbtz         # project package (a ZIP: project, image and, on request, the Gerber and placement files); every command reads a .pcbtz
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM and the 3D solid)
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
@@ -162,6 +169,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.6.0** (2026-11-07): model corrections after the independent reviews (cut cells, laminate edge band, via barrel, Analytic per-layer edge, 3D solid slabs, face-down convection, fast square waves), the project package `.pcbtz`, a single Layer box, the Display views on the board; the frozen numbers refrozen once.
 - **2.5.2** (2026-11-07): fixes: non-finite and absurd lengths refused on load and never written, the Pulsonix placement preamble, the licence header on every file, the re-import of a different board, theory text corrections (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
 - **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).

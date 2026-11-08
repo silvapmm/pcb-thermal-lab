@@ -25,8 +25,7 @@ VIEW_TIP = ("How the map is drawn. Current: the cells as solved. Smooth: bicubic
 CONTOUR_TIP = ("Distance between the contour lines of the Terrain view; every second line is thicker and labelled. One value for each kind of map: the Temperature "
                "map in K and the Gradients map in K/mm, where 'auto' (the lowest value) picks a round step from the range of the map. Used only when View is Terrain.")
 CMAP_TIP = "Colour scale of every map: the Temperature and Gradients maps, the Animation and the map on the board."
-OPEN_TIP = ("Display: what is drawn under the temperature map (copper or the background image), the opacity of the map, how it is drawn (Current, Smooth, Terrain), "
-            "the contour step and the colour map. One choice for the Temperature, Gradients and Animation maps and the map on the board. A dot marks an active underlay.")
+OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (a dot: an active underlay)."
 
 
 class DisplayState(QObject):
@@ -221,7 +220,7 @@ class DisplayPopover(QFrame):
     """!
     @brief The floating panel of the Display button: the controls that say HOW the maps are drawn.
     @details A frameless tool window that never takes the activation or the keyboard focus on opening, so the window keeps its focus and the key T. The controls that
-             do not apply in the context (the View and the Contour step in the editor, Terrain in the Animation, the Contour step unless View is Terrain) are greyed, not hidden.
+             do not apply in the context (Terrain and the Contour step in the editor, Terrain in the Animation, the Contour step unless View is Terrain) are greyed, not hidden.
     """
 
     def __init__(self, state, parent=None):
@@ -357,12 +356,15 @@ class DisplayPopover(QFrame):
             self.contour.setValue(s.contour_temp)
         self.contour.blockSignals(False)
         self.contour_label.setText("Contour every (Gradients)" if grad else "Contour every (Temperature)")
-        # What applies where: the editor map has no View or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
+        # What applies where: the editor map has no Terrain or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
         editor, anim = ctx == "editor", ctx == "animation"
-        self.view.setEnabled(not editor)
+        # View stays usable on the board (Current and Smooth); only Terrain is greyed, with the reason as the tooltip of the entry
+        self.view.setEnabled(True)
         item = self.view.model().item(self.view.findData("terrain"))
         if item is not None:
             item.setEnabled(not anim and not editor)
+            item.setToolTip("Terrain is shown in the Results tab (Temperature and Gradients)." if editor else
+                            "Terrain is not drawn in the Animation (Current is used)." if anim else "")
         terrain = s.view == "terrain" and not anim and not editor
         self.contour.setEnabled(terrain)
         self.contour_label.setEnabled(terrain)
@@ -371,7 +373,7 @@ class DisplayPopover(QFrame):
             w.setEnabled(editor or s.kind != "none")
         text = ""
         if editor:
-            text = "On the board the map uses Underlay, Map opacity and Colour map; View and Contour apply to the Results maps."
+            text = "On the board the map uses Underlay, Map opacity, Colour map and View (Current or Smooth); Terrain and Contour are shown in the Results tab."
         elif anim:
             text = "The Terrain relief is not drawn in the Animation (Current is used)."
         elif not terrain:

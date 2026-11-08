@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from .. import defaults, memory
 from .. import model
+from .. import package
 from ..gerber import limits
 from ..numfmt import eng, num
 from . import theme as th
@@ -74,16 +75,21 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical values by package family: junction-to-pad θ, junction-to-case (top) θJC(top) (K/W) and the maximum junction temperature (°C): a starting value, never the datasheet's.",
                 "heatsinks": "Typical heatsinks for the top of a package and their catalogue θSA (K/W) with the source and the test conditions in the note: a starting value, your θSA depends on air flow, orientation and mounting."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
                  "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
                  "solver": "The models and settings a new project starts with.",
-                 "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files."}
+                 "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files.",
+                 "package": "Size limit of a project package (.pcbtz). A setting of this machine, not saved in project files."}
 MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit is a machine preference: "
                            "it is not saved in project files.",
-                 "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files."}
+                 "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files.",
+                 "package": "Size limit of a project package. A machine preference: not saved in project files."}
+# Shown under the package page when the limit is above the shipped 512 MB
+PACKAGE_MEMORY_NOTE = ("Above 512 MB: the whole package is held in memory while it is read and written (the files it holds, their compressed copy and the project), "
+                       "so a package of this size needs several times its size in free memory.")
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
@@ -104,7 +110,7 @@ LABELS = {
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
     "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
-    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)",
+    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)", "max_mb": "Largest package (MB)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
 COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
@@ -147,6 +153,11 @@ TIPS = {
     "max_file_mb": "Largest Gerber, drill or ZIP-member file the reader accepts, in MB (16 to 4096, shipped 256). Real Gerber files are 0.01 to 2 MB; a file far above that is "
                    "a mistake or a hostile file and is refused from its size, before it is read, because the decoded text takes about twice the file in memory. This is a setting "
                    "of this machine, not of the project: it is not saved in project files.",
+    "max_mb": "Largest project package (.pcbtz) the program reads or writes, in MB of all its files uncompressed (64 to 4096, shipped 512). A real package is a project of "
+              "a few hundred kB plus the Gerber files it was imported from, under 10 MB; a package far above that is a mistake or a hostile file and is refused from the sizes "
+              "its ZIP declares, before anything is read. The whole package is held in memory while it is read and written, so raise it only on a machine with memory to spare. "
+              "The limits on a single member, the compression ratio and the number of members are fixed. This is a setting of this machine, not of the project: it is not saved "
+              "in project files.",
     "memory_fraction": "Share of the physical memory a solve may use (0.10 to 0.95, shipped 0.60). A FVM, FDM or 3D run whose estimated peak memory is above it is refused before "
                        "anything is allocated, with the cell that fits. This is a setting of this machine, not of the project: it is not saved in project files. The estimate has a "
                        "safety margin but can be wrong by tens of percent; a run above the memory available now only warns. Environment variable PCBTHERMAL_MEMORY_BYTES states the memory "
@@ -192,21 +203,22 @@ class PreferencesDialog(QDialog):
         # Solver and Gerber import have their own sections (they sat at the bottom of the long defaults page, hard to find)
         self._add_section("Solver", self._machine_tab("solver"))
         self._add_section("Gerber import", self._machine_tab("gerber"))
+        self._add_section("Project package", self._machine_tab("package"))
         self._add_section("Power Calculator", self._calculator_tab())
         self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.sections.setCurrentRow(0)                      # The first page is shown
         self.sections.setFocus()                            # Up and Down change the page from the start
         row = QHBoxLayout()
         self.save_btn = QPushButton("Save as my defaults")
-        self.save_btn.setToolTip("Write what differs from the shipped defaults to the user file. New projects and the lists of the forms use it from now on.")
+        self.save_btn.setToolTip("Save your changes as the defaults for new projects.")
         self.reset_btn = QPushButton("Reset to shipped")
-        self.reset_btn.setToolTip("Delete the user file: every default and library goes back to the values shipped with the program.")
+        self.reset_btn.setToolTip("Delete your defaults: back to the shipped values.")
         self.folder_btn = QPushButton("Open folder")
-        self.folder_btn.setToolTip("Open the configuration folder with the user file (and, if you put one there, your own stackups.json).")
+        self.folder_btn.setToolTip("Open the configuration folder.")
         self.export_btn = QPushButton("Export…")
-        self.export_btn.setToolTip("Save a copy of the user's defaults file to share it with someone else.")
+        self.export_btn.setToolTip("Save a copy of your defaults to share.")
         self.import_btn = QPushButton("Import…")
-        self.import_btn.setToolTip("Replace the user's defaults by a file someone shared (it is checked first).")
+        self.import_btn.setToolTip("Replace your defaults with a shared file.")
         for b in (self.save_btn, self.reset_btn, self.folder_btn, self.export_btn, self.import_btn):
             row.addWidget(b)
         row.addStretch(1)
@@ -274,7 +286,7 @@ class PreferencesDialog(QDialog):
         add = QPushButton("Add row")
         add.setToolTip("Add an entry at the end: give it a name and its values.")
         rem = QPushButton("Delete row")
-        rem.setToolTip("Remove the selected entry from the list (a shipped entry comes back with Reset).")
+        rem.setToolTip("Remove the selected entry (Reset brings a shipped one back).")
         add.clicked.connect(lambda _c=False, lib=lib: self._add_row(lib))
         rem.clicked.connect(lambda _c=False, lib=lib: self._delete_row(lib))
         row.addWidget(add)
@@ -306,8 +318,8 @@ class PreferencesDialog(QDialog):
 
     def _machine_tab(self, section):
         """!
-        @brief A page of its own for the Solver or the Gerber import settings, with a header line.
-        @param section "solver" or "gerber".
+        @brief A page of its own for the Solver, Gerber import or Project package settings, with a header line.
+        @param section "solver", "gerber" or "package".
         @return QWidget (a scroll area that never scrolls sideways).
         """
         from PySide6.QtWidgets import QScrollArea
@@ -319,6 +331,14 @@ class PreferencesDialog(QDialog):
         note.setToolTip(SECTION_HINTS[section])
         lay.addWidget(note)
         lay.addWidget(self._section_tab(section))
+        if section == "package":
+            # The memory note appears only above the shipped limit; it follows the field
+            self.package_note = QLabel(PACKAGE_MEMORY_NOTE)
+            self.package_note.setWordWrap(True)
+            th.hint(self.package_note)
+            self.package_note.setToolTip(TIPS["max_mb"])
+            lay.addWidget(self.package_note)
+            self._refresh_package_note()
         lay.addStretch(1)
         area = QScrollArea()
         area.setWidgetResizable(True)
@@ -390,7 +410,7 @@ class PreferencesDialog(QDialog):
                 wdg.toggled.connect(lambda on, section=section, key=key: self._set(section, key, bool(on)))
             elif isinstance(val, int):
                 wdg = QSpinBox()
-                wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (0, 100000)))
+                wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (package.MIN_TOTAL_MB, package.MAX_TOTAL_MB) if key == "max_mb" else (0, 100000)))
                 wdg.setValue(val)
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, int(v)))
             else:
@@ -425,6 +445,17 @@ class PreferencesDialog(QDialog):
         @param value New value.
         """
         self.data[section][key] = value
+        if (section, key) == ("package", "max_mb"):
+            self._refresh_package_note()
+
+    def _refresh_package_note(self):
+        """!
+        @brief Show the memory note of the package page only while the limit is above the shipped 512 MB.
+        @return None.
+        """
+        note = getattr(self, "package_note", None)
+        if note is not None:
+            note.setVisible(float(self.data["package"].get("max_mb", package.DEFAULT_TOTAL_MB)) > package.DEFAULT_TOTAL_MB)
 
     def _read_models(self, section):
         """!

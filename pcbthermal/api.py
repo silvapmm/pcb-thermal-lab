@@ -248,6 +248,11 @@ class Simulation:
                 else:
                     lines.append(f"| {name} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | - | - | {r.seconds:.2f} |")
+            for name, r in self.profile_results.items():
+                for x in r.ripple:
+                    lines.append(f"\n> **Ripple ({name})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} °C peak to peak "
+                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} °C about its mean, from the closed-form impedance of the stack) is added at the heater, "
+                                 "in the peak and the minimum above and not in the maps.")
         return lines
 
     def to_text(self):
@@ -307,6 +312,9 @@ class Simulation:
                                  f"{'stable' if r.converged else 'not stable'}")
                 else:
                     lines.append(f"  {name}: every heater averaged; steady {r.steady_average_max:.2f} C")
+                for x in r.ripple:
+                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} C peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} C about its mean, closed form of the stack), "
+                                 "in the peak and the minimum, not in the maps")
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
@@ -747,6 +755,11 @@ def _solve_computed_h(problem, name, o):
     if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
         res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 10.00E3 to 100.00E9, "
                             "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
+        # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
+        # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
+        res.warnings.append(f"the bottom-face (turned down) Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
+                            "where the law of the face turned down has published support; the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
@@ -833,6 +846,44 @@ def step_response(problem, model, options):
         return _step_response(problem, model, options)
 
 
+# The step response of the decision is computed at a cell of at least this size, as before, unless a part with a profile is smaller than a few cells (response_cell_mm)
+RESPONSE_CELL_MM = 2.0
+
+# Finest cell of the step response of a small part (mm); the same floor as Auto (suggest_cell_mm)
+RESPONSE_CELL_FLOOR_MM = 0.25
+
+
+def response_cell_mm(problem, model, options):
+    """!
+    @brief Cell of the step response behind the average-or-resolve decision, finer for a small part.
+    @details The response used to be computed at ``max(cell, 2 mm)`` whatever the parts: a 2 mm part is one cell and its swing is already 0.67 of the truth at 0.1 Hz (0.37 to 0.51
+             at 1 Hz), so a small part was averaged although its wave exceeded the budget (research/fast-wave-oscillation 8.3). The cell is now at most a quarter of the narrow side of
+             the smallest part with a profile (about four cells across), not finer than RESPONSE_CELL_FLOOR_MM, not coarser than the old one, and enlarged by a quarter at a time until the
+             memory guard says "ok" for a transient of the model (the response needs one factorisation per stage, like an animation).
+    @note The cost is that of a finer transient: on a 100 x 80 mm board with a 2 mm part (cell 0.5 mm) the response took 5.9 s and 0.33 GB on two layers and 22 s and 1.1 GB on
+          four, against 0.1 and 0.5 s at 2 mm (docs/validation.md 37.3); a 0.5 mm part on the four-layer board asks for 0.25 mm, which the memory guard estimates at 6.9 GB and
+          accepts ("ok" below 60 % of 16 GB). With copper under the part the closed-form floor already covers the fast waves, so the finer cell matters for slow waves and for
+          bare laminate.
+    @see docs/theory.md 10.5 item 4, research/fast-wave-oscillation INTEGRATION.md D.
+    @param problem A Problem.
+    @param model "fvm" or "fdm".
+    @param options SolverOptions (cell, memory fraction, laminate numbers).
+    @return Cell size in millimetres.
+    """
+    base = max(options.cell_mm, RESPONSE_CELL_MM)
+    sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.profile is not None]
+    if not sizes:
+        return base
+    cell = min(base, max(min(sizes) / 4.0, RESPONSE_CELL_FLOOR_MM))
+    while cell < base:
+        verdicts = memory.check(problem, (model,), cell, fraction=options.memory_fraction, transient=True, base=memory.BASE_DEFAULT, refuse="return", quiet=True,
+                                laminate_params=options.laminate_params())
+        if all(v.verdict == "ok" for v in verdicts):
+            break
+        cell = min(cell * 1.25, base)                              # The memory wins over the resolution: coarser until it fits, never beyond the old cell
+    return cell
+
+
 def _step_response(problem, model, options):
     """!
     @brief Body of step_response(), run with the laminate numbers of the options in force.
@@ -841,10 +892,9 @@ def _step_response(problem, model, options):
     @param options SolverOptions.
     @return profiles.StepResponse.
     """
-    if model == "fvm":
-        return profiles.step_response_fvm(problem, cell_mm=max(options.cell_mm, 2.0))
-    if model == "fdm":
-        return profiles.step_response_fdm(problem, cell_mm=max(options.cell_mm, 2.0))
+    if model in ("fvm", "fdm"):
+        cell = response_cell_mm(problem, model, options)
+        return (profiles.step_response_fvm if model == "fvm" else profiles.step_response_fdm)(problem, cell_mm=cell)
     if model == "lumped":
         t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=lumped.cell_for(problem, options.cell_mm))
     else:

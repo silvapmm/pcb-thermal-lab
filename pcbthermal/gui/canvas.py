@@ -21,8 +21,11 @@ from .. import copper, defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
+from ..package import background_bytes as package_background_bytes
 
-COPPER_DISPLAY_PIXELS = 4096           # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
+OVERLAY_SMOOTH_FACTOR = 8              # View Smooth on the board: the temperatures are interpolated on a grid this many times finer than the cells ...
+OVERLAY_SMOOTH_PIXELS = 2048           # ... with at most this many pixels on the longest side (a 0.25 mm cell on a 200 mm board: 2 times, 6 MB of colours)
+COPPER_DISPLAY_PIXELS = 4096          # Longest side (pixels) of the reduced mask that is drawn under the elements (4096 keeps the 0.1 mm pixel of the 285 x 95 mm CO60 whole: 2850 x 951)
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -316,6 +319,7 @@ class BoardView(QGraphicsView):
     cursor_moved = Signal(float, float)    # mm
     message = Signal(str)                  # status text
     element_created = Signal(str, int)     # kind, index
+    card_clicked = Signal(object)          # QPoint (global) under the model name of the card of the map: the window opens its model menu
 
     TOOLS = ("select", "zone", "heater", "heatsink", "via", "outline")
 
@@ -354,6 +358,7 @@ class BoardView(QGraphicsView):
         self._bg_reported = None                                 # The path already reported, so that a redraw does not repeat the message
         self.background_visible = True                           # False while a map is on the board over another underlay
         self._overlay_args = None
+        self._card_hit = None                               # Rectangle (viewport pixels) of the model name of the card: the click target
         self._overlay_card = None                           # Card of the map on the board (model name, max and min), see set_overlay_card
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
@@ -552,11 +557,17 @@ class BoardView(QGraphicsView):
         """!
         @brief Add the background photo (from the project view settings) below everything else.
         """
+        self.background_error = ""
         cfg = self.doc.project.view.get("background")
         if not cfg:
             return
         path = cfg.get("path", "")
-        pm = QPixmap(path)
+        pm = QPixmap()
+        data = package_background_bytes(self.doc.project, path)   # an image stored in the project package is read from memory
+        if data is not None:
+            pm.loadFromData(data)
+        else:
+            pm = QPixmap(path)
         if pm.isNull():
             # The stored path is kept (the dialog shows it): only say, once per load, that the picture cannot be drawn
             name = os.path.basename(path) or "(no file name)"
@@ -598,7 +609,7 @@ class BoardView(QGraphicsView):
         if self._background is not None:
             self._background.setVisible(self.background_visible)
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C"):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.7, nodes=False, mask=None, unit="°C", smooth=False):
         """!
         @brief Draw a temperature map over the board, with a small colour bar in the corner of the view.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
@@ -611,6 +622,8 @@ class BoardView(QGraphicsView):
         @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
         @param mask Boolean array (ny, nx), True for the cells on the board; the others are transparent (None: every cell is drawn).
         @param unit Unit written on the colour bar.
+        @param smooth True for the View Smooth: the temperatures are interpolated between the cells (cubic spline on a grid OVERLAY_SMOOTH_FACTOR times finer,
+                      at most OVERLAY_SMOOTH_PIXELS a side), as the Smooth of the Results maps, and the picture is scaled smoothly; False for the cells as solved.
         """
         from matplotlib import colormaps
         from .fieldscale import colour_limits
@@ -620,23 +633,36 @@ class BoardView(QGraphicsView):
         lo, hi = colour_limits(field, vmin is None or vmax is None, vmin, vmax)
         # Cells without a value (NaN) or off the outline get alpha 0 so that the board shows through
         ok = np.isfinite(field) if mask is None else (np.isfinite(field) & np.asarray(mask, bool))
-        norm = np.clip((np.nan_to_num(field, nan=lo) - lo) / max(hi - lo, 1e-9), 0, 1)
+        values, k = field, 1
+        if smooth and ok.any():
+            # Smooth means what it means in the Results maps: the TEMPERATURES are interpolated (cubic spline, the cells off the board filled with the
+            # nearest value so they do not eat the kernel), then coloured; blending the colours of the cells would draw colours that are not on the bar
+            from scipy import ndimage
+            k = int(max(1, min(OVERLAY_SMOOTH_FACTOR, OVERLAY_SMOOTH_PIXELS // max(nx, ny))))
+            idx = ndimage.distance_transform_edt(~ok, return_distances=False, return_indices=True)
+            filled = np.asarray(field, np.float32)[tuple(idx)]
+            values = ndimage.zoom(filled, k, order=3, mode="nearest", grid_mode=True) if k > 1 else filled
+            ok = np.kron(ok, np.ones((k, k), bool))                        # The cells on the board keep their edges (Current draws the same)
+        norm = np.clip((np.nan_to_num(values, nan=lo) - lo) / max(hi - lo, 1e-9), 0, 1)
         rgba = (colormaps[cmap](norm) * 255).astype(np.uint8)
         rgba[..., 3] = np.where(ok, 255, 0)
         rgba = np.ascontiguousarray(rgba)
-        img = QImage(rgba.data, nx, ny, 4 * nx, QImage.Format_RGBA8888).copy()
+        h, w = rgba.shape[:2]
+        img = QImage(rgba.data, w, h, 4 * w, QImage.Format_RGBA8888).copy()
         item = QGraphicsPixmapItem(QPixmap.fromImage(img))
-        tr = QTransform().scale(dx * 1000.0, dy * 1000.0)                 # Row 0 sits at y = 0
+        sx, sy = dx * 1000.0 / k, dy * 1000.0 / k                          # One pixel is a cell, or 1/k of a cell when smoothed
+        tr = QTransform().scale(sx, sy)                                    # Row 0 sits at y = 0
         if nodes:
-            tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(dx * 1000.0, dy * 1000.0)
+            tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(sx, sy)
         item.setTransform(tr)
+        item.setTransformationMode(Qt.SmoothTransformation if smooth else Qt.FastTransformation)
         item.setOpacity(float(opacity))
         item.setZValue(0.5)
         item.setAcceptedMouseButtons(Qt.NoButton)
         self.scene().addItem(item)
         self._overlay = item
         # Kept so that a rebuild of the scene (layer change, selection, theme) draws the same map again, and for the colour bar
-        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit)
+        self._overlay_args = dict(field=field, dx=dx, dy=dy, cmap=cmap, vmin=lo, vmax=hi, opacity=float(opacity), nodes=nodes, mask=mask, unit=unit, smooth=bool(smooth))
         if self._at_fit_zoom() and not self._rebuilding:
             self.fit()                                                    # Leave the strip of the colour bar free
         self.viewport().update()
@@ -663,6 +689,13 @@ class BoardView(QGraphicsView):
         """
         self._overlay_card = dict(title=str(title), tmax=tmax, pmax=pmax_mm, tmin=tmin, pmin=pmin_mm)
         self.viewport().update()
+
+    def card_hit_rect(self):
+        """!
+        @brief The clickable part of the card of the map (its model name), in viewport pixels.
+        @return QRectF or None when no card is shown.
+        """
+        return QRectF(self._card_hit) if getattr(self, "_card_hit", None) is not None and self._overlay_card else None
 
     def clear_overlay(self, keep_card=False):
         """!
@@ -747,6 +780,7 @@ class BoardView(QGraphicsView):
         """
         card = getattr(self, "_overlay_card", None)
         if not card:
+            self._card_hit = None
             return
         c = th.colors(self.theme)
         painter.save()
@@ -761,8 +795,10 @@ class BoardView(QGraphicsView):
         lines = []
         if not refused:
             lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C")]
-        w = max([fmb.horizontalAdvance(card["title"])] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
+        title = card["title"] + " \u25be"                # The small arrow says that the name opens the list of models
+        w = max([fmb.horizontalAdvance(title)] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
         h = fmb.height() + 2 * pad - 2 + row * len(lines)
+        self._card_hit = QRectF(x0, y0, w, fmb.height() + pad)
         bg = QColor(c["base"])
         bg.setAlphaF(0.85)
         painter.setPen(QPen(QColor(c["border"]), 1))
@@ -770,7 +806,7 @@ class BoardView(QGraphicsView):
         painter.drawRoundedRect(QRectF(x0, y0, w, h), 4, 4)
         painter.setFont(bold)
         painter.setPen(QColor(c["alert"] if refused else c["accent"]))
-        painter.drawText(QPointF(x0 + pad, y0 + pad + fmb.ascent() - 1), card["title"])
+        painter.drawText(QPointF(x0 + pad, y0 + pad + fmb.ascent() - 1), title)
         painter.setFont(font)
         for k, (col, text) in enumerate(lines):
             yy = y0 + pad - 2 + fmb.height() + row * k
@@ -1141,6 +1177,10 @@ class BoardView(QGraphicsView):
         @param e QMouseEvent of the press.
         """
         self.setFocus()
+        hit = self.card_hit_rect()
+        if e.button() == Qt.LeftButton and hit is not None and hit.contains(e.position()):
+            self.card_clicked.emit(e.globalPosition().toPoint())      # The model name of the card: the window lists the models (focus stays on the board)
+            return
         if e.button() == Qt.MiddleButton or (e.button() == Qt.LeftButton and self._space):
             self._panning, self._pan_last = True, e.position()
             self.viewport().setCursor(Qt.ClosedHandCursor)
@@ -1244,11 +1284,11 @@ class BoardView(QGraphicsView):
             if kind != "via":
                 pts = self.doc.polygon_mm(getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i])
                 add = menu.addAction("Add a vertex here")
-                add.setToolTip("Adds a point on the nearest edge; drag it to reshape the polygon.")
+                add.setToolTip("Add a point on the nearest edge.")
                 add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
                 k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
                 dele = menu.addAction("Delete this vertex")
-                dele.setToolTip("Removes the vertex under the cursor; a polygon keeps at least three.")
+                dele.setToolTip("Delete the vertex under the cursor (a polygon keeps at least three).")
                 dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
                 dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
                 menu.addSeparator()

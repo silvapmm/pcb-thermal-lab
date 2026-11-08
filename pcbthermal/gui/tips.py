@@ -14,6 +14,17 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox, QFormLayo
 
 from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names live in the core, the plots use them too)
 
+# The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
+LAYER_TIPS = {
+    "editor": "Layer on which new zones and heaters are drawn (the other layers are shown faded). It is also the layer of the map on the board and of the Results maps.",
+    "profile page": "Copper layer of the board; the same choice as in the editor and in the Results maps.",
+    "temperature": "Layer shown in the Temperature map: all layers side by side, all in a 2 x 2 grid, one layer or a metal block. A single layer is also the drawing layer and "
+                   "the layer of the map on the board.",
+    "gradient": "Copper layer of the gradient map; the same choice as in the editor. All layers and the metal block are for the Temperature tab only.",
+    "animation": "Copper layer shown in the animation; the same choice as in the editor. All layers and the metal block are for the Temperature tab only.",
+    "profiles": "Copper layer of the cut or of the time simulation maps; the same choice as in the editor. All layers and the metal block are for the Temperature tab only.",
+    "results": "Copper layer of the board; the same choice as in the editor and in the Results maps.",
+}
 
 TIPS = {
     # Board

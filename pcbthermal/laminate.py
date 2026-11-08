@@ -220,7 +220,53 @@ class GapPlan:
     flagged: np.ndarray            # Boolean (ny, nx) of the cells that carry the n - 1 interior nodes
 
 
-def plan_gaps(board, fill, dx, active, s_max=None, n_max=None):
+def edge_lengths(board, nx, ny, dx, dy, active, nodes=False):
+    """!
+    @brief Length of the board edge exposed in every cell (FVM) or node (FDM), as the networks compute it, for the unknown count before the network exists.
+    @param board A Board.
+    @param nx Cells or nodes along x.
+    @param ny Cells or nodes along y.
+    @param dx Cell size or node spacing along x in m.
+    @param dy Cell size or node spacing along y in m.
+    @param active Boolean (ny, nx) of the cells or nodes on the board.
+    @param nodes True for the node grid of the FDM (outline shifted by half a spacing, border nodes carry half a spacing).
+    @return Array (ny, nx) in m.
+    """
+    from .geometry import edge_length_on_board                  # (local: geometry must not depend on this module)
+    if board.has_outline():
+        shift = np.array([0.5 * dx, 0.5 * dy]) if nodes else np.zeros(2)
+        return edge_length_on_board(board.outline + shift, nx, ny, dx, dy, active)
+    wx = np.full(nx, dx)
+    wy = np.full(ny, dy)
+    if nodes:
+        wx[[0, -1]] = 0.5 * dx
+        wy[[0, -1]] = 0.5 * dy
+    e = np.zeros((ny, nx))
+    e[:, 0] += wy
+    e[:, -1] += wy
+    e[0, :] += wx
+    e[-1, :] += wx
+    return e
+
+
+def edge_band(edge, d, dx, active):
+    """!
+    @brief The band of the board edge that carries the laminate nodes of a gap even over full copper: the cells (nodes) that touch the edge, grown by the margin of the rule.
+    @details The laminate at the edge is fed through k_z and is cooler than the copper, so the edge film of a node that holds it at the copper temperature is overstated (the board reads
+             cold, docs/theory.md 1.4); cutting the gap there lets the film act on the laminate nodes. The width does not matter from one gap thickness on (research/laminate-edge-band 5, 6.1).
+    @param edge Edge length in m of the board edge exposed in every cell or node (ny, nx); a value above zero marks a cell that touches the edge.
+    @param d Gap thickness in m.
+    @param dx Cell size (FVM) or node spacing (FDM) in m.
+    @param active Boolean (ny, nx) of the cells or nodes on the board.
+    @return Boolean array (ny, nx).
+    """
+    ring = (np.asarray(edge) > 0.0) & active
+    if not ring.any():
+        return np.zeros(ring.shape, dtype=bool)
+    return (ndimage.distance_transform_edt(~ring) <= margin_cells(d, dx) + 1e-9) & active
+
+
+def plan_gaps(board, fill, dx, active, s_max=None, n_max=None, edge=None):
     """!
     @brief Apply the rule to every gap of a board.
     @param board A Board.
@@ -229,6 +275,8 @@ def plan_gaps(board, fill, dx, active, s_max=None, n_max=None):
     @param active Boolean (ny, nx) of the cells or nodes on the board.
     @param s_max Longest sub-gap in m (None: parameters()).
     @param n_max Most sub-gaps (None: parameters()).
+    @param edge Edge length in m exposed in every cell or node (ny, nx), or None. With an edge coefficient (board.h_side above zero) and two or more copper layers, the gaps that are cut
+           also get the nodes in the band along the edge (edge_band); None, no edge coefficient or a one-layer board: the plan of the earlier versions, bit for bit.
     @return List of GapPlan, one per gap (a one-layer board has one).
     """
     if s_max is None or n_max is None:
@@ -244,6 +292,8 @@ def plan_gaps(board, fill, dx, active, s_max=None, n_max=None):
     for g, d, fa, fb in items:
         n = n_for_gap(d, s_max, n_max)
         flagged = flag_cells(fa, fb, d, dx, active) if n > 1 else np.zeros(fa.shape, dtype=bool)
+        if n > 1 and edge is not None and board.layers > 1 and (board.h_side or 0.0) > 0.0:
+            flagged = flagged | edge_band(edge, d, dx, active)
         if not flagged.any():
             n, flagged = 1, np.zeros(fa.shape, dtype=bool)          # Nothing to refine: the gap stays one link
         out.append(GapPlan(g, d, n, flagged))

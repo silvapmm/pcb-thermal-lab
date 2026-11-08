@@ -35,6 +35,7 @@ import edge_image as ei                                                     # no
 import program_patch as pp                                                  # noqa: E402
 import viakernel as vk                                                      # noqa: E402
 from pcbthermal.geometry import cell_index_of_point                         # noqa: E402
+from pcbthermal import viawell as vw                                        # noqa: E402
 
 ETA = math.exp(-0.25)                                                       # target radius / drill radius of the layered idealisation
 OPTS = {"board_only": True, "fold": False, "image": True, "enlarge": True, "s_mode": "max", "wall_cells": 6.0, "eta": ETA}
@@ -93,10 +94,11 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
     net._gz_via_hook = gz_pt
     cover = getattr(net, "cover", None)
     rt_factor = OPTS["eta"]
+    d_barrel = vw.barrel_length(b, d)
     for v in problem.vias:
         STATS["vias"] += 1
         area = v.thermal_area(b.via_plating, m.k_copper)
-        gv = m.k_copper * area / d
+        gv = m.k_copper * area / d_barrel                                  # 2.6.0: the barrel is longer than the gap by half the copper (viawell.barrel_length)
         rv = v.diameter / 2.0
         rt = rt_factor * rv
         # The point conductance of the program's loop: the Lumped model keeps reading it from gz_via

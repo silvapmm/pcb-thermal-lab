@@ -63,7 +63,8 @@ def test_analysis_and_full_run(window, qtbot):
     window.doc.changed.emit()
     window.profile_page.run_analysis()
     qtbot.waitUntil(lambda: bool(window.profile_page.decisions), timeout=60000)
-    assert [d.regime for d in window.profile_page.decisions] == ["average", "resolved"]
+    # Fast-wave item (docs/validation.md 37): U1 at 100 Hz is over the 1 K budget by the closed form of its stack (2.0 K, the node structure says 0.39 K), so it is "average + ripple"
+    assert [d.regime for d in window.profile_page.decisions] == ["average + ripple", "resolved"]
     assert window.profile_page.dec_table.rowCount() == 2
     window.doc.options.cell_mm = 2.0
     window.run_simulation()

@@ -33,7 +33,7 @@ def solid_rprime(c, pad, cell, n_diel, face_term):
     @param pad True for the pad board.
     @param cell Cell in mm.
     @param n_diel Slabs per gap.
-    @param face_term True to add the half layer of laminate between the node and the face over bare laminate (the FVM and FDM add it; the solid does not).
+    @param face_term True to add the half layer of laminate between the node and the face over bare laminate (the FVM and FDM add it; the 3D solid of 2.5.x did not, the 2.6.0 one does in its own read-out, and then nothing is added here).
     @return Tuple (R' in K/W, unknowns, seconds).
     """
     import time
@@ -45,7 +45,8 @@ def solid_rprime(c, pad, cell, n_diel, face_term):
     dt = time.time() - t0
     mean_src = analysis.heater_stats(res, p)[0]["t_mean"] - p.board.ambient
     r = mean_src / 4.0 - 1.0 / (c["h"] * (c["W"] * 1e-3) ** 2)
-    if face_term and not pad:
+    # 2.6.0 (feature/solid3d-slabs-by-thickness): the solid's own read-out already carries the half-layer face term (arrays face_mean), so adding it again would count it twice
+    if face_term and not pad and "face_mean" not in res.arrays:
         r += (T_CU / 2.0) / c["kz"] / (c["S"] * 1e-3) ** 2         # per watt of the source: q'' t_cu / (2 k_z) / q
     return r, n, dt
 

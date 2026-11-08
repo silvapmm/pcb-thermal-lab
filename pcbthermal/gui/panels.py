@@ -153,10 +153,9 @@ class BoardPanel(QWidget):
         self.v_del = QPushButton("Remove vertex")
         self.v_del.setToolTip("Remove the selected vertex (an outline needs at least three).")
         self.v_sub = QPushButton("Subdivide")
-        self.v_sub.setToolTip("Insert a vertex in the middle of every edge (twice as many vertices): the first step to turn a corner or a curve into a smooth outline "
-                              "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
+        self.v_sub.setToolTip("Add a vertex in the middle of every edge.")
         self.v_draw = QPushButton("Draw (O)")
-        self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
+        self.v_draw.setToolTip("Drag a rectangle, or click vertices in polygon mode.")
         # Two rows of two buttons: four in a row made the Board panel about 440 px wide
         for n, w in enumerate((self.v_add, self.v_del, self.v_sub, self.v_draw)):
             row.addWidget(w, n // 2, n % 2)
@@ -186,8 +185,8 @@ class BoardPanel(QWidget):
         self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
         self.orientation.addItem("Vertical (on its edge)", "vertical")
         self.orientation.setToolTip("How the board is mounted (computed heat transfer only). Horizontal: layer 1 is the top face and looks up, the last layer looks "
-                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
-                                    "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
+                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: Nu = 0.54 Ra^(1/4) "
+                                    "against 0.475 Ra^(1/5) in the natural convection correlations). Vertical: the plate correlation with the board height on both faces. "
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
         self.natural_form = QComboBox()
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
@@ -1323,7 +1322,10 @@ class WarningList(QTextBrowser):
         if event.type() == QEvent.ToolTip and self.warnings and not self.stale:
             block = self.cursorForPosition(event.pos()).blockNumber() - (1 if len(self.warnings) > 1 else 0)    # Block 0 is the count when there are several
             if 0 <= block < len(self.warnings):
-                QToolTip.showText(event.globalPos(), "\n".join(textwrap.wrap(str(self.warnings[block]), 90)), self)
+                # The text names elements of the project (heater, zone and part names, imported designators): Qt reads a tooltip that looks like markup as
+                # rich text, so it is escaped and its wrapped lines kept, and a name such as <img src=...> is shown as typed
+                wrapped = "\n".join(textwrap.wrap(str(self.warnings[block]), 90))
+                QToolTip.showText(event.globalPos(), "<p style='white-space:pre'>" + html.escape(wrapped) + "</p>", self)
                 return True
         return super().viewportEvent(event)
 
@@ -1475,11 +1477,12 @@ class SolverPanel(QWidget):
         self.lam_n.setRange(1, 16)
         self.lam_n.setValue(4)
         self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
-                              "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
+                              "boundary, only where copper is absent next to it and, with an edge coefficient, in a band along the board edge (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
         self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 16, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
                               "sub-gaps, so with the default 0.40 mm a 1.6 mm two-layer board already has 4 and a larger number changes nothing unless the sub-gap is made smaller "
                               "too (8 needs 0.19 mm or less, 16 needs 0.09 mm or less). The error against a resolved 3D solid falls as 1/n (an island board: -3.9, -2.25 and -1.41 % with 4, 8 and 16 "
-                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
+                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper and in the band along the board edge, which the memory estimate counts. With an edge coefficient "
+                              "above 200 W/m2K more sub-gaps (and a finer cell) reduce the cool error of the edge laminate.")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
         self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
@@ -1499,7 +1502,7 @@ class SolverPanel(QWidget):
         self.run.setObjectName("primary")
         self.run.clicked.connect(self.run_requested)
         self.cancel = QPushButton("Cancel")
-        self.cancel.setToolTip("Stop the running calculation at once (Ctrl+.). Nothing is kept from the interrupted run.")
+        self.cancel.setToolTip("Stop the calculation (Ctrl+.); nothing is kept.")
         self.cancel.clicked.connect(self.cancel_requested)
         self.cancel.setVisible(False)
         self.progress = QProgressBar()

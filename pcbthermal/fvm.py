@@ -30,7 +30,8 @@ import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
 from . import copper, memory, blocks, laminate, viawell
-from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
+from .geometry import (part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill,
+                       face_apertures, signed_distance_to_outline)
 from .results import SteadyResult, TransientResult
 from .numfmt import num
 
@@ -48,6 +49,10 @@ log = logging.getLogger(__name__)
 # Blocks of the block SOR (unknowns of the merged footprints of vias that touch): the build of the dense inverse of a block of n unknowns takes about 75 n^2 bytes
 # (measured 66 to 75 n^2; 5 000 unknowns are about 1.9 GB, not the 200 MB an earlier comment said) and every inverse is kept, so the sum over the blocks is allowed
 # up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
+
+# Smallest value of the film denominator 1 + H d / S of the edge of a cut cell (see Network._cut_edge_film): the film in series with the conduction from the node to the
+# outline can be made at most 1 / EDGE_FILM_FLOOR = 4 times stiffer than the film alone (a safety net for a node outside the board and a very stiff edge)
+EDGE_FILM_FLOOR = 0.25
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
 # several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
@@ -152,7 +157,7 @@ class Network:
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True, faces=None):
+    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True, faces=None, cut_cells=True):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
@@ -167,6 +172,11 @@ class Network:
         @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks (and nothing changes for a problem without), False ignores it, or a
                copper.CopperSource. The cell fill of the imported layers comes from the masks; with the "faces" or "lambda" mapping the in-plane couplings of those layers are
                the face conductances of the reduced sheet (built when the matrix is assembled), with "fill" the program's harmonic mean of the cell values.
+        @param cut_cells True (default): the cut-cell treatment of the board edge: the links of a board with an outline carry the open fraction of the shared face (the aperture,
+               `geometry.face_apertures`) on the physical sheet, and the edge film h_side is in series with the conduction from the node to the closest outline point (on a rectangle:
+               to the edge, half a cell away). False: the earlier treatment (links of the cover-scaled sheets, the film on the node); the Lumped model, which reads the per-cell
+               arrays ring by ring and never sees the links, asks for it so that its numbers do not move. A problem with an outline and imported copper always keeps the earlier
+               treatment (`cut_cells_note` says so).
         """
         problem.validate()
         self.problem = problem
@@ -201,6 +211,16 @@ class Network:
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
+        # The cut-cell treatment is not applied where the imported faces would mix with it: the faces of an imported layer are built from pixel sheets times the cell cover
+        # (copper.lateral), so the aperture would have to enter there as a pixel-level mask of the board; until then a board with an outline and imported copper keeps the
+        # cover-weighted links and the film on the node in all its layers (one consistent treatment), and the run says so
+        self.cut_cells_note = None
+        self.cut_edge = bool(cut_cells)
+        self.cut_links = bool(cut_cells) and b.has_outline()
+        if cut_cells and b.has_outline() and self.copper is not None:
+            # (no note when the outline is the whole box: no cell is cut, only the half-cell series term of the border film is left out)
+            self.cut_cells_note = copper.CUT_CELLS_IMPORTED_NOTE if copper.outline_cuts_cells(b) else None
+            self.cut_edge = self.cut_links = False
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
         tc = t_cu[:, None, None]
@@ -258,6 +278,12 @@ class Network:
             # (sheet of the copper nodes before the rule, sheet of a pixel with copper, sheet of a bare pixel), the last two per layer in W/K
             self._face_context = (self.S[:L].copy(), m.k_copper * t_cu + k_lam * (slab - t_cu), k_lam * slab)
         pin_extra = self._add_ladder(b, cell) if use_rule else None      # After the edge conductance: the new nodes take their share of it from the copper nodes
+        self.aperture = None
+        if self.cut_links:
+            # Open fraction of every interior face (only the board edge cuts a face); a face between two whole cells is exactly 1
+            self.aperture = face_apertures(b.outline, nx, ny, dx, dy, cover=self.cover)
+        if self.cut_edge and b.h_side:
+            self.g_side = self._cut_edge_film(self.g_side)
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
         # The pin is kept apart (g_pin) because it is not a path to the air: the time constant must leave it out
@@ -340,8 +366,8 @@ class Network:
         @param cell Board area of every cell (m2), shape (ny, nx).
         @return Boolean array (new layers, ny, nx) of the new nodes that are pinned (unused or off the board), or None when no layer was added.
         """
-        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active)
         edge = self._edge_lengths() if b.h_side else np.zeros((self.ny, self.nx))
+        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active, edge=edge)
         res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
         self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
         self.ladder, self.drop = res.ladder, res.ladder.drop
@@ -386,6 +412,86 @@ class Network:
             self.block_info.append({"layer": idx, "face": ly["face"], "cov": ly["cov"], "names": ly["names"],
                                     "g_link": ly["g_link"], "board_layer": ly["board_layer"]})
         self.nl = base + E
+
+    def _physical_sheet(self):
+        """!
+        @brief Sheet conductance of every node layer without the cover factor: the sheet of the board material itself (W/K), zero off the board.
+        @return Array (nl, ny, nx).
+        """
+        out = np.zeros_like(self.S)
+        np.divide(self.S, self.cover[None], out=out, where=self.cover[None] > 0)
+        return out
+
+    def _cut_edge_film(self, g0):
+        """!
+        @brief Put the conduction from the node to the closest edge point in series with the edge film h_side (Robin condition of a cut cell: Papac, Gibou and Ratsch 2010; Bochkov and Gibou 2019 eqs. 1.7, 1.13, 1.14; Barrett, Fogelson and Griffith 2022 eqs. 12 to 14).
+        @details The film of a cell is H L with H = h_side times the slab (W/m K) and L the edge length in the cell. The node is the cell centre, a distance d from the edge,
+                 so the heat passes the sheet from the node to the edge, d / (S L), and then the film: g = g0 / (1 + g0 d / (S L)) = H L / (1 + H d / S) (L cancels), with S the
+                 physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
+                 which stiffens the film); for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
+                 floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
+                 nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
+                 The ambient term is scaled with the same factor as the conductance (the change goes into g_amb), so a constant field is reproduced to round-off; the unfloored
+                 form fails for a node outside the board with a large cell Biot number, which is why the floor is kept (condition 1.21 of Bochkov and Gibou: mu - alpha d > 0).
+        @param g0 Edge conductance of every node layer before the series term, W/K, shape (nl, ny, nx).
+        @return The conductance after it, same shape; the heat balance of `power_out` follows because the diagonal is built from it.
+        """
+        L = self._edge_lengths()
+        sp_ = self._physical_sheet()
+        H = np.zeros_like(g0)
+        np.divide(g0, L[None], out=H, where=L[None] > 0)
+        b = self.problem.board
+        if b.has_outline():
+            d = np.zeros((self.ny, self.nx))
+            cells = np.argwhere(L > 0)
+            if len(cells):
+                x = (cells[:, 1] + 0.5) * self.dx
+                y = (cells[:, 0] + 0.5) * self.dy
+                d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(b.outline, x, y)
+            pieces = [(L, d)]
+        else:
+            cols = np.zeros((self.ny, self.nx))
+            rows = np.zeros((self.ny, self.nx))
+            cols[:, 0] += 1.0
+            cols[:, -1] += 1.0
+            rows[0, :] += 1.0
+            rows[-1, :] += 1.0
+            pieces = [(cols * self.dy, 0.5 * self.dx), (rows * self.dx, 0.5 * self.dy)]
+        new = np.zeros_like(g0)
+        for length, dist in pieces:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                fac = np.where(sp_ > 0, 1.0 + H * dist / sp_, 1.0)
+            fac = np.where(H > 0, np.maximum(fac, EDGE_FILM_FLOOR), 1.0)
+            new += H * length[None] / fac
+        return np.where((g0 > 0) & (L[None] > 0), new, g0)
+
+    def _lateral_links(self):
+        """!
+        @brief Conductances (W/K) of the lateral links of every node layer: the x links (ny, nx - 1) and the y links (ny - 1, nx) of the assembled matrix and of the SOR.
+        @details The program's link between two cells is the harmonic mean of the two sheets over one cell width. The sheets of a cut cell are scaled by its cover, so that link
+                 is a factor c too weak into a cut cell (the whole cell side is open to the heat, not c of it). With the aperture the link is a S dy / dx with S the PHYSICAL sheet
+                 (the cover-scaled one over the cover) and a the open fraction of the shared face, which is the program's link bit for bit where both cells are whole (a = 1, cover 1).
+                 Block layers keep the cover-scaled links. The faces of the imported layers replace these (`_imported_faces`).
+        @return Tuple (gx, gy) of arrays (nl, ny, nx - 1) and (nl, ny - 1, nx).
+        """
+        S = self.S
+        gx = self._harmonic(S[:, :, :-1], S[:, :, 1:]) * self.dy / self.dx
+        gy = self._harmonic(S[:, :-1, :], S[:, 1:, :]) * self.dx / self.dy
+        if self.aperture is not None:
+            ax, ay = self.aperture
+            sp_ = self._physical_sheet()
+            cx = ax[None] * self._harmonic(sp_[:, :, :-1], sp_[:, :, 1:]) * self.dy / self.dx
+            cy = ay[None] * self._harmonic(sp_[:, :-1, :], sp_[:, 1:, :]) * self.dx / self.dy
+            use = np.ones(self.nl, bool)
+            for info in self.block_info:
+                use[info["layer"]] = False
+            gx[use] = cx[use]
+            gy[use] = cy[use]
+        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
+        return gx, gy
 
     def _imported_faces(self):
         """!
@@ -439,13 +545,8 @@ class Network:
             cols.extend([a, bb, bb, a])
             vals.extend([gg, gg, -gg, -gg])
 
-        # Lateral couplings: face width / distance gives dy/dx (x) and dx/dy (y)
-        gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
-        gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
-        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
-            on = self.active
-            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
-            gy[layer] = fy * (on[:-1, :] & on[1:, :])
+        # Lateral couplings: face width / distance gives dy/dx (x) and dx/dy (y), times the open fraction of the face on a board with an outline
+        gx, gy = self._lateral_links()
         couple(idx[:, :, :-1], idx[:, :, 1:], gx)
         couple(idx[:, :-1, :], idx[:, 1:, :], gy)
         if nb > 1:
@@ -552,12 +653,7 @@ class Network:
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
         gd = np.zeros((L, ny, nx)); gu = np.zeros((L, ny, nx))     # y-1, y+1
         ga = np.zeros((L, ny, nx)); gb = np.zeros((L, ny, nx))     # layer-1, layer+1
-        gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
-        gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
-        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
-            on = self.active
-            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
-            gy[layer] = fy * (on[:-1, :] & on[1:, :])
+        gx, gy = self._lateral_links()                                  # (the same links as the matrix: aperture and imported faces included)
         gr[:, :, :-1], gl[:, :, 1:] = gx, gx
         gu[:, :-1, :], gd[:, 1:, :] = gy, gy
         if L > 1:
@@ -841,6 +937,9 @@ def attach_block_results(res, net, T_all, theta):
     res.arrays["block_flux"] = np.stack(flux)
     for k, bi in enumerate(net.block_info):
         sel = bi["cov"] > 0
+        if not sel.any():
+            # A block that lies wholly off the board (outside the outline, inside its box) has no cell: it carries no heat and has no temperature to report
+            continue
         tag = "top" if bi["face"] == 0 else "bottom"
         layer_theta = theta[bi["layer"]]
         res.extras[f"block_{tag}_max"] = float(T_all[bi["layer"]][sel].max())
@@ -869,7 +968,9 @@ def unknowns(problem, cell_mm=2.0):
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
         copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
-        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
+        # The band along the edge is counted too (it exists only with an edge coefficient)
+        edge = laminate.edge_lengths(b, nx, ny, dx, dy, active) if b.h_side else None
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active, edge=edge), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny

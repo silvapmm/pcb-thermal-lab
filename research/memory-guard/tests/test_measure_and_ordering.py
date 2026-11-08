@@ -28,11 +28,29 @@ def test_case_counts_follow_the_cell():
     @brief Halving the cell about quadruples the unknowns, and the families build.
     @return None.
     """
+    import numpy as np
+    from pcbthermal import laminate
     a = cases.count(dict(TINY, cell_mm=2.0))[0]
     b = cases.count(dict(TINY, cell_mm=1.0))[0]
-    assert 3.5 < b / a < 4.5
+    # 2.6.0 (fix/laminate-edge-band) adds laminate nodes in a band along the edge, a fixed width in cells, so on a 20 mm board at 2 mm cells (452 -> 1568 unknowns) the edge band is
+    # a larger share than at 1 mm and the ratio is 3.47 instead of 4.0; with the band switched off (the 2.5.x plan) the count is 200 -> 800, exactly four times.
+    assert 3.0 < b / a < 4.5
+    saved = laminate.edge_band
+    laminate.edge_band = lambda edge, d, dx, active: np.zeros(np.shape(active), dtype=bool)
+    try:
+        a0 = cases.count(dict(TINY, cell_mm=2.0))[0]
+        b0 = cases.count(dict(TINY, cell_mm=1.0))[0]
+    finally:
+        laminate.edge_band = saved
+    assert 3.5 < b0 / a0 < 4.5
     for fam in cases.FAMILIES:
-        assert cases.count(dict(TINY, family=fam, layers=4, size_mm=30.0))[0] > 0
+        try:
+            n = cases.count(dict(TINY, family=fam, layers=4, size_mm=30.0))[0]
+        except RuntimeError as exc:                     # a family built from the open boards needs PCBT_REAL_BOARDS: skip without it instead of failing
+            if "PCBT_REAL_BOARDS" in str(exc):
+                pytest.skip(str(exc))
+            raise
+        assert n > 0
 
 
 def test_wrapper_records_a_peak_and_the_answer():

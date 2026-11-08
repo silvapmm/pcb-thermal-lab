@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_small_part_laminate_warning.py
-@brief The warning for a small part over a thick insulating layer (layered laminate rule of the FVM and FDM, four slabs of the 3D solid): it fires at the stated ratio of the
+@brief The warning for a small part over a thick insulating layer (layered laminate rule of the FVM and FDM, slabs of the 3D solid by thickness): it fires at the stated ratio of the
        sub-layer to the smaller side of the part, only where the rule cuts the gap, and changes no result.
 """
 
@@ -101,26 +101,29 @@ def test_pad_limit_and_spread_of_the_copper():
     assert check_small_part_laminate(board(2.0, top_plane=True), ("fvm", "fdm", "solid3d"), 1.0) == []
 
 
-def test_solid3d_warning_uses_four_slabs():
+def test_solid3d_warning_uses_the_slabs_by_thickness():
     """!
-    @brief The 3D solid warns when d / 4 exceeds 0.15 of the side on bare laminate, also where the layered rule would not cut (a 0.8 mm board), and is silent under copper planes
-           (4 against 16 slabs: 0.03 %, review).
+    @brief The 3D solid warns when d / n (n = ceil(d / 0.2 mm), 4 to 16) exceeds 0.15 of the side on bare laminate, also where the layered rule would not cut (a 0.8 mm board), and is
+           silent under copper planes; a 2 mm part no longer warns on 1.6 or 3.2 mm boards (its slabs are under 0.2 mm), a 1 mm part does.
     @return None.
     """
-    p = board(2.0, 1.6)
+    from pcbthermal import solid3d
+    p = board(1.0, 1.6)
     w = check_small_part_laminate(p, ("solid3d",))
-    assert len(w) == 1 and "3D solid" in w[0]
+    assert len(w) == 1 and "3D solid" in w[0] and "0.2 mm" in w[0]
     d = float(p.board.gap_thicknesses()[0])
-    edge_mm = d / 4 / SMALL_PART_RATIO * 1e3
+    edge_mm = d / solid3d.slab_rule(d) / SMALL_PART_RATIO * 1e3
     assert not check_small_part_laminate(board(edge_mm * 1.001, 1.6), ("solid3d",))
     assert check_small_part_laminate(board(edge_mm * 0.999, 1.6), ("solid3d",))
-    assert check_small_part_laminate(board(2.0, 1.6, plane=True), ("solid3d",)) == []
-    both = check_small_part_laminate(board(2.0, 3.2), ("fvm", "solid3d"))
+    assert check_small_part_laminate(board(1.0, 1.6, plane=True), ("solid3d",)) == []
+    assert check_small_part_laminate(board(2.0, 1.6), ("solid3d",)) == []
+    assert check_small_part_laminate(board(2.0, 3.2), ("solid3d",)) == []
+    both = check_small_part_laminate(board(1.0, 3.2), ("fvm", "solid3d"))
     assert len(both) == 2
 
 
-# Values of the FVM on board(2.0, 3.2) at 1 mm computed on develop (ec227ab) before this branch: the warning must not move them
-FROZEN_FVM_SMALL_BARE = (439.5514011355619, 454.13473446889503)      # (t_max, mean of the part with its face term) in degC
+# Values of the FVM on board(2.0, 3.2) at 1 mm computed on develop (ec227ab) before this branch, re-read on the integration tree after the edge film of fix/cut-cell-aperture-film (+0.0048 K on the hottest point: 439.5514, 454.1347 before): the warning must not move them
+FROZEN_FVM_SMALL_BARE = (439.5561918246224, 454.13952515795563)      # (t_max, mean of the part with its face term) in degC
 
 
 def test_wired_into_the_live_check_and_no_result_moves():

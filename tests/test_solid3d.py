@@ -123,7 +123,7 @@ def test_a_one_layer_board_keeps_its_laminate():
     p.add_zone(1, rect=(20, 20, 40, 40))
     p.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")
     net = solid3d.Solid(p, 1.0)
-    assert sum(sl["kind"] == "fr4" for sl in net.slabs) == 4
+    assert sum(sl["kind"] == "fr4" for sl in net.slabs) == solid3d.slab_rule(1.565e-3) == 8   # the laminate of 1.565 mm: 0.2 mm slabs
     assert sum(sl["dz"][0, 0] for sl in net.slabs) == pytest.approx(1.6e-3)
     r, f = solid3d.solve_steady(p, 1.0), fvm.solve_steady(p, 1.0)
     assert abs(r.balance_error) < 1e-9

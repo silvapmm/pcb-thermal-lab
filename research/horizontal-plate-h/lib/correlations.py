@@ -54,11 +54,21 @@ def program_up(ra):
 
 def program_down(ra):
     """!
-    @brief The program's lower-face correlation.
+    @brief The lower-face correlation of the program up to 2.5.x (0.27 Ra^(1/4)), the baseline of this study.
     @param ra Rayleigh number of L = A/P.
     @return Nu.
     """
     return 0.27 * np.asarray(ra, dtype=float) ** 0.25
+
+
+def current_down(ra):
+    """!
+    @brief The lower-face correlation of the program since 2.6.0 (fix/face-down-convection): 0.475 Ra^(1/5).
+    @param ra Rayleigh number of L = A/P.
+    @return Nu.
+    """
+    from pcbthermal import convection
+    return convection.DOWN_COEFFICIENT * np.asarray(ra, dtype=float) ** convection.DOWN_EXPONENT
 
 
 def jaffer_up(ra):

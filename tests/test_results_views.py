@@ -21,13 +21,16 @@ from pcbthermal.examples import example_board
 from pcbthermal.gui import theme as th
 from pcbthermal.gui.results_view import PlotTab, ResultsView
 
-# sha256 of the RGBA buffer of the maps that `develop` (v2.5.0 plus the fixes before this feature) draws for the example board at a 2 mm cell; they hold
-# the Current view to the old pictures, byte for byte. Pixel output depends on the Matplotlib version, so the check runs only on the one that made them.
+# sha256 of the RGBA buffer of the maps that the program draws for the example board at a 2 mm cell; they hold the Current view to the pictures of the
+# release, byte for byte. Pixel output depends on the Matplotlib version, so the check runs only on the one that made them.
+# Regenerated for 2.6.0 (branch feature/refreeze-260, from the integration tree feature/integration-260): the 2.6.0 items that move the example board's field
+# move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 degC at 2 mm): the via barrel length and rim uncoupling, the laminate edge
+# band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
-    "field": "f8df8cc4336659a1c70df3b8d987e4b725349adc31ba654eb1718781efed1ead",
-    "fields": "beeecfc3a81eb77f9a974bdc33da7d37b534766b0d7e2fb0f0b8522b14596b93",
-    "gradient": "b6a9fa153874ae40079e6db31c2c47300326b267b0f834d680eac7a6ea1f5e38",
+    "field": "489e1bd374f122f91948e79e61b6cd90968dae6b9b146bbf7d39ecabb67f37bf",
+    "fields": "a6553d9533f37008f965c8cb4e88a92816c36f3be96ccef1df371830170965bf",
+    "gradient": "f1046ff0c00f471af1e2223dd60cf4c5a8c46650475f1aa604bfc0be63def206",
 }
 
 
@@ -264,8 +267,7 @@ def test_controls_default_to_the_old_picture_and_follow_the_view(tab):
     d = tab.display
     assert d.view == "current" and d.kind == "none" and d.opacity == 70 and d.contour_temp == 5.0
     assert tab.map_view() is None                                                   # the original picture, call for call
-    labels = [tab.layer.itemText(i) for i in range(tab.layer.count())]
-    assert labels[:3] == ["All layers", "All (2 x 2)", "Layer 1"] and tab.layer.currentData() == 0
+    assert not hasattr(tab, "layer") and tab.layer_value == 0                      # The layer is the one choice of the toolbar (test_single_layer)
 
 
 def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
@@ -281,7 +283,7 @@ def test_default_tab_draws_the_old_figure_and_a_view_changes_it(tab):
     assert _sha(_rgba_tab(tab)) == _sha(first)                                      # Back to Current: the same pixels
     tab.display.set_kind("copper")
     assert _sha(_rgba_tab(tab)) != _sha(first)
-    tab.layer.setCurrentIndex(tab.layer.findData(-2))
+    tab.set_layer(-2)
     tab.redraw()
     assert len([a for a in tab.fig.axes if a.get_images()]) == 4
 

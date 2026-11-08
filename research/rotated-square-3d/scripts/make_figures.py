@@ -249,6 +249,54 @@ def fig_sweep():
     plt.close(fig)
 
 
+def fig_exact_cover():
+    """!
+    @brief Figure 17: the exact board cover against the 8 x 8 sampled cover it replaced (`fix/exact-board-cover`), computed from the program, no out/ data.
+    @details Left: the cells of the 20 mm square turned 45 degrees at 1 mm, coloured by sampled minus exact cover (the pattern of the samples makes the
+             edge along a lattice direction too thick, +0.64 % of the area). Right: the relative error of the area of the cover against the polygon
+             for every turn, both rules, at 1 and 0.5 mm (the exact one is the polygon area to rounding).
+    @return None.
+    """
+    import math
+    import numpy as np
+    from pcbthermal.geometry import coverage_fraction, exact_coverage, polygon_area
+
+    def square(angle):
+        h, a = 0.010, math.radians(angle)
+        return np.array([[0.015 + x * math.cos(a) - y * math.sin(a), 0.015 + x * math.sin(a) + y * math.cos(a)] for x, y in ((-h, -h), (h, -h), (h, h), (-h, h))])
+
+    fig, axs = plt.subplots(1, 2, figsize=(10, 4.1))
+    d = 1e-3
+    diff = coverage_fraction(square(45.0), 30, 30, d, d, 8) - exact_coverage(square(45.0), 30, 30, d, d)
+    im = axs[0].imshow(diff, origin="lower", extent=(0, 30, 0, 30), cmap="RdBu_r", vmin=-0.08, vmax=0.08)
+    sq = square(45.0) * 1000.0
+    axs[0].plot(*np.vstack([sq, sq[:1]]).T, "k-", lw=0.8)
+    axs[0].set_title("20 mm square turned 45 deg, 1 mm cells: sampled minus exact cover", fontsize=9)
+    axs[0].set_xlabel("x (mm)")
+    axs[0].set_ylabel("y (mm)")
+    fig.colorbar(im, ax=axs[0], shrink=0.8, label="cover difference")
+    angles = np.arange(0.0, 90.5, 0.5)
+    for cell, ls in ((1.0, "-"), (0.5, "--")):
+        n = int(round(30.0 / cell))
+        dd = 0.03 / n
+        samp, exa = [], []
+        for a in angles:
+            sq_a = square(a)
+            area = polygon_area(sq_a)
+            samp.append(coverage_fraction(sq_a, n, n, dd, dd, 8).sum() * dd * dd / area - 1.0)
+            exa.append(exact_coverage(sq_a, n, n, dd, dd).sum() * dd * dd / area - 1.0)
+        axs[1].plot(angles, np.array(samp) * 100.0, ls, color="#d62728", label=f"sampled 8 x 8, {cell:g} mm")
+        axs[1].plot(angles, np.array(exa) * 100.0, ls, color="#2ca02c", label=f"exact, {cell:g} mm")
+    axs[1].set_xlabel("turn of the square (deg)")
+    axs[1].set_ylabel("area of the cover over the polygon area minus 1 (%)")
+    axs[1].set_title("area of the cover", fontsize=9)
+    axs[1].grid(alpha=0.3)
+    axs[1].legend(fontsize=7.5)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_17_exact_cover.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_fvm_cut_cells()
@@ -258,3 +306,4 @@ if __name__ == "__main__":
     fig_conductance()
     fig_square_reference()
     fig_sweep()
+    fig_exact_cover()

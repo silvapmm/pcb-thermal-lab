@@ -89,7 +89,10 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # Values of the example board at a 2 mm cell: the helper falls back to the plain coverage without an outline. The FVM and FDM were re-baselined when
     # the point via became the mean-potential via (develop gave 85.3423 and 84.6643); the 3D solid is unchanged at this cell (the via is a fraction of a cell)
     # (fix/laminate-nodes: the example board has partial copper, so the laminate nodes and the vertical correction of the rule moved the FVM and FDM by +0.008 and +0.004 K)
-    stored = {fvm: 85.07464607663806, fdm: 84.26568445977094, solid3d: 85.48327731195374}
+    # (fix/cut-cell-aperture-film: the FVM's edge film is in series with the conduction to the edge, half a cell away on a rectangle: +0.0018 K here, 85.07464607663806 before)
+    # (fix/laminate-edge-band: the example board has an edge coefficient, so the gaps along the edge are cut into laminate nodes: +0.00189 K (FVM, 85.07644609599882 before) and +0.00030 K (FDM, 84.26568445977094 before))
+    # (2.6.0 integration: the tip before the edge band already read 85.20158 (FVM) and 84.41179 K (FDM), the merged via-barrel and lumped-near-edge branches had not re-baselined this test; the edge band adds +0.00189 and +0.00030 K)
+    stored = {fvm: 85.20347171898253, fdm: 84.41209008961394, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
@@ -111,13 +114,29 @@ def test_part_weights_is_the_intersection_not_the_product():
     prod = coverage_fraction(part, 3, 3, 1e-3, 1e-3, 8) * coverage_fraction(outline, 3, 3, 1e-3, 1e-3, 8)
     assert prod[1, 1] == pytest.approx(0.375, abs=1e-12)
     assert w[1, 2] == 0.0                                    # Cell x 2 to 3 mm is off the board
-    # With the model's board cover (sampled more coarsely, here 0.6 for the cut cell): the share of the board samples in the part (2 of 4
-    # columns of samples on the board, 0.5) times that cover, so that the density on the board part is the part's own
+    # The weight is exact (part clipped to the outline, cut by the cells) and needs no normalisation to the model's cover: the exact board cover
+    # of that cell is 0.5 and the part covers half of the board part of it, so the weight is the same 0.25 whatever `cover` is passed
+    cover = np.ones((3, 3))
+    cover[:, 1] = 0.5
+    wc = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8, cover=cover)
+    assert wc[1, 1] == pytest.approx(0.25, abs=1e-15)
+    assert wc[1, 0] == 0.0 and wc[1, 2] == 0.0
+
+
+def test_part_weights_sampled_fallback_for_a_self_crossing_part_keeps_the_cover_normalisation():
+    # A part whose outline crosses itself (read by the even-odd rule) cannot be clipped: the sampled rule stays, with the model's cover (here 0.6 for
+    # the cut cell): the share of the board samples in the part times that cover. Two concave polygons are exact since the review of
+    # fix/exact-board-cover (the part is cut into triangles)
+    outline = np.array([[0, 0], [1.5e-3, 0], [1.5e-3, 3e-3], [0.9e-3, 1.5e-3], [0, 3e-3]])      # A notch on the left side makes it concave
+    part = np.array([[1.25e-3, 0.0], [2.9e-3, 3e-3], [2.9e-3, 0.0], [1.25e-3, 3e-3]])           # A bow tie: its outline crosses itself
+    from pcbthermal import geometry
+    assert geometry._part_on_board(part, outline) is None
     cover = np.ones((3, 3))
     cover[:, 1] = 0.6
     wc = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8, cover=cover)
-    assert wc[1, 1] == pytest.approx(0.5 * 0.6, abs=1e-12)
-    assert wc[1, 0] == 0.0 and wc[1, 2] == 0.0
+    plain = part_weights(part, outline, 3, 3, 1e-3, 1e-3, 8)
+    assert wc[1, 2] == 0.0 and plain[1, 2] == 0.0
+    assert 0.0 < wc[1, 1] <= 0.6 and wc[1, 1] > plain[1, 1]
 
 
 def test_turned_small_part_keeps_its_area_in_the_3d_solid():
@@ -174,13 +193,13 @@ def test_statistics_leave_out_the_cells_off_the_board(model):
         assert analysis._footprint_stats(rq, h.polygon, h.layer, q.board.outline)[0] == pytest.approx(float((T * cov).sum() / cov.sum()), rel=1e-15)
 
 
-def test_one_sampling_constant_is_shared_by_the_cover_and_the_part_weights():
-    # The board cover (FVM, 3D solid), the part weights and the FDM node cover must be sampled on the same lattice (geometry.BOARD_SAMPLES): a 4 x 4
-    # board cover against 8 x 8 part weights gave an edge-shift scatter of 2.95 K at 1 mm on the small T (1.47 K with 8 x 8 everywhere)
+def test_board_cover_and_part_weights_have_no_sampling_lattice_any_more():
+    # The board cover (FVM, 3D solid, FDM node cover) and the weights of a part are exact since fix/exact-board-cover; only the fallback for two
+    # concave polygons keeps the lattice of geometry.BOARD_SAMPLES
     import inspect
     from pcbthermal import geometry, model
     assert geometry.BOARD_SAMPLES == 8
-    assert inspect.signature(model.Board.cover).parameters["samples"].default == geometry.BOARD_SAMPLES
+    assert "samples" not in inspect.signature(model.Board.cover).parameters
     assert inspect.signature(part_weights).parameters["samples"].default == geometry.BOARD_SAMPLES
 
 

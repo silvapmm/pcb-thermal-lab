@@ -453,7 +453,7 @@ the FVM error against the reference changes from -4.7 % to -0.7 % (10 mm pad, fu
 -10.2 % to -2.3 % (gap 3.2 mm); largest movement of a peak: FVM 10.6 %, FDM 6.9 % of the rise. The other baseline files (`gap_grading.csv`, `gap_nodes.csv`, `real_boards.csv`,
 `validation_impact.csv`) were not regenerated and hold the program of 2.4.4. The shape test now allows the 20 and 26 mm pads to be equal (0.15 % each).
 
-Later, in the reproduction pass of 2.4.5 (`research/reproduction-245`, parts A and A2, checked by its review): `validation_impact.csv` was regenerated (the boards with vias moved with the point via),
+Later, in the reproduction pass of 2.4.5 (`releases/2.4.5/reproduction`, parts A and A2, checked by its review): `validation_impact.csv` was regenerated (the boards with vias moved with the point via),
 `gap_nodes.csv`, `gap_grading.csv` and `real_boards.csv` were re-run; the last two are byte-identical (they use the copy of the 2.4.4 network, not the program). Two things moved:
 
 * **Section 10.2, the program's FVM column** (it calls the program): -10.53 / -4.73 / -0.86 / +0.32 / -10.21 / -5.90 % became -1.05 / -0.67 / -0.15 / +0.34 / -2.29 / -0.83 % (pad6-full, pad10-full,

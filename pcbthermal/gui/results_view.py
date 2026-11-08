@@ -133,6 +133,33 @@ def recolour_toolbar(toolbar, theme):
         act.setIcon(QIcon(out))
 
 
+def redraw_when_shown(widget, redraw):
+    """!
+    @brief Redraw a tab now when it can be seen, or mark it to be drawn when it is shown.
+    @details The toolbar Layer box moves every map at once; drawing the hidden tabs (a Matplotlib figure each) made a layer change in the editor about 30 times
+             slower (0.004 to 0.11 s on the example board at 1 mm), so a hidden tab is drawn by its showEvent instead.
+    @param widget The tab (QWidget).
+    @param redraw Callable that draws the tab.
+    """
+    # Visible to its window: the current page of every tab widget above it (also before the window is first shown, and a tab without a parent)
+    if widget.window() is widget or widget.isVisibleTo(widget.window()):
+        widget._redraw_pending = False
+        redraw()
+    else:
+        widget._redraw_pending = True
+
+
+def redraw_pending(widget, redraw):
+    """!
+    @brief Draw a tab whose redraw was left for the moment it is shown.
+    @param widget The tab (QWidget).
+    @param redraw Callable that draws the tab.
+    """
+    if getattr(widget, "_redraw_pending", False):
+        widget._redraw_pending = False
+        redraw()
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -159,7 +186,7 @@ class PlotTab(QWidget):
         recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
-        self.layer = QComboBox()
+        self.layer_value = 0                            # The layer of the toolbar choice (see layerchoice): -1 / -2 all layers, 100 + face a metal block
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
         self.equiv = QCheckBox("Equiv. rect.")
@@ -179,7 +206,6 @@ class PlotTab(QWidget):
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
         self.model.setToolTip("Model whose result is drawn.")
-        self.layer.setToolTip("Copper layer shown.")
         self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
                               "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
                               "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
@@ -191,9 +217,8 @@ class PlotTab(QWidget):
         # The temperature and gradient rows wrap (Auto range, min and max go to a second line in a narrow centre area); the profile row has a stretching slider
         controls = FlowLayout() if kind in ("temperature", "gradient") else QHBoxLayout()
         if kind in ("temperature", "gradient"):
-            for lbl, w in (("Model", self.model), ("Layer", self.layer)):
-                controls.addWidget(QLabel(lbl))
-                controls.addWidget(w)
+            controls.addWidget(QLabel("Model"))                # The layer is the one choice of the main toolbar
+            controls.addWidget(self.model)
             controls.addWidget(self.equiv)
             if kind == "temperature":
                 controls.addWidget(self.hot)
@@ -201,9 +226,8 @@ class PlotTab(QWidget):
                 controls.addWidget(self.vmin)
                 controls.addWidget(self.vmax)
         elif kind == "profile":
-            for lbl, w in (("Layer", self.layer), ("Cut", self.axis)):
-                controls.addWidget(QLabel(lbl))
-                controls.addWidget(w)
+            controls.addWidget(QLabel("Cut"))
+            controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
         if kind not in ("temperature", "gradient"):
@@ -214,7 +238,7 @@ class PlotTab(QWidget):
         lay.addWidget(self.toolbar)
         lay.addWidget(self.canvas, 1)
 
-        for w in (self.model, self.layer, self.axis):
+        for w in (self.model, self.axis):
             w.currentIndexChanged.connect(self.redraw)
         if kind in ("temperature", "gradient"):
             self.display.changed.connect(lambda _what: self.redraw())     # A change of the shared display choice draws the map again
@@ -255,19 +279,6 @@ class PlotTab(QWidget):
         for k in have:
             self.model.addItem(tips.model_label(k), k)        # The name of the Simulation panel, the key as data
         self.model.setCurrentIndex(max(self.model.findData("fvm"), 0))
-        n = sim.problem.board.layers
-        self.layer.clear()
-        if self.kind == "temperature":
-            self.layer.addItem("All layers", -1)
-            self.layer.addItem("All (2 x 2)", -2)       # The layers in a grid of two columns
-        for l in range(n):
-            self.layer.addItem(f"Layer {l + 1}", l)
-        if self.kind == "temperature":
-            # The metal blocks of the finite-volume and finite-difference models are views of their own (data 100 and 101)
-            faces = sorted({f for r in sim.results.values() for f in (0, 1) if f"block_{'top' if f == 0 else 'bottom'}_max" in r.extras})
-            for f in faces:
-                self.layer.addItem(f"Metal block ({'top' if f == 0 else 'bottom'})", 100 + f)
-        self.layer.setCurrentIndex(0 if self.kind != "temperature" else 2 if n > 1 else 0)
         ref = sim.reference
         if self.kind == "temperature":
             self.vmin.setValue(ref.ambient)
@@ -276,6 +287,42 @@ class PlotTab(QWidget):
             self.pos.setValue(500)
         self._updating = False
         self.redraw()
+
+    def block_faces(self):
+        """!
+        @brief Faces of the metal blocks that the models of the result drew (entries of the toolbar Layer box in Temperature).
+        @return Sorted list of 0 (top) and 1 (bottom).
+        """
+        if self.sim is None:
+            return []
+        # The metal blocks of the finite-volume and finite-difference models are views of their own (data 100 and 101)
+        return sorted({f for r in self.sim.results.values() for f in (0, 1) if f"block_{'top' if f == 0 else 'bottom'}_max" in r.extras})
+
+    def set_layer(self, value):
+        """!
+        @brief Show the layer chosen in the toolbar (or the fallback for this tab).
+        @param value -1 all layers, -2 all in a 2 x 2 grid (temperature only), 100 + face a metal block (temperature only) or a layer index (0-based).
+        """
+        value = int(value)
+        if value != self.layer_value:
+            self.layer_value = value
+            redraw_when_shown(self, self.redraw)
+
+    def showEvent(self, e):
+        """!
+        @brief Draw the figure that a layer change left pending while the tab was hidden.
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        redraw_pending(self, self.redraw)
+
+    def _layer_index(self):
+        """!
+        @brief The copper layer a single-layer picture shows (the stored choice kept on the board).
+        @return int in 0..layers-1.
+        """
+        n = self.sim.problem.board.layers if self.sim is not None else 1
+        return min(max(self.layer_value, 0), n - 1) if self.layer_value < 100 else 0
 
     def _result(self):
         """!
@@ -294,9 +341,9 @@ class PlotTab(QWidget):
         r = self._result()
         if r is None or self.kind != "temperature":
             return None
-        layer = max(self.layer.currentData() if self.layer.currentData() is not None else 0, 0)
-        if layer >= 100:
+        if self.layer_value >= 100:
             return None                                                # The overlay on the board shows the board layers only
+        layer = self._layer_index()
         vmin = None if self.auto.isChecked() else self.vmin.value()
         vmax = None if self.auto.isChecked() else self.vmax.value()
         return r.T[layer], r.dx, r.dy, self.display.cmap, vmin, vmax
@@ -320,7 +367,7 @@ class PlotTab(QWidget):
         with _mpl_theme(self.theme):
             if self.kind == "temperature" and self._result() is not None:
                 r = self._result()
-                layer = self.layer.currentData()
+                layer = self.layer_value
                 cmap = self.display.cmap
                 if layer in (-1, -2):
                     plots.draw_fields(self.fig, r, prob, cmap=cmap, show_equivalent=self.equiv.isChecked(), equivalent_color=eq_args["equivalent_color"],
@@ -328,6 +375,7 @@ class PlotTab(QWidget):
                 elif layer >= 100:
                     plots.draw_block(self.fig, r, prob, layer - 100, cmap=cmap)
                 else:
+                    layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
                     loc = r.t_max_location
@@ -338,7 +386,7 @@ class PlotTab(QWidget):
                                            f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
-                layer = max(self.layer.currentData(), 0)
+                layer = self._layer_index()
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.display.cmap, layer=layer,
                                  label="|∇T| (K/mm)", **eq_args, view=view,
@@ -350,7 +398,7 @@ class PlotTab(QWidget):
                 pos = self.pos.value() / 1000.0 * length
                 self.pos_label.setText(f"{'y' if axis == 'x' else 'x'} = {pos:.1f} mm")
                 res = {k: r for k, r in sim.results.items() if r.T is not None}
-                plots.draw_profile(self.fig, res, prob, layer=max(self.layer.currentData() or 0, 0),
+                plots.draw_profile(self.fig, res, prob, layer=self._layer_index(),
                                    axis=axis, position_mm=pos)
             elif self.kind == "compare":
                 plots.draw_comparison(self.fig, sim.results)
@@ -376,6 +424,12 @@ class ResultsView(QWidget):
         self.display = display if display is not None else DisplayState(self)     # One choice of how the maps are drawn, for every tab that draws one
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
+        # One short line over the maps when the tab cannot show the layer choice of the toolbar (it shows the last single layer and says so)
+        self.layer_note = QLabel()
+        self.layer_note.setWordWrap(True)
+        self.layer_note.setVisible(False)
+        self._layer_note_text = ""
+        lay.addWidget(self.layer_note)
         self.tabs = QTabWidget()
         self.tabs.tabBar().setElideMode(Qt.ElideNone)             # "Components" was cut to "Compone…" in a narrow window
         self.tabs.tabBar().setUsesScrollButtons(True)
@@ -440,6 +494,27 @@ class ResultsView(QWidget):
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
 
+    def set_layer_note(self, text):
+        """!
+        @brief Show or hide the one-line note over the maps about the layer fallback.
+        @param text The note, or "" to hide it.
+        """
+        self._layer_note_text = text
+        tone = th.colors(self.theme)["alert_note"]
+        self.layer_note.setTextFormat(Qt.RichText)
+        self.layer_note.setText(f"<span style='color:{tone}'>{html.escape(text)}</span>" if text else "")
+        self.layer_note.setVisible(bool(text))
+
+    def set_layer(self, temperature, single):
+        """!
+        @brief Hand the layer choice of the toolbar to every tab that draws a layer.
+        @param temperature Entry for the Temperature tab (-1, -2, 100 + face or a layer index).
+        @param single The single layer for the other tabs (0-based).
+        """
+        self.temp.set_layer(temperature)
+        for t in (self.grad, self.profile, self.animation, self.time_sim):
+            t.set_layer(single)
+
     def _on_animation_warnings(self, warns):
         """!
         @brief Keep the notes of a finished animation and show them in the summary under those of the run.
@@ -476,6 +551,7 @@ class ResultsView(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        self.set_layer_note(self._layer_note_text)
         if getattr(self, "sim", None) is not None:
             self._show_warnings(self.sim.warnings)             # The notes take the colour of the new theme
         for t in (self.temp, self.grad, self.profile, self.compare):

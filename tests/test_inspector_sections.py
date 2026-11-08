@@ -100,7 +100,9 @@ def tmax(win, model="fvm"):
 def test_values_typed_in_the_new_places_change_the_result_sensibly(win):
     bp = win.board_panel
     base = tmax(win)
-    assert base == pytest.approx(85.07, abs=0.05)                              # The example board at a 2 mm cell (85.34 with the point via, before the mean-potential via)
+    # The example board at a 2 mm cell: 85.0746 K in 2.5.2, 85.2035 K in 2.6.0. The tester bisected the 34 merges of 2.6.0: via barrel and rim uncoupling +0.1251 K,
+    # cut-cell aperture film +0.0018 K, laminate edge band +0.0019 K (the rest of the shift)
+    assert base == pytest.approx(85.20, abs=0.05)
     bp.copper.setValue(70.0)                                                   # Copper per layer, now in the Stack-up tab: twice the copper spreads better
     assert tmax(win) < base - 3.0
     bp.copper.setValue(35.0)
