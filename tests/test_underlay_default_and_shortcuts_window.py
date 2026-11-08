@@ -109,6 +109,43 @@ def test_an_explicit_none_stays_none_for_an_imported_project(qtbot, tmp_path, mo
     assert win.canvas.copper_under_map
 
 
+def test_none_picked_in_the_display_panel_survives_layers_runs_and_a_reimport(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The user's None chosen in the Underlay combo of the Display panel (not a call on the state) hides the copper under the board map and survives the layers,
+           a new run and a re-import of the same files; the map turned off shows the copper again (review).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    win = _window(qtbot, tmp_path)
+    fab = make_board(tmp_path / "fab", inner=2)
+    _import(win, monkeypatch, fab)
+    _run(win, qtbot)
+    win.a_overlay.setChecked(True)
+    win._toggle_display_popover()
+    combo = win.display_popover.underlay
+    assert combo.currentData() == "copper"
+    combo.setCurrentIndex(combo.findData("none"))
+    assert win.display.kind == "none" and win.display.user_set
+    assert win.canvas._copper_item is not None and not win.canvas._copper_item.isVisible()
+    for i in range(win.doc.problem.board.layers):
+        win.layer_combo.setCurrentIndex(win.layer_combo.findData(i))
+        assert win.display.kind == "none" and not win.canvas._copper_item.isVisible()
+    _run(win, qtbot)
+    assert win.display.kind == "none"
+    win.a_overlay.setChecked(False)
+    assert win.canvas._copper_item.isVisible()                          # no map on the board: the imported copper is drawn as always
+    def reimport(self):
+        self.confirm = lambda *a: True
+        self.open_path(str(fab))
+        self.ask_reimport = lambda dlg: (dlg.radios["update"].setChecked(True), True)[1]
+        return 1 if self.do_import() else 0
+    monkeypatch.setattr(iw.ImportBoardWindow, "exec", reimport)
+    win.show_import()
+    assert win._is_imported() and win.doc.project.imports
+    assert win.display.kind == "none"                                   # a re-import into the same project keeps the user's choice
+
+
 def test_a_drawn_board_keeps_none_by_default(qtbot, tmp_path):
     win = _window(qtbot, tmp_path)
     win._load_problem(example_board(), "t")
