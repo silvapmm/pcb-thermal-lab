@@ -175,6 +175,17 @@ def test_the_uncoupled_via_warning_follows_the_masks():
     assert checks.uncoupled_vias(_problem(["solid", "anti"])) == [(0, [1])]
 
 
+def test_the_live_warning_does_not_ask_to_draw_on_an_imported_layer():
+    """!
+    @brief A via in a clearance of an imported layer is the board as designed (a signal via through a plane): the live warning 'draw its pad or plane' stays silent there
+           (the review found it naming 925 of 1000 vias of a real four-layer board), while `uncoupled_vias` itself still lists the layer.
+    @return None.
+    """
+    p = _problem(["solid", "anti"])
+    assert checks.uncoupled_vias(p, drawn_only=True) == []
+    assert checks.check_via_uncoupled(p, ("fvm", "fdm")) == []
+
+
 def test_conservation_with_the_masked_wells():
     """!
     @brief The heat balance of the solved field closes to rounding with a rim share below 1 (thermal relief) and with the antipad (share 0).
