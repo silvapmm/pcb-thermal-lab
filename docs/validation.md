@@ -2219,3 +2219,30 @@ The 62 boards of 42.2 have no via outside its array, so they cannot show what th
 * **Analytic**: the tile and the spread of a via move only on the boards with tight pairs (a satellite of a pair is now alone, `d_nn = inf`, so it is spread over four tiles and leaves the median spacing): tile 0.410 to 0.395, 0.492 to 0.448, 0.460 to 0.442 and 0.504 to 0.450 mm, hottest rise within 0.03 K, error of the via effect within 0.4 points, no non-finite value. Elsewhere bit-identical.
 
 Verdict: the fix removes the defect it targets and improves the Lumped on average, but it does not improve every board, and the earlier text 'the zone decision does not change' is true only of the 62 study boards.
+
+## 43. Vias through imported copper: the rim read from the masks
+
+Before, imported copper counted as full contact on every layer. With `viawell.RimMasks` a rim sample counts only if the imported copper is continuous from the drill circle out over `max(0.5 mm, 3 pixels)`. Evidence: `research/imported-via-rim` (README 1 to 4), re-run on this tree (third-party boards: numbers only).
+
+**Synthetic board against the independent 3D reference** (10 mm board, 4 x 4 vias under a 3 mm part, masks at 0.05 mm; hottest rise, percent against the reference `lib/truth_via.py`):
+
+| case | reference K | before 1 mm | after 1 mm | before 0.5 mm | after 0.5 mm |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| 2L antipad | 517.12 | -0.7 % | +1.1 % | -0.2 % | +1.2 % |
+| 2L solid / relief | 508.21 / 509.14 | 0.0 / 0.0 | 0.0 / 0.0 | 0.0 / 0.0 | 0.0 / 0.0 |
+| 4L solid, antipad, relief, mixed | 506.67 to 507.84 | 0.0 to +0.1 | 0.0 to +0.1 | 0.0 | 0.0 |
+
+The 2L antipad via effect was overstated by 57 % at 1 mm and 14 % at 0.5 mm; after the rule the part reads hot (safe), because the pad island in the reference still gives some heat and the rule drops it.
+
+**Real boards** (FVM, 1 W in one part, the three parts with most vias; percent hotter after the rule, heat balance at most 2.4e-12):
+
+| board | 1 mm | 0.5 mm |
+| :-- | :-- | :-- |
+| cmm2 (1000 vias) | +1.5, +1.8, +1.4 | +1.0, +1.1, +1.3 |
+| isastm (1008) | +0.7, +2.5, +4.2 | +0.3, +1.2, +3.6 |
+| oswlight (126) | +2.4, +4.4, +3.4 | +0.7, +1.9, +2.4 |
+| rp2040 (43) | +3.3, +0.1, +1.5 | +1.4, +0.0, +0.3 |
+| co60 (359) | +2.7, +3.9, +2.6 | not run |
+
+Run time unchanged (isastm 1 mm: 7 s with and without). Not checked against a reference on a real board; the reach (0.5 mm) is a fixed length, not fitted (shares move 0.05 to 0.2 for 0.3 to 1.2 mm). FDM, 0.25 mm and the Lumped and Analytic were not run.
+
