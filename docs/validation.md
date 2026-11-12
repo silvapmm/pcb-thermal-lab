@@ -1990,7 +1990,7 @@ At `h_side` 10 W/m2K nothing moves (0.1 point); at 200 the mean error and the sp
 Mean rise of the heater (K) at 1, 0.5, 0.25 and 0.125 mm, `h_side` 200: turned square 22.5 degrees, before 62.22 / 61.55 / 60.99 / 60.95, after 61.58 / 61.23 / 60.84 / 60.86 (the two agree to 0.15 % at 0.125 mm); aligned square, before and after (no film) 60.04 / 60.23 / 60.11 / 59.99, and 60.99 / 60.70 / 60.35 / 60.11 with the series film (see below); disc, before 65.57 / 65.26 / 64.72 / 64.47, after (the final hybrid) 64.54 / 64.66 / 64.39 at 1 / 0.5 / 0.25 mm (the 0.125 mm value was run for the no-fallback variant only: 64.40).
 
 * **Pixel mask alone** (without the aperture fallback): a cell whose centre is off the board has a zero electrode in the face window, so its links vanish and its edge film is lost; on a 12 mm turned board with full copper at 0.5 mm the board read 126.3 K against 117.3 K for the drawn aperture links (+7.7 %). The fallback brings it to 117.8 K (+0.4 %; at 1 mm 115.9 K against 116.8 K, -0.7 %; the old cover-scaled treatment was 121.2 K at 0.5 mm, +3.3 %, and 116.4 K at 1 mm).
-* **The film in series with the conduction to the edge** (the drawn layers' scheme, `fvm._cut_edge_film`) on top of the pixel faces: +1.6 % on the aligned board at 1 mm (60.99 against 60.04 K, copper held 1.2 mm inside the edge) and no better on the turned ones, so it stays off for imported copper (the film acts on the node, as before).
+* **The film in series with the conduction to the edge** (the drawn layers' scheme, `fvm._cut_edge_film`) on top of the pixel faces: +1.6 % on the aligned board at 1 mm (60.99 against 60.04 K, copper held 1.2 mm inside the edge) and no better on the turned ones, so it stayed off for imported copper (the film acted on the node); **superseded by section 39: with the distance from the centroid of the board part of the cell it is on**.
 
 ### 38.3 What is unchanged, tests, limits
 
@@ -2016,3 +2016,32 @@ Disc, before / after: +0.88 / -1.65 % at 1 mm, +0.88 / -0.51 % at 0.5 mm. At 10 
 **Memory (corrected by the review).** The exact cover on the pixel grid held about 40 bytes per pixel while it ran (642 MB on 16 million pixels), so the faces of a 200 mm board with an outline at 1 mm peaked at 740 MB against 221 MB without the outline, above the 40 bytes per pixel the memory law counts for the face construction (`memory.FACES_BYTES_PER_PIXEL`). It is now built in bands of a million pixels (`copper._pixel_board_cover`, float32): 248 MB on that board, the cover equal to one call to 6e-11 of a pixel, every heater rise of the study unchanged to the printed digit (test `test_the_pixel_board_cover_in_bands_equals_one_call_and_bounds_the_memory`). The network build of such a board takes about 1.5 to 2 times as long (the face problems run twice): 2.2 to 3.8 s on a 100 mm board at 0.5 mm, 21 to 31 s on a 200 mm board at 1 mm.
 
 **Other checks.** The matrix stays symmetric with no positive off-diagonal entry (the 12 mm turned board of the tests); a time simulation ends on the steady value (117.81 against 117.84 K at 12 time constants); the FDM, Lumped, Analytic and 3D solid warnings on imported copper still fire on an outline board; the frozen numbers do not move (317 at 2, 1 and 0.5 mm). Three tests of the cut-cell treatment of drawn boards that the branch had deleted by mistake (the Lumped built with `cut_cells=False`, the constant field reproduced to round-off for `h_side` 10 to 1e5, the dropped sliver's heat balance) are restored. **Limits kept**: if the outline crosses more than `OUTLINE_MAX_CROSSINGS` lines of the pixel grid (an outline of more than about 20 m of edges at the finest cell) the faces fall back on the cell cover without a warning; the cooled-edge bias of the film on the node above.
+
+## 39. Imported copper on a board with an outline: the edge film from the centroid (FVM)
+
+`fix/imported-copper-edge-film-centroid` (2.6.1; `fvm.Network._cut_edge_film`, `geometry.cover_centroids`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, commit d3cd9097). Section 38 left the edge film on the node for imported layers because the series film from the cell centre raised an aligned board by 1.6 % at 1 mm. The investigation found that the distance of the series film measured from the **centroid of the board part of the cut cell** (never negative) fixes the cool bias that grows with `h_side`, and it is now in the program for the IMPORTED layers (and the laminate nodes between them). The drawn layers keep the distance from the cell centre; their centroid film moves frozen numbers and is a separate decision ('Planned' in `docs/versions.md`: -3.39 to -1.76 % at 1 mm in the frame reference of the investigation).
+
+### 39.1 Reproduced on the program
+
+The board of the investigation (20 mm square turned by 0, 11.25, 22.5, 33.75 and 45 degrees and shifted by 0 and 0.3 of a cell, two layers, imported copper 1.2 mm inside the wall, 4 mm heater of 1 W) against its stored 3D truth, mean error / worst of the ten boards, run on the program of this branch (`lib/cases.py` of the investigation with the real `fvm.Network`):
+
+| h_side, cell | before (film on the node) | after (centroid film) | investigation's candidate |
+| :-- | :-- | :-- | :-- |
+| 10, 1 mm | -0.43 / 0.59 % | -0.39 / 0.56 % | within 0.05 points |
+| 200, 1 mm | -3.00 / 3.85 % | -0.94 / 1.87 % | -0.94 / 1.87 % |
+| 500, 1 mm | -4.90 / 6.75 % | -1.13 / 2.55 % | -1.13 / 2.55 % |
+| 1000, 1 mm | -6.36 / 8.78 % | -1.26 / 3.02 % | -1.26 / 3.02 % |
+| 200, 0.5 mm | -2.48 / 3.36 % | -1.45 / 1.72 % | |
+| 1000, 0.5 mm | -4.78 / 6.88 % | -2.33 / 2.84 % | -2.33 / 2.84 % |
+
+(The 'before' column is the program of the previous commit; the 'after' numbers equal the candidate of the investigation to the printed digit.) What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate, any cell) and the cut-cell scatter of the cell.
+
+### 39.2 Cost and properties
+
+No unknowns and no new matrix entries; the matrix stays symmetric with no positive off-diagonal entry (no vias), the heat balance closes to 1e-12 and a constant field is reproduced to round-off for `h_side` 10 to 1e5 (tests). The centroids are built by row strips of the 8-times refined exact cover of the cut cells only: a 200 x 150 mm outline board with 674 cut cells at 1 mm 0.025 s (0.027 s the whole film), 1340 at 0.5 mm 0.094 s (0.104 s).
+
+### 39.3 Limits, stated
+
+* **Copper that reaches the outline** was not run in the investigation (its robustness rows for inset 0 were paused). On the program, a 12 mm turned board with full imported copper to the wall reads, at 1 mm, 92.93 K (centroid) against 90.92 K (film on the node) and 91.77 K for the same board with drawn zones; at 0.25 mm 90.35, 89.94 and 89.98 K, at `h_side` 200. So here the centroid film is about 1.3 % hotter than the drawn film at 1 mm and 0.4 % at 0.25 mm, and no 3D truth was run for it: the change is only measured for copper held inside the wall.
+* The imported copper held 1.2 mm inside on the same 12 mm board (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
+* The spread over the angles at 2 mm (9 to 13 % at 500 to 1000 W/m2K), the stripes and a pad, four layers and a real imported outline board were not re-measured here; the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves (2 mm run).
