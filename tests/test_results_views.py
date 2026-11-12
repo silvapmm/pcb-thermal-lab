@@ -26,10 +26,12 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # Regenerated for 2.6.0 (branch feature/refreeze-260, from the integration tree feature/integration-260): the 2.6.0 items that move the example board's field
 # move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 degC at 2 mm): the via barrel length and rim uncoupling, the laminate edge
 # band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
+# 2.6.1 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
+# coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
     "field": "489e1bd374f122f91948e79e61b6cd90968dae6b9b146bbf7d39ecabb67f37bf",
-    "fields": "a6553d9533f37008f965c8cb4e88a92816c36f3be96ccef1df371830170965bf",
+    "fields": "324047eef5590cc0773753e30e9b6c5debdc30046bfc758d93c7a8a5016370bd",
     "gradient": "f1046ff0c00f471af1e2223dd60cf4c5a8c46650475f1aa604bfc0be63def206",
 }
 

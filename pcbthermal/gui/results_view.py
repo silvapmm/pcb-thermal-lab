@@ -377,12 +377,11 @@ class PlotTab(QWidget):
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    loc = r.t_max_location
                     plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
-                                     layer=layer, marker=(loc[1], loc[2]) if loc and loc[0] == layer else None,
+                                     layer=layer, extremes=True,
                                      hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
                                      title=f"{r.model.upper()} - layer {layer + 1}   "
-                                           f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                                           f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()

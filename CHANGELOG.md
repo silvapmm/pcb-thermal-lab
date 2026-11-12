@@ -5,9 +5,16 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [2.6.1] - Unreleased
 
+### Added
+
+- **Profiles: a thumbnail of the board with the cut line** (`plots.draw_profile`): the real outline, the elements of the layer and the cut, inside the figure (so saved PNGs and the command line plot have it; above the curves when the figure is narrow). The line and the title now give the position of the cell row or column actually plotted, not the slider value.
+
 ### Changed
 
 - **The Keyboard and mouse window is a dialog of two columns** (Help - Keyboard shortcuts): 900 x 600 px at most and never above 80 % of the screen, resizable, scrolls, Esc or Close closes it; it was a message box with one long column that did not fit a laptop screen.
+
+- **Shorter hints** (`fix/shorter-hints-261`; text only, no number moves): every tooltip of the window, the inspector, the Stack-up and Power profile pages, the Results, the Display panel, the Power Calculator, Preferences and the Gerber import window was cut to what the control means, its unit, a typical range and its use; destructive effects, keys and the reasons of greyed controls stay. 336 distinct hints, mean length 131 to 79 characters, the longest 928 to 331; none removed (`releases/2.6.1/hints/README.md`). The warnings and their tooltips are unchanged.
+- **Results temperature maps mark the coolest point, and the hottest mark follows the drawn field** (`fix/results-map-markers-and-cut-locator`; display only, no solver result and no frozen number moves): the Temperature map (every panel of All layers too) draws a red ring on the hottest and a blue ring on the coolest sample, the same rings as the map on the board (`analysis.extreme_points`, moved from `gui/fieldscale.py` so that the two views share it); the cyan plus is gone. The marks are computed from the field as drawn (cells off the outline excluded, the rectangle as solved for a Lumped or Analytic outline board, the first sample wins a tie, a flat field marks nothing), so the hottest mark of a **Lumped** map can sit elsewhere than before, because the stored peak position of that model can be the heater or zone peak and not a cell of the map. The map title adds Tmin (the Gradients map is unchanged).
 
 ### Fixed
 
@@ -16,12 +23,6 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **The import window no longer grows wider than the screen.** The status line and the subtitle of the Import Gerber board window were labels without word wrap, whose minimum width is the width of their text, so a set with long file names or many problems ("Next is disabled: ...") made the whole window ask for 4000 px and widen; they no longer ask for width: the subtitle is one line cut with an ellipsis, the status line (which says why Next is disabled) wraps on up to three lines and only then ends with an ellipsis, and the whole text is the tooltip and the accessible description of both; the import dialogs are limited to the screen they open on, and a saved main-window geometry larger than its screen is cut at start-up (the screen under the window, so a window restored on a larger second monitor keeps its size) (`gui/elided.py`).
 
 - **After a re-import of ANOTHER board the board is shown whole.** Replace (or Update) of the CMM board by the RP2040, or the reverse, put the new board in the project (copper, holes, outline) but the editor kept the zoom and centre of the old one, so the new board was a speck in a corner or ran off the screen and looked like an empty project; the view is now fitted again whenever the size of the board changed and the board is not well seen (also for Undo and Redo of the re-import); a re-import of another board is always fitted, even after a zoom; a zoom the user chose stays for the same board and for a size typed in the Board settings while the view still looks at the board. *(`fix/replace-import-another-board`, reviewed; `canvas.refit_if_board_changed`; display only; tests in `tests/test_reimport_view_fit.py`)*
-
-## [2.6.1] - Unreleased
-
-### Changed
-
-- **Shorter hints** (`fix/shorter-hints-261`; text only, no number moves): every tooltip of the window, the inspector, the Stack-up and Power profile pages, the Results, the Display panel, the Power Calculator, Preferences and the Gerber import window was cut to what the control means, its unit, a typical range and its use; destructive effects, keys and the reasons of greyed controls stay. 336 distinct hints, mean length 131 to 79 characters, the longest 928 to 331; none removed (`releases/2.6.1/hints/README.md`). The warnings and their tooltips are unchanged.
 
 ## [2.6.0] - 2026-11-07
 
