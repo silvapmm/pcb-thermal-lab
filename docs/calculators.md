@@ -104,11 +104,12 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 
 | Case | datasheet RθJA (K/W) | model RθJA (K/W) | power returned for 1 W | error |
 | :-- | --: | --: | --: | --: |
-| TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 47.5 | 0.968 W | −3.2 % |
-| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.3 | 1.039 W | +3.9 % |
-| the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.3 | 1.040 W | +4.0 % |
-| the same JEDEC board **without** the thermal vias | - | 71.0 (0.5 mm; 68.1 before 2.4.5; 73 to 84 K/W at other cell sizes) | (0.46 W) | the exposed pad needs the vias (JESD51-5) |
+| TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 46.7 | 0.986 W | −1.4 % |
+| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.4 | 1.034 W | +3.4 % |
+| the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.4 | 1.034 W | +3.4 % |
+| the same JEDEC board **without** the thermal vias | - | 70.9 (0.5 mm; 68.1 before 2.4.5; 73 to 84 K/W at other cell sizes) | (0.46 W) | the exposed pad needs the vias (JESD51-5) |
 
+* **Numbers of the table re-run on the 2.6.1 tree** (`research/power-calculator/scripts/calculator_validation.py`): the face-down law of 2.6.0 and the other 2.6.0 model items moved the rows (CSD17308Q3 47.5 to 46.7 K/W, 0.968 to 0.986 W; the JEDEC rows 1.039 / 1.040 to 1.034 W). The next note describes the earlier move and keeps its own numbers.
 * **The CSD17308Q3 row moved with the laminate nodes of the rule** (`docs/theory.md` 1.4): 0.983 W (−1.7 %) became 0.968 W (−3.2 %), towards the 3D estimate of about 0.96 W (the part sits on bare laminate under a two-layer board, where the earlier model was too cool); the test tolerance is 4 %. The JEDEC rows moved too, from 31.6 K/W (1.030 W, +3.0 %) to 31.3 K/W (1.039 W, +3.9 %), as printed by `calculator_validation.py`; the JEDEC test passes within 5 %.
 * The CSD17308Q3 datasheet also gives 58 K/W as a *maximum* and 165 K/W for the minimum pad (also a maximum). A maximum covers the spread of parts and boards, not this board, so it is not a target (the model gives 46.4 K/W, 45.7 before 2.4.5, when the junction is 58 K above ambient because the computed convection improves with temperature). The pad of the minimum-pad case is not stated, so that case cannot be built.
 * The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet (SBVS204G); the 5 × 5 mm body and the 3.15 mm pad are from its package drawing RGW0020A; the 3 × 3 via array is an assumption, so this row is an indication (+3 %), not a proof.
