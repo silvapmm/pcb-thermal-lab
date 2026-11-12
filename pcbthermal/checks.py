@@ -1026,7 +1026,7 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
     @brief Warnings for a small part over a thick insulating layer: the layered FVM/FDM laminate rule reads it too cool and the 3D solid, with its slabs of at most 0.2 mm, still a little too hot (text only).
     @details Measured against an extrapolated 3D reference and, on bare laminate, the closed form of Muzychka, Yovanovich and Culham (research/paper-case-studies 11.3, 16.3, 16.4;
              FVM at 0.25 mm). Layered rule, error against the ratio of the sub-gap s = d / n to the side of the part (always too cool, only where the gap is cut under the part):
-             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad; the review measured the part's rise in air
+             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad (FVM; the FDM at 0.25 mm, harmonic mean, -7 to -10 % and -14 to -20 % at 0.15 to 0.2, -19 % and -26 % at 0.4); the review measured the part's rise in air
              (20 mm two-layer board, h 10 / 15 W/m2K, against the FVM extrapolated in its sub-gaps): bare -3.4 % at 0.14, -4.1 to -4.3 % at 0.16, pad -4.3 to -4.8 % at 0.08 to 0.09,
              -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14, so the limit over copper is 0.10. A pad larger than the part counts by its own size; a plane under the part is silent.
              With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
@@ -1052,9 +1052,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
         limit = min(f[5] for f in group)
         if model == "layered":
             s_max, n_max = laminate.parameters()
-            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller {laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) "
+            what = (f"the layered FVM reads them too cool (4 to 24 % of the thermal resistance, more over a pad) and the FDM more (7 to 26 %); a smaller {laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) "
                     f"or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
-            short_what = f"the FVM and FDM read them too cool (4 to 24 %); reduce {laminate_where('sub-gap')}"
+            short_what = f"the FVM reads them too cool (4 to 24 %), the FDM 7 to 26 %; reduce {laminate_where('sub-gap')}"
         else:
             what = ("the 3D solid, with slabs of at most 0.2 mm per insulating layer, reads them too hot: its slabs alone add about +3 to +4 % at a ratio of 0.15 and +5 to +6 % at 0.2 "
                     "(a 1 mm part), and a part only a few cells wide adds the error of the plan cell")
@@ -1070,11 +1070,11 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
             s_max, n_max = laminate.parameters()
             over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
             _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
-                       f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
-                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller "
+                       f"above {limit:.2f}); the layered FVM reads it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1); the FDM reads more (-7 to -10 % bare, -14 to -20 % over a pad at 0.15 to 0.2, 0.25 mm cell, more at a coarser one). A smaller "
                        f"{laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
                        "The 3D solid, with its slabs of at most 0.2 mm per insulating layer, reads such a part a few per cent too hot instead (a 2 mm part about +4 % bare and +8 to +9 % over a pad at a 0.25 mm cell, more at a coarser cell).",
-                 f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
+                 f"{name}: small part over a thick laminate; the FVM reads it too cool (ratio {ratio:.2f}, about 4 to 24 %), the FDM 7 to 26 %; "
                  f"reduce {laminate_where('sub-gap')}.")
         else:
             _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
@@ -1490,7 +1490,7 @@ def partial_copper_vias(problem, cell_mm):
              (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
              further; this check keeps the plain footprint.
              Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
-             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 15 to 85 % low at a copper corner or a track end (FVM and FDM, cells of 1 to 0.25 mm)
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 22 to 85 % low (FVM) or 0 to 76 % (FDM) at a copper corner or a track end (cells of 1 to 0.25 mm)
              (31 to 68 % before the rim rule of viawell.build), and for a via just outside a copper edge lost (drawn copper) or, on imported copper, 3 to 4 times high at 0.5 mm or coarser.
     @param problem The Problem.
     @param cell_mm Cell size in mm.
@@ -1571,7 +1571,7 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
     @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
-             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 15 to 85 % low (FVM and FDM, cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
+             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 22 to 85 % low in the FVM and 0 to 76 % in the FDM (cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
              up to 11 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
              1.2 K or 1.4 % of the rise too hot; on imported copper the rim is read by the mask ray test and the old 3 to 4 times high (not re-measured) at 0.5 mm or coarser remains), and the cold spot below the
              barrel is a numerical artefact of the fixed footprint weights.
@@ -1599,7 +1599,7 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
          f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower. A via at the corner of a copper region or at the end of a track "
-         "is not solved: its effect reads 15 to 85 % low and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
+         "is not solved: its effect reads 22 to 85 % low in the FVM, 0 to 76 % in the FDM, and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
          "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper the contact is read from the masks (a ray test: a pad island inside a clearance does not count), and a via just outside an edge of imported copper can still read "
          "3 to 4 times high at a cell of 0.5 mm or coarser (not re-measured with the ray test). The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "

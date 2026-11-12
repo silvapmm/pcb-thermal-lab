@@ -293,7 +293,7 @@ def test_the_partial_copper_warning_names_the_corner_case():
     assert msgs, "the corner board must warn"
     text = str(msgs[0])
     assert "corner of a copper region" in text and "not solved" in text
-    assert "15 to 85 %" in text and "up to 11 %" in text and "safe side" in text
+    assert "22 to 85 %" in text and "up to 11 %" in text and "safe side" in text
     assert "research/" not in text and "fix/" not in text and "feature/" not in text
 
 
