@@ -2098,3 +2098,34 @@ Re-run by the reviewer on this branch (`releases/2.7.0/final-opinion/edge-film.m
 
 * The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
 * What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
+
+## 41. The simple stack-up takes the physical layer slabs
+
+`fix/simple-stackup-physical-layers` (2.7.0; `model.Board.slab_thicknesses`; tests `tests/test_simple_stackup_physical.py`; evidence `research/strong-edge-laminate` 8.2, INTEGRATION.md 1 option A).
+
+### 41.1 The defect and the change
+
+The node of a copper layer stands for its copper plus half of each adjacent gap. The advanced stack-up always did so; the simple stack-up gave every node `thickness / layers` (0.400 mm on the four-layer 1.6 mm study board), while the vertical links use the real gaps (0.487 mm). For three or more layers the outer copper nodes (where a source sits) therefore held 0.365 mm of laminate instead of the physical 0.243 mm and carried its edge film at the copper temperature, so the board read cool at a strongly cooled edge. Two layers with equal copper are unchanged (the equal share is the physical slab). Now one rule serves both stack-ups and the simple stack-up and the advanced stack-up with equal gaps are bit-identical (`tests/test_simple_stackup_physical.py`: FVM, FDM, Lumped and Analytic fields equal bit for bit on the example board, without and with `h_side` 500 W/m2K). A one-layer board keeps the whole thickness for its laminate nodes (`laminate.nodes`); the 3D solid reads the gaps and the copper directly and does not move.
+
+### 41.2 Plate at a strongly cooled edge (study board, 0.25 mm cell, hottest rise against the stored 3D reference of `research/strong-edge-laminate`, run on this tree)
+
+| `h_side` (W/m2K) | before: default sub-gaps | now: default sub-gaps | now: eight sub-gaps |
+| ---: | ---: | ---: | ---: |
+| 200 | -1.8 % | -0.83 % | +0.19 % |
+| 500 | -4.8 % | -2.55 % | +0.41 % |
+| 1000 | -8.9 % | -5.09 % | +0.35 % |
+| 2000 | -14.4 % | -8.90 % | -0.35 % |
+
+The 'before' column is the review's table (`research/strong-edge-laminate` 8.2); the other two were re-run here with that folder's `study_review_slabs.py` machinery on this tree, and the 'simple' and 'advanced' runs agree to the printed digit. The via effect of a via 0.16 mm from the wall (default sub-gaps): -4.8 % at 200 and -19.2 % at 1000 W/m2K (eight sub-gaps -2.7 and -7.3 %; before with the simple slabs -8 and -34 %). What is left at a strongly cooled edge is the number of sub-gaps (`laminate_n_max`), so the warning of `checks.check_edge_laminate` no longer has a clause for the simple stack-up.
+
+### 41.3 What moves (frozen records, `tests/regression/data/pending/simple-stackup-physical-layers.json`, 36 records at 2, 1 and 0.5 mm, 10 times to 63 %)
+
+Only the simple boards of three or more layers move: `example_board`, `profile_board` (the same board) and `example_cut_to_T`. Hottest temperature, new minus frozen (K): FVM +0.088 / +0.089 / +0.090 at 0.5 / 1 / 2 mm (example 85.376 to 85.465 degC at 1 mm), FDM +0.071 to +0.085, Lumped +0.075 to +0.081, Analytic +0.063 to +0.077; heat balance unchanged (at most 3e-10). Times to 63 % move on the same three boards (10 of 12 records; the Analytic time of `example_cut_to_T` stays within the tolerance). The other 14 boards of the harness (two-layer boards with equal copper, advanced stack-ups, the 3D solid on every board) are unchanged: 271 of 317 frozen runs at 2, 1 and 0.5 mm pass without the pending file and exactly the 46 listed fail.
+
+### 41.4 Tests that quote moved numbers (re-baselined, reason written in each)
+
+`test_analytic_edge.py` (the insulated four-layer board 71.1168 to 71.1519 K, heatsink heat 0.51364 to 0.51348 W), `test_profiles.py` (the node swing of the fast heater 0.393 to 0.543 K: the outer copper node holds 0.278 mm instead of 0.4 mm, so less capacity; the closed-form floor of 2.013 K and the regime are unchanged), `test_stackup.py` (the slab rule), `test_via_edge_image.py` (the corner case 1.15 % against its 1 % limit, now 1.5 %).
+
+### 41.5 Limits
+
+The heat capacity of the outer nodes falls (an outer node holds less laminate), so a fast square wave on a four-layer simple board reads a larger node swing; the decision and the resolved curves follow the new capacity. Not re-measured here: boards with unequal outer and inner copper weights against a 3D reference (the rule is the advanced one, checked bit for bit, not a new physical claim), and the Lumped and Analytic against a 3D solver (their `beta` uses the same slabs: `Analytic` example +0.063 to +0.077 K).
