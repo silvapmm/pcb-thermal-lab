@@ -99,6 +99,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 * The node of layer `l` stands for its copper plus half of each adjacent gap, `slab_l = t_cu,l + d_{l−1}/2 + d_l/2`, so the slabs add up to the board thickness; its laminate takes the thickness-weighted `k_ip` and `ρc` of the two half gaps.
 * A gap of several sheets (`combine_sheets`) is one gap: `k_th = Σt_i / Σ(t_i/k_th,i)` (in series through it), `k_ip = Σ t_i k_ip,i / Σ t_i` (side by side along it).
 * The simple stack-up (`dielectrics = None`) has `slab = t_pcb/N_L` and equal gaps. A heavier inner copper keeps every `d_j`, so the board grows by `Σ (t_cu,l' − t_cu,l)` (`models.md` 12).
+* **Caveat of the simple stack-up with three or more copper layers**: every node stands for the same `t_pcb/N_L` (0.400 mm on a 1.6 mm four-layer board) while the vertical links use the real gaps (0.487 mm there), so the outer copper nodes hold more laminate than their half gap and, at a strongly cooled board edge, carry the edge film of that extra laminate at the copper temperature. The plate then reads cooler than with the physical slabs (-8.9 against -5.1 % at 1000 W/m2K and -14 against -9 % at 2000 W/m2K, 0.25 mm cell, with two sub-gaps; `research/strong-edge-laminate` README 8). Two layers and an advanced stack-up with the gaps given are not affected. The correction is not implemented (it changes the frozen numbers of every simple board of three or more layers); the edge warning says so.
 
 ![The advanced stack-up](images/fig_39_stackup_slabs.png)
 
