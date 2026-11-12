@@ -69,27 +69,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
-## What is new in 2.6.0
-
-Version 2.6.0 (2026-11-07) is the release of the model corrections that followed the independent reviews, and several of them move numbers on purpose (the frozen reference is refrozen once, `tests/regression/data/v2.6.0.json`). Models: the exact cover of the board outline and cut-cell links with an edge film (FVM and 3D solid); the laminate cut into sub-gaps in a band along the board edge (FVM and FDM); the 3D solid with slabs by thickness and the face term; the Analytic model with its own edge parameter per layer and a local transient with vias and heatsinks; a capped first ring of the Lumped model, a warning near a side or a corner and a finer raster for a part smaller than two cells; a via barrel longer by half the copper thickness, with a copper layer the drilled hole does not touch left uncoupled; the horizontal face turned down on `Nu = 0.475 Ra^(1/5)`; and fast square waves (the closed-form swing of the stack as a floor, plus an average and ripple regime for a fast heater). Interface: a project package (`.pcbtz`: the project and the files it was imported from in one safe ZIP, with Save as, Export package and `convert`) and its size preference, one Layer box for the board and the Results maps with a clickable model name in the map card, the Display View (Current and Smooth) on the board, and bounds against hostile outlines.
-
-Limits that remain (listed in `docs/versions.md`, 'Planned: 2.6.1'): the FDM has no cut-cell treatment; a board with an outline and imported copper keeps the cover-weighted links; the copper edge held inside the outline leaves a spread of 2 to 3 K at an edge coefficient of 200 W/m2K; Terrain contours are not drawn on the board.
-
-## What is new in 2.5.2
-
-Version 2.5.2 (2026-11-07) is a fixes release; the solvers and the frozen numbers are unchanged. A project that opens can always be saved and reopened (lengths above 1 km and non-finite numbers are refused on load and never written, with a message in the status bar after an edit), the placement file of Pulsonix with a text preamble is read, the licence header is on every tracked file, the re-import of Gerber files of a different board offers a new project and carries no part over by designator, and the theory text was corrected after the audit of the code against the papers.
-
-## What is new in 2.5.1
-
-Version 2.5.1 (2026-11-06) is a fixes and display release. The map on the board and the colour map of every map are controlled from one **Display** panel (and a **Map** button), the Results maps have the views Smooth and Terrain and an underlay (copper or the background image), imported copper is drawn at up to 4096 pixels, a **re-import** of Gerber files keeps the settings and the work of the first import, a project file with a wrong value gives a clear message instead of a traceback, big board outlines open at once, the memory estimate no longer depends on the earlier runs of the session, warnings name the control of the front end in use, and the Results plots have their own toolbar icons. No model or solver changes; the frozen numbers of 2.5.0 hold. The list is in [`CHANGELOG.md`](CHANGELOG.md).
-
-## What is new in 2.5.0
-
-Version 2.5.0 (2026-11-05) adds the **import of Gerber boards** (File - Import Gerber board: files and layers, parts, model), the **imported copper** in the finite-volume and finite-difference models, **parts from the paste layers** with the exposed pad as the heat source, the **memory guard**, a much faster direct solver for boards with many vias, a **zonal Lumped model** for parts over groups of vias, the convective board edge in the Analytic model, the mirror image of a board edge for vias, laminate options, more live warnings and a softer, more legible interface. The list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
-
-* **First version of the Gerber import and of the imported copper**: they were checked against independent references and on real sets of files from open boards, **not against a measured board**.
-* **Project format 2**: a project with an imported board opens as an error ("Cannot open file") in 2.4.x, which never overwrites it; projects without imports are unchanged.
-* **Known limits**: a numerical cold spot under a via whose plane has copper over only part of the footprint (warned), the Analytic time simulation with a heatsink (warned, fix planned), convection laws not compared with a measured board, and the Lumped and Analytic models that cannot read imported copper well (they warn).
+What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary at the top) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Which model should I use?
 
