@@ -1,5 +1,7 @@
 # Integration: what the five checks would change in the program and in its documents
 
+**Status (audit 2.6.1).** Section 1: the warning (a) is in 2.6.0 (`checks.check_lumped_near_edge`, from `research/lumped-near-edge`, which also re-measured it on the tree with the capped first ring), the correction (b) is not adopted (A21 is closed into A23; what is left is A27). Section 2: the barrel length `d + 0.5 t_cu` is in 2.6.0 (`viawell.barrel_length`, `BARREL_COPPER_FRACTION`; `fix/via-barrel-and-rim-uncoupling` from `research/via-contact-geometry`, A22, `docs/validation.md` 34) in the FVM, FDM, Lumped and Analytic (not the 3D solid); the via deficit of the FVM on this folder's case is now -0.30 % (was -7.46 %, the folder test). Section 3: the 3D solid slabs by thickness are in 2.6.0 (A17); the source-aware rule (A18) is open.
+
 Nothing in `pcbthermal/`, `tests/`, `examples/` or `ico/` was edited; every proposal below was measured on the program as it is (`develop` at `fc91174a`) through its public API (the via barrel of 2 was lengthened in memory for one run, no file of the program changed). Recommendations are for the maintainer; a change to a model goes on a `fix/` or `feature/` branch with the whole battery. The reviewer's recommendation closes each section.
 
 ## 1. The Lumped model near an edge or a corner (measured, proposal)

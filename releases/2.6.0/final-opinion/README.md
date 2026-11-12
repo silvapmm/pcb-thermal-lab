@@ -49,8 +49,8 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | `rotated-square-3d/` | impl + later | exact cover (`geometry.exact_coverage`), 3D sliver cells (`solid3d.py`, `tests/test_solid3d_sliver_cells.py`); the 1.7 K aligned-edge residual of the 3D solid and the copper edge inside the outline (2.6.1 item 3) are open. |
 | `bochkov-robin-check/` | none | confirms the adopted film (floor 0.25 is a safety net, `fvm.EDGE_FILM_FLOOR`). |
 | `laminate-edge-band/` | impl | `laminate.edge_band`, `plan_gaps(edge=)`; `docs/validation.md` 36; tests of the band. Lumped/Analytic edge laminate: later, only warned (A29). |
-| `laminate-2-6/` | impl (C), later (A local rule) | 3D slabs by thickness (`solid3d.py`); the source-aware local rule needs the three changes of its README 7 (A18). |
-| `analytic-2-6/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `releases/2.6.0/reproduction`. |
+| `laminate-2-6 (now laminate-slabs-and-local-rule)/` | impl (C), later (A local rule) | 3D slabs by thickness (`solid3d.py`); the source-aware local rule needs the three changes of its README 7 (A18). |
+| `analytic-2-6 (now analytic-edge-and-transient)/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `releases/2.6.0/reproduction`. |
 | `analytic-edge-spatial/` | earlier (2.5.0 Robin basis) | superseded in part by the per-layer edge; test restated in `releases/2.6.0/reproduction`. |
 | `via-contact-geometry/` | impl + later | `viawell.barrel_length`, `rim_copper_shares`; `tests/test_via_barrel_and_rim.py`. Later: the sector well at a copper corner (A30). |
 | `via-partial-copper/` | impl (warning, rim rule) / dropped (star coupling) | the star coupling (C) was not adopted (maintainer); what is left is A30. |

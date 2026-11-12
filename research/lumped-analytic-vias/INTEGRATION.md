@@ -1,5 +1,7 @@
 # Integration of the via constriction into the Lumped and Analytic models
 
+**Status (audit 2.6.1).** Implemented in 2.4.5 (`fix/via-constriction`, `pcbthermal/viaconstriction.py`): the Analytic proposal (tile `min(1 mm, 0.75 median d_nn)`, bilinear spread, self-term, the 4800-unknown guard) and, for the Lumped, the micro well per via **with** a cluster well per group whose macro radius is capped at 0.75 fin lengths (not the uncapped cluster term this file measured, and against the reviewer's advice in section 6 to adopt the micro well alone); the Lumped is accepted as an average improvement with warnings (`docs/versions.md` 2.4.5). The dense-array case was then handled by the zonal Lumped model of 2.5.0 (`research/lumped-via-groups`, `research/lumped-zones-adoption`). 'Nothing here is implemented' below is the status when written; the old model was not kept as a legacy option.
+
 What would enter `pcbthermal/` if the maintainer decides to adopt the work, with the measured impact of each proposal. Nothing here is implemented; the measurements are on copies in memory (`lib/lumped_patch.py`, `lib/analytic_patch.py`). Adoption goes on a `fix/via-constriction` branch off `develop` with the whole battery (the missing constriction is a defect of the two models, not a feature).
 
 ## 1. What changes
@@ -50,6 +52,8 @@ The proposed Lumped model is on the safe side (the via effect underestimated) fo
 | conductive paste, change K | -0.20 | -0.19 | -0.28 | -0.20 | -0.25 | -0.19 |
 | copper fill, change K | -4.49 | -4.20 | -6.79 | -4.47 | -6.32 | -4.27 |
 | no vias, change K | +8.86 | +9.57 | +11.15 | +9.25 | +10.02 | +9.50 |
+
+*(audit 2.6.1: re-run on the 2.6.1 tree: T_max open 85.83 / 85.16 / 83.75 / 85.74 / 84.16 / 84.69, copper fill -4.49 / -4.20 / -6.83 / -4.24 / -6.31 / -4.27 K; the Lumped columns moved with the 2.6.0 barrel length, the Analytic with the 2.5.0 Robin edge; see the README, section 7.)*
 
 The figures that quote "Lumped and Analytic 6.3 to 7.0 K" (`docs/validation.md`, `docs/models.md`, `research/via-fill`) change to about 4.3 to 4.5 K; the statement that the five models agree on the order of the fills but not on the size of the copper gain becomes true to 0.3 K. The example board's T_max in the Lumped model rises by 1.9 K, in the Analytic by 0.5 K (they moved towards the FVM).
 

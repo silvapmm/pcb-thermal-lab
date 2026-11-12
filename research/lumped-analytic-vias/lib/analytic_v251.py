@@ -942,7 +942,7 @@ class _AnalyticAdapter:
         self.steady_peak_max = float(self.frame(b_peak).max())
         self.warnings = []
         if problem.heatsinks:
-            # Measured on 10 test boards (one 60 x 40 mm family, one 10 x 10 mm part, unit-step response only, FVM at 1 mm; research/analytic-2-6 README 3.1,
+            # Measured on 10 test boards (one 60 x 40 mm family, one 10 x 10 mm part, unit-step response only, FVM at 1 mm; research/analytic-edge-and-transient README 3.1,
             # reproduced by the review): the time to 63 % was -66.9 % to +112.7 % of the FVM at 1 mm with a heatsink (review: against the converged FVM -66 % to +84 %, +175 % on a 2-layer board with a 300 W/m2K heatsink) (-36.7 % with the heatsink under the part and no vias;
             # the earlier review of validation 4.1 measured -3.6 % for a heatsink alone in a corner and +28 to +49 % with vias, another board); plain boards, one via and via arrays were +0.1 to +0.6 %. The Lumped model is not a safe alternative there (-41.8 % with the
             # heatsink beside the part), so the text points to the FVM and FDM. Text only: no number moves (the local modal system is planned for 2.6.0).

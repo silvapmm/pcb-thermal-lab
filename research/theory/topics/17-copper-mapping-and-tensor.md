@@ -10,7 +10,7 @@
 
 More pictures of this topic, all in `research/gerber-models/figures/`: `fig_15_same_fill_different_copper.png` and `fig_12_clearance_cell.png` (the same fraction, different copper), `fig_17_gap_detour.png` (a clearance), `fig_18_cell_flow_lines.png` (the heat flow through a window), `fig_09_diagonal_faces.png` (five-point and nine-point links), `fig_20_cell_tensor.png` and `fig_21_tensor_in_use.png` (the tensor), `fig_19_diagonal_gate.png`. The investigation is `research/gerber-models/README.md` (sections 4.4 to 4.7, 4.42 to 4.44, 4.48, 4.49); the reader that feeds it is `research/gerber-import/`.
 
-**Status: researched on the research branch, not in the program.** The program takes the fill fraction of a zone (`f`, topic 01). Everything below is a proposal with measured impact.
+**Status: researched on the research branch, not in the program.** *(audit 2.6.1: stale for the mappings: the flow-based faces on the reduced sheet are the default of imported copper since 2.5.0, with lambda and fill as options (`copper.py`, `ImportedCopper.mapping`); the zone fill keeps its arithmetic formula; the tensor and the diagonal faces are not in the program, `research/ROADMAP.md` E1.)* The program takes the fill fraction of a zone (`f`, topic 01). Everything below is a proposal with measured impact.
 
 ## 1. The problem
 

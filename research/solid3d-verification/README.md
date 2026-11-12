@@ -2,6 +2,8 @@
 
 Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `solid3d_verification.py`, `fem3d_validation.py`, `copper_dissipation.py`, `study_block_against_fem.py`, `study_small_pad_convergence.py`, `study_spreading_axisymmetric.py`, `study_one_layer_board.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics). Reviewed by the reviewer agent on the program of `develop` at `0ea5f07` (section 7).
 
+**Audit 2.6.1.** `solid3d_verification.py` and `study_spreading_axisymmetric.py` were re-run on the 2.6.x program and print the numbers of 4.1 and 4.3 to the digit (0.8062 / 0.6700, GCI 1.14 %, order 1.68; axisymmetric 0.7932 at eps 0.2). Since 2.6.0 the 3D solid takes its laminate slabs by thickness (`solid3d.slab_rule`, 4 to 16 per gap, with the face term over bare laminate) and treats the cells cut by an outline by the aperture of the shared face (`fix/solid3d-sliver-cells`); the rows of this folder on two-layer boards, one-layer boards and pads (4.2, 4.2.1, 4.4) are the solid with four slabs per gap and were not re-run (the FEM scripts and the pad convergence take 6 to 11 minutes each). The example board did not move in the 3D solid (85.98 degC at 1 mm); the layered models did (FVM 85.38 degC at 1 mm on 2.6.x, `research/models-comparison` 4.1), so on the example board the 3D solid is +1.0 % of the rise above the FVM at 1 mm and +0.1 % at 0.5 mm (85.40 against 85.32 degC; `validation_study.py`), inside the 1.5 % quoted below.
+
 ## 1. The questions
 
 1. Does the program's own 3D solid (`pcbthermal/solid3d.py`) reproduce an exact solution and converge with the mesh?

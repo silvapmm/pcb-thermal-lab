@@ -279,6 +279,8 @@ On 2 mm cells the source edges fall a quarter of a cell off and the rounding giv
 
 *Re-run on 2.4.5 (the script's `patched` function now accepts the `form` argument): the general-form column of the example board moved from 57.16, 86.72, 142.74 C to 56.87, 86.14, 141.57 C (-0.3 to -1.2 K); the laminar column moved by the same amount and the changes of the rise are the same (-0.18, -0.22, -0.18 K; the last percentage -0.1 % became -0.2 %). The three bare 2-layer boards, section A and section C are unchanged. The example-board shift is probably a 2.4.5 item (laminate rule on the partial copper of that board); it was not isolated by a run, so it is not confirmed.*
 
+*Audit 2.6.1 (`study_corrections_impact.py` re-run, 17 s): A and C print the same digits; in B the example board reads 56.94 / 86.28 / 141.85 degC with the general form (+0.07 to +0.28 K, the 2.6.0 model items), the 100 x 60 mm board 89.43 degC, and every change of the rise is the same as in the table (-0.18, -0.22, -0.18, -0.43, -0.03, +0.14 K). The laminar form is now the default of new projects (2.5.0, `research/plate-h-level`), so "general form (program)" is the class default and old files.*
+
 The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 to +0.14 K): radiation and the other terms of `h` dilute the 5 to 10 % that the correlations differ by. **No change is warranted by the numbers.**
 
 ![The two forms as the program computes them and the change of the maximum temperature](figures/fig_19_natural_form_on_the_example.png)

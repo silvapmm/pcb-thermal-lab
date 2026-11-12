@@ -18,7 +18,7 @@
          The truncation to K x K modes cannot hold the constriction of the heat on a barrel, which the steady model has through its self-term. One factor s on the VIA
          couplings of C is therefore bisected until the steady rise at the heater's own point equals that of analytic.solve_steady (the heatsink conductances h_extra x tile
          area enter as built: they are exact tile means and have no constriction). With one factor on the whole of C the vias stay too strong and the heatsink too weak when
-         both are present (time to 63 % +5 to +32 % of the FVM); on the vias only it is -9 to +1 % (research/analytic-2-6 README 6.3).
+         both are present (time to 63 % +5 to +32 % of the FVM); on the vias only it is -9 to +1 % (research/analytic-edge-and-transient README 6.3).
 """
 
 import math

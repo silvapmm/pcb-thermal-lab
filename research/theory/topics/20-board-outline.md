@@ -8,7 +8,7 @@
 
 *Figure 16 of `research/gerber-import` (`research/gerber-import/figures/fig_16_outline_how.png`): reading the outline from the profile layer: the stroke is a band and the cut runs along its centre line; the even-odd rule along rows and columns; a closed contour against a gap.*
 
-Also `research/outline/figures/fig_05_cells_on_an_outline.png` (cells off the board, full cells and cut cells with their cover fraction). Investigations: `research/outline/README.md` and `research/gerber-import/README.md` 4.47. **Status: the rectangle rule is implemented; the profile-layer reader is researched on the research branch.**
+Also `research/outline/figures/fig_05_cells_on_an_outline.png` (cells off the board, full cells and cut cells with their cover fraction). Investigations: `research/outline/README.md` and `research/gerber-import/README.md` 4.47. **Status: the rectangle rule is implemented; the profile-layer reader is researched on the research branch.** *(audit 2.6.1: the profile-layer reader is in the program since 2.5.0, `pcbthermal/gerber/outline.py`; the exact cover and the cut-cell links since 2.6.0.)*
 
 ## 1. The outline in the models
 

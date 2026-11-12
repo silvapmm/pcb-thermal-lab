@@ -47,7 +47,7 @@ K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a 
 # installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
 # (16 slabs) takes 3.5 GB at 247 000 unknowns and 9.9 GB at 512 000; a plain two-layer board (6 slabs) 3.3 GB at 500 000.
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
-# Slabs across a dielectric gap (research/laminate-2-6 5): a slab of at most 0.2 mm, at least 4 and at most 16 per gap. A fixed 4 slabs left the heat of a small part
+# Slabs across a dielectric gap (research/laminate-slabs-and-local-rule 5): a slab of at most 0.2 mm, at least 4 and at most 16 per gap. A fixed 4 slabs left the heat of a small part
 # (2 mm) too concentrated over a thick laminate (+23 % bare, +27 % pad at 3.2 mm); 8 slabs of the 1.53 mm core of a two-layer board and 6 of the 1.065 mm core of a four-layer one
 SLAB_MM = 0.2
 SLABS_MIN = 4
@@ -467,7 +467,7 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
     if laminate.uses_rule(problem):
         # The heat of a part enters the copper slab at mid-thickness: over absent copper the half layer of laminate between that node and the face of the part is not in the
         # slabs (the same term as the layered models, applied to the peak and mean read under the part; a board with a metal block keeps the earlier reading, as they do).
-        # It is right only together with the slab rule (research/laminate-2-6 5.1): with 4 slabs per gap alone it makes the solid hotter than the reference
+        # It is right only together with the slab rule (research/laminate-slabs-and-local-rule 5.1): with 4 slabs per gap alone it makes the solid hotter than the reference
         q_layers = net.Q.reshape(net.ns, net.ny, net.nx)[net.board_slab]
         terms = laminate.face_terms(b, net.fill, q_layers, net.area_b, net.dx)
         if terms is not None:

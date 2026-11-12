@@ -1,5 +1,7 @@
 # Integration: the memory guard in the program
 
+*(audit 2.6.1: implemented in 2.5.0, `pcbthermal/memory.py`, with the changes of section 0; see the status line of `README.md`.)*
+
 Design for a `feature/memory-guard` branch off `develop` (release 2.5.0, item 'memory limit and guard' of `docs/versions.md` Planned, with the SOR block guard and, if the ladder confirms it, the cell-major numbering). The research branch changes nothing of the program; the prototype is `lib/memory_model.py` with the measured coefficients (`MEASURED`, README 5.2) and the measured SOR block cost. The measured impact of each proposal is in section 7. Decisions left to the maintainer: README 13.
 
 ## 0. Changes required by the review (README 14; they override the sections below where they differ)

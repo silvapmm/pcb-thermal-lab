@@ -986,7 +986,7 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
              With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
              A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
              The 3D solid cuts every gap into ceil(d / 0.2 mm) slabs, 4 to 16 (before: a fixed four, which read a 2 mm part +20 % bare and +27 % pad hot on 3.2 mm and +5.5 and +14.7 % on 1.6 mm);
-             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-2-6 5.1),
+             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-slabs-and-local-rule 5.1),
              of which about +2 to +2.6 % are the slabs and the rest the plan cell (+7 to +16 % in all at 0.5 mm, +17 to +30 % at 1 mm; review). The test is d / n against 0.15 of the side
              (the slabs alone +3 to +4 % there), so it fires only for parts under about 1.3 mm; the cell is the warning of check_problem (a part under three cells). No result depends on it.
     @param problem A Problem (structurally valid).

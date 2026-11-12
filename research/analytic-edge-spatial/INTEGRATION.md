@@ -1,5 +1,7 @@
 # Integration: the Robin basis in `pcbthermal/analytic.py`
 
+**Status (audit 2.6.1): implemented in 2.5.0** (`feature/analytic-robin-edge`, with the corrected root finding and warning rule of the review); the per-layer basis of section 4 followed in 2.6.0 as a GMRES loop on an edge-mismatch modal source (`research/analytic-edge-and-transient`). The text below is the design as proposed.
+
 Recommendation: **adopt in 2.5.0** on a `feature/analytic-robin-edge` branch (or a `fix/` one, since it corrects the accuracy of an unreleased transfer), executor then reviewer then
 maintainer with the whole battery. Size: about 150 changed lines in `analytic.py`, one small class, tests, documents. The prototype in `lib/robin_basis.py` and `lib/analytic_edge.py` is the
 specification (it equals the current solve to 1e-9 K with beta = 0). **Reviewed** (README 8): go, with the corrections marked "(review)" below; the warning rule of the first

@@ -28,13 +28,13 @@ def main():
     ID={"analytic-per-layer-edge":"K1","analytic-local-transient":"K2","exact-board-cover-reading-t":"K3","exact-board-cover-reading-cut-t":"K3","exact-board-cover-solvers":"K3",
         "cut-cell-aperture-film":"K4","solid3d-sliver-cells":"K4b","laminate-solid":"K5","laminate-edge":"K6","via-barrel-and-rim-uncoupling":"K7"}
     items=[
-     ("K1","Analytic per-layer edge","feature/analytic-edge-and-local-transient","research/analytic-2-6; docs/theory.md 6","Analytic on boards with an edge coefficient"),
-     ("K2","Analytic local modal transient","feature/analytic-edge-and-local-transient","research/analytic-2-6","time to 63 % of the Analytic on boards with vias"),
+     ("K1","Analytic per-layer edge","feature/analytic-edge-and-local-transient","research/analytic-edge-and-transient; docs/theory.md 6","Analytic on boards with an edge coefficient"),
+     ("K2","Analytic local modal transient","feature/analytic-edge-and-local-transient","research/analytic-edge-and-transient","time to 63 % of the Analytic on boards with vias"),
      ("K3","Exact board cover (and its part read-out)","fix/exact-board-cover","research/rotated-square-3d; docs/theory.md 1.3","boards with an outline across a part: FVM, FDM, 3D solid"),
      ("K4","Cut-cell aperture links and edge film (FVM)","fix/cut-cell-aperture-film","research/rotated-square-3d","FVM on boards with an outline or a block/copper edge in a cell"),
      ("K4b","3D solid cut-cell links and edge film at the closest outline point (sliver cells)","fix/solid3d-sliver-cells","research/rotated-square-3d","3D solid on boards with an outline"),
-     ("K5","3D solid slabs by thickness and the face term","feature/solid3d-slabs-by-thickness","research/laminate-2-6 README 5","3D solid on every board (more unknowns, hence two 0.5 mm records over the harness cap)"),
-     ("K6","Laminate edge band","fix/laminate-edge-band","research/laminate-2-6","FVM and FDM on boards with an edge coefficient"),
+     ("K5","3D solid slabs by thickness and the face term","feature/solid3d-slabs-by-thickness","research/laminate-slabs-and-local-rule README 5","3D solid on every board (more unknowns, hence two 0.5 mm records over the harness cap)"),
+     ("K6","Laminate edge band","fix/laminate-edge-band","research/laminate-slabs-and-local-rule","FVM and FDM on boards with an edge coefficient"),
      ("K7","Via barrel length d + 0.5 t_cu and rim uncoupling","fix/via-barrel-and-rim-uncoupling","research/via-partial-copper; docs/theory.md 2.6","every model on boards with vias"),
      ("K0","Items with no harness board that moves","Lumped first ring; Lumped near-edge raster; face-down convection 0.475 (harness boards use a manual h); fast-wave ripple (harness has no profile)","docs/versions.md 2.6.0","none: a shift attributed to them would be a defect"),
      ("K8","Round-off","last bits of the sums (order of the operations)","CLAUDE.md Decisions Log (symmetric LU)","at most 1e-8 K")]
