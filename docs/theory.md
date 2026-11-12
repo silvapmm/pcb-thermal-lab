@@ -509,7 +509,7 @@ with `F` the cells of the via footprints (`memory.via_cells`: the sum over the v
 | :-- | :-- | :-- |
 | unknown | mean of the cell, at its centre | value at the node, on a grid that includes the edges |
 | sheet conductance `S` | of the cell, from the cover of the cell | **sampled at the nodes**: the coverage of the control volume around the node (`sampling="area"`, the default: the four surrounding cell coverages weighted by the shared area) or the point test (`"point"`) |
-| lateral conductance | harmonic mean of the two `S` | mean of the two nodal values, arithmetic `(S₁ + S₂)/2` (default) or harmonic, times the face width over `Δ` (the face width is the control-volume side) |
+| lateral conductance | harmonic mean of the two `S` | **harmonic mean of the two physical nodal sheets** (default; `(S₁ + S₂)/2` arithmetic on request), times the mean outline cover of the two nodes (1 without an outline: a node cut by the outline keeps the link of the arithmetic mean, because the harmonic mean of cover-scaled values would make the link to a sliver `2c/(1 + c)`), times the face width over `Δ` (the face width is the control-volume side); the laminate nodes of the rule keep the arithmetic mean where both exist |
 | vertical | `k_th Δx Δy / d` | `k_th A_c / d`, `A_c` the control area (laminate nodes where copper is absent: section 1.4, on the nodes) |
 | via | footprint of cells, mean-potential coupling | the same coupling, on a footprint of **nodes** (weights: area of the disc over the control volumes) |
 | ambient and edge | cell areas and edge lengths | control-volume areas and lengths (the outline shifted by half a cell onto the control volumes) |

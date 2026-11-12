@@ -44,7 +44,7 @@ confirm the fast models. Cost grows with cells × layers; the **Auto** cell size
 ### 2.2 FDM (finite differences), the comparison (theory §3)
 
 Node-centred finite differences (`fdm.py`) of the same layered model: nodes on the board edges (`nx+1` by `ny+1`), edge nodes with half control volumes, the conductivity between
-two nodes is the mean of the nodal values (arithmetic or harmonic), vias are mean-potential couplings of a footprint of nodes (as in the FVM). How the copper and the heater footprint reach the nodes is selectable:
+two nodes is the harmonic mean of the nodal sheets (the default since 2.7.0: the arithmetic mean let half of a copper node's sheet leak into a bare neighbour and read a bare-pad board 13 % low at 1 mm against an independent 3D solver, 7 % with the harmonic mean; `mean="arithmetic"` stays for studies), vias are mean-potential couplings of a footprint of nodes (as in the FVM). How the copper and the heater footprint reach the nodes is selectable:
 
 * `sampling="area"` (default): the covered fraction of the control volume around each node. It removes the grid-to-grid scatter of point sampling and is exact for geometry that does not lie on the grid.
 * `sampling="point"`: the classic "is the node inside the polygon" test (left and bottom edge in, right and top edge out).
