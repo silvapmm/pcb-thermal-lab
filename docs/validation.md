@@ -2084,3 +2084,32 @@ Re-run by the reviewer on this branch (`releases/2.7.0/final-opinion/edge-film.m
 
 * The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
 * What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
+
+## 40. Lumped via groups: a lone far via is not part of the array
+
+`fix/lumped-via-groups-lone-via` (2.7.0; `viaconstriction.via_groups`, `ViaSet.__init__`; tests `tests/test_via_groups_lone_via.py`; evidence `research/small-model-defects` 1, INTEGRATION.md item 1). The single linkage joined two vias when their distance was at most twice the larger of their nearest-neighbour distances, so a via far from everything (large `d_nn`) reached the array and joined it: the mean spacing and the count of the group changed and the cluster well weakened. Now the pair is joined at twice the SMALLER distance and a via left alone has `d_nn = inf`.
+
+### 40.1 The defect and the fix on the program
+
+Board of the investigation (60 x 60 mm, 2 layers, 8 mm 5 W part, 1 mm cell, one via added 25 mm from the part centre; change of the hottest temperature in K, the study script `study_far_via.py` with the grouping of the program before and after; the first column is the before-values reproduced to the printed digit):
+
+| vias under the part | FVM | Lumped before | Lumped after |
+| --: | --: | --: | --: |
+| 0 | -0.001 | -0.001 | -0.001 |
+| 1 | -0.001 | -0.001 | -0.001 |
+| 2 | -0.001 | +0.646 | -0.001 |
+| 4 | -0.001 | +1.032 | -0.001 |
+| 16 | -0.000 | +1.263 | -0.000 |
+
+A 4 x 4 array and one far via at 0.5 mm: +1.275 before, -0.000 after. The Analytic does not move on any of these boards (it reads the same groups only for its tiles). A 3 x 3 array at 1 mm pitch under a 10 mm part on a 40 mm four-layer board with one far via (12, 18 or 6 mm away) or two: the Lumped part rise 32.84 K before, 32.21 K after, the FVM 31.55 K (the Lumped is 0.67 K hot with the via where it was 1.30 K); the same with the via 6 mm away 32.68 to 32.06 K.
+
+### 40.2 What does not move
+
+* The 62 boards of the Lumped studies (the 36 of `research/lumped-via-groups` `study_family.py` and the 26 of `study_holdout.py`; Lumped and Analytic, cells 1 and 0.5 mm): **0 of 62 move** (difference 0.0 on all 248 numbers; no board there has a via outside its array). The zone decision (`lumped.will_be_zoned`, `lumped.cell_for`) is the same on all of them.
+* The harness boards (`tests/regression`, 2, 1 and 0.5 mm): see 40.4.
+
+### 40.3 Limits, stated
+
+* **A via one pitch outside the array stays in the group** and still reads hot: the 4 x 4 array at 2 mm pitch under the 8 mm part with a via 2 mm (one pitch) beyond its edge, 2 layers, 1 mm: Lumped +1.211 K, FVM -0.083 K; at two and three pitches (4 and 6 mm beyond the edge) the via is outside the group and the Lumped reads -0.041 and -0.013 K against the FVM -0.035 and -0.016 K. The 3 x 3 array at 1 mm pitch with a via 2 mm beyond its edge reads 32.06 K (FVM 31.41 K, +0.65 K). The cause is the same dilution, smaller: the group's mean spacing and count include a via that is not under the footprint (a separate item).
+* **The 4-layer silence of the investigation is explained.** With 16 vias and one far via on a 4-layer board the Lumped changed by -0.002 K before the fix (the 2-layer board +1.263 K). The cluster term of the well (the macro disc) is capped at 0.75 fin lengths of the plane, and in a 4-layer board the dielectric couplings to the neighbouring planes make the fin length short, so the disc is smaller than the radius of the group (`r_macro <= r_cl`) and the term is not used with or without the far via (checked by counting the calls of `viaconstriction.krogh` for the 4 x 4 array alone: the macro term is called twice on 2 layers and not at all on 4). With the cap raised to 20 fin lengths (an experiment, not the program) the same far via heats the 4-layer part by +9.27 K at 1 mm (2 layers +6.68 K): the dilution is there, the cap hides it. The fix is therefore no-regret for 4 or more layers and removes the defect where it showed.
+* The input warnings that mention vias outside every footprint (`checks.check_model_limits`) are unchanged: those vias still enter the rings as before and their numbers (a lone via -22 to +65 %) were measured with the groups of 2.6.0 on boards without a cluster beside them, so they stand.

@@ -450,8 +450,8 @@ def _lumped_via_cases(polygon, vx, vy, inside, groups, d_nn):
     @param d_nn Nearest-neighbour distance of every via in m, from _board_via_groups.
     @return Tuple (across, off_centre, elongated) of bool; all False when no group qualifies.
     @note The reach of the "across" case: a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of the
-          group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone joins any via to its
-          nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group that "crossed" the edge.
+          group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage of the program used to join any via to its
+          nearest neighbour, however far (it now needs each via inside the reach of the other), so a few vias scattered over a board chained every centred thermal array into a group that "crossed" the edge; the reach test is kept.
     """
     poly = np.asarray(polygon, dtype=float)
     side_x, side_y = np.ptp(poly[:, 0]), np.ptp(poly[:, 1])
@@ -498,8 +498,8 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     @return str or None.
     @note The sides are those of the bounding box of the footprint; the thresholds are the zone model's and were not optimised for the program.
           The reach of (i): a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of
-          the group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone
-          joins any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
+          the group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage of the program
+          (before 2.7.0) joined any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
           that "crossed" the edge, and the warning fired on nearly every part of a board with scattered vias (review of fix/lumped-via-warning-limits).
     """
     if not any(_lumped_via_cases(polygon, vx, vy, inside, groups, d_nn)):
