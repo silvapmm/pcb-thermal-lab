@@ -1,4 +1,4 @@
-# Review of the map markers, the cut overlay and the via span warning (2.6.1)
+# Review of the map markers, the cut overlay and the via span warning (2.7.0)
 
 Merged into `develop` before review: `fix/results-map-markers-and-cut-locator` (1a77212d), `fix/hot-mark-position-and-span-warning` (c4e550ea), `fix/cut-overlay-from-display` (044a1d0e). Corrections on `fix/cut-overlay-review` (from `develop` abf85f58), three commits, each with a regression test that fails on `develop`.
 

@@ -133,7 +133,7 @@ In a cut-cell finite-volume scheme with the cell average as unknown (cover-weigh
 
 ## 8. Review (reviewer)
 
-**Verdict: go.** The numbers of the study reproduce, the 3D truth is checked against a solver that shares nothing with it, and the one risk left open (copper that reaches the outline) was run against the truth and does not need an exception. Scripts of the review: `releases/2.6.1/final-opinion/scripts/study_edge_film_review.py` (on the fix branch; it imports `lib/truth3d.py` of this folder); verdict `releases/2.6.1/final-opinion/edge-film.md`.
+**Verdict: go.** The numbers of the study reproduce, the 3D truth is checked against a solver that shares nothing with it, and the one risk left open (copper that reaches the outline) was run against the truth and does not need an exception. Scripts of the review: `releases/2.7.0/final-opinion/scripts/study_edge_film_review.py` (on the fix branch; it imports `lib/truth3d.py` of this folder); verdict `releases/2.7.0/final-opinion/edge-film.md`.
 
 **8.1 Reproduced.** On the program of `fix/imported-copper-edge-film-centroid` (the change in `fvm.Network._cut_edge_film`, not the copy of `lib/variants.py`) the ten-board table of 3.2 for c0 and c9 at 1 mm reproduces to the printed digit: `h_side` 10 -0.43 / -0.39 %, 200 -3.00 / -0.94 %, 500 -4.90 / -1.13 %, 1000 -6.36 / -1.26 % (mean; spreads and worsts as printed). The stored truths (`lib/truth_values.json`) are those of `scripts/study_truth.py`.
 
@@ -165,6 +165,6 @@ The worry (that the laminate nodes at the wall are held at the copper temperatur
 ## 7. What was read and what was not verified
 
 * Bochkov and Gibou (2019, as chapter 1 of the dissertation, `research/bochkov-robin-check`, status R for the pages compared with their image), Barrett, Fogelson and Griffith (2022, R for sections 1 to 3.1 and 3.3), Schwartz and others (2006, R pages 1 to 16): quoted from `research/theory/BIBLIOGRAPHY.md`; not re-read here beyond the equation numbers cited above (S for this study). Nothing of them was stored.
-* The reviewer's `releases/2.6.1/final-opinion/outline-mask.md` and its two scripts were read in full (copied into `lib/`, with one path line changed); `docs/validation.md` 38.1 to 38.3 read.
+* The reviewer's `releases/2.7.0/final-opinion/outline-mask.md` and its two scripts were read in full (copied into `lib/`, with one path line changed); `docs/validation.md` 38.1 to 38.3 read.
 * Reproduced: the aligned program against the two-sheet solver (rule off, 53.74 against 54.10 K, converging); the reviewer's -2.2 % turned mean is the cell error of section 2.2 (we get -1.6 % with another shift set on a full-copper board). The reviewer's stripes-and-pad numbers were not reproduced (the truth does not hold for them).
 * Scripts and tests: `tests/test_edge_film.py` (6 tests: truth balance and convergence, the variant network equals the program with no switch, `alpha = 0` is the node film, the heat balance of the centroid film, the graded sub-gaps).

@@ -1,6 +1,6 @@
 # Sources for the channel effect between close fins (C3, C3a)
 
-**Status (audit 2.6.1).** Of the two proposals of `fin-channel`, A (the warning on `Ra_b`) is in the program since 2.4.4 (`checks.check_fin_channels`), B is not; the text of section 7 ("Text for the project documents: none until a proposal is adopted") applies to B.
+**Status (audit 2.7.0).** Of the two proposals of `fin-channel`, A (the warning on `Ra_b`) is in the program since 2.4.4 (`checks.check_fin_channels`), B is not; the text of section 7 ("Text for the project documents: none until a proposal is adopted") applies to B.
 
 Question (`research/ROADMAP.md` C3 and C3a): `research/fin-channel/` read the composite correlations only through the Waterloo review (equations 8, 20 to 22), never opened the originals of Elenbaas (1942) and of Bar-Cohen and Rohsenow (1984), read no experimental fin-array paper in the original, and had no source at all for fins on a **horizontal** base, which is the orientation of the program's examples. This folder hunts for those sources (the originals, then other open papers that print or reproduce them), reads what it obtains, reproduces a published number of each, and says what changes in the conclusions of `fin-channel`.
 
