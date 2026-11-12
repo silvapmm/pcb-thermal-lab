@@ -510,9 +510,9 @@ class CopperSource:
         @return Tuple (gx, gy) in W/K, shapes (ny, nx - 1) and (ny - 1, nx).
         @throws ValueError If the outline crosses too many grid lines for the exact cover.
         """
-        pixel_cover = exact_coverage(outline, nx * n, ny * n, dx / n, dy / n)
+        pixel_cover = _pixel_board_cover(outline, nx * n, ny * n, dx / n, dy / n)
         gx_u, gy_u = face_conductances(s, n, self.mapping)                          # the unmasked pixels (the sheet is physical: the cover is not applied)
-        gx_m, gy_m = face_conductances(s * pixel_cover.astype(np.float32), n, self.mapping)
+        gx_m, gy_m = face_conductances(s * pixel_cover, n, self.mapping)
         ax, ay = face_apertures(outline, nx, ny, dx, dy, cover=cover)
         gx_u *= ax * dy / dx
         gy_u *= ay * dx / dy
@@ -524,6 +524,34 @@ class CopperSource:
         keep_x = inside[:, :-1] & inside[:, 1:]
         keep_y = inside[:-1, :] & inside[1:, :]
         return np.where(keep_x, gx_m, gx_u), np.where(keep_y, gy_m, gy_u)
+
+
+PIXEL_COVER_BAND = 1_000_000           # pixels of one band of the exact board cover on the pixel grid (the exact cover holds about 40 bytes per pixel while it runs)
+
+
+def _pixel_board_cover(outline, cols, rows, px, py):
+    """!
+    @brief The exact share of every pixel on the board, built in bands of rows so that its working set stays small.
+    @details `geometry.exact_coverage` integrates every column of the grid and holds about five float64 arrays of the whole grid while it runs (about 40 bytes per
+             pixel, 640 MB for 16 million pixels: more than the face construction itself, which the memory law counts at 40 bytes per pixel). The integral of a band
+             of rows is the same integral with the outline shifted down by the height of the rows below it, so the bands give the same numbers as one call to round-off
+             (at most 6e-11 of a pixel on outlines of 4 to 1675 vertices; the shift rounds the coordinates); the result is float32, as the pixel sheet it multiplies.
+    @param outline Outline polygon (n, 2) in m.
+    @param cols Pixel columns.
+    @param rows Pixel rows.
+    @param px Pixel width in m.
+    @param py Pixel height in m.
+    @return float32 array (rows, cols), rows from the bottom.
+    @throws ValueError If the outline crosses too many grid lines for the exact cover.
+    """
+    p = np.asarray(outline, dtype=float)
+    out = np.empty((rows, cols), np.float32)
+    band = max(1, PIXEL_COVER_BAND // max(cols, 1))
+    for r0 in range(0, rows, band):
+        r1 = min(rows, r0 + band)
+        # (the outline shifted down so that row r0 starts at y = 0; parts of the outline outside the band are integrated as they are, column by column)
+        out[r0:r1] = exact_coverage(p - np.array([0.0, r0 * py]), cols, r1 - r0, px, py)
+    return out
 
 
 def resolve(faces, problem):
