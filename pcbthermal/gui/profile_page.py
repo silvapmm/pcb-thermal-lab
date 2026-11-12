@@ -51,7 +51,7 @@ class ProfilePage(QWidget):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setToolTip("Heaters with their power profile, the average power and the regime chosen for each (averaged or resolved in time). Click one to edit it.")
+        self.table.setToolTip("Heaters with profile, average power and regime (averaged or resolved). Click one to edit it.")
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.itemSelectionChanged.connect(self._on_row)
@@ -126,9 +126,8 @@ class ProfilePage(QWidget):
         rf = QFormLayout(self.run_box)
         self.threshold = QDoubleSpinBox()
         self._spin(self.threshold, 0, 1000, 2, " °C")
-        self.threshold.setToolTip("Oscillations (in total) smaller than this are ignored: the heater is replaced by its "
-                                  "average power. Larger oscillations are simulated in time; a wave whose shortest stretch is below 4 s (2 s with three or more copper layers) is not "
-                                  "simulated step by step but held at its average power with its temperature wave added at the heater (average + ripple).")
+        self.threshold.setToolTip("Swing, °C, below which a heater runs at its average power; above, it is simulated in time. "
+                                  "Stretches under 4 s (2 s with 3+ layers): average + ripple.")
         self.start = QComboBox()
         self.start.addItem("Steady state of the average power", "average")
         self.start.addItem("A temperature I choose", "temperature")
@@ -172,8 +171,7 @@ class ProfilePage(QWidget):
         self.dec_table = QTableWidget(0, 7)
         self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dec_table.setToolTip("Decision for every heater: period, duty, average power, the temperature oscillation it would cause (°C and % of the rise) and the regime chosen: constant, average, resolved (simulated in time) or average + ripple "
-                                  "(a fast wave held at its average power, with its temperature wave from the layers under the part added at the heater).")
+        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (°C, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)

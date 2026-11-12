@@ -5,6 +5,12 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+## [2.6.1] - Unreleased
+
+### Changed
+
+- **Shorter hints** (`fix/shorter-hints-261`; text only, no number moves): every tooltip of the window, the inspector, the Stack-up and Power profile pages, the Results, the Display panel, the Power Calculator, Preferences and the Gerber import window was cut to what the control means, its unit, a typical range and its use; destructive effects, keys and the reasons of greyed controls stay. 336 distinct hints, mean length 131 to 79 characters, the longest 928 to 331; none removed (`releases/2.6.1/hints/README.md`). The warnings and their tooltips are unchanged.
+
 ## [2.6.0] - 2026-11-07
 
 Version 2.6.0 is the release of the model corrections that followed the independent reviews of 2.5: the cut cells of a board with an outline (the exact board cover, the cut-cell links and the edge film), the laminate along the board edge, the via barrel and its rim, the Analytic per-layer edge and local transient, the 3D solid slabs by thickness, the Lumped first ring, the face turned down and the fast square waves. It also adds the project package `.pcbtz`, a single Layer choice with a clickable model name, the Display view modes on the board, the package size preference and new warnings. Several of these move numbers on purpose; the frozen numbers are refrozen once (`tests/regression/data/v2.6.0.json`).

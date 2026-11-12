@@ -21,11 +21,9 @@ OPACITY_DEBOUNCE_MS = 250                               # Wait after the last ke
 IMAGE_MAX_PX = 2048                                     # Longest side of the picture kept for the underlay
 DEFAULT_OPACITY = 70                                    # Percent of the map over the underlay
 
-UNDERLAY_TIP = ("What is drawn under the temperature map. None: the map alone. Copper: the copper of the layer shown (grey, from the drawn zones or the "
-                "imported copper) on the laminate. Image: the background image of the project, at the place and size it has on the Board tab. "
-                "Only the entries that exist for this project are listed. Display only: nothing is solved again.")
-OPACITY_TIP = ("Opacity of the temperature map over the underlay, 0 to 100 % (0: only the underlay, 100: the map hides it; default 70 %). "
-               "The slider and the box show the same value. In the Results maps it works with an underlay; on the board it always works.")
+UNDERLAY_TIP = ("Drawn under the temperature map: None, Copper (the layer's copper in grey) or Image (the project's background image). "
+                "Only entries this project has are listed; display only.")
+OPACITY_TIP = ("Opacity of the map over the underlay, 0 to 100 % (default 70). Results maps: with an underlay only; on the board: always.")
 
 
 def load_underlay_image(cfg):

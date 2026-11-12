@@ -18,8 +18,8 @@ from . import import_session as imp
 
 SETTINGS_KEY = "package/include_sources"          # Machine preference: the state of the box of the export dialog
 SAVE_FILTER = "PCB Thermal project (*.pcbt.json);;PCB Thermal project package (*.pcbtz)"
-SOURCES_TIP = ("Store the files the board was imported from (copper, mask, paste and legend layers, outline, drills, the placement file, X3 component layers, a BOM if you "
-               "gave one) inside the package, under their original names, so that a re-import can start from them. Off by default; the choice is remembered on this machine.")
+SOURCES_TIP = ("Store the import's source files (Gerbers, drills, placement, X3, BOM) in the package under their names, for a re-import. "
+               "Off by default; remembered on this machine.")
 SOURCES_NOTE = ("Gerber file headers may carry folder paths and user names, and a third-party board keeps its owner's licence. The files are stored exactly as read "
                 "(no comment is removed).")
 

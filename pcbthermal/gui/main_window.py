@@ -82,8 +82,7 @@ class NewBoardDialog(QDialog):
         f.addRow(bb)
 
 
-BACKGROUND_IMPORTED_TIP = ("A background image is for tracing a board by hand; this project comes from Gerber files, "
-                           "which already give the exact copper.")
+BACKGROUND_IMPORTED_TIP = ("A background image is for tracing by hand; this project comes from Gerber files, which give the exact copper.")
 
 
 class BackgroundDialog(QDialog):
@@ -250,7 +249,7 @@ class MainWindow(QMainWindow):
         self.version_label = QLabel(f"v{__version__}")
         self.version_label.setToolTip("PCB Thermal Lab version")
         self.defaults_label = QLabel("")
-        self.defaults_label.setToolTip("The program is using your own defaults and libraries (Preferences).")
+        self.defaults_label.setToolTip("Your own defaults and libraries are in use (Preferences).")
         self.statusBar().addPermanentWidget(self.defaults_label)
         self.statusBar().addPermanentWidget(self.coord_label)
         self.statusBar().addPermanentWidget(self.version_label)
@@ -294,7 +293,7 @@ class MainWindow(QMainWindow):
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
-        self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
+        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (off = free).")
         tips.apply(self)
         self.canvas.set_tool("select")
 
@@ -1458,12 +1457,12 @@ class MainWindow(QMainWindow):
         text = defaults.diff_text()
         if defaults.has_user_file() and text:
             self.defaults_label.setText("Custom defaults")
-            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nPreferences to change or reset it.")
+            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nChange or reset it in Preferences.")
             if startup:
                 self.statusBar().showMessage(f"Custom defaults in use ({text}): {defaults.user_file()}", 8000)
         else:
             self.defaults_label.setText("")
-            self.defaults_label.setToolTip("The program is using the shipped defaults (Preferences).")
+            self.defaults_label.setToolTip("The shipped defaults are in use (Preferences).")
 
     def show_preferences(self):
         """!

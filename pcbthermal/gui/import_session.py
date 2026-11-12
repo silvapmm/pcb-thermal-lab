@@ -531,9 +531,8 @@ class ImportSession:
         if self.profile_choice is not None and self.profile_choice.source == "user":
             text += f"  [your choice: {prof_mod.profile_name(self.profile_choice.key)}]" if self.profile_choice.key != "unknown" else "  [your choice: none, generic rules]"
         marks = ", ".join(f"{m} ({n} file{'s' if n != 1 else ''})" for m, n in ev["markers"]) or "none"
-        tip = (f"The program that wrote the files, found from their headers and names. Markers: {marks}. It only gives better defaults for the file names; the X2 attributes, the "
-               "Excellon header and your own choice of a function always win, and the bottom-side X sign of a placement file is never preset by it. "
-               "Help us test your CAD tool: a sample of the files of another program makes its profile possible (see the user guide, Import Gerber board).")
+        tip = (f"The program that wrote the files, from their headers and names. Markers: {marks}. Only file-name defaults (never the bottom-side X sign); X2, the Excellon header and your choices win. "
+               "Help us test your CAD tool: send sample files of another program (user guide, Import Gerber board).")
         return text, bool(ev["check"] or r.confidence == "low"), tip
 
     def profile_keys(self) -> list:
