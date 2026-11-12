@@ -35,7 +35,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
 
-![The imported RP2040 board in the editor, with the copper drawn and the live warnings under Run](docs/images/editor_warnings.png)
+![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning and the first one opened](docs/images/editor_warnings.png)
 
 ![The imported board in the dark theme](docs/images/editor_imported_dark.png)
 
@@ -58,6 +58,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
 
 ![Temperature tab, View Terrain with contour lines every 5 K](docs/images/results_terrain.png)
+
+![Profiles tab: temperature along a cut with the cut overlay, the board picture and the map with the cut line](docs/images/results_profile_cut.png)
 
 ![Animation tab with View Smooth and Underlay Copper](docs/images/animation_underlay.png)
 
