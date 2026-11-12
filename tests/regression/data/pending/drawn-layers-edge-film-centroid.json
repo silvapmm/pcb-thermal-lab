@@ -1,0 +1,226 @@
+{
+ "base_version": "2.6.0",
+ "branch": "fix/drawn-layers-edge-film-centroid",
+ "evidence": "docs/validation.md 40; research/imported-copper-edge-film",
+ "format": 1,
+ "item": "Centroid edge film for the drawn layers",
+ "records": {
+  "example_cut_to_T|fvm|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 1.2318227246313738e-12,
+    "layer_mean[0]": 58.88474609421131,
+    "layer_mean[1]": 58.2658055859363,
+    "layer_mean[2]": 57.555995984866826,
+    "layer_mean[3]": 56.76200698625993,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.58197354730284,
+    "part:U1:t_max": 94.58197354730284,
+    "part:U1:t_mean": 89.0245121435542,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 100.05265870358922,
+    "part:U2:t_max": 82.05265870358922,
+    "part:U2:t_mean": 78.65058018809573,
+    "power_in": 5.5,
+    "t_max": 94.58197354730284,
+    "t_mean": 57.86713866281858,
+    "t_min": 47.681044865371575,
+    "t_sum": 6327899.852263119,
+    "t_sumsq": 342736225.8222315,
+    "unknowns": 145298
+   }
+  },
+  "example_cut_to_T|fvm|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -1.0094551457355423e-12,
+    "layer_mean[0]": 58.88264734011668,
+    "layer_mean[1]": 58.265466741283056,
+    "layer_mean[2]": 57.55620497053258,
+    "layer_mean[3]": 56.76242123635123,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.65375767790242,
+    "part:U1:t_max": 94.65375767790242,
+    "part:U1:t_mean": 89.18729991008472,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 100.10976482177585,
+    "part:U2:t_max": 82.10976482177585,
+    "part:U2:t_mean": 78.92978474302498,
+    "power_in": 5.5,
+    "t_max": 94.65375767790242,
+    "t_mean": 57.86668507207089,
+    "t_min": 47.74886974121681,
+    "t_sum": 1581964.1712347106,
+    "t_sumsq": 85686377.66713819,
+    "unknowns": 37588
+   }
+  },
+  "example_cut_to_T|fvm|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 7.73522660066109e-14,
+    "layer_mean[0]": 58.89183347396404,
+    "layer_mean[1]": 58.27007157863707,
+    "layer_mean[2]": 57.55910062981834,
+    "layer_mean[3]": 56.76466787969665,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.58284261068505,
+    "part:U1:t_max": 94.58284261068505,
+    "part:U1:t_mean": 89.04462302450335,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 99.62080523081049,
+    "part:U2:t_max": 81.62080523081049,
+    "part:U2:t_mean": 78.66769801987228,
+    "power_in": 5.500000000000001,
+    "t_max": 94.58284261068505,
+    "t_mean": 57.87141839052902,
+    "t_min": 47.87223776075717,
+    "t_sum": 398328.0448889324,
+    "t_sumsq": 21669441.380446088,
+    "unknowns": 10040
+   }
+  },
+  "part_across_outline|fvm|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 6.936673457857978e-13,
+    "layer_mean[0]": 130.2944353074343,
+    "layer_mean[1]": 122.42392356620634,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 229.76373606196753,
+    "part:U:t_mean": 211.94132224004133,
+    "power_in": 4.0,
+    "t_max": 229.76373606196753,
+    "t_mean": 126.35917943682031,
+    "t_min": 106.42164736861838,
+    "t_sum": 1538227.453741345,
+    "t_sumsq": 197334826.22564566,
+    "unknowns": 17948
+   }
+  },
+  "part_across_outline|fvm|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.69340105774063e-13,
+    "layer_mean[0]": 130.2992703760458,
+    "layer_mean[1]": 122.42870299375532,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 229.82869574236693,
+    "part:U:t_mean": 212.4829562945363,
+    "power_in": 4.0,
+    "t_max": 229.82869574236693,
+    "t_mean": 126.36398668490057,
+    "t_min": 106.43707229476962,
+    "t_sum": 389825.99036075483,
+    "t_sumsq": 50322056.553907916,
+    "unknowns": 4880
+   }
+  },
+  "part_across_outline|fvm|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.220446049250313e-16,
+    "layer_mean[0]": 130.3089252511471,
+    "layer_mean[1]": 122.43822588516763,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 4.0,
+    "part:U:t_max": 229.39813846710203,
+    "part:U:t_mean": 212.81962449329362,
+    "power_in": 4.0,
+    "t_max": 229.39813846710203,
+    "t_mean": 126.37357556815738,
+    "t_min": 106.50182245537913,
+    "t_sum": 97463.52379915063,
+    "t_sumsq": 12583415.250249807,
+    "unknowns": 1394
+   }
+  },
+  "round_outline|fvm|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 8.229861236941361e-13,
+    "layer_mean[0]": 106.59207910165242,
+    "layer_mean[1]": 100.6014812762152,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 175.57555129129312,
+    "part:U:t_mean": 163.65520938160176,
+    "power_in": 5.0,
+    "t_max": 175.57555129129312,
+    "t_mean": 103.5967801889338,
+    "t_min": 96.04945933159759,
+    "t_sum": 2292139.678448557,
+    "t_sumsq": 222357419.47451776,
+    "unknowns": 34920
+   }
+  },
+  "round_outline|fvm|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.149391775674303e-13,
+    "layer_mean[0]": 106.59307018900657,
+    "layer_mean[1]": 100.60253091733694,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 175.46028949425911,
+    "part:U:t_mean": 164.1639800368777,
+    "power_in": 5.0,
+    "t_max": 175.46028949425911,
+    "t_mean": 103.59780055317175,
+    "t_min": 96.03401668207863,
+    "t_sum": 581085.089979344,
+    "t_sumsq": 56573189.85958804,
+    "unknowns": 9252
+   }
+  },
+  "round_outline|fvm|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 1.4210854715202005e-15,
+    "layer_mean[0]": 106.60420787985007,
+    "layer_mean[1]": 100.61312202252216,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 5.0,
+    "part:U:t_max": 175.0221958734398,
+    "part:U:t_mean": 166.14892288193488,
+    "power_in": 5.0,
+    "t_max": 175.0221958734398,
+    "t_mean": 103.60866495118613,
+    "t_min": 95.99203049997656,
+    "t_sum": 147580.24527546862,
+    "t_sumsq": 14428193.125919819,
+    "unknowns": 2520
+   }
+  }
+ },
+ "transients": {
+  "example_cut_to_T|fvm": {
+   "class": "moved",
+   "t63": {
+    "U1": 15.90700106416335,
+    "U2": 4.356848800140723
+   }
+  },
+  "part_across_outline|fvm": {
+   "class": "moved",
+   "t63": {
+    "U": 33.588296886003036
+   }
+  },
+  "round_outline|fvm": {
+   "class": "moved",
+   "t63": {
+    "U": 38.63627912539224
+   }
+  }
+ },
+ "why": "The edge film of every layer of a board with an outline takes the distance from the centroid of the board part of the cell (drawn layers too)"
+}
