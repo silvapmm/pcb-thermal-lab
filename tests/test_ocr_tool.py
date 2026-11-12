@@ -1437,3 +1437,59 @@ def test_prompt_variants_are_named_and_reach_the_runner(tmp_path):
         config.variant_prompt("nope")
     a = build_parser().parse_args(["transcribe", "X", "--provider", "local", "--prompt-variant", "latex"])
     assert make_runner(a, tmp_path).prompt == config.variant_prompt("latex")
+
+
+# ---------------------------------------------------------------- printed page numbers in a pdfium text layer
+def test_headers_joined_to_the_page_number_are_read_and_ligatures_expanded():
+    assert suspects.joined_page_number("86 Chapter 2: Heat conduction\nbody text\nmore") == 86
+    assert suspects.joined_page_number("Problems 87\nbody text\nmore") == 87
+    assert suspects.joined_page_number("5.3. Moduli of a composite\u2020 77\nbody\nmore") == 77
+    assert suspects.joined_page_number("76 5. Microstructure-independent exact relations\nbody") == 76
+    assert suspects.joined_page_number("The sample has 3 holes\nin the plate\nof copper") is None   # not at an end
+    assert suspects.joined_page_number("\n".join(["a b c"] * 5)) is None
+    assert suspects.normalise_layer("e\ufb03cient \ufb01lm  x\u00ad") == "efficient film x"
+
+
+def test_printed_numbers_keep_the_offset_and_use_a_joined_number_only_when_it_agrees():
+    texts = {1: "Intro\nbody text of the page\n7\n"}                                  # own line: offset 1 - 7 = -6
+    texts[2] = "8 Chapter 2: Heat conduction\nplain body of the page\nmore body text\n"   # joined, agrees
+    texts[3] = "Figure 3 has 40 points\nplain body of the page\nand 12\n"             # joined candidate 12: disagrees
+    texts[4] = "Problems 10\nplain body of the page\nmore body text\n"                  # joined, agrees
+    texts[5] = "Other\nplain body\n11\n"
+    found = suspects.printed_numbers(texts)
+    assert suspects.page_offset(found) == -6
+    assert found[2] == 8 and found[4] == 10 and found[1] == 7
+    assert found.get(3) is None
+    # a file whose own-line numbers alone are too few to decide still gets its offset from the joined ones
+    only_joined = {p: f"{p + 20} Chapter 1: Intro\nplain body of the page\nmore body\n" for p in range(1, 6)}
+    assert suspects.page_offset(suspects.printed_numbers(only_joined)) == -20
+    # one page that agrees with itself is not an offset
+    assert suspects.printed_numbers({1: "5\nbody of the page here\nmore\n"}) == {1: 5}
+
+
+def test_a_generated_pdf_text_layer_gives_the_joined_number(tmp_path):
+    pdfium = pytest.importorskip("pypdfium2")
+    from tools.ocr import render
+    pages = []
+    for k in range(1, 4):
+        pages.append(f"BT /F1 12 Tf 72 740 Td (Chapter 2: Heat conduction {k + 40}) Tj ET\n"
+                     f"BT /F1 12 Tf 72 700 Td (Some ordinary body text of page {k}.) Tj ET")
+    objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [%s] /Count 3 >>" %
+            " ".join(f"{4 + 2 * i} 0 R" for i in range(3)), "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    for i, c in enumerate(pages):
+        objs.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {5 + 2 * i} 0 R "
+                    f"/Resources << /Font << /F1 3 0 R >> >> >>")
+        objs.append(f"<< /Length {len(c)} >>\nstream\n{c}\nendstream")
+    out, offs = b"%PDF-1.4\n", []
+    for n, o in enumerate(objs, 1):
+        offs.append(len(out))
+        out += f"{n} 0 obj\n{o}\nendobj\n".encode()
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    out += "".join(f"{o:010d} 00000 n \n" for o in offs).encode()
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    pdf = tmp_path / "gen.pdf"
+    pdf.write_bytes(out)
+    texts = dict(enumerate(render.page_texts(pdf), 1))
+    assert suspects.printed_numbers(texts) == {1: 41, 2: 42, 3: 43}
+    assert suspects.page_offset(suspects.printed_numbers(texts)) == -40

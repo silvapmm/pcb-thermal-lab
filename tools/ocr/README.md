@@ -105,7 +105,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 * **Suspect pages**: low word count, undecoded equations, base-36 cipher, broken-font tokens, a garbage PDF text layer; each
   page is reported as `PDF N / printed M` and the file's usual offset (a paper quoted at "page 418" is a different PDF page).
   The printed number is read from a line that is only a number (or "Page N") at the top or bottom of the page, or from a
-  journal line such as `JUNE 2003, Vol. 125 / 179`; when the file has an offset (the most common pdf - printed, at least two
+  journal line such as `JUNE 2003, Vol. 125 / 179`, or from a header that the pdfium text layer joined to the number on one line (`86 Chapter 2: Heat conduction`, `Problems 87`, `5.3. Moduli 77`; only the first and last two lines, and `suspects.printed_numbers` keeps such a reading only when it agrees with the file's offset, which is the mode of pdf - number over both kinds of reading; ligatures are expanded first, `suspects.normalise_layer`); when the file has an offset (the most common pdf - printed, at least two
   pages), every page's printed number is `pdf - offset`, because a single reading can be a table entry or a contents line
   (Lienhard2024: offset 14 on 753 of 765 readings, PDF 323 to 325 are printed 309 to 311; Muzychka2003: offset -177).
 * **Verify**: one HTML file, page image left and transcription right. A transcription counts as read only after a reviewer

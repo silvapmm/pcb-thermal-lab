@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import re
 import statistics
+import unicodedata
 from pathlib import Path
 
 from tools.ocr import config
@@ -89,7 +90,7 @@ def printed_page_number(pdf_text: str) -> int | None:
             first and last four lines, else the number at the end of a journal line with "Vol. N" after a separator;
             None when there is none.
     """
-    lines = [ln.strip() for ln in pdf_text.splitlines() if ln.strip()]
+    lines = [ln.strip() for ln in normalise_layer(pdf_text).splitlines() if ln.strip()]
     for ln in lines[:4] + lines[-4:]:
         m = re.fullmatch(r"(?:page\s+|-\s*)?(\d{1,4})(?:\s*-)?", ln, re.I)
         if m:
@@ -102,6 +103,66 @@ def printed_page_number(pdf_text: str) -> int | None:
         if m:
             return int(m.group(1))
     return None
+
+
+def normalise_layer(pdf_text: str) -> str:
+    """!
+    @brief Normalise a PDF text layer for the page-number rules (pdfium expands ligatures, other readers do not).
+    @param pdf_text Text layer of a page.
+    @return str NFKC text (ligatures such as U+FB01 become `fi`) without soft hyphens and with blanks collapsed per line.
+    """
+    text = unicodedata.normalize("NFKC", pdf_text).replace("\u00ad", "")
+    return "\n".join(re.sub(r"[ \t\u00a0]+", " ", ln) for ln in text.splitlines())
+
+
+def joined_page_number(pdf_text: str) -> int | None:
+    """!
+    @brief Read a printed page number that the text layer joined to a running header on the same line.
+    @details pdfium (unlike PyMuPDF) puts the header and its page number on one line, such as `86 Chapter 2: Heat
+             conduction` or `5.3. Moduli of a composite 77`. Only the first and last two lines are looked at; the
+             number must be the first or last token, a single integer of 1 to 4 digits next to words. A reading
+             like this is a candidate only: `printed_numbers` keeps it when it agrees with the file's offset.
+    @param pdf_text Text layer of the page.
+    @return int|None The candidate number, or None.
+    """
+    lines = [ln.strip() for ln in normalise_layer(pdf_text).splitlines() if ln.strip()]
+    for ln in lines[:2] + lines[-2:]:
+        m = re.fullmatch(r"(\d{1,4})\s+(?=(?:\d+(?:\.\d+)*\.?\s+)?[A-Za-z])\S.*", ln) or \
+            re.fullmatch(r"(?=(?:.*[A-Za-z]){3}).*[^\d\s]\s+(\d{1,4})", ln)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def printed_numbers(texts: dict[int, str]) -> dict[int, int]:
+    """!
+    @brief The printed page numbers read from the text layers of a file.
+    @details Two readings are possible for a page: a number on a line of its own (`printed_page_number`) and a number
+             joined to a running header (`joined_page_number`, what pdfium often gives). The offset of the file is the
+             mode of pdf - number over both kinds of reading, so scattered wrong readings (a chapter number, a table
+             entry) do not decide it; then each page keeps the reading that agrees with the offset, a line of its own
+             first. A page with no reading that agrees keeps its own-line reading, as before. Broken layers are left out.
+    @param texts Mapping 1-based PDF page to its text layer.
+    @return dict[int, int] PDF page to printed number, for the pages where one was read.
+    """
+    usable = {p: t for p, t in texts.items() if not garbage_text_layer(t)}   # a broken layer gives random numbers
+    strict = {p: printed_page_number(t) for p, t in usable.items()}
+    joined = {p: joined_page_number(t) for p, t in usable.items()}
+    votes = {p: n for p, n in strict.items() if n is not None}
+    diffs = [d for p in usable for d in {p - n for n in (strict[p], joined[p]) if n is not None}]   # one vote per page and difference
+    off = statistics.mode(diffs) if len(diffs) >= 2 and diffs.count(statistics.mode(diffs)) >= 2 else None
+    if off is None:
+        return votes
+    out = {}
+    for p in usable:
+        for n in (strict[p], joined[p]):
+            if n is not None and p - n == off:
+                out[p] = n
+                break
+        else:
+            if strict[p] is not None:
+                out[p] = strict[p]
+    return out
 
 
 def page_offset(printed: dict[int, int]) -> int | None:
@@ -179,7 +240,7 @@ def scan(papers: Path, only: list[str] | None = None) -> dict:
             texts = {i + 1: t for i, t in enumerate(render.page_texts(pdf))}
         except Exception:
             continue
-        printed = {p: n for p, t in texts.items() if not garbage_text_layer(t) and (n := printed_page_number(t)) is not None}   # a broken layer gives random numbers
+        printed = printed_numbers(texts)
         off = page_offset(printed)
         sus = []
         for p, t in texts.items():

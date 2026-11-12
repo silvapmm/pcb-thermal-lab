@@ -55,9 +55,9 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 
 | Scenario | FVM board field | FVM reading at the part face | 3D solid, slab-centre maximum | Field against the 3D solid |
 | :-- | --: | --: | --: | --: |
-| heater straddling the top-copper edge | 146.64 | 148.98 | 149.27 | -1.8 % |
+| heater straddling the top-copper edge | 146.65 | 148.98 | 149.27 | -1.8 % |
 | no copper on the heater layer | 152.36 | 154.70 | 153.19 | -0.5 % |
-| hatched copper (fill 0.5) on the top layer | 106.17 | 108.51 | 106.23 | -0.05 % |
+| hatched copper (fill 0.5) on the top layer | 106.18 | 108.51 | 106.23 | -0.05 % |
 
 The face reading is above the 3D solid by 2.1 % on the hatched board: that overshoot is the face term of 2.33 K, not an error of the field (the field is 0.05 % from the 3D solid). The table above (and the comparison with the 3D solid in the rows) uses the board field. The whole table was re-run for the laminate nodes with `validation_study.py` (about 5 minutes); the Lumped, Analytic and 3D solid values are unchanged except through the new FVM reference, the FDM moves with the same cut of the laminate (straddling the copper edge 139.77 to 142.45 °C).
 
@@ -122,7 +122,9 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.2 (−0.7 %) |
 | 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.4 (−0.9 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.4 (−6.7 %) |
 | 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 133.5 (−2.4 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 109.2 (−24.3 %) |
-| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.2 (−0.7 %) | 85.1 (−0.8 %) | 85.4 (−0.3 %) | 86.6 (+1.7 %) | 84.6 (−1.7 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.3 (−0.5 %) | 85.3 (−0.6 %) | 85.4 (−0.3 %) | 86.8 (+2.0 %) | 84.7 (−1.5 %) |
+
+*Re-run on the 2.6.1 tree for the FVM, FDM, Lumped and Analytic columns (the finite-element references are those above; the example board row moved by 0.1 to 0.3 K with the via barrel and the first ring, the other three rows are unchanged at the printed digit); the 3D solid (FV) column was not re-run, because the 3D solid at 0.5 mm of the example board needs about 11 GB by the memory guard (the 2.6.0 slab rule changed its cost), so its value is that of the earlier run. The face readings of the 'reading of the part' table of section 2 were re-computed on the tree (face term 2.33 K in all three rows; the readings are unchanged, the board fields 146.65 and 106.18 moved by 0.01 K).*
 
 **Metal block** (a heatsink with a thickness; `research/solid3d-verification/scripts/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; the table is printed by `research/solid3d-verification/scripts/study_block_against_fem.py`, no script printed it before this folder. Board: 100 × 80 mm, 2 layers, 5 W, full top copper, 10 × 10 mm heater at the centre, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated, aluminium 204 W/mK; FVM, FDM and the 3D solid (FV) at 1 mm; error on the rise):
 
@@ -1364,6 +1366,22 @@ The image of `viawell.edge_term` (theory 2.6) against a resolved reference: the 
 | outline side inside a cell (x = 7.0625 mm) | 0.16 | 7.471 | +16.5 / +2.5 % | +7.3 / +0.3 % | |
 
 **Re-run on the 2.6.1 tree** (`research/via-edge-image/scripts/study_edge_sweep.py`, modes none and program): the straight-edge rows above are its output (the 2.6.0 via barrel `d + 0.5 t_cu` lowers the 'with' column by about one point; at the 0.25 mm column every row now reads about -1 %); the corner and outline-side rows were not re-run and are those of the review. **The h_side 1000 row moved from +1.5 to +34.3 % of E** (0.412 K, so 0.14 K): the cause is the laminate edge band and the cut-cell film of 2.6.0 (E of the program on this board, 1 mm: tree 0.553 K; edge band off 0.420 K; edge band and cut cells off 0.414 K, the value of the reference's layered model, which has one laminate link per gap and no edge film; the barrel changes it by 0.006 K). It lies above the 200 W/m2K limit where the edge band is documented and warned (`checks.check_edge_laminate`), so it is an explained change of the model, not a defect of the image, but the reference is no longer the same physics there.
+
+**The h_side 1000 row, isolated (audit 2.6.1, item 19).** Same board (d = 0.16 mm), E of the FVM against the layered reference (0.412 K at h_side 1000; 2.993, 2.455, 1.433 K at 10, 50, 200), error in per cent; the trees were run from clean `git worktree` checkouts of the tags, the switches are monkeypatches in the script (program untouched): band = `laminate.edge_band`, film = `fvm.Network._cut_edge_film`.
+
+| tree | h_side 200, 1 / 0.5 mm | h_side 1000, 1 / 0.5 mm |
+| :-- | :-- | :-- |
+| v2.5.2 | +1.3 / +0.1 | +1.5 / -0.7 |
+| v2.6.0 = develop | +8.2 / +4.7 | +34.3 / +24.1 |
+| develop, band off | +0.5 / -0.7 | +2.0 / -1.0 |
+| develop, film off | +2.2 / +1.4 | +9.4 / +9.2 |
+| develop, band and film off | +0.4 / -0.8 | +0.6 / -1.7 |
+
+The jump is the laminate edge band acting together with the cut-cell edge film (alone, +2.0 % and +9.4 %; together +34.3 %); with both off the 2.6.0 tree gives the 2.5.2 numbers. The mirror image is not the cause: with the image off (reach 0) develop reads 0.637, 0.545 and 0.494 K at 1, 0.5 and 0.25 mm, with it 0.553, 0.511 and 0.489 K, so the image matters at 1 mm only.
+
+The reference was then checked against an independent 3D conduction solver that has the cooled side wall (`ref3d.py`, imports nothing of the program: half board by symmetry, 1/16 mm plan cells, copper slabs one cell thick, FR-4 gaps in 4 or 8 sub-slabs, film h_side dz on every slab of the walls, via as copper links between the copper cells of the drill disc with the program's barrel conductance). E of the 3D solver: 2.921 K (h_side 10), 1.542 K (200), 0.675 and 0.664 K (1000, 4 and 8 sub-slabs). The layered reference, which has one laminate link per gap and no film on the laminate, is the one that lacks the physics: 0.412 K against 0.664 K. Against the 3D solver the 2.6.0 program is +0.6 % at h_side 200 (1 mm) and -4.2 % (0.25 mm), and at h_side 1000 -17 % at 1 mm, -23 % at 0.5 mm and -26 % at 0.25 mm (0.553, 0.511, 0.489 K). The 2.5.x agreement (+1.5 %) was a reference and a model that shared the same omission, not a better via. A deficit of 17 to 26 % of the via effect at 1000 W/m2K remains and does not converge away with the cell; the image is not its cause. The 3D via is a linked disc of cells 0.01 mm from the wall and its sensitivity to that model was not studied. Above 200 W/m2K read the via effect near an edge with the existing edge warning.
+
+The numbers of the table above are those of the matrix of the study (`out_matrix.txt`), checked line by line in this pass; the E values of the 3D solver and the errors against it come from the study's report and were not re-run here (the matrix has no 0.25 mm column and no 3D-solver run).
 
 The 1 and 0.5 mm columns, with and without the image, and the h_side 1000 row were re-run by the review on the program of this branch against the same reference (the without-image values by switching the image off; they agree with `research/via-edge-image/out/` to 0.1 point); the 0.25 mm column is that of the research, not re-run. The tests hold the 1 mm cases to the budget of 2 to 3 %. Far from the edge (d of 1 to 2 mm and more) the image changes the result by at most 0.2 points. At a 2 mm cell (the coarse-cell warning applies) the image takes a via 0.16 mm from the edge from +24.4 to +3.3 % and the corner from +53.1 to +0.5 %; at d of 1 to 3 mm it is 0.2 to 1.1 points worse (+2.5 to +4.4 %).
 

@@ -365,9 +365,9 @@ def cmd_assemble(a, papers: Path) -> int:
     out.mkdir(exist_ok=True)
     for stem in a.stems:
         texts = render.page_texts(resolve_pdf(stem, papers))
-        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        found = su.printed_numbers({i + 1: t for i, t in enumerate(texts)})
         off = su.page_offset({k: v for k, v in found.items() if v})
-        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        printed = {p: su.printed_page(p, found.get(p), off) for p in range(1, len(texts) + 1)}
         digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
         (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(texts), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
                                         encoding="utf-8")
