@@ -5,6 +5,16 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+## [2.6.1] - Unreleased
+
+### Changed
+
+- **Results temperature maps mark the coolest point, and the hottest mark follows the drawn field** (`fix/results-map-markers-and-cut-locator`; display only, no solver result and no frozen number moves): the Temperature map (every panel of All layers too) draws a red ring on the hottest and a blue ring on the coolest sample, the same rings as the map on the board (`analysis.extreme_points`, moved from `gui/fieldscale.py` so that the two views share it); the cyan plus is gone. The marks are computed from the field as drawn (cells off the outline excluded, the rectangle as solved for a Lumped or Analytic outline board, the first sample wins a tie, a flat field marks nothing), so the hottest mark of a **Lumped** map can sit elsewhere than before, because the stored peak position of that model can be the heater or zone peak and not a cell of the map. The map title adds Tmin (the Gradients map is unchanged).
+
+### Added
+
+- **Profiles: a thumbnail of the board with the cut line** (`plots.draw_profile`): the real outline, the elements of the layer and the cut, inside the figure (so saved PNGs and the command line plot have it; above the curves when the figure is narrow). The line and the title now give the position of the cell row or column actually plotted, not the slider value.
+
 ## [2.6.0] - 2026-11-07
 
 Version 2.6.0 is the release of the model corrections that followed the independent reviews of 2.5: the cut cells of a board with an outline (the exact board cover, the cut-cell links and the edge film), the laminate along the board edge, the via barrel and its rim, the Analytic per-layer edge and local transient, the 3D solid slabs by thickness, the Lumped first ring, the face turned down and the fast square waves. It also adds the project package `.pcbtz`, a single Layer choice with a clickable model name, the Display view modes on the board, the package size preference and new warnings. Several of these move numbers on purpose; the frozen numbers are refrozen once (`tests/regression/data/v2.6.0.json`).
