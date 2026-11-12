@@ -292,7 +292,7 @@ What we want to **implement** in the program, each item once, with the evidence 
 
 ### Planned: 2.6.1 (the maintainer's list; Terrain contours on the board count as completing what exists)
 
-1. **Pixel-level outline mask for imported copper**: done on `fix/imported-copper-outline-mask` (FVM; `validation.md` 38; **review pending**); the film in series stays off for imported copper.
+1. **Pixel-level outline mask for imported copper**: done on `fix/imported-copper-outline-mask` (FVM; `validation.md` 38; **reviewed: GO with fixes**; the corrected claim: against references that do not move with the treatment the angle spread of the heater rise falls (6.06 to 1.86 % at 1 mm, `h_side` 200) but the mean moves from +0.34 to -2.20 % (cool side), the edge-film-on-node bias that aligned boards already had; 'mean error halved' was measured against a moving reference and is withdrawn); the film in series stays off for imported copper.
 2. **Copper edge held inside the outline**: done for IMPORTED copper by the same change (the pixels see the copper edge, spread at 1 mm 2.68 to 1.28 % of the rise at `h_side` 200); for DRAWN zones no method exists yet (the zone polygon is cut by the grid; `research/cut-cell-links` 5.2).
 3. **Terrain contours on the board canvas**: the relief picture and contour lines whose width does not grow with the zoom (see 'Display fix done' below).
 4. **Refresh `docs/validation.md` 3 and 3.1** with the 3D solid slabs by thickness.

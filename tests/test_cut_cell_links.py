@@ -533,3 +533,69 @@ def test_a_rectangle_with_imported_copper_has_no_outline_note_and_is_unchanged()
     assert not copper.outline_cuts_cells(q.board)
     t1 = fvm.solve_steady(q, cell_mm=0.5).t_max
     assert abs(t1 - t0) < 0.01 * (t0 - 20.0), (t0, t1)
+
+
+# Restored by the review of fix/imported-copper-outline-mask: these three tests of the cut-cell treatment of drawn boards were deleted by that branch by mistake
+
+def test_the_lumped_model_builds_its_network_without_the_series_term(monkeypatch):
+    # The Lumped never sees the links: its networks are built with cut_cells=False, so its numbers do not move with this change
+    from pcbthermal import SolverOptions, lumped, simulate
+    seen = []
+    real = lumped.Network
+
+    def spy(*a, **k):
+        seen.append(k.get("cut_cells", True))
+        return real(*a, **k)
+
+    monkeypatch.setattr(lumped, "Network", spy)
+    simulate(turned_square(20.0), SolverOptions(models=("lumped",), cell_mm=1.0))
+    assert seen and not any(seen)
+
+
+@pytest.mark.parametrize("h_side", [10.0, 200.0, 2000.0, 1e4, 1e5])
+def test_a_constant_temperature_field_is_reproduced_to_round_off(h_side):
+    # The series term changes the conductance AND the ambient term together (g_amb), so a board at rest in a warm ambient stays at that temperature, and the rows of K sum to the
+    # ambient conductances (the data side scales with the same factor as the conductance; a right-hand side with a floored denominator would not)
+    p = turned_square(20.0, h_side=h_side, pattern=True)
+    p.board.ambient = 63.0
+    p.heaters.clear()
+    net = fvm.Network(p, 32, 32)
+    rows = np.asarray(net.K.sum(axis=1)).ravel()
+    assert rows == pytest.approx(net.g_amb.ravel(), rel=1e-9, abs=1e-9 * net.g_amb.max())
+    r = fvm.solve_steady(p, cell_mm=1.0)
+    assert r.t_max == pytest.approx(63.0, abs=1e-9)
+
+
+def test_a_dropped_sliver_keeps_the_heat_balance():
+    # A cell under the minimum cover is off the board (the program's rule); the face apertures next to it are not used (its sheet is zero), its edge length goes to the nearest board cell,
+    # and the node of a sliver above the minimum stays a node, joined by its open face
+    p = study.sliver_board(0.0099, 200.0)                            # (cover 0.0099: dropped)
+    net = fvm.Network(p, 30, 30)
+    assert not net.active[:, 5].any()
+    assert abs(fvm.solve_steady(p, cell_mm=1.0).balance_error) < 1e-9
+    q = study.sliver_board(0.02, 200.0)
+    netq = fvm.Network(q, 30, 30)
+    col = netq.active[:, 5]
+    assert col.sum() == 20 and (netq.cover[col, 5] == pytest.approx(0.02, abs=1e-9))
+    assert (netq.aperture[0][col, 5] > 0.99).all()                    # the face to the neighbour is open over its whole length
+
+
+def test_the_pixel_board_cover_in_bands_equals_one_call_and_bounds_the_memory(monkeypatch):
+    # Review of fix/imported-copper-outline-mask: the exact cover on the pixel grid held about 40 bytes per pixel while it ran (642 MB for 16 million pixels, which
+    # took the face construction of a 200 mm board from 221 to 740 MB, above the 40 bytes per pixel of the memory law); it is now built in bands of rows
+    import tracemalloc
+    rng = np.random.default_rng(3)
+    th = np.sort(rng.uniform(0.0, 2.0 * math.pi, 37))
+    r = 0.04 * (1.0 + 0.3 * rng.uniform(-1.0, 1.0, th.size))
+    poly = np.c_[0.05 + r * np.cos(th), 0.05 + r * np.sin(th)]
+    one = exact_coverage(poly, 901, 777, 0.1 / 901, 0.1 / 777)
+    monkeypatch.setattr(copper, "PIXEL_COVER_BAND", 20_000)                   # 22 rows a band: many bands, some outside the polygon
+    banded = copper._pixel_board_cover(poly, 901, 777, 0.1 / 901, 0.1 / 777)
+    assert banded.dtype == np.float32 and banded.shape == one.shape
+    assert np.abs(banded - one).max() < 1e-6
+    monkeypatch.undo()
+    tracemalloc.start()
+    copper._pixel_board_cover(poly, 2000, 2000, 0.1 / 2000, 0.1 / 2000)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 20.0 * 2000 * 2000, peak     # the float32 result (4 B a pixel) and one band of a million pixels (measured 14 B a pixel here); one call held about 40
