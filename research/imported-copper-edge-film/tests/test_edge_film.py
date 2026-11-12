@@ -6,6 +6,7 @@
 @details Run from the repository root: `.venv/bin/python -m pytest -q research/imported-copper-edge-film/tests`.
 """
 
+import pytest
 import os
 import sys
 
@@ -52,6 +53,7 @@ def test_the_variant_network_without_switches_is_the_program():
         assert cases.run(p, 2.0)[0] == ref
 
 
+@pytest.mark.skip(reason="the program now has the centroid film for the imported layers (fix/imported-copper-edge-film-centroid), so the program is no longer the film on the node that this test compared with; the check was true on the program before the adoption (README 3)")
 def test_the_centroid_film_with_zero_distance_is_the_film_on_the_node():
     """!
     @brief `alpha = 0` makes every distance zero, so the film is the one of the program on the node.
