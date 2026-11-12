@@ -20,6 +20,7 @@ import dataclasses
 import hashlib
 import json
 import logging
+import math
 import re
 from pathlib import Path
 from typing import Callable, List, NamedTuple, Optional
@@ -1322,15 +1323,36 @@ class ImportSession:
             out.append(DrillFile(keep, True, d.span, d.tools))
         return out
 
-    def _component_holes(self, box) -> list:
+    def _other_holes(self, box) -> list:
         """!
-        @brief The plated holes above the via limit, in board coordinates, for the record (not vias).
-        @param box Board box (x0, y0, x1, y1) in the Gerber frame.
-        @return list of hole dicts with kind "component".
+        @brief The holes that are not vias, in board coordinates, for the record: plated holes above the via limit (kind "component") and non-plated holes and routed slots (kind "nonplated").
+        @details Display only: no model reads them. A slot (plated or not) is kept as non-plated with its second end (`x2_mm`, `y2_mm`) and its `length_mm` (centre to centre). Holes
+                 outside the board box are left out. The plating is decided as in `_drills`: per hole, else per file, else from the file role.
+        @param box Board box (x0, y0, x1, y1) in the Gerber frame, mm.
+        @return list of hole dicts {"x_mm", "y_mm", "d_mm", "kind"} (a slot adds "x2_mm", "y2_mm", "length_mm").
         """
-        b = self._board
-        return [{"x_mm": float(h.x - box[0]), "y_mm": float(h.y - box[1]), "d_mm": float(h.diameter), "kind": "component"} for h in (b.holes if b else [])
-                if h.plated and h.diameter > self.via_max_mm]
+        out = []
+        for f in self.used(PLATED, NONPLATED):
+            try:
+                d = read_drill(f.text(), f.name)
+            except (GerberError, OSError):
+                continue
+            file_plated = d.plated if d.plated is not None else f.role == PLATED
+            for h in d.holes:
+                plated = h.plated if h.plated is not None else file_plated
+                if not (box[0] <= h.x <= box[2] and box[1] <= h.y <= box[3]):
+                    continue
+                rec = {"x_mm": float(h.x - box[0]), "y_mm": float(h.y - box[1]), "d_mm": float(h.diameter)}
+                if h.is_slot:
+                    rec.update(kind="nonplated", x2_mm=float(h.x_end - box[0]), y2_mm=float(h.y_end - box[1]), length_mm=float(math.hypot(h.x_end - h.x, h.y_end - h.y)))
+                elif not plated:
+                    rec["kind"] = "nonplated"
+                elif h.diameter > self.via_max_mm:
+                    rec["kind"] = "component"
+                else:
+                    continue                                   # A via: it is in the record already (copper.import_copper) and in the problem
+                out.append(rec)
+        return out
 
     def import_files(self) -> List[ImportFile]:
         """!
@@ -1370,7 +1392,7 @@ class ImportSession:
         rec = ib.record(self.name)
         rec.files = self.import_files()
         rec.parts = copy.deepcopy(self.parts())
-        rec.holes = rec.holes + self._component_holes(ib.box_mm)
+        rec.holes = rec.holes + self._other_holes(ib.box_mm)
         rec.warnings = list(ib.warnings) + self.warnings()
         rec.cad_profile = self.profile_choice.record() if self.profile_choice is not None else None
         rec.settings = {"mapping": self.mapping, "cell_mm": self.cell_mm, "pixel_mm": ib.pixel_mm, "via_max_mm": self.via_max_mm, "offset_mm": list(self.offset),
@@ -1853,8 +1875,8 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
         new_problem.heatsinks.append(q)
     if old_problem.zones or old_problem.heatsinks:
         out.append(f"kept {len(old_problem.zones)} zone(s) and {len(old_problem.heatsinks)} heatsink(s)")
-    # 4. Vias: the stored import's holes in board metres; a via elsewhere was drawn by hand, a via at a hole keeps its fill on the new via at the same place
-    holes = np.array([[(h["x_mm"]) * 1e-3, (h["y_mm"]) * 1e-3] for h in old_record.holes if h.get("kind") != "component"]).reshape(-1, 2)
+    # 4. Vias: the stored import's holes in board metres (only the kind 'via' is tested, positively: component and non-plated holes are not vias); a via elsewhere was drawn by hand, a via at a hole keeps its fill on the new via at the same place
+    holes = np.array([[(h["x_mm"]) * 1e-3, (h["y_mm"]) * 1e-3] for h in old_record.holes if h.get("kind") == "via"]).reshape(-1, 2)
     new_xy = np.array([[v.x, v.y] for v in new_problem.vias]).reshape(-1, 2)
     hand, fills = 0, 0
     for v in old_problem.vias:

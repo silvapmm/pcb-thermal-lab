@@ -493,6 +493,13 @@ class MainWindow(QMainWindow):
                                      tip="Show all layers (0)" if n == 0 else f"Show layer {n} ({n})"))     # Active without a menu entry
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the imported copper under the elements")
+        # View - Holes: the three kinds of hole of an import; the choice is a machine preference (QSettings "holes/<kind>"), all on by default (the context is drawn light)
+        self.a_holes = {}
+        for kind, text in (("via", "Holes: vias"), ("component", "Holes: component"), ("nonplated", "Holes: non-plated")):
+            on = str(self.settings.value(f"holes/{kind}", "true")).lower() != "false"
+            self.canvas.show_holes[kind] = on
+            self.a_holes[kind] = self._act(text, lambda checked, k=kind: self._set_show_holes(k, checked), None, True, on)
+        self._update_hole_tips()
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
                                   "Write the element names on the board")
         self.a_bg = self._act("Background image…", self.set_background,
@@ -530,7 +537,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, self.a_labels, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, *self.a_holes.values(), self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -882,6 +889,27 @@ class MainWindow(QMainWindow):
                 return "profile"
         return "other"
 
+    def _set_show_holes(self, kind, on):
+        """!
+        @brief View - Holes: show or hide one kind of hole on the board and remember the choice.
+        @param kind "via", "component" or "nonplated".
+        @param on True to show.
+        """
+        self.canvas.set_show_holes(kind, on)
+        self.settings.setValue(f"holes/{kind}", "true" if on else "false")
+
+    def _update_hole_tips(self):
+        """!
+        @brief Put the number of holes of each kind in the tooltip of its View entry.
+        """
+        n = self.canvas.hole_counts()
+        what = {"via": "vias (modelled; they are the via elements)", "component": "plated holes above the via limit (not modelled)",
+                "nonplated": "non-plated holes and slots (not modelled)"}
+        for kind, a in self.a_holes.items():
+            tip = f"Draw the {what[kind]} of the import: {n[kind]} on this board"
+            a.setToolTip(tip)
+            a.setStatusTip(tip)
+
     def _refresh_display_context(self, *_):
         """!
         @brief The tab changed: the popover (open or not) shows the controls that apply there.
@@ -1224,6 +1252,7 @@ class MainWindow(QMainWindow):
         """
         self._edits += 1
         self._update_background_action()
+        self._update_hole_tips()
         self._sync_underlay()
         self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices

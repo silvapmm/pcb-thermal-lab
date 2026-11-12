@@ -1687,7 +1687,7 @@ class ImportRecord:
     copper: Optional[ImportedCopper] = None                           # Output of the import (filled by the imported-copper step)
     settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
     warnings: list = field(default_factory=list)                      # Warnings of the import (text)
-    holes: list = field(default_factory=list)                         # Plated holes [{"x_mm", "y_mm", "d_mm", "kind": "via" or "component"}, ...]
+    holes: list = field(default_factory=list)                         # Holes [{"x_mm", "y_mm", "d_mm", "kind": "via" | "component" | "nonplated"}, ...]; a slot is "nonplated" with "x2_mm", "y2_mm", "length_mm"; only vias are modelled
     cad_profile: Optional[dict] = None                                # CAD profile of the name rules: {"key", "source": "detected" or "user", "table": version}; None = none recorded
     extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
 

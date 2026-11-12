@@ -1529,3 +1529,52 @@ def test_boxes_warnings_accordion_and_layer_keys_in_the_application(win, qtbot, 
         QTest.keyClick(win, key, Qt.ShiftModifier if (key == Qt.Key_L and rng.random() < 0.5) else Qt.NoModifier)
         assert win.layer_combo.currentIndex() >= 0
     win.doc.stack.setClean()
+
+
+def test_hole_kinds_in_the_application(win, qtbot, tmp_path):
+    """!
+    @brief Stress of the hole kinds (display only): an imported board with vias, a component hole, non-plated holes and a slot, 800 more holes, every combination of the three
+           View - Holes entries, layer changes, both themes and a project without an import; nothing is drawn twice and no entry fails.
+    @param win MainWindow fixture of this file.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    import copy
+    import itertools
+
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.canvas import ViaItem
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board
+    from tests.test_hole_categories import NPTH
+
+    folder = make_board(tmp_path / "fab", inner=0)
+    (folder / "npth.drl").write_text(NPTH)
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.confirm = lambda *a: True
+    w.notify = lambda title, text: None
+    w.open_path(str(folder))
+    w.go(1)
+    w.go(2)
+    assert w.do_import() is True
+    rec = copy.deepcopy(w.record)
+    for k in range(800):
+        rec.holes.append({"x_mm": 1.0 + (k % 40) * 0.9, "y_mm": 1.0 + (k // 40) * 1.2, "d_mm": 0.9, "kind": "component" if k % 3 else "nonplated"})
+    win.doc.open_import(w.problem, rec)
+    view = win.canvas
+    assert set(view._hole_items) == {"component", "nonplated"}
+    for combo in itertools.product((True, False), repeat=3):
+        for kind, on in zip(("via", "component", "nonplated"), combo):
+            win.a_holes[kind].setChecked(on)
+        view.set_layer(1 - view.layer if view.layer in (0, 1) else 0)
+        n_via = sum(1 for it in view.scene().items() if isinstance(it, ViaItem) and it.isVisible())
+        assert (n_via > 0) == combo[0]
+        for kind, on in zip(("component", "nonplated"), combo[1:]):
+            assert view._hole_items[kind].isVisible() == on
+    win.toggle_theme()
+    win.toggle_theme()
+    assert set(view._hole_items) == {"component", "nonplated"} and len(view.scene().items()) < 4000
+    win.doc.open_problem(example_board(), "example")
+    assert view._hole_items == {} and view.hole_counts()["component"] == 0
+    win.doc.stack.setClean()

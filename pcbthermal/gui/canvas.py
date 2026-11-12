@@ -14,7 +14,7 @@ from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                            QMouseEvent, QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
-                               QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
+                               QGraphicsPathItem, QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
 
 from .. import copper, defaults
@@ -365,6 +365,9 @@ class BoardView(QGraphicsView):
         self.show_imported_copper = True            # View - Imported copper
         self.copper_under_map = True                # False while a map is on the board and the Underlay is not Copper: the imported copper is hidden
         self.show_labels = True                     # Names of the heaters on the active layer
+        self.show_holes = {"via": True, "component": True, "nonplated": True}      # View - Holes: which kinds are drawn (the vias are the via elements)
+        self._hole_items = {}                       # kind -> the one path item that draws every hole of that kind (no selection, no undo)
+        self._hole_xy = {}                          # kind -> (centres (n, 2) mm, radii (n,) mm, record dicts) for the hover text
         self._fitted = False
 
         doc.changed.connect(self.rebuild)
@@ -435,6 +438,7 @@ class BoardView(QGraphicsView):
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
             self._add_imported_copper()
+            self._add_holes()
             if keep is not None:
                 self.set_overlay(**keep)
             active = self.layer
@@ -457,6 +461,7 @@ class BoardView(QGraphicsView):
                         it.setSelected(True)
             for i, v in enumerate(pr.vias):
                 it = ViaItem(self, i, v.x * 1000.0, v.y * 1000.0, v.diameter * 1000.0)
+                it.setVisible(self.show_holes["via"])
                 sc.addItem(it)
                 if ("via", i) in selected:
                     it.setSelected(True)
@@ -513,6 +518,101 @@ class BoardView(QGraphicsView):
             return ()
         # The hash of a str is computed once and kept by Python, and this runs only when the size of the board changed
         return tuple(sorted((int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)))
+
+    def _add_holes(self):
+        """!
+        @brief Draw the component holes and the non-plated holes (and slots) of the import record under the elements: one path item per kind, whatever the number of holes.
+        @details Display only. The holes come from the first import record of the project (`ImportRecord.holes`); the vias are the via elements and are not repeated. The items take
+                 no mouse, are not selectable and never enter the undo stack. A hole is a ring with a cosmetic pen; a slot is a capsule. The tones are those of the import preview
+                 (`theme.HOLE_TONE`). The cursor tooltip is made by `hole_at`.
+        """
+        self._hole_items, self._hole_xy = {}, {}
+        imports = getattr(self.doc.project, "imports", None) or []
+        if not imports:
+            return
+        c = th.colors(self.theme)
+        by_kind = {"component": [], "nonplated": []}
+        for h in imports[0].holes:
+            if h.get("kind") in by_kind:
+                by_kind[h["kind"]].append(h)
+        for kind, lst in by_kind.items():
+            if not lst:
+                continue
+            path = QPainterPath()
+            xy, rad = [], []
+            for h in lst:
+                x, y, r = float(h["x_mm"]), float(h["y_mm"]), max(float(h["d_mm"]) / 2.0, 0.05)
+                xy.append((x, y))
+                rad.append(r)
+                if "x2_mm" in h:
+                    x2, y2 = float(h["x2_mm"]), float(h["y2_mm"])
+                    ang = float(np.arctan2(y2 - y, x2 - x))
+                    nx, ny = -np.sin(ang) * r, np.cos(ang) * r
+                    # The capsule: the two long sides and a ring at each end
+                    path.moveTo(x + nx, y + ny)
+                    path.lineTo(x2 + nx, y2 + ny)
+                    path.addEllipse(QPointF(x2, y2), r, r)
+                    path.moveTo(x - nx, y - ny)
+                    path.lineTo(x2 - nx, y2 - ny)
+                path.addEllipse(QPointF(x, y), r, r)
+            item = QGraphicsPathItem(path)
+            pen = QPen(QColor(c[th.HOLE_TONE[kind]]))
+            pen.setCosmetic(True)
+            pen.setWidthF(1.0)
+            item.setPen(pen)
+            item.setBrush(Qt.NoBrush)
+            item.setOpacity(0.7)                                  # Light: the holes are context, not elements
+            item.setZValue(0.5)                                   # Over the copper, under the elements and the map
+            item.setAcceptedMouseButtons(Qt.NoButton)
+            item.setVisible(self.show_holes[kind])
+            self.scene().addItem(item)
+            self._hole_items[kind] = item
+            self._hole_xy[kind] = (np.asarray(xy, float).reshape(-1, 2), np.asarray(rad, float), lst)
+
+    def hole_counts(self):
+        """!
+        @brief How many holes of each kind the project knows (vias are the via elements).
+        @return dict kind -> count for "via", "component" and "nonplated".
+        """
+        out = {"via": len(self.doc.problem.vias), "component": 0, "nonplated": 0}
+        for kind, (xy, _, _) in self._hole_xy.items():
+            out[kind] = len(xy)
+        return out
+
+    def set_show_holes(self, kind, on):
+        """!
+        @brief Show or hide one kind of hole (View - Holes); no rebuild, the one item of the kind (or every via element) changes visibility.
+        @param kind "via", "component" or "nonplated".
+        @param on True to show.
+        """
+        self.show_holes[kind] = bool(on)
+        if kind == "via":
+            for it in self.scene().items():
+                if isinstance(it, ViaItem):
+                    it.setVisible(bool(on))
+        elif kind in self._hole_items:
+            self._hole_items[kind].setVisible(bool(on))
+
+    def hole_at(self, scene_pt):
+        """!
+        @brief The text of the component or non-plated hole under a point, for the cursor tooltip.
+        @param scene_pt QPointF in mm (scene coordinates).
+        @return str, or "" when no visible hole of those kinds is within its radius or 5 screen pixels.
+        """
+        scale = max(abs(self.transform().m11()), 1e-9)                        # Pixels per mm
+        px, py = scene_pt.x(), scene_pt.y()
+        for kind, (xy, rad, lst) in self._hole_xy.items():
+            if not self.show_holes[kind] or not len(xy):
+                continue
+            d = np.hypot(xy[:, 0] - px, xy[:, 1] - py)
+            k = int(np.argmin(d))
+            if d[k] <= max(rad[k], 5.0 / scale):
+                h = lst[k]
+                name = "Non-plated hole" if kind == "nonplated" else "Component hole"
+                if "length_mm" in h:
+                    return f"Non-plated slot, {h['d_mm']:g} mm wide, {h['length_mm']:g} mm long (not modelled)"
+                return f"{name}, {h['d_mm']:g} mm (not modelled)"
+        return ""
 
     def _add_imported_copper(self):
         """!
@@ -1438,6 +1538,8 @@ class BoardView(QGraphicsView):
         """
         scene_p = self.mapToScene(e.position().toPoint())
         self.cursor_moved.emit(scene_p.x(), scene_p.y())
+        if self._hole_xy:
+            self.viewport().setToolTip(self.hole_at(scene_p))              # Hover text of the holes that are not vias
         if self._panning:
             d = e.position() - self._pan_last
             self._pan_last = e.position()

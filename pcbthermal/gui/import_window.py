@@ -228,7 +228,7 @@ class Preview(QWidget):
             p.setBrush(Qt.NoBrush)
             for h in b.holes:
                 # A via-sized hole in the via colour, a larger one (a component hole) in the warning colour, a non-plated one in the muted colour
-                tone = "muted" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "warn"
+                tone = th.HOLE_TONE["nonplated" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "component"]
                 p.setPen(QPen(QColor(c[tone]), 1.2))
                 r = max(h.diameter * s / 2, 1.6)
                 p.drawEllipse(self.to_px(h.x, h.y), r, r)
@@ -395,7 +395,7 @@ class Preview(QWidget):
             x, y = 8.0, top + 17 * r + 8.5
             for kind, text, w in row:
                 if kind:
-                    tone = "muted" if kind == "non-plated" else "via" if kind == "via" else "warn"
+                    tone = th.HOLE_TONE["nonplated" if kind == "non-plated" else "via" if kind == "via" else "component"]
                     p.setPen(QPen(QColor(c[tone]), 1.4))
                     p.setBrush(Qt.NoBrush)
                     p.drawEllipse(QPointF(x + 4, y), 4, 4)
