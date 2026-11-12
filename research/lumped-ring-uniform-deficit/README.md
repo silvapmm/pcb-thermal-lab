@@ -1,6 +1,6 @@
 # Why the Lumped model reads cool on a uniform sheet: the width of its first ring
 
-**Status (audit 2.6.1): the capped first ring is the program since 2.6.0** (`fix/lumped-first-ring`, `docs/validation.md` 31). "The program" in the tables below is the Lumped before 2.6.0; `lib/lumped_log.py` and `lib/patch_program.py` read `lumped.py` from the tag v2.5.1 so that the folder still compares with it.
+**Status (audit 2.7.0): the capped first ring is the program since 2.6.0** (`fix/lumped-first-ring`, `docs/validation.md` 31). "The program" in the tables below is the Lumped before 2.6.0; `lib/lumped_log.py` and `lib/patch_program.py` read `lumped.py` from the tag v2.5.1 so that the folder still compares with it.
 
 Question (open finding of `research/reduced-models-imported-passives`, chapters 3 and 6): on a **uniform** layer-average sheet the Analytic model agrees with the FVM (-4 to +5 % on RP2040) but the Lumped reads cool by 2 to 16 % and by up to 30 % on CO60, and nobody knew why. The Analytic with the same equivalent rectangle is only 2 to 4 % cool on CO60, which pointed at the Lumped ring construction and not at the rectangle.
 

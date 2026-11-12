@@ -1,4 +1,4 @@
-# Shorter hints (2.6.1)
+# Shorter hints (2.7.0)
 
 Branch `fix/shorter-hints-261`, from `develop`. The maintainer asked for every tooltip of the application to be as short as possible while keeping what the control means, its unit, a typical range or source, and what it is used for (`CLAUDE.md`, "Before every commit", item 4). Kept on purpose: destructive or undoable effects (Load typical stack-up, Delete row, Switching to a source clears the component fields), the keys of commands, and the reasons of greyed controls (the `Greyed:` suffixes, shortened but kept). Not touched: the warnings of the checks and their tooltips, the full text of elided labels (their tooltip is the text itself), Matplotlib's own toolbar hints, and the descriptions of the re-import dialog (shown as text under each choice).
 

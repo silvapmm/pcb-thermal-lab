@@ -1,6 +1,6 @@
 # Bochkov and Gibou (2019): the Robin scheme of the cut-cell edge film, read and reproduced
 
-*Status (audit 2.6.1): reviewed and closed; the film of the program (`fvm.Network._cut_edge_film`, 2.6.0) is the scheme confirmed here. Review in section 5.*
+*Status (audit 2.7.0): reviewed and closed; the film of the program (`fvm.Network._cut_edge_film`, 2.6.0) is the scheme confirmed here. Review in section 5.*
 
 Question: is the boundary film of the proposal in `research/cut-cell-links` (aperture links, film in series with the conduction from the cell centre to the closest outline point, denominator floored at 0.25; taken from Barrett, Fogelson and Griffith 2022 eq. 12 to 14, "based on Bochkov et al.") the same as the Robin scheme of Bochkov and Gibou (2019), what does the original add (kinks, small cells, order of accuracy), and does anything have to change in the executor's implementation (`fix/cut-cell-aperture-film`)?
 
@@ -104,7 +104,7 @@ The condition (1.21) holds for centres inside; for a centre outside (sliver cell
 
 ## 5. Review
 
-Independent review in the research audit of 2.6.1 (`releases/2.6.1/research-audit/`), on the program of the audit branch (`develop` 6bdef422 merged: 2.6.0 plus the 2.6.1 interface fixes). Status: **reviewed, closed; go** (nothing to adopt: the thesis confirms the film already in the program).
+Independent review in the research audit of 2.7.0 (`releases/2.7.0/research-audit/`), on the program of the audit branch (`develop` 6bdef422 merged: 2.6.0 plus the 2.7.0 interface fixes). Status: **reviewed, closed; go** (nothing to adopt: the thesis confirms the film already in the program).
 
 * **Re-run.** `scripts/study_triangle_disc.py --nsh 4` reprints every number of the tables of 2.1 to the digit (the tables are the 4 x 4 placements; the script's default is `--nsh 3`, which prints the same orders with other maxima, for example triangle `bg` 1.10e-4 at n = 257 instead of 1.19e-4: the command is now stated under 2.1's heading). `scripts/study_stiff_and_corner.py` reprints the table of 2.2 (the rows quoted are a subset of the 15 it prints) and the vertex errors of 2.1 (`bg` 1.10e-4 / 1.05e-4, `film` 9.6e-5 / 6.6e-5, `bg_nokink` 8.7e-5 / 7.0e-5, `nofilm` 5.3e-5 / 3.4e-5) exactly. 15 s and 13 s. The folder tests pass (5).
 * **The program against the folder's claims.** `fvm.Network._cut_edge_film` (`pcbthermal/fvm.py` about line 425 to 466) puts `H L / max(1 + H d / S, EDGE_FILM_FLOOR)` per piece, `EDGE_FILM_FLOOR = 0.25`, `d` the signed distance from the node to the closest outline point positive inside (`geometry.signed_distance_to_outline`), so it is the `film` scheme of `lib/robin2d.py` with the program's sign convention; the change goes into `g_amb`, so the data carry the same factor as the conductance (INTEGRATION 2 point 2); a rectangle uses the half-cell distance per side. INTEGRATION 2 points 1 to 3 and 5 hold in the code and in `docs/theory.md` 2.1.1 (which cites the thesis, Papac and others and Barrett and others, and gives the sign of `d` of the thesis as the opposite one). Point 4 (a sliver with a cut face stays a node): with the exact cover a face of positive aperture has board on both sides, so both cells have a positive area; checked by argument and by `geometry.face_apertures` (apertures and covers snapped together only within 1e-9), not by a dedicated test.

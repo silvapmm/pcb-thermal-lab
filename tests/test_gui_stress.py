@@ -1465,7 +1465,7 @@ def test_single_layer_choice_and_card_menu_in_the_application(win, qtbot):
 
 def test_boxes_warnings_accordion_and_layer_keys_in_the_application(win, qtbot, tmp_path):
     """!
-    @brief Stress of the 2.6.1 redesign: every box of the three docks collapses and opens in both themes at two window sizes, the state survives a rebuilt
+    @brief Stress of the 2.7.0 redesign: every box of the three docks collapses and opens in both themes at two window sizes, the state survives a rebuilt
            Properties form, the accordion keeps an opened row across 20 refreshes, and the layer keys L, Shift+L, 0 to 9 are driven at random on every tab.
     @param win MainWindow fixture of this file.
     @param qtbot pytest-qt fixture.

@@ -95,7 +95,7 @@ class CutLinkNetwork(fvm.Network):
         if getattr(problem, "imported", None):
             raise ValueError("the prototype does not handle imported copper")
         # 2.6.0 adopted `aperture+film` into the program (`cut_cells=True` by default) and added the laminate edge band; the schemes of this study are built on the
-        # earlier network (cut cells off, no band), which is what `program` meant when the tables were made (audit 2.6.1: without this the links and the film were
+        # earlier network (cut cells off, no band), which is what `program` meant when the tables were made (audit 2.7.0: without this the links and the film were
         # counted twice, once by the program and once by the prototype)
         with _no_edge_band():
             super().__init__(problem, nx, ny, assemble=False, with_blocks=with_blocks, ladder=ladder, cut_cells=False)

@@ -1,19 +1,19 @@
 # What we want to investigate
 
-What is left to investigate, triaged against the tree of 2.6.1: the questions worth starting now (section 1), the order table (section 2), the open pool by area (section 3), the questions closed since (section 4), and the physical measurement (section 5). A defect of the program found by a study is recorded in the README of its folder; its correction is an item of `docs/versions.md` (chapter "Planned"), the only place where program work is listed. The register of the reviews is [`REVIEW.md`](REVIEW.md); the index of the folders is [`README.md`](README.md).
+What is left to investigate, triaged against the tree of 2.7.0: the questions worth starting now (section 1), the order table (section 2), the open pool by area (section 3), the questions closed since (section 4), and the physical measurement (section 5). A defect of the program found by a study is recorded in the README of its folder; its correction is an item of `docs/versions.md` (chapter "Planned"), the only place where program work is listed. The register of the reviews is [`REVIEW.md`](REVIEW.md); the index of the folders is [`README.md`](README.md).
 
 **Rule.** An item leaves the open lists when its study is finished and the result is in the README of its folder; its label is kept in section 4 because other documents cite it. An item that changes a model needs the reviewer before it is closed. Status keys: `ready` open and can start now, `partly` the main question is answered and leftovers stay, `blocked` waits on a named decision, source or measurement, `feature` needs a program feature first, `done` closed. Value: H, M or L for the program. Effort: h hours, d days, w weeks.
 
 ## 1. Worth investigating now
 
-Two groups. **For 2.6.1** (the version being closed): rows 1 (branch `research/strong-edge-laminate`), 2 (a decision is pending) and 8 (branch `research/small-model-defects`). **Candidates for 2.7.0, because they may become features** (not part of 2.6.1): rows 3, 4, 5, 6 and 7.
+Two groups. **For 2.7.0** (the version being closed): rows 1 (branch `research/strong-edge-laminate`), 2 (a decision is pending) and 8 (branch `research/small-model-defects`). **Candidates for 2.8.0, because they may become features** (not part of 2.7.0): rows 3, 4, 5, 6 and 7.
 
 | # | Question | Why now | Unlocks | Effort |
 | --: | :-- | :-- | :-- | :-- |
-| 1 | A34 with A16 above 200 W/m2K: the via effect and the laminate at a strong edge | the program reads 17 to 26 % below an independent 3D solver at `h_side` 1000 and the error grows as the cell shrinks (the opposite of a discretisation error); a gate item of 2.6.1, possibly a defect. First test the sensitivity of the 3D reference to its own via model, then whether the deficit is the 1/n of the sub-gaps of the edge band or the film on the laminate nodes | closing the gate; the decision whether the edge band needs more sub-gaps or a warning above 200 W/m2K | 1 to 2 d, one heavy job |
+| 1 | A34 with A16 above 200 W/m2K: the via effect and the laminate at a strong edge | the program reads 17 to 26 % below an independent 3D solver at `h_side` 1000 and the error grows as the cell shrinks (the opposite of a discretisation error); a gate item of 2.7.0, possibly a defect. First test the sensitivity of the 3D reference to its own via model, then whether the deficit is the 1/n of the sub-gaps of the edge band or the film on the laminate nodes | closing the gate; the decision whether the edge band needs more sub-gaps or a warning above 200 W/m2K | 1 to 2 d, one heavy job |
 | 2 | A33 with A26: the centroid edge film on the drawn layers | the imported layers have it (reviewed); the drawn layers keep the cell centre and A26 (a copper edge held inside the outline, 2 to 3 K spread) shares the cause | the open decision on the drawn layers, which changes three frozen boards | 1 to 2 d |
 | 3 | E13 (b) and (c): the converged reference of small imported parts | the FVM moves 15 to 30 % from 0.5 to 0.25 mm on an 0402, so every number of the reduced-model warning (25 to 82 % cool) rests on an unconverged reference; a refinement around the powered part, checked against an independent solver | E3 (the largest user-visible error of the reduced models); re-measure the warning | d, memory-heavy |
-| 4 | B5: plated component holes as vias and vias with a layer span | blind and buried vias are modelled as through vias (unsafe side, only warned); a study against the 3D solid of component holes (lead and solder) as vias | the 2.7.0 import option of item 17 of 'Planned: 2.6.1'; a real model instead of a warning | 2 to 3 d |
+| 4 | B5: plated component holes as vias and vias with a layer span | blind and buried vias are modelled as through vias (unsafe side, only warned); a study against the 3D solid of component holes (lead and solder) as vias | the 2.8.0 import option of item 17 of 'Planned: 2.7.0'; a real model instead of a warning | 2 to 3 d |
 | 5 | A18: the local laminate rule, second study round | small parts on thick boards read 16 to 20 % too cool and only a warning covers it; the gate on the cell (4 cells), the conservative transition, the cost with many small parts | a `fix/` branch for 2.7 (moves frozen numbers) | d |
 | 6 | A27: the Lumped first link alone (with the 'first link and ring 1 on a finer raster' and the near-edge correction of `docs/versions.md`) | the near-edge deficit (4 to 15 % cool, -7.4 % on the sweep) is the main remaining Lumped error | one place for one question | d |
 | 7 | G1: the first measurement dataset. The maintainer has no measured board yet, but a colleague built one and his data may be the first dataset (section 5); if it is not enough, order the boards of the plan | the physical measurement is the only way to choose the face-up law and to remove the line 'never compared with a measured copper board'; the fabrication lead time is the long pole; add a square-wave run on board B to give A31 a measured fast-wave case | C8 face up; a measured via effect | 1 to 2 d of bench plus the lead time |
@@ -50,14 +50,14 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | A16 | the laminate at the board edge above 200 W/m2K | partly | 2.6.0 `fix/laminate-edge-band`, validation 36 | H | d | overlaps A34 |
 | A18 | source-aware local laminate rule | partly | `laminate-slabs-and-local-rule` INTEGRATION 1.0 | M to H | d | the gate and the conservative transition study before code |
 | A19 leftovers | Analytic: the partial-copper transient (+23 %), several parts, outlines | partly | `analytic-edge-and-transient` | L to M | d | - |
-| A26 | the copper edge held inside the outline | partly | the imported layers done in 2.6.1; the drawn zones have no method (2 to 3 K at 200 W/m2K) | M | d | shares the cause of A33 |
+| A26 | the copper edge held inside the outline | partly | the imported layers done in 2.7.0; the drawn zones have no method (2 to 3 K at 200 W/m2K) | M | d | shares the cause of A33 |
 | A27 | Lumped first link alone, with the near-edge correction and ring 1 on a finer raster | ready | `lumped-near-edge` 10, `lumped-ring-uniform-deficit/INTEGRATION.md` 4 | M | d | - |
 | A29 | the edge laminate limit of the Lumped and Analytic | ready | `laminate-edge-band` README | M | d | warned today |
 | A30 | the corner of a copper region and the end of a track at a via (what is left of A20) | ready | `via-contact-geometry/INTEGRATION.md` 4 | M | d | safe side (15 to 85 % low); sector-well prototype |
 | A31 leftovers | fast waves: the neighbour cross term, vias, the Lumped and Analytic, a measured case | partly | validation 37 | L to M | d | the measured case needs G1 |
 | A32 | node-centred FDM cut cells (with the former A24) | ready | `docs/evidence/fdm_cutcells_prototype.diff` | L to M | d | the FVM scheme did not transfer: the FDM needs a scheme of its own |
-| A33 | the centroid edge film for the drawn layers, and the four-sub-gap idealisation at the edge | ready | `imported-copper-edge-film/` README 8; item 22 of 'Planned: 2.6.1' | H | 1 to 2 d | a maintainer decision (three frozen boards move) |
-| A34 | the via effect near a cooled edge at `h_side` 1000 against an independent 3D solver (-17, -23, -26 % at 1, 0.5, 0.25 mm) | ready, release gate | item 21 of 'Planned: 2.6.1'; validation 28; `ref3d.py` and `run_edge.py` of the study, to be added to `via-edge-image/scripts/` | H | 1 to 2 d | - |
+| A33 | the centroid edge film for the drawn layers, and the four-sub-gap idealisation at the edge | ready | `imported-copper-edge-film/` README 8; item 22 of 'Planned: 2.7.0' | H | 1 to 2 d | a maintainer decision (three frozen boards move) |
+| A34 | the via effect near a cooled edge at `h_side` 1000 against an independent 3D solver (-17, -23, -26 % at 1, 0.5, 0.25 mm) | ready, release gate | item 21 of 'Planned: 2.7.0'; validation 28; `ref3d.py` and `run_edge.py` of the study, to be added to `via-edge-image/scripts/` | H | 1 to 2 d | - |
 | A35 | the Lumped heats by 0.80 to 0.89 K when a far via is added (the FVM cools) | ready, possible defect | 'Fixes waiting' of `docs/versions.md` | M | h | - |
 | A36 | the FDM 10 % below the FVM at 1 mm on a four-layer board with separate zones; the Lumped mirror asymmetry of 0.4 K | ready, possible defect | 'Fixes waiting' of `docs/versions.md` | M | h to d | - |
 | A37 | the 3D solid not mirror-symmetric with vias on a grid line (0.36 K) | ready | 'Fixes waiting' of `docs/versions.md` | L | h | - |
@@ -70,7 +70,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | B2 | missing stack-up data | partly | `stackup` | L | ongoing | fabricator data |
 | B3 | sources for the via-fill conductivities | ready | `via-fill` | L | h | - |
 | B4 | dielectric and copper sensitivity beyond four layers | partly | `stackup` 7 | L to M | h | - |
-| B5 | plated component holes as vias, and vias with a layer span (blind, buried, micro) | ready | item 17 of 'Planned: 2.6.1'; the span warning of 2.6.1 | M to H | 2 to 3 d | - |
+| B5 | plated component holes as vias, and vias with a layer span (blind, buried, micro) | ready | item 17 of 'Planned: 2.7.0'; the span warning of 2.7.0 | M to H | 2 to 3 d | - |
 
 ### C. Parts, heatsinks and blocks
 
@@ -129,8 +129,8 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | G1 | a measurement on a physical board; the first dataset may come from a colleague's board (section 5) | blocked | `convection-laws/docs/measurement-plan.md`, `models-comparison/docs/measurement-protocol.md` | H | 1 to 2 d of bench plus the board lead time | boards, logger, supply |
 | H6 | numbers that need a script before they are quoted (A9, A10) | ready | - | L | h | - |
-| H7 | the memory law at 8 to 16 slabs; the 3D solid of the eight-layer board is refused (15.2 GB estimate, never compared with a measured peak) | ready | 'Left over by the memory guard' of `docs/versions.md`; `releases/2.6.1/research-audit` 6 | M | h to d, heavy | - |
-| H8 | `laminate-slabs-and-local-rule/scripts/study_solid_slices.py` counts the 3D face term twice | ready (a study defect) | `releases/2.6.1/research-audit` 6 | L | h | - |
+| H7 | the memory law at 8 to 16 slabs; the 3D solid of the eight-layer board is refused (15.2 GB estimate, never compared with a measured peak) | ready | 'Left over by the memory guard' of `docs/versions.md`; `releases/2.7.0/research-audit` 6 | M | h to d, heavy | - |
+| H8 | `laminate-slabs-and-local-rule/scripts/study_solid_slices.py` counts the 3D face term twice | ready (a study defect) | `releases/2.7.0/research-audit` 6 | L | h | - |
 
 ## 4. Closed since (the labels stay because other documents cite them)
 
@@ -144,7 +144,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | A20, A22 | the via barrel length and the rim uncoupling, 2.6.0 (leftover A30) |
 | A21, A23 | the Lumped near an edge: warning and small-part raster, 2.6.0 (A21 was a duplicate of A23; leftover A27) |
 | A24 | merged into A32 |
-| A25 | the pixel mask of the outline for imported copper, 2.6.1 (validation 38; the edge-film bias is A33) |
+| A25 | the pixel mask of the outline for imported copper, 2.7.0 (validation 38; the edge-film bias is A33) |
 | A28, A31 | fast power waves, 2.6.0 (validation 37; A28 was closed by A31; leftovers above) |
 | C7 | the plate level on the vertical face: proposal A in 2.5.0, `plate-h-level` closed |
 | E2 | the default mapping of the imported copper: flow-based faces on the reduced sheet, confirmed by the maintainer (a nine-point reference is left for later) |
