@@ -28,30 +28,32 @@ from pcbthermal import fdm, viaconstriction as vc                          # noq
 from pcbthermal.api import SolverOptions, simulate                          # noqa: E402
 
 
-def test_far_via_joins_the_cluster_in_the_program_and_not_in_the_candidate():
+def test_far_via_stays_out_of_the_cluster_in_the_program_as_in_the_candidate():
     """!
-    @brief The far via has a large nearest-neighbour distance, so the 'larger distance' rule joins it to the cluster; the 'smaller distance' rule does not.
+    @brief The far via has a large nearest-neighbour distance; the old 'larger distance' rule joined it to the cluster, the 'smaller distance' rule (the candidate, in the program since
+           `fix/lumped-via-groups-lone-via`) does not: the program and the prototype now agree.
     @return None.
     """
     pts = np.array(far.array(16) + [(5.0, 30.0)]) / 1000.0
     d = vc.nearest_neighbour(pts)
-    assert len(np.unique(vc.via_groups(pts, d))) == 1
+    assert len(np.unique(vc.via_groups(pts, d))) == 2
     assert len(np.unique(grouping.groups_min(pts, d))) == 2
     # An ordinary array, a row beside it and a pair keep their groups (the rule differs only for an outlier)
     arr = np.array(far.array(16)) / 1000.0
     assert len(np.unique(grouping.groups_min(arr, vc.nearest_neighbour(arr)))) == 1
 
 
-def test_far_via_heats_the_lumped_model_and_the_candidate_removes_it():
+def test_far_via_no_longer_heats_the_lumped_model():
     """!
-    @brief 16 vias under the part and one 25 mm away: the Lumped hottest temperature rises by more than 1 K in the program, by under 0.01 K with the candidate; the FVM does not move.
+    @brief 16 vias under the part and one 25 mm away: the Lumped hottest temperature rose by more than 1 K in the program before `fix/lumped-via-groups-lone-via` (README 1.1);
+           it now moves by under 0.01 K, as the candidate and the FVM.
     @return None.
     """
     base = far.tmax(far.array(16), 2.0, models=("fvm", "lumped"))
     v = far.array(16) + [(5.0, 30.0)]
     prog = far.tmax(v, 2.0, models=("fvm", "lumped"))
     cand = far.tmax(v, 2.0, variant="min_inf", models=("lumped",))
-    assert prog["lumped"] - base["lumped"] > 1.0
+    assert abs(prog["lumped"] - base["lumped"]) < 0.01
     assert abs(prog["fvm"] - base["fvm"]) < 0.01
     assert abs(cand["lumped"] - base["lumped"]) < 0.01
 

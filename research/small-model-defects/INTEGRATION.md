@@ -5,10 +5,10 @@ with the frozen-number consequences below (a pending shift file per item, `tests
 
 | # | Item | Recommendation | Size | Frozen numbers moved |
 | :-- | :-- | :-- | :-- | :-- |
-| 1 | Lumped heats with a far via [1] | **Fix** (grouping by the smaller distance, lone via d_nn infinite) | S, about 10 lines in `viaconstriction.py`, 1 test file, theory 6.1 sentence | none (0 of 25 harness runs); no pending file |
-| 2a | Lumped mirror asymmetry [2.1] | Optional fix (interpolated read of the other heaters at the centroid) | S, 1 line + helper in `lumped.py` | 9 of 51 Lumped records, at most 0.065 K (`example_board`, `profile_board`, `example_cut_to_T`) |
-| 2b | FDM below the FVM across cut copper [2.2] | **Fix, with the maintainer's decision**: default `mean="harmonic"` in `fdm.Network` and `fdm.solve_steady` | XS code (2 defaults), M with the refreeze, documents and re-measured validation tables | 28 of 34 FDM records at 2 and 1 mm; large on bare-pad boards (`plate_pad` +36.8 / +20.7 K, `one_layer_pad` +7.5 / +4.3 K, `two_layer_partial` +1.6 / +1.1 K), at most 0.07 K on uniform and example boards |
-| 3 | 3D solid, via on a grid line [3] | **Limit, not fix**: say it in the documents; optional symmetric split only if the maintainer wants symmetry | XS (text) / S (split) | split: 8 of 34 3D-solid records, -0.7 to -2.5 K |
+| 1 | Lumped heats with a far via [1] | **Implemented** (`fix/lumped-via-groups-lone-via`, reviewed, merged). **Fix** (grouping by the smaller distance, lone via d_nn infinite) | S, about 10 lines in `viaconstriction.py`, 1 test file, theory 6.1 sentence | none (0 of 25 harness runs); no pending file |
+| 2a | Lumped mirror asymmetry [2.1] | Optional fix, not adopted (review: reproduced, README 4.2) (interpolated read of the other heaters at the centroid) | S, 1 line + helper in `lumped.py` | 9 of 51 Lumped records, at most 0.065 K (`example_board`, `profile_board`, `example_cut_to_T`) |
+| 2b | FDM below the FVM across cut copper [2.2] | **Implemented** (`fix/fdm-harmonic-face-mean`, reviewed, merged). **Fix, with the maintainer's decision**: default `mean="harmonic"` in `fdm.Network` and `fdm.solve_steady` | XS code (2 defaults), M with the refreeze, documents and re-measured validation tables | 28 of 34 FDM records at 2 and 1 mm; large on bare-pad boards (`plate_pad` +36.8 / +20.7 K, `one_layer_pad` +7.5 / +4.3 K, `two_layer_partial` +1.6 / +1.1 K), at most 0.07 K on uniform and example boards |
+| 3 | 3D solid, via on a grid line [3] | **Limit, not fix** (review: reproduced; sentence in README 4.3): say it in the documents; optional symmetric split only if the maintainer wants symmetry | XS (text) / S (split) | split: 8 of 34 3D-solid records, -0.7 to -2.5 K |
 
 ## 1. Far via in the Lumped model (fix, small)
 
@@ -47,7 +47,7 @@ with the frozen-number consequences below (a pending shift file per item, `tests
 
 * **Finding.** The mirror asymmetry (0.5 to 1.6 K at 1 mm, 0.4 to 1.2 % of the rise) exists only for a via exactly on a line; the symmetric split removes it but creates a 2.4 K jump against the same via
   0.1 mm off the line, which the program does not have (the FVM jumps by 1.4 K for the same move: README 3.2). Neither choice is clearly nearer the truth.
-* **Recommendation.** **Limit.** Add one sentence to `docs/theory.md` (3D solid, via footprint) and `docs/validation.md`: "a via exactly on a cell line is placed in the cell above and to the right; the
+* **Recommendation.** **Limit.** Add the sentence of README 4.3 (the review's text replaces the short one below) to `docs/theory.md` (3D solid, via footprint) and `docs/validation.md`: "a via exactly on a cell line is placed in the cell above and to the right; the
   mirror image of the board differs by up to 1.6 K (1 mm cell); move the via by a fraction of a cell". No code. If the maintainer wants symmetry, `lib/solid_gridline.py` is the change (S) with 8 pending
   3D-solid records (-0.7 to -2.5 K). A position-smooth footprint (cloud in cell) is the principled alternative and needs its own study.
 

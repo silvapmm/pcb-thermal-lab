@@ -6,6 +6,10 @@ Every board is made by the program's own builder; the independent references are
 section 3.2), the mirror image of the same board (exact for a symmetric method), and the FVM change of the hottest temperature when a far via is added (zero to 0.01 K).
 No literature was needed: the three items are questions about the code.
 
+**Status of the items** (review, section 4): item 1 (far via in the Lumped) is **implemented** (`fix/lumped-via-groups-lone-via`, reviewed, merged into `develop`); item 2b (FDM harmonic
+face mean) is **implemented** (`fix/fdm-harmonic-face-mean`, reviewed, merged); item 2a (Lumped mirror asymmetry, 0.09 K) is **optional, not adopted** (a symmetry fix that moves the example board 0.065 K
+away from the FVM); item 3 (3D solid, via on a grid line) **stays a limit** with the sentence of section 4.3. The 'program' columns of sections 1 and 2.2 are the program before those two fixes.
+
 ## 1. The Lumped model heats when a via is added far from the heater
 
 ![the grouping rule](figures/fig_01_grouping_rule.png)
@@ -157,7 +161,47 @@ the four nearest cells for every via) would remove both but changes every via re
 
 *Figure 5 (`fig_05_solid3d_via_shift.png`): the hottest temperature of the 3D solid for a lone via moved by a fraction of a 1 mm cell, with and without the split, and the FVM.*
 
-## 4. What was read and what was not verified
+## 4. Review
+
+Independent review (re-run on the research branch with `develop` merged in, which now holds the fixes of items 1 and 2b; the program is not edited: `git diff develop...HEAD -- pcbthermal tests
+examples ico` is empty).
+
+### 4.1 Items already implemented
+
+* **Item 1** was reviewed on its `fix/` branch. Here: with the fixed program the far via no longer heats the Lumped model (16 vias + one at 25 mm, 2 mm cell: -0.0004 K), and
+  `viaconstriction.via_groups` gives the far via its own group, as the candidate of `lib/grouping.py`. The two tests of the folder that held the old behaviour (the far via joined to the cluster,
+  +1 K) failed after the merge, as they should; they now hold the fixed behaviour (`tests/test_small_defects.py`, 9 passed). The 4-layer silence of 1.1 is not explained (not studied).
+* **Item 2b** was reviewed on its `fix/` branch, with the FDM numbers of the documents re-measured there. Here: `study_separate_zones.py` now prints the FDM with the harmonic mean, the FDM
+  column moves up by 0.03 to 0.92 K (the ratio FDM/FVM goes from 0.978 to 0.990 on the board without inner planes and bottom copper, and to 0.998 or 0.999 elsewhere); the mirror columns are unchanged. Section 2.2 is
+  kept as the record of the arithmetic mean.
+
+### 4.2 Items reviewed here
+
+* **2a, Lumped mirror asymmetry.** Re-run `study_separate_zones.py`: every Lumped mirror difference reproduced (-0.090 / -0.044 K at 1 / 0.5 mm, +0.084 at a gap of 2 mm, 0.000 with one part,
+  0.000 with an offset of 4 mm). Code read: `lumped.solve_steady` reads `ri["dist"]` in the floor cell of the centroid; a centroid on a cell edge is read half a cell away, so the claimed cause holds.
+  `study_frozen_impact.py` re-run: byte-identical to `out/frozen_out.txt` (9 of 51 Lumped records move with the interpolated read, +0.065 K on the example board, which then reads 86.85 against the
+  FVM's 85.38 K). Recommendation unchanged: optional, low value; the transient cross terms read the same floor cell and would need the same change.
+* **3, the 3D solid with a via on a grid line.** Re-run `study_solid3d_gridline.py` and `study_solid3d_scatter.py`: the mirror differences (+0.882, -0.533, +0.910 / -1.451, +1.102 / -1.646 K at
+  1 mm, +0.612 / +0.644 at 0.5 mm) and the jump of the split (2.54 K at 1 mm, 2.35 K at 2 mm) reproduced to the digit; the 8 3D-solid harness records of the split reproduced. The FVM also jumps
+  by 1.37 K when the lone via moves 0.1 mm off the line at 1 mm (150.43 to 151.80 K, about 1 % of the rise): its footprint is not a floor cell but it is not position-smooth either; recorded,
+  not studied. Which representation is nearer a resolved barrel was **not** measured (no independent 3D reference was run on these boards), so 'neither is a clear win' stays a reading of the
+  program against itself; a limit, not a fix, is the right call for a 0.4 to 1.2 % effect that needs the via exactly on a line.
+
+### 4.3 The sentence for the documents (item 3)
+
+For `docs/theory.md` (the 3D solid, via footprint) and `docs/validation.md` (the 3D solid limits):
+
+"When the drill of a via is smaller than the point sink of the grid (a cell coarser than about 1.5 drill diameters) the 3D solid puts the barrel in the one cell `floor((x - x0)/dx)`,
+`floor((y - y0)/dy)`; a via exactly on a cell line is therefore placed in the cell above and to the right, and the mirror image of the board reads differently: 0.5 to 1.6 K at a 1 mm cell
+(0.4 to 1.2 % of the rise) on a two-layer test board, 0.6 K at 0.5 mm. A via off the line by any fraction of a cell is not affected; to compare a board with its mirror image, move such a via by a
+fraction of a cell (`research/small-model-defects` 3)."
+
+### 4.4 Verdict
+
+**GO** for closing the investigation: items 1 and 2b are in the program, 2a is left optional (the maintainer's decision, measured impact above), 3 is a limit with the sentence of 4.3 to be
+written into `docs/theory.md` and `docs/validation.md` on a `docs/` or `fix/` branch.
+
+## 5. What was read and what was not verified
 
 * **Read:** the code of `viaconstriction.py` (`ViaSet`, `via_groups`, `ring_couplings`), `lumped.solve_steady`, `fdm._mean` and `Network`, `solid3d.Solid` and `viawell.tuned_footprint`, and the three
   items of `docs/versions.md`. No literature (none was needed); nothing of a third party is stored.
