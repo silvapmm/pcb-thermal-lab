@@ -494,6 +494,10 @@ All in `scripts/study_cut_cells_fvm.py --tier heavy` (reference cells down to 1/
 
 ### 11.3 The cover itself, and the 45 degree artefact
 
+![the exact cover](figures/fig_17_exact_cover.png)
+
+*Figure 17 (`figures/fig_17_exact_cover.png`): left, the difference between the sampled 8 x 8 cover and the exact cover of a 20 mm square turned 45 degrees on 1 mm cells; right, the area of the cover over the polygon area minus 1 against the turn of the square, sampled and exact, at 1 and 0.5 mm.*
+
 The program samples the cover of a cut cell 8 x 8 (`geometry.BOARD_SAMPLES`): a straight edge gives covers that are multiples of 1/8, the area of a turned square is off by up to 3.6e-4 at the angles of the 5 degree sweep below 45 degrees (*corrected by the review, 11.8: at exactly 45 degrees the 8 x 8 cover overstates the area of the 20 mm square by 0.64 % at 1 mm and 0.20 % at 0.5 mm, and an edge of slope 1/3 understates it by 0.38 %*; capacity, `cutcell_exact` against the polygon at 0.5 mm; the slowest time constant of the 20 mm disc, 99.03 s, is the same to 7e-5 in every scheme at 1, 0.5 and 0.25 mm, so the capacities need no change), and at exactly 45 degrees the pattern of the samples makes the area wrong in a way that moves the hottest point by -0.85 K of 223 K (0.4 %) at the default `h_side` 10 on the 20 mm square at 1 mm. An exact cover (clipping, 15 ms for a 30 x 30 grid) removes it: the turn spread at `h_side` 10 falls from 1.5 to 0.35 K at 1 mm (program to program@exact, mean over three boards; the rectangle's 2.7 K to 0.59 K) and from 0.60 to 0.42 K at 0.5 mm. At `h_side` 100 and 2000 the cover is not the main error (turn spread 0.65 against 0.85 K and 1.55 against 1.7 K). **This is the part of P1 that matters at the default coefficient, and it is independent of the links.** On the small T the exact cover alone halves the scatter at 1 mm (1.26 K to 0.65 K; 0.63 to 0.46 K at 0.5 mm, `out/tee.txt`), but it does not help the example board cut to a T (range over five cells 0.49 K against 0.49 K).
 
 ### 11.4 Conservation, conditioning, SOR, cost

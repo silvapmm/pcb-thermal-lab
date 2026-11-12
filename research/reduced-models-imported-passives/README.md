@@ -56,6 +56,8 @@ Geometric mean of the ratio of the rises (range in brackets), by size of the foo
 
 ![ladder of rises](figures/fig_03_ladder.png)
 
+*Figure 3 (`fig_03_ladder.png`): the ladder of rises from the uniform sheet to the imported copper (RP2040, 27 heat sources, cell 0.5 mm, rise of the hottest copper node for 1 W): the FVM rise grows as finer copper is shown, while the reduced models stay at the left.*
+
 What this says, in order:
 
 1. **The averaging of the copper over regions of 1 to 10 mm is not the cause** (hypothesis a). The FVM changes by 0 to 8 % between the layer-average sheet, tiles of 10, 5, 2 and 1 mm: the local fill around the part matters little. The Analytic model on a uniform sheet is within 2 % of the FVM on it, the Lumped within 2 to 16 % cool.
@@ -82,6 +84,8 @@ Rise in K for 1 W (`study_cell_convergence.py`, peak 1.82 GB):
 *Figure 4 (`fig_04_cell_convergence.png`):*
 
 ![cell convergence](figures/fig_04_cell_convergence.png)
+
+*Figure 4 (`fig_04_cell_convergence.png`): the FVM reference of the small parts against the cell (solid: imported copper; dashed: arithmetic fill).*
 
 Two consequences. (i) The arithmetic fill climbs towards the imported value as the cell approaches the pad size (C3 80 to 148 K): the "fill" mapping fails exactly because of the sub-cell structure, which supports section 3.1. (ii) The imported value is not converged at 0.25 mm for the 1 mm parts (C3 +3 %, R5 +20 %, C13 +30 % from 0.5 to 0.25; C13 at 1 mm, 258 K, is above its 0.5 mm value: not monotone); the percentages of the tables above are therefore **lower bounds on the error against a converged reference, and a finer cell would make them larger, not smaller**. The two reduced models hardly move with the cell (3.5), so the agreement of Lumped with the FVM of C3 at 1 mm (-31 %) is an accident of the reference. **Review (6.2):** the masks of this table change with the cell (automatic pixel `min(w, cell / 10)`: 0.1, 0.05, 0.025 mm); with the pixel fixed at 0.025 mm the movement stays (C3 86.1, 207.3, 201.2 K; R5 240.4, 262.4, 302.1 K), so it is the cell, not the masks; and the program's Auto already chooses 0.25 mm for a powered 0402, not 1 mm (figure 6).
 
@@ -116,6 +120,8 @@ The size of the part is the best variable, and it is not a rule: by size class (
 *Figure 5 (`fig_05_error_vs_variables.png`), RP2040:*
 
 ![error against variables](figures/fig_05_error_vs_variables.png)
+
+*Figure 5 (`fig_05_error_vs_variables.png`): the error of the Lumped and the Analytic model against the FVM, in per cent, against the local variables of the parts: no single variable explains it (cut-off pads are plotted at kappa = 100).*
 
 The best case of the pool is -17 % (Analytic) and -25 % (Lumped); big parts on CO60 (RGB1 5.2 mm, U1 9.5 mm) are -50 to -56 %. There is no threshold under which the models are safe, and the "part on a copper edge or bare laminate" test of the program does not predict the error either (distance to bare laminate: AUC 0.77).
 

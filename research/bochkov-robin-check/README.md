@@ -8,6 +8,22 @@ The source is chapter 1 of the dissertation of D. Bochkov (*Computational Method
 
 ## 1. What the thesis says (read by image: pp. 19, 22, 23, 26, 39, 51; text layer for the rest of pp. 18-61)
 
+![Convergence of the schemes](figures/fig_01_convergence.png)
+
+*Figure 1 (`figures/fig_01_convergence.png`): error against the cell size h on the triangle and the disc, for the solution and its gradient.*
+
+![Stiff edge](figures/fig_02_stiff_edge.png)
+
+*Figure 2 (`figures/fig_02_stiff_edge.png`): error of the schemes on the disc against the cell Biot number alpha h / mu.*
+
+![A cell cut by a curved edge](figures/fig_03_cut_cell_robin.png)
+
+*Figure 3 (`figures/fig_03_cut_cell_robin.png`): a cell cut by a curved edge, its centre, the foot r_G, the distance d, the length L of the piece and the cut face lengths, with the centre inside the domain (left) and outside it (a sliver cell, right).*
+
+![The thermal chain of the film](figures/fig_04_series_film_chain.png)
+
+*Figure 4 (`figures/fig_04_series_film_chain.png`): the thermal chain of the two forms of the film (the same series film) and the floor.*
+
 ### 1.1 The scheme (section 1.4)
 
 Problem (1.1)-(1.2): `-div(mu grad u) + k u = f` in Omega, `mu du/dn + alpha_p u = g_p` on every smooth piece Gamma_p of the boundary (n outward). Cell-centred finite volumes, the cell C_ij centred on the node; integrate over C_ij and Omega (eq. 1.3, p. 17 (32)):
