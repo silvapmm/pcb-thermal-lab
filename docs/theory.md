@@ -378,7 +378,7 @@ with `ρ_J` the spectral radius of the Jacobi matrix `D⁻¹N` [Saad2003] (Theor
 
     ρ_J ≥ 1 − mᵀ K m / mᵀ D m,        ω = min(ω_opt(ρ_J), 1.999)                  (2.4)
 
-one product with the full `K`, vias and footprints included. Being a lower bound, it gives an `ω` at or below the optimum, the safe side: below the optimum the sweeps grow slowly, above it steeply. With via blocks or laminate columns Young's relation does not hold (no two-colour ordering) and the factor is a safe-side heuristic, not a proved optimum. The proofs, the measurements and the comparison with the factor of a plate with fixed edges are in `research/young-omega-tiles` (README); the sweep counts (example board 2197 -> 676 at 1 mm, 1054 -> 364 at 2 mm) are in `validation.md` 5 and 25, with the command that reproduces them.
+one product with the full `K`, vias and footprints included. Being a lower bound, it gives an `ω` at or below the optimum, the safe side: below the optimum the sweeps grow slowly, above it steeply. With via blocks or laminate columns Young's relation does not hold (no two-colour ordering) and the factor is a safe-side heuristic, not a proved optimum. The proofs, the measurements and the comparison with the factor of a plate with fixed edges are in `research/young-omega-tiles` (README); the sweep counts (example board 2197 -> 676 at 1 mm, 1054 -> 364 at 2 mm, as measured at 2.4.5; the 2.7.0 tree prints 726 sweeps at 1 mm) are in `validation.md` 5 and 25, with the command that reproduces them.
 
 ![Sweeps against omega](images/sor_sweeps_against_omega.png)
 
