@@ -98,7 +98,7 @@ The limits are known and warned: the Lumped and Analytic models work on rectangl
 
 ## 4. The studies that shaped the program
 
-One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md` (audit 2.6.1: the rows are brought up to the program of 2.6.0; the line said '2.4.5 is in `develop`, not released', 2.4.5 to 2.6.0 are released).
+One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md` (audit 2.7.0: the rows are brought up to the program of 2.6.0; the line said '2.4.5 is in `develop`, not released', 2.4.5 to 2.6.0 are released).
 
 | Question | What it found | What it changed in the program | Folder |
 | :-- | :-- | :-- | :-- |

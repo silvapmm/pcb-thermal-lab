@@ -91,7 +91,7 @@ def test_sliver_anomaly_against_independent_reference():
         p.set_outline([[e, 5], [25, 5], [25, 25], [e, 25]])
         errs[c] = {s: cl.tmax(p, 1.0, s) - ref for s in ("program", "aperture", "current")}
     # `program` is the network before 2.6.0 (exact cover, cut cells off, no edge band), `current` the program of the tree, which carries `aperture+film` since 2.6.0.
-    # (audit 2.6.1: an earlier restatement of this test read a 1.25 K jump of `aperture`; that was the prototype counting its links on top of the program's, now fixed in
+    # (audit 2.7.0: an earlier restatement of this test read a 1.25 K jump of `aperture`; that was the prototype counting its links on top of the program's, now fixed in
     # lib/cutlinks.py, and the original bounds hold again.)
     assert errs[0.02]["program"] - errs[0.01]["program"] > 3.0
     assert abs(errs[0.02]["aperture"] - errs[0.01]["aperture"]) < 0.3

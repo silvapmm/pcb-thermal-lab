@@ -2,7 +2,7 @@
 
 Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed, see section 7); where it is from somewhere else the text says so.
 
-**Audit 2.6.1**: the tables of 4.2 and 4.2.1 were re-run on the 2.6.x program and are printed first in those sections (example board at 1 mm: FVM / FDM / 3D solid / Lumped / Analytic 85.38 / 85.27 / 85.98 / 86.79 / 84.72 degC). **Program of 2.4.5 (reproduction pass, numbers below not rewritten).** Sections 4.1 to 4.9 hold the program at `0ea5f07`, before the point via, the via constriction, the laminate rule and the Young omega: the example board at 1 mm now reads FVM / FDM / Lumped / Analytic 85.23 / 85.13 / 86.63 / 85.10 degC (was 85.81 / 84.38 / 84.66 / 84.65), the solver table 306 / 673 / 676 / 779 / 636 sweeps. The current numbers of the five models are in `docs/validation.md` sections 1, 2 and 2.1; every shift and its item: `releases/2.4.5/reproduction/README.md`, Part B 3.5. `study_time_and_coefficients.py` switches the laminate rule off for the exact check of the integrator since the pass (it prints 4.6 again).
+**Audit 2.7.0**: the tables of 4.2 and 4.2.1 were re-run on the 2.6.x program and are printed first in those sections (example board at 1 mm: FVM / FDM / 3D solid / Lumped / Analytic 85.38 / 85.27 / 85.98 / 86.79 / 84.72 degC). **Program of 2.4.5 (reproduction pass, numbers below not rewritten).** Sections 4.1 to 4.9 hold the program at `0ea5f07`, before the point via, the via constriction, the laminate rule and the Young omega: the example board at 1 mm now reads FVM / FDM / Lumped / Analytic 85.23 / 85.13 / 86.63 / 85.10 degC (was 85.81 / 84.38 / 84.66 / 84.65), the solver table 306 / 673 / 676 / 779 / 636 sweeps. The current numbers of the five models are in `docs/validation.md` sections 1, 2 and 2.1; every shift and its item: `releases/2.4.5/reproduction/README.md`, Part B 3.5. `study_time_and_coefficients.py` switches the laminate rule off for the exact check of the integrator since the pass (it prints 4.6 again).
 
 ## 1. The questions
 
@@ -92,7 +92,7 @@ The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-
 
 `python research/models-comparison/scripts/validation_study.py`
 
-*Audit 2.6.1: re-run on the 2.6.x program (345 s; the peak resident memory was 6.7 GB, mostly the 3D solid at 0.5 mm, not the 'about 5 minutes alone' of section 3, which gives no memory). The table of the review follows it.*
+*Audit 2.7.0: re-run on the 2.6.x program (345 s; the peak resident memory was 6.7 GB, mostly the 3D solid at 0.5 mm, not the 'about 5 minutes alone' of section 3, which gives no memory). The table of the review follows it.*
 
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
@@ -153,7 +153,7 @@ Reading:
 
 ### 4.2.1 Against the grid (example board)
 
-*Audit 2.6.1 (same run):*
+*Audit 2.7.0 (same run):*
 
 | Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
 | --: | --: | --: | --: | --: |

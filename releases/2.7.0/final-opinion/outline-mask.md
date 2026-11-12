@@ -1,4 +1,4 @@
-# Review of `fix/imported-copper-outline-mask` (2.6.1)
+# Review of `fix/imported-copper-outline-mask` (2.7.0)
 
 Merged into `develop` as df80e7e8 (change 22064995) before review. Corrections on `fix/imported-copper-outline-mask-review` (from `develop`). Scripts: `scripts/study_outline_mask.py` (the program, any tree through `PCBT_TREE`) and `scripts/indep_two_sheets.py` (independent, imports nothing from `pcbthermal`).
 

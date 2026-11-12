@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_gui_boxes.py
-@brief The 2.6.1 redesign: collapsible boxes, the warnings accordion, the on-screen report without `WARNING:` lines, the layer keys and the export of the map over the copper.
+@brief The 2.7.0 redesign: collapsible boxes, the warnings accordion, the on-screen report without `WARNING:` lines, the layer keys and the export of the map over the copper.
 """
 
 import os

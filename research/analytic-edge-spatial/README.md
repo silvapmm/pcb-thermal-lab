@@ -1,6 +1,6 @@
 # Analytic model: a spatial treatment of the convective board edge
 
-**Status (audit 2.6.1): adopted.** The Robin basis is the program's Analytic edge since 2.5.0 (`feature/analytic-robin-edge`; `docs/theory.md` 6, `docs/validation.md` 4.1); the faces transfer it compares with was never released. The limit of section 6 (one `beta` for unequal layers, up to 8.6 %) was removed in 2.6.0 by the per-layer edge (`research/analytic-edge-and-transient`, `analytic._per_layer_edge`: worst 8.64 to 4.07 % on 48 boards). "The program" in sections 1 to 5 is the faces transfer of `develop` before 2.5.0; `lib/analytic_edge.py` is a copy that follows the via barrel length of 2.6.0 and the folder test switches the per-layer loop off (`EDGE_MISMATCH_MIN`).
+**Status (audit 2.7.0): adopted.** The Robin basis is the program's Analytic edge since 2.5.0 (`feature/analytic-robin-edge`; `docs/theory.md` 6, `docs/validation.md` 4.1); the faces transfer it compares with was never released. The limit of section 6 (one `beta` for unequal layers, up to 8.6 %) was removed in 2.6.0 by the per-layer edge (`research/analytic-edge-and-transient`, `analytic._per_layer_edge`: worst 8.64 to 4.07 % on 48 boards). "The program" in sections 1 to 5 is the faces transfer of `develop` before 2.5.0; `lib/analytic_edge.py` is a copy that follows the via barrel length of 2.6.0 and the folder test switches the per-layer loop off (`EDGE_MISMATCH_MIN`).
 
 ## 1. Question
 

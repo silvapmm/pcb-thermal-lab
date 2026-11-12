@@ -8,7 +8,7 @@
          edge film h_side x slab (0.8 mm) in series with the half-cell conduction; 4 mm heater of 1 W (exact area weights). The constants are those of
          `Problem.new(..., 2)` (35 um copper of 385 W/mK, FR-4 0.9 W/mK in-plane). A turned board is the same physics, so its converged heater rise must equal this
          one (with the laminate rule off, `norule` in the study).
-         Run: `.venv/bin/python releases/2.6.1/final-opinion/scripts/indep_two_sheets.py <h_side>`; prints (cell, mean rise of the heater K, hottest K) at 0.1, 0.05, 0.025 mm.
+         Run: `.venv/bin/python releases/2.7.0/final-opinion/scripts/indep_two_sheets.py <h_side>`; prints (cell, mean rise of the heater K, hottest K) at 0.1, 0.05, 0.025 mm.
 """
 
 import sys

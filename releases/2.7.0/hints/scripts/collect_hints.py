@@ -2,16 +2,16 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file collect_hints.py
-@brief Collect every tooltip of the application offscreen, or compare two collections (the before/after table of the shorter hints of 2.6.1).
+@brief Collect every tooltip of the application offscreen, or compare two collections (the before/after table of the shorter hints of 2.7.0).
 @details Two commands, run from the root of a checkout:
 
-         `python releases/2.6.1/hints/scripts/collect_hints.py collect <out.json>` opens the main window on the block example board, every inspector form, the
+         `python releases/2.7.0/hints/scripts/collect_hints.py collect <out.json>` opens the main window on the block example board, every inspector form, the
          Power profile page in its three profile kinds, the Results tabs, the Display panel, the Power Calculator, Preferences, the New board, Background image and
          Export package dialogs and the three steps of the Gerber import window (on the synthetic board of the tests), and writes {key: tooltip} for every widget
          and menu action that has one. The key is the context, the class, the object name, the label and the position in the widget tree, so the same key in two
          trees names the same control.
 
-         `python releases/2.6.1/hints/scripts/collect_hints.py compare <before.json> <after.json>` prints the counts, the mean and largest lengths and the 20
+         `python releases/2.7.0/hints/scripts/collect_hints.py compare <before.json> <after.json>` prints the counts, the mean and largest lengths and the 20
          largest cuts (one per hint; the greyed and JSON-key variants of a hint count once).
 
          The warnings of the checks are list items, not widget tooltips, so they are not collected. To measure `develop`, run `collect` in a checkout of `develop`.
@@ -24,7 +24,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]          # releases/2.6.1/hints/scripts -> repository root
+ROOT = Path(__file__).resolve().parents[4]          # releases/2.7.0/hints/scripts -> repository root
 
 
 def _label(w):
