@@ -735,7 +735,7 @@ THUMBNAIL_BOARD = "#2b2f36"   # Dark board face so that the white outlines of `_
 PICTURES = ("off", "board", "map")      # What the cut picture shows: nothing, the board (with the underlay), or the board with the temperature map on top
 INSET_W, INSET_H = 0.30, 0.40           # Size of the cut picture over the curves, as fractions of the axes (the board keeps its aspect inside)
 INSET_TITLE = 0.06                      # Band over the picture for its title, as a fraction of the axes height
-INSET_LOAD_MAX = 0.03                   # More than this share of the curve samples under the picture moves it to another corner
+INSET_LOAD_TIE = 0.002                  # Corners whose shares of curve samples under the picture differ by less than this are equally empty (the first in order wins)
 INSET_MIN_WIDTH_IN = 5.0                # Narrower figures (inches) keep the picture in a strip above the curves, as before the overlay
 
 
@@ -776,22 +776,23 @@ def _inset_load(ax, curves, peak, corner):
 
 def choose_inset_corner(ax, curves, peak):
     """!
-    @brief The corner for the cut picture: the upper left unless more than 3 % of the curve samples or the hottest point would be under it, then the emptiest corner.
-    @details Deterministic: the other corners are scored by the share of samples under them (plus a large penalty when the hottest point is under it) and the lowest
-             score wins, ties in the order upper right, lower left, lower right.
+    @brief The corner for the cut picture: the emptiest corner, the upper left whenever it is as empty as the best (within `INSET_LOAD_TIE` of the samples).
+    @details Deterministic: the four corners are scored by the share of the curve samples under the picture (plus a large penalty when the hottest point is under it)
+             and the lowest score wins, ties in the order upper left, upper right, lower left, lower right. The review replaced the earlier rule (the upper left up to 3 %
+             of the samples, the other three corners only): on the example board it hid the rising flank of every curve (1.3 % of the samples, 2.2 % on an outline
+             board) while the upper right was empty, and it could never come back to the upper left when every corner was loaded.
     @param ax Axes with its limits set (the curves are drawn).
     @param curves List of (x, y) arrays of the plotted curves, data units.
     @param peak (x, y) of the hottest sample of the reference curve, or None.
     @return "ul", "ur", "ll" or "lr".
     """
-    share, ring = _inset_load(ax, curves, peak, "ul")
-    if share <= INSET_LOAD_MAX and not ring:
-        return "ul"
+    order = ("ul", "ur", "ll", "lr")
     score = {}
-    for c in ("ur", "ll", "lr"):
+    for c in order:
         sh, rg = _inset_load(ax, curves, peak, c)
         score[c] = sh + (10.0 if rg else 0.0)
-    return min(score, key=lambda k: (score[k], ("ur", "ll", "lr").index(k)))
+    best = min(score.values())
+    return next(c for c in order if score[c] <= best + INSET_LOAD_TIE)
 
 
 def _cut_map_source(results, problem):
@@ -862,10 +863,10 @@ def _draw_cut_picture(ax, problem, layer, axis, position_mm, picture="board", un
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
     @brief Temperature along a line through the board for every model, with a picture of the board over the curves that shows where the line lies.
-    @details The picture is an opaque inset inside the axes (so a saved PNG and the command line have it too): the upper left corner, or the emptiest corner when more
-             than 3 % of the curve samples or the hottest point would be under it (`choose_inset_corner`); the legend goes to the emptiest other corner (never `best`). It
+    @details The picture is an opaque inset inside the axes (so a saved PNG and the command line have it too): the corner with the fewest curve samples and not over
+             the hottest point, the upper left when it is as empty as the best (`choose_inset_corner`); the legend goes to the emptiest other corner (never `best`). It
              shows what the Results maps show (`underlay` and the temperature map of the reference model with `map_alpha` and `cmap`); see `_draw_cut_picture`.
-             In a figure narrower than 5 in or 1.3 times its height the picture sits in a strip above the curves, as before. The curve of each model is the nearest cell row
+             In a figure narrower than 5 in the picture sits in a strip above the curves, as before. The curve of each model is the nearest cell row
              (column) to the asked position, so the line and the title quote the position of the row actually plotted for the reference model, not the asked value.
     @param fig Target Figure (cleared first).
     @param results Dict {model: SteadyResult}.
