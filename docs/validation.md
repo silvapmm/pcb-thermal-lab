@@ -2173,6 +2173,8 @@ The node-centred FDM joined two nodes by the arithmetic mean of their sheet cond
 
 Against the converged FVM (0.25 mm) where no independent solver exists: `two_layer_partial` -1.37 / -0.72 to -0.55 / -0.32 %; the example board at 1 mm -0.09 to -0.03 %; `part_top_path` through the API -2.49 / -1.39 to -1.01 / -0.62 %; a 3 mm block over a copper edge -1.71 / -0.79 to -1.02 / -0.42 %; imported copper with the faces and lambda mappings unchanged (those layers take their own face conductances, not the mean), with the fill mapping it moves like drawn copper (a 30 x 20 mm board with copper on half of the top, 1 mm: -1.54 to -0.63 %; the executor's 'within 0.01 point' was on a board without a copper edge); outline boards with full copper within 0.01 point (a plain harmonic mean of the cover-scaled sheets moved `part_across_outline` from +0.37 to +0.56 %, which is why the cover is divided out). Time to 63 % of the step response (cell 2 mm): `plate_pad` 57.63 s arithmetic, 58.81 s harmonic, 59.73 s FVM; example board 11.17 / 11.19 s against 10.78 s. The matrix stays symmetric, with no positive off-diagonal beyond the existing via couplings (identical positions for both means). The residual -2 to -7 % is the first-order error of a node-centred scheme with the copper edge between nodes (not fixed here). Frozen FDM records that move (steady K, 1 mm / 0.5 mm): `plate_pad` +20.72 / +10.48, `one_layer_pad` +4.30 / +2.17, `two_layer_partial` +1.13 / +0.56, `part_top_path` +0.73 / +0.38, example boards +0.04 / +0.02, the rest at most 1.2e-3 (the laminate band of the edge); pending file `tests/regression/data/pending/fdm-harmonic-face-mean.json`.
 
+*Update: for the faces of a drawn copper layer this mean was replaced by the sheet built from the copper fill of the cells (section 46); the FDM columns of the table above are those of `face_fill=False`, and the harmonic mean stays for the laminate nodes, the outline cover and the metal-block boards.*
+
 ### 41.1 Review
 
 Re-run by the reviewer on the branch merged with `develop` (`releases/2.7.0/final-opinion/fdm-harmonic.md`): the frozen numbers at 2, 1 and 0.5 mm pass with the pending file (317), and without it exactly its 42 steady records and 11 of its 14 times fail (the times of `plate_vias`, `reference_board` and `round_outline` move by 2e-7 to 9e-7 relative, under the tolerance). FDM at 1 mm against the FVM at 0.25 mm, arithmetic / harmonic: outlines (T, L, round, a square turned 0.4 rad, 40 mm boxes) with a 15 x 18 mm top pad -4.47 / -1.89, -5.43 / -2.35, -4.30 / -1.85, -3.05 / -1.21 %, the same with full copper identical (-0.11, -0.22, -0.09, 0.00 %); the harness outline boards at 2 / 1 / 0.5 mm within 0.06 point of the arithmetic mean, while the plain harmonic mean moves `part_across_outline` +0.53 / +0.37 / +0.09 to +0.85 / +0.56 / +0.11 %; a 3 mm aluminium block on the bottom over a bottom-copper edge, the block edge shifted 0, 0.3 and 0.5 mm off the grid, -5.5 to -5.7 % to -2.9 to -3.0 %; a solid pad over hatched copper (fill 0.5 / 0.25) -0.25 / -1.23 to -0.11 / -0.66 %. Power profiles through `api.simulate` at 1 mm: the example profile board peak 135.13 to 135.17 degC (FVM 135.31), a 20 s square wave on a pad 364.10 to 363.97 degC (FVM 366.57), the same regimes; times to 63 % of every heater within 0.6 % of the arithmetic ones. Invariants on the outline boards and the example: the matrix symmetric to 2e-18, no positive off-diagonal except the 64 via couplings of the example, row sums equal the ambient conductances to 2e-17, balance below 1.1e-12, no node below the ambient. Time and memory: the same number of matrix entries (the example at 0.5 mm, 1 077 251), solve time within 5 %, so the memory guard is unchanged. The tables of sections 1, 2, 2.1, 3, 3.1 and 12 A/B were re-run for the FDM column (the copper-edge rows moved: the heater straddling the top-copper edge -3.4 to -1.9 %, the heater-sized top pad of 3.1 -12.9 to -5.2 % of the finite-element rise).
@@ -2337,3 +2339,53 @@ Run time unchanged (isastm 1 mm: 7 s with and without). Not checked against a re
 Open: no reference on a real board; the pad island's own contribution is dropped (safe side, 0.5 to 1.2 % of the rise in the synthetic cases where it was measured); a via joined to an outer layer by one track reads the share of the track.
 
 
+
+
+## 46. The FDM face of a drawn copper layer from the copper fill of the cells
+
+The harmonic mean of the nodal sheets (section 41) leaves two defects at a copper edge that falls between nodes: a node whose control volume is cut by the edge carries half the copper, so the first copper link read 0.67 of the copper sheet, and the edge was smeared over a cell (`research/fdm-inset-edge`). Since `fix/fdm-copper-edge-faces` the in-plane face of a drawn copper layer is `S_face = (A_face + B f_face) c_face` from the copper fill `f_face` of the two cells the face runs through (`fdm.Network._copper_face_sheets`, `docs/theory.md` 3); the nodal fill still carries the capacity, the vertical links, the films, the via sheets and the sources, so the unknowns, the matrix pattern and the transient capacities are unchanged. Only the faces where a nodal fill differs from the fill of the face are replaced (`fdm.FACE_FILL_TOL`), so uniform and hatched copper are bit-identical; imported layers keep their own mappings, a board with a metal block keeps the earlier laminate treatment and `face_fill=False` (studies) is the harmonic mean of section 41. Every number below was re-run on this tree (scripts in a scratch folder; the study scripts of `research/fdm-inset-edge` do the same with the prototype).
+
+### 46.1 Against the finite-element limits (10 mm plate, copper 0.5 mm inside the wall, hottest rise, % of the limit of `tmp/fem/REPORT.md`)
+
+| cell mm | h_side W/m2K | FVM | FDM harmonic (41) | FDM cell-fill faces |
+| --: | --: | --: | --: | --: |
+| 0.5 | 10 / 200 / 1000 | +0.35 / +0.54 / +0.69 | -1.26 / -5.09 / -12.21 | -0.95 / -2.28 / -4.45 |
+| 0.25 | 10 / 200 / 1000 | -0.11 / -0.45 / -1.09 | -0.97 / -3.47 / -7.65 | -0.56 / -1.48 / -2.97 |
+
+The 20 mm aligned square (copper 1.2 mm inside, heater mean rise, plain rectangle and explicit rectangular outline identical), % of the finite-element limit, 1 mm / 0.5 mm: at 10 W/m2K FVM +0.13 / -0.36, FDM -1.07 / -0.78 -> -0.97 / -0.66; at 200 FVM -1.30 / -2.90, FDM -7.33 / -5.56 -> -5.30 / -4.08; at 1000 FVM -2.78 / -5.37, FDM -13.91 / -10.35 -> -9.43 / -7.35. A partial cure: the residual is the wall and the laminate sub-gaps (unchanged) and the cut cell, and the FDM stays cooler than the FVM.
+
+### 46.2 Against the independent 3D solver (`tests/helpers/layered3d.py`, same cell, hottest rise, % of the reference)
+
+| board | cell mm | reference K | FVM | FDM harmonic | FDM cell-fill faces |
+| :-- | --: | --: | --: | --: | --: |
+| plate_pad (20 mm window, 2 layers) | 1 / 0.5 | 335.49 / 330.07 | -2.12 / -1.66 | -7.31 / -4.32 | -5.36 / -2.86 |
+| one_layer_pad | 1 / 0.5 | 69.93 / 68.96 | -1.73 / -1.48 | -6.75 / -4.07 | -5.20 / -2.75 |
+| 3 mm gap across both layers (50 x 24 mm) | 1 / 0.5 / 0.25 | 158.25 / 156.62 / 155.87 | -1.48 / -1.18 / -0.97 | -5.49 / -3.17 / -1.96 | -3.52 / -1.92 / -1.20 |
+| copper strips 2 mm / gap 2 mm (40 x 20 mm, heater on a strip; the board of the study script, not the one of the table of section 41, whose FDM column was -25.80 / -16.88 / -11.13 % and is not reconciled with this one) | 1 / 0.5 / 0.25 | 298.68 / 284.72 / 275.96 | -11.77 / -9.58 / -8.22 | -33.63 / -23.43 / -15.89 | -23.05 / -15.00 / -10.37 |
+
+Every copper-edge board gets closer and none overshoots. Against the FVM at 0.25 mm (hottest part rise, % of the reference), 1 mm / 0.5 mm, FDM harmonic -> cell-fill faces: hatched copper 0.5 with a solid 12 mm pad -0.14 / -0.07 -> -0.10 / -0.02; copper only on the top layer (5.3 mm in) -2.56 / -1.98 -> -1.86 / -1.43; a copper corner at 100 W/m2K -1.31 / -0.53 -> -1.11 / -0.40; two parts across a 3.4 mm gap -0.31 / -0.07 -> -0.32 / -0.01 (the one case at 1 mm that moves the other way, by 0.01 point; the gap edges lie between nodes at both ends).
+
+### 46.3 Invariants (re-run)
+
+Matrix symmetric (asymmetry 0 to 3.5e-18, 1.7e-18 on the outline example), no new positive off-diagonal (the only ones are the 64 via couplings of `example_cut_to_T`, 1.0e-3 W/K, identical with the switch off), rows summing to the conductance to the ambient (1.2e-17 relative on the 10 mm plate at `h_side` 10, 200, 1000, 1e4 and 1e5 W/m2K; 5.5e-13 on `two_layer_partial`), a constant field exact for every `h_side` from 10 to 1e5 W/m2K, the heat balance closed (below 1e-9 in the tests), the same unknowns and the same matrix entries, capacities identical. Uniform copper (`plate_uniform`, `one_layer_full`, `finned_block`, `hatched_copper`) bit-identical; the outline boards without a copper edge (`reference_board`, `round_outline`, `t_outline`, `plate_vias`, `plate_lone_via`, `part_across_outline`) move 0.0 K (replacing every face instead would move them 1e-5 to 2.6e-3 K through the harmonic mean of unequal laminate sub-gap sheets, which is not a copper edge and is left as it was).
+
+### 46.4 What moves (frozen FDM records, `tests/regression/data/pending/fdm-copper-edge-faces.json`: 21 steady records at 2, 1 and 0.5 mm and 7 times to 63 %)
+
+| board | hottest temperature shift K at 2 / 1 / 0.5 mm (against the expected value before) | time to 63 % |
+| :-- | :-- | :-- |
+| plate_pad | +8.19 / +6.55 / +4.81 (+2.7 / +2.1 / +1.5 % of the rise) | +2.00 % (58.81 -> 59.99 s) |
+| one_layer_pad | +1.00 / +1.08 / +0.91 | +1.42 % |
+| part_top_path | +0.128 / +0.249 / +0.212 | -0.17 % |
+| two_layer_partial | +0.117 / +0.393 / +0.314 | +0.43 % |
+| example_board, profile_board | -0.0095 / +0.0077 / +0.0082 | -0.00 % (U1), -0.10 % (U2) |
+| example_cut_to_T | -0.0104 / +0.0083 / +0.0088 | +0.02 % (U1), -0.06 % (U2) |
+
+The other ten boards do not move. The study quoted 36 of 48 steady runs moving: that count came from replacing every face, including the 1e-5 to 2.6e-3 K shifts of 46.3, which are not part of the change. The records of these seven boards that earlier pending files held (`fdm-harmonic-face-mean`: 12 records and 4 times; `simple-stackup-physical-layers`: 9 records and 3 times) were moved into this file, so that no record is in two files.
+
+### 46.5 Time and the profile runs (not covered by the study; re-run)
+
+The capacities do not change, so the shifts follow the resistances: step-response resistance `plate_pad` +2.70 %, `one_layer_pad` +1.57 %, `part_top_path` +0.68 %, `two_layer_partial` +0.09 %, the example boards -0.02 %; time to 63 % at most +2.0 % (the 1 mm cell of the frozen record). Profile runs through `simulate` (FDM alone): the example profile board at 2 / 1 mm peak 130.862 -> 130.849 and 136.390 -> 136.397 degC, the regimes unchanged (U1 average + ripple, U2 resolved, 160 steps both); a square wave of 30 % duty on `plate_pad` at 0.02, 0.1, 1 and 20 Hz: the same regime in every case (resolved, then average + ripple) and the peak and the average-power steady maximum +6.5 to +7.2 K (+2.1 % of the rise at 1 mm), the same shift as the steady record. Not checked: the one-shot tables and the profile runs of the 17 harness boards other than the two above.
+
+### 46.6 Limits, stated
+
+The turned squares of the study stay at -5.8 / -12.0 % (200 / 1000 W/m2K), quoted from `research/fdm-inset-edge`, not re-run: the cut-cell mixing of a copper edge inside a cell and the wall term (laminate sub-gaps at the board edge) are not touched, so the FDM is a partial cure and stays cooler than the FVM at a strongly cooled edge; the Lumped, Analytic and 3D solid are unchanged (the face code is in `fdm.py` only); imported layers keep their mappings (the fill mapping still uses the nodal mean); the finite-element limits are under review and the decision rests also on the independent 3D solver of 46.2. The warnings that quote the FDM at a copper edge (`checks.check_small_part_laminate` over a pad, `check_via_partial_copper`, the user guide) were measured with the harmonic face; the new face moves the FDM toward the reference, so those ranges are now an upper bound on the error (conservative text); they were not re-measured (the studies behind them, `research/paper-case-studies` and `research/via-contact-geometry`, run for minutes to hours).

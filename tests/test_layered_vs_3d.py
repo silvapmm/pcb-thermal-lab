@@ -141,7 +141,8 @@ def test_one_layer_board_with_a_pad_documented_errors():
     assert err["solid3d"] == pytest.approx(0.001, abs=0.005)                      # +0.2 % at 0.5 mm; it was +40 % without the laminate
     # Documented limits of the other three on a bare pad (docs/versions.md, chapter Planned): all low, and in this order
     # (the FDM was -12.3 % with the arithmetic face mean; fix/fdm-harmonic-face-mean: harmonic mean of the sheets, -6.75 % here, no leak of half the sheet across the pad edge)
-    assert err["fdm"] == pytest.approx(-0.0675, abs=0.01)
+    # (fix/fdm-copper-edge-faces: the face sheet from the copper fill of the cells, -5.20 % here; the harmonic mean of the nodal sheets read -6.75 %)
+    assert err["fdm"] == pytest.approx(-0.0520, abs=0.01)
     assert err["lumped"] == pytest.approx(-0.170, abs=0.02)
     assert err["analytic"] == pytest.approx(-0.302, abs=0.03)
     assert err["fvm"] > err["fdm"] > err["lumped"] > err["analytic"]
