@@ -7,6 +7,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Changed
 
+- **Imported copper on a board with an outline takes the outline per pixel (FVM)** (`fix/imported-copper-outline-mask`; moves numbers of such boards on purpose, no frozen record moves): the sheet of every pixel is multiplied by its share on the board instead of the cover of its cell, so the open fraction of a cut face and a copper edge held inside the outline come from the pixels; a cell whose centre is off the board keeps its links through the unmasked pixels times the aperture. The warning 'the board has an outline and imported copper...' is gone. Measured on a 30 mm board with turned outlines at 200 W/m2K edge: mean error of the heater rise at 1 mm +1.26 to +0.34 % (disc +1.31 to +0.23 %), at 2 mm +3.93 to +2.08 %, at 0.5 mm +0.62 to +0.26 %; the spread over turn angles at 0.5 mm is unchanged (1.24 to 1.41 %); nothing moves at 10 W/m2K (`docs/validation.md` 38). The copper edge of DRAWN zones held inside the outline is not changed.
 - **The Keyboard and mouse window is a dialog of two columns** (Help - Keyboard shortcuts): 900 x 600 px at most and never above 80 % of the screen, resizable, scrolls, Esc or Close closes it; it was a message box with one long column that did not fit a laptop screen.
 
 ### Fixed
