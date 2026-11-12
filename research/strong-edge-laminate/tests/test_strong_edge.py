@@ -77,3 +77,19 @@ def test_default_laminate_is_two_subgaps_on_this_board():
     p = prog.board(1000.0)
     assert abs(prog.run(p, 1.0) - prog.run(p, 1.0, 2)) < 1e-9
     assert prog.run(p, 1.0, 5) > prog.run(p, 1.0)                  # more sub-gaps, hotter board
+
+
+def test_review_the_simple_stackup_slabs_are_the_residual():
+    """!
+    @brief Review: at h_side 1000 W/m2K, cell 0.25 mm, eight sub-gaps, the simple stack-up (equal 0.4 mm slabs) reads the plate about 5 % cool, the same board with its physical slabs
+           (advanced stack-up, three equal gaps: the board of the 3D reference) within 1 % of the stored reference rise (24.734 K at 1/8 mm, 8 slabs).
+    @return None.
+    """
+    from pcbthermal.model import Dielectric
+    simple = prog.run(prog.board(1000.0), 0.25, 8)
+    p = prog.board(1000.0)
+    p.board.dielectrics = [Dielectric(thickness=prog.GAP_MM * 1e-3, k_through=0.3, k_inplane=0.3) for _ in range(3)]
+    phys = prog.run(p, 0.25, 8)
+    ref = 24.733774410638922
+    assert simple / ref - 1 < -0.04
+    assert abs(phys / ref - 1) < 0.01

@@ -58,3 +58,46 @@ for k, (title, fn) in enumerate((("2  plate alone: program against 3D, cell 0.25
 fig.tight_layout()
 os.makedirs(os.path.join(os.path.dirname(HERE), "figures"), exist_ok=True)
 fig.savefig(os.path.join(os.path.dirname(HERE), "figures", "fig_01_strong_edge.png"), dpi=110)
+
+# Figure 2 (review): the equal slabs of the simple stack-up against the physical slabs, and what they do to the plate and to the via effect (from out/review_slabs.json,
+# written by study_review_slabs.py; skipped when that file is absent)
+import json                                                         # noqa: E402
+
+REVIEW = os.path.join(os.path.dirname(HERE), "out", "review_slabs.json")
+if os.path.exists(REVIEW):
+    rv = json.load(open(REVIEW))
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4.4))
+    a = ax[0]
+    t_cu, gap = 0.035, (1.6 - 4 * 0.035) / 3
+    simple = [0.4] * 4
+    phys = [t_cu + gap / 2, t_cu + gap, t_cu + gap, t_cu + gap / 2]
+    for col, (slabs, lab) in enumerate(((simple, "simple stack-up:\nT / L = 0.4 mm each"), (phys, "physical (advanced,\nequal gaps): 0.28 / 0.52 mm"))):
+        x0, z = col * 2.2, 1.6
+        for i, s in enumerate(slabs):
+            a.add_patch(Rectangle((x0, z - s), 1.6, s, fc=("#f2d0a0" if i % 2 == 0 else "#e8e0c8"), ec="k", lw=0.6))
+            a.text(x0 + 0.8, z - s / 2, f"node {i + 1}\n{s:.3f} mm", ha="center", va="center", fontsize=7)
+            z -= s
+        a.text(x0 + 0.8, 1.68, lab, ha="center", va="bottom", fontsize=8)
+    for i in range(4):                                              # the copper layers at their real depth
+        zc = 1.6 - t_cu / 2 - i * (t_cu + gap)
+        a.plot([4.5, 5.1], [zc, zc], color="#b87333", lw=3)
+    a.text(4.8, 1.68, "copper\n(real depth)", ha="center", va="bottom", fontsize=8)
+    a.annotate("", xy=(5.6, 1.4), xytext=(5.2, 1.4), arrowprops=dict(arrowstyle="->", color="tab:blue", lw=2))
+    a.text(5.25, 1.47, "h_side", fontsize=7, color="tab:blue")
+    a.set_xlim(-0.2, 6); a.set_ylim(-0.1, 2.1); a.axis("off")
+    a.set_title("1  laminate held by each layer node (edge film area = slab x edge)", fontsize=9)
+    hs = (10, 200, 500, 1000, 2000)
+    labels = ("simple, 2 sub-gaps (default)", "physical slabs, 2 sub-gaps", "simple, 8 sub-gaps", "physical slabs, 8 sub-gaps")
+    styles = (("tab:red", "-"), ("tab:red", "--"), ("tab:blue", "-"), ("tab:blue", "--"))
+    for k, (title, get) in enumerate((("2  plate alone, cell 0.25 mm: FVM against 3D (1/8 mm)", lambda h: rv["plate"][f"{h}|0.25"]),
+                                      ("3  via effect, via 0.16 mm from the wall, cell 0.25 mm", lambda h: rv["via"][f"{h}|0.16|0.25"]))):
+        b = ax[k + 1]
+        for j in range(4):
+            b.plot(hs, [get(h)[j] for h in hs], "o", color=styles[j][0], ls=styles[j][1], label=labels[j])
+        b.axhline(0, color="k", lw=0.6); b.axvline(200, color="gray", ls=":", lw=0.8)
+        b.set_xscale("log"); b.set_xlabel("h_side, W/m2K"); b.set_ylabel("error against the 3D reference, %")
+        b.set_title(title, fontsize=9); b.grid(alpha=0.3)
+        if k == 0:
+            b.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(os.path.join(os.path.dirname(HERE), "figures", "fig_02_review_slabs.png"), dpi=110)
