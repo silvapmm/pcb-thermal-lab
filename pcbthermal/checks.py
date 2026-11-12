@@ -57,6 +57,40 @@ def line(w):
     return getattr(w, "short", None) or str(w)
 
 
+TITLE_MAX = 64                                   # Characters of a warning title (the accordion row of the interface)
+_SEVERE_WORDS = ("will not run", "cannot", "refus", "unsafe", "did not converge", "too hot", "runaway", "unreliable", "not valid", "wrong")
+
+
+def warning_title(w):
+    """!
+    @brief A short clean title for a warning (the closed row of the accordion): its first clause, at most TITLE_MAX characters.
+    @details The checks return plain sentences, so this is a classifier on the text and not a stored field: the first clause ends at the first semicolon, at a
+             colon that follows more than a designator (a part name such as "U1:" stays in the title), or at the first full stop, whichever comes first.
+    @param w A warning (CheckWarning or plain string).
+    @return str The title, without a final full stop.
+    """
+    text = " ".join(line(w).split())
+    cuts = [len(text)]
+    for token, minimum in ((";", 0), (". ", 0), (": ", 13), (" (", 20)):
+        at = text.find(token, minimum)
+        if at > 0:
+            cuts.append(at)
+    title = text[:min(cuts)].rstrip(" .,;:")
+    if len(title) > TITLE_MAX:
+        title = title[:TITLE_MAX].rsplit(" ", 1)[0].rstrip(" .,;:") + "…"
+    return title or text[:TITLE_MAX]
+
+
+def warning_severity(w):
+    """!
+    @brief The severity of a warning for the interface: "high" for a result that is wrong, refused or unsafe, otherwise "note".
+    @param w A warning (CheckWarning or plain string).
+    @return str "high" or "note".
+    """
+    text = str(w).lower()
+    return "high" if any(word in text for word in _SEVERE_WORDS) else "note"
+
+
 def _add(out, kind, index, text, short=None):
     """!
     @brief Append a warning to a list, tagged with the element it is about.

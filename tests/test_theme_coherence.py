@@ -196,27 +196,18 @@ def test_help_pages_follow_a_live_theme_switch(win):
 
 
 def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
-    from pcbthermal.gui.panels import WarningList
-
     class Warn(str):
         kind, index = "heater", 0
 
-    lst = win.findChildren(WarningList)[0]
-    lst.set_warnings([Warn("one"), Warn("two")])
+    lst = win.solver_panel.checks
+    lst.set_warnings([Warn("unsafe: one"), Warn("two")])
 
-    def anchor_colour():
-        # Colour of the first link of the list, as Qt stored it when the HTML was read
-        block = lst.document().begin()
-        while block.isValid():
-            it = block.begin()
-            while not it.atEnd():
-                if it.fragment().charFormat().isAnchor():
-                    return it.fragment().charFormat().foreground().color().name()
-                it += 1
-            block = block.next()
-        return None
+    def symbol_colour():
+        # The symbol colour written into the title of the first row (a severe warning uses the alert token)
+        head = lst.rows[0].head.text()
+        return next(name for name in ("alert", "muted") if QColor(th.colors(win.theme_name)[name]).name() in head.lower() or th.colors(win.theme_name)[name] in head)
 
-    assert anchor_colour() == QColor(th.colors("light")["alert"]).name()      # Entries take the alert token, not the link colour
+    assert symbol_colour() == "alert"                                       # Entries take the alert token, not the link colour
     verdict_light = win.solver_panel.cells_label.text()
     win.toggle_theme()
     # The text of the label holds the theme's tones: the dark ones differ from the light ones
@@ -225,7 +216,7 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
     assert th.colors("dark")["ok"] in verdict_dark or th.colors("dark")["warn"] in verdict_dark or th.colors("dark")["bad"] in verdict_dark
     link = QApplication.palette().link().color().name()
     assert link == QColor(th.colors("dark")["link"]).name()
-    assert anchor_colour() == QColor(th.colors("dark")["alert"]).name()                     # the list was rebuilt: a link keeps the colour it was read with otherwise
+    assert th.colors("dark")["alert"] in lst.rows[0].head.text()            # the rows were drawn again in the colours of the new theme
 
 
 def test_every_window_object_changes_its_palette_on_a_toggle(win):
