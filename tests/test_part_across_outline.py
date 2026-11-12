@@ -93,7 +93,9 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # (fix/laminate-edge-band: the example board has an edge coefficient, so the gaps along the edge are cut into laminate nodes: +0.00189 K (FVM, 85.07644609599882 before) and +0.00030 K (FDM, 84.26568445977094 before))
     # (2.6.0 integration: the tip before the edge band already read 85.20158 (FVM) and 84.41179 K (FDM), the merged via-barrel and lumped-near-edge branches had not re-baselined this test; the edge band adds +0.00189 and +0.00030 K)
     # (fix/fdm-harmonic-face-mean: the FDM face is the harmonic mean of the physical sheets, so the partial top copper of the example no longer leaks across its edge: 84.41209008961394 -> 84.45321208048577 K, +0.041 K)
-    stored = {fvm: 85.20347171898253, fdm: 84.45321208048577, solid3d: 85.48327731195374}
+    # (fix/fdm-copper-edge-faces: the FDM face sheet from the copper fill of the cells, the partial top copper of the example is a copper edge: 84.45321208048577 -> 84.51886092076673 K, +0.066 K;
+    # the FVM value 85.20347171898253 was already stale on develop 6e66ae05 (85.29380457046574, no FVM change here), re-baselined with it)
+    stored = {fvm: 85.29380457046574, fdm: 84.51886092076673, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
