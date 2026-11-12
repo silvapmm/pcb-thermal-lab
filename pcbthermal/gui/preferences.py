@@ -68,21 +68,20 @@ SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section 
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
                   "package_theta": "Package families (typical θ)", "heatsinks": "Package heatsinks (typical θSA)"}
-LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name appears in the via's Fill list and the conductivity is its typical value (W/mK). Edit a cell to change it, "
-                             "add a row for a new fill.",
+LIBRARY_TIPS = {"via_fills": "Via barrel fills: the name is listed in the via's Fill box, k (W/mK) is its typical value.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
-                "interfaces": "Pastes and gap pads under a heatsink or a package: apparent conductivity (W/mK) and thickness (mm); the resistance is thickness / conductivity.",
-                "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
-                "package_theta": "Typical values by package family: junction-to-pad θ, junction-to-case (top) θJC(top) (K/W) and the maximum junction temperature (°C): a starting value, never the datasheet's.",
-                "heatsinks": "Typical heatsinks for the top of a package and their catalogue θSA (K/W) with the source and the test conditions in the note: a starting value, your θSA depends on air flow, orientation and mounting."}
+                "interfaces": "Pastes and gap pads: apparent k (W/mK) and thickness (mm); R = thickness / k.",
+                "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK).",
+                "package_theta": "Typical θ junction-pad, θJC(top) (K/W) and Tj max (°C) per package family: a starting value, not the datasheet.",
+                "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting."}
 SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
-SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
-                 "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
-                 "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
-                 "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
+SECTION_HINTS = {"new_board": "Values of a board from File - New board (and at start-up).",
+                 "new_elements": "Values of an element drawn or added from the right-click menu.",
+                 "materials": "Copper and simple-stack-up dielectric of a new board (advanced dielectrics: a library).",
+                 "calculator": "Uncertainty of the Power Calculator inputs: each is moved to both ends, effects added as root sum of squares.",
                  "solver": "The models and settings a new project starts with.",
-                 "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files.",
-                 "package": "Size limit of a project package (.pcbtz). A setting of this machine, not saved in project files."}
+                 "gerber": "Gerber reader limits; this machine only, not saved in project files.",
+                 "package": "Size limit of a .pcbtz package; this machine only, not saved in project files."}
 MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit is a machine preference: "
                            "it is not saved in project files.",
                  "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files.",
@@ -118,50 +117,44 @@ COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_p
            "theta_k_per_w": "θ junction-pad (K/W)", "theta_jc_top_k_per_w": "θJC top (K/W)", "tj_max_c": "Tj max (°C)", "heatsink": "Heatsink",
            "flow": "Air flow", "theta_sa_k_per_w": "θSA (K/W)"}
 TIPS = {
-    "width_mm": "Width of a new board in mm.", "height_mm": "Height of a new board in mm.", "layers": "Copper layers of a new board.",
-    "ambient_c": "Ambient temperature of a new board in °C.", "h_top": "Heat transfer coefficient of the top face (W/m²K), typed mode.",
-    "h_bottom": "Heat transfer coefficient of the bottom face (W/m²K), typed mode.", "edges_lose_heat": "Whether the board edges exchange heat with the air.",
-    "h_side": "Heat transfer coefficient of the edges (W/m²K).", "via_plating_um": "Copper plating of the via barrel in µm.",
-    "h_mode": "How the face coefficients are found: typed, or computed from convection and radiation.", "emissivity_top": "Emissivity of the top face (0 to 1).",
+    "width_mm": "Width of a new board, mm.", "height_mm": "Height of a new board, mm.", "layers": "Copper layers of a new board.",
+    "ambient_c": "Ambient temperature of a new board, °C.", "h_top": "Typed top-face h, W/m²K.",
+    "h_bottom": "Typed bottom-face h, W/m²K.", "edges_lose_heat": "Whether the edges exchange heat with the air.",
+    "h_side": "Edge h, W/m²K.", "via_plating_um": "Via barrel plating, µm.",
+    "h_mode": "Face h typed, or computed (convection and radiation).", "emissivity_top": "Emissivity of the top face (0 to 1).",
     "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
-    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9, the default of new projects); changes the rise by under 1 % on the example.",
-    "air_speed": "Air speed along the board in m/s (computed mode).", "h_calibration": "Multiplier of the computed convection.",
-    "heater_power_w": "Power of a new heater in W.", "heater_kind": "What a new heater is: a pure heat source (power only) or a component (junction, package, top path).", "heater_size_mm": "Side of a heater dropped from the right-click menu, in mm.",
-    "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone dropped from the right-click menu, in mm.",
-    "via_diameter_mm": "Hole diameter of a new via in mm.", "via_fill": "Fill of a new via (a name of the via fills library).",
-    "heatsink_h_extra": "Extra heat transfer coefficient of a new heatsink in W/m²K.", "heatsink_size_mm": "Side of a heatsink dropped from the right-click menu, in mm.",
-    "block_thickness_mm": "Thickness of a metal block when a heatsink is switched to a block, in mm.", "block_metal": "Metal of a new block (a name of the metals library).",
-    "block_interface": "Interface material of a new block (a name of the interface library).",
+    "natural_form": "Vertical-board natural convection: general (Churchill and Chu) or laminar (Ra below 1.00E9); under 1 % on the example.",
+    "air_speed": "Air speed along the board, m/s (computed h).", "h_calibration": "Multiplier of the computed convection.",
+    "heater_power_w": "Power of a new heater in W.", "heater_kind": "A new heater: heat source (power only) or component (junction, package, top path).", "heater_size_mm": "Side of a heater added from the right-click menu, mm.",
+    "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone added from the right-click menu, mm.",
+    "via_diameter_mm": "Hole diameter of a new via, mm.", "via_fill": "Fill of a new via (from the via fills library).",
+    "heatsink_h_extra": "Extra h of a new heatsink, W/m²K.", "heatsink_size_mm": "Side of a heatsink added from the right-click menu, mm.",
+    "block_thickness_mm": "Thickness of a new metal block, mm.", "block_metal": "Metal of a new block (from the metals library).",
+    "block_interface": "Interface of a new block (from the interface library).",
     "k_copper": "Conductivity of copper (W/mK).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
-    "k_fr4_through": "Conductivity of the simple-stack-up dielectric across the board (W/mK).", "k_fr4_inplane": "Conductivity of the simple-stack-up dielectric along the plane (W/mK).",
-    "rho_fr4": "Density of the simple-stack-up dielectric (kg/m³).", "cp_fr4": "Specific heat of the simple-stack-up dielectric (J/kgK).",
-    "copper_uncertainty_pct": "Uncertainty of the copper (thickness of every layer) in the drawn board, in percent: how far the real copper may be from what you drew. Limited to 99 % (the thickness never reaches 0).",
-    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients (or of the computed convection) in percent; natural convection correlations are good to 20 to 30 %.",
-    "theta_uncertainty_pct": "Uncertainty of the part's junction-to-pad resistance θ in percent (datasheet numbers belong to the datasheet's board).",
-    "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT in percent (it changes with the board and the air flow).",
-    "reading_uncertainty_k": "Error of the temperature reading in kelvin: a thermocouple that touches the board, an infrared emissivity error. Typically 1 to 3 K.",
-    "design_level": "Confidence in the description of the board when the calculator opens: none (numbers only), cad (drawn from the real fabrication files), hand (drawn by hand from the layout) or estimated.",
-    "design_coverage_pct": "Design uncertainty, copper coverage, at the level 'estimated', in percent: how far the fill of every copper zone on the top and bottom layers may be from the real pour (a hatched pour drawn solid is 50 %). Measured: half the top pad = -13 % of power.",
-    "design_weight_pct": "Design uncertainty, copper weight, at the level 'estimated', in percent: 0.5 oz taken for 1 oz is 50 %. Measured: half the copper = -24 % of power. Added to the copper (number) uncertainty. Limited to 99 %.",
-    "design_planes_pct": "Design uncertainty, inner planes, at the level 'estimated', in percent: planes smaller than drawn, or present but not drawn (board-sized at this fill). Measured: no inner planes = -34 % of power.",
-    "design_vias_pct": "Design uncertainty, vias, at the level 'estimated', in percent of the barrel copper (number of vias or plating). Measured: no vias under the part = -11 % of power.",
-    "design_scale_cad": "Multiplier of the design amplitudes for a board drawn from the real fabrication files (0 to 1). Assumed, not measured.",
-    "design_scale_hand": "Multiplier of the design amplitudes for a board drawn by hand from the layout (0 to 1). Assumed, not measured.",
-    "design_scale_estimated": "Multiplier of the design amplitudes for an estimated board (normally 1).",
+    "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK.", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK.",
+    "rho_fr4": "Simple-stack-up dielectric density, kg/m³.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK.",
+    "copper_uncertainty_pct": "Uncertainty of the copper thickness of every layer, % (at most 99).",
+    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (correlations: 20 to 30).",
+    "theta_uncertainty_pct": "Uncertainty of θ junction-pad, %.",
+    "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT, % (it varies with board and air flow).",
+    "reading_uncertainty_k": "Error of the temperature reading, K (thermocouple contact, IR emissivity; typically 1 to 3).",
+    "design_level": "Default board description in the calculator: none, cad (from fabrication files), hand (from the layout) or estimated.",
+    "design_coverage_pct": "Design uncertainty of the outer-layer copper fill at 'estimated', % (hatched drawn solid: 50). Half the top pad: -13 % of power.",
+    "design_weight_pct": "Design uncertainty of the copper weight at 'estimated', % (0.5 oz for 1 oz: 50; at most 99). Half the copper: -24 % of power.",
+    "design_planes_pct": "Design uncertainty of the inner planes at 'estimated', % (smaller or undrawn). No inner planes: -34 % of power.",
+    "design_vias_pct": "Design uncertainty of the via barrel copper at 'estimated', %. No vias under the part: -11 % of power.",
+    "design_scale_cad": "Design multiplier for a board from fabrication files (0 to 1; assumed).",
+    "design_scale_hand": "Design multiplier for a board drawn by hand (0 to 1; assumed).",
+    "design_scale_estimated": "Design multiplier for an estimated board (normally 1).",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
-    "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Temperature limit for hotspot detection in °C.",
-    "max_file_mb": "Largest Gerber, drill or ZIP-member file the reader accepts, in MB (16 to 4096, shipped 256). Real Gerber files are 0.01 to 2 MB; a file far above that is "
-                   "a mistake or a hostile file and is refused from its size, before it is read, because the decoded text takes about twice the file in memory. This is a setting "
-                   "of this machine, not of the project: it is not saved in project files.",
-    "max_mb": "Largest project package (.pcbtz) the program reads or writes, in MB of all its files uncompressed (64 to 4096, shipped 512). A real package is a project of "
-              "a few hundred kB plus the Gerber files it was imported from, under 10 MB; a package far above that is a mistake or a hostile file and is refused from the sizes "
-              "its ZIP declares, before anything is read. The whole package is held in memory while it is read and written, so raise it only on a machine with memory to spare. "
-              "The limits on a single member, the compression ratio and the number of members are fixed. This is a setting of this machine, not of the project: it is not saved "
-              "in project files.",
-    "memory_fraction": "Share of the physical memory a solve may use (0.10 to 0.95, shipped 0.60). A FVM, FDM or 3D run whose estimated peak memory is above it is refused before "
-                       "anything is allocated, with the cell that fits. This is a setting of this machine, not of the project: it is not saved in project files. The estimate has a "
-                       "safety margin but can be wrong by tens of percent; a run above the memory available now only warns. Environment variable PCBTHERMAL_MEMORY_BYTES states the memory "
-                       "when it cannot be read (containers).",
+    "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Hotspot limit, °C.",
+    "max_file_mb": "Largest Gerber, drill or ZIP member read, MB (16 to 4096, shipped 256; real files 0.01 to 2 MB). Decoding takes about twice the file in memory. "
+                   "This machine only: not saved in project files.",
+    "max_mb": "Largest .pcbtz package read or written, MB uncompressed (64 to 4096, shipped 512; real ones under 10 MB). It is held in memory whole. "
+              "This machine only: not saved in project files.",
+    "memory_fraction": "Share of physical memory a solve may use (0.10 to 0.95, shipped 0.60); an FVM, FDM or 3D run estimated above it is refused, with the cell that fits. "
+                       "This machine only: not saved in project files. PCBTHERMAL_MEMORY_BYTES sets the memory when it cannot be read.",
 }
 
 
@@ -183,7 +176,7 @@ class PreferencesDialog(QDialog):
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextFormat(Qt.RichText)
-        self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
+        self.info.setToolTip("Where your defaults are kept; without that file the shipped values are used.")
         lay.addWidget(self.info)
         # The sections are a list on the left and their pages are stacked on the right (as tabs they needed scroll arrows in a narrow window)
         self.sections = QListWidget()
@@ -284,9 +277,9 @@ class PreferencesDialog(QDialog):
         lay.addWidget(t, 1)
         row = QHBoxLayout()
         add = QPushButton("Add row")
-        add.setToolTip("Add an entry at the end: give it a name and its values.")
+        add.setToolTip("Add an entry: give it a name and values.")
         rem = QPushButton("Delete row")
-        rem.setToolTip("Remove the selected entry (Reset brings a shipped one back).")
+        rem.setToolTip("Remove the selected entry (Reset restores shipped ones).")
         add.clicked.connect(lambda _c=False, lib=lib: self._add_row(lib))
         rem.clicked.connect(lambda _c=False, lib=lib: self._delete_row(lib))
         row.addWidget(add)

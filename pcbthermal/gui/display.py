@@ -20,12 +20,11 @@ from .underlay import DEFAULT_OPACITY, OPACITY_TIP, UNDERLAY_TIP, ReleaseSync, c
 
 CONTEXTS = ("editor", "temperature", "gradient", "animation", "other")   # Where the popover is opened from
 
-VIEW_TIP = ("How the map is drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic (the solver resolution is the cell, "
-            "nothing finer is computed). Terrain: shaded relief with contour lines, for the Temperature and Gradients maps. Nothing is solved again.")
-CONTOUR_TIP = ("Distance between the contour lines of the Terrain view; every second line is thicker and labelled. One value for each kind of map: the Temperature "
-               "map in K and the Gradients map in K/mm, where 'auto' (the lowest value) picks a round step from the range of the map. Used only when View is Terrain.")
-CMAP_TIP = "Colour scale of every map: the Temperature and Gradients maps, the Animation and the map on the board."
-OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (a dot: an active underlay)."
+VIEW_TIP = ("How the map is drawn: Current (cells as solved), Smooth (bicubic, cosmetic) or Terrain (relief with contours; Temperature and Gradients). "
+            "Nothing is solved again.")
+CONTOUR_TIP = ("Step between Terrain contour lines: K for Temperature, K/mm for Gradients ('auto' picks a round step). Terrain only.")
+CMAP_TIP = "Colour scale of every map (Temperature, Gradients, Animation, board)."
+OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (dot: underlay on)."
 
 
 class DisplayState(QObject):
@@ -370,8 +369,8 @@ class DisplayPopover(QFrame):
         item = self.view.model().item(self.view.findData("terrain"))
         if item is not None:
             item.setEnabled(not anim and not editor)
-            item.setToolTip("Terrain is shown in the Results tab (Temperature and Gradients)." if editor else
-                            "Terrain is not drawn in the Animation (Current is used)." if anim else "")
+            item.setToolTip("Terrain is shown in the Results tab only." if editor else
+                            "No Terrain in the Animation (Current is used)." if anim else "")
         terrain = s.view == "terrain" and not anim and not editor
         self.contour.setEnabled(terrain)
         self.contour_label.setEnabled(terrain)

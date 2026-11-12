@@ -12,6 +12,10 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
+## 2.6.1 (unreleased)
+
+* **Shorter hints** (`fix/shorter-hints-261`, text only): every parameter hint, not only the command buttons of 2.6.0, is cut to what the control means, its unit, a typical range or source and its use (`gui/tips.py`, `panels.py`, `preferences.py`, `import_window.py`, `import_session.py` (the CAD-tool line), `calculator.py`, `stackup.py`, `display.py`, `underlay.py`, `profile_page.py`, `results_view.py`, `animation.py` and others); destructive effects, keys and the greyed reasons stay, the warnings are unchanged, the details are in the user guide. Distinct hints 338 to 336, mean 131 to 79 characters, longest 928 to 331, measured offscreen by `releases/2.6.1/hints/scripts/collect_hints.py` (`releases/2.6.1/hints/README.md`). Tests: `tests/test_tooltips.py` (no hint removed) and the tests that find controls by their hint, unchanged.
+
 ## 2.6.0 - 2026-11-07: model corrections after the independent reviews, the project package
 
 * *How 2.6.0 was tested*:
