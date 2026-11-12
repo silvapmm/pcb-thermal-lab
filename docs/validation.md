@@ -464,7 +464,9 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 * An outline that is the whole rectangle gives the same result as no outline (1e-9 K), and an outline that cuts the board to a smaller rectangle gives the same result as the smaller board (0.05 K) in the FVM, the FDM and the 3D solid.
 * The energy balance closes to 1e-9 on every outline in all three models, and a part drawn off the board still delivers its whole power.
 
-**Tables A, B and C re-run on the 2.6.1 tree** (`python research/stackup/scripts/stackup_outline_study.py`): the numbers moved with the 2.6.0 model items (the base rise 80.7 to 79.1 K, the L shape 108.2 to 103.5 K, the FDM from -4 % to -1 %); the 3D solid on the L shape now reads -3.3 % of the FVM (it was -1.3 %), which this pass did not investigate. **The prose below the tables (percentages of the models, 'agree within 1.5 %', 'the rise grows 34 %') is that of the earlier tables and has not been re-checked.**
+**Tables A, B and C re-run on the 2.6.1 tree** (`python research/stackup/scripts/stackup_outline_study.py`): the numbers moved with the 2.6.0 model items (the base rise 80.7 to 79.1 K, the L shape 108.2 to 103.5 K, the FDM from -4 % to -1 %); the 3D solid on the L shape now reads -3.3 % of the FVM (it was -1.3 %), which this pass did not investigate. **The 3D solid on the L shape** (tables re-run, 1 mm): the 3D solid is unchanged between 2.4.5 and the tree (rise 100.043 K every time), the FVM is what moved: 102.03 K (2.4.5, -1.9 % for the solid), 103.21 K (2.5.0 to 2.5.2, -3.1 %) and 103.46 K (tree, -3.3 %). The step of 2.5.0 (+1.18 K) is the mirror image of the board edge in the via well (switching `viawell.image_walls` off in the 2.5.0 tree gives back 102.03 K; the L shape has vias beside its inner walls); the step of 2.6.0 (+0.25 K) is the via barrel length (barrel off: -0.21 K) and the cut cells (-0.02 K). The 3D solid has no image of the edge in its via rule. Which of the two is nearer the truth on this board is not established here (the image was validated against a resolved reference in section 28, where the 3D solid was not used); the study table is the evidence, and this is recorded as a possible limit of the 3D solid or of the image on an L outline, not as a regression.
+
+**The prose below the tables (percentages of the models, 'agree within 1.5 %', 'the rise grows 34 %') is that of the earlier tables and has not been re-checked.**
 
 **A. Advanced stack-up.** Rise of the hottest point in K (FVM) and the other models as a difference from it:
 
@@ -1347,19 +1349,21 @@ The image of `viawell.edge_term` (theory 2.6) against a resolved reference: the 
 
 | edge | d (mm) | E reference (K) | 1 mm without / with | 0.5 mm without / with | 0.25 mm without / with |
 | :-- | --: | --: | :-- | :-- | :-- |
-| insulated | 0.16 | 3.162 | +14.5 / +0.7 % | +6.2 / +0.1 % | +0.6 / -0.2 % |
-| insulated | 0.3 | 3.358 | +7.9 / +0.7 % | +0.0 / +0.2 % | -0.0 / -0.1 % |
-| insulated | 0.5 | 3.542 | +2.3 / +0.6 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
-| insulated | 1 | 3.839 | +0.4 / +0.5 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
-| insulated | 2 | 4.274 | +0.1 / +0.2 % | +0.2 / +0.3 % | -0.1 / -0.1 % |
-| h_side 10 W/m2K | 0.16 | 2.993 | +14.8 / +0.7 % | +6.2 / +0.1 % | +0.6 / -0.2 % |
-| h_side 10 W/m2K | 0.5 | 3.353 | +2.5 / +0.7 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
-| h_side 10 W/m2K | 2 | 4.055 | +0.4 / +0.4 % | +0.3 / +0.3 % | -0.1 / -0.1 % |
-| h_side 1000 W/m2K | 0.16 | 0.412 | +17.3 / +1.5 % | +6.0 / -0.7 % | -0.7 / -1.6 % |
+| insulated | 0.16 | 3.162 | +13.5 / -0.2 % | +5.3 / -0.8 % | -0.3 / -1.1 % |
+| insulated | 0.3 | 3.358 | +6.8 / -0.2 % | -0.9 / -0.7 % | -1.0 / -1.0 % |
+| insulated | 0.5 | 3.542 | +1.3 / -0.4 % | -0.8 / -0.7 % | -1.1 / -1.0 % |
+| insulated | 1 | 3.839 | -0.6 / -0.5 % | -0.9 / -0.8 % | -1.1 / -1.1 % |
+| insulated | 2 | 4.274 | -0.9 / -0.9 % | -0.9 / -0.8 % | -1.2 / -1.2 % |
+| h_side 10 W/m2K | 0.16 | 2.993 | +13.8 / -0.1 % | +5.3 / -0.7 % | -0.3 / -1.0 % |
+| h_side 10 W/m2K | 0.5 | 3.353 | +1.6 / -0.1 % | -0.7 / -0.7 % | -1.0 / -1.0 % |
+| h_side 10 W/m2K | 2 | 4.055 | -0.6 / -0.6 % | -0.8 / -0.8 % | -1.1 / -1.1 % |
+| h_side 1000 W/m2K | 0.16 | 0.412 | +54.5 / +34.3 % | +32.4 / +24.1 % | +19.8 / +18.8 % |
 | corner (two edges), insulated | 0.16 | 2.115 | +26.0 / -1.0 % | +9.4 / -0.7 % | |
 | corner, insulated | 0.3 | 2.393 | +11.4 / -0.5 % | -3.2 / -0.3 % | |
 | outline side on a grid line (x = 7 mm) | 0.16 | 7.628 | +14.1 / +1.1 % | +5.9 / +0.1 % | |
 | outline side inside a cell (x = 7.0625 mm) | 0.16 | 7.471 | +16.5 / +2.5 % | +7.3 / +0.3 % | |
+
+**Re-run on the 2.6.1 tree** (`research/via-edge-image/scripts/study_edge_sweep.py`, modes none and program): the straight-edge rows above are its output (the 2.6.0 via barrel `d + 0.5 t_cu` lowers the 'with' column by about one point; at the 0.25 mm column every row now reads about -1 %); the corner and outline-side rows were not re-run and are those of the review. **The h_side 1000 row moved from +1.5 to +34.3 % of E** (0.412 K, so 0.14 K): the cause is the laminate edge band and the cut-cell film of 2.6.0 (E of the program on this board, 1 mm: tree 0.553 K; edge band off 0.420 K; edge band and cut cells off 0.414 K, the value of the reference's layered model, which has one laminate link per gap and no edge film; the barrel changes it by 0.006 K). It lies above the 200 W/m2K limit where the edge band is documented and warned (`checks.check_edge_laminate`), so it is an explained change of the model, not a defect of the image, but the reference is no longer the same physics there.
 
 The 1 and 0.5 mm columns, with and without the image, and the h_side 1000 row were re-run by the review on the program of this branch against the same reference (the without-image values by switching the image off; they agree with `research/via-edge-image/out/` to 0.1 point); the 0.25 mm column is that of the research, not re-run. The tests hold the 1 mm cases to the budget of 2 to 3 %. Far from the edge (d of 1 to 2 mm and more) the image changes the result by at most 0.2 points. At a 2 mm cell (the coarse-cell warning applies) the image takes a via 0.16 mm from the edge from +24.4 to +3.3 % and the corner from +53.1 to +0.5 %; at d of 1 to 3 mm it is 0.2 to 1.1 points worse (+2.5 to +4.4 %).
 
@@ -1400,19 +1404,21 @@ Which polygon carries the power of a part imported from the paste layer (theory 
 
 ### 29.1 Eleven parts of three boards (change of the hottest point against the hull)
 
+Re-run on the 2.6.1 tree (`research/gerber-real-boards/scripts/study_heater_shape.py --table`, the boards of the local library): every cell is the printed value of that run; the earlier numbers are in git history. The 'Program default' column is not a result of the study.
+
 | Part | Package | Hull (K/W) | Box | Envelope | Largest | Exposed pad (d') | Pad from the name (d'') | Openings by area | Program default |
 | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | :-- |
-| RP2040 U3 | QFN-56, pad in 4 windows | 46.4 | -1.4 % | -1.4 % | +65.5 % | +37.4 % | +26.2 % | -2.5 % | exposed |
-| RP2040 U1 | SOT-223 (NCP1117) | 58.7 | -3.9 % | -3.9 % | +44.3 % | +44.3 % | - | +2.4 % | exposed (tab) |
-| ISASTM U5 | SOT-223 (AMS1117) | 43.9 | -3.1 % | -3.7 % | +18.8 % | +18.8 % | - | +4.9 % | exposed (tab) |
-| ISASTM U15 | QFN-24, EP 2.6 mm in 4 windows | 55.0 | +9.0 % | +3.0 % | +48.1 % | +12.7 % | +12.0 % | -1.9 % | exposed |
-| CMM2 U4 | QFN-28, EP 3.35 mm in 9 windows | 47.2 | -2.0 % | -6.1 % | +36.6 % | +13.1 % | +11.3 % | +2.9 % | exposed |
-| RP2040 U2 | SOIC-8 | 109.3 | 0.0 % | -0.5 % | +299.3 % | (no pad) | - | -3.1 % | hull |
-| RP2040 Y1 | HC49 crystal | 56.6 | 0.0 % | 0.0 % | +63.2 % | (no pad) | - | +8.1 % | hull |
-| RP2040 R2 | 0402 | 245.9 | -0.3 % | -0.3 % | +55.9 % | (no pad) | - | -6.0 % | hull |
-| RP2040 C1 | 0805 | 98.7 | -0.3 % | -0.3 % | +22.3 % | (no pad) | - | +9.3 % | hull |
-| RP2040 J3 | USB micro-B | 94.0 | -2.0 % | -2.4 % | +82.7 % | (no pad) | - | -1.1 % | hull |
-| ISASTM U14 | SOT-23-6 | 81.3 | 0.0 % | -5.0 % | +227.6 % | (no pad) | - | +7.1 % | hull |
+| RP2040 U3 | QFN-56, pad in 4 windows | 46.4 | -1.4 % | -1.7 % | +66.1 % | +37.7 % | +27.5 % | -2.6 % | exposed |
+| RP2040 U1 | SOT-223 (NCP1117) | 58.7 | -3.8 % | -3.8 % | +44.9 % | +44.9 % | - | +2.2 % | exposed (tab) |
+| ISASTM U5 | SOT-223 (AMS1117) | 44.0 | -3.1 % | -3.8 % | +18.8 % | +18.8 % | - | +4.8 % | exposed (tab) |
+| ISASTM U15 | QFN-24, EP 2.6 mm in 4 windows | 55.2 | +8.9 % | +2.8 % | +48.4 % | +12.9 % | +12.3 % | -1.9 % | exposed |
+| CMM2 U4 | QFN-28, EP 3.35 mm in 9 windows | 47.2 | -2.0 % | -6.2 % | +36.8 % | +13.3 % | +11.4 % | +3.0 % | exposed |
+| RP2040 U2 | SOIC-8 | 109.2 | 0.0 % | -0.2 % | +297.4 % | (no pad) | - | -2.9 % | hull |
+| RP2040 Y1 | HC49 crystal | 56.6 | 0.0 % | +0.2 % | +63.0 % | (no pad) | - | +8.0 % | hull |
+| RP2040 R2 | 0402 | 246.1 | -0.7 % | -0.5 % | +53.0 % | (no pad) | - | -7.5 % | hull |
+| RP2040 C1 | 0805 | 99.1 | -0.3 % | 0.0 % | +22.7 % | (no pad) | - | +8.0 % | hull |
+| RP2040 J3 | USB micro-B | 93.7 | -2.0 % | -2.0 % | +83.3 % | (no pad) | - | -0.9 % | hull |
+| ISASTM U14 | SOT-23-6 | 81.5 | 0.0 % | -5.0 % | +227.2 % | (no pad) | - | +7.1 % | hull |
 
 For parts without an exposed pad the hull, the box, the envelope and the openings by area agree within -6.1 to +9.3 %, about the rest of the model error at 0.5 mm (section 27), so the hull is the default. For the exposed-pad and tab parts the heat on the pad reads +12.7 to +44.3 % hotter than the hull (+6 to +26 K per watt), beyond the model error and on the safe side; the paste windows are inset in the copper pad, so the exposed pad from the paste reads 0.6 to 8.2 % hotter than the pad of the footprint name (conservative). The largest opening alone is wrong whenever the part has several similar pads (+22 to +299 %) and equals the exposed pad for a single tab. The +9.0 % of the box on U15 is the face term of its corners on bare laminate. The percentages include the board mean rise (18 K on the RP2040, 29 K in the windows).
 
