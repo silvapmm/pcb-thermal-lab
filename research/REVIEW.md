@@ -67,15 +67,16 @@ Program defects found by a review are never corrected from a research branch: th
 
 ## Decisions left to the maintainer
 
-Row 4 of `ROADMAP.md` section 1; the recommendation to start from is after each.
+Row 4 of `ROADMAP.md` section 2. The decisions that were taken since (the point via, the Lumped and Analytic vias, the fin warning, the zone union, the rotated square and the cut cells, the default mapping of the imported copper) are no longer listed; what is still open:
 
-* gerber-nets: the ground return current (not yet; list it as a limit); the copper resistivity (1.72e-8 ohm m with 0.393 %/K, editable); whether the rho(T) loop reuses `api._solve_with_tc` (reuse, evaluated on the hottest track cell, iterated to convergence).
-* gerber-models: the default mapping of an import (flow-based faces for patterned copper, the fill as the fast fallback); a `fix/` branch for the union of zones per sample point; refine the laminate nodes (investigate first, A11); the 42-window studies on the program's network.
-* via-fill: the point via (A5), the label of the via diameter (drill), Lumped and Analytic overstating vias (A6), the 3D clip of a large via.
-* block-and-fins and fin-channel: the 4 mm threshold of the fin warning (C3): replace it by a rule on the channel Rayleigh number and whether to add the correction (`fin-channel/INTEGRATION.md`).
-* gerber-import: the reader accepting LM/LR/LS and aperture blocks (E10).
-* rotated-square-3d: A3 by P1 (cut cells in the 3D solid) or P2 (the documented limit; recommended); P0 is done (2.4.5). The cut cells of the layered FVM (README 11.8, `INTEGRATION.md`): not in 2.5.0; for 2.6.0 the exact board cover first (a `fix/`), the cut-cell links after a choice between `links` and the aperture with a boundary film and a study of the fill at a cut edge. Chosen in `cut-cell-links/` (reviewed): `aperture+film`, aperture and film in one `fix/` and one refreeze; the 3D solid needs its own fix of the sliver defect (`cut-cell-links/INTEGRATION.md` 3 and 8.1).
-* the other folders: the items in each folder's `INTEGRATION.md` and in `docs/versions.md` ("Planned").
+| Decision | Folder | Recommendation to start from |
+| :-- | :-- | :-- |
+| A2: adopt the candidate P2 (about a week) or keep the stated limit P3 | `analytic-partial-copper` | keep the limit until a user case needs P2 |
+| E10: the reader accepting LM, LR, LS and aperture blocks | `gerber-import` | count the usage in real sets first |
+| E5: hatched zones and their pattern | `gerber-models` | after E3 |
+| E8: nets with voltage and current (the electro-thermal feature); the ground return current (not yet, list it as a limit); the copper resistivity (1.72e-8 ohm m with 0.393 %/K, editable) | `gerber-nets` | the feature is a decision of its own |
+| the centroid edge film for the drawn layers (changes three frozen boards) | `imported-copper-edge-film` | decide after the study of A33 |
+| the first measurement dataset (a colleague's board, `ROADMAP.md` section 5) or a purpose-built set | `convection-laws` | ask the colleague for the data in the request list first |
 
 **Note after `fix/point-via`** (the program no longer keeps the via barrel in `Network.gz`; it is `viawell.py`, couplings in the matrix, and `gz_via` for the Lumped): four research libraries read `net.gz` for the via; they were updated on `research/via-libs-update` (as were the libraries that compile copies of the program's source in `point-via-convergence`, `lumped-analytic-vias` and `lumped-via-groups`; the folder READMEs say what changed and that their numbers were not re-run): `bare-spot-under-source/lib/layered.py:100-101`, `lumped-via-groups/lib/lumped_zones.py:113,338`, `via-fill/scripts/study_via_model_checks.py:90-91` and `sor-with-via-couplings/lib/sorvia.py:43`. The status of those folders above refers to the program before this change, and the numbers of their READMEs are those of the earlier program. `point-via-convergence/` is now implemented in the program (its numbers: the 3 x 3 board gain in `docs/validation.md`). The reproduction pass of 2.4.5 (`releases/2.4.5/reproduction/`) re-ran these folders on the program with the point via, the via constriction and the laminate rule: the libraries work again (`ladder=False` where they need the earlier network) and every moved number is listed there.
 
