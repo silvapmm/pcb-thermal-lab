@@ -26,6 +26,8 @@ from . import tips
 from .document import KINDS
 from . import theme as th
 from ..checks import line
+from .boxes import CollapsibleBox
+from .warning_box import WarningAccordion
 from ..numfmt import num
 
 
@@ -99,10 +101,10 @@ class BoardPanel(QWidget):
         super().__init__(parent)
         self.doc, self._updating = doc, False
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setContentsMargins(4, 8, 4, 8)      # Narrow side margins: the boxes have no frame of their own, and the dock must not scroll sideways at 900 px
 
-        g = QGroupBox("Size")                              # The dock is already titled Board
-        f = QFormLayout(g)
+        g = CollapsibleBox("Size", "board")                 # The dock is already titled Board
+        f = QFormLayout(g.body)
         self.width = _spin(5, 1000, 100, 1, 1, "mm")
         self.height = _spin(5, 1000, 80, 1, 1, "mm")
         self.thickness = _spin(0.2, 10, 1.6, 3, 0.1, "mm")
@@ -128,8 +130,8 @@ class BoardPanel(QWidget):
             sf.addRow(label, w)
         sf.addRow(self.stack_note)
 
-        g = QGroupBox("Board outline")
-        v = QVBoxLayout(g)
+        g = CollapsibleBox("Board outline", "board")
+        v = QVBoxLayout(g.body)
         self.outline_label = QLabel("")
         self.outline_label.setWordWrap(True)
         self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; Lumped, Analytic: the rectangle of the same area.")
@@ -166,8 +168,8 @@ class BoardPanel(QWidget):
         v.addLayout(row)
         lay.addWidget(g)
 
-        g = QGroupBox("Environment")
-        f = QFormLayout(g)
+        g = CollapsibleBox("Environment", "board")
+        f = QFormLayout(g.body)
         self.ambient = _spin(-60, 200, 25, 1, 1, "°C")
         self.h_mode = QComboBox()
         self.h_mode.addItem("Typed by me", "manual")
@@ -658,15 +660,12 @@ class Inspector(QWidget):
 
             def box(title, tip="", host=root):
                 """Add a titled box to the form and return the form inside it (each box groups the fields that belong together)."""
-                g = QGroupBox(title)
-                if tip:
-                    g.setToolTip(tip)
+                g = CollapsibleBox(title, "properties", tip=tip)        # The state of each box is kept by key: this form is rebuilt on every edit
                 host.addRow(g)
-                return QFormLayout(g)
+                return QFormLayout(g.body)
 
             el = getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[kind])[i]
-            title = QLabel(f"<b>{kind.capitalize()}</b>")
-            lay.addRow(title)
+            lay = head = box(kind.capitalize())                 # Name, layer and type of the element (the first box of the mock-up)
             name = QLineEdit(el.name)
             name.setPlaceholderText(f"{kind.capitalize()} {i + 1}")     # An element without a name is listed and warned about under this name
             name.editingFinished.connect(lambda: self.doc.set_props(kind, i, "Rename", name=name.text()))
@@ -698,8 +697,8 @@ class Inspector(QWidget):
                         self.doc.set_props(kind, i, role="component", merge=False)
 
                 typ.currentIndexChanged.connect(switch_type)
-                root.addRow("Type", typ)
-                lay = box("Part")
+                head.addRow("Type", typ)
+                lay = box("Power")
                 w = _spin(0, 1000, el.power, 3, 0.1, "W")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power=v))
                 w.setToolTip("Power dissipated by the part, W.")
@@ -1376,8 +1375,8 @@ class SolverPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 8)
 
-        g = QGroupBox("Models")
-        v = QVBoxLayout(g)
+        g = CollapsibleBox("Models", "simulation")
+        v = QVBoxLayout(g.body)
         self.cb = {"fvm": QCheckBox("Finite volume (FVM), reference"),
                    "lumped": QCheckBox("Thermal network (LPTN)"),
                    "analytic": QCheckBox("Analytical (Fourier series)"),
@@ -1396,8 +1395,8 @@ class SolverPanel(QWidget):
             c.toggled.connect(self._apply)
         lay.addWidget(g)
 
-        g = QGroupBox("Settings")
-        f = QFormLayout(g)
+        g = CollapsibleBox("Settings", "simulation")
+        f = QFormLayout(g.body)
         self.cell = _spin(0.1, 20, 1.0, 2, 0.25, "mm")
         self.auto_cell = QPushButton("Auto")
         self.auto_cell.clicked.connect(self._auto_cell)
@@ -1457,8 +1456,8 @@ class SolverPanel(QWidget):
         self.progress.setTextVisible(False)
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.checks = WarningList()
-        # The Run button, the progress and the checks are a footer of their own: the main window keeps it below the scrolled settings, so the
+        self.checks = WarningAccordion("simulation")          # The 'Warnings (N)' box of the scrolled settings
+        # The Run button and the progress are a header of their own: the main window keeps it above the scrolled boxes, so the
         # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
         self.footer = QWidget()
         fl = QVBoxLayout(self.footer)
@@ -1467,7 +1466,7 @@ class SolverPanel(QWidget):
         fl.addWidget(self.cancel)
         fl.addWidget(self.progress)
         fl.addWidget(self.status)
-        fl.addWidget(self.checks)
+        lay.addWidget(self.checks)
         lay.addStretch(1)
 
         for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n):
@@ -1607,7 +1606,19 @@ class SolverPanel(QWidget):
         @brief Show the validity checks of the current design under the Run button.
         @param warnings List of warning strings from checks.check_input (validity, model limits, vias).
         """
-        self.checks.set_warnings(warnings)
+        self.checks.set_warnings(warnings, self._element_name)
+
+    def _element_name(self, kind, index):
+        """!
+        @brief The name of an element for the 'Select heater U1' button.
+        @param kind Element kind ("heater", "zone", "heatsink", "via").
+        @param index 0-based index.
+        @return str The element's name, or its default name ("Heater 2"), or "" when the index is gone.
+        """
+        items = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}.get(kind, ""), None)
+        if items is None or not 0 <= index < len(items):
+            return ""
+        return getattr(items[index], "name", "") or f"{kind.capitalize()} {index + 1}"
 
     def set_running(self, running, text=""):
         """!

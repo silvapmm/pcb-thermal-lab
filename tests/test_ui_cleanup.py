@@ -192,8 +192,6 @@ def test_a_stale_warning_list_ignores_clicks_until_the_next_check(qtbot):
 
 
 def test_a_click_on_a_warning_after_an_edit_selects_nothing_until_the_check_runs(qtbot, tmp_path):
-    from PySide6.QtCore import QUrl
-
     from pcbthermal.checks import CheckWarning
     from pcbthermal.examples import example_board
 
@@ -204,12 +202,16 @@ def test_a_click_on_a_warning_after_an_edit_selects_nothing_until_the_check_runs
     checks = win.solver_panel.checks
     checks.set_warnings([cw])
     win.canvas.set_selection([])
+    row = checks.rows[0]
+    row.set_open(True)                                 # The button is in the opened warning
+    assert row.button.text().startswith("Select heater")
     win.doc.changed.emit()                             # An edit: the list is stale until the timer runs the check
-    assert checks.stale
-    checks._clicked(QUrl("heater:1"))
+    assert checks.stale and not row.button.isEnabled()
+    checks._selected("heater", 1)
     assert win.canvas.selected_elements() == []
-    checks.set_warnings([cw])                          # The check ran: the links work again
-    checks._clicked(QUrl("heater:1"))
+    checks.set_warnings([cw])                          # The check ran: the button works again
+    assert checks.rows[0].is_open()                    # The row the user opened stays open across the refresh
+    checks.rows[0].button.click()
     assert win.canvas.selected_elements() == [("heater", 1)]
     win.canvas.set_selection([])
     win._select_from_warning("heater", 99)             # No such element: no error, nothing selected
@@ -220,8 +222,6 @@ def test_a_click_on_a_warning_after_an_edit_selects_nothing_until_the_check_runs
 def test_thirty_warnings_do_not_push_the_run_button_or_the_settings_out_of_a_low_window(qtbot, tmp_path):
     from PySide6.QtWidgets import QScrollArea
 
-    from pcbthermal.gui.panels import WarningList
-
     win = _window(qtbot, tmp_path)
     checks, run = win.solver_panel.checks, win.solver_panel.run
     win.resize(1200, 420)
@@ -229,20 +229,16 @@ def test_thirty_warnings_do_not_push_the_run_button_or_the_settings_out_of_a_low
     low = win.height()                                 # The lowest the window goes without warnings (its minimum, about 450 px)
     assert low <= 480
     checks.set_warnings([f"warning number {i} " * 6 for i in range(30)])
-    qtbot.wait(100)                                    # The list appears (the window may grow to show it) before the user makes it low again
+    qtbot.wait(100)
     win.resize(1200, 420)
     qtbot.wait(100)
     host = win.dock_sim.widget()
-    # The list shrinks and scrolls instead of raising the minimum height of the window (a fixed-height list raised it by 110 to 160 px)
-    assert win.height() <= low + WarningList.MIN_HEIGHT + 10
-    assert checks.height() <= max(WarningList.MIN_HEIGHT, host.height() // 4) + 1
-    assert host.findChild(QScrollArea).height() >= 120                 # The settings keep their strip
+    # The rows are closed and the box is in the scrolled part of the dock: the window does not grow and the Run button (above the boxes) stays in sight
+    assert win.height() <= low + 10
+    assert host.findChild(QScrollArea).height() >= 120
     top = run.mapTo(win, run.rect().topLeft()).y()
     assert top >= 0 and top + run.height() <= win.height()
-    # A tall window shows more of the list again
-    win.resize(1200, 1000)
-    qtbot.wait(100)
-    assert WarningList.MIN_HEIGHT < checks.height() <= WarningList.MAX_HEIGHT
+    assert checks.box.title() == "Warnings (30)" and not any(r.is_open() for r in checks.rows)
 
 
 def test_the_count_of_unknowns_spans_the_whole_form_row(qtbot, tmp_path):

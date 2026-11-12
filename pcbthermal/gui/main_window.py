@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
@@ -36,7 +36,8 @@ from . import compute
 from .compute import ProcessWorker
 from . import package_actions
 from .document import Document
-from .panels import BoardPanel, ElementList, Inspector, SolverPanel, WarningList
+from . import boxes
+from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
@@ -176,32 +177,6 @@ class BackgroundDialog(QDialog):
         return out
 
 
-class _FooterLimiter(QObject):
-    """!
-    @brief Keeps the footer of a dock (Run button, progress, warnings) from taking a low dock: the warning list gets a quarter of the height.
-    """
-
-    def __init__(self, host, footer):
-        """!
-        @param host Widget that holds the scroll area and the footer.
-        @param footer The footer widget; its WarningList children are limited.
-        """
-        super().__init__(host)
-        self.footer = footer
-
-    def eventFilter(self, obj, event):
-        """!
-        @brief On a resize of the dock content, set the maximum height of its warning lists.
-        @param obj Watched widget.
-        @param event Qt event.
-        @return False always (the event continues).
-        """
-        if event.type() == QEvent.Resize:
-            for w in self.footer.findChildren(WarningList):
-                w.set_max_height(obj.height() // 4)
-        return False
-
-
 class MainWindow(QMainWindow):
     """!
     @brief The application window.
@@ -215,6 +190,7 @@ class MainWindow(QMainWindow):
         th.fix_number_locale()                                  # Decimal point everywhere, before any spin box exists
         super().__init__()
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
+        boxes.set_store(self.settings)                         # The open or collapsed state of every box is kept in the settings, by key
         self.theme_name = self.settings.value("theme", "dark")
         self.doc = doc or Document()
         self.sim, self.worker, self._stale, self._guide = None, None, False, None
@@ -318,7 +294,7 @@ class MainWindow(QMainWindow):
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
-        @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
+        @param footer Optional widget kept above the scroll area, always visible (the Run button of the Simulation panel).
         @param label Title shown in the title bar and the View menu (default: title).
         @return The QDockWidget.
         """
@@ -337,10 +313,9 @@ class MainWindow(QMainWindow):
                 hl = QVBoxLayout(host)
                 hl.setContentsMargins(0, 0, 0, 0)
                 hl.setSpacing(0)
+                hl.addWidget(footer)                        # The Run button, the progress and the status stay above the boxes (they scroll below)
                 hl.addWidget(area_widget, 1)
-                hl.addWidget(footer)
-                area_widget.setMinimumHeight(120)           # The settings keep a usable strip (they scroll); the footer never takes the whole dock
-                host.installEventFilter(_FooterLimiter(host, footer))
+                area_widget.setMinimumHeight(120)           # The boxes keep a usable strip (they scroll); the footer never takes the whole dock
                 area_widget = host
             d.setWidget(area_widget)
         else:
@@ -510,6 +485,12 @@ class MainWindow(QMainWindow):
         # The keyboard route to the model menu of the card of the map (the card itself answers the mouse only)
         self.a_model = self._act("Model of the map…", self._key_model_menu, "M",
                                  tip="Choose the model shown by the map (M)")
+        # The layer keys: L next, Shift+L previous, 1 to 9 a layer, 0 all layers (Temperature); they drive the toolbar Layer box
+        self.a_layer_next = self._act("Next layer", lambda: self._step_layer(1), "L", tip="Next layer (L)")
+        self.a_layer_prev = self._act("Previous layer", lambda: self._step_layer(-1), "Shift+L", tip="Previous layer (Shift+L)")
+        for n in range(10):
+            self.addAction(self._act("Show all layers" if n == 0 else f"Show layer {n}", lambda _=False, k=n: self._show_layer_key(k), str(n),
+                                     tip="Show all layers (0)" if n == 0 else f"Show layer {n} ({n})"))     # Active without a menu entry
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the imported copper under the elements")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
@@ -549,7 +530,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_imported, self.a_labels, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -575,7 +556,7 @@ class MainWindow(QMainWindow):
         which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
         tool bar tooltips and the keyboard help still name them.
         """
-        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model):
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev):
             keys = a.shortcuts()
             a.setShortcuts([])
             hidden = QAction(a.text(), self)
@@ -583,7 +564,7 @@ class MainWindow(QMainWindow):
             if a is self.a_overlay:
                 hidden.triggered.connect(self._key_overlay)
                 self._hidden_overlay_key = hidden
-            elif a in (self.a_display, self.a_model):
+            elif a in (self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev):
                 hidden.triggered.connect(a.trigger)          # Same route as the menu entry: the popover takes the keyboard
             else:
                 hidden.triggered.connect(a.toggle)
@@ -1115,6 +1096,41 @@ class MainWindow(QMainWindow):
             self.layer_choice.pick(data)
             self._apply_layer()
 
+    def _step_layer(self, delta):
+        """!
+        @brief Key L (next) and Shift+L (previous): move the toolbar Layer box to the next copper layer, round the end (All layers and the blocks are skipped).
+        @param delta +1 or -1.
+        """
+        combo = self.layer_combo
+        singles = [i for i in range(combo.count()) if layerchoice.is_single(combo.itemData(i))]
+        if not singles:
+            return
+        cur = combo.currentIndex()
+        j = (singles.index(cur) + delta) % len(singles) if cur in singles else (0 if delta > 0 else len(singles) - 1)
+        self._pick_combo_entry(singles[j])
+
+    def _show_layer_key(self, n):
+        """!
+        @brief Keys 1 to 9 show that layer, 0 shows All layers (offered by Temperature only); a key with no such entry says why in the status bar.
+        @param n The digit pressed.
+        """
+        combo, want = self.layer_combo, (layerchoice.ALL_LAYERS if n == 0 else n - 1)
+        i = combo.findData(want)
+        if i < 0:
+            self.statusBar().showMessage("All layers is offered by the Temperature tab only." if n == 0 else f"The board has no layer {n}.", 5000)
+            return
+        self._pick_combo_entry(i)
+
+    def _pick_combo_entry(self, i):
+        """!
+        @brief Choose an entry of the Layer box as if the user had clicked it (a pick of the entry already shown counts too: it replaces a fallback layer).
+        @param i Combo index.
+        """
+        if self.layer_combo.currentIndex() == i:
+            self._on_layer_changed(i)
+        else:
+            self.layer_combo.setCurrentIndex(i)
+
     def _set_layer(self, layer):
         """!
         @brief Choose a copper layer by code (a selection on another layer, a clicked warning).
@@ -1334,14 +1350,15 @@ class MainWindow(QMainWindow):
 
     def export_results(self):
         """!
-        @brief Save report, summary, CSV fields and figures to a folder.
+        @brief Save report, summary, CSV fields and figures to a folder; the temperature maps follow the Display choice (View, underlay, colour map).
         """
         if self.sim is None:
             QMessageBox.information(self, "Export", "Run a simulation first.")
             return
         d = QFileDialog.getExistingDirectory(self, "Export results to folder")
         if d:
-            files = self.sim.save(d, plots=True)
+            # The maps are written as the Display panel draws them: the same View, underlay (copper or image), opacity and colour map
+            files = self.sim.save(d, plots=True, view=self.display.map_view("temperature", self.theme_name), cmap=self.display.cmap)
             self.statusBar().showMessage(f"{len(files)} files written to {d}")
 
     def export_report(self):
@@ -1630,6 +1647,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature map on the board (T; the Display button of the tool bar says how it is drawn)</td></tr>
+<tr><td><b>L, Shift+L, 1 to 9, 0</b></td><td>Next layer, previous layer, that layer (1 to 9), all layers (0, Temperature tab); the same as the Layer box of the tool bar</td></tr>
 <tr><td><b>D</b></td><td>Display settings: opens the Display panel with the keyboard in its controls</td></tr>
 <tr><td><b>M</b></td><td>Model of the map: the list of the models of the result (the same as a click on the model name of the card on the board)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>

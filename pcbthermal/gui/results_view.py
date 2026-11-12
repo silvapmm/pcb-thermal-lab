@@ -24,6 +24,7 @@ from . import tips
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
+from .warning_box import WarningAccordion
 from ..numfmt import num
 
 
@@ -466,8 +467,7 @@ class ResultsView(QWidget):
         _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
         # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
         self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.warnings = QLabel()
-        self.warnings.setWordWrap(True)
+        self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
         # An empty Results tab said nothing: it now tells a first-time user what to do
@@ -546,18 +546,15 @@ class ResultsView(QWidget):
         self._anim_warns = [str(w) for w in warns]
         if getattr(self, "sim", None) is not None:
             self._show_warnings(self.sim.warnings)
-            self.warnings.setVisible(True)
+            self.warnings.setVisible(bool(self.warnings.warnings))
 
     def _show_warnings(self, warns):
         """!
-        @brief Write the notes of the run under the models table, text and symbol in the same theme token.
+        @brief Write the notes of the run in the Warnings box under the models table (closed rows with clean titles; a row the user opened stays open).
         @param warns List of warning strings.
         """
         warns = list(warns) + [w for w in self._anim_warns if w not in warns]
-        tone = th.colors(self.theme)["alert_note"]
-        self.warnings.setTextFormat(Qt.RichText)
-        # Two line breaks = one blank line between warnings, so that a long list is easy to read
-        self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+        self.warnings.set_warnings(warns)
 
     def set_underlay_source(self, imported, cfg):
         """!
@@ -599,7 +596,7 @@ class ResultsView(QWidget):
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report())
+        self.report.setPlainText(sim.report(inline_warnings=False))      # The warnings are in the box above it
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
