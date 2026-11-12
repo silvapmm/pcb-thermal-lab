@@ -1,5 +1,7 @@
 # Integration of the zonal Lumped model into the program (design, measured impact, go / no-go)
 
+**Status (audit 2.6.1).** Implemented in 2.5.0 (`feature/lumped-zones`, reviewed and merged; `docs/versions.md` 2.5.0, `docs/theory.md` 5.2, `docs/validation.md` 18.2) with the choice `cap`; the footprint potentials in blocks are `fix/lumped-footprint-potentials` (2.5.0). Changes of 2.6.0 that act on the zoned network: the first ring capped at the equivalent radius (`fix/lumped-first-ring`) and the barrel length `d + 0.5 t_cu` (`fix/via-barrel-and-rim-uncoupling`). 'Nothing is implemented in the program' below is the status when written.
+
 What would enter `pcbthermal/` in 2.5.0 (the maintainer moved the zonal Lumped model into that version), written against `develop` as it is: the micro well per via, the cluster well per group with the macro radius capped at 0.75 fin lengths, Kron reduced barrel nodes (2.4.5); the footprint potentials aggregated in blocks (`fix/lumped-footprint-potentials`); the Lumped via warnings with their corrected bounds (`fix/lumped-via-warning-limits`). **Nothing is implemented in the program.** Every impact below was measured in this folder (README sections 4, 8 and 9). Adoption goes on a `feature/lumped-zones` branch off `develop` (a new model behaviour: a minor number, 2.5.0) with the reviewer and the whole battery. The prototype the design follows is `lib/zoned_lumped.py` (a copy of `lumped._heater_network` with the zone branch, replacing the program's functions in memory for the length of a context).
 
 ## 0. Go / no-go proposal

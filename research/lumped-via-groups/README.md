@@ -1,5 +1,7 @@
 # The via group term of the Lumped model (investigation A6b)
 
+*(audit 2.6.1: the label A6b and the 'roadmap row 9b' of the question no longer exist in `research/ROADMAP.md`; the item is closed under A6. Option C of this folder, the two-zone footprint, is in the program since 2.5.0 as the zonal Lumped model, `feature/lumped-zones`, through `research/lumped-zones-adoption`; see `INTEGRATION.md`.)*
+
 **Question.** The Lumped model's group (cluster, macro) term, added by `research/lumped-analytic-vias`, makes the via effect 18 to 32 % too small on dense arrays of the example board, while the micro well alone leaves compact clusters and rows 19 to 50 % too large, and no fixed factor on the group term fits (best 0.3 to 0.8 of theory). Does the group term double-count lateral spreading that the rings already carry inside the footprint (a hypothesis that was not tested)? If not, what is wrong with it, what replaces it, and if nothing reliable emerges, what is the stated limit of the model and its warning? (Roadmap row 9b, item A6b.)
 
 **Answer in short.**

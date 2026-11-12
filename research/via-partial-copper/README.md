@@ -4,6 +4,8 @@ A via whose footprint covers a plane that has copper over only part of the footp
 
 **Reviewed** (section 9): go for closing; the reviewer's recommendation for the numerical fix differs from section 7 (the star coupling, not the sheet weights, in 2.6.0). Everything below was run with `pcbthermal` at the tip of `develop` (branch `research/via-partial-copper`, scripts from the repository root: `.venv/bin/python research/via-partial-copper/scripts/<script>.py`; tests: `.venv/bin/python -m pytest -q research/via-partial-copper/tests`, 16 pass). The numbers are the ones the scripts print.
 
+**Status (audit 2.6.1).** The warning (proposal A) is in the program since 2.5.0. The numerical fix recommended by the review (the star) was implemented on `feature/via-star-coupling` and its review gave no-go; it is not in the program. 2.6.0 added the barrel length `d + 0.5 t_cu` and the rim uncoupling (`research/via-contact-geometry`), which move the 'current' rows of the tables below (audit re-run in section 2).
+
 ## 1. Question and what would answer it
 
 *Question.* Why does a partial-copper footprint make a cold spot, how far is the via effect wrong in each direction, do antipads (clearances around a via) do the same, and what is the smallest correction that removes it without moving what is right?
@@ -36,7 +38,7 @@ Board of `docs/theory.md` 2.2 (`copper_edge_board` of `tests/test_maximum_princi
 | FDM via effect, K (cold spot 0.00 at every cell) | 8.93 | 10.69 | 11.06 | 11.36 |
 | 3D solid via effect, K | 0.70 | 2.86 | 7.20 | 10.74 |
 
-The cold spot of the Planned item is reproduced to the digit (-7.94 and -14.43 K). The FDM has none (node-centred footprint, copper edge on the node line).
+The cold spot of the Planned item is reproduced to the digit (-7.94 and -14.43 K). *(audit 2.6.1: on the 2.6.1 tree the program reads FVM via effect 5.55 / 6.76 / 7.44 / 8.24 K, cold spot 0.00 / -5.49 / -12.80 / -14.05 K, FDM 8.58 / 10.61 / 10.99 / 11.25 K, 3D solid 0.74 / 2.86 / 7.09 / 10.56 K at 1 / 0.5 / 0.25 / 0.125 mm. The FVM and FDM moved with 2.6.0: the rim uncoupling (the top copper ends at the via centre, so its well is scaled by a rim share of about 0.5; this is the variant `contact_geo` of `research/via-contact-geometry`) and the barrel `d + 0.5 t_cu`; the 3D solid moved with its slabs by thickness (its barrel is unchanged). The cold spot is smaller at 0.5 and 0.25 mm but still there; the 'sheet', 'plane' and 'star' rows of 5.1 reproduce to the digit (they rebuild their own couplings). The table above is the program of 2.5.0.)* The FDM has none (node-centred footprint, copper edge on the node line).
 
 **A claim of the Planned item is not supported.** It says the via effect is "7.7 K against 2.9 K in the 3D solid", read as an exaggeration of 2.5 times. The 2.9 K is the 3D solid at 0.5 mm; the table shows that this reference is not converged: it grows 0.70, 2.86, 7.20, 10.74 K from 1 to 0.125 mm and has not stopped. At 0.125 mm the FVM (8.28 K) is below it. On the 10 x 10 mm boards of section 3, where the 3D solid converges (1/16 and 1/20 mm agree to 0.2 % on the copper edge), the program's FVM reads the via effect **low** (-31 to -47 % on a copper edge through the via, -45 to -68 % on a track), not high. The cold spot is a real defect (the field is not physical, section 4); "the via effect is exaggerated" is withdrawn. The effect is misread in both directions (section 3).
 

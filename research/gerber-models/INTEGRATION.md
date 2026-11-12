@@ -1,4 +1,4 @@
-# Phase 2: applying the copper mapping in the program (design, not implemented)
+# Phase 2: applying the copper mapping in the program (design; the imported copper with the flow-based faces is in the program since 2.5.0, see section 7)
 
 Questions from the maintainer: *how is the mapping applied, do the algorithms change, or is there an intermediate layer?*
 
@@ -15,7 +15,7 @@ Tried in `prototype_in_program.py` and `lib/faces.py`: the program's own `fvm.Ne
 
 *Answer to "do the models have to change, or an intermediate layer?" (README 4.31 and 4.34): both, in a fixed order. The intermediate layer is the importer (`lib/faces.py` today (reading is `research/gerber-import/lib/importer.py`), `pcbthermal/copper.py` in the design below): it turns files into per-layer face conductances, vias and nets and hands the model data it already understands, so the program's physics and file format do not change. The FVM then needs only to accept faces instead of the harmonic mean of cell values (done in the prototype by the `FaceNetwork` subclass, without editing `fvm.py`); the FDM and the 3D solid need the same small change; the Lumped and the Analytic cannot take faces and need their own reduction of the mask. Handing every model a cell value instead (the cheap way, no model change) was measured on our board: +14 to +24 % in the FVM and FDM, +29 to +43 % in the Lumped (re-run by the review, README 4.34).*
 
-*Status: the import stage itself exists as research code, `lib/faces.py` (README 4.31, figure 3): reading, vias, face conductances and a `FaceNetwork` for the FVM. The interface (layer confirmation, outline, heaters) and the FDM/3D faces are still design only.*
+*Status: the import stage itself exists as research code, `lib/faces.py` (README 4.31, figure 3): reading, vias, face conductances and a `FaceNetwork` for the FVM. The interface (layer confirmation, outline, heaters) and the FDM/3D faces are still design only. (audit 2.6.1: stale; the import window, the FVM and FDM faces and the 3D solid's fill reading are in the program since 2.5.0, section 7.)*
 
 The question ("is a Gerber not just copper as polygons, like the zones we draw?") has a short answer: **in geometry yes, in what the solver does with it no, and the solver is where the work is.** Facts checked in the code and by tests (README 4.27):
 
@@ -94,17 +94,21 @@ Only where the cell conductances are read, and only when imported copper exists.
 
 ## 7. Status against the program (checked against the code)
 
-* **Not adopted**: `pcbthermal/copper.py` does not exist; no model takes face conductances from a mask; there is no `Zone.pattern`; the diagonal faces are not in the network (sections 2, 4 and 9 are designs).
-* **Still as described in section 0, point 2**: zones are combined per cell with `np.maximum` (`fvm.py` line 78 on the current `develop`); the correction of section 8.1 is not applied.
-* **Done in the program**: the laminate under a single copper layer in the 3D solid (section 8.2) and the laminate nodes of one-layer boards in the FVM, FDM and Lumped (`laminate.py`).
+*(audit 2.6.1: this section said that `copper.py` does not exist and that the zones are still combined per cell with `np.maximum`; both were false since 2.4.3 and 2.5.0. Re-checked against the program of 2.6.0.)*
+
+* **Done, 2.5.0** (`feature/imported-copper`): `pcbthermal/copper.py` exists. The default mapping is the flow-based faces built on the REDUCED sheet of the laminate rule (`copper.face_conductances`, `DEFAULT_MAPPING = "faces"`), with `lambda` and `fill` as the other two (`copper.MAPPINGS`); the FVM and FDM take the faces, an imported layer REPLACES the zones of its layer, the 3D solid, Lumped and Analytic read the cell fill and warn. The design differs from section 2: there is no `CopperMask` class and no mask for a drawn zone. The default awaits the maintainer's formal confirmation (`docs/versions.md` 'Planned', 'Next, in order' 1(a)).
+* **Done, 2.5.0, differently**: the mapping is a property of the import (`model.ImportedCopper.mapping`, the group 'Copper mapping' of the import window), not a `SolverOptions` field.
+* **Done, 2.4.3**: the correction of section 8.1, the union per sample point (`geometry.zone_fill`, used by the FVM, FDM, 3D solid, Analytic and the checks; `docs/versions.md` 2.4.3 'Zone union per sample point').
+* **Done earlier**: the laminate under a single copper layer in the 3D solid (section 8.2) and the laminate nodes of one-layer boards in the FVM, FDM and Lumped (`laminate.py`; 2.4.5 rule for patterned copper).
+* **Not planned (open research)**: `Zone.pattern` (`research/ROADMAP.md` E5), the Lumped and Analytic reading the mask instead of the fill (E3), the diagonal faces of section 9 (E1, failed the held-out test), the 3D solid taking `kx`, `ky` from the mask. **Still planned**: orthotropic copper from the raster (`docs/versions.md` 'Planned', Features, Import).
 * The section numbers 8 and 9 are cited by other documents, which is why the numbering skips from 6 to this section.
 
 ## 8. Two corrections to the program found by the research, with their measured impact (README 4.39)
 
-1. **Combine zones by the maximum per sample point, not per cell** (`geometry.zone_fill`, used by `fvm.py`, `fdm.py`, `solid3d.py`, `analytic.py`, `checks.py` in place of the loop with `np.maximum`). Copper tiled in abutting zones is no longer lost (-8.2 % FVM, -19.1 % FDM, -8.3 % 3D on 0.5 mm strips: back to the single-zone value); overlapping zones keep the larger fill (the FDM moves by -0.5 % on a partly overlapping pair, from its node averaging); **the example boards do not move at all**. The simpler additive rule double counts overlap (-8.2 %) and failed four program tests: not proposed.
+1. **Combine zones by the maximum per sample point, not per cell** (done in 2.4.3, `geometry.zone_fill`; audit 2.6.1) (`geometry.zone_fill`, used by `fvm.py`, `fdm.py`, `solid3d.py`, `analytic.py`, `checks.py` in place of the loop with `np.maximum`). Copper tiled in abutting zones is no longer lost (-8.2 % FVM, -19.1 % FDM, -8.3 % 3D on 0.5 mm strips: back to the single-zone value); overlapping zones keep the larger fill (the FDM moves by -0.5 % on a partly overlapping pair, from its node averaging); **the example boards do not move at all**. The simpler additive rule double counts overlap (-8.2 %) and failed four program tests: not proposed.
 2. **Laminate under a single copper layer in `solid3d.py`**: **done in the program** (`develop` `0ea5f07`, FR-4 slabs under the copper of a one-layer board). The peak of a single-layer pad board went from 346 to 174.5 K (the same board with a second, empty layer: 174.5 K).
 
-The first was applied to copies of the program outside the repository (re-made by the review on `develop` at `a6f822b`: strips -8.2 % FVM, -19.1 % FDM, -8.8 % Lumped, -7.4 % Analytic, -8.3 % 3D; overlapping zones and the example boards unchanged); adopting it is a normal change on a `fix/<topic>` branch with the documentation, tests and whole battery (rules in CLAUDE.md).
+The first was applied to copies of the program outside the repository (re-made by the review on `develop` at `a6f822b`: strips -8.2 % FVM, -19.1 % FDM, -8.8 % Lumped, -7.4 % Analytic, -8.3 % 3D; overlapping zones and the example boards unchanged); adopting it was a normal change on a `fix/<topic>` branch (it was adopted in 2.4.3, `fix/zone-union`) with the documentation, tests and whole battery (rules in CLAUDE.md).
 
 ## 9. Diagonal faces in the network (design, prototype `lib/diagonal.py`, README 4.44)
 

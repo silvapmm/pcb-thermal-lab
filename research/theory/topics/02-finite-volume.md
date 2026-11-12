@@ -23,7 +23,7 @@ The reference model of the program. The plan of the board is cut into rectangula
 
 `K theta = Q`, with `K = D - A`. `A` is the symmetric matrix of non-negative face conductances and `D` is its row sums plus the ambient conductances. `K` is symmetric, weakly diagonally dominant (strictly where there is an ambient path) and irreducible: a symmetric positive definite **M-matrix**. Consequences: the solution exists and is unique, and the **maximum principle** holds (`theta >= 0`: no temperature below the ambient). The sum of the rows of `K` is the ambient conductance, hence `sum G_amb theta = sum Q`, the energy balance.
 
-The source of a heater is `Q_i = P c_i / sum c` with `c_i` the sub-sampled coverage of the footprint in cell `i` (8 x 8 samples per cell for heaters, 4 x 4 for zones, heatsinks and blocks; the board cover of an outline is also sampled 8 x 8, topic 28), so the **power is exact** whatever the grid; a footprint smaller than a sample sends all the power to the centroid's cell.
+The source of a heater is `Q_i = P c_i / sum c` with `c_i` the sub-sampled coverage of the footprint in cell `i` (8 x 8 samples per cell for heaters, 4 x 4 for zones, heatsinks and blocks; audit 2.6.1: since 2.6.0 the board cover of an outline and the weights of a part across it are the exact area of the polygon in each cell, `geometry.exact_coverage`, and the cut cells are joined by the open fraction of their shared face with the edge film in series, `docs/theory.md` 1.3), so the **power is exact** whatever the grid; a footprint smaller than a sample sends all the power to the centroid's cell.
 
 ## 4. Solvers
 

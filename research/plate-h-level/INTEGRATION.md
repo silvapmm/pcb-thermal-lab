@@ -1,5 +1,7 @@
 # Integration: the plate level of the vertical faces
 
+**Status (audit 2.6.1).** Decisions 1 and 3 were taken in 2.5.0 (`fix/natural-convection-low-ra`): `Board.natural_form` keeps `general` for the class and for old project files, the default of **new** projects is `laminar` (`pcbthermal/data/defaults.json`), and `checks.check_low_rayleigh` warns below a face Ra of 1e3. No `auto` value (decision 2), the 0.59 composite is not offered; the channel correction of `fin-channel` (proposal B) is not implemented ('Planned', "Channel effect between the fins").
+
 What would enter the program, the measured impact, what does not change and the risks. The program is not touched from this branch; every number is in `README.md` (section numbers in brackets) and was measured on a copy in memory (`lib/levels.py`). Decisions are the maintainer's (section 6).
 
 ## 1. What the study found, for the decision

@@ -1,6 +1,6 @@
 # Integration: per-layer edge and local transient of the Analytic model
 
-Everything here is a proposal measured on copies (`lib/`); `pcbthermal/` is untouched. Evidence in `README.md` (sections in brackets).
+**Status (audit 2.6.1): A and B are implemented in 2.6.0** (`feature/analytic-edge-and-local-transient`, with the review's calibration on the via couplings only); B0 was merged in 2.5.0 and its range replaced in 2.6.0; C needed no change. The open remainder is A19 of `research/ROADMAP.md` ('Planned', "Analytic model, what is left"). Originally: everything here is a proposal measured on copies (`lib/`); `pcbthermal/` is untouched. Evidence in `README.md` (sections in brackets).
 
 ## 0. Recommendation
 

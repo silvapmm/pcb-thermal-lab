@@ -1,5 +1,7 @@
 # Integration: BOM role and the before-close hook
 
+*(audit 2.6.1, against the program of 2.6.0: the before-close and before-release hooks are in the program since 2.6.0 (`ImportBoardWindow.before_close`, `ImportSession.before_release`; the 'new_files' hooks run in the GUI thread before the reader's worker starts, the alternative of section 6, not the worker-thread rule). The BOM role was implemented on `feature/bom-role-and-close-hook` and then **deferred by the maintainer** and reverted in the 2.6.0 integration: `pcbthermal/gerber/bom.py` does not exist in the program; the item is 5 of 'After 2.6.0' in `docs/versions.md` 'Planned'; the research question is `research/ROADMAP.md` E14.)*
+
 Branch for the program (after the maintainer decides): `feature/bom-role-and-close-hook` off `develop`, after `feature/project-package` is merged (the hook replaces its `capture_on_close` wrapper). Evidence: `README.md` of this folder; prototype `lib/bomroles.py`.
 
 ## 1. What changes

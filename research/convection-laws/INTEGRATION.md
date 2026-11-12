@@ -1,5 +1,7 @@
 # convection-laws: design for entering the program (proposals, nothing is edited here)
 
+**Status (audit 2.6.1).** Decided by the maintainer: option A in 2.5.0 (keep the laws, the limit written in `docs/theory.md` 8); the face-down half of option B entered 2.6.0 as `Nu = 0.475 Ra^(1/5)` on `L = A/P` (`convection.DOWN_COEFFICIENT`, `DOWN_EXPONENT`; `fix/face-down-convection` from `research/face-down-convection`; `docs/theory.md` 8, `docs/validation.md` 5); the face-up half (Raithby-Hollands) is not adopted and waits for the measurement. The rows below that call option A "keep" describe the program before 2.6.0.
+
 Everything below was measured on a copy of the program in memory (`research/horizontal-plate-h/lib/correlations.py` `use_horizontal`, called by
 `scripts/study_board_effect.py`); `pcbthermal/` is untouched.
 

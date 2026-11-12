@@ -6,7 +6,7 @@
 
 The reader that exists on the research branch, and the full chain from the Gerber files to the temperature: `research/gerber-import/figures/fig_17_nets_from_files.png` (nets), `fig_16_outline_how.png` (outline), `research/gerber-models/figures/fig_10_pipeline.png` (the whole chain); the copper mapping is topic 17.
 
-**Status: planned** (`docs/versions.md` "Planned", "Import of copper and parts"); the Gerber reader and the mappings are researched, not in the program.
+**Status: planned** (`docs/versions.md` "Planned", "Import of copper and parts"); the Gerber reader and the mappings are researched, not in the program. *(audit 2.6.1: stale. The Gerber and Excellon import, the imported copper with the flow-based faces, the parts from the paste and placement files, the X3 component layer and the CAD profiles are in the program since 2.5.0 (`pcbthermal/gerber/`, `copper.py`); what is still planned is the KiCad `.kicad_pcb` file, a power list by designator (the BOM role is deferred), the passive areas and the component library: `docs/versions.md` 'Planned', Features, Import.)*
 
 ## 1. KiCad import
 

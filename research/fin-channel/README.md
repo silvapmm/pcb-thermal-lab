@@ -1,5 +1,7 @@
 # The channel effect between close fins (C3)
 
+**Status (audit 2.6.1).** Proposal A (the post-run warning on the channel Rayleigh number `Ra_b < 90`, replacing the 4 mm rule) is the program since 2.4.4 (`checks.check_fin_channels`, `docs/validation.md`); proposal B (the `phi` correction of the coefficient) is not implemented ('Planned', "Channel effect between the fins", after C3a).
+
 Question (`research/ROADMAP.md` C3): the program's finned metal block uses the fin efficiency `tanh(mL)/(mL)` with one uniform coefficient on every face and only warns at a 4 mm gap; between close fins the air in the channel is slowed and the coefficient falls (Elenbaas 1942; Bar-Cohen and Rohsenow 1984). A remembered correlation put the 6.5 mm gap of the program's finned blocks 10 to 30 % below the typed coefficient (`block-and-fins` 4.1). How large is the effect, from sources that were read, against an independent solution and against measurements; what does it do to the program's results; and what rule or correction should the program have?
 
 **Results in short** (the numbers are in the sections named; everything was computed by the scripts of this folder).

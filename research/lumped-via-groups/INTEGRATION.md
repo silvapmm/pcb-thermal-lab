@@ -1,5 +1,7 @@
 # Integration of the via group treatment into the Lumped model
 
+**Status (audit 2.6.1).** Option C (the two-zone footprint) is implemented in 2.5.0 as the zonal Lumped model (`feature/lumped-zones`; `lumped._zone_network`, `viaconstriction.annulus_out_resistance`, `rim_minus_mean`; adoption study `research/lumped-zones-adoption`), with the macro choice `cap` and a decision raster of 0.5 mm; the 2.6.0 barrel length `d + 0.5 t_cu` applies to its barrels. The roadmap label 'A6b' of this folder no longer exists in `research/ROADMAP.md`: the item is closed under A6. 'Nothing here is implemented' below is the status when written.
+
 What would enter `pcbthermal/` if the maintainer decides to adopt the work, with the measured impact of each choice. Nothing here is implemented; the measurements are on copies in memory (`lib/lumped_groups.py` on `research/lumped-analytic-vias/lib/lumped_patch.py`, `lib/lumped_zones.py`). Adoption goes on a `fix/` or `feature/` branch off `develop` with the whole battery. **All of it presupposes the micro well of `research/lumped-analytic-vias/INTEGRATION.md` 1.1** (the Krogh well per plane in series with the barrel, Kron reduced, `GZ` as a dictionary of couplings between sheets): without it the zones have no via model to join.
 
 ## 1. The three options

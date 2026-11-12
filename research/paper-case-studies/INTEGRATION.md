@@ -40,6 +40,8 @@ Nothing in `pcbthermal/`, `tests/`, `examples/`, `ico/` or the project documents
 
 ### 1.6 What belongs to 2.5.0 and what to 2.6.0 (review)
 
+**Status (audit 2.6.1).** Done: the small-part warning (`checks.check_small_part_laminate`, 2.5.0), the limit texts and the 3.2 mm footnote (`docs/theory.md` 1.4, `docs/validation.md` 21.2), the slab statements (2.5.0), the sentence on one coefficient per face (`docs/theory.md`), the validation rows (`docs/validation.md` 21, plate and via rows), and the slabs by thickness with the face term in the 3D solid (`feature/solid3d-slabs-by-thickness`, 2.6.0, `docs/validation.md` 21.3). Open: the source-aware laminate rule (A18, 'Planned', "Laminate rule local to small parts") and a local convection coefficient. The heading of section 2 ("nothing adopted") is from before those merges.
+
 | Item | Version | Kind | Moves numbers |
 | :-- | :-- | :-- | :-- |
 | Warning for a small part over a thick cut gap (1.1) | 2.5.0 | `fix/`, text | no |

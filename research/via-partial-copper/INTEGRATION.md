@@ -1,5 +1,7 @@
 # Integration: the via on a plane with copper over part of its footprint
 
+**Status (audit 2.6.1).** Proposal A (the live warning) is implemented in 2.5.0 (`fix/via-partial-copper-warning`, `checks.partial_copper_vias`, `docs/validation.md` 30). Neither B (sheet weights) nor C (the star) entered the program: the star was implemented on `feature/via-star-coupling` and its review gave no-go (not merged), and the sheet weights were measured again in `research/via-contact-geometry` and rejected (a copper corner goes to the unsafe side). What 2.6.0 did instead is the barrel length `d + 0.5 t_cu` and the rim uncoupling (`fix/via-barrel-and-rim-uncoupling`); the cold spot of the fixed weights and the corner case stay in `docs/versions.md` 'Planned' (A30 of `research/ROADMAP.md`). 'Nothing here is implemented' below is the status when written.
+
 Design for entering the program; nothing here is implemented (a research branch does not edit `pcbthermal/`). Evidence: `README.md` of this folder (section numbers below refer to it). Two proposals, in the order recommended.
 
 ## 1. Proposal A: the live warning (text only; for 2.5.0)

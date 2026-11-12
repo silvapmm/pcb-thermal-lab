@@ -2,7 +2,7 @@
 
 Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed, see section 7); where it is from somewhere else the text says so.
 
-**Program of 2.4.5 (reproduction pass, numbers below not rewritten).** Sections 4.1 to 4.9 hold the program at `0ea5f07`, before the point via, the via constriction, the laminate rule and the Young omega: the example board at 1 mm now reads FVM / FDM / Lumped / Analytic 85.23 / 85.13 / 86.63 / 85.10 degC (was 85.81 / 84.38 / 84.66 / 84.65), the solver table 306 / 673 / 676 / 779 / 636 sweeps. The current numbers of the five models are in `docs/validation.md` sections 1, 2 and 2.1; every shift and its item: `releases/2.4.5/reproduction/README.md`, Part B 3.5. `study_time_and_coefficients.py` switches the laminate rule off for the exact check of the integrator since the pass (it prints 4.6 again).
+**Audit 2.6.1**: the tables of 4.2 and 4.2.1 were re-run on the 2.6.x program and are printed first in those sections (example board at 1 mm: FVM / FDM / 3D solid / Lumped / Analytic 85.38 / 85.27 / 85.98 / 86.79 / 84.72 degC). **Program of 2.4.5 (reproduction pass, numbers below not rewritten).** Sections 4.1 to 4.9 hold the program at `0ea5f07`, before the point via, the via constriction, the laminate rule and the Young omega: the example board at 1 mm now reads FVM / FDM / Lumped / Analytic 85.23 / 85.13 / 86.63 / 85.10 degC (was 85.81 / 84.38 / 84.66 / 84.65), the solver table 306 / 673 / 676 / 779 / 636 sweeps. The current numbers of the five models are in `docs/validation.md` sections 1, 2 and 2.1; every shift and its item: `releases/2.4.5/reproduction/README.md`, Part B 3.5. `study_time_and_coefficients.py` switches the laminate rule off for the exact check of the integrator since the pass (it prints 4.6 again).
 
 ## 1. The questions
 
@@ -92,6 +92,35 @@ The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-
 
 `python research/models-comparison/scripts/validation_study.py`
 
+*Audit 2.6.1: re-run on the 2.6.x program (345 s; the peak resident memory was 6.7 GB, mostly the 3D solid at 0.5 mm, not the 'about 5 minutes alone' of section 3, which gives no memory). The table of the review follows it.*
+
+| Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
+| :-- | --: | --: | --: | --: | --: | :-: |
+| reference board (centred 20 mm heater) | 90.14 | 90.14 (-0.0 %) | 90.27 (+0.2 %) | 89.69 (-0.7 %) | 90.09 (-0.1 %) | - |
+| example board (full) | 85.38 | 85.27 (-0.2 %) | 85.98 (+1.0 %) | 86.79 (+2.3 %) | 84.72 (-1.1 %) | - |
+| example, no heatsink | 88.44 | 88.32 (-0.2 %) | 89.08 (+1.0 %) | 89.67 (+2.0 %) | 87.70 (-1.2 %) | - |
+| example, no vias | 94.68 | 94.59 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.02 (-0.9 %) | - |
+| example, top copper over the full board | 84.86 | 84.82 (-0.1 %) | 85.42 (+0.9 %) | 86.26 (+2.3 %) | 84.68 (-0.3 %) | - |
+| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (-0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 96.53 (-0.2 %) | - |
+| example, only heater U1 | 79.53 | 79.41 (-0.2 %) | 80.12 (+1.1 %) | 79.95 (+0.8 %) | 78.88 (-1.2 %) | - |
+| example, only U1, uniform | 90.31 | 90.27 (-0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.16 (-0.2 %) | - |
+| reference board, heater in the corner | 109.41 | 109.40 (-0.0 %) | 109.54 (+0.1 %) | 102.09 (-8.7 %) | 109.36 (-0.1 %) | - |
+| reference board, small 5 mm heater | 103.07 | 103.07 (-0.0 %) | 103.71 (+0.8 %) | 102.87 (-0.2 %) | 103.29 (+0.3 %) | - |
+| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.16 (+1.1 %) | 65.69 (-0.0 %) | - |
+| heater 5 mm inside the top-copper edge | 94.49 | 94.05 (-0.6 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.30 (-1.7 %) | warns |
+| heater straddling the top-copper edge | 146.65 | 142.45 (-3.4 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 113.88 (-26.9 %) | warns |
+| no copper on the heater layer | 152.36 | 152.35 (-0.0 %) | 153.19 (+0.7 %) | 150.12 (-1.8 %) | 150.06 (-1.8 %) | warns |
+| 30 x 30 mm copper island around the heater | 92.44 | 91.98 (-0.7 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 89.07 (-5.0 %) | warns |
+| hatched copper (fill 0.5) on the top layer | 106.18 | 106.18 (-0.0 %) | 106.23 (+0.1 %) | 105.79 (-0.5 %) | 105.60 (-0.7 %) | warns |
+| heater on the bottom layer | 88.38 | 88.38 (-0.0 %) | 88.58 (+0.3 %) | 88.02 (-0.6 %) | 88.23 (-0.2 %) | - |
+| long thin heater, 40 x 4 mm | 67.84 | 67.84 (-0.0 %) | 67.92 (+0.2 %) | 71.91 (+9.5 %) | 67.69 (-0.3 %) | - |
+| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.2 %) | 98.51 (-8.5 %) | 105.19 (-0.2 %) | - |
+| two heaters 60 mm apart (4 W + 2 W) | 100.42 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.27 (-0.2 %) | - |
+
+What moved since the review's table (program at `0ea5f07`): the example-board rows by the via items of 2.4.5 (the mean-potential via: the FDM is no longer 2 % low, -0.1 to -0.2 %) and the 2.6.0 model items (+0.15 K on the FVM at 1 mm, mostly the via barrel `d + 0.5 t_cu`; not decomposed here) against `docs/validation.md` 2 and 2.1, which still print 85.23 degC at 1 mm and 85.07 at 2 mm, the numbers before 2.6.0; the Lumped of those rows by the via constriction (2.4.5) and the zonal network (2.5.0), from -1.9 to +2.3 %; the Analytic by the Robin and per-layer edge (-0.1 to -1.2 % on the example rows, the corner -0.1 % instead of +1.2 %, the copper island -5.0 % instead of -4.3 %); the straddling heater -28.9 / -26.9 % (were -27.2 / -24.7). The readings below hold, with those numbers.
+
+Table of the review (program at `0ea5f07`):
+
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
 | reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 90.27 (+0.2 %) | 89.69 (−0.7 %) | 90.35 (+0.3 %) | - |
@@ -123,6 +152,20 @@ Reading:
 * **Lumped** stays within about 4 % in most cases, 9 % at worst (corners, thin heaters), and also fails when a copper edge crosses the heater.
 
 ### 4.2.1 Against the grid (example board)
+
+*Audit 2.6.1 (same run):*
+
+| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
+| --: | --: | --: | --: | --: |
+| 4 | 83.68 | 83.93 | 86.83 | 83.10 |
+| 2 | 85.20 | 84.41 | 85.90 | 85.48 |
+| 1 | 85.38 | 85.27 | 86.05 | 85.98 |
+| 0.5 | 85.32 | 85.26 | 85.62 | 85.40 |
+| 0.25 | 85.30 | 85.28 | 85.41 | - |
+
+*With the mean-potential via (2.4.5) the FVM no longer rises monotonically to its limit: it peaks at 1 mm (85.38) and settles to 85.32 and 85.30 degC at 0.5 and 0.25 mm (0.08 K from 1 mm), the area-sampled FDM within 0.1 K of it from 1 mm down. The paragraph after the table of the review describes the point via of that program.*
+
+Table of the review:
 
 | Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
 | --: | --: | --: | --: | --: |
