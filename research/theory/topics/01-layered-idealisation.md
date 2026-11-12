@@ -1,5 +1,7 @@
 # 01. The layered idealisation: one temperature per copper layer
 
+*(audit 2.7.0: this topic predates the laminate edge band of 2.6.0 (the nodes next to a cooled board edge are cut into sub-gaps, FVM and FDM) and the exact board cover and cut-cell links of the FVM; the reference is `docs/theory.md` 1.2 and 1.4.)*
+
 ![The layered idealisation](../figures/fig_01_layered_idealisation.png)
 
 *Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`. Where copper is absent next to a gap the gap is cut into laminate nodes (`laminate.py`, `docs/theory.md` 1.4); redrawn with that note.*
