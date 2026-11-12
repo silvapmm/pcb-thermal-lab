@@ -1,5 +1,7 @@
 # A spot without copper under a source, in the layered models (investigation A12)
 
+*Superseded by [`laminate-nodes/`](../laminate-nodes/README.md) for the laminate nodes next to bare cells (2.4.5) and by [`laminate-slabs-and-local-rule/`](../laminate-slabs-and-local-rule/README.md) for the local rule; this folder keeps the first study of the spot without copper.*
+
 **Question.** In the layered models (FVM, FDM, Lumped, Analytic) one node per copper layer holds the copper and half of the laminate around it, and its temperature is the mean through that thickness. Where the hottest cell under a part has no copper, is the vertical path through the laminate resolved? On a real board the FVM read another 12.5 to 14.4 points cool in that situation (`zone-union` 8.3). Does a number of nodes in the laminate (A1, A11), or a bare-spot-aware vertical resistance, remove the error against a resolved 3D solver?
 
 **Status (audit 2.7.0).** P1 (vertical correction), P2 (laminate nodes next to bare cells) and P3 (the bare-laminate warning) are in the program since 2.4.5 (`fix/laminate-nodes` through `research/laminate-nodes`, `fix/model-limit-warnings`); the Lumped and Analytic items stay open (A2). See `INTEGRATION.md`.
