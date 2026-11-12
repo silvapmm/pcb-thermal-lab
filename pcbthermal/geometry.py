@@ -190,6 +190,51 @@ def exact_coverage(poly, nx, ny, dx, dy):
     return out
 
 
+def cover_centroids(poly, nx, ny, dx, dy, cells, n=8, strip=16):
+    """!
+    @brief Centroid of the part of every selected cell that lies on the board (the cell's board part), from the exact cover of an n x n sub-grid of the cell.
+    @details The sub-cell covers are exact (`exact_coverage` on the grid refined n times), so the centroid is that of the polygon piece up to the sub-grid (n = 8: 1/16 of a cell
+             at most). Only the row strips that hold a selected cell are refined (`strip` rows of cells at a time, the outline shifted down by the strip's first row), so
+             a 200 mm board does not build the 8-times finer grid of the whole board but one strip of it (measured on a 200 x 150 mm outline: 54 MB and 0.42 s at 0.25 mm,
+             131 MB and 1.9 s at 0.125 mm; 64-row strips took 173 and 369 MB in the same time).
+    @param poly Closed outline (n_vertices, 2) in metres.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param cells Boolean array (ny, nx): the cells whose centroid is wanted.
+    @param n Sub-cells per cell side.
+    @param strip Rows of cells refined at a time.
+    @return Tuple (cx, cy, share): x and y of the centroid in metres and the board share of the cell (0..1), arrays (ny, nx); zero (centre of the cell for cx, cy) where not selected or no board.
+    """
+    p = np.asarray(poly, dtype=float)
+    cx = (np.arange(nx) + 0.5)[None, :] * dx * np.ones((ny, 1))
+    cy = (np.arange(ny) + 0.5)[:, None] * dy * np.ones((1, nx))
+    share = np.zeros((ny, nx))
+    rows = np.nonzero(cells.any(axis=1))[0]
+    if rows.size == 0:
+        return cx, cy, share
+    xs = ((np.arange(nx * n) + 0.5) * dx / n).reshape(1, nx, n)
+    for r0 in range(int(rows[0]), int(rows[-1]) + 1, strip):
+        r1 = min(r0 + strip, ny)
+        sel = cells[r0:r1]
+        if not sel.any():
+            continue
+        shifted = p - np.array([0.0, r0 * dy])
+        cov = exact_coverage(shifted, nx * n, (r1 - r0) * n, dx / n, dy / n)
+        cv = cov.reshape(r1 - r0, n, nx, n)
+        ys = ((np.arange((r1 - r0) * n) + 0.5) * dy / n + r0 * dy).reshape(r1 - r0, n, 1)
+        w = cv.sum(axis=(1, 3))
+        ok = sel & (w > 0)
+        mx = (cv * xs.reshape(1, 1, nx, n)).sum(axis=(1, 3))
+        my = (cv * ys.reshape(r1 - r0, n, 1, 1)).sum(axis=(1, 3))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cx[r0:r1][ok] = (mx / w)[ok]
+            cy[r0:r1][ok] = (my / w)[ok]
+        share[r0:r1][ok] = w[ok] / (n * n)
+    return cx, cy, share
+
+
 def _line_lengths(poly, n_lines, spacing, n_seg, seg, axis, shift):
     """!
     @brief Inside length over each segment of each interior grid line of one family (helper of `face_apertures`).

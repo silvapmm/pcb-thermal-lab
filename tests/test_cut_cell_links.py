@@ -526,7 +526,7 @@ def test_a_rectangle_with_imported_copper_has_no_outline_note_and_is_unchanged()
     q.add_heater(1, 1.0, rect=(4, 4, 6, 6), name="U")
     q.imported = copper.imported_from_rasters([stripes, np.ones((40, 40), np.uint8)], 0.25, "faces")
     assert not any("outline" in w for w in copper.model_warnings(q, "fvm"))
-    # an imported outline that is the whole box cuts no cell: the pixel path gives the links of the rectangle (the links are the rectangle's; what differs from the plain rectangle is only the film, which a board with imported copper and an outline keeps on the node,
+    # an imported outline that is the whole box cuts no cell: the pixel path gives the links of the rectangle (the links are the rectangle's; what differs from the plain rectangle is only the film, now in series on the imported layers from the centroid of the board part of the cell,
     # 0.5 % of the rise here)
     t0 = fvm.solve_steady(q, cell_mm=0.5).t_max
     q.set_outline([[0, 0], [10, 0], [10, 10], [0, 10]])
