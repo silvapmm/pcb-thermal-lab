@@ -105,7 +105,8 @@ def nearest_neighbour(points):
 
 def via_groups(points, d_nn):
     """!
-    @brief Groups of vias by single linkage: two vias are joined when their distance is at most twice the larger of their nearest-neighbour distances.
+    @brief Groups of vias by single linkage: two vias are joined when their distance is at most twice the SMALLER of their nearest-neighbour distances (each reaches the other).
+    @details With the larger distance a lone far via, whose own ball is wide, joined the cluster and diluted it (the Lumped read +0.65 to +1.26 K too hot with the FVM unchanged).
     @param points Array (n, 2) of positions in m.
     @param d_nn Nearest-neighbour distance of every via in m.
     @return numpy.ndarray (n,) of integer group labels.
@@ -118,10 +119,11 @@ def via_groups(points, d_nn):
     from scipy.spatial import cKDTree
     tree = cKDTree(points)
     rows, cols = [], []
-    # A pair (i, j) is joined when dist <= 2 max(d_i, d_j), i.e. j lies within 2 d_i of i or i within 2 d_j of j: one ball query per via covers both
+    # A pair (i, j) is joined when dist <= 2 min(d_i, d_j), i.e. each lies within the ball of the other: the ball query of i gives the candidates j with dist <= 2 d_i,
+    # and the test against 2 d_j keeps the pairs that reach both ways
     for i, nbrs in enumerate(tree.query_ball_point(points, 2.0 * d_nn * (1.0 + 1e-12))):
         for j in nbrs:
-            if j != i:
+            if j != i and math.dist(points[i], points[j]) <= 2.0 * d_nn[j] * (1.0 + 1e-12):
                 rows.append(i)
                 cols.append(j)
     if not rows:
@@ -151,6 +153,11 @@ class ViaSet:
         pts = np.column_stack([self.x, self.y])
         self.d_nn = nearest_neighbour(pts)
         self.group = via_groups(pts, self.d_nn)
+        # A via left alone by the grouping has no neighbour at its scale: its distance is infinite, as for a board with one via, so that it is the same whatever the other vias are
+        # (the Wigner-Seitz radius, the isolation test of the Analytic spread and the median spacing then ignore it)
+        if len(pts) > 1:
+            sizes = np.bincount(self.group)
+            self.d_nn = np.where(sizes[self.group] == 1, np.inf, self.d_nn)
 
     def __len__(self):
         """!

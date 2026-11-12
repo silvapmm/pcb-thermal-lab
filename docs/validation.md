@@ -2097,7 +2097,6 @@ Re-run by the reviewer on this branch (`releases/2.7.0/final-opinion/edge-film.m
 * The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
 * What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
 
-
 ## 40. Drawn layers on a board with an outline: the edge film from the centroid (FVM)
 
 `fix/drawn-layers-edge-film-centroid` (2.7.0; `fvm.Network._cut_edge_film`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, scripts `study_drawn_film.py` and `check_drawn_film_invariants.py`, truth `lib/truth_mask.py`, `lib/truth_values_drawn.json`). Section 39 gave the imported layers the film in series with the distance taken from the centroid of the board part of the cell; this section does the same for the drawn layers (zones), which kept the signed distance from the cell centre.
@@ -2175,3 +2174,48 @@ Against the converged FVM (0.25 mm) where no independent solver exists: `two_lay
 ### 41.1 Review
 
 Re-run by the reviewer on the branch merged with `develop` (`releases/2.7.0/final-opinion/fdm-harmonic.md`): the frozen numbers at 2, 1 and 0.5 mm pass with the pending file (317), and without it exactly its 42 steady records and 11 of its 14 times fail (the times of `plate_vias`, `reference_board` and `round_outline` move by 2e-7 to 9e-7 relative, under the tolerance). FDM at 1 mm against the FVM at 0.25 mm, arithmetic / harmonic: outlines (T, L, round, a square turned 0.4 rad, 40 mm boxes) with a 15 x 18 mm top pad -4.47 / -1.89, -5.43 / -2.35, -4.30 / -1.85, -3.05 / -1.21 %, the same with full copper identical (-0.11, -0.22, -0.09, 0.00 %); the harness outline boards at 2 / 1 / 0.5 mm within 0.06 point of the arithmetic mean, while the plain harmonic mean moves `part_across_outline` +0.53 / +0.37 / +0.09 to +0.85 / +0.56 / +0.11 %; a 3 mm aluminium block on the bottom over a bottom-copper edge, the block edge shifted 0, 0.3 and 0.5 mm off the grid, -5.5 to -5.7 % to -2.9 to -3.0 %; a solid pad over hatched copper (fill 0.5 / 0.25) -0.25 / -1.23 to -0.11 / -0.66 %. Power profiles through `api.simulate` at 1 mm: the example profile board peak 135.13 to 135.17 degC (FVM 135.31), a 20 s square wave on a pad 364.10 to 363.97 degC (FVM 366.57), the same regimes; times to 63 % of every heater within 0.6 % of the arithmetic ones. Invariants on the outline boards and the example: the matrix symmetric to 2e-18, no positive off-diagonal except the 64 via couplings of the example, row sums equal the ambient conductances to 2e-17, balance below 1.1e-12, no node below the ambient. Time and memory: the same number of matrix entries (the example at 0.5 mm, 1 077 251), solve time within 5 %, so the memory guard is unchanged. The tables of sections 1, 2, 2.1, 3, 3.1 and 12 A/B were re-run for the FDM column (the copper-edge rows moved: the heater straddling the top-copper edge -3.4 to -1.9 %, the heater-sized top pad of 3.1 -12.9 to -5.2 % of the finite-element rise).
+
+
+## 42. Lumped via groups: a lone far via is not part of the array
+
+`fix/lumped-via-groups-lone-via` (2.7.0; `viaconstriction.via_groups`, `ViaSet.__init__`; tests `tests/test_via_groups_lone_via.py`; evidence `research/small-model-defects` 1, INTEGRATION.md item 1). The single linkage joined two vias when their distance was at most twice the larger of their nearest-neighbour distances, so a via far from everything (large `d_nn`) reached the array and joined it: the mean spacing and the count of the group changed and the cluster well weakened. Now the pair is joined at twice the SMALLER distance and a via left alone has `d_nn = inf`.
+
+### 42.1 The defect and the fix on the program
+
+Board of the investigation (60 x 60 mm, 2 layers, 8 mm 5 W part, 1 mm cell, one via added 25 mm from the part centre; change of the hottest temperature in K, the study script `study_far_via.py` with the grouping of the program before and after; the first column is the before-values reproduced to the printed digit):
+
+| vias under the part | FVM | Lumped before | Lumped after |
+| --: | --: | --: | --: |
+| 0 | -0.001 | -0.001 | -0.001 |
+| 1 | -0.001 | -0.001 | -0.001 |
+| 2 | -0.001 | +0.646 | -0.001 |
+| 4 | -0.001 | +1.032 | -0.001 |
+| 16 | -0.000 | +1.263 | -0.000 |
+
+A 4 x 4 array and one far via at 0.5 mm: +1.275 before, -0.000 after. The Analytic does not move on any of these boards (it reads the same groups only for its tiles). A 3 x 3 array at 1 mm pitch under a 10 mm part on a 40 mm four-layer board with one far via (12, 18 or 6 mm away) or two: the Lumped part rise 32.84 K before, 32.21 K after, the FVM 31.55 K (the Lumped is 0.67 K hot with the via where it was 1.30 K); the same with the via 6 mm away 32.68 to 32.06 K.
+
+### 42.2 What does not move
+
+* The 62 boards of the Lumped studies (the 36 of `research/lumped-via-groups` `study_family.py` and the 26 of `study_holdout.py`; Lumped and Analytic, cells 1 and 0.5 mm): **0 of 62 move** (difference 0.0 on all 248 numbers; no board there has a via outside its array). The zone decision (`lumped.will_be_zoned`, `lumped.cell_for`) is the same on all of them.
+* The harness boards (`tests/regression`, 2, 1 and 0.5 mm): see 42.4.
+
+### 42.3 Limits, stated
+
+* **A via one pitch outside the array stays in the group** and still reads hot: the 4 x 4 array at 2 mm pitch under the 8 mm part with a via 2 mm (one pitch) beyond its edge, 2 layers, 1 mm: Lumped +1.211 K, FVM -0.083 K; at two and three pitches (4 and 6 mm beyond the edge) the via is outside the group and the Lumped reads -0.041 and -0.013 K against the FVM -0.035 and -0.016 K. The 3 x 3 array at 1 mm pitch with a via 2 mm beyond its edge reads 32.06 K (FVM 31.41 K, +0.65 K). The cause is the same dilution, smaller: the group's mean spacing and count include a via that is not under the footprint (a separate item).
+* **The 4-layer silence of the investigation is explained.** With 16 vias and one far via on a 4-layer board the Lumped changed by -0.002 K before the fix (the 2-layer board +1.263 K). The cluster term of the well (the macro disc) is capped at 0.75 fin lengths of the plane, and in a 4-layer board the dielectric couplings to the neighbouring planes make the fin length short, so the disc is smaller than the radius of the group (`r_macro <= r_cl`) and the term is not used with or without the far via (checked by counting the calls of `viaconstriction.krogh` for the 4 x 4 array alone: the macro term is called twice on 2 layers and not at all on 4). With the cap raised to 20 fin lengths (an experiment, not the program) the same far via heats the 4-layer part by +9.27 K at 1 mm (2 layers +6.68 K): the dilution is there, the cap hides it. The fix is therefore no-regret for 4 or more layers and removes the defect where it showed.
+* The input warnings that mention vias outside every footprint (`checks.check_model_limits`) are unchanged: those vias still enter the rings as before and their numbers (a lone via -22 to +65 %) were measured with the groups of 2.6.0 on boards without a cluster beside them, so they stand. The warning of an array that can read too cool (`checks.lumped_via_cool_warning`) reads the groups and does change on irregular layouts (42.5).
+
+### 42.4 The frozen numbers
+
+`PCBT_FROZEN_CELLS=2,1,0.5 pytest tests/regression` on the branch merged with `develop`: 317 passed, no pending file (no harness board has a via that the new rule leaves alone).
+
+### 42.5 Review: random irregular boards against the FVM at 0.25 mm
+
+The 62 boards of 42.2 have no via outside its array, so they cannot show what the rule does elsewhere. The review ran 24 new random boards (`releases/2.7.0/final-opinion/scripts/study_via_groups_review.py`, seed 2711; 40 x 40 mm, 2 or 4 full-copper layers, one 5 to 10 mm part of 3 W, 0.3 mm vias; six boards of each layout: an array under the part with satellites 1.5 to 4 pitches away and scattered vias, scattered vias only, tight pairs of 0.5 to 0.8 mm with a satellite at 2.2 to 4 times the pair spacing, an array beside the part), Lumped and Analytic at 1 mm on `develop` and on the branch, the FVM at 0.25 mm (it does not read the groups) as the reference, every board also without vias for the via effect:
+
+* **Lumped, via effect**: mean absolute error 36.7 % before, 27.9 % after (median 24.5 to 23.4 %); 14 boards better, 7 worse by more than one point. **Hottest rise**: mean absolute error 2.02 to 1.74 %, range -6.12..+5.14 % to -6.72..+5.53 %. **The change is not one-sided**: 6 of 24 boards read cooler than before (the unsafe direction), the largest an array at 1.6 mm pitch with satellites, 2 layers (+0.12 to -1.51 % of the rise, 1.9 K), tight pairs on 4 layers (-3.05 to -4.52 %) and an array beside the part (-6.12 to -6.72 %, a board that the input check already warns about).
+* **Zone decision**: it **changes on 2 of the 24 boards** (scattered vias, two of them under the part: zoned before, one node after, because the second via of the footprint is now alone); both move towards the FVM (+151.9 to +4.8 % and +42.8 to +27.9 % of the via effect). "Unchanged" in 42.2 holds for the 62 boards only.
+* **Lumped warnings**: the via lines of the live check change on 3 of the 24 boards (the "too cool" warning `checks.lumped_via_cool_warning` reads the same groups: dropped on one array beside the part, which read +0.24 % of the rise, added on the two boards whose zone decision changed, which read -0.05 and -3.53 %). The counts of section 18.1 (21 of 28 boards) were measured with the old groups and were not re-run.
+* **Analytic**: the tile and the spread of a via move only on the boards with tight pairs (a satellite of a pair is now alone, `d_nn = inf`, so it is spread over four tiles and leaves the median spacing): tile 0.410 to 0.395, 0.492 to 0.448, 0.460 to 0.442 and 0.504 to 0.450 mm, hottest rise within 0.03 K, error of the via effect within 0.4 points, no non-finite value. Elsewhere bit-identical.
+
+Verdict: the fix removes the defect it targets and improves the Lumped on average, but it does not improve every board, and the earlier text 'the zone decision does not change' is true only of the 62 study boards.
