@@ -69,12 +69,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
-## What is new
-
-Version 2.6.0 (2026-11-07) holds the model corrections that followed the independent reviews; several move numbers on purpose (the frozen reference is refrozen, `tests/regression/data/v2.6.0.json`).
-- **Models**: exact cover of the board outline and cut-cell links with an edge film, a laminate band along the board edge, 3D solid slabs by thickness, an Analytic per-layer edge and local transient, a capped first ring in the Lumped model, a longer via barrel, the face turned down on a 1/5 law and fast square waves.
-- **Program**: the project package `.pcbtz`, a single Layer box, the Display view modes on the board and shorter button hints.
-- **Next**: 2.6.1 collects fixes and a GUI redesign. The full list of every version, and what is planned, is in [`docs/versions.md`](docs/versions.md); the changes are in [`CHANGELOG.md`](CHANGELOG.md).
+What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary at the top) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Which model should I use?
 
