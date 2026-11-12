@@ -186,8 +186,9 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
     assert not checks.check_edge_laminate(plate(3.2, None, "corner"), ("fvm",))
     assert not checks.check_edge_laminate(plate(3.2, 500.0, "corner", layers=1), ("fvm",))
     thin = plate(0.8, 500.0, "corner")
-    with laminate.using(s_max=5.0e-3):                                                # no gap is cut: nothing to resolve
-        assert not checks.check_edge_laminate(thin, ("fvm",))
+    with laminate.using(s_max=5.0e-3):                                                # no gap is cut: the thin-laminate text, not silence (tested below)
+        w = checks.check_edge_laminate(thin, ("fvm",))
+        assert len(w) == 1 and "no gap is cut" in w[0]
     from pcbthermal.uicontext import using_ui
     with using_ui("gui"):
         text = checks.check_edge_laminate(hot, ("fvm",))[0]
@@ -249,3 +250,35 @@ def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_refe
             peaks.append(fvm.solve_steady(p, cell_mm=cell).t_max - 25.0)
         assert max(peaks) - min(peaks) < spread, (cell, peaks)
         assert all(abs(x / ref - 1.0) < 0.015 for x in peaks), (cell, peaks)
+
+
+def test_the_edge_warning_also_fires_when_no_laminate_gap_is_cut():
+    # research/strong-edge-laminate (study_thin_laminate.py), docs/validation.md 43: six layers in 1.6 mm have gaps of 0.28 mm, under the 0.4 mm sub-gap, so the rule cuts nothing and
+    # the warning used to be silent while the FVM reads -7 to -11 % at 1000 W/m2K; two trigger paths: a cut gap (the older text) and an uncut one (the thin-laminate text)
+    from pcbthermal.model import Dielectric
+    six = plate(1.6, 1000.0, "corner", layers=6)
+    assert all(laminate.n_for_gap(float(d), *laminate.parameters()) == 1 for d in six.board.gap_thicknesses())
+    w = checks.check_edge_laminate(six, ("fvm",))
+    assert len(w) == 1 and "no gap is cut" in w[0] and "-6 to -11 %" in w[0] and "not a bound" in w[0] and "not fully known" in w[0]
+    assert not any(k in w[0] for k in ("research/", "fix/", "feature/"))
+    assert checks.check_edge_laminate(six, ("fdm",)) and not checks.check_edge_laminate(six, ("lumped", "analytic", "solid3d"))
+    assert not checks.check_edge_laminate(plate(1.6, 200.0, "corner", layers=6), ("fvm",))          # 200 W/m2K is the limit itself
+    assert not checks.check_edge_laminate(plate(1.6, None, "corner", layers=6), ("fvm",))
+    assert not checks.check_edge_laminate(plate(1.6, 1000.0, "corner", layers=1), ("fvm",))
+    # a gap that is cut keeps the older text; shortening the longest sub-gap cuts the thin gaps and switches the path
+    with laminate.using(s_max=0.1e-3, n_max=8):
+        assert "no gap is cut" not in checks.check_edge_laminate(six, ("fvm",))[0]
+    cut = checks.check_edge_laminate(plate(3.2, 1000.0, "corner"), ("fvm",))[0]
+    assert "no gap is cut" not in cut
+    from pcbthermal.uicontext import using_ui
+    with using_ui("gui"):
+        text = checks.check_edge_laminate(six, ("fvm",))[0]
+    assert "Laminate sub-gap" in text and "--" not in text
+    with using_ui("cli"):
+        assert "--laminate-s-max-mm" in checks.check_edge_laminate(six, ("fvm",))[0]
+    # an advanced stack-up with thin gaps takes the same path
+    adv = plate(1.6, 1000.0, "corner", layers=4)
+    adv.board.dielectrics = [Dielectric(thickness=0.3e-3, k_through=0.3, k_inplane=0.9) for _ in range(3)]
+    assert "no gap is cut" in checks.check_edge_laminate(adv, ("fvm",))[0]
+    # it is part of the model-limit warnings of a run, and the one-line form is short
+    assert any("no gap is cut" in str(x) for x in checks.check_model_limits(six, ("fvm",)))

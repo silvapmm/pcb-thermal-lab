@@ -2232,3 +2232,23 @@ The 62 boards of 42.2 have no via outside its array, so they cannot show what th
 * **Analytic**: the tile and the spread of a via move only on the boards with tight pairs (a satellite of a pair is now alone, `d_nn = inf`, so it is spread over four tiles and leaves the median spacing): tile 0.410 to 0.395, 0.492 to 0.448, 0.460 to 0.442 and 0.504 to 0.450 mm, hottest rise within 0.03 K, error of the via effect within 0.4 points, no non-finite value. Elsewhere bit-identical.
 
 Verdict: the fix removes the defect it targets and improves the Lumped on average, but it does not improve every board, and the earlier text 'the zone decision does not change' is true only of the 62 study boards.
+
+
+## 43. The edge laminate of a board with thin gaps (no sub-gap is cut)
+
+The rule of section 36 cuts a laminate gap into sub-gaps only when the gap is thicker than the longest sub-gap (0.4 mm), so a board of six layers in 1.6 mm (gaps of 0.28 mm) keeps one node per gap along the edge and the warning of section 36 stayed silent. Measured here (`research/strong-edge-laminate/scripts/study_thin_laminate.py`; the independent 3D finite-volume reference is written in that file and imports nothing of the program): a 10 x 10 mm board, copper 35 um on every layer (full) or a pad of 5 x 4 mm on the outer layers with full inner layers, an advanced stack-up (physical slabs, gaps equal), a 0.5 W part of 3 x 2 mm on the top, h_top 10, h_bottom 200 W/m2K, FR-4 0.3 W/mK, edge film on every slab wall in the reference and the program; the program's FVM at a 0.25 mm cell with the shipped rule (`n = 1` for a thin gap) and with 2 and 8 sub-gaps, against the reference at the same cell (a plan cell of 0.25 mm, 8 sub-slabs per gap).
+
+Error of the hottest rise, shipped rule, thin-gap boards (gap under 0.4 mm: 4 layers 1.0 mm, 6 layers 1.0 and 1.6 mm, 8 layers 1.0 and 1.6 mm; the pad variant on 6 layers 1.6 mm and 8 layers 1.0 mm):
+
+| h_side W/m2K | full copper % | pad on the outer layers % | eight sub-gaps % |
+| --: | --: | --: | --: |
+| 200 | -1.2 to -2.2 | -1.5 to -3.7 | -0.2 to -0.6 (pad -0.4 to -0.6) |
+| 500 | -5.5 to -6.2 (4 layers 1.0 mm, 6 layers 1.6 mm) | not run | -0.7 to -0.8 |
+| 1000 | -7.9 to -10.6 | -6.1 to -8.4 | -1.1 to -1.5 (pad -0.9 to -1.2) |
+| 2000 | -12.3 to -16.3 | -9.1 to -10.7 | -2.0 to -2.6 (pad -1.5 to -1.7) |
+
+For comparison, the boards whose gap is cut (2 layers 1.0 and 1.6 mm, 4 layers 1.6 mm, 6 layers 2.4 mm: gaps of 0.44 to 1.5 mm): shipped -1.0 to -1.5 / -3.2 to -4.4 / -6.8 to -8.8 / -10.9 to -15.4 % at 200 / 500 / 1000 / 2000 (the 4-layer 1.6 mm board reads -1.3 / -3.9 / -7.2 / -11.7 %, somewhat cooler than the -0.8 / -2.5 / -5.1 / -8.9 % of section 36 for the same nominal board: that study used another reference code, its own source and a via-free layout; not reconciled here); so a thin laminate is as under-resolved as a thick one, and the warning had no reason to be silent for it. The cell (0.5 against 0.25 mm) changes the thin-gap result by 0.1 point or less on full copper at 1.0 mm and 1.6 mm boards (the error is the missing sub-gaps, not the cell).
+
+**How converged is the reference** (limit, stated): the 3D reference falls with the plan cell, 0.25 to 0.125 mm (8 sub-slabs): 37.13 to 37.04 K (200, 2 layers 1.0 mm) up to 24.80 to 24.30 K (2000), 23.65 to 22.96 K (6 layers 1.6 mm, 1000), 40.05 to 38.98 K (6 layers, pad, 1000), that is 0.2 to 4.1 % (more at a high h_side); the sub-slab count is converged (8 to 16 slabs: at most 0.2 %). The program's own finest value (0.125 mm, 8 sub-gaps) lies 0.1 to 2.4 % below the reference at 0.125 mm, so the program at its finest and the reference agree within 2.4 %, and against the finer reference the errors of the table are about 2 to 3 points smaller; the true error is not known better than that. The reference was not refined past 0.125 mm and no finite-element comparison was used (the one being built in `tmp/fem` had no validated numbers at the time).
+
+The warning now fires for these boards (`checks.check_edge_laminate`; edge above 200 W/m2K, two or more layers, FVM or FDM, no metal block); the text quotes -1 to -4 / -5 to -6 / -6 to -11 / -9 to -16 % and says it is a sample, not a bound, and that the reference is not fully converged. No solver change; frozen numbers unchanged. Not measured: parts at the edge of a larger board, vias near the edge on a thin-gap board, the simple stack-up (it now takes the physical slabs on `fix/simple-stackup-physical-layers`; the study used the advanced stack-up, which is the same physics), 2-layer boards thinner than 0.8 mm.
