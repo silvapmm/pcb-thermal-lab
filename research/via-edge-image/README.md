@@ -45,6 +45,10 @@ In kelvin (`out/abs_films.txt`): the board rise without the via is 53.1 K; the p
 
 ### 3.2 Edge films from insulated to isothermal (`out/sweep.txt`, `out/abs_films.txt`)
 
+![Error against the edge film](figures/fig_03_edge_error_against_film.png)
+
+*Figure 03 (`figures/fig_03_edge_error_against_film.png`): error of `T_max` (K) against the edge coefficient for the via 0.16 mm from the edge, 1 mm cell, the program and the mirror image; the via effect E of the reference is under each coefficient.*
+
 | h_side (W/m2K) | l = S / (h_side slab) | E ref (K), d = 0.16 mm | program / mirror / robin at 1 mm (% of E) | error of T_max, program / mirror, 1 mm (K) |
 | --: | --: | --: | :-- | :-- |
 | 0 | inf | 3.162 | +14.5 / +0.7 / +0.7 | -0.533 / -0.094 |
