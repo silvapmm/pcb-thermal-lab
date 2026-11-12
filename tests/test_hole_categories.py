@@ -179,3 +179,31 @@ def test_the_import_preview_and_the_editor_use_the_same_tones():
     assert th.HOLE_TONE == {"via": "via", "component": "warn", "nonplated": "muted"}
     for name in ("dark", "light"):
         assert all(t in th.colors(name) for t in th.HOLE_TONE.values())
+
+
+def test_select_all_leaves_hidden_vias_alone(qtbot, tmp_path):
+    from pcbthermal.examples import example_board
+    win = MainWindow(settings=QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    win.doc.open_problem(example_board(), "example")
+    n = len(win.doc.problem.vias)
+    win.a_holes["via"].setChecked(False)
+    win._select_all()
+    assert not any(k == "via" for k, _ in win.inspector.selection)       # The inspector would edit vias the user cannot see
+    win.a_delete.trigger()
+    assert len(win.doc.problem.vias) == n
+    win.a_holes["via"].setChecked(True)
+    win._select_all()
+    assert sum(k == "via" for k, _ in win.inspector.selection) == n
+
+
+def test_malformed_holes_in_a_file_are_refused_naming_the_hole(tmp_path):
+    from pcbthermal.fileschema import ProjectFormatError
+    from pcbthermal.model import ImportRecord
+    good = {"x_mm": 1.0, "y_mm": 2.0, "d_mm": 0.3, "kind": "via"}
+    assert ImportRecord.from_dict({"holes": [good]}).holes == [good]
+    assert ImportRecord.from_dict({"holes": [{"x_mm": 1.0, "y_mm": 2.0, "d_mm": 0.3}]}).holes[0]["kind"] == "via"     # Written by hand: a via, as before
+    for bad in ({"x_mm": "abc", "y_mm": 1.0, "d_mm": 1.0}, {"x_mm": 1.0, "d_mm": 1.0}, [1, 2], {"x_mm": float("nan"), "y_mm": 1.0, "d_mm": 1.0},
+                {"x_mm": 1.0, "y_mm": 1.0, "d_mm": 1e300}, {"x_mm": 1.0, "y_mm": 1.0, "d_mm": 1.0, "x2_mm": 3.0}, {"x_mm": 1.0, "y_mm": 1.0, "d_mm": 1.0, "kind": 3}):
+        with pytest.raises(ProjectFormatError, match="holes"):
+            ImportRecord.from_dict({"holes": [good, bad]})

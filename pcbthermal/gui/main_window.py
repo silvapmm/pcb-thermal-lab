@@ -1169,11 +1169,12 @@ class MainWindow(QMainWindow):
 
     def _select_all(self):
         """!
-        @brief Select every element of the active layer.
+        @brief Select every element of the active layer (the vias only while View - Holes: vias shows them: a hidden via is never selected, edited or deleted by it).
         """
         pr, L = self.doc.problem, self.canvas.layer
+        vias = range(len(pr.vias)) if self.canvas.show_holes["via"] else ()
         items = [(k, i) for k, lst in (("zone", pr.zones), ("heater", pr.heaters), ("heatsink", pr.heatsinks))
-                 for i, e in enumerate(lst) if e.layer == L] + [("via", i) for i in range(len(pr.vias))]
+                 for i, e in enumerate(lst) if e.layer == L] + [("via", i) for i in vias]
         self.canvas.set_selection(items)
         self._on_canvas_selection(items)
 

@@ -1325,8 +1325,8 @@ class ImportSession:
 
     def _other_holes(self, box) -> list:
         """!
-        @brief The holes that are not vias, in board coordinates, for the record: plated holes above the via limit (kind "component") and non-plated holes and routed slots (kind "nonplated").
-        @details Display only: no model reads them. A slot (plated or not) is kept as non-plated with its second end (`x2_mm`, `y2_mm`) and its `length_mm` (centre to centre). Holes
+        @brief The holes that are not vias, in board coordinates, for the record: plated holes above the via limit and plated slots (kind "component") and non-plated holes and slots (kind "nonplated").
+        @details Display only: no model reads them. A slot is kept with the kind of its plating (plated: component, else non-plated) and its second end (`x2_mm`, `y2_mm`) and its `length_mm` (centre to centre). Holes
                  outside the board box are left out. The plating is decided as in `_drills`: per hole, else per file, else from the file role.
         @param box Board box (x0, y0, x1, y1) in the Gerber frame, mm.
         @return list of hole dicts {"x_mm", "y_mm", "d_mm", "kind"} (a slot adds "x2_mm", "y2_mm", "length_mm").
@@ -1344,7 +1344,8 @@ class ImportSession:
                     continue
                 rec = {"x_mm": float(h.x - box[0]), "y_mm": float(h.y - box[1]), "d_mm": float(h.diameter)}
                 if h.is_slot:
-                    rec.update(kind="nonplated", x2_mm=float(h.x_end - box[0]), y2_mm=float(h.y_end - box[1]), length_mm=float(math.hypot(h.x_end - h.x, h.y_end - h.y)))
+                    # A slot is never a via; a plated one (a connector or power pin slot) is a component hole, an unplated one a non-plated hole
+                    rec.update(kind="component" if plated else "nonplated", x2_mm=float(h.x_end - box[0]), y2_mm=float(h.y_end - box[1]), length_mm=float(math.hypot(h.x_end - h.x, h.y_end - h.y)))
                 elif not plated:
                     rec["kind"] = "nonplated"
                 elif h.diameter > self.via_max_mm:

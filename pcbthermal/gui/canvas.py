@@ -610,7 +610,8 @@ class BoardView(QGraphicsView):
                 h = lst[k]
                 name = "Non-plated hole" if kind == "nonplated" else "Component hole"
                 if "length_mm" in h:
-                    return f"Non-plated slot, {h['d_mm']:g} mm wide, {h['length_mm']:g} mm long (not modelled)"
+                    slot = "Non-plated slot" if kind == "nonplated" else "Plated slot"
+                    return f"{slot}, {h['d_mm']:g} mm wide, {h['length_mm']:g} mm long (not modelled)"
                 return f"{name}, {h['d_mm']:g} mm (not modelled)"
         return ""
 

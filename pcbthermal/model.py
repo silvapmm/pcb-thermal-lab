@@ -21,7 +21,7 @@ import os
 import numpy as np
 
 from . import defaults
-from .fileschema import ProjectFormatError, check_problem_dict, guard
+from .fileschema import ProjectFormatError, check_keys, check_problem_dict, guard
 from .geometry import (OUTLINE_MAX_EXTENT, OUTLINE_MAX_VERTICES, POLYGON_MAX_PAIRS, exact_coverage, coverage_fraction, discs_board_share, outline_extent,
                        polygon_area, polygon_check_pairs, polygon_is_simple)
 
@@ -1687,7 +1687,7 @@ class ImportRecord:
     copper: Optional[ImportedCopper] = None                           # Output of the import (filled by the imported-copper step)
     settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
     warnings: list = field(default_factory=list)                      # Warnings of the import (text)
-    holes: list = field(default_factory=list)                         # Holes [{"x_mm", "y_mm", "d_mm", "kind": "via" | "component" | "nonplated"}, ...]; a slot is "nonplated" with "x2_mm", "y2_mm", "length_mm"; only vias are modelled
+    holes: list = field(default_factory=list)                         # Holes [{"x_mm", "y_mm", "d_mm", "kind": "via" | "component" | "nonplated"}, ...]; a slot (component if plated, else nonplated) adds "x2_mm", "y2_mm", "length_mm"; only vias are modelled
     cad_profile: Optional[dict] = None                                # CAD profile of the name rules: {"key", "source": "detected" or "user", "table": version}; None = none recorded
     extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
 
@@ -1715,8 +1715,33 @@ class ImportRecord:
         return ImportRecord(str(d.get("name", "")), [ImportFile.from_dict(f) for f in d.get("files", [])], [float(v) for v in d.get("box_mm", [])],
                             [ImportPart.from_dict(p) for p in d.get("parts", [])],
                             None if d.get("copper") is None else ImportedCopper.from_dict(d["copper"]),
-                            copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), copy.deepcopy(list(d.get("holes", []))),
+                            copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), _checked_holes(d.get("holes", [])),
                             _profile_record(d.get("cad_profile")), _unknown_keys(d, ImportRecord.KEYS))
+
+
+HOLE_KEYS = {"x_mm": "coord", "y_mm": "coord", "d_mm": "coord", "x2_mm": "coord", "y2_mm": "coord", "length_mm": "coord", "kind": "str"}
+
+
+def _checked_holes(holes):
+    """!
+    @brief Copy the holes of an import record after checking them: the editor draws them and the re-import compares them, so a malformed hole is refused at the loading boundary.
+    @details Every hole is an object with finite positions and diameter in mm (magnitude at most 1 km) and a string kind; a slot has both of `x2_mm` and `y2_mm` or neither.
+             A hole without a kind (written by hand) is read as a via, which is what every version wrote for a via. Unknown keys are kept.
+    @param holes The list read from the file.
+    @return list of dicts (deep copies).
+    @throws ProjectFormatError For a hole of the wrong type, naming its index.
+    """
+    if not isinstance(holes, list):
+        raise ProjectFormatError(f"holes: expected a list, got {type(holes).__name__}")
+    out = []
+    for i, h in enumerate(holes):
+        check_keys(f"holes[{i}]", h, HOLE_KEYS, ("x_mm", "y_mm", "d_mm"))
+        if ("x2_mm" in h) != ("y2_mm" in h):
+            raise ProjectFormatError(f"holes[{i}]: a slot needs both x2_mm and y2_mm")
+        h = copy.deepcopy(h)
+        h.setdefault("kind", "via")
+        out.append(h)
+    return out
 
 
 reload_libraries()
