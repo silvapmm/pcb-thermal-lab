@@ -189,6 +189,7 @@ class Network:
         self.laminate_layers = []                      # Indices of the laminate node layers of a one-layer board (laminate.py)
         use_rule = bool(ladder) and laminate.uses_rule(problem)
         self.ladder = None                             # laminate.Ladder when the rule was applied
+        self.laminate_neighbours = []                  # Copper layers on the two sides of every node layer added by the laminate rule (_add_ladder)
         self.drop = None                               # Boolean (nl, ny, nx) of the nodes that no cell uses (left out of the direct solve)
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
@@ -367,6 +368,12 @@ class Network:
         res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
         self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
         self.ladder, self.drop = res.ladder, res.ladder.drop
+        # The copper layers next to every new node layer, in the order laminate.build appends them (n - 1 interior nodes per gap, plus the bottom node of a one-layer
+        # board): the edge film of a laminate node follows the layers it lies between (`_cut_edge_film`)
+        one = b.layers == 1
+        self.laminate_neighbours = []
+        for p in plans:
+            self.laminate_neighbours += [(p.gap,) if one else (p.gap, p.gap + 1)] * (max(p.n, 1) - 1 + (1 if one else 0))
         k = len(res.layers)
         if not k:
             return None
@@ -424,7 +431,7 @@ class Network:
         @details The film of a cell is H L with H = h_side times the slab (W/m K) and L the edge length in the cell. The node is the cell centre, a distance d from the edge,
                  so the heat passes the sheet from the node to the edge, d / (S L), and then the film: g = g0 / (1 + g0 d / (S L)) = H L / (1 + H d / S) (L cancels), with S the
                  physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
-                 which stiffens the film); **for the imported layers of a board with an outline** (and the laminate nodes between them) d is the distance from the CENTROID of the board part of the cell
+                 which stiffens the film); **for the imported layers of a board with an outline** (and the laminate nodes of the rule next to an imported layer, `laminate_neighbours`) d is the distance from the CENTROID of the board part of the cell
                  to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film), the drawn layers keeping the centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
                  floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
                  nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
@@ -447,7 +454,7 @@ class Network:
                 d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(b.outline, x, y)
             dist = d
             if self.copper is not None and len(cells):
-                # Imported layers (and the laminate nodes, which sit between them): d from the centroid of the board part of the cell, never negative. A sliver cell whose centre is
+                # Imported layers (and the laminate nodes next to one, below): d from the centroid of the board part of the cell, never negative. A sliver cell whose centre is
                 # off the board then has its node where its copper is, and not outside (where the film was stiffened to the floor)
                 cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
                 dc = d.copy()
@@ -457,6 +464,10 @@ class Network:
                 cen = np.ones(self.nl, bool)
                 for k in range(min(b.layers, self.nl)):
                     cen[k] = k in self.copper.entries             # a drawn layer of the board keeps the distance from the cell centre
+                for j, sides in enumerate(self.laminate_neighbours):
+                    if b.layers + j < self.nl:
+                        # a laminate node of the rule takes the centroid only when a copper layer next to it is imported (between two drawn layers of a mixed board it keeps the centre)
+                        cen[b.layers + j] = any(k in self.copper.entries for k in sides)
                 for info in self.block_info:
                     cen[info["layer"]] = False
                 dist = np.where(cen[:, None, None], dc[None], d[None])

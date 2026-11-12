@@ -207,3 +207,48 @@ def test_the_film_on_a_big_outline_board_costs_a_fraction_of_a_second():
     net._cut_edge_film(net.g_side)
     assert time.time() - t < 2.0
     assert math.isfinite(float(net.g_side.sum()))
+
+
+def test_a_laminate_node_takes_the_centroid_only_next_to_an_imported_layer():
+    # A four-layer board with the outer layers imported and the two inner layers drawn (review of fix/imported-copper-edge-film-centroid): the laminate nodes of the rule in
+    # the gaps 1-2 and 3-4 lie next to an imported layer and take the centroid distance; those of the gap 2-3 lie between two drawn layers and keep the cell-centre distance
+    p = Problem.new(12, 12, 4, h_side=200.0)
+    p.add_heater(1, 1.0, rect=(5, 5, 7, 7), name="U")
+    p.set_outline(OUTLINE)
+    n_px = 240
+    c = (np.arange(n_px) + 0.5) * 12e-3 / n_px
+    X, Y = np.meshgrid(c, c)
+    d = signed_distance_to_outline(p.board.outline, X.ravel(), Y.ravel()).reshape(n_px, n_px)
+    m = np.where(d >= 1.2e-3, 255, 0).astype(np.uint8)[::-1]                    # copper held 1.2 mm inside, so every gap has laminate nodes along the edge
+    p.imported = copper.imported_from_rasters([m, m, m, m], 12.0 / n_px, "faces")
+    p.imported.layers = [e for e in p.imported.layers if e["index"] in (0, 3)]
+    inner = OUTLINE
+    p.add_zone(2, polygon=inner)
+    p.add_zone(3, polygon=inner)
+    nx = ny = 24
+    net = fvm.Network(p, nx, ny)
+    assert len(net.laminate_neighbours) == net.nl - 4 and set(net.laminate_neighbours) == {(0, 1), (1, 2), (2, 3)}
+    raw = fvm.Network(p, nx, ny, cut_cells=False).g_side
+    L = net._edge_lengths()
+    cells = np.argwhere(L > 0)
+    r, cc = cells[:, 0], cells[:, 1]
+    d_centre = signed_distance_to_outline(p.board.outline, (cc + 0.5) * net.dx, (r + 0.5) * net.dy)
+    cx, cy, _ = cover_centroids(p.board.outline, nx, ny, net.dx, net.dy, L > 0)
+    d_cent = np.maximum(signed_distance_to_outline(p.board.outline, cx[r, cc], cy[r, cc]), 0.0)
+    sp_ = net._physical_sheet()
+    seen = set()
+    for j, sides in enumerate(net.laminate_neighbours):
+        k = 4 + j
+        H = np.zeros(len(r))
+        np.divide(raw[k, r, cc], L[r, cc], out=H, where=L[r, cc] > 0)
+        dist = d_cent if sides != (1, 2) else d_centre
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fac = np.where(sp_[k, r, cc] > 0, 1.0 + H * dist / sp_[k, r, cc], 1.0)
+        fac = np.where(H > 0, np.maximum(fac, fvm.EDGE_FILM_FLOOR), 1.0)
+        want = np.where(H > 0, H * L[r, cc] / fac, raw[k, r, cc])
+        assert net.g_side[k, r, cc] == pytest.approx(want, rel=1e-12)
+        if (H > 0).any():
+            seen.add(sides)
+    assert seen == {(0, 1), (1, 2), (2, 3)}
+    # the two distances differ on these cells, so the test tells the rules apart
+    assert not np.allclose(d_cent, np.maximum(d_centre, 0.0))

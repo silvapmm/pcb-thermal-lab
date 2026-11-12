@@ -190,12 +190,13 @@ def exact_coverage(poly, nx, ny, dx, dy):
     return out
 
 
-def cover_centroids(poly, nx, ny, dx, dy, cells, n=8, strip=64):
+def cover_centroids(poly, nx, ny, dx, dy, cells, n=8, strip=16):
     """!
     @brief Centroid of the part of every selected cell that lies on the board (the cell's board part), from the exact cover of an n x n sub-grid of the cell.
     @details The sub-cell covers are exact (`exact_coverage` on the grid refined n times), so the centroid is that of the polygon piece up to the sub-grid (n = 8: 1/16 of a cell
              at most). Only the row strips that hold a selected cell are refined (`strip` rows of cells at a time, the outline shifted down by the strip's first row), so
-             a 200 mm board at 0.25 mm does not build the 8-times finer grid of the whole board (about 0.3 GB) but one strip of it.
+             a 200 mm board does not build the 8-times finer grid of the whole board but one strip of it (measured on a 200 x 150 mm outline: 54 MB and 0.42 s at 0.25 mm,
+             131 MB and 1.9 s at 0.125 mm; 64-row strips took 173 and 369 MB in the same time).
     @param poly Closed outline (n_vertices, 2) in metres.
     @param nx Number of cells along x.
     @param ny Number of cells along y.

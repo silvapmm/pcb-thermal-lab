@@ -2040,8 +2040,29 @@ The board of the investigation (20 mm square turned by 0, 11.25, 22.5, 33.75 and
 
 No unknowns and no new matrix entries; the matrix stays symmetric with no positive off-diagonal entry (no vias), the heat balance closes to 1e-12 and a constant field is reproduced to round-off for `h_side` 10 to 1e5 (tests). The centroids are built by row strips of the 8-times refined exact cover of the cut cells only: a 200 x 150 mm outline board with 674 cut cells at 1 mm 0.025 s (0.027 s the whole film), 1340 at 0.5 mm 0.094 s (0.104 s).
 
-### 39.3 Limits, stated
+### 39.3 Review: copper to the wall, other shapes, real boards (reviewer)
 
-* **Copper that reaches the outline** was not run in the investigation (its robustness rows for inset 0 were paused). On the program, a 12 mm turned board with full imported copper to the wall reads, at 1 mm, 92.93 K (centroid) against 90.92 K (film on the node) and 91.77 K for the same board with drawn zones; at 0.25 mm 90.35, 89.94 and 89.98 K, at `h_side` 200. So here the centroid film is about 1.3 % hotter than the drawn film at 1 mm and 0.4 % at 0.25 mm, and no 3D truth was run for it: the change is only measured for copper held inside the wall.
-* The imported copper held 1.2 mm inside on the same 12 mm board (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
-* The spread over the angles at 2 mm (9 to 13 % at 500 to 1000 W/m2K), the stripes and a pad, four layers and a real imported outline board were not re-measured here; the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves (2 mm run).
+Re-run by the reviewer on this branch (`releases/2.6.1/final-opinion/edge-film.md`, scripts in `releases/2.6.1/final-opinion/scripts/`): the six rows of 39.1 reproduce to the printed digit; the 3D truth of the investigation agrees with the independent solver `tests/helpers/layered3d.py` to 5e-7 on the same board (isotropic laminate, insulated edge, copper 1.2 mm inside and to the wall).
+
+**Copper that reaches the outline** (the risk the investigation had not run), against the same 3D truth (copper to the wall, `h_side` 200, mean / spread / worst of the ten turned and shifted boards, %):
+
+| board, cell | film on the node (before) | centroid film (after) |
+| :-- | :-- | :-- |
+| 20 mm square, 4 mm heater, 1 mm | -1.32 / 1.40 / 2.17 | +0.34 / 0.80 / 0.83 |
+| 20 mm square, 0.5 mm | -1.16 / 1.10 / 2.08 | -0.33 / 0.35 / 0.59 |
+| 20 mm square, `h_side` 1000, 1 mm | -3.90 / 3.50 / 5.99 | -0.53 / 1.63 / 1.13 |
+| 20 mm square, `h_side` 1000, 0.5 mm | -3.57 / 2.67 / 5.49 | -1.93 / 1.26 / 2.67 |
+| 12 mm square, 2 mm heater, 1 mm | -1.36 / 1.83 / 2.01 | +0.70 / 2.52 / 2.43 |
+| 12 mm square, 0.5 mm | -1.39 / 0.97 / 2.12 | -0.38 / 0.45 / 0.63 |
+| 12 mm square, 0.25 mm | -1.22 / 0.75 / 1.86 | -0.72 / 0.31 / 0.96 |
+
+(Truths: 50.655 / 30.132 K for the 20 mm board at 200 / 1000 W/m2K, 87.83 K for the 12 mm board, extrapolated as in the investigation.) So the film needs no exception where the copper reaches the wall: the mean is closer to the truth at every cell and the spread smaller except on the 12 mm board at 1 mm (a cell half the heater), whose worst board is 2.43 % hot against 2.01 % cool. The 92.93 K of the 12 mm quadrilateral of the tests at 1 mm (90.92 K with the film on the node, 90.20 / 90.02 K at 0.125 mm) is that cell error; the drawn board (91.77 K) is not a reference.
+
+**Other boards** (hottest temperature, centroid against node film, `h_side` 200, % of the rise): T and L outlines (20 mm, imported copper to the wall or 1 mm inside) +2.85 to +3.80 % at 1 mm, +1.40 to +1.87 % at 0.5 mm; the film from the centroid converges from above and the film on the node from below (T to the wall at 1 / 0.5 / 0.25 / 0.125 mm: 97.12 / 96.66 / 96.40 / 96.34 K against 95.03 / 95.62 / 95.88 / 96.09 K). Four layers +0.88 % (to the wall) and +1.62 % (inset) at 1 mm; stripes and a pad +1.12 %; real imported outlines of the local library (not committed): oswlight (round, 4 layers) +0.63 / +0.31 / +0.17 % at 1 / 0.5 / 0.25 mm and rp2040 +0.36 / +0.21 / +0.10 %, both +0.01 % or less at 10 W/m2K, time of the run unchanged. On every board the matrix is symmetric with no positive off-diagonal entry, a constant field is reproduced to 2e-17 and the balance closes to 1e-12; a time simulation of the 12 mm board ends at 118.33 K against 118.35 K steady (12 time constants).
+
+**Mixed boards** (review fix): the laminate nodes of the rule took the centroid even between two DRAWN layers of a board with some imported layers; now a laminate node takes it only when a copper layer next to it is imported (`Network.laminate_neighbours`, test `test_a_laminate_node_takes_the_centroid_only_next_to_an_imported_layer`); a four-layer board with the inner layers drawn moves 85.72 to 85.49 K at 1 mm. **Memory** (review fix): the centroids are refined in strips of 16 cell rows (64 before): 54 MB instead of 173 MB on a 200 x 150 mm outline at 0.25 mm, same time and the same centroids to 4e-13 m.
+
+### 39.4 Limits, stated
+
+* The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
+* What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
