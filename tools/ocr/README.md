@@ -24,6 +24,7 @@ $PY -W ignore -m tools.ocr firstline [--stem S] [--pages 1-5]   # offline: first
 $PY -W ignore -m tools.ocr eqcheck [--stem S]           # offline: $ spans and \tag numbers against the text layer and the Gemini page -> notes/EQCHECK_REPORT.md
 $PY -W ignore -m tools.ocr audit                        # offline: integrity of the assembled library -> notes/AUDIT_REPORT.md (exit 1 on an error)
 $PY -W ignore -m tools.ocr transcribe STEM --pages 3 --prompt-variant NAME   # another phrasing of the prompt (data/prompt_variants.json; `default` is data/prompt.txt): the refusal filter is stochastic and sensitive to the wording
+$PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic [--no-refusal-retry]   # on by default (`--refusal-retry` still accepted): a page refused whole and as two halves is tried as three strips (40 % tall, 10 % overlap) and joined at the overlap; worked for Lienhard2024 p17 and CulhamFourier2000 p1 where halves, all prompt variants and fallback models failed; a page that still fails goes to `--provider local` (no filter)
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
