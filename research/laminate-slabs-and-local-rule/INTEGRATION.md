@@ -1,6 +1,6 @@
 # Integration of the laminate 2.6 proposals
 
-**Status (audit 2.6.1).** Item C (3D solid slabs by thickness and the face term) is implemented in 2.6.0 (`feature/solid3d-slabs-by-thickness`, `solid3d.slab_rule`); item B (edge nodes) is implemented in 2.6.0 in the corrected form of `research/laminate-edge-band` (`fix/laminate-edge-band`: the band `margin_cells` wide, no film on the copper nodes); item A (the local rule) is not implemented (A18 of `research/ROADMAP.md`, `docs/versions.md` 'Planned'). 'Proposals only' below is the status when written.
+**Status (audit 2.7.0).** Item C (3D solid slabs by thickness and the face term) is implemented in 2.6.0 (`feature/solid3d-slabs-by-thickness`, `solid3d.slab_rule`); item B (edge nodes) is implemented in 2.6.0 in the corrected form of `research/laminate-edge-band` (`fix/laminate-edge-band`: the band `margin_cells` wide, no film on the copper nodes); item A (the local rule) is not implemented (A18 of `research/ROADMAP.md`, `docs/versions.md` 'Planned'). 'Proposals only' below is the status when written.
 
 Proposals only; nothing in `pcbthermal/` was edited. **Reviewed (README 7): C go as written; B go with a wider band (2.1); A not as written, three changes first (1.0).** Evidence: `README.md` (sections in brackets). The prototype that measured A and B is `lib/local_laminate.py`, written to be moved into `laminate.py`.
 

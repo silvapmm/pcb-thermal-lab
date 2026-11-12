@@ -10,7 +10,7 @@
          (`norule`) the aligned board can be checked against the independent solver `indep_two_sheets.py`.
 
          Run from the root of a checkout (PCBT_TREE names the tree whose `pcbthermal` is measured, default the checkout itself):
-         `PCBT_TREE=<tree> .venv/bin/python releases/2.6.1/final-opinion/scripts/study_outline_mask.py <rule|norule> <cells, e.g. 2,1,0.5,0.25,0.125> <out.json>`
+         `PCBT_TREE=<tree> .venv/bin/python releases/2.7.0/final-opinion/scripts/study_outline_mask.py <rule|norule> <cells, e.g. 2,1,0.5,0.25,0.125> <out.json>`
          Environment: VARIANT=imported (default) or drawn (the same copper as zones), PATTERN=0 for full copper, HS=10,200 for the edge coefficients.
          Prints one line per run: h_side, angle (or disc), cell, mean rise of the heater (K), hottest rise (K), heat-balance error, seconds.
 """

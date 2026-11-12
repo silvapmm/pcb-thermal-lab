@@ -24,7 +24,7 @@ Symmetric matrix, no positive off-diagonal entry, constant field to 2e-17 and he
 
 ## Reproduce
 
-`.venv/bin/python releases/2.6.1/final-opinion/scripts/study_edge_film_review.py wall 200,1000 1,0.5` (the truth is computed, about 5 minutes per coefficient; needs `research/imported-copper-edge-film/lib`, or `PCBT_EDGE_FILM_LIB`), `small 200 1,0.5,0.25`, `shapes`, `real` (the local library, `eval "$(pcb-library/scripts/link_env.sh)"`).
+`.venv/bin/python releases/2.7.0/final-opinion/scripts/study_edge_film_review.py wall 200,1000 1,0.5` (the truth is computed, about 5 minutes per coefficient; needs `research/imported-copper-edge-film/lib`, or `PCBT_EDGE_FILM_LIB`), `small 200 1,0.5,0.25`, `shapes`, `real` (the local library, `eval "$(pcb-library/scripts/link_env.sh)"`).
 
 ## Not verified
 
