@@ -1493,3 +1493,41 @@ def test_a_generated_pdf_text_layer_gives_the_joined_number(tmp_path):
     texts = dict(enumerate(render.page_texts(pdf), 1))
     assert suspects.printed_numbers(texts) == {1: 41, 2: 42, 3: 43}
     assert suspects.page_offset(suspects.printed_numbers(texts)) == -40
+
+
+def test_local_output_guard_flags_a_runaway_and_a_too_long_page():
+    from tools.ocr.providers.local import check_output
+    good = "\n\n".join(f"Line {i} of an ordinary page with some words." for i in range(60))
+    assert check_output(good) is None
+    # The ovis loop: hundreds of identical lines separated by blank lines.
+    assert "repeated" in check_output(good + "\n\n" + "\n\n".join(["1"] * 200))
+    # A few repeated lines (a table rule) stay below the limit.
+    assert check_output("\n".join(["---"] * 8)) is None
+    # Far too long for the expected length, without any repetition.
+    long = " ".join(f"w{i}" for i in range(4000))
+    assert "expected" in check_output(long)
+    assert check_output(long, expected_chars=len(long)) is None
+    assert check_output(long, expected_chars=len(long) // 2) is not None
+
+
+def test_local_provider_falls_back_when_the_first_output_fails_the_guard(monkeypatch):
+    from tools.ocr import config
+    assert config.models()["local"]["fallbacks"] == ["unlimited"]
+    p = LocalProvider(folder="/x")
+    calls = []
+
+    def fake(image, model):
+        calls.append(model)
+        return Result(text="\n\n".join(["1"] * 50) if model == "ovis" else "Fine page text.", model=model, seconds=0.0)
+    monkeypatch.setattr(p, "_convert", fake)
+    res = p.transcribe(b"", "", {})
+    assert calls == ["ovis", "unlimited"] and res.text == "Fine page text."
+    # A forced model is tried alone and its refusal is raised, retryable.
+    calls.clear()
+    with pytest.raises(ProviderError) as e:
+        p.transcribe(b"", "", {"model": "ovis"})
+    assert calls == ["ovis"] and e.value.retryable
+    # Every model failing the guard raises too.
+    monkeypatch.setattr(p, "_convert", lambda image, model: Result(text="\n".join(["x"] * 30), model=model, seconds=0.0))
+    with pytest.raises(ProviderError):
+        p.transcribe(b"", "", {})

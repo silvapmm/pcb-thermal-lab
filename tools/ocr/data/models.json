@@ -10,8 +10,8 @@
   },
   "local": {
     "default": "ovis",
-    "fallbacks": [],
-    "note": "MLX model of the maintainer's extractpdf project (offline)."
+    "fallbacks": ["unlimited"],
+    "note": "MLX models of the maintainer's extractpdf project (offline). A page whose output fails the guard of providers/local.py (a runaway of identical lines, or far too long) is converted again with the fallback: its failure mode (a cut page) is the opposite of ovis's loop."
   },
   "anthropic": {
     "default": "claude-sonnet-5-5",
