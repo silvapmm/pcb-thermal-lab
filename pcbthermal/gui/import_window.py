@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
+from .elided import ElidedLabel, clamp_to_screen
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
@@ -1487,6 +1488,7 @@ class ReimportDialog(QDialog):
         self.session, self.old, self.new = session, old, session.record
         self.setWindowTitle("The project already has an imported board")
         self.resize(900, 620)
+        clamp_to_screen(self)
         c = th.colors(th.current_name())
         self.diff = session.part_diff(old)
         self.sources = session.classify_files(old, self.new)
@@ -1844,11 +1846,12 @@ class ImportBoardWindow(QDialog):
         self.notify = lambda title, text: _plain_box(self, QMessageBox.Information, title, text, QMessageBox.Ok)
         self.setWindowTitle("Import Gerber board")
         self.resize(1280, 820)
+        clamp_to_screen(self)                                 # never larger than the screen it opens on
         lay = QVBoxLayout(self)
         self.stepper = Stepper(self.step_states)
         self.stepper.step_clicked.connect(self.go)
         lay.addWidget(self.stepper)
-        self.subtitle = QLabel("")
+        self.subtitle = ElidedLabel("")                                     # a long text never widens the window
         th.hint(self.subtitle)
         lay.addWidget(self.subtitle)
         self.page1 = Step1Page(self)
@@ -1864,8 +1867,8 @@ class ImportBoardWindow(QDialog):
             self.stack.addWidget(sc)
         lay.addWidget(self.stack, 1)
         row = QHBoxLayout()
-        self.status = QLabel("")
-        self.status.setTextFormat(Qt.PlainText)                             # it lists file names
+        # It lists file names and says why Next is disabled: up to three wrapped lines, the rest cut with an ellipsis, the whole text in the tooltip
+        self.status = ElidedLabel("", max_lines=3)
         th.hint(self.status)
         row.addWidget(self.status, 1)
         self.help_btn, self.close_btn = QPushButton("Help"), QPushButton("Close")

@@ -25,6 +25,7 @@ from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
@@ -287,6 +288,9 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+            # A saved geometry from a larger screen (or a damaged settings file) must not give a window bigger than this screen. Only the restored one: the
+            # default size is left to the window system as before (the offscreen tests lay the window out at 1480 x 900)
+            clamp_to_screen(self)
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
@@ -859,6 +863,7 @@ class MainWindow(QMainWindow):
         image = self.display.kind == "image"
         self.canvas.set_background_visible(not overlay_on or image)
         self.canvas.set_background_full(overlay_on and image)       # Faded twice otherwise (its own opacity, then the map's)
+        self.canvas.set_copper_under_map(not overlay_on or self.display.kind == "copper")
 
     def _on_display_changed(self, what):
         """!
@@ -1630,9 +1635,13 @@ class MainWindow(QMainWindow):
 
     def show_shortcuts(self):
         """!
-        @brief Show the keyboard and mouse help (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
+        @brief Show the keyboard and mouse help in a dialog of two columns (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
         """
-        QMessageBox.information(self, "Keyboard and mouse", self.SHORTCUTS_HTML)
+        from .shortcuts_dialog import ShortcutsDialog
+
+        dlg = ShortcutsDialog(self.SHORTCUTS_HTML, self.theme_name, self)
+        self.shortcuts_dialog = dlg                      # Kept so that a test can look at it while it is open
+        dlg.exec()
 
     def show_about(self):
         """!
