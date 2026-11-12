@@ -1488,10 +1488,12 @@ def test_boxes_warnings_accordion_and_layer_keys_in_the_application(win, qtbot, 
                 win.toggle_theme()
             win.canvas.set_selection([("heater", 0)])
             win._on_canvas_selection([("heater", 0)])
-            boxes = [b for d in (win.dock_board, win.dock_sim, win.dock_inspector) for b in d.findChildren(CollapsibleBox)]
-            assert len(boxes) >= 8
+            def live_boxes():
+                # Fresh at every use: the Properties form is rebuilt (its old boxes are deleted later) when the selection or the layout changes
+                return [b for d in (win.dock_board, win.dock_sim, win.dock_inspector) for b in d.findChildren(CollapsibleBox) if b.isVisibleTo(d)]
+            assert len(live_boxes()) >= 8
             for state in (False, True):
-                for b in boxes:
+                for b in live_boxes():
                     b.set_open(state)
                     assert b.body.isHidden() == (not state)
                 qtbot.wait(20)
