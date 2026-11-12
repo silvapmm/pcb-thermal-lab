@@ -2098,3 +2098,65 @@ Re-run by the reviewer on this branch (`releases/2.7.0/final-opinion/edge-film.m
 
 * The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
 * What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
+
+
+## 40. Drawn layers on a board with an outline: the edge film from the centroid (FVM)
+
+`fix/drawn-layers-edge-film-centroid` (2.7.0; `fvm.Network._cut_edge_film`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, scripts `study_drawn_film.py` and `check_drawn_film_invariants.py`, truth `lib/truth_mask.py`, `lib/truth_values_drawn.json`). Section 39 gave the imported layers the film in series with the distance taken from the centroid of the board part of the cell; this section does the same for the drawn layers (zones), which kept the signed distance from the cell centre.
+
+### 40.1 Method
+
+Every case is a board turned by 0, 11.25, 22.5, 33.75 and 45 degrees and shifted against the grid by 0 and 0.3 of a cell (ten boards, one physics, so one truth), drawn as zones, 1 W in a square heater, `h_top = h_bottom = 10`. The truth is an independent 3D solver with no idealisation of the laminate (`truth3d.py` for the squares, the stored truth of section 39; `truth_mask.py`, the full board of any axis-aligned outline, for the new cases: cells 0.4 and 0.2 mm, the laminate in 12 sub-slabs per gap, the extrapolation of `study_truth.py`). `truth_mask.py` reproduces the first solve of the stored square truth to the digit and its extrapolation lies 0.035 % above it; the balance of every truth solve is below 4e-12; the uncertainty of the new truths is taken as 0.2 %. The program before is the tree of `develop`, after is the branch.
+
+### 40.2 Result (mean / worst error of the heater rise against the truth, %, before -> after)
+
+| case, `h_side` W/m2K, cell | before | after |
+| :-- | :-- | :-- |
+| 20 mm square, copper 1.2 mm inside, 10, 1 mm | -0.61 / 0.82 | -0.58 / 0.79 |
+| same, 50, 1 mm | -1.72 / 2.30 | -1.35 / 1.90 |
+| same, 200, 1 mm / 0.5 mm | -4.76 / 6.36 ; -3.57 / 3.94 | -3.15 / 4.62 ; -2.76 / 3.01 |
+| same, 500, 1 mm / 0.5 mm | -7.43 / 9.88 ; -5.42 / 6.01 | -4.66 / 6.90 ; -4.03 / 4.54 |
+| same, 1000, 1 mm / 0.5 mm | -9.18 / 12.15 ; -6.58 / 7.32 | -5.66 / 8.39 ; -4.82 / 5.50 |
+| 20 mm square, copper to the wall, 200, 1 / 0.5 mm | -1.12 / 1.76 ; -1.02 / 1.18 | +0.25 / 0.90 ; -0.34 / 0.52 |
+| same, 1000, 1 / 0.5 mm | -3.65 / 4.65 ; -3.43 / 3.67 | -0.93 / 1.86 ; -2.12 / 2.58 |
+| 12 mm square, 2 mm heater, wall, 200, 1 / 0.5 / 0.25 mm | -1.17 / 2.60 ; -1.26 / 1.59 ; -1.16 / 1.24 | +0.51 / 2.43 ; -0.44 / 0.70 ; -0.75 / 0.96 |
+| four layers, 200, 1 / 0.5 mm | -5.11 / 7.00 ; -3.51 / 3.91 | -3.30 / 5.03 ; -2.61 / 2.88 |
+| four layers, 1000, 1 / 0.5 mm | -10.83 / 14.51 ; -7.20 / 8.04 | -6.66 / 10.07 ; -5.11 / 5.93 |
+| top pad 7.2 mm, 200, 1 / 0.5 mm | -9.01 / 10.59 ; -7.03 / 9.13 | -8.22 / 9.72 ; -6.63 / 9.13 |
+| top stripes and pad, 200, 1 / 0.5 mm | -13.01 / 15.95 ; -5.76 / 6.51 | -11.81 / 14.64 ; -5.17 / 5.82 |
+| T outline, copper 1.2 mm inside, 200, 1 / 0.5 mm | -4.28 / 5.71 ; -3.75 / 4.16 | -2.68 / 4.00 ; -2.92 / 3.27 |
+| L outline, copper 1.2 mm inside, 200, 1 / 0.5 mm | -4.65 / 5.63 ; -3.63 / 3.84 | -3.12 / 3.86 ; -2.86 / 3.59 |
+| mixed 2 layers (top imported), 200, 1 / 0.5 mm | -1.97 / 2.83 ; -2.00 / 2.28 | -1.73 / 2.57 ; -1.89 / 2.15 |
+| mixed 4 layers (outer imported), 200, 1 / 0.5 mm | -2.46 / 3.58 ; -2.10 / 2.44 | -1.81 / 2.87 ; -1.78 / 2.08 |
+| **T outline, copper to the wall, 200, 1 / 0.5 mm** | **-0.27 / 0.89 ; -0.50 / 0.62** | **+1.19 / 1.48 ; +0.24 / 0.42** |
+| **L outline, copper to the wall, 200, 1 / 0.5 mm** | **-0.55 / 0.89 ; -0.63 / 0.98** | **+0.81 / 1.16 ; +0.05 / 0.98** |
+
+The aligned board (every cell whole to the outline) does not move: its centroid is the cell centre. Mean and worst error fall or stay on every case except two: the copper to the wall on a T and an L outline at 1 mm, where the error turns **hot** (9 of the 10 boards of the T and 3 of the L are more than 0.5 point worse than before, but all within 1.5 % of the truth, on the safe side), because the film from the centroid is a first-order error on the hot side where the copper of a cut cell reaches the outline (40.5: the earlier explanation, a cancellation with the laminate sub-gaps, was wrong); and one board of the 12 mm square at 1 mm (+2.43 % against -2.01 %; the 0.5 mm worst is 0.70 %). The balance closes to 1.4e-12 on every board.
+
+### 40.3 Properties and cost
+
+Over the turned boards of 40.1 (also the T, L, four-layer, striped and mixed ones) at 1 and 0.5 mm and `h_side` 10, 200, 1000 and 1e5 W/m2K: the matrix is symmetric (difference 0), has no positive off-diagonal entry, a constant field is reproduced to 1.8e-17 of the ambient conductance, the heat balance is at most 1.4e-12; the time simulation of the turned T ends at 95.7115 K, the steady hottest value being 95.7115 K. On a 200 x 150 mm outline board with two zones: building the network 0.06 s at 1 mm and 0.23 s at 0.5 mm, the solve 0.4 and 2.5 s, peak resident memory 0.65 and 1.49 GB for the whole run (strips of 16 cell rows, 54 MB at 0.25 mm). Frozen numbers (`tests/regression/data/pending/drawn-layers-edge-film-centroid.json`, 9 records and 3 times to 63 %): the FVM of `example_cut_to_T` (+0.0009 K at 2 mm, nothing at 1 and 0.5 mm; time unchanged), `part_across_outline` (+0.0086 / +0.0083 / +0.0024 K at 2 / 1 / 0.5 mm, time 33.584 to 33.588 s) and `round_outline` (+0.0091 / +0.0050 / +0.0025 K, time 38.625 to 38.636 s); no other board has an outline.
+
+### 40.4 Limits, stated
+
+* **Drawn copper still reads cooler than the same copper imported**: 20 mm square, copper 1.2 mm inside, 200 W/m2K, 1 mm: -3.15 % drawn, -0.93 % imported (a mixed board, -1.73 %). The gap is not the edge film. It comes from how a zone sets the copper fill of a cell (4 x 4 samples, `geometry.zone_fill`) and the in-plane faces (the fill-weighted harmonic mean, not the flow-based faces of the imported copper); striped and padded tops stay 5 to 12 % cool for the same reason. Planned for 2.8.0 (`docs/versions.md`, 5a).
+* The idealisation of four laminate sub-gaps (about -2 % below the resolved laminate) is not an edge-film effect and is not changed.
+* Truths of the T, L, four-layer, pad and stripe boards come from an extrapolation of a 0.4 / 0.2 mm series (about 0.2 % uncertain); no truth for rotated T and L outlines other than by the invariance of the physics (the same truth for every turn); the FDM, 3D solid, Lumped and Analytic are unchanged.
+* **Copper reaching the outline reads hot** (40.5): +1 to +2 % of the rise against the program's own converged answer at 1 mm, about half at 0.5 mm, on T, L and square outlines alike; on the square it is hidden against the truth by the cool idealisation of the layered model.
+
+### 40.5 Review
+
+Re-run on copies of `develop` and of the branch (only `fvm.py` differs): every number of 40.1 and 40.3 reproduced. The explanation first given for the T and L failure (the earlier scheme near the truth by a cancellation with the -2 % of four laminate sub-gaps) was tested and is **wrong**. Same boards at 1, 0.5, 0.25 and 0.125 mm, error of the heater mean against the truth in % for the board at 0 / 22.5 / 45 degrees (the aligned board at 0.125 mm is the program's converged answer; its distance from the truth is the idealisation of the layered model, not the film):
+
+| Board, `h_side`, sub-gaps | cell mm | develop | branch |
+| :-- | :-- | :-- | :-- |
+| L, copper to the wall, 200, 4 | 1 / 0.125 | -0.10 / -0.53 / -0.49 ; -0.86 / -0.74 / -0.68 | -0.10 / +0.93 / +1.16 ; -0.86 / -0.55 / -0.53 |
+| L, copper to the wall, 200, 8 | 1 / 0.125 | +0.81 / +0.04 / +0.15 ; -0.26 / -0.14 / -0.08 | +0.81 / +1.76 / +1.97 ; -0.26 / +0.09 / +0.10 |
+| T, copper to the wall, 200, 4 | 1 / 0.125 | +0.16 / -0.34 / -0.37 ; -0.81 / -0.75 / -0.70 | +0.83 / +1.19 / +1.30 ; -0.76 / -0.55 / -0.52 |
+| T, copper to the wall, 200, 8 | 1 / 0.5 / 0.125 | +0.97 / +0.26 / +0.26 ; +0.07 / +0.12 / +0.13 ; -0.16 / -0.11 / -0.05 | +1.77 / +2.06 / +2.17 ; +0.38 / +1.05 / +1.03 ; -0.11 / +0.12 / +0.15 |
+| square, copper to the wall, 200, 4 | 1 / 0.125 | +0.90 / -1.42 / -1.50 ; -0.82 / -0.82 / -0.78 | +0.90 / +0.05 / +0.15 ; -0.82 / -0.63 / -0.65 |
+| square, copper to the wall, 1000, 4 | 1 / 0.125 | -0.17 / -4.13 / -4.65 ; -3.08 / -3.08 / -3.00 | -0.17 / -1.20 / -0.98 ; -3.08 / -2.71 / -2.77 |
+| square, copper 1.2 mm inside, 200, 4 | 1 / 0.125 | -1.38 / -5.71 / -6.36 ; -2.27 / -2.11 / -2.31 | -1.38 / -3.95 / -4.62 ; -2.27 / -1.89 / -2.15 |
+| square, copper 1.2 mm inside, 1000, 4 | 1 / 0.125 | -2.91 / -10.83 / -12.15 ; -4.03 / -3.76 / -4.11 | -2.91 / -6.90 / -8.39 ; -4.03 / -3.26 / -3.75 |
+
+The idealisation of the T and L with copper to the wall is about -0.8 %, not -2 %, and develop's turned boards lie within 0.5 point of it at every cell, so there was no cancellation to lose; with 8 sub-gaps (idealisation about -0.2 %) the hot excess grows instead of disappearing (T +2.1 % at 1 mm, +1.0 % at 0.5 mm). Against the program's own converged answer the turned boards with copper to the wall at 1 mm are +0.9 to +2.1 points on the branch (develop -1.6 to +0.5), falling about as the cell: a new first-order error of the film from the centroid where the copper of the cut cell reaches the outline, on the safe side. The same error is on the square, where it cancels the cooler idealisation (-0.8 % at 200, -3.1 % at 1000 W/m2K): the gain of the copper-to-wall square at 1000 W/m2K (-3.65 to -0.93 %) is that cancellation (against the converged answer -1.3 to +2.0 points). The genuine gain is the copper held inside the outline (develop -3.4 to -8.1, branch -1.7 to -4.4 points from the converged answer at 1 mm) and one film for drawn and imported layers (no switch on a mixed board: drawn -3.15, top imported -1.73, both imported -0.93 % at 1 mm, 200 W/m2K). With `d >= 0` the factor `1 + H d / S` is at least 1, so the 0.25 floor no longer binds on any layer. Why the film from the centroid is too weak where the copper reaches the outline was not derived. Opinion: `releases/2.7.0/final-opinion/drawn-edge-film.md`.
