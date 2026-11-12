@@ -8,9 +8,11 @@ Changing it would move one frozen hottest-temperature value of the harness (`exa
 
 ## Sentence for `docs/theory.md` 2.6 (after the Peaceman well)
 
-"The well reads the sheet conductance of the copper node before the laminate rule of 1.4 has moved the laminate of the interior nodes out of it (0.5 to 1.3 % of the sheet on full 35 um
-copper, 2.7 to 6.2 % at fill 0.2, only in the cells the rule flags): the plated wall runs through the whole thickness of the layer, so the heat the laminate carries sideways into the wall
-belongs to the well, and the interior laminate nodes have no well. The other order is softer by that share and moves the hottest rise by at most 0.04 K (`research/via-well-sheet-order`)."
+"`S_l` is the sheet of the copper node before the laminate rule of 1.4 moves the laminate of the interior nodes out of it (only in the cells the rule flags: 0.5 to
+1.3 % of the sheet on full 35 um copper, 2.7 to 6.2 % at fill 0.2). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K; against a
+resolved 3D barrel the order used is equal or closer by at most 0.005 K, so it is kept (`research/via-well-sheet-order`)."
+(Review: the first text justified the order by the laminate 'belonging to the well'; the interior laminate nodes still reach the wells through the copper nodes, so that argument is not
+established, and the sentence rests on the measurement.)
 Also replace the comment at `fdm.py` ~193 "as in the FVM" by "the same convention as the FVM (theory 2.6)".
 
 ## Test that pins the convention (to enter `tests/`, e.g. `tests/test_via_well_sheet_order.py`)

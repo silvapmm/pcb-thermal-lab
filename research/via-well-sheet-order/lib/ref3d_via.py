@@ -131,10 +131,13 @@ def solve(dx, width, half_height, layers, t_cu, gaps, n_sub, k_fr4_xy, k_fr4_z, 
     q = np.zeros(n)
     q[idx[0][m]] = power / m.sum()
     K = (sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr() + sp.diags(diag)).tocsr()
-    if direct or n < 60000:
+    try:
+        import pyamg                                           # not in requirements.txt: the multigrid preconditioner of the large cases (pip install pyamg)
+    except ImportError:
+        pyamg = None                                           # without it the sparse LU is used (same answer, more memory: about 2 GB at 2 layers and 1/16 mm, several times that at 4 layers)
+    if direct or n < 60000 or pyamg is None:
         T = spla.spsolve(K.tocsc(), q)
     else:
-        import pyamg
         ml = pyamg.smoothed_aggregation_solver(K, strength="evolution", max_coarse=500)
         T, info = spla.cg(K, q, rtol=1e-12, atol=0.0, M=ml.aspreconditioner(cycle="V"), maxiter=400)
         if info != 0:
