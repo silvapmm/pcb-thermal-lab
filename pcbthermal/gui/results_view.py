@@ -315,6 +315,17 @@ class PlotTab(QWidget):
         super().showEvent(e)
         redraw_pending(self, self.redraw)
 
+    @staticmethod
+    def _model_hot_point(r, layer):
+        """!
+        @brief Where the model reports its hottest point, when that is on the layer drawn.
+        @param r SteadyResult shown.
+        @param layer 0-based layer drawn.
+        @return (x_m, y_m) of `SteadyResult.t_max_location`, or None (another layer, or no location: the map then computes its own hottest sample).
+        """
+        loc = r.t_max_location
+        return (loc[1], loc[2]) if loc is not None and int(loc[0]) == layer else None
+
     def _layer_index(self):
         """!
         @brief The copper layer a single-layer picture shows (the stored choice kept on the board).
@@ -378,7 +389,7 @@ class PlotTab(QWidget):
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
                     plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
-                                     layer=layer, extremes=True,
+                                     layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                      hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
                                      title=f"{r.model.upper()} - layer {layer + 1}   "
                                            f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)

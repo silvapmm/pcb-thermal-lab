@@ -144,3 +144,37 @@ def test_profile_thumbnail_survives_every_layer_and_the_default_cut(sim, tmp_pat
     out = tmp_path / "p.png"
     plots.plot_profiles(sim.results, sim.problem, str(out))
     assert out.stat().st_size > 1000
+
+
+def test_hot_ring_stays_at_the_model_tmax_point_and_only_the_cold_one_is_computed(sim):
+    """!
+    @brief With a `hot` point (or `marker` on the map) the red ring is there; the blue ring is still the coolest drawn sample.
+    @param sim Simulation fixture.
+    """
+    r = sim.results["fvm"]
+    e = analysis.extreme_points(r.T[0], None, r.dx, r.dy, hot=(99.0, (1.25, 2.5)))
+    assert e["tmax"] == 99.0 and e["pmax"] == (1.25, 2.5)
+    assert e["pmin"] == analysis.extreme_points(r.T[0], None, r.dx, r.dy)["pmin"]
+    ax = plots.draw_field(plots.new_figure(), r.T[0], sim.problem, r.dx, r.dy, extremes=True, marker=(0.003, 0.004))
+    rings = {c: (x, y) for c, x, y in _rings(ax)}
+    assert rings[plots.MAX_MARK_COLOUR] == pytest.approx((3.0, 4.0))
+    assert rings[plots.MIN_MARK_COLOUR] == pytest.approx(analysis.extreme_points(r.T[0], None, r.dx, r.dy)["pmin"])
+
+
+def test_lumped_hot_mark_is_the_reported_peak_point_on_every_layer_grid():
+    """!
+    @brief The Lumped map keeps its hot ring at `t_max_location` (the part's peak), in the all-layers view too.
+    """
+    from pcbthermal.model import Problem
+
+    p = Problem.new(width_mm=40, height_mm=30, layers=2)
+    p.add_zone(1, rect=(0, 0, 40, 30))
+    p.add_heater(1, 1.0, rect=(5, 5, 9, 9))
+    s = simulate(p, SolverOptions(cell_mm=1.0, models=("lumped",)))
+    r = s.results["lumped"]
+    layer, x, y = r.t_max_location
+    fig = plots.new_figure()
+    plots.draw_fields(fig, r, s.problem)
+    ax = [a for a in fig.axes if a.get_label() != "<colorbar>" and a.lines][layer]
+    red = [(px, py) for c, px, py in _rings(ax) if c == plots.MAX_MARK_COLOUR]
+    assert red == [pytest.approx((x * 1000.0, y * 1000.0))]

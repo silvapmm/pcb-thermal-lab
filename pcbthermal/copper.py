@@ -767,7 +767,10 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
     copper_rec = ImportedCopper(float(pixel_mm), True, entries, mapping)
     holes = []
     skipped = {"slot": 0, "unplated": 0}
+    partial = 0                                    # Vias whose drill file says they do not span the whole stack (blind, buried, micro)
     for df in drills:
+        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span is not 1..n is counted for the warning below
+        short = df.span is not None and tuple(sorted(df.span)) != (1, n)
         for h in df.holes:
             plated = h.plated if h.plated is not None else df.plated
             if h.is_slot:
@@ -776,6 +779,10 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
                 skipped["unplated"] += 1
             elif x0 <= h.x <= x1 and y0 <= h.y <= y1:
                 holes.append({"x_mm": float(h.x - x0), "y_mm": float(h.y - y0), "d_mm": float(max(h.diameter, 0.1)), "kind": "via"})
+                partial += 1 if short else 0
+    if partial:
+        warnings.append(f"{partial} of the {len(holes)} vias have a layer span that is not the whole board (blind, buried or micro vias, from the drill file function): "
+                        "they are treated as through vias that join all the layers, so the board reads too cool (the unsafe side)")
     if skipped["slot"]:
         warnings.append(f"{skipped['slot']} routed slots are not modelled")
     if skipped["unplated"]:
