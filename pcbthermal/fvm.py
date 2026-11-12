@@ -175,8 +175,8 @@ class Network:
         @param cut_cells True (default): the cut-cell treatment of the board edge: the links of a board with an outline carry the open fraction of the shared face (the aperture,
                `geometry.face_apertures`) on the physical sheet, and the edge film h_side is in series with the conduction from the node to the closest outline point (on a rectangle:
                to the edge, half a cell away). False: the earlier treatment (links of the cover-scaled sheets, the film on the node); the Lumped model, which reads the per-cell
-               arrays ring by ring and never sees the links, asks for it so that its numbers do not move. A problem with an outline and imported copper always keeps the earlier
-               treatment (`cut_cells_note` says so).
+               arrays ring by ring and never sees the links, asks for it so that its numbers do not move. The imported layers take the outline at the pixel level
+               (`copper.lateral(outline=)`).
         """
         problem.validate()
         self.problem = problem
@@ -211,16 +211,14 @@ class Network:
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
-        # The cut-cell treatment is not applied where the imported faces would mix with it: the faces of an imported layer are built from pixel sheets times the cell cover
-        # (copper.lateral), so the aperture would have to enter there as a pixel-level mask of the board; until then a board with an outline and imported copper keeps the
-        # cover-weighted links and the film on the node in all its layers (one consistent treatment), and the run says so
-        self.cut_cells_note = None
+        # The cut-cell treatment of a board with an outline: the aperture links and the edge film hold for the drawn layers; the imported layers take the outline at the PIXEL
+        # level (copper.lateral(outline=)), so the open fraction of a cut face and the copper edge held inside the outline come out of the pixels
         self.cut_edge = bool(cut_cells)
         self.cut_links = bool(cut_cells) and b.has_outline()
-        if cut_cells and b.has_outline() and self.copper is not None:
-            # (no note when the outline is the whole box: no cell is cut, only the half-cell series term of the border film is left out)
-            self.cut_cells_note = copper.CUT_CELLS_IMPORTED_NOTE if copper.outline_cuts_cells(b) else None
-            self.cut_edge = self.cut_links = False
+        if self.cut_links and self.copper is not None:
+            # The film in series with the conduction to the edge is NOT put on a board with imported copper (measured: it adds +1.6 % at 1 mm to an aligned board whose
+            # copper is held 1.2 mm inside the edge, where the film on the node is within 0.1 %): it stays on the node as before
+            self.cut_edge = False
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
         tc = t_cu[:, None, None]
@@ -508,7 +506,8 @@ class Network:
                 with np.errstate(divide="ignore", invalid="ignore"):
                     for layer in self.copper.layers:
                         red = np.where(self.cover > 0, np.maximum(s_pre[layer] - self.S[layer], 0.0) / self.cover, 0.0)
-                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height)
+                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height,
+                                                                   outline=b.outline if self.cut_links else None)
                 self._face_context = None                       # The copy of the sheet is not needed again
         return self._lateral
 
