@@ -523,7 +523,7 @@ def test_imported_full_copper_on_an_outline_follows_the_drawn_aperture_links():
     assert abs(imported / drawn - 1.0) < 0.01, (imported, drawn)
 
 
-def test_a_rectangle_with_imported_copper_has_no_outline_note_and_is_unchanged():
+def test_a_rectangle_with_imported_copper_has_no_outline_note_and_moves_only_by_the_centroid_film():
     stripes = np.zeros((40, 40), np.uint8)
     stripes[::6] = 1
     q = Problem.new(10, 10, 2, h_side=200.0)
