@@ -131,7 +131,8 @@ def test_negative_c_enlarges_the_footprint_instead_of_an_infinite_well():
     @return None.
     """
     ref = CORNER_REFERENCE[0.3]
-    assert abs(effect(0.5, distance=0.3, corner=True) / ref - 1.0) < 0.01
+    # 1 % before fix/simple-stackup-physical-layers; the physical slabs of the four-layer board move the corner case to 1.15 % (2.3655 against 2.393 K)
+    assert abs(effect(0.5, distance=0.3, corner=True) / ref - 1.0) < 0.015
     p = edge_board(distance=0.3, corner=True)
     net = fvm.Network(p, 20, 20)
     assert all(np.isfinite(G).all() for _r, _c, _w, G in net.via_blocks)

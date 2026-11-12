@@ -5,168 +5,6 @@
  "format": 1,
  "item": "FDM face between nodes is the harmonic mean of the physical sheets",
  "records": {
-  "example_board|fdm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.84450434723906e-12,
-    "layer_mean[0]": 50.848081695298255,
-    "layer_mean[1]": 50.39327438567628,
-    "layer_mean[2]": 49.864652280960286,
-    "layer_mean[3]": 49.27071102429852,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 109.2809912241978,
-    "part:U1:t_max": 85.2809912241978,
-    "part:U1:t_mean": 79.87406880108458,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 90.56280368269898,
-    "part:U2:t_max": 72.56280368269898,
-    "part:U2:t_mean": 69.10726226370201,
-    "power_in": 5.5,
-    "t_max": 85.2809912241978,
-    "t_mean": 50.09417984655834,
-    "t_min": 42.94043801684252,
-    "t_sum": 6479263.14503789,
-    "t_sumsq": 327215389.7392999,
-    "unknowns": 153252
-   }
-  },
-  "example_board|fdm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.0966581178515548e-12,
-    "layer_mean[0]": 50.85146381381289,
-    "layer_mean[1]": 50.39367066512869,
-    "layer_mean[2]": 49.86429512322334,
-    "layer_mean[3]": 49.27007289274138,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 109.30424434940244,
-    "part:U1:t_max": 85.30424434940244,
-    "part:U1:t_mean": 79.81710657036606,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 90.49181570957919,
-    "part:U2:t_max": 72.49181570957919,
-    "part:U2:t_mean": 68.96108687015376,
-    "power_in": 5.499999999999999,
-    "t_max": 85.30424434940244,
-    "t_mean": 50.09487562372658,
-    "t_min": 42.977948013158006,
-    "t_sum": 1636736.8920681998,
-    "t_sumsq": 82593114.66182134,
-    "unknowns": 40092
-   }
-  },
-  "example_board|fdm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 4.812312164920678e-14,
-    "layer_mean[0]": 50.866520904947365,
-    "layer_mean[1]": 50.39900446779724,
-    "layer_mean[2]": 49.86558940744336,
-    "layer_mean[3]": 49.26995606583512,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 108.45321208048577,
-    "part:U1:t_max": 84.45321208048577,
-    "part:U1:t_mean": 79.31942571890269,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 89.08378764396102,
-    "part:U2:t_max": 71.08378764396102,
-    "part:U2:t_mean": 68.07712924443106,
-    "power_in": 5.500000000000001,
-    "t_max": 84.45321208048577,
-    "t_mean": 50.10026771150577,
-    "t_min": 43.06666875641147,
-    "t_sum": 417757.4045944826,
-    "t_sumsq": 21048494.708129168,
-    "unknowns": 10936
-   }
-  },
-  "example_cut_to_T|fdm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.8474111129762605e-12,
-    "layer_mean[0]": 58.885390130370176,
-    "layer_mean[1]": 58.26653533093016,
-    "layer_mean[2]": 57.556545767611006,
-    "layer_mean[3]": 56.76254041228261,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.51157352874267,
-    "part:U1:t_max": 94.51157352874267,
-    "part:U1:t_mean": 88.83693778613504,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 99.94151852943301,
-    "part:U2:t_max": 81.94151852943301,
-    "part:U2:t_mean": 78.3834323102935,
-    "power_in": 5.5,
-    "t_max": 94.51157352874267,
-    "t_mean": 57.86775291029849,
-    "t_min": 47.60532864158958,
-    "t_sum": 6407986.350063443,
-    "t_sumsq": 347197950.33990943,
-    "unknowns": 147234
-   }
-  },
-  "example_cut_to_T|fdm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.0533796057643487e-12,
-    "layer_mean[0]": 58.89024861393045,
-    "layer_mean[1]": 58.267448395114904,
-    "layer_mean[2]": 57.55645943280161,
-    "layer_mean[3]": 56.762060302887036,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.5239859193146,
-    "part:U1:t_max": 94.5239859193146,
-    "part:U1:t_mean": 88.75608437217247,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 99.84682036552704,
-    "part:U2:t_max": 81.84682036552704,
-    "part:U2:t_mean": 78.10636025556981,
-    "power_in": 5.499999999999999,
-    "t_max": 94.5239859193146,
-    "t_mean": 57.8690541861835,
-    "t_min": 47.661239429594175,
-    "t_sum": 1622134.3742547263,
-    "t_sumsq": 87923952.2473384,
-    "unknowns": 38574
-   }
-  },
-  "example_cut_to_T|fdm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 6.023464555420849e-14,
-    "layer_mean[0]": 58.91857693303329,
-    "layer_mean[1]": 58.283184141198454,
-    "layer_mean[2]": 57.56694222920063,
-    "layer_mean[3]": 56.77074592399766,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 117.89934262888058,
-    "part:U1:t_max": 93.89934262888058,
-    "part:U1:t_mean": 88.47286827490888,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 98.7730069764957,
-    "part:U2:t_max": 80.7730069764957,
-    "part:U2:t_mean": 77.18072148882102,
-    "power_in": 5.5,
-    "t_max": 93.89934262888058,
-    "t_mean": 57.88486230685751,
-    "t_min": 47.82356910742104,
-    "t_sum": 418539.8122166648,
-    "t_sumsq": 22795215.368807357,
-    "unknowns": 10632
-   }
-  },
   "finned_block|fdm|0.5": {
    "class": "moved",
    "metrics": {
@@ -575,87 +413,6 @@
     "unknowns": 2930
    }
   },
-  "profile_board|fdm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.84450434723906e-12,
-    "layer_mean[0]": 50.848081695298255,
-    "layer_mean[1]": 50.39327438567628,
-    "layer_mean[2]": 49.864652280960286,
-    "layer_mean[3]": 49.27071102429852,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 109.2809912241978,
-    "part:U1:t_max": 85.2809912241978,
-    "part:U1:t_mean": 79.87406880108458,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 90.56280368269898,
-    "part:U2:t_max": 72.56280368269898,
-    "part:U2:t_mean": 69.10726226370201,
-    "power_in": 5.5,
-    "t_max": 85.2809912241978,
-    "t_mean": 50.09417984655834,
-    "t_min": 42.94043801684252,
-    "t_sum": 6479263.14503789,
-    "t_sumsq": 327215389.7392999,
-    "unknowns": 153252
-   }
-  },
-  "profile_board|fdm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.0966581178515548e-12,
-    "layer_mean[0]": 50.85146381381289,
-    "layer_mean[1]": 50.39367066512869,
-    "layer_mean[2]": 49.86429512322334,
-    "layer_mean[3]": 49.27007289274138,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 109.30424434940244,
-    "part:U1:t_max": 85.30424434940244,
-    "part:U1:t_mean": 79.81710657036606,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 90.49181570957919,
-    "part:U2:t_max": 72.49181570957919,
-    "part:U2:t_mean": 68.96108687015376,
-    "power_in": 5.499999999999999,
-    "t_max": 85.30424434940244,
-    "t_mean": 50.09487562372658,
-    "t_min": 42.977948013158006,
-    "t_sum": 1636736.8920681998,
-    "t_sumsq": 82593114.66182134,
-    "unknowns": 40092
-   }
-  },
-  "profile_board|fdm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 4.812312164920678e-14,
-    "layer_mean[0]": 50.866520904947365,
-    "layer_mean[1]": 50.39900446779724,
-    "layer_mean[2]": 49.86558940744336,
-    "layer_mean[3]": 49.26995606583512,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 108.45321208048577,
-    "part:U1:t_max": 84.45321208048577,
-    "part:U1:t_mean": 79.31942571890269,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 89.08378764396102,
-    "part:U2:t_max": 71.08378764396102,
-    "part:U2:t_mean": 68.07712924443106,
-    "power_in": 5.500000000000001,
-    "t_max": 84.45321208048577,
-    "t_mean": 50.10026771150577,
-    "t_min": 43.06666875641147,
-    "t_sum": 417757.4045944826,
-    "t_sumsq": 21048494.708129168,
-    "unknowns": 10936
-   }
-  },
   "reference_board|fdm|0.5": {
    "class": "moved",
    "metrics": {
@@ -886,20 +643,6 @@
   }
  },
  "transients": {
-  "example_board|fdm": {
-   "class": "moved",
-   "t63": {
-    "U1": 11.19225690797623,
-    "U2": 3.112070806134598
-   }
-  },
-  "example_cut_to_T|fdm": {
-   "class": "moved",
-   "t63": {
-    "U1": 16.598901598025158,
-    "U2": 4.931418112885719
-   }
-  },
   "finned_block|fdm": {
    "class": "moved",
    "t63": {
@@ -942,13 +685,6 @@
     "U": 33.26016738011926
    }
   },
-  "profile_board|fdm": {
-   "class": "moved",
-   "t63": {
-    "U1": 11.19225690797623,
-    "U2": 3.112070806134598
-   }
-  },
   "reference_board|fdm": {
    "class": "moved",
    "t63": {
@@ -974,5 +710,5 @@
    }
   }
  },
- "why": "The arithmetic mean leaked half of a copper node's sheet across a copper edge; the harmonic mean closes it (bare-pad boards +3 to +20 K, boards with only the laminate band at the edge 1e-5 to 1e-3 K)."
+ "why": "The arithmetic mean leaked half of a copper node's sheet across a copper edge; the harmonic mean closes it (bare-pad boards +3 to +20 K, boards with only the laminate band at the edge 1e-5 to 1e-3 K). The records of example_board, profile_board and example_cut_to_T that the simple stack-up change (fix/simple-stackup-physical-layers) also moves are held, with both changes, by simple-stackup-physical-layers.json."
 }
