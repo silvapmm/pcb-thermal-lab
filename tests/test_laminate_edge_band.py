@@ -197,6 +197,23 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
     assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
 
 
+def test_the_edge_warning_names_the_via_effect_and_the_simple_stackup_of_three_or_more_layers():
+    # research/strong-edge-laminate 8: the via effect near a strong edge reads lower still, and a simple stack-up of three or more layers (equal slabs T / L) reads cooler still;
+    # two layers in the simple stack-up and an advanced stack-up do not get the stack-up clause
+    from pcbthermal.model import Dielectric
+    two = checks.check_edge_laminate(plate(1.6, 1000.0, "corner"), ("fvm",))[0]
+    assert "via" in two and "helps more than shown" in two and "simple stack-up" not in two
+    four = plate(1.6, 1000.0, "corner", layers=4)
+    text = checks.check_edge_laminate(four, ("fvm",))[0]
+    assert "simple stack-up" in text and "advanced stack-up" in text
+    assert "simple stack-up" in checks.line(text)                                  # the one-line form of the live list says it too
+    gap = (1.6 - 4 * 0.035) / 3 * 1e-3
+    four.board.dielectrics = [Dielectric(thickness=gap, k_through=0.3, k_inplane=0.9) for _ in range(3)]
+    adv = checks.check_edge_laminate(four, ("fvm",))
+    assert adv and "simple stack-up" not in adv[0]
+    assert not any(k in text for k in ("research/", "fix/", "feature/"))
+
+
 def test_a_warning_for_the_lumped_and_analytic_when_the_edge_is_cooled_strongly_for_the_thickness():
     # check_reduced_edge_laminate (review): the Lumped and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
     # 1.6 mm board with a corner part -5.2 % (Analytic) at 200 W/m2K against a converged independent 3D solver (77.66 K), where the FVM with the band is -0.6 %
@@ -222,7 +239,9 @@ def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_refe
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers"))
     import cut_cell_boards as bd
     ref = 113.31
-    for cell, spread in ((1.0, 1.2), (0.5, 0.35)):
+    # Re-baselined in fix/drawn-layers-edge-film-centroid: with the film from the centroid the aligned square reads 112.03 K and the turned ones 112.47 and 112.48 K at 0.5 mm
+    # (spread 0.45 K, was under 0.35 K); all three stay below the reference 113.31 K
+    for cell, spread in ((1.0, 1.2), (0.5, 0.5)):
         peaks = []
         for angle in (0.0, 22.5, 45.0):
             p = bd.edge_board(angle=angle, h_side=200.0, pc=0.5, box=32.0)

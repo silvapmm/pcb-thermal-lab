@@ -13,6 +13,7 @@ for tomorrow. Every error text is redacted; no key reaches a log or the screen.
 
 from __future__ import annotations
 
+import difflib
 import logging
 import re
 import time
@@ -25,6 +26,63 @@ from tools.ocr.ledger import Ledger
 from tools.ocr.providers.base import Provider, ProviderError, Result
 
 log = logging.getLogger("tools.ocr")
+
+
+MIN_SEAM_WORDS = 5       # shortest run of equal words that is accepted as the overlap between two strips
+SEAM_WINDOW = 160        # words at the end of one strip and at the start of the next in which the overlap is searched
+SEAM_SLACK = 25          # words allowed after the matched run at the end of a strip (the cut line is partial)
+
+
+def _words(text: str) -> list[tuple[str, int, int]]:
+    """!
+    @brief Words of a text with their character span, in a normalised form for comparing two transcriptions of the same lines.
+    @param text Markdown text.
+    @return list[tuple[str, int, int]] (lower-case alphanumeric form, start, end) of every word that has one.
+    """
+    out = []
+    for m in re.finditer(r"\S+", text):
+        w = re.sub(r"[^0-9a-z]+", "", m.group(0).lower())
+        if w:
+            out.append((w, m.start(), m.end()))
+    return out
+
+
+def merge_two(a: str, b: str) -> str:
+    """!
+    @brief Join the transcriptions of two overlapping strips of a page, dropping the lines both contain.
+    @details The tail of `a` and the head of `b` show the same printed lines. The longest run of equal words
+             between them (at least MIN_SEAM_WORDS) marks the seam: everything of `a` up to the end of the run and
+             everything of `b` after it are kept. A cut line is partial in one of the two, so the run is searched
+             in the words, not in the lines. With no such run the texts are joined with a comment that says so.
+    @param a Text of the upper strip.
+    @param b Text of the lower strip.
+    @return str The joined text.
+    """
+    wa, wb = _words(a)[-SEAM_WINDOW:], _words(b)[:SEAM_WINDOW]
+    sm = difflib.SequenceMatcher(None, [w[0] for w in wa], [w[0] for w in wb], autojunk=False)
+    blk = sm.find_longest_match(0, len(wa), 0, len(wb))
+    if blk.size >= MIN_SEAM_WORDS and len(wa) - (blk.a + blk.size) <= SEAM_SLACK:
+        # Take `a` through the end of the run and `b` after it. When the run ends in the middle of a line of `b`
+        # (the cut line was partial in `a`) the rest of that line continues `a`'s last line, so join with a space.
+        head, rest = a[:wa[blk.a + blk.size - 1][2]].rstrip(), b[wb[blk.b + blk.size - 1][2]:]
+        sep = "\n" if rest.startswith("\n") or not rest.strip() else " "
+        if sep == " ":
+            # A cut line closed an emphasis in the upper strip: its trailing '*' is a seam artefact, not printed text.
+            head = head.rstrip("*").rstrip()
+        return head + sep + rest.lstrip("\n ").rstrip()
+    return a.rstrip() + "\n<!-- strip seam: no overlap found, a line may be repeated or missing -->\n" + b.lstrip()
+
+
+def merge_strips(texts: list[str]) -> str:
+    """!
+    @brief Join the transcriptions of the horizontal strips of a page (top to bottom).
+    @param texts Transcription of each strip.
+    @return str One text.
+    """
+    out = texts[0]
+    for t in texts[1:]:
+        out = merge_two(out, t)
+    return out
 
 
 class ConfidentialError(Exception):
@@ -56,7 +114,8 @@ class Runner:
     def __init__(self, provider: Provider, out_dir: Path, ledger: Ledger, model: str | None = None,
                  prompt: str | None = None, pause: float = 4.0, daily_limit: int | None = None,
                  allow_confidential: bool = False, dpi: int = render.DEFAULT_DPI, sleep=time.sleep,
-                 renderer=None, info=None, max_tokens: int | None = None, whole_page: bool = False):
+                 renderer=None, info=None, max_tokens: int | None = None, whole_page: bool = False,
+                 strips: bool = True):
         """!
         @brief Create a runner.
         @param provider           The provider.
@@ -76,9 +135,12 @@ class Runner:
         @param max_tokens         Output token budget per request (None: the provider's default, 8192 for Claude).
         @param whole_page         One request per page, never half-page crops or fallback models: a refused page stays
                                   empty and a page cut at the token limit is kept with a note.
+        @param strips             After the half-page crops, try three strips with 10 % overlap and join them
+                                  (default: part of the refusal ladder, full page, halves, strips, fallback models;
+                                  three more requests for a page that stays refused).
         @return None
         """
-        self.max_tokens, self.whole_page = max_tokens, whole_page
+        self.max_tokens, self.whole_page, self.strips = max_tokens, whole_page, strips
         self.provider, self.out_dir, self.ledger = provider, Path(out_dir), ledger
         cfg = config.models().get(provider.name, {})
         self.model = model or cfg.get("default") or provider.default_model
@@ -174,6 +236,12 @@ class Runner:
         if not any(h.recitation or h.split or not h.text.strip() for h in halves):
             return (f"<!-- half-page crops ({res.finish_reason or 'RECITATION'} on the full page) -->\n" + "\n\n".join(h.text for h in halves),
                     self.model, "half-page crops")
+        if self.strips:
+            log.info("%s p%d: crops refused, trying three strips", pdf.name, page)
+            parts = [self._call(self._render(pdf, page, self.dpi, clip), self.model) for clip in render.STRIPS]
+            if not any(h.recitation or h.split or not h.text.strip() for h in parts):
+                return ("<!-- three strips joined (refused on the full page and on the half-page crops) -->\n"
+                        + merge_strips([h.text for h in parts]), self.model, "strips")
         for alt in self.fallbacks:
             log.info("%s p%d: crops refused, trying %s", pdf.name, page, alt)
             res = self._call(self._render(pdf, page, self.dpi, None), alt)

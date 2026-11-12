@@ -1,5 +1,7 @@
 # plate-h-level: which natural-convection level for a vertical face
 
+*Superseded by [`convection-laws/`](../convection-laws/README.md) for the laws and by [`face-down-convection/`](../face-down-convection/README.md) for the face turned down; this folder keeps the vertical-face level study (proposal A in the program since 2.5.0).*
+
 **Status (audit 2.7.0).** Proposal A of `INTEGRATION.md` is the program since 2.5.0: new projects use the `laminar` form, old files and the class default keep `general`, and a face below Ra 1e3 is warned (`checks.check_low_rayleigh`).
 
 The question (from the review of `research/fin-channel`, README 10 and `INTEGRATION.md` 6, item 5): which level of the coefficient of an isothermal vertical plate should the program use, and by how much does the choice matter? The program uses Churchill and Chu (`pcbthermal/convection.py`, `Board.natural_form` `general` or `laminar`); the composite of Bar-Cohen and Rohsenow has a plate limit of `0.59 Ra^(1/4)`; laminar boundary-layer theory gives about `0.516 Ra^(1/4)`. The program is not touched: everything below runs on copies in memory (`lib/levels.py`).

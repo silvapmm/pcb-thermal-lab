@@ -2,9 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_imported_edge_film_centroid.py
-@brief The edge film in series on the IMPORTED layers of a board with an outline, with the distance measured from the centroid of the board part of each cut cell.
-@details Evidence: research/imported-copper-edge-film (README, INTEGRATION.md) and docs/validation.md 39. Drawn layers keep the distance from the cell centre (their centroid film is a
-         separate decision, docs/versions.md 'Planned'). Run: QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_imported_edge_film_centroid.py
+@brief The edge film in series on EVERY layer (imported or drawn) of a board with an outline, with the distance measured from the centroid of the board part of each cut cell.
+@details Evidence: research/imported-copper-edge-film (README, INTEGRATION.md) and docs/validation.md 39 (imported layers) and 40 (drawn layers, copper to the wall, T and L outlines,
+         mixed boards). Only the layers of a metal block keep the distance from the cell centre. Run: QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_imported_edge_film_centroid.py
 """
 
 import math
@@ -63,7 +63,7 @@ def test_the_centroid_of_a_cut_cell_is_inside_its_board_part_and_the_strips_equa
     assert not s0.any()
 
 
-def test_the_film_of_an_imported_cut_cell_uses_the_centroid_distance_and_a_drawn_one_the_centre():
+def test_the_film_of_a_cut_cell_uses_the_centroid_distance_for_drawn_and_imported_layers():
     # Independent rebuild of g = H L / max(1 + H d / S, 0.25) from the arrays of the network
     for imported in (True, False):
         p = board(imported)
@@ -82,7 +82,7 @@ def test_the_film_of_an_imported_cut_cell_uses_the_centroid_distance_and_a_drawn
         d_cent = np.maximum(signed_distance_to_outline(p.board.outline, cx[r, c], cy[r, c]), 0.0)
         sp_ = net._physical_sheet()
         for layer in range(p.board.layers):
-            d = d_cent if imported else d_centre
+            d = d_cent
             with np.errstate(divide="ignore", invalid="ignore"):
                 fac = np.where(sp_[layer, r, c] > 0, 1.0 + H[layer, r, c] * d / sp_[layer, r, c], 1.0)
             fac = np.where(H[layer, r, c] > 0, np.maximum(fac, fvm.EDGE_FILM_FLOOR), 1.0)
@@ -174,15 +174,64 @@ def test_the_centroid_film_raises_the_cool_edge_bias_of_imported_copper_held_ins
     assert abs(a / b - 1.0) < 0.005
 
 
-def test_a_drawn_board_is_bit_identical_to_the_centre_distance_film(monkeypatch):
-    # Scope: only imported layers get the centroid. A drawn board must not call the centroid at all
+def test_a_drawn_board_with_an_outline_takes_the_centroid_and_a_rectangle_does_not():
+    # Drawn layers are in the scope since fix/drawn-layers-edge-film-centroid; a board without an outline has no cut cell and never calls it
     called = []
     real = fvm.cover_centroids
-    monkeypatch.setattr(fvm, "cover_centroids", lambda *a, **k: called.append(1) or real(*a, **k))
-    fvm.solve_steady(board(False), cell_mm=1.0)
-    assert not called
-    fvm.solve_steady(board(True), cell_mm=1.0)
-    assert called
+    original = fvm.cover_centroids
+    fvm.cover_centroids = lambda *a, **k: called.append(1) or real(*a, **k)
+    try:
+        fvm.solve_steady(board(False), cell_mm=1.0)
+        assert called
+        called.clear()
+        q = Problem.new(10, 10, 2, h_side=200.0)
+        q.add_heater(1, 1.0, rect=(4, 4, 6, 6), name="U")
+        fvm.solve_steady(q, cell_mm=1.0)
+        assert not called
+    finally:
+        fvm.cover_centroids = original
+
+
+def test_a_drawn_turned_board_is_nearer_the_3d_truth_with_the_centroid_film(monkeypatch):
+    # The 20 mm square turned by 22.5 degrees in a 32 mm box, copper drawn 1.2 mm inside, 200 W/m2K, 1 mm; extrapolated 3D truth 57.247 K
+    # (research/imported-copper-edge-film/lib/truth_values.json): the centre film read -3.95 % of it, the centroid film -3.7 points less cool
+    import math as m
+    a = m.radians(22.5)
+
+    def poly(pts):
+        return [[16 + u * m.cos(a) - v * m.sin(a), 16 + u * m.sin(a) + v * m.cos(a)] for u, v in pts]
+    p = Problem.new(32, 32, 2, h_side=200.0)
+    p.board.h_top = p.board.h_bottom = 10.0
+    p.add_heater(1, 1.0, polygon=poly([(-2, -2), (2, -2), (2, 2), (-2, 2)]), name="U")
+    p.set_outline(poly([(-10, -10), (10, -10), (10, 10), (-10, 10)]))
+    for layer in (1, 2):
+        p.add_zone(layer, polygon=poly([(-8.8, -8.8), (8.8, -8.8), (8.8, 8.8), (-8.8, 8.8)]))
+    def rise(q):
+        net = fvm.Network(q, 32, 32)
+        res = fvm.solve_steady(q, cell_mm=1.0)
+        T = res.T[: q.board.layers].ravel()
+        w = np.asarray(net.Qw[0]).ravel()[: T.size]
+        return float((w * (T - res.ambient)).sum() / w.sum())
+    new = rise(p)
+    real = fvm.Network._cut_edge_film
+    # the earlier drawn rule: the signed distance from the cell centre
+    def centre_film(self, g0):
+        L = self._edge_lengths()
+        H = np.zeros_like(g0)
+        np.divide(g0, L[None], out=H, where=L[None] > 0)
+        cells = np.argwhere(L > 0)
+        d = np.zeros((self.ny, self.nx))
+        d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(self.problem.board.outline, (cells[:, 1] + 0.5) * self.dx, (cells[:, 0] + 0.5) * self.dy)
+        sp_ = self._physical_sheet()
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fac = np.where(sp_ > 0, 1.0 + H * d[None] / sp_, 1.0)
+        fac = np.where(H > 0, np.maximum(fac, fvm.EDGE_FILM_FLOOR), 1.0)
+        return np.where((g0 > 0) & (L[None] > 0), H * L[None] / fac, g0)
+    monkeypatch.setattr(fvm.Network, "_cut_edge_film", centre_film)
+    old = rise(p)
+    monkeypatch.setattr(fvm.Network, "_cut_edge_film", real)
+    truth = 57.247
+    assert abs(new / truth - 1.0) < abs(old / truth - 1.0) - 0.01
 
 
 def test_a_rectangle_with_imported_copper_is_unchanged():
@@ -209,9 +258,9 @@ def test_the_film_on_a_big_outline_board_costs_a_fraction_of_a_second():
     assert math.isfinite(float(net.g_side.sum()))
 
 
-def test_a_laminate_node_takes_the_centroid_only_next_to_an_imported_layer():
-    # A four-layer board with the outer layers imported and the two inner layers drawn (review of fix/imported-copper-edge-film-centroid): the laminate nodes of the rule in
-    # the gaps 1-2 and 3-4 lie next to an imported layer and take the centroid distance; those of the gap 2-3 lie between two drawn layers and keep the cell-centre distance
+def test_every_laminate_node_and_a_mixed_board_take_the_centroid_but_a_block_layer_keeps_the_centre():
+    # A four-layer board with the outer layers imported and the two inner layers drawn: the laminate nodes of the rule in all three gaps, also the gap between the two drawn
+    # layers, take the centroid distance (since fix/drawn-layers-edge-film-centroid; before, the gap between two drawn layers kept the centre)
     p = Problem.new(12, 12, 4, h_side=200.0)
     p.add_heater(1, 1.0, rect=(5, 5, 7, 7), name="U")
     p.set_outline(OUTLINE)
@@ -227,7 +276,7 @@ def test_a_laminate_node_takes_the_centroid_only_next_to_an_imported_layer():
     p.add_zone(3, polygon=inner)
     nx = ny = 24
     net = fvm.Network(p, nx, ny)
-    assert len(net.laminate_neighbours) == net.nl - 4 and set(net.laminate_neighbours) == {(0, 1), (1, 2), (2, 3)}
+    assert net.nl > 4
     raw = fvm.Network(p, nx, ny, cut_cells=False).g_side
     L = net._edge_lengths()
     cells = np.argwhere(L > 0)
@@ -236,19 +285,16 @@ def test_a_laminate_node_takes_the_centroid_only_next_to_an_imported_layer():
     cx, cy, _ = cover_centroids(p.board.outline, nx, ny, net.dx, net.dy, L > 0)
     d_cent = np.maximum(signed_distance_to_outline(p.board.outline, cx[r, cc], cy[r, cc]), 0.0)
     sp_ = net._physical_sheet()
-    seen = set()
-    for j, sides in enumerate(net.laminate_neighbours):
-        k = 4 + j
+    seen = 0
+    for k in range(net.nl):
         H = np.zeros(len(r))
         np.divide(raw[k, r, cc], L[r, cc], out=H, where=L[r, cc] > 0)
-        dist = d_cent if sides != (1, 2) else d_centre
         with np.errstate(divide="ignore", invalid="ignore"):
-            fac = np.where(sp_[k, r, cc] > 0, 1.0 + H * dist / sp_[k, r, cc], 1.0)
+            fac = np.where(sp_[k, r, cc] > 0, 1.0 + H * d_cent / sp_[k, r, cc], 1.0)
         fac = np.where(H > 0, np.maximum(fac, fvm.EDGE_FILM_FLOOR), 1.0)
         want = np.where(H > 0, H * L[r, cc] / fac, raw[k, r, cc])
         assert net.g_side[k, r, cc] == pytest.approx(want, rel=1e-12)
-        if (H > 0).any():
-            seen.add(sides)
-    assert seen == {(0, 1), (1, 2), (2, 3)}
+        seen += int((H > 0).any())
+    assert seen == net.nl
     # the two distances differ on these cells, so the test tells the rules apart
     assert not np.allclose(d_cent, np.maximum(d_centre, 0.0))
