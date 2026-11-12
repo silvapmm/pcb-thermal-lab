@@ -177,7 +177,7 @@ MIN_MARK_COLOUR = "#3aa0ff"   # The blue of the `heatsink` token: the coolest po
 FLAT_FIELD_K = 1e-9           # A field flatter than this has no hottest or coolest point worth marking
 
 
-def _mark_extremes(ax, field, problem, dx, dy):
+def _mark_extremes(ax, field, problem, dx, dy, hot_mm=None):
     """!
     @brief Mark the hottest (red ring) and the coolest (blue ring) sample of the field AS DRAWN, like the map on the board.
     @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a Lumped or Analytic outline board), so the marks sit on the
@@ -187,6 +187,8 @@ def _mark_extremes(ax, field, problem, dx, dy):
     @param problem The Problem whose frame the field is drawn in (the solved rectangle for a stretched map).
     @param dx Spacing along x in metres of that field.
     @param dy Spacing along y in metres of that field.
+    @param hot_mm Optional (x, y) in mm, in the frame of `problem`, where the model reports its hottest point; the red ring goes there and only the blue
+           ring is computed from the field. None computes both.
     @return The result of `analysis.extreme_points`, or None when nothing was marked.
     """
     f = np.asarray(field, float)
@@ -195,6 +197,8 @@ def _mark_extremes(ax, field, problem, dx, dy):
     ext = extreme_points(f, None, dx, dy, nodes)
     if ext is None or ext["tmax"] - ext["tmin"] < FLAT_FIELD_K:
         return None
+    if hot_mm is not None:
+        ext["pmax"] = (float(hot_mm[0]), float(hot_mm[1]))      # The model's own Tmax point; the field only gives the cold end
     for key, colour in (("pmin", MIN_MARK_COLOUR), ("pmax", MAX_MARK_COLOUR)):
         x, y = ext[key]
         ax.plot(x, y, "o", ms=10, mfc="none", mec="white", mew=3.4, zorder=6)            # Halo so that it reads on any colour map
@@ -601,8 +605,9 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
            dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
     @param equivalent_color Colour of that dashed line.
     @param view Optional MapView (Smooth, Terrain, copper under the map); None or mode "current" without copper is the original picture.
-    @param extremes If True mark the hottest (red ring) and the coolest (blue ring) sample of the field as drawn, as the map on the board does, and ignore `marker`
-           (for temperature maps; a gradient map has no coolest point worth marking).
+    @param extremes If True mark the hottest (red ring) and the coolest (blue ring) of the map, as the map on the board does (for temperature maps; a gradient map
+           has no coolest point worth marking). The coolest is the coolest sample of the field as drawn; the hottest is `marker` when given (the point where the model
+           reports its Tmax) and the hottest sample of the field otherwise.
     @return The axes.
     """
     fig.clear()
@@ -622,7 +627,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     if outline:
         _outline(ax, problem, layer)
     if extremes:
-        _mark_extremes(ax, field, problem, dx, dy)
+        _mark_extremes(ax, field, problem, dx, dy, None if marker is None else (marker[0] * 1000.0, marker[1] * 1000.0))
     elif marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
     if solved_view:
@@ -703,7 +708,11 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_xlim(0, b.width * 1000)
         ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
-        _mark_extremes(ax, T[l], problem, dx, dy)                           # Every panel marks its own hottest and coolest sample
+        loc = result.t_max_location
+        hot = None                                                           # The layer of the model's Tmax keeps the model's point; the others compute theirs
+        if loc is not None and int(loc[0]) == l:
+            hot = (loc[1] * 1000.0 * (s if solved_view else 1.0), loc[2] * 1000.0 * (s if solved_view else 1.0))
+        _mark_extremes(ax, T[l], problem, dx, dy, hot)                      # Every panel marks its own coolest sample
         if solved_view:
             lines = _equivalent_lines(ax, real, problem, equivalent_color)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
