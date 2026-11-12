@@ -9,8 +9,8 @@ Nothing of the program was edited. One study script was added so that every numb
 ## 1. How the pages were read
 
 * **Starting point**: the compilation kept with the library (`papers/notes/REVIEW_COMPILATION.md`), `PLAN-PAPER-STUDIES.md` of this folder, `research/theory/BIBLIOGRAPHY.md` and `docs/theory.md` 12 as they stand on `develop`.
-* **Text**: the Markdown conversion where its equations are decoded; the PDF text layer (PyMuPDF, `python -I`) where it is not; the arXiv LaTeX for the arXiv papers.
-* **Images**: every equation or table that carries a number used here and that the conversion left as `formula-not-decoded` or put on the suspect list was rendered to an image (PyMuPDF, 80 to 110 dpi) and read by the reviewer: Saad pp 126-127 (PDF 146-147), Culham, Yovanovich, Lemczyk (2000) p 237, Muzychka, Yovanovich, Culham (2003, AIAA 2003-4188) p 5, Lee and Yovanovich (1989) pp 265-266.
+* **Text**: the Markdown conversion where its equations are decoded; the PDF text layer (`python -I`) where it is not; the arXiv LaTeX for the arXiv papers.
+* **Images**: every equation or table that carries a number used here and that the conversion left as `formula-not-decoded` or put on the suspect list was rendered to an image (80 to 110 dpi) and read by the reviewer: Saad pp 126-127 (PDF 146-147), Culham, Yovanovich, Lemczyk (2000) p 237, Muzychka, Yovanovich, Culham (2003, AIAA 2003-4188) p 5, Lee and Yovanovich (1989) pp 265-266.
 * **Gemini transcriptions** were used for Lee and Yovanovich (1989) pp 262-264, Shen pp 18-20, Yovanovich (1995) pp 2-4, Yovanovich, Culham, Teertstra (1998) pp 7-9, Culham and Yovanovich (1998) pp 463-464; where a number was taken from them it agrees with the page images read here or with the earlier reviewed readings.
 
 **Three findings about the library itself** (not about the program; to be fixed in `papers/`, which is outside the repository):

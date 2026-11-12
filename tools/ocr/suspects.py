@@ -164,7 +164,7 @@ def scan(papers: Path, only: list[str] | None = None) -> dict:
     @param only   File stems to scan (default: all except confidential names).
     @return dict File stem to {"pages", "offset", "median_words", "suspect": [{"pdf_page", "printed_page", "reasons"}]}.
     """
-    import pymupdf
+    from . import render
     out = {}
     for pdf in sorted((papers / "pdf").glob("*.pdf")):
         if only and pdf.stem not in only:
@@ -176,10 +176,9 @@ def scan(papers: Path, only: list[str] | None = None) -> dict:
         counts = {p: word_count(t) for p, t in md_pages.items()}
         med = statistics.median(counts.values()) if counts else 0
         try:
-            doc = pymupdf.open(pdf)
+            texts = {i + 1: t for i, t in enumerate(render.page_texts(pdf))}
         except Exception:
             continue
-        texts = {i + 1: doc[i].get_text() for i in range(len(doc))}
         printed = {p: n for p, t in texts.items() if not garbage_text_layer(t) and (n := printed_page_number(t)) is not None}   # a broken layer gives random numbers
         off = page_offset(printed)
         sus = []

@@ -3,10 +3,10 @@
 PDF pages to Markdown (equations in LaTeX, tables, page markers) through pluggable providers. It is a developer tool,
 not part of the `pcbthermal` package (the program never imports it). MIT, like the rest of the repository.
 
-Run from the repository root with a Python that has PyMuPDF (the markitdown environment has it; the project `.venv` does not):
+Run from the repository root with a Python that has pypdfium2 and Pillow (`pip install pypdfium2`; the project `.venv` has Pillow through Matplotlib but not pypdfium2, which is not in `requirements.txt`):
 
 ```sh
-PY=python   # any Python that has PyMuPDF; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
+PY=python   # any Python that has pypdfium2; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
 $PY -W ignore -m tools.ocr providers                       # providers, models, key variables
 $PY -W ignore -m tools.ocr check-key --pdf ArXiv2307.08354 # one tiny request, no retry, 60 s timeout; prints OK or FAIL, model, time
 $PY -W ignore -m tools.ocr transcribe ShenWang2019Vias --pages 1   # a stem in papers/pdf or a path; --pages '3,5-6', '10-', 'all'
@@ -147,7 +147,7 @@ metadata or first three pages say "confidential", unless `--allow-confidential` 
 A PDF that cannot be read for the check is not sent either. `check-key --pdf` passes the same guard. On the 110 PDFs of the
 library the guard refuses only the ODB++ specification. The local provider sends nothing anywhere and is not subject to the guard.
 
-PDFs are hostile input for PyMuPDF (MuPDF, C code): pages are rendered one at a time and an oversized page is rendered at a
+PDFs are hostile input for pypdfium2 (PDFium, C++ code): pages are rendered one at a time and an oversized page is rendered at a
 lower resolution (at most 40 million pixels); there is no time limit on a page, so open only files from known sources.
 
 ## Tests

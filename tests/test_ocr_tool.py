@@ -609,14 +609,16 @@ def test_verify_page_forbids_scripts_and_remote_content(tmp_path):
 
 
 def test_an_oversized_page_is_rendered_at_a_lower_resolution(tmp_path):
-    mu = pytest.importorskip("pymupdf")
+    pdfium = pytest.importorskip("pypdfium2")
+    pil = pytest.importorskip("PIL.Image")
+    import io
     from tools.ocr import render
-    doc = mu.open()
-    doc.new_page(width=14400, height=14400)                       # 200 x 200 inch: 1.6e9 pixels at 200 dpi
+    doc = pdfium.PdfDocument.new()
+    doc.new_page(14400, 14400)                                    # 200 x 200 inch: 1.6e9 pixels at 200 dpi
     doc.save(str(tmp_path / "big.pdf"))
     png = render.render_page(tmp_path / "big.pdf", 1)
-    pix = mu.Pixmap(png)
-    assert pix.width * pix.height <= render.MAX_PIXELS
+    width, height = pil.open(io.BytesIO(png)).size
+    assert width * height <= render.MAX_PIXELS
 
 
 def test_ocr_folder_is_ocr_and_an_old_gemini_folder_is_still_found(tmp_path):
@@ -1209,23 +1211,42 @@ def test_firstline_command_writes_a_report_and_lists_the_flagged_page(tmp_path, 
     assert main(["--papers", str(tmp_path), "firstline", "--sources", "nope"]) == 1
 
 
-def test_firstline_on_a_real_pdf_when_pymupdf_is_available(tmp_path):
+def _text_pdf(path, pages):
+    """!
+    @brief Write a born-digital PDF made on the fly with pypdfium2 (Helvetica, A4, no third-party content).
+    @param path  Output file.
+    @param pages List of pages; each is a list of (x, y_from_top, text, font size) in points (an empty list is a page without text).
+    @return None
+    """
+    import ctypes
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+    doc = pdfium.PdfDocument.new()
+    font = raw.FPDFText_LoadStandardFont(doc, b"Helvetica")
+    for items in pages:
+        page = doc.new_page(595, 842)
+        for x, y, text, size in items:
+            obj = raw.FPDFPageObj_CreateTextObj(doc, font, size)
+            raw_text = (text + "\0").encode("utf-16-le")
+            arr = (ctypes.c_ushort * (len(raw_text) // 2)).from_buffer_copy(raw_text)
+            raw.FPDFText_SetText(obj, ctypes.cast(arr, ctypes.POINTER(ctypes.c_ushort)))
+            raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, 842 - y)
+            raw.FPDFPage_InsertObject(page, obj)
+        page.gen_content()
+    doc.save(str(path))
+
+
+def test_firstline_on_a_real_pdf_when_pdfium_is_available(tmp_path):
     """!
     @brief A born-digital PDF made on the fly: an invented first line is flagged; a page without text is not checkable.
     @param tmp_path pytest temporary folder.
     @return None
     """
-    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("pypdfium2")
     from tools.ocr import checks
-    doc = pymupdf.open()
-    page = doc.new_page()
-    y = 72
-    for line in LAYER.splitlines():
-        page.insert_text((50, y), line[:95], fontsize=9)
-        y += 14
-    doc.new_page()                                    # no text: a scan as far as the check can tell
+    items = [(50, 72 + 14 * i, line[:95], 9) for i, line in enumerate(LAYER.splitlines())]
     (tmp_path / "pdf").mkdir()
-    doc.save(str(tmp_path / "pdf" / "R.pdf"))
+    _text_pdf(tmp_path / "pdf" / "R.pdf", [items, []])      # the second page has no text: a scan as far as the check can tell
     (tmp_path / "ocr" / "anthropic").mkdir(parents=True)
     (tmp_path / "ocr" / "anthropic" / "R_p1.md").write_text("<!-- page 1 -->\nA sentence that is not on the page at all, invented by the model\n\nThermal spreading resistance", encoding="utf-8")
     (tmp_path / "ocr" / "anthropic" / "R_p2.md").write_text("<!-- page 2 -->\nSome text for a page that is a picture\n", encoding="utf-8")
@@ -1366,13 +1387,10 @@ def test_assemble_and_map_are_reproducible(tmp_path):
     @param tmp_path pytest temporary folder.
     @return None
     """
-    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("pypdfium2")
     from tools.ocr.cli import main
     papers = _audit_library(tmp_path)
-    doc = pymupdf.open()
-    for _ in range(3):
-        doc.new_page().insert_text((50, 72), "page text " * 20, fontsize=9)
-    doc.save(str(papers / "pdf" / "X.pdf"))
+    _text_pdf(papers / "pdf" / "X.pdf", [[(50, 72, "page text " * 20, 9)] for _ in range(3)])
     outs = []
     for _ in range(2):
         assert main(["--papers", str(papers), "assemble", "X", "--root", str(tmp_path)]) == 0
