@@ -12,7 +12,7 @@
            temperature with both films at 1 and 0.5 mm.
          * `real`: the oswlight and rp2040 boards of the local library (PCBT_GERBER_DATA, `pcb-library/scripts/link_env.sh`), two 3 mm heaters of 1 W, 1 / 0.5 / 0.25 mm.
          The film on the node is the program with `fvm.Network._cut_edge_film` replaced by the identity (the program before the change, for boards whose layers are all imported).
-         Run: `.venv/bin/python releases/2.6.1/final-opinion/scripts/study_edge_film_review.py wall 200,1000 1,0.5`.
+         Run: `.venv/bin/python releases/2.7.0/final-opinion/scripts/study_edge_film_review.py wall 200,1000 1,0.5`.
 """
 
 import math

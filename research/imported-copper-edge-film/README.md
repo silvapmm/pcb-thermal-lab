@@ -1,6 +1,6 @@
 # The edge film of imported copper on a board with an outline: where the cool bias comes from
 
-*Status: **reviewed and closed** (section 8: go). Adopted for the imported layers on `fix/imported-copper-edge-film-centroid`; the drawn layers are a decision for the maintainer. Two runs of the author were paused by the machine; the reviewer ran the copper-to-the-wall case and the other boards of section 6 on the program of the fix branch (section 8).*
+*Status: **reviewed and closed** (section 8: go). Adopted for the imported layers (`fix/imported-copper-edge-film-centroid`) and for the drawn layers (`fix/drawn-layers-edge-film-centroid`, reviewed: GO), both merged into `develop`. Two runs of the author were paused by the machine; the reviewer ran the copper-to-the-wall case and the other boards of section 6 on the program of the fix branch (section 8).*
 
 **Question.** After the pixel-level outline mask (`fix/imported-copper-outline-mask`, `docs/validation.md` 38), the heater rise of an imported-copper board with an outline reads cool: at `h_side` 200 W/m2K, five turned squares, mean -2.20 % (spread 1.86 %) at 1 mm, -1.24 % at 0.5 mm, -2.51 % at 2 mm; the aligned square -2.43 % at 1 mm. The series film fixes the aligned board (+0.32 %) and not the turned ones (-1.56 %). What is the cause, and what is the correction? The program is untouched here; the candidates are copies (`lib/variants.py`).
 
@@ -103,6 +103,10 @@ Heat balance 1e-13 for all; the aligned run takes 0.4 s (1 mm) and 0.2 to 0.35 s
 
 At `h_side` 10 every candidate is within 0.2 points of the program (the reviewer's "all agree within 0.4 %" holds). Above 50 the centroid film is the only change that helps at every cell with no cost; the cool bias that grows with `h_side` in the program (-9.5 % at 1000, 2 mm) falls to -2.0 %. The spread over the angles at 2 mm (9 to 13 %) is the cut-cell scatter of a cell as big as the heater; no candidate reduces it.
 
+![The two films against the edge coefficient](figures/fig_03_film_against_h_side.png)
+
+*Figure 3 (`figures/fig_03_film_against_h_side.png`): the mean error and the spread of the table above for the program's film on the node (c0) and the centroid film (c9) at the 1 mm cell, against `h_side`; the numbers are those of the table.*
+
 ### 3.3 Robustness (frame reference, cell error; `scripts/study_robustness.py 200 1,0.5`, mean / spread / worst %, node film then centroid)
 
 | board | node, 1 mm | centroid, 1 mm | node, 0.5 mm | centroid, 0.5 mm |
@@ -133,7 +137,7 @@ In a cut-cell finite-volume scheme with the cell average as unknown (cover-weigh
 
 ## 8. Review (reviewer)
 
-**Verdict: go.** The numbers of the study reproduce, the 3D truth is checked against a solver that shares nothing with it, and the one risk left open (copper that reaches the outline) was run against the truth and does not need an exception. Scripts of the review: `releases/2.6.1/final-opinion/scripts/study_edge_film_review.py` (on the fix branch; it imports `lib/truth3d.py` of this folder); verdict `releases/2.6.1/final-opinion/edge-film.md`.
+**Verdict: go.** The numbers of the study reproduce, the 3D truth is checked against a solver that shares nothing with it, and the one risk left open (copper that reaches the outline) was run against the truth and does not need an exception. Scripts of the review: `releases/2.7.0/final-opinion/scripts/study_edge_film_review.py` (on the fix branch; it imports `lib/truth3d.py` of this folder); verdict `releases/2.7.0/final-opinion/edge-film.md`.
 
 **8.1 Reproduced.** On the program of `fix/imported-copper-edge-film-centroid` (the change in `fvm.Network._cut_edge_film`, not the copy of `lib/variants.py`) the ten-board table of 3.2 for c0 and c9 at 1 mm reproduces to the printed digit: `h_side` 10 -0.43 / -0.39 %, 200 -3.00 / -0.94 %, 500 -4.90 / -1.13 %, 1000 -6.36 / -1.26 % (mean; spreads and worsts as printed). The stored truths (`lib/truth_values.json`) are those of `scripts/study_truth.py`.
 
@@ -165,6 +169,6 @@ The worry (that the laminate nodes at the wall are held at the copper temperatur
 ## 7. What was read and what was not verified
 
 * Bochkov and Gibou (2019, as chapter 1 of the dissertation, `research/bochkov-robin-check`, status R for the pages compared with their image), Barrett, Fogelson and Griffith (2022, R for sections 1 to 3.1 and 3.3), Schwartz and others (2006, R pages 1 to 16): quoted from `research/theory/BIBLIOGRAPHY.md`; not re-read here beyond the equation numbers cited above (S for this study). Nothing of them was stored.
-* The reviewer's `releases/2.6.1/final-opinion/outline-mask.md` and its two scripts were read in full (copied into `lib/`, with one path line changed); `docs/validation.md` 38.1 to 38.3 read.
+* The reviewer's `releases/2.7.0/final-opinion/outline-mask.md` and its two scripts were read in full (copied into `lib/`, with one path line changed); `docs/validation.md` 38.1 to 38.3 read.
 * Reproduced: the aligned program against the two-sheet solver (rule off, 53.74 against 54.10 K, converging); the reviewer's -2.2 % turned mean is the cell error of section 2.2 (we get -1.6 % with another shift set on a full-copper board). The reviewer's stripes-and-pad numbers were not reproduced (the truth does not hold for them).
 * Scripts and tests: `tests/test_edge_film.py` (6 tests: truth balance and convergence, the variant network equals the program with no switch, `alpha = 0` is the node film, the heat balance of the centroid film, the graded sub-gaps).

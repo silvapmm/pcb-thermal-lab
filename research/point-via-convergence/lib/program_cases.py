@@ -155,7 +155,7 @@ def layer_parameters(problem):
     # research/young-omega-tiles); the parameters are uniform, so one cell reads the same numbers
     nx, ny = max(int(round(b.width / 1e-3)), 1), max(int(round(b.height / 1e-3)), 1)
     # ladder=False: one node per copper layer. Since 2.6.0 a board with h_side > 0 gets laminate nodes in a band along its edge (laminate.edge_band), which made
-    # net.gz ragged and broke the (L-1,) parameters read here (audit 2.6.1); the board is uniform, so the centre cell reads the same numbers either way
+    # net.gz ragged and broke the (L-1,) parameters read here (audit 2.7.0); the board is uniform, so the centre cell reads the same numbers either way
     net = fvm.Network(q, nx, ny, assemble=False, ladder=False)
     cell = net.dx * net.dy
     d = b.gap_thicknesses()

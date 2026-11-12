@@ -1,6 +1,6 @@
 # Integration: cut-cell links and the boundary film in the layered FVM (and what the FDM and the 3D solid need)
 
-Status (audit 2.6.1): **implemented in 2.6.0** as written in sections 1 and 3 (`fix/cut-cell-aperture-film` for the FVM, `fix/solid3d-sliver-cells` for the 3D solid; `docs/validation.md` 32 and 33); the FDM was left as recommended in section 2 ('Planned', "Cut cells, what is left"). Originally: a proposal measured on a prototype (`lib/cutlinks.py`); nothing of the program is changed. **Depends on `fix/exact-board-cover` being merged first** (the exact `Board.cover` and exact part weights): every number here is against that tree, and `aperture` equals the program bit for bit when no cell is cut.
+Status (audit 2.7.0): **implemented in 2.6.0** as written in sections 1 and 3 (`fix/cut-cell-aperture-film` for the FVM, `fix/solid3d-sliver-cells` for the 3D solid; `docs/validation.md` 32 and 33); the FDM was left as recommended in section 2 ('Planned', "Cut cells, what is left"). Originally: a proposal measured on a prototype (`lib/cutlinks.py`); nothing of the program is changed. **Depends on `fix/exact-board-cover` being merged first** (the exact `Board.cover` and exact part weights): every number here is against that tree, and `aperture` equals the program bit for bit when no cell is cut.
 
 ## 1. What changes, in `pcbthermal/fvm.py`
 

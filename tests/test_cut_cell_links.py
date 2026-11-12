@@ -257,7 +257,9 @@ def test_matrix_is_symmetric_with_no_positive_off_diagonal_and_the_symmetric_lu_
 def test_sliver_below_the_minimum_cover_is_dropped_and_the_curve_is_continuous(monkeypatch):
     without_edge_band(monkeypatch)
     # The program jumped by +3.6 K at 200 W/m2K (and +9.8 K at 2000) between the cover 0.01 and 0.02 (the film of the sliver sat behind a link of 2c/(1+c))
-    for hs, bound in ((200.0, 0.3), (2000.0, 0.3), (10.0, 0.4)):
+    # Re-baselined in fix/drawn-layers-edge-film-centroid: with the film from the centroid the sliver of cover 0.01 has its node where its copper is, and the step to the cover 0.02
+    # at 2000 W/m2K is 0.41 K (0.7 % of the rise, 0.28 K at 200 W/m2K) instead of under 0.3 K; still continuous, no jump of several kelvin as in the earlier versions
+    for hs, bound in ((200.0, 0.3), (2000.0, 0.5), (10.0, 0.4)):
         t = {c: fvm.solve_steady(study.sliver_board(c, hs), cell_mm=1.0).t_max for c in (0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0)}
         assert abs(t[0.02] - t[0.01]) < bound, (hs, t)
     # the error against the independent reference (the same board as an aligned rectangle) is smooth in the cover: its range over 0.01, 0.02 and 0.1 is under 0.3 K
@@ -327,7 +329,9 @@ def test_spread_over_the_position_of_the_outline_against_the_frame_reference(h_s
     without_edge_band(monkeypatch)
     refs = frame_refs.setdefault(h_side, {})
     new = np.array(list(study.errors("square", 3.5, h_side, 1.0, FRAME_POS, refs).values()))
-    assert np.ptp(new) <= 0.15, new
+    # Re-baselined in fix/drawn-layers-edge-film-centroid: with the centroid film one position (the sliver-cut outlier, -0.44 K against -0.16 to -0.19 K for the others) widens
+    # the range to 0.29 K at 2000 W/m2K (0.15 K bound kept at 10 and 200 W/m2K; the earlier links 1.2 and 3.0 K)
+    assert np.ptp(new) <= (0.30 if h_side >= 2000.0 else 0.15), new
     old_treatment(monkeypatch)
     old = np.array(list(study.errors("square", 3.5, h_side, 1.0, FRAME_POS, refs).values()))
     if h_side >= 200.0:
@@ -519,7 +523,7 @@ def test_imported_full_copper_on_an_outline_follows_the_drawn_aperture_links():
     assert abs(imported / drawn - 1.0) < 0.01, (imported, drawn)
 
 
-def test_a_rectangle_with_imported_copper_has_no_outline_note_and_is_unchanged():
+def test_a_rectangle_with_imported_copper_has_no_outline_note_and_moves_only_by_the_centroid_film():
     stripes = np.zeros((40, 40), np.uint8)
     stripes[::6] = 1
     q = Problem.new(10, 10, 2, h_side=200.0)

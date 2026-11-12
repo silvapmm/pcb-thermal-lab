@@ -1,9 +1,9 @@
-# GUI mock-ups approved for 2.6.1
+# GUI mock-ups approved for 2.7.0
 
 These pictures are **mock-ups** made from the real Qt widgets, drawn offscreen, to
 decide the look of the boxes and of the warnings. They are **not the implementation**:
 nothing here is in the program yet. The maintainer approved them (2026-11-08) for
-implementation in 2.6.1 (`docs/versions.md`, 'Planned: 2.6.1', items 6 to 9).
+implementation in 2.7.0 (`docs/versions.md`, 'Planned: 2.7.0', items 6 to 9).
 Every picture exists in a `_light` and a `_dark` version.
 
 ## Images

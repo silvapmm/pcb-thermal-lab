@@ -1,6 +1,6 @@
-# GUI redesign 2.6.1: implementation notes
+# GUI redesign 2.7.0: implementation notes
 
-Branch `feature/gui-boxes-warnings-layer-keys` (from `develop`). Items 5 to 8 of 'Planned: 2.6.1'. Mock-ups: `docs/mockups-261/`.
+Branch `feature/gui-boxes-warnings-layer-keys` (from `develop`). Items 5 to 8 of 'Planned: 2.7.0'. Mock-ups: `docs/mockups-261/`.
 
 ## What is where
 

@@ -1,5 +1,7 @@
 # Theory: the problem, the models and how we know they are right
 
+**`docs/theory.md` is the reference** for what the program does. The topics of this folder are the explained theory with pictures and sources; several were written before 2.5.0 and describe rules the program has since replaced (each such topic carries an 'audit 2.7.0' note with the section of `docs/theory.md` that holds today's rule); a rewrite pass of the topics is not scheduled.
+
 This folder explains the physics behind PCB Thermal Lab: this page is the overview, one topic file per model, equation or planned method holds the detail (picture, formulation, limits, tests, sources), and the equations themselves are in [`docs/theory.md`](../../docs/theory.md). It changes nothing in the program.
 
 ## 1. The problem
@@ -66,6 +68,10 @@ Around the models are the pieces they share. **Vias** carry a constriction resis
 
 *Figure 8 (`figures/fig_08_heat_transfer.png`): convection and radiation both grow with the temperature, so a constant h overstates the rise at high power and understates it at low power; the loop re-solves until h settles (illustrative values).*
 
+![Gerber sampling](figures/fig_47_gerber_sampling.png)
+
+*Figure 47 (`figures/fig_47_gerber_sampling.png`): left, a line of width 1.5 s against the sample centres at two offsets; middle, the area error of one feature against w/s (worst offset, bound s/w, mean over the offset); right, resident memory against pixels for one and four layers with the 377 MB working set of a tile and the 400 M pixel limit. Computed from the constants of the code, illustrative.*
+
 ![Memory guard](figures/fig_46_memory_guard.png)
 
 *Figure 46 (`figures/fig_46_memory_guard.png`): left, the chain from the cell to the verdict (lower bound, exact count, estimate, limit); right, the law of the estimate against the unknowns for the FVM (`t_eff` 2 and 6), the FDM (4) and the 3D solid (6) with the coefficients of `memory.CONTINUOUS`, safety factor included and base left out, against 60 % of 16 GiB. Illustrative of the shape: the bytes were measured on one machine (`docs/theory.md` 2.7).*
@@ -98,7 +104,7 @@ The limits are known and warned: the Lumped and Analytic models work on rectangl
 
 ## 4. The studies that shaped the program
 
-One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md` (audit 2.6.1: the rows are brought up to the program of 2.6.0; the line said '2.4.5 is in `develop`, not released', 2.4.5 to 2.6.0 are released).
+One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md` (audit 2.7.0: the rows are brought up to the program of 2.6.0; the line said '2.4.5 is in `develop`, not released', 2.4.5 to 2.6.0 are released).
 
 | Question | What it found | What it changed in the program | Folder |
 | :-- | :-- | :-- | :-- |
