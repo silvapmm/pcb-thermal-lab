@@ -63,7 +63,9 @@ def test_decision_averages_the_fast_heater_and_resolves_the_slow_one():
     assert [x.regime for x in d] == [profiles.REGIME_RIPPLE, "resolved"]
     assert d[0].ripple_swing == pytest.approx(2.013, abs=0.003) and d[0].oscillation == pytest.approx(d[0].ripple_swing)
     node = profiles.wave_response(resp, 0, p.heaters[0].profile)
-    assert node[0] - node[1] == pytest.approx(0.393, abs=0.005)       # the node swing of the program, unchanged: the floor is the closed form
+    # 0.393 K before fix/simple-stackup-physical-layers: the outer copper node of the simple stack-up now holds its physical slab (0.278 mm, not 0.4 mm), so less heat capacity
+    # and a larger node swing; the closed-form floor (2.013 K) is the decision either way
+    assert node[0] - node[1] == pytest.approx(0.543, abs=0.005)
     assert d[1].oscillation > 1.0
     # With a huge threshold everything is averaged; with a zero threshold every wave that oscillates is resolved, a fast one with its ripple
     assert [x.regime for x in profiles.decide(p, resp, 1e6)] == ["average", "average"]

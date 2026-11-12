@@ -32,7 +32,7 @@ Only the symbols used in more than one section are listed; the others are define
 | :-- | :-- | :-- |
 | `W, H_b, t_pcb` | board width, height and total thickness | m |
 | `N_L` | number of copper layers (layer 1 = top) | – |
-| `t_cu,l`, `slab_l` | copper thickness of layer `l`; thickness represented by its node (`t_pcb/N_L` in the simple stack-up) | m |
+| `t_cu,l`, `slab_l` | copper thickness of layer `l`; thickness represented by its node (copper plus half of each adjacent gap, in both stack-ups) | m |
 | `d`, `d_j` | thickness of a dielectric gap (gap `j` in the advanced stack-up) | m |
 | `f` | copper fill: area fraction of a cell that is copper | – |
 | `k_cu, k_ip, k_th` | conductivity of copper, of FR-4 in the plane and through the thickness (385, 0.9, 0.3 W/mK by default) | W/mK |
@@ -98,7 +98,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 **1.2.1 The advanced stack-up** (`Board.dielectrics`, one entry per gap). Gap `j`, between layers `j` and `j+1`, has its own `d_j`, `k_th,j`, `k_ip,j` and `ρc_j`, and `g_j = k_th,j / d_j`.
 * The node of layer `l` stands for its copper plus half of each adjacent gap, `slab_l = t_cu,l + d_{l−1}/2 + d_l/2`, so the slabs add up to the board thickness; its laminate takes the thickness-weighted `k_ip` and `ρc` of the two half gaps.
 * A gap of several sheets (`combine_sheets`) is one gap: `k_th = Σt_i / Σ(t_i/k_th,i)` (in series through it), `k_ip = Σ t_i k_ip,i / Σ t_i` (side by side along it).
-* The simple stack-up (`dielectrics = None`) has `slab = t_pcb/N_L` and equal gaps. A heavier inner copper keeps every `d_j`, so the board grows by `Σ (t_cu,l' − t_cu,l)` (`models.md` 12).
+* The simple stack-up (`dielectrics = None`) has the same slabs (copper plus half of each gap) and equal gaps, so it equals the advanced stack-up with equal gaps bit for bit (until 2.6.x it had `slab = t_pcb/N_L`, which for three or more layers gave the outer copper nodes more laminate than their half gap and, at a cooled edge, an edge film of too much laminate at the copper temperature: `validation.md` 41). A heavier inner copper keeps every `d_j`, so the board grows by `Σ (t_cu,l' − t_cu,l)` (`models.md` 12).
 
 ![The advanced stack-up](images/fig_39_stackup_slabs.png)
 
