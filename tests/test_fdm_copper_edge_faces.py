@@ -96,3 +96,17 @@ def test_the_variant_does_not_touch_the_arithmetic_mean_or_a_board_with_a_metal_
     p.add_heatsink(2, 20.0, rect=(3, 3, 7, 7), thickness_mm=2.0)             # A metal block keeps the earlier laminate treatment, so no face is replaced
     assert any(s.is_block() for s in p.heatsinks)
     assert np.array_equal(np.asarray(fdm.solve_steady(p, 1.0).T), np.asarray(fdm.solve_steady(p, 1.0, face_fill=False).T))
+
+
+@pytest.mark.parametrize("mapping", ["fill", "lambda", "faces"])
+def test_imported_copper_layers_keep_their_own_faces(mapping):
+    # The face from the cell fill is for drawn layers only: a board whose copper is imported (every mapping, an edge cooled at 200 W/m2K) is bit-identical with the switch off
+    from pcbthermal import copper
+    n = 120                                                                   # 12 mm window, 0.1 mm pixels
+    stripes = np.zeros((n, n), np.uint8)
+    for j in range(0, n, 9):
+        stripes[:, j:j + 4] = 255
+    p = Problem.new(12.0, 12.0, layers=2, thickness_mm=1.6, copper_um=35.0, h_top=10.0, h_bottom=10.0, h_side=200.0)
+    p.add_heater(1, 1.0, rect=(3.6, 3.6, 8.4, 8.4))
+    p.imported = copper.imported_from_rasters([stripes, np.full((n, n), 255, np.uint8)], 0.1, mapping)
+    assert np.array_equal(np.asarray(fdm.solve_steady(p, 0.6).T), np.asarray(fdm.solve_steady(p, 0.6, face_fill=False).T))
