@@ -379,8 +379,8 @@ def build(board, fill, cell, cover, active, edge, S, C, gz, g_bottom, g_side, pl
     gz = gz.copy() if L0 > 1 else gz
     out = LadderBuild(S, C, gz, g_bottom, g_side)
     # Share of the requested laminate that every copper node can give up. The rule moves d / 2 - s_0 / 2 of each refined gap out of the copper node on either side;
-    # in the advanced stack-up a node holds exactly d / 2 of each adjacent gap, but in the simple stack-up every node holds thickness / layers - t_cu, which for an inner
-    # node of a thick three-layer board (3.2 mm: 1.03 mm) is less than the two moves (1.16 mm). Without this share the node was clipped to zero capacity and lateral
+    # a node holds exactly d / 2 of each adjacent gap (both stack-ups since the simple one takes the physical slabs; the simple one used to hold thickness / layers - t_cu,
+    # less than the two moves on an inner node of a thick three-layer board). Without this share the node was clipped to zero capacity and lateral
     # conductance while the interior nodes still got the full laminate (heat capacity +1.6 % on that board, a negative edge conductance). Where a node is short, its
     # moves are scaled down and the interior nodes of the gap get only what was moved; elsewhere the share is exactly 1 (bit for bit the arrays without it).
     share = np.ones((L0, ny, nx))

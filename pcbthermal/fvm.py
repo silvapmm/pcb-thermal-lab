@@ -204,7 +204,7 @@ class Network:
         if self.laminate is not None:
             slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
-            raise ValueError("copper thickness must be smaller than the thickness each layer node represents (the physical slab, with half of the adjacent gaps)")
+            raise ValueError("copper thickness must be smaller than the slab of its layer node (copper plus half of each adjacent gap)")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board

@@ -5,87 +5,6 @@
  "format": 1,
  "item": "Centroid edge film for the drawn layers",
  "records": {
-  "example_cut_to_T|fvm|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 1.2318227246313738e-12,
-    "layer_mean[0]": 58.88474609421131,
-    "layer_mean[1]": 58.2658055859363,
-    "layer_mean[2]": 57.555995984866826,
-    "layer_mean[3]": 56.76200698625993,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.58197354730284,
-    "part:U1:t_max": 94.58197354730284,
-    "part:U1:t_mean": 89.0245121435542,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 100.05265870358922,
-    "part:U2:t_max": 82.05265870358922,
-    "part:U2:t_mean": 78.65058018809573,
-    "power_in": 5.5,
-    "t_max": 94.58197354730284,
-    "t_mean": 57.86713866281858,
-    "t_min": 47.681044865371575,
-    "t_sum": 6327899.852263119,
-    "t_sumsq": 342736225.8222315,
-    "unknowns": 145298
-   }
-  },
-  "example_cut_to_T|fvm|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": -1.0094551457355423e-12,
-    "layer_mean[0]": 58.88264734011668,
-    "layer_mean[1]": 58.265466741283056,
-    "layer_mean[2]": 57.55620497053258,
-    "layer_mean[3]": 56.76242123635123,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.65375767790242,
-    "part:U1:t_max": 94.65375767790242,
-    "part:U1:t_mean": 89.18729991008472,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 100.10976482177585,
-    "part:U2:t_max": 82.10976482177585,
-    "part:U2:t_mean": 78.92978474302498,
-    "power_in": 5.5,
-    "t_max": 94.65375767790242,
-    "t_mean": 57.86668507207089,
-    "t_min": 47.74886974121681,
-    "t_sum": 1581964.1712347106,
-    "t_sumsq": 85686377.66713819,
-    "unknowns": 37588
-   }
-  },
-  "example_cut_to_T|fvm|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 7.73522660066109e-14,
-    "layer_mean[0]": 58.89183347396404,
-    "layer_mean[1]": 58.27007157863707,
-    "layer_mean[2]": 57.55910062981834,
-    "layer_mean[3]": 56.76466787969665,
-    "part:U1:power_top_w": 0.0,
-    "part:U1:power_w": 4.0,
-    "part:U1:t_junction": 118.58284261068505,
-    "part:U1:t_max": 94.58284261068505,
-    "part:U1:t_mean": 89.04462302450335,
-    "part:U2:power_top_w": 0.0,
-    "part:U2:power_w": 1.5,
-    "part:U2:t_junction": 99.62080523081049,
-    "part:U2:t_max": 81.62080523081049,
-    "part:U2:t_mean": 78.66769801987228,
-    "power_in": 5.500000000000001,
-    "t_max": 94.58284261068505,
-    "t_mean": 57.87141839052902,
-    "t_min": 47.87223776075717,
-    "t_sum": 398328.0448889324,
-    "t_sumsq": 21669441.380446088,
-    "unknowns": 10040
-   }
-  },
   "part_across_outline|fvm|0.5": {
    "class": "moved",
    "metrics": {
@@ -202,13 +121,6 @@
   }
  },
  "transients": {
-  "example_cut_to_T|fvm": {
-   "class": "moved",
-   "t63": {
-    "U1": 15.90700106416335,
-    "U2": 4.356848800140723
-   }
-  },
   "part_across_outline|fvm": {
    "class": "moved",
    "t63": {
@@ -222,5 +134,5 @@
    }
   }
  },
- "why": "The edge film of every layer of a board with an outline takes the distance from the centroid of the board part of the cell (drawn layers too)"
+ "why": "The edge film of every layer of a board with an outline takes the distance from the centroid of the board part of the cell (drawn layers too) The FVM records of example_cut_to_T, which the simple stack-up change (fix/simple-stackup-physical-layers) also moves, are held, with both changes, by simple-stackup-physical-layers.json."
 }
