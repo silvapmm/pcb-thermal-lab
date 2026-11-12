@@ -204,6 +204,7 @@ def test_the_edge_warning_names_the_via_effect_and_has_no_stackup_clause():
     from pcbthermal.model import Dielectric
     two = checks.check_edge_laminate(plate(1.6, 1000.0, "corner"), ("fvm",))[0]
     assert "via" in two and "helps more than shown" in two and "simple stack-up" not in two
+    assert "finite-element" in two and "HOT" in two and "not a bound" in two          # the 4-layer numbers are against a finite-element solution; eight sub-gaps read hot at a 0.25 mm cell
     four = plate(1.6, 1000.0, "corner", layers=4)
     text = checks.check_edge_laminate(four, ("fvm",))[0]
     assert "simple stack-up" not in text and "simple stack-up" not in checks.line(text)
@@ -253,12 +254,14 @@ def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_refe
 
 def test_the_edge_warning_also_fires_when_no_laminate_gap_is_cut():
     # research/strong-edge-laminate (study_thin_laminate.py), docs/validation.md 44: six layers in 1.6 mm have gaps of 0.28 mm, under the 0.4 mm sub-gap, so the rule cuts nothing and
-    # the warning used to be silent while the FVM reads -7 to -11 % at 1000 W/m2K; two trigger paths: a cut gap (the older text) and an uncut one (the thin-laminate text)
+    # the warning used to be silent while the FVM reads -2 to -6 % at 1000 W/m2K (against a finite-element solution; the cell-centred reference made it -6 to -11); two trigger paths: a cut gap (the older text) and an uncut one (the thin-laminate text)
     from pcbthermal.model import Dielectric
     six = plate(1.6, 1000.0, "corner", layers=6)
     assert all(laminate.n_for_gap(float(d), *laminate.parameters()) == 1 for d in six.board.gap_thicknesses())
     w = checks.check_edge_laminate(six, ("fvm",))
-    assert len(w) == 1 and "no gap is cut" in w[0] and "-6 to -11 %" in w[0] and "not a bound" in w[0] and "not fully known" in w[0]
+    assert len(w) == 1 and "no gap is cut" in w[0] and "-2 to -6 %" in w[0] and "not a bound" in w[0] and "finite-element" in w[0] and "HOT" in w[0]
+    # the numbers are against an independent finite-element solution (tmp finite-element comparison, validation 44): about half the earlier cell-centred-reference figures; the old ones are gone
+    assert "-6 to -11 %" not in w[0] and "not fully known" not in w[0]
     assert not any(k in w[0] for k in ("research/", "fix/", "feature/"))
     assert checks.check_edge_laminate(six, ("fdm",)) and not checks.check_edge_laminate(six, ("lumped", "analytic", "solid3d"))
     assert not checks.check_edge_laminate(plate(1.6, 200.0, "corner", layers=6), ("fvm",))          # 200 W/m2K is the limit itself
