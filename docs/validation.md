@@ -15,7 +15,7 @@ a 30 W/m²K heatsink on the bottom. Maximum temperature [°C]:
 | Model | Tmax | Error on the rise | Time |
 | :-- | --: | --: | --: |
 | FVM (0.5 mm) | 85.32 | reference | 0.9 s |
-| FDM (0.5 mm) | 85.26 | −0.1 % | 0.8 s |
+| FDM (0.5 mm) | 85.28 | −0.1 % | 0.8 s |
 | Analytic (1 mm) | 84.72 | −1.0 % | 0.3 s |
 | Lumped (1 mm) | 86.79 | +2.4 % | 0.01 s |
 | 3D solid (finite elements, 0.5 mm, vias as copper rods) | 85.59 | +0.4 % (FVM −0.4 %) | |
@@ -30,26 +30,26 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
-| :-- | --: | --: | --: | --: | --: | :-: |
 | reference board (centred 20 mm heater) | 90.14 | 90.14 (-0.0 %) | 90.27 (+0.2 %) | 89.69 (-0.7 %) | 90.09 (-0.1 %) | - |
-| example board (full) | 85.38 | 85.27 (-0.2 %) | 85.98 (+1.0 %) | 86.79 (+2.3 %) | 84.72 (-1.1 %) | - |
-| example, no heatsink | 88.44 | 88.32 (-0.2 %) | 89.08 (+1.0 %) | 89.67 (+2.0 %) | 87.70 (-1.2 %) | - |
-| example, no vias | 94.68 | 94.59 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.02 (-0.9 %) | - |
+| example board (full) | 85.38 | 85.30 (-0.1 %) | 85.98 (+1.0 %) | 86.79 (+2.3 %) | 84.72 (-1.1 %) | - |
+| example, no heatsink | 88.44 | 88.36 (-0.1 %) | 89.08 (+1.0 %) | 89.67 (+2.0 %) | 87.70 (-1.2 %) | - |
+| example, no vias | 94.68 | 94.63 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.02 (-0.9 %) | - |
 | example, top copper over the full board | 84.86 | 84.82 (-0.1 %) | 85.42 (+0.9 %) | 86.26 (+2.3 %) | 84.68 (-0.3 %) | - |
 | example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (-0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 96.53 (-0.2 %) | - |
-| example, only heater U1 | 79.53 | 79.41 (-0.2 %) | 80.12 (+1.1 %) | 79.95 (+0.8 %) | 78.88 (-1.2 %) | - |
+| example, only heater U1 | 79.53 | 79.44 (-0.2 %) | 80.12 (+1.1 %) | 79.95 (+0.8 %) | 78.88 (-1.2 %) | - |
 | example, only U1, uniform | 90.31 | 90.27 (-0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.16 (-0.2 %) | - |
 | reference board, heater in the corner | 109.41 | 109.40 (-0.0 %) | 109.54 (+0.1 %) | 102.09 (-8.7 %) | 109.36 (-0.1 %) | - |
 | reference board, small 5 mm heater | 103.07 | 103.07 (-0.0 %) | 103.71 (+0.8 %) | 102.87 (-0.2 %) | 103.29 (+0.3 %) | - |
 | reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.16 (+1.1 %) | 65.69 (-0.0 %) | - |
-| heater 5 mm inside the top-copper edge | 94.49 | 94.05 (-0.6 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.30 (-1.7 %) | warns |
-| heater straddling the top-copper edge | 146.65 | 142.45 (-3.4 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 113.88 (-26.9 %) | warns |
+| heater 5 mm inside the top-copper edge | 94.49 | 94.20 (-0.4 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.30 (-1.7 %) | warns |
+| heater straddling the top-copper edge | 146.65 | 144.31 (-1.9 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 113.88 (-26.9 %) | warns |
 | no copper on the heater layer | 152.36 | 152.35 (-0.0 %) | 153.19 (+0.7 %) | 150.12 (-1.8 %) | 150.06 (-1.8 %) | warns |
-| 30 x 30 mm copper island around the heater | 92.44 | 91.98 (-0.7 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 89.07 (-5.0 %) | warns |
+| 30 x 30 mm copper island around the heater | 92.44 | 92.23 (-0.3 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 89.07 (-5.0 %) | warns |
 | hatched copper (fill 0.5) on the top layer | 106.18 | 106.18 (-0.0 %) | 106.23 (+0.1 %) | 105.79 (-0.5 %) | 105.60 (-0.7 %) | warns |
 | heater on the bottom layer | 88.38 | 88.38 (-0.0 %) | 88.58 (+0.3 %) | 88.02 (-0.6 %) | 88.23 (-0.2 %) | - |
 | long thin heater, 40 x 4 mm | 67.84 | 67.84 (-0.0 %) | 67.92 (+0.2 %) | 71.91 (+9.5 %) | 67.69 (-0.3 %) | - |
 | heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.2 %) | 98.51 (-8.5 %) | 105.19 (-0.2 %) | - |
+| two heaters 60 mm apart (4 W + 2 W) | 100.42 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.27 (-0.2 %) | - |
 
 **The reading of the part in this table** (laminate nodes, section 21.2). The FVM column is the maximum of the board field. A part on an outer layer injects its heat at the copper node, at mid-thickness of the copper, so where its cell has no copper the face of the part is hotter than the node by the half layer of laminate, `Q t_cu/(2 k_z A)`; the program reports this face value as the temperature of the part, and the 3D solid reports the centre of its top slab. The three readings, all at 1 mm and in °C:
 
@@ -64,7 +64,7 @@ The face reading is above the 3D solid by 2.1 % on the hatched board: that overs
 Reading:
 
 * **FDM and FVM agree to about 0.1 % wherever there are no vias** (and exactly where the geometry lies on the grid). With the via array the FDM is now 0.2 % low at 1 mm and 0.1 % at 0.5 mm (it was 2 to 3 % low when it put the via on the nearest grid point), and 0.9 % low at 2 mm (section 2.1).
-  It is 3.4 % low when a copper edge crosses the heater.
+  It is 1.9 % low when a copper edge crosses the heater (3.4 % with the arithmetic face mean before 2.7.0, section 41).
 * **Analytic** (re-run with the edge in the series, section 4.1) is within 0.3 % of the FVM on the uniform boards (−0.2 to +0.3 %; this bullet said 0.3 to 1.0 % warm, the edge loss that the Analytic used to leave out) and within 1.7 % with partial copper, vias (−0.3 to −1.2 % on the example board and its variants), heatsinks, corners, thin heaters and several heaters, except a copper island around the heater (−5.0 %, the input check warns); it fails (−27 %) when a copper edge crosses the heater, and the input check warns.
 * **Lumped** stays within about 4 % in most cases, 9 % at worst (corners, thin heaters), and also fails when a copper edge crosses the heater. With the vias of the example board it reads 1.9 to 2.3 % high after the constriction of section 18.1 (it read 0.9 to 1.1 % low before: the constriction made the via effect smaller, which raised the part's temperature), and still 2.6 % high without vias.
 
@@ -72,13 +72,11 @@ Reading:
 
 | Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
 | --: | --: | --: | --: | --: |
-| two heaters 60 mm apart (4 W + 2 W) | 100.42 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.27 (-0.2 %) | - |
-| --: | --: | --: | --: | --: |
-| 4 | 83.68 | 83.93 | 86.83 | 83.10 |
-| 2 | 85.20 | 84.41 | 85.90 | 85.48 |
-| 1 | 85.38 | 85.27 | 86.05 | 85.98 |
+| 4 | 83.68 | 83.99 | 87.09 | 83.10 |
+| 2 | 85.20 | 84.45 | 86.03 | 85.48 |
+| 1 | 85.38 | 85.30 | 86.10 | 85.98 |
 
-With the mean-potential via (`viawell.py`) the FVM and FDM converge with the cell: from 1 mm the FVM reads 85.38, 85.32 and 85.30 °C (0.06 K and then 0.02 K) and the FDM 85.27, 85.26 and 85.28 °C, 0.11 K below the FVM or less from 1 mm down (the area-sampled FDM was 0.3 to 1.4 °C below it, and moved by 0.8 K between 2 and 1 mm). The coarse cells are the limit: at 2 mm the FVM is 85.20 °C and the FDM 84.41 °C, at 4 mm 83.68 and 83.93 °C, because a via is a fraction of a cell and the position of its centre in the cell matters (the program warns from 2 mm; `checks.check_via_limits`). Without the vias the board settles (94.67, 94.71, 94.72 °C at 1, 0.5, 0.25 mm). Before the change the via was a point in one cell of a five-point stencil, which acts like a hole of radius 0.1985 Δx, and the constriction grew as the cell shrank: on a 3 × 3 via board (the example's array, `research/point-via-convergence/scripts/study_array_board.py`) the copper-fill gain was −4.78 K at 1 mm and −3.34 K at 0.0625 mm against about −4.51 K resolved (the barrels drawn at their real size, 3D). The gain now:
+With the mean-potential via (`viawell.py`) the FVM and FDM converge with the cell: from 1 mm the FVM reads 85.38, 85.32 and 85.30 °C (0.06 K and then 0.02 K) and the FDM 85.30, 85.28 and 85.29 °C, 0.08 K below the FVM or less from 1 mm down (85.27, 85.26 and 85.28 °C with the arithmetic face mean before 2.7.0) (the area-sampled FDM was 0.3 to 1.4 °C below it, and moved by 0.8 K between 2 and 1 mm). The coarse cells are the limit: at 2 mm the FVM is 85.20 °C and the FDM 84.45 °C, at 4 mm 83.68 and 83.99 °C, because a via is a fraction of a cell and the position of its centre in the cell matters (the program warns from 2 mm; `checks.check_via_limits`). Without the vias the board settles (94.67, 94.71, 94.72 °C at 1, 0.5, 0.25 mm). Before the change the via was a point in one cell of a five-point stencil, which acts like a hole of radius 0.1985 Δx, and the constriction grew as the cell shrank: on a 3 × 3 via board (the example's array, `research/point-via-convergence/scripts/study_array_board.py`) the copper-fill gain was −4.78 K at 1 mm and −3.34 K at 0.0625 mm against about −4.51 K resolved (the barrels drawn at their real size, 3D). The gain now:
 
 | Cell [mm] | 1 | 0.5 | 0.25 | Reference |
 | :-- | --: | --: | --: | --: |
@@ -120,11 +118,11 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
 | 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.2 (−0.7 %) |
-| 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.4 (−0.9 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.4 (−6.7 %) |
-| 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 133.5 (−2.4 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 109.2 (−24.3 %) |
-| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.3 (−0.5 %) | 85.3 (−0.6 %) | 85.4 (−0.3 %) | 86.8 (+2.0 %) | 84.7 (−1.5 %) |
+| 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.6 (−0.6 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.4 (−6.7 %) |
+| 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 135.0 (−1.1 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 109.2 (−24.3 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.3 (−0.5 %) | 85.3 (−0.5 %) | 85.4 (−0.3 %) | 86.8 (+2.0 %) | 84.7 (−1.5 %) |
 
-*Re-run on the 2.7.0 tree for the FVM, FDM, Lumped and Analytic columns (the finite-element references are those above; the example board row moved by 0.1 to 0.3 K with the via barrel and the first ring, the other three rows are unchanged at the printed digit); the 3D solid (FV) column was not re-run, because the 3D solid at 0.5 mm of the example board needs about 11 GB by the memory guard (the 2.6.0 slab rule changed its cost), so its value is that of the earlier run. The face readings of the 'reading of the part' table of section 2 were re-computed on the tree (face term 2.33 K in all three rows; the readings are unchanged, the board fields 146.65 and 106.18 moved by 0.01 K).*
+*Re-run on the 2.7.0 tree for the FVM, FDM, Lumped and Analytic columns (the finite-element references are those above; the example board row moved by 0.1 to 0.3 K with the via barrel and the first ring, the other three rows are unchanged at the printed digit; the FDM column of the two pad boards and the example is that of the harmonic face mean, section 41: with the arithmetic mean 111.4 (−0.9 %), 133.5 (−2.4 %) and 85.3 (−0.6 %)); the 3D solid (FV) column was not re-run, because the 3D solid at 0.5 mm of the example board needs about 11 GB by the memory guard (the 2.6.0 slab rule changed its cost), so its value is that of the earlier run. The face readings of the 'reading of the part' table of section 2 were re-computed on the tree (face term 2.33 K in all three rows; the readings are unchanged, the board fields 146.65 and 106.18 moved by 0.01 K).*
 
 **Metal block** (a heatsink with a thickness; `research/solid3d-verification/scripts/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; the table is printed by `research/solid3d-verification/scripts/study_block_against_fem.py`, no script printed it before this folder. Board: 100 × 80 mm, 2 layers, 5 W, full top copper, 10 × 10 mm heater at the centre, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated, aluminium 204 W/mK; FVM, FDM and the 3D solid (FV) at 1 mm; error on the rise):
 
@@ -144,31 +142,31 @@ The block is always within 1.8 % of the finite-element solid (the 3D solid of th
 ### 3.1 Does the outer copper dissipate and spread heat (against a heatsink)?
 
 `python research/solid3d-verification/scripts/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
-Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`). The FVM and FDM columns and the heat columns are those printed by the script on the program of 2.4.5 (they moved with the laminate nodes of section 21.2: a one-sided pad leaves bare laminate around the heater); the 3D FV, Lumped and Analytic columns printed the same numbers; the finite-element column was not re-run:
+Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`). The FVM and heat columns are those printed by the script on the program of 2.4.5 (they moved with the laminate nodes of section 21.2: a one-sided pad leaves bare laminate around the heater); the FDM column is the harmonic face mean of 2.7.0 (section 41; with the arithmetic mean it read 434.6, 256.1, 195.6, 169.1, 149.2, 144.2 °C and 130.5, 100.4, 294.6 °C, −12.9 to −0.3 % and −14.6 % on bare laminate, re-run by the reviewer of `fix/fdm-harmonic-face-mean`); the 3D FV, Lumped and Analytic columns printed the same numbers; the finite-element column was not re-run:
 
 | Top copper pad | 3D FEM | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
-| heater pad only (10 mm) | 495.3 | 508.9 (+2.9 %) | 434.6 (−12.9 %) | 533.1 (+8.0 %) | 652.7 (+33.5 %) | 201.1 (−62.6 %) |
-| 20 mm square | 273.0 | 276.0 (+1.2 %) | 256.1 (−6.8 %) | 282.0 (+3.6 %) | 517.4 (+98.5 %) | 150.3 (−49.5 %) |
-| 30 mm square | 202.6 | 203.5 (+0.5 %) | 195.6 (−3.9 %) | 205.9 (+1.9 %) | 392.9 (+107.2 %) | 145.9 (−31.9 %) |
-| 40 mm square | 172.5 | 172.9 (+0.3 %) | 169.1 (−2.3 %) | 174.0 (+1.0 %) | 302.7 (+88.3 %) | 144.9 (−18.7 %) |
-| 60 mm square | 150.3 | 150.2 (−0.1 %) | 149.2 (−0.9 %) | 150.6 (+0.2 %) | 200.1 (+39.7 %) | 144.2 (−4.9 %) |
-| 80 mm square | 144.6 | 144.4 (−0.2 %) | 144.2 (−0.3 %) | 144.5 (−0.1 %) | 151.1 (+5.4 %) | 143.6 (−0.8 %) |
+| heater pad only (10 mm) | 495.3 | 508.9 (+2.9 %) | 470.8 (−5.2 %) | 533.1 (+8.0 %) | 652.7 (+33.5 %) | 201.1 (−62.6 %) |
+| 20 mm square | 273.0 | 276.0 (+1.2 %) | 266.5 (−2.6 %) | 282.0 (+3.6 %) | 517.4 (+98.5 %) | 150.3 (−49.5 %) |
+| 30 mm square | 202.6 | 203.5 (+0.5 %) | 199.8 (−1.6 %) | 205.9 (+1.9 %) | 392.9 (+107.2 %) | 145.9 (−31.9 %) |
+| 40 mm square | 172.5 | 172.9 (+0.3 %) | 171.1 (−0.9 %) | 174.0 (+1.0 %) | 302.7 (+88.3 %) | 144.9 (−18.7 %) |
+| 60 mm square | 150.3 | 150.2 (−0.1 %) | 149.8 (−0.4 %) | 150.6 (+0.2 %) | 200.1 (+39.7 %) | 144.2 (−4.9 %) |
+| 80 mm square | 144.6 | 144.4 (−0.2 %) | 144.3 (−0.3 %) | 144.5 (−0.1 %) | 151.1 (+5.4 %) | 143.6 (−0.8 %) |
 
 Copper against heatsink on the same board (40 mm area), FVM heat leaving the top face inside / outside the first copper zone (the 40 mm pad; in the last row the heater's own 10 mm pad, not the 40 mm heatsink area):
 
 | Case | 3D FEM | FVM | FDM | 3D solid (FV) | Heat over the area [W] | Elsewhere on the top face [W] |
 | :-- | --: | --: | --: | --: | --: | --: |
-| 40 mm copper pad | 172.5 | 172.9 (+0.3 %) | 169.1 (−2.3 %) | 174.0 (+1.0 %) | 1.33 | 0.75 |
-| pad + heatsink, extra h 30 W/m²K | 131.5 | 131.5 (+0.0 %) | 130.5 (−0.9 %) | 131.8 (+0.3 %) | 3.02 | 0.38 |
-| pad + heatsink, extra h 100 W/m²K | 100.7 | 100.6 (−0.1 %) | 100.4 (−0.4 %) | 100.6 (−0.1 %) | 4.12 | 0.15 |
-| heater pad only + heatsink 30 W/m²K on bare laminate | 340.7 | 351.5 (+3.4 %) | 294.6 (−14.6 %) | 369.6 (+9.2 %) | 1.28 | 2.37 |
+| 40 mm copper pad | 172.5 | 172.9 (+0.3 %) | 171.1 (−0.9 %) | 174.0 (+1.0 %) | 1.33 | 0.75 |
+| pad + heatsink, extra h 30 W/m²K | 131.5 | 131.5 (+0.0 %) | 131.0 (−0.5 %) | 131.8 (+0.3 %) | 3.02 | 0.38 |
+| pad + heatsink, extra h 100 W/m²K | 100.7 | 100.6 (−0.1 %) | 100.5 (−0.3 %) | 100.6 (−0.1 %) | 4.12 | 0.15 |
+| heater pad only + heatsink 30 W/m²K on bare laminate | 340.7 | 351.5 (+3.4 %) | 322.2 (−5.9 %) | 369.6 (+9.2 %) | 1.28 | 2.37 |
 
 What it shows:
 * **The outer copper dissipates and spreads by itself**: the temperature falls monotonically as the pad grows (495 → 145 °C) and saturates (80 mm gains 6 °C over 60 mm), and the whole top face loses heat, pad and bare laminate alike (the heat found outside the 40 mm pad, 0.75 W, is heat that the copper carried to the laminate).
   The FVM follows the 3D FEM within 1.2 % for pads of 20 mm and more (it was 1 to 2.5 % low before the laminate nodes) and is 2.9 % high on the heater-sized pad; the 3D FV solid is within 2 % from 30 mm (+3.6 % at 20 mm), and both 3D models bracket the converged value on the heater-sized pad (the convergence paragraph below).
 * **A heatsink works through the copper under it**: the same 30 W/m²K heatsink gives 131 °C on the pad and 352 °C on bare laminate, because on the laminate there is no sheet to spread the heat in. The heatsink adds convection area; the copper provides the path to it.
-* **Where the models fail**: with a pad hardly larger than the heater (an edge of copper across the footprint) the FDM loses 7 to 13 % (the grid sees the pad as a few nodes), and the **Lumped and Analytic models are unreliable** for a one-sided pad without vias or bottom copper (Lumped up to +107 %, Analytic up to −63 %); they assume copper around the heater on both faces or a uniform sheet. The input checks already warn about a copper edge crossing a heater; use the FVM for such boards.
+* **Where the models fail**: with a pad hardly larger than the heater (an edge of copper across the footprint) the FDM loses 2.6 to 5.2 % (13 % with the arithmetic face mean before 2.7.0; the copper edge falls between two nodes), and the **Lumped and Analytic models are unreliable** for a one-sided pad without vias or bottom copper (Lumped up to +107 %, Analytic up to −63 %); they assume copper around the heater on both faces or a uniform sheet. The input checks already warn about a copper edge crossing a heater; use the FVM for such boards.
 
 The 3D value of the example board is converged: 85.57 °C with 1 mm elements and 85.59 °C with 0.5 mm (2 elements across each gap; 85.567 and 85.587 °C printed by `research/solid3d-verification/scripts/study_fem_hand_checks.py`).
 
@@ -315,9 +313,9 @@ The range of the time to 63 % is -8.1 to +0.5 % on the 12 boards and -8.1 to -0.
 | reference, 8 layers | CG (Jacobi) | 65.6612 | 4.6e-12 | 1e-12 | - | 0.05 |
 | reference, 8 layers | SOR, residual 1e-9, automatic ω | 65.6612 | 3.0e-09 | 1e-09 | 673 | 0.36 |
 | reference, 8 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 53.1158 | 13 | 1e-01 | 384 | 0.19 |
-| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.2335 | 0 | 1e-13 | - | 0.46 |
-| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.2335 | 2.1e-11 | 1e-12 | - | 0.18 |
-| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.2335 | 6.3e-09 | 1e-09 | 676 | 1.05 |
+| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.3756 | 0 | 1.1e-13 | - | 0.29 |
+| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.3756 | 1.9e-11 | 1.1e-12 | - | 0.19 |
+| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.3756 | 4.0e-09 | 9.8e-10 | 726 | 0.65 |
 | example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, ω = 1.5 (original rule) | 69.3756 | 16 | 1e-01 | 570 | 1.18 |
 | weak cooling (h = 2 W/m²K, 200 mm) | direct (sparse LU) | 44.2990 | 0 | 1e-13 | - | 0.15 |
 | weak cooling (h = 2 W/m²K, 200 mm) | CG (Jacobi) | 44.2990 | 6.6e-12 | 1e-12 | - | 0.09 |
@@ -329,7 +327,7 @@ The range of the time to 63 % is -8.1 to +0.5 % on the 12 boards and -8.1 to -0.
 | reference, insulated edges | SOR, step 0.01 K, ω = 1.5 (original rule) | 80.3174 | 10 | 2e-01 | 550 | 0.36 |
 
 Direct, CG and SOR with the residual criterion agree to **7e-9 K** or better on all five boards (the SOR with the largest difference, 6.3e-9 K, is the example board); the original program's stopping rule stops 2.7 to 16 K from the solution with a violated heat balance. The direct solver is the default
-(1 to 5 times faster than a correct SOR on these boards); SOR stays available as an independent check. With vias the SOR is a block SOR: after the two colours it solves the dense blocks of the via footprints exactly (relaxed by ω), so the example board with its nine vias still agrees with the direct solver to 6.3e-9 K in 676 sweeps (2197 with the earlier relaxation factor, see below); without the blocks the red-black update iterated another matrix and stopped 19 to 22 K from the direct solution on the 3 × 3 via board (`research/sor-with-via-couplings`). The relaxation factor of the automatic SOR is the Rayleigh-quotient estimate of Young's optimum (`fvm.Network.sor_omega`, `docs/theory.md` 'Solvers'); the earlier `2 / (1 + sin(pi / n))` needed 656, 3247, 2197, 2237 and 1391 sweeps on these five boards, now 306, 673, 676, 779 and 636 (2.1, 4.8, 3.3, 2.9 and 2.2 times fewer; sweeps and times from `python -m pcbthermal solvers` and `research/models-comparison/scripts/solver_equivalence.py`, the temperatures are the same). On the example board at 2 mm the sweeps fall from 1054 (earlier formula) to 364 (reproduced with `.venv/bin/python research/models-comparison/scripts/solver_equivalence.py` (five boards, 1 mm) and `python -m pcbthermal solvers examples/example_board.pcbt.json [--cell-mm 2]`; the earlier factor is the same run with `fvm.Network.sor_omega` replaced by `2/(1 + sin(pi/max(nx, ny)))`). A via block above 5 000 unknowns is not inverted: the direct solver is used and the summary says *SOR not used* (`tests/test_point_via.py`).
+(1 to 5 times faster than a correct SOR on these boards); SOR stays available as an independent check. With vias the SOR is a block SOR: after the two colours it solves the dense blocks of the via footprints exactly (relaxed by ω), so the example board with its nine vias still agrees with the direct solver to 4.0e-9 K in 726 sweeps on the 2.7.0 tree (676 sweeps and 6.3e-9 K at 2.4.5, when the factor was fitted; 2197 with the earlier relaxation factor, see below); without the blocks the red-black update iterated another matrix and stopped 19 to 22 K from the direct solution on the 3 × 3 via board (`research/sor-with-via-couplings`). The relaxation factor of the automatic SOR is the Rayleigh-quotient estimate of Young's optimum (`fvm.Network.sor_omega`, `docs/theory.md` 'Solvers'); the earlier `2 / (1 + sin(pi / n))` needed 656, 3247, 2197, 2237 and 1391 sweeps on these five boards, now 306, 673, 676, 779 and 636 (2.1, 4.8, 3.3, 2.9 and 2.2 times fewer; sweeps and times from `python -m pcbthermal solvers` and `research/models-comparison/scripts/solver_equivalence.py`, the temperatures are the same). On the example board at 2 mm the sweeps fall from 1054 (earlier formula) to 364 (reproduced with `.venv/bin/python research/models-comparison/scripts/solver_equivalence.py` (five boards, 1 mm) and `python -m pcbthermal solvers examples/example_board.pcbt.json [--cell-mm 2]`; the earlier factor is the same run with `fvm.Network.sor_omega` replaced by `2/(1 + sin(pi/max(nx, ny)))`). A via block above 5 000 unknowns is not inverted: the direct solver is used and the summary says *SOR not used* (`tests/test_point_via.py`).
 
 ## 6. The removed wxPython program against the current one
 
@@ -468,7 +466,7 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 
 **Tables A, B and C re-run on the 2.7.0 tree** (`python research/stackup/scripts/stackup_outline_study.py`): the numbers moved with the 2.6.0 model items (the base rise 80.7 to 79.1 K, the L shape 108.2 to 103.5 K, the FDM from -4 % to -1 %); the 3D solid on the L shape now reads -3.3 % of the FVM (it was -1.3 %), which this pass did not investigate. **The 3D solid on the L shape** (tables re-run, 1 mm): the 3D solid is unchanged between 2.4.5 and the tree (rise 100.043 K every time), the FVM is what moved: 102.03 K (2.4.5, -1.9 % for the solid), 103.21 K (2.5.0 to 2.5.2, -3.1 %) and 103.46 K (tree, -3.3 %). The step of 2.5.0 (+1.18 K) is the mirror image of the board edge in the via well (switching `viawell.image_walls` off in the 2.5.0 tree gives back 102.03 K; the L shape has vias beside its inner walls); the step of 2.6.0 (+0.25 K) is the via barrel length (barrel off: -0.21 K) and the cut cells (-0.02 K). The 3D solid has no image of the edge in its via rule. Which of the two is nearer the truth on this board is not established here (the image was validated against a resolved reference in section 28, where the 3D solid was not used); the study table is the evidence, and this is recorded as a possible limit of the 3D solid or of the image on an L outline, not as a regression.
 
-**The prose below the tables (percentages of the models, 'agree within 1.5 %', 'the rise grows 34 %') is that of the earlier tables and has not been re-checked.**
+**The prose below the tables (percentages of the models, 'agree within 1.5 %', 'the rise grows 34 %') is that of the earlier tables and has not been re-checked.** (The FDM columns of A and B were re-run for the harmonic face mean of 2.7.0, section 41: four rows moved by 0.1 to 0.4 point.)
 
 **A. Advanced stack-up.** Rise of the hottest point in K (FVM) and the other models as a difference from it:
 
@@ -476,9 +474,9 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 | :-- | --: | --: | --: | --: | --: |
 | simple, equal FR-4 gaps | 79.1 | -1.2 % | +0.5 % | +1.2 % | +0.3 % |
 | advanced, the same gaps | 79.1 | -1.2 % | +0.4 % | +1.2 % | +0.3 % |
-| thin prepreg 0.1 mm top and bottom, 0.7 mm core | 75.6 | -1.1 % | +0.2 % | +1.3 % | +0.4 % |
-| prepreg 0.1 mm, metal-core dielectric 1 mm (2 W/mK) | 73.9 | -1.1 % | +0.1 % | +1.4 % | +0.4 % |
-| polyimide flex 0.1 mm gaps (0.15 W/mK) | 75.6 | -1.8 % | +0.2 % | +0.0 % | -0.4 % |
+| thin prepreg 0.1 mm top and bottom, 0.7 mm core | 75.6 | -1.0 % | +0.2 % | +1.3 % | +0.4 % |
+| prepreg 0.1 mm, metal-core dielectric 1 mm (2 W/mK) | 73.9 | -1.0 % | +0.1 % | +1.4 % | +0.4 % |
+| polyimide flex 0.1 mm gaps (0.15 W/mK) | 75.6 | -1.4 % | +0.2 % | +0.0 % | -0.4 % |
 | alumina core 0.6 mm (24 W/mK) | 69.9 | -0.8 % | -0.4 % | +1.2 % | +0.5 % |
 | copper 70 / 35 / 35 / 70 µm | 69.3 | -0.9 % | +0.2 % | +1.0 % | +0.1 % |
 | copper 17.5 µm on every layer | 99.0 | -1.5 % | +0.8 % | +1.7 % | +0.6 % |
@@ -494,7 +492,7 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 | L shape | 1800 mm² | 103.5 | -1.4 % | -3.3 % |
 | T shape | 1600 mm² | 103.5 | -0.9 % | +0.4 % |
 | ellipse | 1880 mm² | 91.4 | -1.0 % | +0.4 % |
-| chamfered corners (6 mm) | 2328 mm² | 80.5 | -1.2 % | +0.5 % |
+| chamfered corners (6 mm) | 2328 mm² | 80.5 | -1.1 % | +0.5 % |
 
 * Less board makes the heater hotter (the L shape has 25 % less board and the rise grows 34 %), the FVM and the independent 3D solid agree within 1.5 % on every shape, as they do on the rectangle. The FDM is 3 to 4 % low on every shape except the L, where it is 6.5 % low at 1 mm. The old table read -4.9 % there, close to the FVM by accident: the old FDM also put part of the power on the nodes outside the board's edge. The FDM now spreads the part over the board nodes only and on the L it converges monotonically with the cell, -6.5 / -4.4 / -3.3 % at 1 / 0.5 / 0.25 mm; the cause of the larger gap on the L at 1 mm was not investigated further (`python research/stackup/scripts/stackup_outline_study.py` at 1 mm; the other two cells from the same board).
 * Limits: cell-cover treatment of the boundary (a cell on the edge conducts with its covered fraction), so a neck narrower than two or three cells is poorly resolved; the lumped and analytic models need a rectangle and run on the rectangle of the same area (section 13).
@@ -828,7 +826,7 @@ On the round board the step response now ends at 1070 s on the steady resistance
 | full copper | 56.43 | 56.43 | 57.38 | 56.84 | 56.53 | 58.72 |
 | 20 mm pad | 75.22 | 73.12 | 81.92 | 72.36 | 74.53 | 119.97 |
 
-*(The layered models of this table are before the laminate nodes of section 21; with them: full copper FVM 57.35, FDM 57.35, Lumped 57.77, Analytic 57.09; 20 mm pad FVM 79.94, FDM 76.49, Lumped 75.82, Analytic 75.64.)*
+*(The layered models of this table are before the laminate nodes of section 21; with them: full copper FVM 57.35, FDM 57.35, Lumped 57.77, Analytic 57.09; 20 mm pad FVM 79.94, FDM 76.49, Lumped 75.82, Analytic 75.64; the FDM numbers are those of the arithmetic face mean, which 2.7.0 replaced by the harmonic mean, section 41, and were not re-run.)*
 
 Before the laminate nodes of section 21 the 3D solid was 3 % above the layered models with full copper and 13 % with a 20 mm pad (after them the FVM is −0.1 % with full copper and −3.5 % with the 20 mm pad of the 3D solid's rise; FDM −0.1 / −9.5 %, Lumped +1.2 / −10.7 %, Analytic −0.9 / −11.0 %: `study_one_layer_board.py`, part 1, 1 mm cells): in the 3D solid the bottom face loses heat through 1.6 mm of FR-4, in the layered models it acts on the copper node directly, and a pad hardly larger than the part is where that matters. An independent 3D finite-volume solver with patterned copper (`research/effective-conductivity/` section 4.11; FR-4 isotropic at 0.3 W/mK so that both represent the same board, copper 385 W/mK, no edge loss, 0.5 mm cells) confirms it: with a 20 mm pad the 3D solid is +0.2 % of the rise from it (before the correction +40 %); with full copper both the corrected and the old 3D solid agree with it within 0.2 %, so full copper does not test the correction. The FVM is 0.9 to 4.4 % low with full copper (0.8 to 3.2 mm) and 10 % low with the pad, because its bottom film acts on the copper node and the laminate under it is missing (corrected since with two laminate nodes under the copper: 0.0 % with full copper and -2.5 % with the pad; `docs/validation.md` section 21). *An earlier version of this section quoted 33.71 K against 33.43 K (-0.8 %) from a check with mismatched copper and edge loss; it is replaced by these numbers.* Test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
 
@@ -1198,7 +1196,7 @@ When `docs/theory.md` was rewritten to describe the models as implemented (state
 | One-layer board (1.4) | with one node the FVM was 0.9 to 4.4 % low with full copper and 10 % low with a 20 mm pad; one, two, three and four laminate nodes under the copper gave -4.1, -2.5, -1.8 and -1.5 % on a bare 20 mm pad, under 0.3 % with full copper from two on | sections 21 and 21.2 |
 | Solvers (2.3) | the symmetric minimum-degree ordering halves the fill and cuts about 40 % of the time against the default ordering; the residual of the direct solver is about 1e-13 | section 5; carried over |
 | SOR with vias (2.3) | the block SOR needs 0.79 to 1.00 times the sweeps of the board without vias and agrees with the direct solver within 1e-8 K | section 5; `research/sor-with-via-couplings` |
-| Relaxation factor (2.3) | the factor of a plate with fixed edges, `2/(1 + sin(pi/n_max))`, needed 2.8 to 19 times more sweeps than the estimate of Young's optimum; the example board needs 676 sweeps at 1 mm (2197 with the old factor) and 364 at 2 mm (1054); a board of 1 x 1 cell, where the old factor diverged, converges; without the mask of the linked nodes the quotient collapsed to `ω` 1.009 on a round board; the estimate is 1.1 to 2 times the sweeps of the true optimum on boards with uneven losses or partial copper; the step criterion of the removed program can stop 3 to 16 K from the solution | section 5; `research/young-omega-tiles`; carried over |
+| Relaxation factor (2.3) | the factor of a plate with fixed edges, `2/(1 + sin(pi/n_max))`, needed 2.8 to 19 times more sweeps than the estimate of Young's optimum; the example board needed 676 sweeps at 1 mm at 2.4.5 (726 on the 2.7.0 tree; 2197 with the old factor) and 364 at 2 mm (1054); a board of 1 x 1 cell, where the old factor diverged, converges; without the mask of the linked nodes the quotient collapsed to `ω` 1.009 on a round board; the estimate is 1.1 to 2 times the sweeps of the true optimum on boards with uneven losses or partial copper; the step criterion of the removed program can stop 3 to 16 K from the solution | section 5; `research/young-omega-tiles`; carried over |
 | Via on the grid (2.6) | the worst error of the via effect against a fine-grid layered reference is 0.7 % at 1 mm, 0.5 % at 0.5 mm and 0.4 % from 0.25 mm (12 unit-cell cases), where the point via was 7, 10 and 20 % off; the copper-fill gain of the 3 x 3 via board is -4.50, -4.47 and -4.49 K (FVM) and -4.42, -4.51 and -4.49 K (FDM) at 1, 0.5 and 0.25 mm against -4.51 K resolved (-4.78 to -3.34 K from 1 to 0.0625 mm with the point via); a via within one cell of the edge is 12 to 15 % too large at a 1 mm cell without the edge image and within 1 to 2 % with it (section 28); the target radius 0.78 r_v gives the via effect within 1 % on a four-plane 1.6 mm board and -2.1 to +3.9 % over 2 to 6 planes and drills of 0.2 to 1 mm | 2.1 and 18; `research/point-via-convergence` 3.2 and 3.3 |
 | FDM (3) | the FDM and the FVM agree to about 0.1 % without vias; with the via array they differ by less than 1 % from 1 mm down | sections 2 and 2.1 |
 | 3D solid (4) | the limit was 2e6 unknowns (a run could go on for hours), then 250 000, and is now the memory guard of section 26 (an estimated-memory limit with an absolute ceiling of 2 million unknowns); 158 000 unknowns take 2.0 s and 0.75 GB on a plain two-layer board and 7.2 s and 2.15 GB on the example board of 16 slabs, 247 000 take 15.3 s and 3.5 GB and 512 000 take 57.7 s and 9.9 GB resident (a quiet 16 GB machine, they depend on the machine, the board and the computed-h loop); 4 slabs per gap are NOT within 1 % of 8 for a small part on a thick laminate (corrected: a 2 mm source differs 5 % at 1.6 mm and 14 % at 3.2 mm, section 21.2); the slabs are now by thickness (4 to 16 per gap) with the face term, section 21.3; on the heater-sized pad of section 16 (a large heater) the finite-volume and finite-element solids bracket the limit about +-4 %; a 0.3 mm copper fill below 0.27 mm cells loses copper by the clip of `a_via` at 1 (an item of "Planned" in `versions.md`) | section 16; `research/solid3d-verification` |
@@ -1382,6 +1380,18 @@ The jump is the laminate edge band acting together with the cut-cell edge film (
 The reference was then checked against an independent 3D conduction solver that has the cooled side wall (`ref3d.py`, imports nothing of the program: half board by symmetry, 1/16 mm plan cells, copper slabs one cell thick, FR-4 gaps in 4 or 8 sub-slabs, film h_side dz on every slab of the walls, via as copper links between the copper cells of the drill disc with the program's barrel conductance). E of the 3D solver: 2.921 K (h_side 10), 1.542 K (200), 0.675 and 0.664 K (1000, 4 and 8 sub-slabs). The layered reference, which has one laminate link per gap and no film on the laminate, is the one that lacks the physics: 0.412 K against 0.664 K. Against the 3D solver the 2.6.0 program is +0.6 % at h_side 200 (1 mm) and -4.2 % (0.25 mm), and at h_side 1000 -17 % at 1 mm, -23 % at 0.5 mm and -26 % at 0.25 mm (0.553, 0.511, 0.489 K). The 2.5.x agreement (+1.5 %) was a reference and a model that shared the same omission, not a better via. A deficit of 17 to 26 % of the via effect at 1000 W/m2K remains and does not converge away with the cell; the image is not its cause. The 3D via is a linked disc of cells 0.01 mm from the wall and its sensitivity to that model was not studied. Above 200 W/m2K read the via effect near an edge with the existing edge warning.
 
 The numbers of the table above are those of the matrix of the study (`out_matrix.txt`), checked line by line in this pass; the E values of the 3D solver and the errors against it come from the study's report and were not re-run here (the matrix has no 0.25 mm column and no 3D-solver run).
+
+**The h_side 1000 deficit, explained (`research/strong-edge-laminate`, reviewed).** The earlier statement that 'a deficit of 17 to 26 % remains and does not converge away with the cell' was wrong in its cause. The study board (10 x 10 mm, four layers, 1.6 mm) is a simple stack-up: every layer node stands for T / L = 0.4 mm, so the outer copper nodes carry the edge film of 0.365 mm of laminate (physically 0.243 mm) at the copper temperature; its 0.487 mm gaps get **two** sub-gaps by default (not four; the run labelled '16 sub-gaps', `laminate_s_max_mm` 0.1, has five). Against an independent 3D solver with a resolved copper cylinder for the via (its E 0.706 K at 1/16 mm, 0.742 K at 1/8 mm; the copper-link via of the paragraph above, 0.664 K, is 6 % lower, and the earlier -17 / -23 / -26 % were against it), cell 0.25 mm, the hottest rise without the via and the via effect E (via 0.16 mm from the edge), error %:
+
+| h_side W/m2K | plate: simple, 2 sub-gaps (default) / physical slabs, 2 / physical, 8 | E: simple, 2 / physical, 2 / physical, 8 |
+| :-- | :-- | :-- |
+| 10 | -0.1 / -0.0 / -0.0 | -2.4 / -2.4 / -2.4 |
+| 200 | -1.8 / -0.8 / +0.2 | -8.3 / -4.8 / -2.7 |
+| 500 | -4.8 / -2.5 / +0.4 | -19.3 / -10.4 / -4.1 |
+| 1000 | -8.9 / -5.1 / +0.4 | -34.0 / -19.2 / -7.3 |
+| 2000 | -14.4 / -8.9 / -0.4 | -51.4 / -32.9 / -13.1 |
+
+'Physical slabs' is the same board as an advanced stack-up of three equal gaps (the board of the 3D solver). With them and eight sub-gaps a via 0.5 to 3 mm from the edge reads within 0.6 % at 200 and 1000 W/m2K, so there is no via defect away from the edge; a via inside the first cell of a wall at 1000 to 2000 W/m2K keeps -7 to -13 % (the reference's own E is 5 % high at 1/8 mm there). The node-centred FDM and the 3D solid agree with the reference once the board is the same (FDM, 0.125 mm, eight sub-gaps: -6.8 % simple, -1.9 % physical; 3D solid +1.4 %). At a 0.5 mm cell many sub-gaps read hot (+3 to +4 % on the plate, +8 to +9 % on E at 1000 W/m2K: the half-cell film). The equal slabs of the simple stack-up are a limit of the program for three or more layers with a strong edge (the warning `checks.check_edge_laminate` says so); a change of them is a decision for the maintainer (`research/strong-edge-laminate/INTEGRATION.md` 1). Numbers: `research/strong-edge-laminate/scripts/study_review_slabs.py`.
 
 The 1 and 0.5 mm columns, with and without the image, and the h_side 1000 row were re-run by the review on the program of this branch against the same reference (the without-image values by switching the image off; they agree with `research/via-edge-image/out/` to 0.1 point); the 0.25 mm column is that of the research, not re-run. The tests hold the 1 mm cases to the budget of 2 to 3 %. Far from the edge (d of 1 to 2 mm and more) the image changes the result by at most 0.2 points. At a 2 mm cell (the coarse-cell warning applies) the image takes a via 0.16 mm from the edge from +24.4 to +3.3 % and the corner from +53.1 to +0.5 %; at d of 1 to 3 mm it is 0.2 to 1.1 points worse (+2.5 to +4.4 %).
 
@@ -1857,6 +1867,8 @@ Re-run by the reviewer on the branch: the table of 36.1 (to 0.1 point), the froz
 
 The FDM on the 60 x 40 mm board: -0.32 / -0.24 % (50 W/m2K) and -1.15 / -0.88 % (200 W/m2K) at 1 / 0.5 mm. The Analytic against the FVM with the band at 0.5 mm, 10 mm part (30 x 20 mm, corner): -2.0 / -3.1 / -4.1 % at a product `h_side` x thickness of 160 W/m2K mm (0.8 mm at 200, 1.6 mm at 100, 3.2 mm at 50), -6.2 % (1.6 mm, 200) and -13.3 % (3.2 mm, 200; -15.2 % against the reference); a centred part -5.5 / -9.6 % at 200 on 1.6 / 3.2 mm; on 60 x 40 mm -4.6 / -11.4 % (corner, 200); the Lumped the same or more. Hence the warning for the Lumped and Analytic from 150 W/m2K mm.
 
+The boards of this section have two copper layers, where the slab of the simple stack-up is the physical one. On a simple stack-up of three or more layers the equal slabs add their own cool error at a strong edge (a 1.6 mm four-layer board at 1000 W/m2K, 0.25 mm: -8.9 % against -5.1 % with the physical slabs, two sub-gaps; section 28, 'The h_side 1000 deficit, explained').
+
 **Memory.** The estimate against the measured peak of a fresh process (2 layers, 3.2 mm, full copper): 100 x 80 mm at 0.25 mm, FVM 1.15 without the band and 1.04 with it (318 100 unknowns, 1.23 GB), FDM 0.95 and 0.94; 40 x 30 mm at 0.1 mm (band 34 cells wide, 1.54 times the unknowns), FVM 1.14 and 1.20, FDM 0.94 and 1.12. The law holds with the band as it did without; the FDM estimate is 5 to 6 % below the peak on these boards with or without the band (a limit of the law, not of the band).
 
 **Fast waves (a limit of the layered models, found here, not caused by the band).** One node per copper layer holds the copper and half of each adjacent gap at one temperature, so the heat capacity under a part is about twelve times that of its copper (1.6 mm board, 35 um). In a wave shorter than the time the heat needs to cross the laminate (`d^2 / alpha`, about 13 s on 1.6 mm FR-4) only a thin layer of laminate follows the copper, and the layered FVM and FDM understate the swing. Measured on the 20 Hz, 30 % duty, 10 W wave of the test above (10 mm part, full copper): the program reads 0.75 K, the program with the laminate cut into nodes everywhere 2.33 / 3.62 / 4.93 K with 4 / 8 / 16 sub-gaps, and an independent 1D solution of the same stack (copper, 1.53 mm FR-4 in 256 slabs, copper, faces 10 W/m2K) 6.31 K, against 0.75 K for its two-node version. The average-or-resolve decision and the resolved profile curves of a part over full copper therefore understate a fast swing (here 8 times). Not fixed on this branch: an open item for the maintainer (`docs/versions.md` 'Planned').
@@ -2037,7 +2049,7 @@ Disc, before / after: +0.88 / -1.65 % at 1 mm, +0.88 / -0.51 % at 0.5 mm. At 10 
 
 ## 39. Imported copper on a board with an outline: the edge film from the centroid (FVM)
 
-`fix/imported-copper-edge-film-centroid` (2.7.0; `fvm.Network._cut_edge_film`, `geometry.cover_centroids`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, commit d3cd9097). Section 38 left the edge film on the node for imported layers because the series film from the cell centre raised an aligned board by 1.6 % at 1 mm. The investigation found that the distance of the series film measured from the **centroid of the board part of the cut cell** (never negative) fixes the cool bias that grows with `h_side`, and it is now in the program for the IMPORTED layers (and the laminate nodes between them). The drawn layers keep the distance from the cell centre; their centroid film moves frozen numbers and is a separate decision ('Planned' in `docs/versions.md`: -3.39 to -1.76 % at 1 mm in the frame reference of the investigation).
+`fix/imported-copper-edge-film-centroid` (2.7.0; `fvm.Network._cut_edge_film`, `geometry.cover_centroids`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, commit d3cd9097). Section 38 left the edge film on the node for imported layers because the series film from the cell centre raised an aligned board by 1.6 % at 1 mm. The investigation found that the distance of the series film measured from the **centroid of the board part of the cut cell** (never negative) fixes the cool bias that grows with `h_side`, and it is now in the program for the IMPORTED layers (and the laminate nodes between them). This section describes the step for the imported layers; the drawn layers and every laminate node followed in section 40 (only the layers of a metal block keep the cell centre).
 
 ### 39.1 Reproduced on the program
 
@@ -2084,3 +2096,126 @@ Re-run by the reviewer on this branch (`releases/2.7.0/final-opinion/edge-film.m
 
 * The imported copper held 1.2 mm inside on the 12 mm quadrilateral of the tests (`tests/test_imported_edge_film_centroid.py`, 1 mm, 200 W/m2K): 110.75 K (centroid) against 107.85 K (node), 108.09 and 107.49 K at 0.25 mm.
 * What is left is the idealisation of four sub-gaps (about -2 % below the resolved laminate) and the cut-cell scatter at 1 to 2 mm (9 to 13 % spread at 2 mm and 500 to 1000 W/m2K, not re-measured); no truth for the T, L, striped, four-layer and real boards (only the move of the change); the FDM, 3D solid, Lumped and Analytic are unchanged; frozen numbers: the harness has no imported board with an outline, so none moves.
+
+## 40. Drawn layers on a board with an outline: the edge film from the centroid (FVM)
+
+`fix/drawn-layers-edge-film-centroid` (2.7.0; `fvm.Network._cut_edge_film`; tests `tests/test_imported_edge_film_centroid.py`; evidence `research/imported-copper-edge-film`, scripts `study_drawn_film.py` and `check_drawn_film_invariants.py`, truth `lib/truth_mask.py`, `lib/truth_values_drawn.json`). Section 39 gave the imported layers the film in series with the distance taken from the centroid of the board part of the cell; this section does the same for the drawn layers (zones), which kept the signed distance from the cell centre.
+
+### 40.1 Method
+
+Every case is a board turned by 0, 11.25, 22.5, 33.75 and 45 degrees and shifted against the grid by 0 and 0.3 of a cell (ten boards, one physics, so one truth), drawn as zones, 1 W in a square heater, `h_top = h_bottom = 10`. The truth is an independent 3D solver with no idealisation of the laminate (`truth3d.py` for the squares, the stored truth of section 39; `truth_mask.py`, the full board of any axis-aligned outline, for the new cases: cells 0.4 and 0.2 mm, the laminate in 12 sub-slabs per gap, the extrapolation of `study_truth.py`). `truth_mask.py` reproduces the first solve of the stored square truth to the digit and its extrapolation lies 0.035 % above it; the balance of every truth solve is below 4e-12; the uncertainty of the new truths is taken as 0.2 %. The program before is the tree of `develop`, after is the branch.
+
+### 40.2 Result (mean / worst error of the heater rise against the truth, %, before -> after)
+
+| case, `h_side` W/m2K, cell | before | after |
+| :-- | :-- | :-- |
+| 20 mm square, copper 1.2 mm inside, 10, 1 mm | -0.61 / 0.82 | -0.58 / 0.79 |
+| same, 50, 1 mm | -1.72 / 2.30 | -1.35 / 1.90 |
+| same, 200, 1 mm / 0.5 mm | -4.76 / 6.36 ; -3.57 / 3.94 | -3.15 / 4.62 ; -2.76 / 3.01 |
+| same, 500, 1 mm / 0.5 mm | -7.43 / 9.88 ; -5.42 / 6.01 | -4.66 / 6.90 ; -4.03 / 4.54 |
+| same, 1000, 1 mm / 0.5 mm | -9.18 / 12.15 ; -6.58 / 7.32 | -5.66 / 8.39 ; -4.82 / 5.50 |
+| 20 mm square, copper to the wall, 200, 1 / 0.5 mm | -1.12 / 1.76 ; -1.02 / 1.18 | +0.25 / 0.90 ; -0.34 / 0.52 |
+| same, 1000, 1 / 0.5 mm | -3.65 / 4.65 ; -3.43 / 3.67 | -0.93 / 1.86 ; -2.12 / 2.58 |
+| 12 mm square, 2 mm heater, wall, 200, 1 / 0.5 / 0.25 mm | -1.17 / 2.60 ; -1.26 / 1.59 ; -1.16 / 1.24 | +0.51 / 2.43 ; -0.44 / 0.70 ; -0.75 / 0.96 |
+| four layers, 200, 1 / 0.5 mm | -5.11 / 7.00 ; -3.51 / 3.91 | -3.30 / 5.03 ; -2.61 / 2.88 |
+| four layers, 1000, 1 / 0.5 mm | -10.83 / 14.51 ; -7.20 / 8.04 | -6.66 / 10.07 ; -5.11 / 5.93 |
+| top pad 7.2 mm, 200, 1 / 0.5 mm | -9.01 / 10.59 ; -7.03 / 9.13 | -8.22 / 9.72 ; -6.63 / 9.13 |
+| top stripes and pad, 200, 1 / 0.5 mm | -13.01 / 15.95 ; -5.76 / 6.51 | -11.81 / 14.64 ; -5.17 / 5.82 |
+| T outline, copper 1.2 mm inside, 200, 1 / 0.5 mm | -4.28 / 5.71 ; -3.75 / 4.16 | -2.68 / 4.00 ; -2.92 / 3.27 |
+| L outline, copper 1.2 mm inside, 200, 1 / 0.5 mm | -4.65 / 5.63 ; -3.63 / 3.84 | -3.12 / 3.86 ; -2.86 / 3.59 |
+| mixed 2 layers (top imported), 200, 1 / 0.5 mm | -1.97 / 2.83 ; -2.00 / 2.28 | -1.73 / 2.57 ; -1.89 / 2.15 |
+| mixed 4 layers (outer imported), 200, 1 / 0.5 mm | -2.46 / 3.58 ; -2.10 / 2.44 | -1.81 / 2.87 ; -1.78 / 2.08 |
+| **T outline, copper to the wall, 200, 1 / 0.5 mm** | **-0.27 / 0.89 ; -0.50 / 0.62** | **+1.19 / 1.48 ; +0.24 / 0.42** |
+| **L outline, copper to the wall, 200, 1 / 0.5 mm** | **-0.55 / 0.89 ; -0.63 / 0.98** | **+0.81 / 1.16 ; +0.05 / 0.98** |
+
+The aligned board (every cell whole to the outline) does not move: its centroid is the cell centre. Mean and worst error fall or stay on every case except two: the copper to the wall on a T and an L outline at 1 mm, where the error turns **hot** (9 of the 10 boards of the T and 3 of the L are more than 0.5 point worse than before, but all within 1.5 % of the truth, on the safe side), because the film from the centroid is a first-order error on the hot side where the copper of a cut cell reaches the outline (40.5: the earlier explanation, a cancellation with the laminate sub-gaps, was wrong); and one board of the 12 mm square at 1 mm (+2.43 % against -2.01 %; the 0.5 mm worst is 0.70 %). The balance closes to 1.4e-12 on every board.
+
+### 40.3 Properties and cost
+
+Over the turned boards of 40.1 (also the T, L, four-layer, striped and mixed ones) at 1 and 0.5 mm and `h_side` 10, 200, 1000 and 1e5 W/m2K: the matrix is symmetric (difference 0), has no positive off-diagonal entry, a constant field is reproduced to 1.8e-17 of the ambient conductance, the heat balance is at most 1.4e-12; the time simulation of the turned T ends at 95.7115 K, the steady hottest value being 95.7115 K. On a 200 x 150 mm outline board with two zones: building the network 0.06 s at 1 mm and 0.23 s at 0.5 mm, the solve 0.4 and 2.5 s, peak resident memory 0.65 and 1.49 GB for the whole run (strips of 16 cell rows, 54 MB at 0.25 mm). Frozen numbers (`tests/regression/data/pending/drawn-layers-edge-film-centroid.json`, 9 records and 3 times to 63 %): the FVM of `example_cut_to_T` (+0.0009 K at 2 mm, nothing at 1 and 0.5 mm; time unchanged), `part_across_outline` (+0.0086 / +0.0083 / +0.0024 K at 2 / 1 / 0.5 mm, time 33.584 to 33.588 s) and `round_outline` (+0.0091 / +0.0050 / +0.0025 K, time 38.625 to 38.636 s); no other board has an outline.
+
+### 40.4 Limits, stated
+
+* **Drawn copper still reads cooler than the same copper imported**: 20 mm square, copper 1.2 mm inside, 200 W/m2K, 1 mm: -3.15 % drawn, -0.93 % imported (a mixed board, -1.73 %). The gap is not the edge film. It comes from how a zone sets the copper fill of a cell (4 x 4 samples, `geometry.zone_fill`) and the in-plane faces (the fill-weighted harmonic mean, not the flow-based faces of the imported copper); striped and padded tops stay 5 to 12 % cool for the same reason. Planned for 2.8.0 (`docs/versions.md`, 5a).
+* The idealisation of four laminate sub-gaps (about -2 % below the resolved laminate) is not an edge-film effect and is not changed.
+* Truths of the T, L, four-layer, pad and stripe boards come from an extrapolation of a 0.4 / 0.2 mm series (about 0.2 % uncertain); no truth for rotated T and L outlines other than by the invariance of the physics (the same truth for every turn); the FDM, 3D solid, Lumped and Analytic are unchanged.
+* **Copper reaching the outline reads hot** (40.5): +1 to +2 % of the rise against the program's own converged answer at 1 mm, about half at 0.5 mm, on T, L and square outlines alike; on the square it is hidden against the truth by the cool idealisation of the layered model.
+
+### 40.5 Review
+
+Re-run on copies of `develop` and of the branch (only `fvm.py` differs): every number of 40.1 and 40.3 reproduced. The explanation first given for the T and L failure (the earlier scheme near the truth by a cancellation with the -2 % of four laminate sub-gaps) was tested and is **wrong**. Same boards at 1, 0.5, 0.25 and 0.125 mm, error of the heater mean against the truth in % for the board at 0 / 22.5 / 45 degrees (the aligned board at 0.125 mm is the program's converged answer; its distance from the truth is the idealisation of the layered model, not the film):
+
+| Board, `h_side`, sub-gaps | cell mm | develop | branch |
+| :-- | :-- | :-- | :-- |
+| L, copper to the wall, 200, 4 | 1 / 0.125 | -0.10 / -0.53 / -0.49 ; -0.86 / -0.74 / -0.68 | -0.10 / +0.93 / +1.16 ; -0.86 / -0.55 / -0.53 |
+| L, copper to the wall, 200, 8 | 1 / 0.125 | +0.81 / +0.04 / +0.15 ; -0.26 / -0.14 / -0.08 | +0.81 / +1.76 / +1.97 ; -0.26 / +0.09 / +0.10 |
+| T, copper to the wall, 200, 4 | 1 / 0.125 | +0.16 / -0.34 / -0.37 ; -0.81 / -0.75 / -0.70 | +0.83 / +1.19 / +1.30 ; -0.76 / -0.55 / -0.52 |
+| T, copper to the wall, 200, 8 | 1 / 0.5 / 0.125 | +0.97 / +0.26 / +0.26 ; +0.07 / +0.12 / +0.13 ; -0.16 / -0.11 / -0.05 | +1.77 / +2.06 / +2.17 ; +0.38 / +1.05 / +1.03 ; -0.11 / +0.12 / +0.15 |
+| square, copper to the wall, 200, 4 | 1 / 0.125 | +0.90 / -1.42 / -1.50 ; -0.82 / -0.82 / -0.78 | +0.90 / +0.05 / +0.15 ; -0.82 / -0.63 / -0.65 |
+| square, copper to the wall, 1000, 4 | 1 / 0.125 | -0.17 / -4.13 / -4.65 ; -3.08 / -3.08 / -3.00 | -0.17 / -1.20 / -0.98 ; -3.08 / -2.71 / -2.77 |
+| square, copper 1.2 mm inside, 200, 4 | 1 / 0.125 | -1.38 / -5.71 / -6.36 ; -2.27 / -2.11 / -2.31 | -1.38 / -3.95 / -4.62 ; -2.27 / -1.89 / -2.15 |
+| square, copper 1.2 mm inside, 1000, 4 | 1 / 0.125 | -2.91 / -10.83 / -12.15 ; -4.03 / -3.76 / -4.11 | -2.91 / -6.90 / -8.39 ; -4.03 / -3.26 / -3.75 |
+
+The idealisation of the T and L with copper to the wall is about -0.8 %, not -2 %, and develop's turned boards lie within 0.5 point of it at every cell, so there was no cancellation to lose; with 8 sub-gaps (idealisation about -0.2 %) the hot excess grows instead of disappearing (T +2.1 % at 1 mm, +1.0 % at 0.5 mm). Against the program's own converged answer the turned boards with copper to the wall at 1 mm are +0.9 to +2.1 points on the branch (develop -1.6 to +0.5), falling about as the cell: a new first-order error of the film from the centroid where the copper of the cut cell reaches the outline, on the safe side. The same error is on the square, where it cancels the cooler idealisation (-0.8 % at 200, -3.1 % at 1000 W/m2K): the gain of the copper-to-wall square at 1000 W/m2K (-3.65 to -0.93 %) is that cancellation (against the converged answer -1.3 to +2.0 points). The genuine gain is the copper held inside the outline (develop -3.4 to -8.1, branch -1.7 to -4.4 points from the converged answer at 1 mm) and one film for drawn and imported layers (no switch on a mixed board: drawn -3.15, top imported -1.73, both imported -0.93 % at 1 mm, 200 W/m2K). With `d >= 0` the factor `1 + H d / S` is at least 1, so the 0.25 floor no longer binds on any layer. Why the film from the centroid is too weak where the copper reaches the outline was not derived. Opinion: `releases/2.7.0/final-opinion/drawn-edge-film.md`.
+## 41. The FDM face between two nodes: harmonic mean of the sheets
+
+The node-centred FDM joined two nodes by the arithmetic mean of their sheet conductances, so half of the sheet of a copper node leaked into a bare neighbour and the model read cool across every copper edge (`research/small-model-defects` 2.2). Since the change the face is the harmonic mean of the physical sheets (the FVM's own mean), times the mean outline cover of the two nodes; the laminate nodes of the rule keep the arithmetic mean where both exist; `mean="arithmetic"` stays for studies. Error of the hottest rise against the independent 3D solver `tests/helpers/layered3d.py` (same cell, copper patterned slab by slab, insulated sides; `test_fdm_harmonic_face.py` holds the gap rows):
+
+| board | cell mm | FVM % | FDM arithmetic % | FDM harmonic % |
+| :-- | --: | --: | --: | --: |
+| plate_pad (20 mm window, 2 layers) | 1 / 0.5 | -2.12 / -1.66 | -13.49 / -7.49 | -7.31 / -4.32 |
+| one_layer_pad | 1 / 0.5 | -1.73 / -1.48 | -12.90 / -7.22 | -6.75 / -4.07 |
+| 3 mm gap across both layers (50 x 24 mm) | 1 / 0.5 / 0.25 | -1.48 / -1.18 / -0.97 | -14.32 / -6.29 / -3.23 | -5.49 / -3.17 / -1.96 |
+| copper strips 2 mm / gap 2 mm (40 x 20 mm) | 1 / 0.5 / 0.25 | -8.99 / -7.08 / -5.89 | -64.88 / -32.56 / -17.99 | -25.80 / -16.88 / -11.13 |
+| plate_uniform, one_layer_full | 1 / 0.5 | -0.15 / -0.03 | same | same (bit-identical) |
+
+Against the converged FVM (0.25 mm) where no independent solver exists: `two_layer_partial` -1.37 / -0.72 to -0.55 / -0.32 %; the example board at 1 mm -0.09 to -0.03 %; `part_top_path` through the API -2.49 / -1.39 to -1.01 / -0.62 %; a 3 mm block over a copper edge -1.71 / -0.79 to -1.02 / -0.42 %; imported copper with the faces and lambda mappings unchanged (those layers take their own face conductances, not the mean), with the fill mapping it moves like drawn copper (a 30 x 20 mm board with copper on half of the top, 1 mm: -1.54 to -0.63 %; the executor's 'within 0.01 point' was on a board without a copper edge); outline boards with full copper within 0.01 point (a plain harmonic mean of the cover-scaled sheets moved `part_across_outline` from +0.37 to +0.56 %, which is why the cover is divided out). Time to 63 % of the step response (cell 2 mm): `plate_pad` 57.63 s arithmetic, 58.81 s harmonic, 59.73 s FVM; example board 11.17 / 11.19 s against 10.78 s. The matrix stays symmetric, with no positive off-diagonal beyond the existing via couplings (identical positions for both means). The residual -2 to -7 % is the first-order error of a node-centred scheme with the copper edge between nodes (not fixed here). Frozen FDM records that move (steady K, 1 mm / 0.5 mm): `plate_pad` +20.72 / +10.48, `one_layer_pad` +4.30 / +2.17, `two_layer_partial` +1.13 / +0.56, `part_top_path` +0.73 / +0.38, example boards +0.04 / +0.02, the rest at most 1.2e-3 (the laminate band of the edge); pending file `tests/regression/data/pending/fdm-harmonic-face-mean.json`.
+
+### 41.1 Review
+
+Re-run by the reviewer on the branch merged with `develop` (`releases/2.7.0/final-opinion/fdm-harmonic.md`): the frozen numbers at 2, 1 and 0.5 mm pass with the pending file (317), and without it exactly its 42 steady records and 11 of its 14 times fail (the times of `plate_vias`, `reference_board` and `round_outline` move by 2e-7 to 9e-7 relative, under the tolerance). FDM at 1 mm against the FVM at 0.25 mm, arithmetic / harmonic: outlines (T, L, round, a square turned 0.4 rad, 40 mm boxes) with a 15 x 18 mm top pad -4.47 / -1.89, -5.43 / -2.35, -4.30 / -1.85, -3.05 / -1.21 %, the same with full copper identical (-0.11, -0.22, -0.09, 0.00 %); the harness outline boards at 2 / 1 / 0.5 mm within 0.06 point of the arithmetic mean, while the plain harmonic mean moves `part_across_outline` +0.53 / +0.37 / +0.09 to +0.85 / +0.56 / +0.11 %; a 3 mm aluminium block on the bottom over a bottom-copper edge, the block edge shifted 0, 0.3 and 0.5 mm off the grid, -5.5 to -5.7 % to -2.9 to -3.0 %; a solid pad over hatched copper (fill 0.5 / 0.25) -0.25 / -1.23 to -0.11 / -0.66 %. Power profiles through `api.simulate` at 1 mm: the example profile board peak 135.13 to 135.17 degC (FVM 135.31), a 20 s square wave on a pad 364.10 to 363.97 degC (FVM 366.57), the same regimes; times to 63 % of every heater within 0.6 % of the arithmetic ones. Invariants on the outline boards and the example: the matrix symmetric to 2e-18, no positive off-diagonal except the 64 via couplings of the example, row sums equal the ambient conductances to 2e-17, balance below 1.1e-12, no node below the ambient. Time and memory: the same number of matrix entries (the example at 0.5 mm, 1 077 251), solve time within 5 %, so the memory guard is unchanged. The tables of sections 1, 2, 2.1, 3, 3.1 and 12 A/B were re-run for the FDM column (the copper-edge rows moved: the heater straddling the top-copper edge -3.4 to -1.9 %, the heater-sized top pad of 3.1 -12.9 to -5.2 % of the finite-element rise).
+
+
+## 42. Lumped via groups: a lone far via is not part of the array
+
+`fix/lumped-via-groups-lone-via` (2.7.0; `viaconstriction.via_groups`, `ViaSet.__init__`; tests `tests/test_via_groups_lone_via.py`; evidence `research/small-model-defects` 1, INTEGRATION.md item 1). The single linkage joined two vias when their distance was at most twice the larger of their nearest-neighbour distances, so a via far from everything (large `d_nn`) reached the array and joined it: the mean spacing and the count of the group changed and the cluster well weakened. Now the pair is joined at twice the SMALLER distance and a via left alone has `d_nn = inf`.
+
+### 42.1 The defect and the fix on the program
+
+Board of the investigation (60 x 60 mm, 2 layers, 8 mm 5 W part, 1 mm cell, one via added 25 mm from the part centre; change of the hottest temperature in K, the study script `study_far_via.py` with the grouping of the program before and after; the first column is the before-values reproduced to the printed digit):
+
+| vias under the part | FVM | Lumped before | Lumped after |
+| --: | --: | --: | --: |
+| 0 | -0.001 | -0.001 | -0.001 |
+| 1 | -0.001 | -0.001 | -0.001 |
+| 2 | -0.001 | +0.646 | -0.001 |
+| 4 | -0.001 | +1.032 | -0.001 |
+| 16 | -0.000 | +1.263 | -0.000 |
+
+A 4 x 4 array and one far via at 0.5 mm: +1.275 before, -0.000 after. The Analytic does not move on any of these boards (it reads the same groups only for its tiles). A 3 x 3 array at 1 mm pitch under a 10 mm part on a 40 mm four-layer board with one far via (12, 18 or 6 mm away) or two: the Lumped part rise 32.84 K before, 32.21 K after, the FVM 31.55 K (the Lumped is 0.67 K hot with the via where it was 1.30 K); the same with the via 6 mm away 32.68 to 32.06 K.
+
+### 42.2 What does not move
+
+* The 62 boards of the Lumped studies (the 36 of `research/lumped-via-groups` `study_family.py` and the 26 of `study_holdout.py`; Lumped and Analytic, cells 1 and 0.5 mm): **0 of 62 move** (difference 0.0 on all 248 numbers; no board there has a via outside its array). The zone decision (`lumped.will_be_zoned`, `lumped.cell_for`) is the same on all of them.
+* The harness boards (`tests/regression`, 2, 1 and 0.5 mm): see 42.4.
+
+### 42.3 Limits, stated
+
+* **A via one pitch outside the array stays in the group** and still reads hot: the 4 x 4 array at 2 mm pitch under the 8 mm part with a via 2 mm (one pitch) beyond its edge, 2 layers, 1 mm: Lumped +1.211 K, FVM -0.083 K; at two and three pitches (4 and 6 mm beyond the edge) the via is outside the group and the Lumped reads -0.041 and -0.013 K against the FVM -0.035 and -0.016 K. The 3 x 3 array at 1 mm pitch with a via 2 mm beyond its edge reads 32.06 K (FVM 31.41 K, +0.65 K). The cause is the same dilution, smaller: the group's mean spacing and count include a via that is not under the footprint (a separate item).
+* **The 4-layer silence of the investigation is explained.** With 16 vias and one far via on a 4-layer board the Lumped changed by -0.002 K before the fix (the 2-layer board +1.263 K). The cluster term of the well (the macro disc) is capped at 0.75 fin lengths of the plane, and in a 4-layer board the dielectric couplings to the neighbouring planes make the fin length short, so the disc is smaller than the radius of the group (`r_macro <= r_cl`) and the term is not used with or without the far via (checked by counting the calls of `viaconstriction.krogh` for the 4 x 4 array alone: the macro term is called twice on 2 layers and not at all on 4). With the cap raised to 20 fin lengths (an experiment, not the program) the same far via heats the 4-layer part by +9.27 K at 1 mm (2 layers +6.68 K): the dilution is there, the cap hides it. The fix is therefore no-regret for 4 or more layers and removes the defect where it showed.
+* The input warnings that mention vias outside every footprint (`checks.check_model_limits`) are unchanged: those vias still enter the rings as before and their numbers (a lone via -22 to +65 %) were measured with the groups of 2.6.0 on boards without a cluster beside them, so they stand. The warning of an array that can read too cool (`checks.lumped_via_cool_warning`) reads the groups and does change on irregular layouts (42.5).
+
+### 42.4 The frozen numbers
+
+`PCBT_FROZEN_CELLS=2,1,0.5 pytest tests/regression` on the branch merged with `develop`: 317 passed, no pending file (no harness board has a via that the new rule leaves alone).
+
+### 42.5 Review: random irregular boards against the FVM at 0.25 mm
+
+The 62 boards of 42.2 have no via outside its array, so they cannot show what the rule does elsewhere. The review ran 24 new random boards (`releases/2.7.0/final-opinion/scripts/study_via_groups_review.py`, seed 2711; 40 x 40 mm, 2 or 4 full-copper layers, one 5 to 10 mm part of 3 W, 0.3 mm vias; six boards of each layout: an array under the part with satellites 1.5 to 4 pitches away and scattered vias, scattered vias only, tight pairs of 0.5 to 0.8 mm with a satellite at 2.2 to 4 times the pair spacing, an array beside the part), Lumped and Analytic at 1 mm on `develop` and on the branch, the FVM at 0.25 mm (it does not read the groups) as the reference, every board also without vias for the via effect:
+
+* **Lumped, via effect**: mean absolute error 36.7 % before, 27.9 % after (median 24.5 to 23.4 %); 14 boards better, 7 worse by more than one point. **Hottest rise**: mean absolute error 2.02 to 1.74 %, range -6.12..+5.14 % to -6.72..+5.53 %. **The change is not one-sided**: 6 of 24 boards read cooler than before (the unsafe direction), the largest an array at 1.6 mm pitch with satellites, 2 layers (+0.12 to -1.51 % of the rise, 1.9 K), tight pairs on 4 layers (-3.05 to -4.52 %) and an array beside the part (-6.12 to -6.72 %, a board that the input check already warns about).
+* **Zone decision**: it **changes on 2 of the 24 boards** (scattered vias, two of them under the part: zoned before, one node after, because the second via of the footprint is now alone); both move towards the FVM (+151.9 to +4.8 % and +42.8 to +27.9 % of the via effect). "Unchanged" in 42.2 holds for the 62 boards only.
+* **Lumped warnings**: the via lines of the live check change on 3 of the 24 boards (the "too cool" warning `checks.lumped_via_cool_warning` reads the same groups: dropped on one array beside the part, which read +0.24 % of the rise, added on the two boards whose zone decision changed, which read -0.05 and -3.53 %). The counts of section 18.1 (21 of 28 boards) were measured with the old groups and were not re-run.
+* **Analytic**: the tile and the spread of a via move only on the boards with tight pairs (a satellite of a pair is now alone, `d_nn = inf`, so it is spread over four tiles and leaves the median spacing): tile 0.410 to 0.395, 0.492 to 0.448, 0.460 to 0.442 and 0.504 to 0.450 mm, hottest rise within 0.03 K, error of the via effect within 0.4 points, no non-finite value. Elsewhere bit-identical.
+
+Verdict: the fix removes the defect it targets and improves the Lumped on average, but it does not improve every board, and the earlier text 'the zone decision does not change' is true only of the 62 study boards.

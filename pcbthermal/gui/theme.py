@@ -133,6 +133,8 @@ class _CommaToPoint(QObject):
         return True
 
 
+# Colour token of each kind of hole, shared by the import preview and the editor: a via, a component hole (plated above the via limit) and a non-plated hole or slot
+HOLE_TONE = {"via": "via", "component": "warn", "nonplated": "muted"}
 _COMMA_FILTER = None    # The single event filter installed by fix_number_locale
 
 

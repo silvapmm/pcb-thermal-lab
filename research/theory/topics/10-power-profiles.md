@@ -1,5 +1,7 @@
 # 10. Power profiles in time: the response, the decision and the window
 
+*(audit 2.7.0: this topic predates the fast-wave floor and the regime `average + ripple` of 2.6.0 (the closed-form impedance of the stack under the part, `stackimpedance.py`); the reference is `docs/theory.md` 10.)*
+
 ![Profiles](../figures/fig_10_profile_decision.png)
 
 *Figure 10 (`figures/fig_10_profile_decision.png`): left, a square wave and the response of the hottest point (first-order response, illustrative): the temperature oscillates around the value of the average power; middle, the average-or-resolve decision: heaters sorted by oscillation, averaged while the cumulative oscillation stays under the shared threshold (illustrative oscillations); right, the window is the least common multiple of the periods.*

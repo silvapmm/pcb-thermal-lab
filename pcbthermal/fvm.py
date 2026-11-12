@@ -176,7 +176,7 @@ class Network:
                `geometry.face_apertures`) on the physical sheet, and the edge film h_side is in series with the conduction from the node to the closest outline point (on a rectangle:
                to the edge, half a cell away). False: the earlier treatment (links of the cover-scaled sheets, the film on the node); the Lumped model, which reads the per-cell
                arrays ring by ring and never sees the links, asks for it so that its numbers do not move. The imported layers take the outline at the pixel level
-               (`copper.lateral(outline=)`) and the edge film with the distance from the centroid of the board part of the cell (`_cut_edge_film`).
+               (`copper.lateral(outline=)`); the edge film of every layer of a board with an outline has the distance from the centroid of the board part of the cell (`_cut_edge_film`).
         """
         problem.validate()
         self.problem = problem
@@ -189,7 +189,6 @@ class Network:
         self.laminate_layers = []                      # Indices of the laminate node layers of a one-layer board (laminate.py)
         use_rule = bool(ladder) and laminate.uses_rule(problem)
         self.ladder = None                             # laminate.Ladder when the rule was applied
-        self.laminate_neighbours = []                  # Copper layers on the two sides of every node layer added by the laminate rule (_add_ladder)
         self.drop = None                               # Boolean (nl, ny, nx) of the nodes that no cell uses (left out of the direct solve)
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
@@ -205,17 +204,17 @@ class Network:
         if self.laminate is not None:
             slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
-            raise ValueError("copper thickness must be smaller than thickness / layers")
+            raise ValueError("copper thickness must be smaller than the thickness each layer node represents (the physical slab, with half of the adjacent gaps)")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
-        # The cut-cell treatment of a board with an outline: the aperture links and the edge film hold for the drawn layers; the imported layers take the outline at the PIXEL
-        # level (copper.lateral(outline=)), so the open fraction of a cut face and the copper edge held inside the outline come out of the pixels, and the edge film from the centroid
-        # The edge film in series is also on the imported layers of a board with an outline, with the distance measured from the CENTROID of the board part of the cell
-        # (`_cut_edge_film`, `research/imported-copper-edge-film`): measured from the cell centre it added +1.6 % at 1 mm to an aligned board whose copper is held 1.2 mm inside the edge
+        # The cut-cell treatment of a board with an outline: the aperture links hold for the drawn layers; the imported layers take the outline at the PIXEL level
+        # (copper.lateral(outline=)), so the open fraction of a cut face and the copper edge held inside the outline come out of the pixels. The edge film in series is on every
+        # layer, with the distance measured from the CENTROID of the board part of the cell (`_cut_edge_film`, `research/imported-copper-edge-film`): measured from the cell
+        # centre it added +1.6 % at 1 mm to an aligned board whose copper is held 1.2 mm inside the edge
         self.cut_edge = bool(cut_cells)
         self.cut_links = bool(cut_cells) and b.has_outline()
 
@@ -368,12 +367,6 @@ class Network:
         res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
         self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
         self.ladder, self.drop = res.ladder, res.ladder.drop
-        # The copper layers next to every new node layer, in the order laminate.build appends them (n - 1 interior nodes per gap, plus the bottom node of a one-layer
-        # board): the edge film of a laminate node follows the layers it lies between (`_cut_edge_film`)
-        one = b.layers == 1
-        self.laminate_neighbours = []
-        for p in plans:
-            self.laminate_neighbours += [(p.gap,) if one else (p.gap, p.gap + 1)] * (max(p.n, 1) - 1 + (1 if one else 0))
         k = len(res.layers)
         if not k:
             return None
@@ -431,8 +424,8 @@ class Network:
         @details The film of a cell is H L with H = h_side times the slab (W/m K) and L the edge length in the cell. The node is the cell centre, a distance d from the edge,
                  so the heat passes the sheet from the node to the edge, d / (S L), and then the film: g = g0 / (1 + g0 d / (S L)) = H L / (1 + H d / S) (L cancels), with S the
                  physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
-                 which stiffens the film); **for the imported layers of a board with an outline** (and the laminate nodes of the rule next to an imported layer, `laminate_neighbours`) d is the distance from the CENTROID of the board part of the cell
-                 to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film), the drawn layers keeping the centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
+                 which stiffens the film); **for every copper layer and laminate node of a board with an outline, drawn or imported,** d is the distance from the CENTROID of the board part of the cell
+                 to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film, validation 39 and 40), only the layers of a metal block keeping the cell centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
                  floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
                  nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
                  The ambient term is scaled with the same factor as the conductance (the change goes into g_amb), so a constant field is reproduced to round-off; the unfloored
@@ -453,21 +446,25 @@ class Network:
                 y = (cells[:, 0] + 0.5) * self.dy
                 d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(b.outline, x, y)
             dist = d
-            if self.copper is not None and len(cells):
-                # Imported layers (and the laminate nodes next to one, below): d from the centroid of the board part of the cell, never negative. A sliver cell whose centre is
-                # off the board then has its node where its copper is, and not outside (where the film was stiffened to the floor)
-                cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
+            if len(cells):
+                # Every copper layer and laminate node of a board with an outline (drawn or imported): d from the centroid of the board part of the cell, never negative. The unknown
+                # of a cut cell is the mean over its board part, which sits at the centroid, not at the cell centre; a sliver cell whose centre is off the board then has its node
+                # where its copper is, and not outside (where the film was stiffened to the floor). Only the layers of a metal block keep the cell centre
+                # The centroids are read on a grid 8 times finer, so an outline whose edges cross between 1/8 and all of the crossing bound of the plain cover reaches the bound
+                # here only (a hostile file that passes Board.validate): fall back on the cell centre, as copper._outline_faces falls back on the cell cover, and say so
                 dc = d.copy()
                 r, c = cells[:, 0], cells[:, 1]
-                has = share[r, c] > 0
-                dc[r[has], c[has]] = np.maximum(signed_distance_to_outline(b.outline, cx[r, c][has], cy[r, c][has]), 0.0)
+                try:
+                    cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
+                except ValueError as exc:
+                    log.warning("edge film measured from the cell centre, not from the centroid of the board part: %s", exc)
+                else:
+                    has = share[r, c] > 0
+                    # A concave board part (a reflex corner or a slot inside one cell) can have its centroid off the board; the distance is then clamped to 0, which drops the
+                    # series term of that cell. Measured on a 0.6 mm slot centred in a 1 mm cell row (10 cells): at most 0.26 % of the heater rise against the |distance| variant
+                    # (200 W/m2K), 0.25 % at 1000 W/m2K and 0.1 % at 5000, so it is left as the smallest rule (tests/test_imported_edge_film_centroid.py)
+                    dc[r[has], c[has]] = np.maximum(signed_distance_to_outline(b.outline, cx[r, c][has], cy[r, c][has]), 0.0)
                 cen = np.ones(self.nl, bool)
-                for k in range(min(b.layers, self.nl)):
-                    cen[k] = k in self.copper.entries             # a drawn layer of the board keeps the distance from the cell centre
-                for j, sides in enumerate(self.laminate_neighbours):
-                    if b.layers + j < self.nl:
-                        # a laminate node of the rule takes the centroid only when a copper layer next to it is imported (between two drawn layers of a mixed board it keeps the centre)
-                        cen[b.layers + j] = any(k in self.copper.entries for k in sides)
                 for info in self.block_info:
                     cen[info["layer"]] = False
                 dist = np.where(cen[:, None, None], dc[None], d[None])
@@ -869,7 +866,7 @@ class Network:
             "heatsinks": float((self.g_heatsink * theta).sum()),
             "sides": float((self.g_side * theta).sum()),
         }
-        if self.extra_links:
+        if self.block_info:                                          # Not extra_links: the laminate rule fills those on every board with a cut gap
             out["blocks"] = float((self.g_block * theta).sum())           # Heat leaving through the exposed surface of the blocks
         return out
 

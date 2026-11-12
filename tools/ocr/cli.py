@@ -69,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--max-tokens", type=int, help="output token budget per request (Claude default 8192)")
         p.add_argument("--whole-page", action="store_true",
                        help="one request per page: no half-page crops, no fallback model (a cut page is kept with a note)")
+        p.add_argument("--refusal-retry", action="store_true", default=True,
+                       help="accepted for compatibility: the strips step is on by default")
+        p.add_argument("--no-refusal-retry", dest="refusal_retry", action="store_false",
+                       help="skip the three-strip step of the refusal ladder (full page, halves, strips of 40 %% with "
+                            "10 %% overlap, fallback models)")
         p.add_argument("--prompt-variant", choices=sorted(config.prompt_variants()), default="default",
                        help="phrasing of the prompt (data/prompt_variants.json): the filter that refuses some pages is "
                             "stochastic and sensitive to the wording")
@@ -182,7 +187,8 @@ def make_runner(a, papers: Path) -> Runner:
                   Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi,
                   prompt=config.variant_prompt(getattr(a, "prompt_variant", None)),
-                  max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False))
+                  max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False),
+                  strips=getattr(a, "refusal_retry", True))
 
 
 def report(outcomes) -> int:
