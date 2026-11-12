@@ -43,6 +43,7 @@ from .geometry import cell_index_of_point, points_in_polygon
 EULER_GAMMA = 0.5772156649015329
 KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi        # asymptotic constant of the potential kernel of the five-point stencil
 TARGET_RATIO = math.exp(-0.25)                                      # r_t / r_via: the radius of the uniform sink density over the disc of the via
+WELL_LOG_FLOOR = 1e-6                                              # smallest ln(r_eff / r_t) of a finite well (a smaller one is a mean tied to the barrel: infinite well)
 POINT_SINK_RADIUS = math.exp(-math.pi * KAPPA / 2.0)               # equivalent radius of a point sink on the lattice, in cells (0.1985: the exact infinite-lattice value; Peaceman's radial argument gives exp(-pi/2) = 0.2079, Ibraguimov 2022, Theorem 1)
 EDGE_REACH_CELLS = 6.0                                              # a wall counts when its distance from the via centre is at most this many cells
 EDGE_GUARD_CELLS = 0.6                                              # no image when a reflex vertex, a slanted or a short side is nearer than this many cells (image_walls)
@@ -439,9 +440,10 @@ def well_conductance(s_sheet, r_eff, r_t, c=0.0):
     if c == 0.0:
         if r_eff <= r_t * (1.0 + 1e-9):
             return math.inf
-        return 2.0 * math.pi * s_sheet / math.log(r_eff / r_t)
+        # Floor on the logarithm: a well of 2 pi S / 1e-9 cancels in the Schur complement of kron_barrel and keeps only about 1e-6 relative accuracy
+        return 2.0 * math.pi * s_sheet / max(math.log(r_eff / r_t), WELL_LOG_FLOOR)
     den = math.log(r_eff / r_t) + c
-    return math.inf if den <= 1e-9 else 2.0 * math.pi * s_sheet / den
+    return math.inf if den <= 1e-9 else 2.0 * math.pi * s_sheet / max(den, WELL_LOG_FLOOR)
 
 
 def kron_barrel(g_gap, g_well):

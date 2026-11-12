@@ -450,11 +450,20 @@ class Network:
                 # Every copper layer and laminate node of a board with an outline (drawn or imported): d from the centroid of the board part of the cell, never negative. The unknown
                 # of a cut cell is the mean over its board part, which sits at the centroid, not at the cell centre; a sliver cell whose centre is off the board then has its node
                 # where its copper is, and not outside (where the film was stiffened to the floor). Only the layers of a metal block keep the cell centre
-                cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
+                # The centroids are read on a grid 8 times finer, so an outline whose edges cross between 1/8 and all of the crossing bound of the plain cover reaches the bound
+                # here only (a hostile file that passes Board.validate): fall back on the cell centre, as copper._outline_faces falls back on the cell cover, and say so
                 dc = d.copy()
                 r, c = cells[:, 0], cells[:, 1]
-                has = share[r, c] > 0
-                dc[r[has], c[has]] = np.maximum(signed_distance_to_outline(b.outline, cx[r, c][has], cy[r, c][has]), 0.0)
+                try:
+                    cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
+                except ValueError as exc:
+                    log.warning("edge film measured from the cell centre, not from the centroid of the board part: %s", exc)
+                else:
+                    has = share[r, c] > 0
+                    # A concave board part (a reflex corner or a slot inside one cell) can have its centroid off the board; the distance is then clamped to 0, which drops the
+                    # series term of that cell. Measured on a 0.6 mm slot centred in a 1 mm cell row (10 cells): at most 0.26 % of the heater rise against the |distance| variant
+                    # (200 W/m2K), 0.25 % at 1000 W/m2K and 0.1 % at 5000, so it is left as the smallest rule (tests/test_imported_edge_film_centroid.py)
+                    dc[r[has], c[has]] = np.maximum(signed_distance_to_outline(b.outline, cx[r, c][has], cy[r, c][has]), 0.0)
                 cen = np.ones(self.nl, bool)
                 for info in self.block_info:
                     cen[info["layer"]] = False
@@ -857,7 +866,7 @@ class Network:
             "heatsinks": float((self.g_heatsink * theta).sum()),
             "sides": float((self.g_side * theta).sum()),
         }
-        if self.extra_links:
+        if self.block_info:                                          # Not extra_links: the laminate rule fills those on every board with a cut gap
             out["blocks"] = float((self.g_block * theta).sum())           # Heat leaving through the exposed surface of the blocks
         return out
 
