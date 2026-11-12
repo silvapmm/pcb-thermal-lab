@@ -464,9 +464,55 @@ class BoardView(QGraphicsView):
         finally:
             self._rebuilding = False
         self._update_handles()
+        self.refit_if_board_changed()
         self._fit_labels()
         self.viewport().update()
         self.selection_changed.emit(self.selected_elements())
+
+    def refit_if_board_changed(self, force=False):
+        """!
+        @brief Fit the view again when the board is no longer the one the view was fitted to and the view does not show it well (a re-import of another board, its undo or redo).
+        @details Without this the view keeps the zoom and centre of the old board: a smaller board is a speck in a corner and a larger one runs off the screen, which looked like an
+                 empty project. The view is fitted again when the size of the board changed and either the view still had the zoom of the last fit, or the imported copper
+                 changed with the size (another board was read: the old zoom and centre mean nothing on it), or the view no longer looks at the board. A zoom the user chose
+                 stays for an edit of the board size in the dock while the board still fills at least a quarter of the view (zoomed in on it), or at least half of the board is
+                 in view at no less than half the fit scale (review: the first rule, "less than half of the board in view", fitted again whenever the user had zoomed in and
+                 typed a new width).
+        @param force True to fit whenever the size of the board changed.
+        @return bool True when the view was fitted again.
+        """
+        b = self.doc.problem.board
+        box = (b.width * 1000.0, b.height * 1000.0)
+        old = getattr(self, "_fit_box", None)
+        if not self._fitted or old is None:
+            return False
+        if abs(box[0] - old[0]) <= 1e-9 * max(box) and abs(box[1] - old[1]) <= 1e-9 * max(box):
+            return False
+        copper_now = self._copper_token()
+        if not force and not self._at_fit_zoom() and copper_now == getattr(self, "_fit_copper", None):
+            view = self.mapToScene(self.viewport().rect()).boundingRect()
+            vis = view.intersected(QRectF(0.0, 0.0, box[0], box[1]))
+            shown = vis.width() * vis.height() / max(box[0] * box[1], 1e-12)          # Share of the board that is in the view
+            fills = vis.width() * vis.height() / max(view.width() * view.height(), 1e-12)  # Share of the view that the board covers
+            s_now = abs(self.transform().m11())
+            vw, vh = max(self.viewport().width(), 50), max(self.viewport().height(), 50)
+            s_fit = 0.9 * min(vw / box[0], vh / box[1])
+            if fills >= 0.25 or (shown >= 0.5 and s_now >= 0.5 * s_fit):
+                self._fit_box = box                       # Still looking at the board: the user's zoom stays
+                return False
+        self.fit()
+        return True
+
+    def _copper_token(self):
+        """!
+        @brief A cheap token of the imported copper of the document, to tell a re-import of another board from an edit of the board size in the dock.
+        @return tuple of (layer, length, hash) of every packed mask, empty without imported copper.
+        """
+        imp = self.doc.problem.imported
+        if imp is None:
+            return ()
+        # The hash of a str is computed once and kept by Python, and this runs only when the size of the board changed
+        return tuple(sorted((int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)))
 
     def _add_imported_copper(self):
         """!
@@ -992,6 +1038,8 @@ class BoardView(QGraphicsView):
         self.setTransform(QTransform().scale(s, -s))
         self.centerOn(W / 2 + strip / (2.0 * s), H / 2)
         self._fit_scale = s
+        self._fit_box = (W, H)
+        self._fit_copper = self._copper_token()          # The copper the view was fitted to (see refit_if_board_changed)
         self._fitted = True
         self._fit_labels()
 
