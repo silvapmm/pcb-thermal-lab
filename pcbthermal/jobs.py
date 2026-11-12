@@ -10,6 +10,7 @@
 """
 
 import logging
+import logging.handlers
 import os
 import traceback
 
@@ -18,6 +19,7 @@ from .api import TIME_MODELS, simulate, step_response
 
 log = logging.getLogger(__name__)
 LOG_NAME = "pcbthermal-errors.log"                 # File in the configuration folder that receives the traceback of a failed job
+LOG_MAX_BYTES = 1_000_000                          # Size at which the log is rotated (one older copy is kept)
 MAX_MESSAGE_CHARS = 500                            # Longest text of an error that goes to the window
 
 
@@ -163,16 +165,21 @@ def _watch_parent():
 
 def _attach_log_file():
     """!
-    @brief Send the log records of this process to `pcbthermal-errors.log` in the configuration folder (once per process; a folder that cannot be written is ignored).
+    @brief Send the log records of this process to `pcbthermal-errors.log` in the configuration folder (a folder that cannot be written is ignored).
+    @details The file is rotated at LOG_MAX_BYTES with one older copy, so that a process that fails again and again cannot fill the disk. A handler of an earlier
+             configuration folder (PCBTHERMAL_CONFIG changed in the same process, as the tests do) is closed and replaced, so that a traceback goes to one file only.
     @return Path of the log file, or None when it could not be opened.
     """
-    path = os.path.join(defaults.user_dir(), LOG_NAME)
-    for h in log.handlers:
-        if getattr(h, "baseFilename", None) == os.path.abspath(path):
+    path = os.path.abspath(os.path.join(defaults.user_dir(), LOG_NAME))
+    for h in list(log.handlers):
+        if isinstance(h, logging.handlers.RotatingFileHandler) and getattr(h, "baseFilename", None) == path:
             return path
+        if getattr(h, "baseFilename", "").endswith(LOG_NAME):
+            log.removeHandler(h)                           # The configuration folder of this handler is no longer the current one
+            h.close()
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        handler = logging.FileHandler(path, encoding="utf-8")
+        handler = logging.handlers.RotatingFileHandler(path, maxBytes=LOG_MAX_BYTES, backupCount=1, encoding="utf-8")
     except OSError:
         return None
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -181,16 +188,26 @@ def _attach_log_file():
     return path
 
 
+def _without_home(text):
+    """!
+    @brief Replace the home folder of the user in a text by `~`, so that the message of an exception that names a file (an OSError) shows no user name.
+    @param text The text.
+    @return str.
+    """
+    home = os.path.expanduser("~")
+    return text.replace(home, "~") if home and home not in ("~", os.sep) else text
+
+
 def failure_message(name, exc):
     """!
     @brief Log the full traceback of a failed job and build the short text that the window shows.
     @param name Name of the job (key of JOBS).
     @param exc The exception raised (its traceback is the one being handled).
-    @return str The message of the exception cut to MAX_MESSAGE_CHARS; for a bug (not a ValueError, which is a refusal of the input) a second line says that the traceback is in `pcbthermal-errors.log` of the configuration folder (the name only, no path, so that a screenshot shows nothing personal).
+    @return str The message of the exception (the home folder written `~`) cut to MAX_MESSAGE_CHARS; for a bug (not a ValueError, which is a refusal of the input) a second line says that the traceback is in `pcbthermal-errors.log` of the configuration folder (the name only, no path, so that a screenshot shows nothing personal).
     """
     _attach_log_file()
     log.error("job %s failed: %s\n%s", name, exc, traceback.format_exc())
-    text = str(exc) or type(exc).__name__
+    text = _without_home(str(exc)) or type(exc).__name__
     if len(text) > MAX_MESSAGE_CHARS:
         text = text[:MAX_MESSAGE_CHARS] + "..."
     if not isinstance(exc, ValueError):

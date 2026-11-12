@@ -91,6 +91,47 @@ def test_an_unwritable_log_folder_does_not_break_the_message(monkeypatch, tmp_pa
     assert kind == "failed" and "division by zero" in msg
 
 
+def test_a_path_in_the_home_folder_is_not_shown(monkeypatch):
+    """!
+    @brief An exception that names a file of the user (an OSError) shows the home folder as `~` in the window; the log keeps the full text.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    home = os.path.expanduser("~")
+
+    def missing(progress):
+        """!
+        @brief A job that fails on a file in the home folder.
+        @param progress Progress callback (unused).
+        @return None.
+        """
+        raise FileNotFoundError(2, "No such file or directory", os.path.join(home, "secret-user-folder", "board.pcbt.json"))
+
+    monkeypatch.setitem(jobs.JOBS, "missing", missing)
+    kind, msg = _serve_one("missing")
+    assert kind == "failed" and home not in msg and "~" in msg and "board.pcbt.json" in msg
+
+
+def test_a_new_configuration_folder_gets_the_traceback_alone(monkeypatch, tmp_path):
+    """!
+    @brief When the configuration folder changes in the same process, the old log handler is closed: the next traceback goes to the new file only, and the handler rotates.
+    @param monkeypatch pytest fixture.
+    @param tmp_path pytest fixture.
+    @return None.
+    """
+    import logging.handlers
+    first, second = tmp_path / "a", tmp_path / "b"
+    monkeypatch.setitem(jobs.JOBS, "bad", lambda progress: 1 / 0)
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(first))
+    _serve_one("bad")
+    size_first = (first / jobs.LOG_NAME).stat().st_size
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(second))
+    _serve_one("bad")
+    assert (first / jobs.LOG_NAME).stat().st_size == size_first and "ZeroDivisionError" in (second / jobs.LOG_NAME).read_text(encoding="utf-8")
+    mine = [h for h in jobs.log.handlers if getattr(h, "baseFilename", "").endswith(jobs.LOG_NAME)]
+    assert len(mine) == 1 and isinstance(mine[0], logging.handlers.RotatingFileHandler) and mine[0].maxBytes == jobs.LOG_MAX_BYTES
+
+
 def test_the_process_that_dies_is_reported(qtbot):
     """!
     @brief A calculation process killed during a job (the real process) ends the job as failed and the next job still runs.
@@ -190,7 +231,10 @@ def test_heat_balance_with_every_feature_combined(imported, block):
 def test_transient_energy_balance(model, block):
     """!
     @brief Stored energy plus the heat lost over a power step equals the energy put in, for every node of the network (copper, laminate sub-gap nodes and the metal block), with a via array, an outline and the edge coefficient.
-    @details The step is marched here with implicit Euler on the K, C and Q of the network, so that the laminate and block nodes (which the frames of `transient_from_network` leave out) are in the account; a wrong capacity or a wrong loss conductance in any ladder change breaks the sum.
+    @details The step is marched here with implicit Euler on the K, C and Q of the network, so that the laminate and block nodes (which the frames of `transient_from_network` leave out) are in the account.
+             The sum holds for ANY positive C (review: C scaled by 2 or by random factors closes it to 1e-12), so it checks that the links of K conserve heat and that the
+             loss vector is the row sum of K, not the capacities: those are checked against the closed form in `test_heat_capacity_equals_the_closed_form`. The march is
+             then compared with the program's stepper (`transient_from_network`, same steps), so that the balance also holds for the field the program shows.
     @param model "fvm" or "fdm".
     @param block True for a board with a metal block (which has the legacy two laminate nodes, no sub-gap ladder), False for the ladder of sub-gaps.
     @return None.
@@ -212,6 +256,27 @@ def test_transient_energy_balance(model, block):
     assert float(q.sum()) == pytest.approx(2.0)
     assert stored + lost == pytest.approx(put_in, rel=1e-9)
     assert stored > 0.0 and lost > 0.0 and stored < put_in                   # Neither side is trivial
+    frames = fvm.transient_from_network(net, 0.0, t_end, n_out=4, substeps=steps // 4, log_times=False).frames
+    assert np.allclose(frames[-1], x.reshape(net.nl, net.ny, net.nx)[:net.n_board], rtol=0, atol=1e-8)   # The library stepper gives the same field
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+@pytest.mark.parametrize("half", [False, True])
+def test_heat_capacity_equals_the_closed_form(model, half):
+    """!
+    @brief The total heat capacity of the network is rho c V of the copper and the laminate, also when the bottom copper covers half the board (laminate sub-gap ladder, the copper replaced by laminate of the same thickness).
+    @param model "fvm" or "fdm".
+    @param half True to draw the bottom copper over half the board.
+    @return None.
+    """
+    p = Problem.new(40, 30, 2).add_zone(1, rect=(0, 0, 40, 30)).add_heater(1, 1.0, rect=(10, 8, 14, 12)).add_zone(2, rect=(0, 0, 20 if half else 40, 30))
+    b, m = p.board, p.board.materials
+    area, t_cu = 40e-3 * 30e-3, b.copper_thickness[0]
+    cu, fr4 = m.rho_copper * m.cp_copper, m.rho_fr4 * m.cp_fr4
+    expected = area * (b.thickness - 2 * t_cu) * fr4 + area * t_cu * cu + area * t_cu * (cu if not half else 0.5 * (cu + fr4))
+    net = fvm.Network(p, 40, 30) if model == "fvm" else fdm.Network(p, 1.0)
+    assert net.nl > 2 if half else True                                      # The half board has the laminate ladder
+    assert float(net.C.sum()) == pytest.approx(expected, rel=1e-12)
 
 
 # ------------------------------------------------------------------------------------------------------- the SOR paths
