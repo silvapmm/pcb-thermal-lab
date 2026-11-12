@@ -205,6 +205,9 @@ class PlotTab(QWidget):
         self.pos = QSlider(Qt.Horizontal)
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
+        self.cut_overlay = QCheckBox("Cut overlay")      # Profiles: the board picture over the curves (content: toolbar Layer, Display, Map button); session only
+        self.cut_overlay.setChecked(True)
+        self.map_on = lambda: False                      # The main window says whether the Map button (T) is on
         self.model.setToolTip("Model whose result is drawn.")
         self.equiv.setToolTip("Lumped and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
                               "Unticked: the field stretched back onto the box (parts look larger).")
@@ -212,6 +215,7 @@ class PlotTab(QWidget):
         self.vmax.setToolTip("Highest temperature of the colour scale, °C (Auto range off).")
         self.axis.setToolTip("Direction of the line the temperature is plotted along.")
         self.pos.setToolTip("Position of the cut: drag to move it.")
+        self.cut_overlay.setToolTip("Board picture over the curves with the cut line. Hide it if it covers a curve.")
 
         # The temperature and gradient rows wrap (Auto range, min and max go to a second line in a narrow centre area); the profile row has a stretching slider
         controls = FlowLayout() if kind in ("temperature", "gradient") else QHBoxLayout()
@@ -229,6 +233,7 @@ class PlotTab(QWidget):
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
+            controls.addWidget(self.cut_overlay)
         if kind not in ("temperature", "gradient"):
             controls.addStretch(1)
         lay = QVBoxLayout(self)
@@ -239,9 +244,9 @@ class PlotTab(QWidget):
 
         for w in (self.model, self.axis):
             w.currentIndexChanged.connect(self.redraw)
-        if kind in ("temperature", "gradient"):
-            self.display.changed.connect(lambda _what: self.redraw())     # A change of the shared display choice draws the map again
-        for w in (self.hot, self.auto, self.equiv):
+        if kind in ("temperature", "gradient", "profile"):
+            self.display.changed.connect(lambda _what: redraw_when_shown(self, self.redraw))     # A change of the shared display choice draws the map again
+        for w in (self.hot, self.auto, self.equiv, self.cut_overlay):
             w.toggled.connect(self.redraw)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
@@ -407,8 +412,11 @@ class PlotTab(QWidget):
                 pos = self.pos.value() / 1000.0 * length
                 self.pos_label.setText(f"{'y' if axis == 'x' else 'x'} = {pos:.1f} mm")
                 res = {k: r for k, r in sim.results.items() if r.T is not None}
-                plots.draw_profile(self.fig, res, prob, layer=self._layer_index(),
-                                   axis=axis, position_mm=pos)
+                # The picture follows the shared Display choice (underlay, opacity, colour map) and the Map button; the Cut overlay box only shows or hides it
+                under = self.display.apply(plots.MapView(), self.theme)
+                picture = "off" if not self.cut_overlay.isChecked() else "map" if self.map_on() else "board"
+                plots.draw_profile(self.fig, res, prob, layer=self._layer_index(), axis=axis, position_mm=pos,
+                                   picture=picture, underlay=under, map_alpha=self.display.value(), cmap=self.display.cmap)
             elif self.kind == "compare":
                 plots.draw_comparison(self.fig, sim.results)
         _paint_figure(self.fig, self.theme)

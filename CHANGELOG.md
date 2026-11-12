@@ -7,7 +7,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Added
 
-- **Profiles: a thumbnail of the board with the cut line** (`plots.draw_profile`): the real outline, the elements of the layer and the cut, inside the figure (so saved PNGs and the command line plot have it; above the curves when the figure is narrow). The line and the title now give the position of the cell row or column actually plotted, not the slider value.
+- **Profiles: a cut overlay over the curves** (`plots.draw_profile`, `fix/cut-overlay-from-display`): the board with the cut line as an opaque inset on the curves, upper left by default and moved to the emptiest corner when more than 3 % of the curve points or the hottest point would be under it (the legend goes to an explicit corner). Its content is not chosen in the tab: it follows the toolbar Layer, the Display panel (Underlay, Map opacity, Colour map) and the Map button (T), with the temperature map over the copper or board while the Map is on; the Profiles tab has one new box, Cut overlay (show or hide, kept for the session). Display popover gets a Profiles context (View and Contour greyed). Saved PNGs and the command line plot have it, the command line with the board and the map by default (`plots.plot_profiles(picture="map")`; a default chosen by the executor, open for the maintainer); a figure narrower than 5 in keeps the strip above the curves. The line and the title now give the position of the cell row or column actually plotted, not the slider value.
 
 ### Changed
 

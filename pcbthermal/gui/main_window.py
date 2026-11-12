@@ -40,7 +40,7 @@ from .panels import BoardPanel, ElementList, Inspector, SolverPanel, WarningList
 from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
-from .results_view import ResultsView
+from .results_view import ResultsView, redraw_when_shown
 import shiboken6
 from .display import OPEN_TIP, DisplayButton, DisplayPopover, DisplayState
 from . import layerchoice
@@ -633,6 +633,9 @@ class MainWindow(QMainWindow):
         self.display_popover = DisplayPopover(self.display, self)
         self.display_popover.addAction(self._hidden_overlay_key)    # The key T keeps working while the popover is the active window
         self.display.changed.connect(self._on_display_changed)
+        # The cut picture of the Profiles tab shows the heat map while the Map button is on
+        self.results.profile.map_on = self.a_overlay.isChecked
+        self.a_overlay.toggled.connect(lambda _on: redraw_when_shown(self.results.profile, self.results.profile.redraw))
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.results.tabs.currentChanged.connect(self._on_tab_changed)
         self._popover_filter_on = False                             # The application-level filter of the popover is installed only while it is open
@@ -894,6 +897,8 @@ class MainWindow(QMainWindow):
                 return "gradient"
             if w is self.results.animation:
                 return "animation"
+            if w is self.results.profile:
+                return "profile"
         return "other"
 
     def _refresh_display_context(self, *_):
