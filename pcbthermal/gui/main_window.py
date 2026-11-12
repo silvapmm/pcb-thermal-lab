@@ -25,6 +25,7 @@ from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
@@ -287,6 +288,9 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+            # A saved geometry from a larger screen (or a damaged settings file) must not give a window bigger than this screen. Only the restored one: the
+            # default size is left to the window system as before (the offscreen tests lay the window out at 1480 x 900)
+            clamp_to_screen(self)
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
