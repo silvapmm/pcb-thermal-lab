@@ -447,7 +447,7 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <tr><td>Imported copper</td><td>The program's own network on the pixels and an independent 3D solver, 24 mm windows of real boards</td><td>Faces 1.7 to 4.3 % too hot at 1 mm, 7 to 10 % at 2 mm on two-layer boards</td><td>Physical board</td></tr>
 <tr><td>Exposed pad as the heat source</td><td>Shapes compared in the program's own model (11 parts); one JEDEC datasheet</td><td>31.9 against 32.5 K/W</td><td>Physical board; SOT-89, power SO-8 and most CAD exports were not tried</td></tr>
 <tr><td>Gerber reader</td><td>Exact vector areas, an independent reader</td><td>Copper areas within &minus;0.03 to +0.18 % on 109 files</td><td>Files of every CAD program (see <i>Help us test your CAD tool</i>)</td></tr>
-<tr><td>Laminate edge (FVM, FDM), thick boards, high edge coefficient</td><td>The 3D solver</td><td>13 to 17 % low at 200 W/m&sup2;K</td><td>Open item</td></tr>
+<tr><td>Laminate edge (FVM, FDM), edge coefficient above 200 W/m&sup2;K</td><td>An independent finite-element solution</td><td>Four layers, 1.6 mm, default sub-gaps: &minus;0.4 / &minus;1.4 / &minus;3.2 / &minus;6.0 % at 200 / 500 / 1000 / 2000 W/m&sup2;K; boards with thin gaps &minus;0.1 to &minus;1.1 / &minus;0.9 to &minus;3.2 / &minus;2.2 to &minus;5.9 / &minus;4.0 to &minus;9.6 %; eight sub-gaps read hot</td><td>The warning says what to change (sub-gaps, cell); no measured board</td></tr>
 </table>
 <p>Details, tables and sources: <code>docs/validation.md</code> and <code>docs/theory.md</code> in the project.</p>
 
