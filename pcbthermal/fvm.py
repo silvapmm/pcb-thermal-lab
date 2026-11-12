@@ -857,7 +857,7 @@ class Network:
             "heatsinks": float((self.g_heatsink * theta).sum()),
             "sides": float((self.g_side * theta).sum()),
         }
-        if self.extra_links:
+        if self.block_info:                                          # Not extra_links: the laminate rule fills those on every board with a cut gap
             out["blocks"] = float((self.g_block * theta).sum())           # Heat leaving through the exposed surface of the blocks
         return out
 
