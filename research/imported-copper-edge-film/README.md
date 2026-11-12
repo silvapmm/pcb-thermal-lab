@@ -1,6 +1,6 @@
 # The edge film of imported copper on a board with an outline: where the cool bias comes from
 
-*Status: investigation written up, **reviewer pending**. Two runs were paused by the machine (memory pressure) and are listed in section 6 as not run.*
+*Status: **reviewed and closed** (section 8: go). Adopted for the imported layers on `fix/imported-copper-edge-film-centroid`; the drawn layers are a decision for the maintainer. Two runs of the author were paused by the machine; the reviewer ran the copper-to-the-wall case and the other boards of section 6 on the program of the fix branch (section 8).*
 
 **Question.** After the pixel-level outline mask (`fix/imported-copper-outline-mask`, `docs/validation.md` 38), the heater rise of an imported-copper board with an outline reads cool: at `h_side` 200 W/m2K, five turned squares, mean -2.20 % (spread 1.86 %) at 1 mm, -1.24 % at 0.5 mm, -2.51 % at 2 mm; the aligned square -2.43 % at 1 mm. The series film fixes the aligned board (+0.32 %) and not the turned ones (-1.56 %). What is the cause, and what is the correction? The program is untouched here; the candidates are copies (`lib/variants.py`).
 
@@ -130,6 +130,37 @@ In a cut-cell finite-volume scheme with the cell average as unknown (cover-weigh
 * The 0.25 floor and the "copper at the edge" item were not isolated one by one: the first by reasoning (Biot below 0.3), the second by the inset-0 run of 2.3.
 * The truth is a quarter of a 20 mm board extrapolated from three solves (0.1 to 0.3 % uncertainty); the n = 16 results and the centroid film cancel part of the same error, so a mean of +0.22 % does not prove the film exact.
 * The program run of the bench is the tree at `develop` aa3b3c9f (outline mask merged, not the review branch's memory bands, which do not matter at these sizes).
+
+## 8. Review (reviewer)
+
+**Verdict: go.** The numbers of the study reproduce, the 3D truth is checked against a solver that shares nothing with it, and the one risk left open (copper that reaches the outline) was run against the truth and does not need an exception. Scripts of the review: `releases/2.6.1/final-opinion/scripts/study_edge_film_review.py` (on the fix branch; it imports `lib/truth3d.py` of this folder); verdict `releases/2.6.1/final-opinion/edge-film.md`.
+
+**8.1 Reproduced.** On the program of `fix/imported-copper-edge-film-centroid` (the change in `fvm.Network._cut_edge_film`, not the copy of `lib/variants.py`) the ten-board table of 3.2 for c0 and c9 at 1 mm reproduces to the printed digit: `h_side` 10 -0.43 / -0.39 %, 200 -3.00 / -0.94 %, 500 -4.90 / -1.13 %, 1000 -6.36 / -1.26 % (mean; spreads and worsts as printed). The stored truths (`lib/truth_values.json`) are those of `scripts/study_truth.py`.
+
+**8.2 The truth against an independent solver.** `lib/truth3d.py` with `h_side` 1e-12 and an isotropic laminate (0.3 W/mK) against `tests/helpers/layered3d.py` (the program's independent 3D solver; full board, insulated edges, film under the source) on the same 20 mm board, 0.2 mm, 12 slabs: 141.79242 against 141.79236 K (copper 1.2 mm inside) and 140.20514 against 140.20507 K (copper to the wall), 5e-7. The wall film of `truth3d` (film in series with the half-cell conduction on every slab face) was read and is the closed form; it is not checked by a second solver.
+
+**8.3 Copper that reaches the outline** (the inset-0 rows of section 6, not run by the author). Truths with the rule of `scripts/study_truth.py`: 20 mm board 50.655 / 30.132 / 123.213 K at `h_side` 200 / 1000 / 10; a 12 mm square with a 2 mm heater 87.83 K at 200 (`truth3d.HEAT` = 2 mm; a fourth solve at 0.05 mm and 24 slabs, 87.928 K, agrees with the extrapolation within 0.1 K). Ten turned and shifted boards, mean / spread / worst %:
+
+| board, `h_side`, cell | film on the node (program before) | centroid film |
+| :-- | :-- | :-- |
+| 20 mm, 10, 1 mm | -0.17 / 0.61 / 0.31 | -0.14 / 0.63 / 0.34 |
+| 20 mm, 200, 1 mm | -1.32 / 1.40 / 2.17 | +0.34 / 0.80 / 0.83 |
+| 20 mm, 200, 0.5 mm | -1.16 / 1.10 / 2.08 | -0.33 / 0.35 / 0.59 |
+| 20 mm, 1000, 1 mm | -3.90 / 3.50 / 5.99 | -0.53 / 1.63 / 1.13 |
+| 20 mm, 1000, 0.5 mm | -3.57 / 2.67 / 5.49 | -1.93 / 1.26 / 2.67 |
+| 12 mm, 200, 1 mm | -1.36 / 1.83 / 2.01 | +0.70 / 2.52 / 2.43 |
+| 12 mm, 200, 0.5 mm | -1.39 / 0.97 / 2.12 | -0.38 / 0.45 / 0.63 |
+| 12 mm, 200, 0.25 mm | -1.22 / 0.75 / 1.86 | -0.72 / 0.31 / 0.96 |
+
+The worry (that the laminate nodes at the wall are held at the copper temperature when the copper reaches it, so that the series term would overstate the resistance) is not borne out: the centroid film is closer in the mean at every cell, and only on the 12 mm board at 1 mm (a cell half the heater) is its worst board further out (+2.43 against -2.01 %). No blend or exception is proposed. The 92.93 K of the 12 mm quadrilateral of the fix branch's tests at 1 mm (90.20 K at 0.125 mm) is this cell error.
+
+**8.4 Other boards, the move of the change on the program** (hottest point, % of the rise, `h_side` 200): T and L outlines +2.85 to +3.80 at 1 mm, +1.40 to +1.87 at 0.5 mm (the centroid film converges from above, the node film from below: T to the wall 97.12 / 96.66 / 96.40 / 96.34 K against 95.03 / 95.62 / 95.88 / 96.09 K at 1 / 0.5 / 0.25 / 0.125 mm); four layers +0.88 (to the wall) and +1.62 (inset); stripes and a pad +1.12; real boards of the local library oswlight (round, 4 layers) +0.63 / +0.31 / +0.17 and rp2040 +0.36 / +0.21 / +0.10 at 1 / 0.5 / 0.25 mm, within 0.01 at 10 W/m2K, run time unchanged. Symmetric matrix, no positive off-diagonal entry, constant field to 2e-17, balance 1e-12 on every board; a time simulation ends on the steady value (118.33 against 118.35 K). No truth for these shapes.
+
+**8.5 Defects found and fixed on the fix branch.** (1) On a board with some layers drawn, the laminate nodes of the rule took the centroid even between two drawn layers; now only next to an imported layer (`Network.laminate_neighbours`, regression test). (2) The centroid strips of 64 cell rows used 173 MB on a 200 x 150 mm outline at 0.25 mm; 16 rows: 54 MB, the same time and centroids. Nothing to correct in the study's numbers.
+
+**8.6 Corrections to this folder.** Section 6 said the copper-to-the-wall rows and the four-layer, T, L, striped and real boards were not run: 8.3 and 8.4 run them (on the program, not the copies; the four-layer truth was not run). `INTEGRATION.md` 4 is updated: items 1 and 2 done by the review (except the four-layer truth and a disc truth), item 3 open (maintainer), item 4 done on the fix branch. Layout note: `lib/study_outline_mask.py` is a study script kept in `lib/` because `lib/cases.py` imports its board builder; left as it is. The bibliography statuses (Bochkov and Gibou, Barrett and others, Schwartz and others) are unchanged: this study cites equation numbers already read (R) in `research/bochkov-robin-check`.
+
+**8.7 Not verified.** A four-layer truth; a truth for the T, L, striped, disc and real boards; the drawn-layer centroid film against a truth with copper to the wall; the FDM, which keeps its own film (A24, A32).
 
 ## 7. What was read and what was not verified
 
