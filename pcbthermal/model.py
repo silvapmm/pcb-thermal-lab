@@ -319,13 +319,15 @@ class Board:
     def slab_thicknesses(self):
         """!
         @brief Thickness represented by every layer node: copper plus the part of the dielectric around it.
-        @details Simple stack-up: the total thickness shared equally among the layers (the original model). Advanced: the copper plus half of each
-                 adjacent gap, so the slabs add up to the total thickness.
+        @details One rule for both stack-ups: the copper plus half of each adjacent gap, so the slabs add up to the total thickness. The simple stack-up is the advanced one with
+                 equal gaps (`gap_thicknesses`), so the two are bit-identical; it used to share the thickness equally (T / L per node), which for three or more layers gave the outer
+                 copper nodes more laminate than their half gap (the edge film at the copper temperature, research/strong-edge-laminate 8.2). A one-layer board keeps the whole
+                 thickness (copper plus the laminate under it, cut into nodes by `laminate.nodes`).
         @return Array of length layers in metres.
         """
         L = self.layers
-        if self.dielectrics is None:
-            return np.full(L, self.thickness / L)
+        if L == 1:
+            return np.full(1, self.total_thickness())
         d = self.gap_thicknesses()
         half = np.zeros(L)
         half[:-1] += d / 2.0

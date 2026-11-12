@@ -32,7 +32,7 @@ Only the symbols used in more than one section are listed; the others are define
 | :-- | :-- | :-- |
 | `W, H_b, t_pcb` | board width, height and total thickness | m |
 | `N_L` | number of copper layers (layer 1 = top) | – |
-| `t_cu,l`, `slab_l` | copper thickness of layer `l`; thickness represented by its node (`t_pcb/N_L` in the simple stack-up) | m |
+| `t_cu,l`, `slab_l` | copper thickness of layer `l`; thickness represented by its node (copper plus half of each adjacent gap, in both stack-ups) | m |
 | `d`, `d_j` | thickness of a dielectric gap (gap `j` in the advanced stack-up) | m |
 | `f` | copper fill: area fraction of a cell that is copper | – |
 | `k_cu, k_ip, k_th` | conductivity of copper, of FR-4 in the plane and through the thickness (385, 0.9, 0.3 W/mK by default) | W/mK |
@@ -98,8 +98,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 **1.2.1 The advanced stack-up** (`Board.dielectrics`, one entry per gap). Gap `j`, between layers `j` and `j+1`, has its own `d_j`, `k_th,j`, `k_ip,j` and `ρc_j`, and `g_j = k_th,j / d_j`.
 * The node of layer `l` stands for its copper plus half of each adjacent gap, `slab_l = t_cu,l + d_{l−1}/2 + d_l/2`, so the slabs add up to the board thickness; its laminate takes the thickness-weighted `k_ip` and `ρc` of the two half gaps.
 * A gap of several sheets (`combine_sheets`) is one gap: `k_th = Σt_i / Σ(t_i/k_th,i)` (in series through it), `k_ip = Σ t_i k_ip,i / Σ t_i` (side by side along it).
-* The simple stack-up (`dielectrics = None`) has `slab = t_pcb/N_L` and equal gaps. A heavier inner copper keeps every `d_j`, so the board grows by `Σ (t_cu,l' − t_cu,l)` (`models.md` 12).
-* **Caveat of the simple stack-up with three or more copper layers**: every node stands for the same `t_pcb/N_L` (0.400 mm on a 1.6 mm four-layer board) while the vertical links use the real gaps (0.487 mm there), so the outer copper nodes hold more laminate than their half gap and, at a strongly cooled board edge, carry the edge film of that extra laminate at the copper temperature. The plate then reads cooler than with the physical slabs (-8.9 against -5.1 % at 1000 W/m2K and -14 against -9 % at 2000 W/m2K, 0.25 mm cell, with two sub-gaps; `research/strong-edge-laminate` README 8). Two layers and an advanced stack-up with the gaps given are not affected. The correction is not implemented (it changes the frozen numbers of every simple board of three or more layers); the edge warning says so.
+* The simple stack-up (`dielectrics = None`) has the same slabs (copper plus half of each gap) and equal gaps, so it equals the advanced stack-up with equal gaps bit for bit (until 2.6.x it had `slab = t_pcb/N_L`, which for three or more layers gave the outer copper nodes more laminate than their half gap and, at a cooled edge, an edge film of too much laminate at the copper temperature: `validation.md` 43). A heavier inner copper keeps every `d_j`, so the board grows by `Σ (t_cu,l' − t_cu,l)` (`models.md` 12).
 
 ![The advanced stack-up](images/fig_39_stackup_slabs.png)
 
@@ -176,7 +175,7 @@ The FVM, FDM and 3D solid follow the outline with the cell cover `c_b`. The Lump
 
 (1, 2, 4, 4 sub-gaps for gaps of 0.4, 0.8, 1.6, 3.2 mm at the defaults; `s_max` (0.05 to 5 mm) and `n_max` (an integer, 1 to 16; 1 turns the cutting off) are options of the run, `SolverOptions.laminate_s_max_mm` and `laminate_n_max`, applied with `laminate.using()`. A larger `n_max` alone changes nothing when `s_max` already gives `n_max` sub-gaps: 8 sub-gaps of a 1.6 mm gap need `s_max ≤ 0.19 mm`, 16 need `s_max ≤ 0.09 mm`), **only in the cells where the copper fill of either adjacent layer is below 1, plus a margin of `⌈d/Δx⌉ + 1` cells** (Euclidean distance); every other cell keeps the single link `G = k_th A / d` of section 2. The rule is not applied on a board with a metal block (single links; a one-layer board keeps the two nodes of the next paragraph). In a cut cell:
 
-* the copper nodes keep their copper and half of the adjacent sub-gap; the `n − 1` interior nodes hold `(s_j + s_{j+1})/2` of laminate each (lateral conductance `k_ip` and capacity `ρc` times that thickness); consecutive nodes are joined by `G = k_th A / s_j`. In the simple stack-up of three or more layers an inner node holds only `t_pcb/N_L − t_cu`, less than the two half gaps it would give up: its moves are scaled to what it holds, so no capacity or conductance is created;
+* the copper nodes keep their copper and half of the adjacent sub-gap; the `n − 1` interior nodes hold `(s_j + s_{j+1})/2` of laminate each (lateral conductance `k_ip` and capacity `ρc` times that thickness); consecutive nodes are joined by `G = k_th A / s_j`. Every copper node holds exactly half of each adjacent gap in both stack-ups (1.2.1), so the moves always fit; the code still scales the moves of a node that would hold less (the simple stack-up of three or more layers did until 2.6.x, `t_pcb/N_L − t_cu`), so no capacity or conductance is created;
 * the laminate that takes the place of absent copper lengthens the path, `d → d + (1 − f_a) t_a/2 + (1 − f_b) t_b/2`, split between the first and last sub-gap (or whole in the single link of a bare cell outside the mask);
 * the error against a resolved 3D solver falls as `1/n`.
 

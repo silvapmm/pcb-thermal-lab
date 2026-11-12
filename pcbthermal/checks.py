@@ -1098,8 +1098,8 @@ def check_edge_laminate(problem, models):
              gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). On a 1.6 mm four-layer board (gaps of 0.49 mm, two sub-gaps by
              default; research/strong-edge-laminate 8, against an independent 3D solver, cell 0.25 mm) with the physical slabs: -0.8 / -2.5 / -5.1 / -8.9 % at 200 / 500 / 1000 / 2000 W/m2K,
              within 0.5 % with eight sub-gaps; the effect of a via 0.16 mm from the edge -5 / -10 / -19 / -33 % (-3 to -13 % with eight), a via 0.5 to 3 mm from the edge -2 % at 200 and -10 to
-             -13 % at 1000 (within 1 % with eight). A simple stack-up of three or more layers gives every layer node T / L, so the outer nodes carry too much edge film and the board reads cooler
-             still (-8.9 instead of -5.1 % at 1000 W/m2K): the text says so for such a board. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
+             -13 % at 1000 (within 1 % with eight). The simple stack-up takes the same physical slabs as the advanced one (until 2.6.x it gave every node T / L and read cooler still, -8.9
+             instead of -5.1 % at 1000 W/m2K), so the text has no clause for it. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
              FDM and a gap that the rule cuts.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
@@ -1111,12 +1111,6 @@ def check_edge_laminate(problem, models):
     s_max, n_max = laminate.parameters()
     if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
         return []                                               # no gap is cut: nothing to resolve
-    # A simple stack-up of three or more layers gives every layer node an equal share of the thickness, so the outer copper nodes hold more laminate than their half gap and carry its
-    # edge film at the copper temperature (research/strong-edge-laminate 8.2); with two layers the equal share is the physical slab
-    simple = b.dielectrics is None and b.layers >= 3
-    simple_long = (" This board uses the simple stack-up, in which every layer stands for an equal share of the thickness, so the outer layers carry too much of the edge and the board "
-                   "reads cooler still (-8.9 % instead of -5.1 % at 1000 W/m2K and -14 % instead of -9 % at 2000 on the four-layer board); an advanced stack-up with the gaps given removes "
-                   "this part.") if simple else ""
     out = []
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
@@ -1124,12 +1118,12 @@ def check_edge_laminate(problem, models):
          "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps: -1 % at 200, -2.5 % at 500, -5 % at 1000 and "
          "-9 % at 2000, within 0.5 % with eight). The effect of a via near such an edge is a small difference of two temperatures and reads lower still, so the via helps more than shown: "
          "on that board a via 0.16 mm from the edge reads -5 % at 200, -10 % at 500, -19 % at 1000 and -33 % at 2000 W/m2K (-3 to -13 % with eight sub-gaps), a via 0.5 to 3 mm from the "
-         f"edge -2 % at 200 and -10 to -13 % at 1000 (within 1 % with eight).{simple_long} A larger "
+         "edge -2 % at 200 and -10 to -13 % at 1000 (within 1 % with eight). A larger "
          f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce it; with a cell larger than the gap many sub-gaps can over-correct "
          "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). A board in air has an edge coefficient of 5 to 50 W/m2K, "
          "where the error is within 3 %.",
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-5.5 % at 500, -16 % at 2000 W/m2K; the effect of a via "
-         f"near the edge more){'; the simple stack-up adds to it, use an advanced stack-up' if simple else ''}; raise {laminate_where('sub-gaps')} and refine the cell.")
+         f"near the edge more); raise {laminate_where('sub-gaps')} and refine the cell.")
     return out
 
 
