@@ -362,11 +362,13 @@ class Simulation:
                             "models": {k: r.summary() for k, r in self.profile_results.items()}}
         return d
 
-    def save(self, directory, plots=True):
+    def save(self, directory, plots=True, view=None, cmap="inferno"):
         """!
         @brief Write summary.json, report.txt, one CSV per field and, optionally, the figures.
         @param directory Output directory (created if needed).
         @param plots If True, also write PNG figures (needs matplotlib).
+        @param view Optional plots.MapView for the temperature maps (View, underlay such as the copper or the image, opacity: what the Display panel of the window says); None draws them as always.
+        @param cmap Colour map name of the temperature maps.
         @return List of written file paths.
         """
         os.makedirs(directory, exist_ok=True)
@@ -409,7 +411,7 @@ class Simulation:
                     plots.plot_peak_map(r, self.problem, path(f"peak_map_{name}.png"))
             for name, r in self.results.items():
                 if r.T is not None:
-                    plots.plot_fields(r, self.problem, path(f"fields_{name}.png"))
+                    plots.plot_fields(r, self.problem, path(f"fields_{name}.png"), view=view, cmap=cmap)
             if len(self.results) > 1:
                 plots.plot_comparison(self.results, path("comparison.png"))
             plots.plot_profiles(self.results, self.problem, path("profiles.png"))

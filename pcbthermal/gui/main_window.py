@@ -1343,14 +1343,15 @@ class MainWindow(QMainWindow):
 
     def export_results(self):
         """!
-        @brief Save report, summary, CSV fields and figures to a folder.
+        @brief Save report, summary, CSV fields and figures to a folder; the temperature maps follow the Display choice (View, underlay, colour map).
         """
         if self.sim is None:
             QMessageBox.information(self, "Export", "Run a simulation first.")
             return
         d = QFileDialog.getExistingDirectory(self, "Export results to folder")
         if d:
-            files = self.sim.save(d, plots=True)
+            # The maps are written as the Display panel draws them: the same View, underlay (copper or image), opacity and colour map
+            files = self.sim.save(d, plots=True, view=self.display.map_view("temperature", self.theme_name), cmap=self.display.cmap)
             self.statusBar().showMessage(f"{len(files)} files written to {d}")
 
     def export_report(self):

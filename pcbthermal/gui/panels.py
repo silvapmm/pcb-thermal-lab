@@ -101,7 +101,7 @@ class BoardPanel(QWidget):
         super().__init__(parent)
         self.doc, self._updating = doc, False
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setContentsMargins(4, 8, 4, 8)      # Narrow side margins: the boxes have no frame of their own, and the dock must not scroll sideways at 900 px
 
         g = CollapsibleBox("Size", "board")                 # The dock is already titled Board
         f = QFormLayout(g.body)

@@ -1220,8 +1220,8 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
     win.doc.edit("Many", build)
     win._update_checks()
     box = win.solver_panel.checks
-    assert len(box.warnings) >= 8 and box.isVisibleTo(win.solver_panel.footer)
-    assert box.height() <= box.MAX_HEIGHT
+    assert len(box.warnings) >= 8 and box.isVisibleTo(win.solver_panel)
+    assert box.box.title() == f"Warnings ({len(box.warnings)})" and len(box.rows) == len(box.warnings)
     for w in box.warnings:
         if w.kind is not None:
             box.warning_clicked.emit(w.kind, w.index)
@@ -1231,7 +1231,7 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
     win.doc.stack.undo()
     win._update_checks()
     assert len(box.warnings) == 1 and box.warnings[0].kind is None            # The empty board's own warning: one line, no count
-    assert "warnings" not in box.toPlainText()
+    assert box.box.title() == "Warnings (1)"
 
 
 def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
@@ -1461,3 +1461,69 @@ def test_single_layer_choice_and_card_menu_in_the_application(win, qtbot):
     win.tabs.setCurrentIndex(TAB_RESULTS)
     win.results.tabs.setCurrentWidget(win.results.temp)
     win.layer_combo.setCurrentIndex(win.layer_combo.findData(-2))
+
+
+def test_boxes_warnings_accordion_and_layer_keys_in_the_application(win, qtbot, tmp_path):
+    """!
+    @brief Stress of the 2.6.1 redesign: every box of the three docks collapses and opens in both themes at two window sizes, the state survives a rebuilt
+           Properties form, the accordion keeps an opened row across 20 refreshes, and the layer keys L, Shift+L, 0 to 9 are driven at random on every tab.
+    @param win MainWindow fixture of this file.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    """
+    import random
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from pcbthermal.checks import CheckWarning
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.boxes import CollapsibleBox
+
+    win._load_problem(example_board(), "boxes")
+    for size in ((900, 700), (1280, 800)):
+        win.resize(*size)
+        for theme in ("light", "dark"):
+            if win.theme_name != theme:
+                win.toggle_theme()
+            win.canvas.set_selection([("heater", 0)])
+            win._on_canvas_selection([("heater", 0)])
+            boxes = [b for d in (win.dock_board, win.dock_sim, win.dock_inspector) for b in d.findChildren(CollapsibleBox)]
+            assert len(boxes) >= 8
+            for state in (False, True):
+                for b in boxes:
+                    b.set_open(state)
+                    assert b.body.isHidden() == (not state)
+                qtbot.wait(20)
+    # The state is kept by key: select another element and back, the Power box is still as left
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    power = next(b for b in win.inspector.form_host.findChildren(CollapsibleBox) if b.title() == "Power")
+    power.set_open(False)
+    win.canvas.set_selection([("zone", 0)])
+    win._on_canvas_selection([("zone", 0)])
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    assert not next(b for b in win.inspector.form_host.findChildren(CollapsibleBox) if b.title() == "Power").is_open()
+    # The accordion: an opened row stays open across refreshes of the live list
+    cw = CheckWarning("U1: something is doubtful; the details follow in a long sentence.")
+    cw.kind, cw.index = "heater", 0
+    acc = win.solver_panel.checks
+    acc.set_warnings([cw, "a plain note"])
+    acc.rows[0].set_open(True)
+    for _ in range(20):
+        acc.set_warnings([cw, "a plain note"])
+    assert acc.rows[0].is_open() and not acc.rows[1].is_open() and acc.rows[0].title == "U1: something is doubtful"
+    acc.set_warnings([])
+    # The layer keys, at random, on every tab: the box always shows a valid entry and no key raises
+    rng = random.Random(261)
+    win.show()
+    win.activateWindow()
+    keys = [Qt.Key_L, Qt.Key_0] + [getattr(Qt, f"Key_{n}") for n in range(1, 10)]
+    for _ in range(60):
+        win.tabs.setCurrentIndex(rng.randrange(win.tabs.count()))
+        win.canvas.setFocus()
+        key = rng.choice(keys)
+        QTest.keyClick(win, key, Qt.ShiftModifier if (key == Qt.Key_L and rng.random() < 0.5) else Qt.NoModifier)
+        assert win.layer_combo.currentIndex() >= 0
+    win.doc.stack.setClean()

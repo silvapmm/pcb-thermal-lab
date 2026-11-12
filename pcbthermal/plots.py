@@ -1022,15 +1022,17 @@ def _save(fig, path, dpi=150):
     fig.savefig(path, dpi=dpi)
 
 
-def plot_fields(result, problem, path):
+def plot_fields(result, problem, path, view=None, cmap="inferno"):
     """!
     @brief Save the all-layers temperature map.
     @param result A SteadyResult with a field.
     @param problem The Problem.
     @param path Output PNG path.
+    @param view Optional MapView (Smooth, Terrain, the copper or the image under the map); None draws the cells as solved.
+    @param cmap Colormap name.
     """
     fig = new_figure(4.6 * result.T.shape[0] + 1.2, 4.6)
-    draw_fields(fig, result, problem)
+    draw_fields(fig, result, problem, cmap=cmap, view=view)
     _save(fig, path)
 
 
