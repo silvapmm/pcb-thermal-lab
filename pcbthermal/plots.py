@@ -608,7 +608,8 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param extremes If True mark the hottest (red ring) and the coolest (blue ring) of the map, as the map on the board does (for temperature maps; a gradient map
            has no coolest point worth marking). The coolest is the coolest sample of the field as drawn; the hottest is `marker` when given (the point where the model
            reports its Tmax) and the hottest sample of the field otherwise.
-    @return The axes.
+    @return The axes; its attribute `extreme_marks` holds the dict of `analysis.extreme_points` for the two rings (tmax, tmin and their points), or None when
+            nothing was marked.
     """
     fig.clear()
     ax = fig.add_subplot(111)
@@ -626,8 +627,9 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
         ax.contour(xs, ys, field, levels=[hotspot], colors="#ff00cc", linewidths=1.2)
     if outline:
         _outline(ax, problem, layer)
+    ax.extreme_marks = None                     # What the rings mark (read by the Results title, so that the numbers it quotes are the ringed ones)
     if extremes:
-        _mark_extremes(ax, field, problem, dx, dy, None if marker is None else (marker[0] * 1000.0, marker[1] * 1000.0))
+        ax.extreme_marks = _mark_extremes(ax, field, problem, dx, dy, None if marker is None else (marker[0] * 1000.0, marker[1] * 1000.0))
     elif marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
     if solved_view:

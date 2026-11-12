@@ -393,11 +393,17 @@ class PlotTab(QWidget):
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
-                                     layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
-                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                     title=f"{r.model.upper()} - layer {layer + 1}   "
-                                           f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
+                                          layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
+                                          hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
+                                          title=f"{r.model.upper()} - layer {layer + 1}   "
+                                                f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                    ext = getattr(ax, "extreme_marks", None)
+                    if ext is not None:
+                        # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
+                        # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
+                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
+                                     f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()
