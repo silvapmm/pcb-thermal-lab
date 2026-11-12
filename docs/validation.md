@@ -1690,6 +1690,8 @@ At 200 the turned or shifted outlines are -0.7 to -1.2 K and the board aligned w
 
 **Not verified:** a physical board; the 3D solid against a 3D reference with a cut edge (the references are a two-sheet model, the solid's own rectangle or frame, and the review's 3D box for the aligned edge); a Gerber outline in a full run.
 
+**33.5 A via exactly on a cell line (a stated limit).** The 3D solid puts the barrel of a via smaller than the point sink of the grid in one cell (`floor((x - x0)/dx)`), so a via exactly on a cell line is placed above and to the right and the mirror image of the board reads differently: +0.882, -0.533, +0.910 / -1.451, +1.102 / -1.646 K at a 1 mm cell and +0.612 / +0.644 K at 0.5 mm on the two-layer test boards of `research/small-model-defects` 3 (0.5 to 1.6 K, 0.4 to 1.2 % of the rise at 1 mm); the split of the via over the neighbouring cells jumps by 2.54 K at 1 mm and 2.35 K at 2 mm; the FVM also jumps by 1.37 K (about 1 % of the rise) when the lone via moves 0.1 mm off the line at 1 mm. A via off the line by any fraction of a cell is not affected. Which representation is nearer a resolved barrel was not measured: this is a limit, not a fix.
+
 ## 34. The via barrel length and the contact of the barrel with the plane
 
 Evidence: `research/via-contact-geometry` (README 2.2, 3.3, 4, 7.1 to 7.3), adopted on `fix/via-barrel-and-rim-uncoupling`. Tests: `tests/test_via_barrel_and_rim.py`.
@@ -2232,6 +2234,10 @@ The 62 boards of 42.2 have no via outside its array, so they cannot show what th
 * **Analytic**: the tile and the spread of a via move only on the boards with tight pairs (a satellite of a pair is now alone, `d_nn = inf`, so it is spread over four tiles and leaves the median spacing): tile 0.410 to 0.395, 0.492 to 0.448, 0.460 to 0.442 and 0.504 to 0.450 mm, hottest rise within 0.03 K, error of the via effect within 0.4 points, no non-finite value. Elsewhere bit-identical.
 
 Verdict: the fix removes the defect it targets and improves the Lumped on average, but it does not improve every board, and the earlier text 'the zone decision does not change' is true only of the 62 study boards.
+### 42.6 The Lumped mirror asymmetry (a stated limit; the fix is not adopted)
+
+With two parts the Lumped model reads the distance to the other heater's rings in the floor cell of its centroid; a centroid on a cell edge is read half a cell away, so a board and its mirror image differ by -0.090 / -0.044 K at 1 / 0.5 mm (+0.084 K at a gap of 2 mm; 0.000 with one part or with an offset of 4 mm; `research/small-model-defects` 2a). The interpolated read would remove it but moves 9 of 51 Lumped records (at most 0.065 K) and the example board from 85.38 to 86.85 K against the FVM, away from it: the maintainer decided not to adopt it. **Known limit: 0.09 K.**
+
 ## 43. The simple stack-up takes the physical layer slabs
 
 `fix/simple-stackup-physical-layers` (2.7.0; `model.Board.slab_thicknesses`; tests `tests/test_simple_stackup_physical.py`; evidence `research/strong-edge-laminate` 8.2, INTEGRATION.md 1 option A).

@@ -201,7 +201,7 @@ class Network:
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
             plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
             rule = laminate.build(b, fill, area, ncov, self.active, edge_nodes if b.h_side else np.zeros((ny, nx)), S, self.C, gz0, g_bottom0, g_side0, plans)
-            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them, as in the FVM)
+            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them: the same convention as the FVM, docs/theory.md 2.6, pinned by tests/test_via_well_sheet_order.py)
             via_S = S
             S = np.concatenate([rule.S, np.stack([ly["S"] for ly in rule.layers])]) if rule.layers else rule.S
             self.C = np.concatenate([rule.C, np.stack([ly["C"] for ly in rule.layers])]) if rule.layers else rule.C
