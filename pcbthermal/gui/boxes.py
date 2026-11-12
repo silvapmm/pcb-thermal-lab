@@ -136,6 +136,9 @@ class CollapsibleBox(QWidget):
         c = th.colors(th.current_name())
         self.body.setVisible(self._open)
         self.header.setText(self._title if self._open else f"{self._title}  …")
+        # A screen reader reads the title and the state, not the ellipsis drawn after a collapsed title
+        self.header.setAccessibleName(self._title)
+        self.header.setAccessibleDescription("open" if self._open else "collapsed")
         # The look of the row: no frame, the accent underline when open, a dashed line when collapsed (colours from the theme tokens)
         line = f"2px solid {c['accent']}" if self._open else f"1px dashed {c['muted']}"
         self.header.setStyleSheet(

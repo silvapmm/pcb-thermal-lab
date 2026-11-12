@@ -123,6 +123,9 @@ class _TopicRow(QWidget):
         c = th.colors(th.current_name())
         symbol = f"<span style='color:{c['alert']}'>⚠</span>" if self.severe else f"<span style='color:{c['muted']}'>•</span>"
         self.head.setText(f"{'▾' if self._open else '▸'} {symbol} {html.escape(self.title)}")
+        # The row is rich text with symbols: a screen reader gets the plain title and whether the warning is open
+        self.head.setAccessibleName(("Warning: " if self.severe else "Note: ") + self.title)
+        self.head.setAccessibleDescription("open" if self._open else "closed")
         self.text.setVisible(self._open)
         if self.button is not None:
             self.button.setVisible(self._open)

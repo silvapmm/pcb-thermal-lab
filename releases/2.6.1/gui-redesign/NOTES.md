@@ -15,7 +15,7 @@ Branch `feature/gui-boxes-warnings-layer-keys` (from `develop`). Items 5 to 8 of
 ## Decisions of the implementation (to confirm)
 
 * Severity: two levels, a symbol only (alert-coloured warning sign for a wrong, refused or unsafe result by key words, a muted bullet otherwise). The classifier is brittle by design (2 h route of the mock-up findings).
-* Title: first clause (to `;`, `. `, a colon that follows more than a designator, ` (`), at most 64 characters.
+* Title: first clause (to `;`, `. `, ` (` after 20 characters, or a colon that closes a first clause of at least 7 words, 4 after a prefix), at most 64 characters, capital first letter. Review: the first rule (a colon after 13 characters) gave titles that were only a prefix ('Analytic model', 'Lumped and Analytic', 'analytic (time simulation)', 'Via 3 and 1 more vias'); every warning text produced by the checks and runs of 12 warning test files (1959 texts) was classified again with the new rule.
 * Digit keys 1 to 9 only (a board with more layers uses L); 0 = All layers, offered by Temperature only (status bar says so elsewhere).
 * Settings was not split into Cell, Solvers and Laminate (kept as one box).
 * Screenshots (offscreen) for 900 x 700 and 1280 x 800, both themes: `scratchpad/shots261/redesign_*.png`; the docks have no horizontal scroll bar. Not verified on macOS cocoa.
