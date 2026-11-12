@@ -1100,7 +1100,7 @@ def check_edge_laminate(problem, models):
              within 0.5 % with eight sub-gaps; the effect of a via 0.16 mm from the edge -5 / -10 / -19 / -33 % (-3 to -13 % with eight), a via 0.5 to 3 mm from the edge -2 % at 200 and -10 to
              -13 % at 1000 (within 1 % with eight). The simple stack-up takes the same physical slabs as the advanced one (until 2.6.x it gave every node T / L and read cooler still, -8.9
              instead of -5.1 % at 1000 W/m2K), so the text has no clause for it. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
-             FDM and a gap that the rule cuts.
+             FDM and a gap that the rule cuts; with no gap cut (all under the longest sub-gap) the text is the thin-laminate one (_edge_laminate_uncut).
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @return List with at most one warning (CheckWarning, about the whole design).
@@ -1110,7 +1110,8 @@ def check_edge_laminate(problem, models):
         return []
     s_max, n_max = laminate.parameters()
     if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
-        return []                                               # no gap is cut: nothing to resolve
+        # No gap is cut (every gap is under the longest sub-gap, as on 6 layers in 1.6 mm): the laminate along the edge is one node per gap, which is the coarsest case
+        return _edge_laminate_uncut(b, s_max)
     out = []
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
@@ -1124,6 +1125,32 @@ def check_edge_laminate(problem, models):
          "where the error is within 3 %.",
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-5.5 % at 500, -16 % at 2000 W/m2K; the effect of a via "
          f"near the edge more); raise {laminate_where('sub-gaps')} and refine the cell.")
+    return out
+
+
+# Edge laminate of a board whose gaps are all under the longest sub-gap (research/strong-edge-laminate, scripts/study_thin_laminate.py; docs/validation.md 44)
+def _edge_laminate_uncut(b, s_max):
+    """!
+    @brief The edge-laminate warning for a board whose laminate gaps are all thinner than the longest sub-gap, so that no gap is cut into sub-gaps.
+    @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
+             stack-up), at a 0.25 mm cell, against an independent 3D finite-volume solver at the same cell (a sample, not a bound): the shipped rule reads the hottest rise
+             -1 to -4 % at 200 W/m2K, -5 to -6 % at 500, -6 to -11 % at 1000 and -9 to -16 % at 2000, and eight sub-gaps -0.2 to -1.0, -0.7 to -0.8, -0.9 to -1.6 and -1.5 to -2.6 % (the thin-gap boards of the study: 4 layers 1.0 mm, 6 layers 1.0 and 1.6 mm, 8 layers 1.0 and 1.6 mm).
+             The 3D reference itself still falls by 1 to 4 % when its cell goes from 0.25 to 0.125 mm, so against the finer reference the errors are 2 to 3 points smaller
+             and the real size is uncertain; the text says so.
+    @param b The Board.
+    @param s_max Longest sub-gap in m (laminate.parameters()).
+    @return List with the warning (CheckWarning, about the whole design).
+    """
+    out = []
+    _add(out, None, None,
+         f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K and every laminate gap of this board is under the longest sub-gap ({num(s_max * 1e3, 2)} mm), "
+         "so no gap is cut and the laminate along the board edge is one node per gap: the layered FVM and FDM may read the board too cool. Measured on 10 x 10 mm boards of 4 to 8 layers "
+         "and 1.0 to 1.6 mm, at a 0.25 mm cell, against an independent 3D solver at the same cell: about -1 to -4 % of the rise at 200 W/m2K, -5 to -6 % at 500, -6 to -11 % at 1000 and "
+         "-9 to -16 % at 2000 (a sample, not a bound; the 3D reference itself still moves by 1 to 4 % when its cell is halved, so the true error is 2 to 3 points smaller and not fully known). "
+         "Eight sub-gaps bring it to within -3 %; a gap of d mm gets eight from a "
+         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still.",
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K and no laminate gap cut (all under {num(s_max * 1e3, 2)} mm): the FVM and FDM may read too cool (about -5 to -6 % at 500, "
+         f"-6 to -11 % at 1000, -9 to -16 % at 2000 W/m2K; a sample, the 3D reference is not fully converged); shorten the {laminate_where('sub-gap')} and raise {laminate_where('sub-gaps')}.")
     return out
 
 
