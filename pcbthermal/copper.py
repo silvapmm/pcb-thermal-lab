@@ -762,7 +762,7 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
              the copper outside it is cleared. Panels (several boards in the outline) are refused: import one board.
     @param layers List of gerber.Layer, the copper layers from the top layer down.
     @param outline gerber.Outline of the board, or None to use the box of the copper.
-    @param drills Iterable of gerber.DrillFile; plated, round holes become vias (a slot, an unplated or unknown-plating hole is left out and said in the warnings).
+    @param drills Iterable of gerber.DrillFile; plated, round holes become vias (a slot, an unplated or unknown-plating hole is not a via and is said in the warnings; the import session keeps those in the record).
     @param pixel_mm Pixel of the masks in mm (None: a quarter of the thinnest feature times the supersampling, and at most a tenth of the cell).
     @param cell_mm Cell of the thermal grid the board is meant for, in mm (only to choose the pixel and to size the memory estimate).
     @param supersample Sub-pixels per pixel side of the coverage.
@@ -847,9 +847,9 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
         warnings.append(f"{partial} of the {len(holes)} vias have a layer span that is not the whole board (blind, buried or micro vias, from the drill file function): "
                         "they are treated as through vias that join all the layers, so the board reads too cool (the unsafe side)")
     if skipped["slot"]:
-        warnings.append(f"{skipped['slot']} routed slots are not modelled")
+        warnings.append(f"{skipped['slot']} routed slots are not modelled (the import keeps them in the record and the editor draws them)")
     if skipped["unplated"]:
-        warnings.append(f"{skipped['unplated']} holes are not plated (or their plating is unknown) and are left out")
+        warnings.append(f"{skipped['unplated']} holes are not plated (or their plating is unknown) and are not vias (the import keeps them in the record and the editor draws them)")
     outline_mm = None
     if inside is not None:
         outline_mm = np.asarray(outline.polygons[0].outer, float) - np.array([x0, y0])
