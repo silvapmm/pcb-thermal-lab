@@ -156,6 +156,10 @@ with the physical slabs; the program's 3D solid (real slabs whatever the stack-u
 different discretisations agree with the reference once the board is the same, so the reference's own cell-centred scheme is not what decided the earlier result. A finite-element or
 semi-analytic solver structurally unlike all of these was not written.
 
+![The slabs of the two rules](figures/fig_03_simple_and_physical_slabs.png)
+
+*Figure 3 (`figures/fig_03_simple_and_physical_slabs.png`): a drawing of the laminate that each copper node holds at the cooled wall: 0.4 mm for every node in the simple stack-up, 0.28 mm for an outer and 0.52 mm for an inner node with the physical slabs; the film of the wall acts on it at the copper temperature (a schematic, no data).*
+
 ![Simple and physical slabs, and what they do at a strongly cooled edge](figures/fig_02_review_slabs.png)
 
 *Figure 2 (fig_02_review_slabs.png): left, the laminate each layer node holds in the simple stack-up (0.4 mm each) and with the physical slabs (0.28 / 0.52 mm), with the copper at its real

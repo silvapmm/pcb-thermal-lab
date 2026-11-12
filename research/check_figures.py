@@ -63,14 +63,23 @@ def has_caption(md: Path, line_no: int, name: str) -> bool:
     @param md Markdown file that holds the link.
     @param line_no Line number (from 1) of the image link.
     @param name File name of the figure, for example `fig_03_x.png`.
-    @return bool True when one of the next lines is an italic line (starts with a single `*`, ends with `*`) that contains the file name.
+    @return bool True when one of the next lines is an italic line (a paragraph that starts with a single `*` and ends with `*`, on one line or several) that contains the file name.
     """
     lines = md.read_text(encoding="utf-8").splitlines()
     # The window starts at the link line itself: a caption may follow on the same paragraph
-    for text in lines[line_no: line_no + CAPTION_WINDOW]:
+    window = lines[line_no: line_no + CAPTION_WINDOW]
+    for k, text in enumerate(window):
         s = text.strip()
-        if s.startswith("*") and not s.startswith("**") and s.endswith("*") and name in s:
-            return True
+        if s.startswith("*") and not s.startswith("**"):
+            # An italic caption may run over several lines of one paragraph: join them up to the blank line, then test the whole text
+            para = [s]
+            for nxt in window[k + 1:]:
+                if not nxt.strip():
+                    break
+                para.append(nxt.strip())
+            joined = " ".join(para)
+            if joined.endswith("*") and name in joined:
+                return True
     return False
 
 

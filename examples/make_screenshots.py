@@ -293,6 +293,18 @@ def main_import(out_dir, board_dir):
         while time.time() - t0 < 1.5:                                        # the live check runs a moment after an edit
             app.processEvents()
             time.sleep(0.05)
+        # The warnings are the 'Warnings (N)' box in the scrolled part of the Simulation dock: scroll it into view and open the first row
+        acc = win.solver_panel.checks
+        if acc.rows:
+            acc.rows[0].set_open(True)
+        from PySide6.QtWidgets import QScrollArea
+        area = win.dock_sim.findChild(QScrollArea)
+        if area is not None:
+            area.ensureWidgetVisible(acc, 0, 20)
+        win.resizeDocks([win.dock_sim, win.dock_inspector], [int(0.7 * win.height()), int(0.3 * win.height())], Qt.Vertical)
+        app.processEvents()
+        if area is not None:
+            area.ensureWidgetVisible(acc, 0, 20)
         save(win, f"editor_warnings{suffix}.png")
         # The run on the imported board: the summary with its notes, and the temperature map
         win.doc.problem.heaters = [h for h in win.doc.problem.heaters if h.name != "X1"]
@@ -414,6 +426,15 @@ def main_views(out_dir, board_dir):
             res.tabs.setCurrentWidget(res.grad)
             pick(win.layer_combo, 0)
             save(win, "results_gradient.png")
+            # The Profiles tab: temperature along a cut with the cut overlay (the board picture over the curves) and the map on top
+            res.tabs.setCurrentWidget(res.profile)
+            pick(win.layer_combo, 0)
+            win.display.set_view("current")
+            win.display.set_kind("copper")
+            win.a_overlay.setChecked(True)                  # The Map button: the temperature map of the reference model inside the cut picture
+            save(win, "results_profile_cut.png")
+            win.a_overlay.setChecked(False)
+            win.display.reset()
         if suffix:
             win.doc.stack.setClean()
             win.close()

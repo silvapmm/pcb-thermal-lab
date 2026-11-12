@@ -1,5 +1,7 @@
 # Theory: the problem, the models and how we know they are right
 
+**`docs/theory.md` is the reference** for what the program does. The topics of this folder are the explained theory with pictures and sources; several were written before 2.5.0 and describe rules the program has since replaced (each such topic carries an 'audit 2.7.0' note with the section of `docs/theory.md` that holds today's rule); a rewrite pass of the topics is not scheduled.
+
 This folder explains the physics behind PCB Thermal Lab: this page is the overview, one topic file per model, equation or planned method holds the detail (picture, formulation, limits, tests, sources), and the equations themselves are in [`docs/theory.md`](../../docs/theory.md). It changes nothing in the program.
 
 ## 1. The problem
@@ -65,6 +67,10 @@ Around the models are the pieces they share. **Vias** carry a constriction resis
 ![Heat transfer](figures/fig_08_heat_transfer.png)
 
 *Figure 8 (`figures/fig_08_heat_transfer.png`): convection and radiation both grow with the temperature, so a constant h overstates the rise at high power and understates it at low power; the loop re-solves until h settles (illustrative values).*
+
+![Gerber sampling](figures/fig_47_gerber_sampling.png)
+
+*Figure 47 (`figures/fig_47_gerber_sampling.png`): left, a line of width 1.5 s against the sample centres at two offsets; middle, the area error of one feature against w/s (worst offset, bound s/w, mean over the offset); right, resident memory against pixels for one and four layers with the 377 MB working set of a tile and the 400 M pixel limit. Computed from the constants of the code, illustrative.*
 
 ![Memory guard](figures/fig_46_memory_guard.png)
 
