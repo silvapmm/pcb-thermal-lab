@@ -60,7 +60,9 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 * **Providers** (`providers/`): `transcribe(image_bytes, prompt, options) -> Result`. `gemini` (online; default model
   `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `anthropic` (online; Claude through the Messages API, default model `claude-sonnet-5-5`, fallback `claude-opus-5-5`, `--model claude-haiku-5-5` for bulk pages; use `--provider anthropic` on `transcribe`, `queue` and `check-key`; outputs in `ocr/anthropic/`), `local` (offline; the maintainer's `extractpdf`
   MLX converter with the model `ovis`, a stub that was not run by the tests: set `PCBT_EXTRACTPDF` and
-  `PCBT_EXTRACTPDF_PYTHON`). A new provider is a class in `providers/` registered in `providers/__init__.py`.
+  `PCBT_EXTRACTPDF_PYTHON`; an output guard (`check_output`) refuses a page with the same line repeated more than 8 times
+  in a row or longer than 1.6 times the expected length (`expected_chars`, default 7500 characters) and the page is
+  converted again with the fallback model `unlimited` of `data/models.json`; a page cut short is not detected). A new provider is a class in `providers/` registered in `providers/__init__.py`.
 * **Retry and quota**: HTTP 429 (per minute), 500 and 503 and network errors are retried (4 attempts) with the pause the
   server asks for (`RetryInfo.retryDelay`, at most 120 s) or else a pause that doubles (20, 40, 80 s); every retry is logged
   with its status. The error body is parsed as JSON in full: a 429 whose `QuotaFailure` has a `quotaId` with `PerDay` stops
