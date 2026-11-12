@@ -1,5 +1,7 @@
 # 04. The 3D solid: finite volumes with real slabs (the check of the layered models)
 
+*(audit 2.7.0: the four equal slabs per gap and the cap of 250 000 unknowns described below are gone: the slabs follow the thickness of the gap, `clip(ceil(d / 0.2 mm), 4, 16)` (2.6.0), the memory guard replaced the cap, and cut cells of an outline have the aperture and film rule; the reference is `docs/theory.md` 4 and 2.7.)*
+
 ![3D solid slabs](../figures/fig_04_solid3d_slabs.png)
 
 *Figure 4 (`figures/fig_04_solid3d_slabs.png`): left, a section of the structured grid: one slab for each copper layer, four slabs for each laminate gap, a via as a rod of the barrel's copper area, a pad slab and metal slabs for a block; right, the conductance of two neighbouring cells as the harmonic mean of the half-cell resistances. The note on the size limit (250 000 unknowns, `solid3d.MAX_CELLS`) was added.*

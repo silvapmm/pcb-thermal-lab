@@ -79,6 +79,7 @@ Row 4 of `ROADMAP.md` section 2. The decisions that were taken since (the point 
 | E5: hatched zones and their pattern | `gerber-models` | after E3 |
 | E8: nets with voltage and current (the electro-thermal feature); the ground return current (not yet, list it as a limit); the copper resistivity (1.72e-8 ohm m with 0.393 %/K, editable) | `gerber-nets` | the feature is a decision of its own |
 | the four-sub-gap idealisation at the edge (-2 %) as a known limit | `imported-copper-edge-film` | accept it as a limit; the centroid film for the drawn layers is decided and merged |
+| the equal slabs of the simple stack-up with three or more copper layers (`strong-edge-laminate` README 8) | `strong-edge-laminate` | decided: do it in 2.7.0; implemented on `fix/simple-stackup-physical-layers` (waits for its review and merge) |
 | the first measurement dataset (a colleague's board, `ROADMAP.md` section 5) or a purpose-built set | `convection-laws` | ask the colleague for the data in the request list first |
 
 **Note after `fix/point-via`** (the program no longer keeps the via barrel in `Network.gz`; it is `viawell.py`, couplings in the matrix, and `gz_via` for the Lumped): four research libraries read `net.gz` for the via; they were updated on `research/via-libs-update` (as were the libraries that compile copies of the program's source in `point-via-convergence`, `lumped-analytic-vias` and `lumped-via-groups`; the folder READMEs say what changed and that their numbers were not re-run): `bare-spot-under-source/lib/layered.py:100-101`, `lumped-via-groups/lib/lumped_zones.py:113,338`, `via-fill/scripts/study_via_model_checks.py:90-91` and `sor-with-via-couplings/lib/sorvia.py:43`. The status of those folders above refers to the program before this change, and the numbers of their READMEs are those of the earlier program. `point-via-convergence/` is now implemented in the program (its numbers: the 3 x 3 board gain in `docs/validation.md`). The reproduction pass of 2.4.5 (`releases/2.4.5/reproduction/`) re-ran these folders on the program with the point via, the via constriction and the laminate rule: the libraries work again (`ladder=False` where they need the earlier network) and every moved number is listed there.
@@ -125,18 +126,18 @@ The directed audit 'README against code, folder by folder' (`../releases/2.7.0/r
 | `paper-case-studies/` | reviewed, re-audited 2.7.0; A18 open | vertical plate reproduced |
 | `plate-h-level/` | reviewed, re-audited 2.7.0, closed (A in 2.5.0) | board effect re-run |
 | `point-via-convergence/` | implemented (2.4.5); audited 2.7.0 | example board re-run: mw_disc@eta reproduces within 0.02 K; the program is it plus the 2.6.0 barrel (+0.12..0.15 K); lib `layer_parameters` fixed for h_side > 0 boards (edge band) |
-| `power-calculator/` | reviewed, audited 2.7.0 | CSD row moved by the face-down law (proved); docs/calculators.md stale |
+| `power-calculator/` | reviewed, audited 2.7.0 | CSD row moved by the face-down law (proved); `docs/calculators.md` 2.1 refreshed |
 | `published-cases-followup/` | reviewed, re-audited 2.7.0, closed | near-edge study reproduced |
 | `reduced-models-imported-passives/` | reviewed, audited 2.7.0 | warning items done 2.5.1; 6 parts re-run on 2.6.0, ranges hold |
 | `rotated-square-3d/` | reviewed, re-audited 2.7.0, closed (implemented in 2.6.0) | tests 34; exact-cover study re-run (turn spread 0.042 K) |
 | `solid3d-verification/` | implemented, re-audited 2.7.0 (partial: two studies) | 2-layer/pad rows predate the slabs by thickness |
 | `sor-with-via-couplings/` | implemented (2.4.5); audited 2.7.0 | section 5 reproduced to the sweep |
-| `stackup/` | reviewed, audited 2.7.0 | via barrel +0.2 K; docs/validation.md 12 B stale |
+| `stackup/` | reviewed, audited 2.7.0 | via barrel +0.2 K; `docs/validation.md` 12 tables re-run |
 | `theory/` | audited 2.7.0, needs a rewrite pass | audit notes in 10 topics; fold into docs/theory.md |
 | `theory-sources/` | reviewed, audited 2.7.0 (no re-run) | 2.1 superseded by the face-down law |
 | `via-contact-geometry/` | implemented (2.6.0); audited 2.7.0 | 3.4 reproduced; program = contact_geo + barrel |
-| `via-edge-image/` | implemented (2.5.0); audited 2.7.0 | sweep broke at h_side > 0 (fixed in point-via-convergence lib); errors about -1 point from the 2.6.0 barrel (proven); validation 28 stale |
-| `via-fill/` | implemented (2.4.0; its defects closed 2.4.3-2.4.5); audited 2.7.0 | example gain -4.23 K (barrel, proven); validation 18 stale |
+| `via-edge-image/` | implemented (2.5.0); audited 2.7.0 | sweep broke at h_side > 0 (fixed in point-via-convergence lib); errors about -1 point from the 2.6.0 barrel (proven); `validation.md` 28 re-run |
+| `via-fill/` | implemented (2.4.0; its defects closed 2.4.3-2.4.5); audited 2.7.0 | example gain -4.23 K (barrel, proven); `validation.md` 18 annotated |
 | `via-partial-copper/` | warning implemented (2.5.0), numerical fix not (star no-go); audited 2.7.0 | cold spot now -5.49 / -12.80 / -14.05 K (2.6.0 rim + barrel); program docs stale |
 | `via-real-board/` | implemented (2.4.5; image 2.5.0 via via-edge-image); audited 2.7.0 (status only) | S1/S2 not re-run (real boards, heavy) |
 | `young-omega-tiles/` | implemented (2.4.5); audited 2.7.0 | S3 part 2 reproduced; S4 scripts obsolete (documented) |

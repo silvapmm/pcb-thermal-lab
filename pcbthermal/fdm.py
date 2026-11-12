@@ -6,7 +6,7 @@
 
 @details The classic finite-difference discretisation of the model of fvm.py: the unknowns are the temperatures at the grid
          nodes (nx + 1 by ny + 1 per layer, nodes on the board edges), the material properties are sampled **at the nodes**, the
-         conductivity between two nodes is the mean of the two nodal values (arithmetic by default, harmonic on request), a
+         conductivity between two nodes is the harmonic mean of the two nodal sheets (arithmetic on request, for studies), a
          heater distributes its power over the nodes inside its footprint, and the edge nodes use half control volumes (the
          standard second-order treatment of a convective boundary with ghost nodes). It solves the same equations with the same
          sheet conductance, dielectric resistance, vias, heatsinks and convection as the FVM, so the difference between the two is the
@@ -25,16 +25,26 @@ from . import blocks, copper, fvm, laminate, viawell
 from .results import SteadyResult
 
 
-def _mean(a, b, kind):
+def _mean(a, b, kind, ca=None, cb=None):
     """!
     @brief Mean of the nodal conductivities on the two sides of a face.
-    @param a Array of the first node values.
-    @param b Array of the second node values.
-    @param kind "arithmetic" or "harmonic".
-    @return Array with the face value (harmonic mean is zero where both are zero).
+    @param a Array of the first node values (W/K).
+    @param b Array of the second node values (W/K).
+    @param kind "arithmetic", "harmonic" or "harmonic_plain" (the harmonic mean of the values as they are, cover included).
+    @param ca Share of the first node's control volume that is board (outline cover, 0..1) or None for 1.
+    @param cb The same for the second node.
+    @return Array with the face value (harmonic mean is zero where both are zero). With "harmonic" the values are first divided by their outline cover (the physical
+            sheets), joined by the harmonic mean, and the result is multiplied by the mean cover, so a node cut by the outline keeps the link `(c1 + c2)/2` of the
+            arithmetic mean (a harmonic mean of the cover-scaled values would make the link to a sliver `2c/(1 + c)`, the defect of the cut cells) and only the
+            jump of the sheet across a copper edge is read as a series.
     """
     if kind == "arithmetic":
         return 0.5 * (a + b)
+    if kind == "harmonic" and ca is not None:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            a = np.where(ca > 0, a / ca, 0.0)
+            b = np.where(cb > 0, b / cb, 0.0)
+        return _mean(a, b, "harmonic_plain") * 0.5 * (ca + cb)
     s = a + b
     out = np.zeros_like(s)
     np.divide(2.0 * a * b, s, out=out, where=s > 0)
@@ -83,11 +93,13 @@ class Network:
              the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
     """
 
-    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area", faces=None):
+    def __init__(self, problem, cell_mm=2.0, mean="harmonic", sampling="area", faces=None):
         """!
         @param problem A Problem.
         @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
-        @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+        @param mean "harmonic" (default: the mean of the physical sheets, so that no heat leaks across a copper edge; the link of a node cut by the outline keeps the cover-weighted
+               arithmetic value), "arithmetic" (the classic mean, which lets half of the sheet leak across a copper edge: a bare-pad board at 1 mm reads 13 % low against an independent 3D solver, 7 % with the harmonic mean) or
+               "harmonic_plain" (the harmonic mean of the cover-scaled values, for studies).
         @param sampling "area" (covered fraction of the control volume around each node, removes most of the grid-to-grid scatter)
                or "point" (the classic test of whether the node lies inside a polygon).
         @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks, False ignores it, or a copper.CopperSource. The fill of the imported layers
@@ -216,8 +228,8 @@ class Network:
         # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
         # (No heat crosses a face that touches a node off the board, whatever the mean of the two conductivities says)
         on = self.active
-        fx = _mean(S[:, :, :-1], S[:, :, 1:], mean)
-        fy = _mean(S[:, :-1, :], S[:, 1:, :], mean)
+        fx = _mean(S[:, :, :-1], S[:, :, 1:], mean, ncov[None, :, :-1], ncov[None, :, 1:])
+        fy = _mean(S[:, :-1, :], S[:, 1:, :], mean, ncov[None, :-1, :], ncov[None, 1:, :])
         # Imported copper: the face conductances of the sheet the copper node keeps after the rule (the sheet before the rule is via_S)
         faces_xy = {}
         if self.copper is not None and self.copper.mapping != "fill":
@@ -388,12 +400,14 @@ def unknowns(problem, cell_mm=2.0):
     return layers * nx * ny, layers, nx, ny
 
 
-def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
+def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area"):
     """!
     @brief Steady-state finite-difference solution of a problem.
     @param problem A Problem.
     @param cell_mm Target grid spacing in millimetres (nx = round(width / spacing) intervals).
-    @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+    @param mean "harmonic" (default: the mean of the physical sheets, so that no heat leaks across a copper edge; the link of a node cut by the outline keeps the cover-weighted
+               arithmetic value), "arithmetic" (the classic mean, which lets half of the sheet leak across a copper edge: a bare-pad board at 1 mm reads 13 % low against an independent 3D solver, 7 % with the harmonic mean) or
+               "harmonic_plain" (the harmonic mean of the cover-scaled values, for studies).
     @param sampling "area" (default) or "point" (see Network).
     @return SteadyResult with the field at the nodes (layers, ny + 1, nx + 1).
     """
