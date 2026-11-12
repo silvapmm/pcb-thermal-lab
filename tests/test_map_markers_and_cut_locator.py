@@ -215,7 +215,7 @@ def test_cut_picture_is_top_left_unless_the_curve_or_the_peak_is_under_it(sim):
     @param sim Simulation fixture.
     """
     fig = plots.new_figure(7, 4)
-    plots.draw_profile(fig, sim.results, sim.problem, picture="board")
+    plots.draw_profile(fig, sim.results, sim.problem, axis="y", picture="board")     # The y cut leaves the upper left empty (the x cut: see the emptiest-corner test)
     assert _inset_corner(fig) == "ul"
     pr, res = _hot_left()
     fig = plots.new_figure(7, 4)
@@ -282,3 +282,21 @@ def test_cut_picture_png_and_command_line_default_have_the_inset(sim, tmp_path):
     fig = plots.new_figure(4, 6)
     plots.draw_profile(fig, sim.results, sim.problem)
     assert len(fig.axes) == 2 and not fig.axes[1].child_axes
+
+
+def test_cut_picture_takes_the_emptiest_corner_upper_left_on_a_tie(sim):
+    """!
+    @brief Review: the first rule kept the upper left while it covered up to 3 % of the curve samples (on the example board at the size of the Results tab, the
+           rising flank of the curve, 1.3 % of the samples) although the upper right was empty. The chosen corner now holds the fewest samples of the four.
+    @param sim Simulation fixture.
+    """
+    fig = plots.new_figure(5.25, 4.4)
+    plots.draw_profile(fig, sim.results, sim.problem, axis="x", position_mm=41.0, picture="board")
+    ax = fig.axes[0]
+    curves = [(ln.get_xdata(), ln.get_ydata()) for ln in ax.lines]
+    k = int(np.nanargmax(curves[0][1]))
+    peak = (float(curves[0][0][k]), float(curves[0][1][k]))
+    share = {c: plots._inset_load(ax, curves, peak, c)[0] for c in ("ul", "ur", "ll", "lr")}
+    corner = _inset_corner(fig)
+    assert share["ul"] > 0.0                                    # The case of the review: the upper left covers part of the curve
+    assert share[corner] <= min(share.values()) + plots.INSET_LOAD_TIE and corner != "ul"
