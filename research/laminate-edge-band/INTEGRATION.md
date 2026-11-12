@@ -1,5 +1,7 @@
 # Integration: the edge film of the laminate in the layered FVM and FDM
 
+**Status (audit 2.6.1).** Implemented in 2.6.0 as recommended in section 1 (`fix/laminate-edge-band`: `laminate.edge_band` ORed into `laminate.plan_gaps(edge=)` for the FVM and FDM, `checks.check_edge_laminate` above 200 W/m2K and `checks.check_reduced_edge_laminate` for the Lumped and Analytic; `docs/validation.md` 36). 'Proposal only' below is the status when written.
+
 Proposal only; nothing in `pcbthermal/` was edited. Evidence: `README.md` (sections in brackets). Prototype: `lib/edge_rules.py`. **Reviewed** (README 11): the first version of this file recommended a film term on the copper nodes that has no physical basis and that counted twice on the 2.6.0 tree; it is replaced below.
 
 ## 1. Recommendation (reviewed)

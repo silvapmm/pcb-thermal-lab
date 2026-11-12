@@ -13,7 +13,7 @@ The mounting follows from the layer numbering: **layer 1 is the top face and loo
 ## 2. The laws (topic 08 has the full set)
 
 * Horizontal plate, hot surface **facing up**: `Nu = 0.54 Ra^(1/4)` (Ra from 1e4 or 1e5 to 1e7), `0.15 Ra^(1/3)` above.
-* Hot surface **facing down**: `Nu = 0.27 Ra^(1/4)` (Ra 1e5 to 1e10).
+* Hot surface **facing down**: `Nu = 0.27 Ra^(1/4)` (Ra 1e5 to 1e10). *(audit 2.6.1: the program of 2.6.0 uses `Nu = 0.475 Ra^(1/5)` on `L = A/P` and warns outside Ra 1e2 to 1e9; `research/face-down-convection`, `docs/theory.md` 8.)*
 * Characteristic length `L = A / P` (area over perimeter), which collapses circular, square, rectangular and triangular plates.
 * A surface **colder** than the air swaps up and down.
 * Vertical plate: Churchill and Chu, `Nu = (0.825 + 0.387 Ra^(1/6) / [1 + (0.492/Pr)^(9/16)]^(8/27))^2`.

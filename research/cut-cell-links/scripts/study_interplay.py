@@ -89,7 +89,7 @@ def tau63(problem, cell, scheme, t_end=120.0):
     @return Seconds (nan if not reached).
     """
     from pcbthermal import fvm
-    if scheme == "program":
+    if scheme == "current":                                     # the program of the tree (audit 2.6.1: `program` is the network before 2.6.0, lib/cutlinks.py)
         return float(fvm.solve_transient(problem, t_end, cell_mm=cell, n_out=60).time_constant())
     with cl.using(scheme):
         return float(fvm.solve_transient(problem, t_end, cell_mm=cell, n_out=60).time_constant())

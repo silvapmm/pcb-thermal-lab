@@ -848,7 +848,9 @@ class MainWindow(QMainWindow):
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
         self.canvas.set_overlay(field, res.dx, res.dy, cmap=self.display.cmap, vmin=vmin, vmax=vmax,
                                 opacity=self.display.value(), nodes=nodes, mask=mask, smooth=self.display.view == "smooth")
-        ext = extreme_points(field, mask, res.dx, res.dy, nodes)
+        loc = res.t_max_location       # The hot ring stays where the model reports its Tmax; only the cold one comes from the drawn field
+        hot = (res.t_max, (loc[1] * 1000.0, loc[2] * 1000.0)) if loc is not None and int(loc[0]) == layer else None
+        ext = extreme_points(field, mask, res.dx, res.dy, nodes, hot)
         if ext is not None:
             self.canvas.set_overlay_card(short, ext["tmax"], ext["pmax"], ext["tmin"], ext["pmin"])
         else:

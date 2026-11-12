@@ -1,5 +1,7 @@
 # Integration: via contact geometry and barrel length
 
+**Status (audit 2.6.1).** Adopted in 2.6.0 as recommended in section 3 (`fix/via-barrel-and-rim-uncoupling`: `viawell.barrel_length`, `BARREL_COPPER_FRACTION` = 0.5 in the FVM, FDM, Lumped and Analytic, not the 3D solid; `viawell.rim_copper_shares`, a layer with no rim contact uncoupled and a partial rim scaling the well; `docs/validation.md` 34); the weights by sheet conductance were not adopted. The implementation counts a heater (not only a zone) as copper on the rim, which this file did not foresee. 'A proposal ... nothing ... was changed' below is the status when written.
+
 Status: **a proposal, reviewed** (README 7; the recommendations of section 3 are the reviewer's, after the independent checks). Nothing in `pcbthermal/`, `tests/`, `examples/` or `ico/` was changed; the variants are copies in memory (`lib/barrel.py`, `lib/contact.py`). The numbers are those of `README.md` (sections in brackets).
 
 ## 1. What would change (all in `pcbthermal/viawell.py`, FVM and FDM)

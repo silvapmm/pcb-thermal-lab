@@ -1,5 +1,7 @@
 # Entering the program: the via correction for 2.4.5 (branch `fix/point-via`)
 
+**Status (audit 2.6.1).** Implemented in 2.4.5 (`fix/point-via`: footprint restricted to the cells on the board, `gz_via` for the Lumped, the block SOR, the single footprint rule of the 3D solid, the guard on the block memory). The image of the edge was **not** part of 2.4.5: it entered in 2.5.0 through `research/via-edge-image` (`feature/via-edge-image`, FVM only, with a guard near reflex corners and short or slanted sides). 'Nothing here is done in `pcbthermal/`' below is the status when written.
+
 Nothing here is done in `pcbthermal/`. The numbers are those of `README.md` (sections in brackets); every claim of impact is measured on in-memory copies. The change moves results (the FVM, FDM and, at coarse cells, the 3D solid), so it goes through the executor, the reviewer and the whole battery.
 
 It joins three proposals: the mean-potential via of `point-via-convergence/INTEGRATION.md`, the block SOR (c') of `sor-with-via-couplings/INTEGRATION.md` and the single footprint rule of the 3D solid. This folder adds the footprint restricted to the cells on the board, `gz_via` for the Lumped model, **the image of the edge (adopted, README 3.4)** and the guard on the block memory.

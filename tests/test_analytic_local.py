@@ -3,7 +3,7 @@
 """!
 @file test_analytic_local.py
 @brief The Analytic transient with vias and heatsinks kept local: a coupled modal block of the lowest K x K modes, one factor on the via couplings fitted to the steady
-       solve (adopts research/analytic-2-6, README 3 and 6.3; pcbthermal/analytic_local.py).
+       solve (adopts research/analytic-edge-and-transient, README 3 and 6.3; pcbthermal/analytic_local.py).
 
 @details Checks: (1) a board without vias and heatsinks keeps the uniform system (no local block); (2) the steady plateau of the step response is the steady solve's value at
          the same point; (3) the time to 63 % against the FVM on boards with a heatsink under the part, beside it and with vias together (the earlier smeared transient was

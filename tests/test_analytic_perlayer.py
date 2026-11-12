@@ -3,7 +3,7 @@
 """!
 @file test_analytic_perlayer.py
 @brief The per-layer edge of the Analytic steady model: each layer has its own Robin parameter beta_l = h_eff s_l / S_l, the common beta of the basis is corrected by an extra
-       modal source solved with GMRES (adopts research/analytic-2-6, README 2 and 6.1).
+       modal source solved with GMRES (adopts research/analytic-edge-and-transient, README 2 and 6.1).
 
 @details Checks: (1) layers with the same s_l / S_l skip the loop and keep the earlier numbers (uniform board, insulated board, one layer); (2) the same sheets solved by an
          independent 2D finite-difference code with the true per-layer edge (to 0.3 %), where the common beta of the earlier model is 9.9 % off; (3) the heat balance with

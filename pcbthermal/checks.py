@@ -618,7 +618,7 @@ def check_lumped_near_edge(problem, models):
     """!
     @brief Warning, for the Lumped model only, about heat sources close to a side or a corner of the board (one aggregated line).
     @details The ring network of a part sees neither the mirror image of an insulated side nor the radial flux that the side pushes away, so the hottest temperature of a part near
-             a side or a corner reads too cool: -6.6 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
+             a side or a corner reads too cool: -7.4 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
              40 x 40 and 100 x 80 mm) against the FVM at 0.5 mm, -8.2 % on average over the 120 of them that the rule flags (-3.3 % over the other 60), and -8.3 % over the 59
              flagged of 120 random boards (-3.6 % over the other 61). These were measured with the capped first ring of the 2.6.0 integration; on develop at 2.5.2
              (without it) the same cases read -9.4 % (sweep, flagged) and -8.5 % (random, flagged), and the rule catches 68 of the 86 sweep cases beyond -8 % (16 of the 18 missed
@@ -986,7 +986,7 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
              With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
              A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
              The 3D solid cuts every gap into ceil(d / 0.2 mm) slabs, 4 to 16 (before: a fixed four, which read a 2 mm part +20 % bare and +27 % pad hot on 3.2 mm and +5.5 and +14.7 % on 1.6 mm);
-             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-2-6 5.1),
+             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-slabs-and-local-rule 5.1),
              of which about +2 to +2.6 % are the slabs and the rest the plan cell (+7 to +16 % in all at 0.5 mm, +17 to +30 % at 1 mm; review). The test is d / n against 0.15 of the side
              (the slabs alone +3 to +4 % there), so it fires only for parts under about 1.3 mm; the cell is the warning of check_problem (a part under three cells). No result depends on it.
     @param problem A Problem (structurally valid).
