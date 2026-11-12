@@ -1573,7 +1573,7 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
              is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 15 to 85 % low (FVM and FDM, cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
              up to 11 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
-             1.2 K or 1.4 % of the rise too hot; on imported copper the rim is not tested and the old 3 to 4 times high at 0.5 mm or coarser remains), and the cold spot below the
+             1.2 K or 1.4 % of the rise too hot; on imported copper the rim is read by the mask ray test and the old 3 to 4 times high (not re-measured) at 0.5 mm or coarser remains), and the cold spot below the
              barrel is a numerical artefact of the fixed footprint weights.
     @param problem The Problem.
     @param models Model keys that will run (the warning applies to "fvm" and "fdm").
@@ -1600,8 +1600,8 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
          f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower. A via at the corner of a copper region or at the end of a track "
          "is not solved: its effect reads 15 to 85 % low and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
-         "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper that contact is not tested, and there the effect can read "
-         "3 to 4 times high at a cell of 0.5 mm or coarser. The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
+         "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper the contact is read from the masks (a ray test: a pad island inside a clearance does not count), and a via just outside an edge of imported copper can still read "
+         "3 to 4 times high at a cell of 0.5 mm or coarser (not re-measured with the ray test). The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
          "(higher or lower); use a finer cell (" + cell_where() + ") or the 3D solid.")
     return out
@@ -1610,18 +1610,19 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
 def uncoupled_vias(problem):
     """!
     @brief The vias whose drill rim touches no copper and no part on a layer (the rim rule of viawell), with those layers.
-    @param problem The Problem (imported copper counts as full contact, as in viawell).
+    @param problem The Problem (imported layers are read from their masks by the ray test of viawell, as the models do).
     @return List of (via index, list of 0-based layer indices), only the vias with at least one such layer and board under the drill disc.
     """
     b = problem.board
     if not problem.vias or b.layers < 2:
         return []                                               # A one-layer board has no gap: its vias join nothing
-    zone_index = viawell._zone_index(problem, b.layers)
+    masks = viawell.rim_masks(problem)                          # imported copper: the same ray test on the masks as the models
+    zone_index = viawell._zone_index(problem, b.layers, masks)
     out = []
     for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
         if share <= 0.0:
             continue                                            # Ignored by every model
-        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index)) if f <= 0.0]
+        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index, masks)) if f <= 0.0]
         if layers:
             out.append((k, layers))
     return out

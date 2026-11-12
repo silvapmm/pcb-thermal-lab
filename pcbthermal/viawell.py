@@ -21,7 +21,7 @@ symmetric, positive semidefinite, with zero row sum from the via.
 The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings and research/via-real-board.
 * Barrel length: the barrel conductance over a gap is k_cu A / (d + a t_bar), a = BARREL_COPPER_FRACTION = 0.5, t_bar the mean copper thickness of the two layers
   (`barrel_length`; the same length is used by the Lumped and Analytic models and not by the 3D solid, which draws the barrel through its copper slabs).
-* Contact: a layer whose zones and heaters touch none of the rim of the drill is left uncoupled, a rim partly on copper scales the well by the share (`rim_copper_shares`);
+* Contact (imported copper: ray test on the masks, `RimMasks`): a layer whose zones and heaters touch none of the rim of the drill is left uncoupled, a rim partly on copper scales the well by the share (`rim_copper_shares`);
   a via at the corner of a copper region is NOT solved (the footprint was tuned for a full plane): it reads too hot, see checks.partial_copper_vias.
 * Edge image (FVM only): the lattice kernel has no image of a board edge, and the footprint sits at cell centres, not at the via, so a via within about one cell
   of a straight edge saw the image of the edge at the wrong distance (the via effect read +14.5 % high at 1 mm for a via 0.16 mm from the edge). The well
@@ -47,6 +47,8 @@ POINT_SINK_RADIUS = math.exp(-math.pi * KAPPA / 2.0)               # equivalent 
 EDGE_REACH_CELLS = 6.0                                              # a wall counts when its distance from the via centre is at most this many cells
 EDGE_GUARD_CELLS = 0.6                                              # no image when a reflex vertex, a slanted or a short side is nearer than this many cells (image_walls)
 BARREL_COPPER_FRACTION = 0.5                                        # extra barrel length per gap in units of the mean copper thickness of the two layers around it (docs/theory.md 2.6)
+RIM_MASK_REACH_MM = 0.5                                             # reach of the ray test on an imported mask, beyond the drill circle (research/imported-via-rim: shares move 0.05 to 0.2 for 0.3 to 1.2 mm)
+RIM_MASK_THRESHOLD = 0.5                                            # coverage at or above which a mask pixel counts as copper at a ray point
 RIM_SAMPLES = 48                                                    # samples on the rim of the drill for the contact test (a multiple of 4, offset by half a step so that none lies on an axis-parallel copper edge through the centre)
 SAMPLES = 24                                                        # samples per cell side for the area of the disc
 
@@ -499,23 +501,79 @@ def barrel_length(board, d):
     return d + BARREL_COPPER_FRACTION * 0.5 * (t[:-1] + t[1:])
 
 
-def rim_copper_shares(problem, v, n_layers, zone_index):
+class RimMasks:
+    """!
+    @brief The imported masks of a problem as the rim test of the vias reads them, built once per `build` (the masks are unpacked once, not per via).
+    @details The test is a ray test, not the drill circle alone: in a real Gerber set every through via has a pad on every copper layer, so the 48 samples ON the drill circle
+             always land on copper, also on a layer where the pad is an island inside an antipad and the via is not joined to the plane. A sample therefore counts only when the
+             imported copper is continuous from the drill circle outward over `reach` (pixel by pixel, nearest pixel, coverage at least `RIM_MASK_THRESHOLD`); a pad island, which
+             ends in the clearance, does not count, a plane or a track does, and a thermal relief reads as the share of its spokes (research/imported-via-rim).
+    """
+
+    def __init__(self, source, height):
+        """!
+        @param source copper.CopperSource of the problem (imported layers with a mask).
+        @param height Board height in m (the raster rows run from the top).
+        """
+        self.pix = source.pix
+        self.height = height
+        self.rasters = {l: source.raster(l) for l in source.layers}
+        # The reach is RIM_MASK_REACH_MM but never fewer than three pixels, so that a coarse raster still sees the clearance beyond the pad
+        self.reach = max(RIM_MASK_REACH_MM * 1e-3, 3.0 * self.pix)
+        self.steps = int(math.ceil(self.reach / self.pix))
+
+    def rays(self, layer, v, ang):
+        """!
+        @brief Which rays of the rim of a via are copper out to the reach, on one imported layer.
+        @param layer Copper layer index (0 = top); it must be an imported layer.
+        @param v The Via.
+        @param ang Angles of the rays in rad, shape (RIM_SAMPLES,).
+        @return bool array (RIM_SAMPLES,).
+        """
+        ras = self.rasters[layer]
+        rows, cols = ras.shape
+        r = v.diameter / 2.0
+        # Distances from the drill circle: 0 (the circle) and every pixel step out to the reach, all rays at once
+        dist = r + np.arange(self.steps + 1) * self.pix
+        qx = v.x + dist[:, None] * np.cos(ang)[None, :]
+        qy = v.y + dist[:, None] * np.sin(ang)[None, :]
+        cj = np.clip((qx / self.pix).astype(int), 0, cols - 1)
+        rj = np.clip(((self.height - qy) / self.pix).astype(int), 0, rows - 1)
+        return (ras[rj, cj] >= RIM_MASK_THRESHOLD * 255.0).all(axis=0)
+
+
+def rim_masks(problem):
+    """!
+    @brief The mask reader of the rim test for a problem, or None when it has no imported copper with masks.
+    @param problem The Problem.
+    @return RimMasks or None.
+    """
+    if getattr(problem, "imported", None) is None:
+        return None
+    from . import copper                                               # imported here: copper builds on the model, viawell is read by the solvers
+    src = copper.CopperSource.of(problem)
+    return None if src is None else RimMasks(src, problem.board.height)
+
+
+def rim_copper_shares(problem, v, n_layers, zone_index, masks=None):
     """!
     @brief Share of the rim of the drill of a via that lies on copper or under a heater, per layer.
-    @param problem The Problem (imported copper counts as full contact: the masks are not read here).
+    @param problem The Problem.
     @param v The Via.
     @param n_layers Number of layers L.
     @param zone_index List per layer of (polygons, boxes) of the zones with fill above zero and of the heaters, boxes an array (n, 4) of xmin, xmax, ymin, ymax (see `_zone_index`).
+    @param masks `RimMasks` of the problem (from `rim_masks`) or None. A layer with an imported mask is read from it (the ray test; its zones are replaced by the mask, its heaters
+           still count as contact); a layer without a mask, and every layer of a drawn board, keeps the zone rule.
     @return list of L floats in [0, 1]; 0 means that the barrel touches no copper and no heater on that layer.
     """
-    if problem.imported is not None:
-        return [1.0] * n_layers
     ang = (np.arange(RIM_SAMPLES) + 0.5) * 2.0 * math.pi / RIM_SAMPLES
     r = v.diameter / 2.0
     px, py = v.x + r * np.cos(ang), v.y + r * np.sin(ang)
     out = []
     for l in range(n_layers):
-        covered = np.zeros(RIM_SAMPLES, dtype=bool)
+        imp = masks is not None and l in masks.rasters
+        # An imported layer starts from its mask; its zones are not in zone_index (see `_zone_index`), its heaters are
+        covered = masks.rays(l, v, ang) if imp else np.zeros(RIM_SAMPLES, dtype=bool)
         polys, boxes = zone_index[l]
         if len(polys):
             # Only the shapes whose box meets the box of the rim (one vectorised test, so that a board with a thousand zones per layer stays cheap)
@@ -528,7 +586,7 @@ def rim_copper_shares(problem, v, n_layers, zone_index):
     return out
 
 
-def _zone_index(problem, n_layers):
+def _zone_index(problem, n_layers, masks=None):
     """!
     @brief Zones and heaters of every layer with their bounding boxes, for the rim test.
     @details A heater counts as contact on its layer: the power of a part enters the board over its footprint, so where the footprint covers the drill the
@@ -537,10 +595,11 @@ def _zone_index(problem, n_layers):
              144 K rise in a resolved 3D reference, the program read 0 K; with the heater as contact it reads 35 to 42 K, as before the rim rule).
     @param problem The Problem.
     @param n_layers Number of layers L.
+    @param masks `RimMasks` or None: the zones of a layer with an imported mask are left out (the mask replaces them); its heaters stay.
     @return list per layer of (polygons, boxes): the polygon arrays in m and an array (n, 4) of their xmin, xmax, ymin, ymax; zones with no copper (fill 0) are left out.
     """
     polys = [[] for _ in range(n_layers)]
-    shapes = [(z.layer, z.polygon) for z in problem.zones if z.fill > 0.0] + [(h.layer, h.polygon) for h in problem.heaters]
+    shapes = [(z.layer, z.polygon) for z in problem.zones if z.fill > 0.0 and not (masks is not None and z.layer in masks.rasters)] + [(h.layer, h.polygon) for h in problem.heaters]
     for layer, poly in shapes:
         if 0 <= layer < n_layers:
             polys[layer].append(np.asarray(poly, dtype=float))
@@ -575,7 +634,8 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     gz_via = np.zeros((L - 1, ny, nx))
     oy = origin * dy / dx                      # lower y edge of row 0 (-dy/2 for the FDM nodes)
     d_barrel = barrel_length(b, d)             # the barrel is longer than the gap by half the copper thickness (BARREL_COPPER_FRACTION)
-    zone_index = _zone_index(problem, L) if problem.vias else None
+    masks = rim_masks(problem) if problem.vias else None                   # imported copper: the rim test reads the masks (once per build)
+    zone_index = _zone_index(problem, L, masks) if problem.vias else None
     for v, share in zip(problem.vias, problem.via_board_shares()):
         if share <= 0.0:
             # The drill disc is off the board (the geometric test of checks.check_problem and of the Lumped and Analytic runs): the via conducts nothing,
@@ -610,7 +670,7 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
                     s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
                 else:
                     c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
-        shares = rim_copper_shares(problem, v, L, zone_index)
+        shares = rim_copper_shares(problem, v, L, zone_index) if masks is None else rim_copper_shares(problem, v, L, zone_index, masks)   # (the plain call keeps the research hooks that patch the 4-argument form)
         if min(shares) < 1.0:
             # The rim is partly or not at all on copper: the sheet conductance of the well is the footprint mean (weights w) of that of the cells, not that of the heaviest cell
             # (which can be a bare one or a copper one by the side of the barrel); a footprint with copper on its whole rim keeps the earlier value, bit for bit
