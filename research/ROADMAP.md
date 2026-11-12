@@ -60,6 +60,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | A35 | the Lumped heats by 0.80 to 0.89 K when a far via is added (the FVM cools) | done (2.7.0, `fix/lumped-via-groups-lone-via`; `small-model-defects` README 1) | 'Fixes waiting' of `docs/versions.md` | M | h | - |
 | A36 | the FDM 10 % below the FVM at 1 mm on a four-layer board with separate zones; the Lumped mirror asymmetry of 0.4 K | FDM done (2.7.0, `fix/fdm-harmonic-face-mean`); the Lumped mirror asymmetry measured 0.09 K at 1 mm, optional fix not adopted (`small-model-defects` README 2.1, 4.2) | 'Fixes waiting' of `docs/versions.md` | M | h to d | - |
 | A37 | the 3D solid not mirror-symmetric with vias on a grid line (0.36 K) | answered: a limit, 0.5 to 1.6 K at 1 mm for a via exactly on a line; the sentence for theory and validation is `small-model-defects` README 4.3 | 'Fixes waiting' of `docs/versions.md` | L | h | - |
+| A38 | the via rim test on imported copper (every via joined to every layer, also through an antipad) | answered (`research/imported-via-rim`, reviewed: go): today 0 to 4.4 % cool on five real boards (upper bound, against the ray rule), +46 / +12 % on the via effect of a synthetic antipad at 1 / 0.5 mm; the ray test from the masks is the proposal | `imported-via-rim/INTEGRATION.md` | L | h | implementation on `fix/imported-via-rim-mask` (reviewed separately); the reach (0.5 mm) is the maintainer's |
 
 ### B. Boards, vias and stack-up
 

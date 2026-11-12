@@ -197,20 +197,19 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
     assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
 
 
-def test_the_edge_warning_names_the_via_effect_and_the_simple_stackup_of_three_or_more_layers():
-    # research/strong-edge-laminate 8: the via effect near a strong edge reads lower still, and a simple stack-up of three or more layers (equal slabs T / L) reads cooler still;
-    # two layers in the simple stack-up and an advanced stack-up do not get the stack-up clause
+def test_the_edge_warning_names_the_via_effect_and_has_no_stackup_clause():
+    # research/strong-edge-laminate 8: the via effect near a strong edge reads lower still. The clause about the simple stack-up of three or more layers (equal slabs T / L) is gone:
+    # since fix/simple-stackup-physical-layers the simple and the advanced stack-up are the same board, so the text is the same for both
     from pcbthermal.model import Dielectric
     two = checks.check_edge_laminate(plate(1.6, 1000.0, "corner"), ("fvm",))[0]
     assert "via" in two and "helps more than shown" in two and "simple stack-up" not in two
     four = plate(1.6, 1000.0, "corner", layers=4)
     text = checks.check_edge_laminate(four, ("fvm",))[0]
-    assert "simple stack-up" in text and "advanced stack-up" in text
-    assert "simple stack-up" in checks.line(text)                                  # the one-line form of the live list says it too
+    assert "simple stack-up" not in text and "simple stack-up" not in checks.line(text)
     gap = (1.6 - 4 * 0.035) / 3 * 1e-3
     four.board.dielectrics = [Dielectric(thickness=gap, k_through=0.3, k_inplane=0.9) for _ in range(3)]
     adv = checks.check_edge_laminate(four, ("fvm",))
-    assert adv and "simple stack-up" not in adv[0]
+    assert adv and adv[0] == text
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
 
 
