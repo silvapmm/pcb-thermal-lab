@@ -101,7 +101,7 @@ class Network:
         @details The cell between two nodes is uniform along the face, so the face needs no mean of two nodal values: `S_face = (A_face + B f_face) c_face`, with
                  `B = (k_cu - k_lam) t_cu`, `A` the physical sheet of the node without copper (laminate and the sub-gaps the node keeps), `f_face` the mean copper fill of
                  the cells flanking the face and `c_face` the mean outline cover of the two nodes. With the harmonic mean of the nodal sheets a node whose control volume is
-                 cut by a copper edge reads half copper, the first copper link 0.67 of the copper sheet and the edge is smeared over a cell (docs/theory.md 3, validation 46).
+                 cut by a copper edge reads half copper, the first copper link 0.67 of the copper sheet and the edge is smeared over a cell (docs/theory.md 3, validation 47).
                  Only faces where a nodal fill differs from the fill of the face are replaced (uniform copper keeps the earlier arithmetic, bit for bit); layers with imported
                  copper keep their own mappings.
         @param fx Face sheets in x (layers, ny, nx - 1), W/K, changed in place for the copper layers.
