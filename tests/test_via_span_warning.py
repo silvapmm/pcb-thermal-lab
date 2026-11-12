@@ -70,3 +70,35 @@ def test_a_buried_span_is_not_the_whole_board_either(tmp_path):
     @param tmp_path pytest folder.
     """
     assert len(_span_lines(_build(tmp_path / "a", 2, "Plated,2,3,Blind"))) == 1
+
+
+def test_a_copper_numbering_that_is_not_one_to_n_is_read_from_the_files(tmp_path):
+    """!
+    @brief Proteus numbers a two-layer board L1 and L16 and writes the drill span 1,16: those are through vias (review: 48 of 48 vias of a real Proteus board were
+           reported as blind). A span 1,8 on the same board stops short of L16 and is still reported.
+    @param tmp_path pytest folder.
+    """
+    for span, lines in (("Plated,1,16,PTH", 0), ("Plated,1,8,Blind", 1)):
+        d = make_board(tmp_path / span.replace(",", "_"), inner=0)
+        b = d / "B.gbr"
+        b.write_text(b.read_text().replace("Copper,L2,Bot", "Copper,L16,Bot"))
+        f = d / "drill.drl"
+        f.write_text(f.read_text().replace("Plated,1,2,PTH", span))
+        sx = ImportSession()
+        sx.set_files(d)
+        sx.load()
+        sx.cell_mm = 1.0
+        sx.build_problem()
+        assert len(_span_lines(sx)) == lines, span
+
+
+def test_span_rule_of_the_helpers():
+    """!
+    @brief The span is whole when it covers both ends of the copper numbering; one copper layer has no partial via; no span says nothing.
+    """
+    from pcbthermal.copper import span_is_whole_board
+    assert span_is_whole_board(None, (1, 4))
+    assert span_is_whole_board((0, 1), (1, 1))            # Proteus one-layer board
+    assert span_is_whole_board((16, 1), (1, 16))
+    assert not span_is_whole_board((1, 2), (1, 4))
+    assert not span_is_whole_board((2, 3), (1, 4))

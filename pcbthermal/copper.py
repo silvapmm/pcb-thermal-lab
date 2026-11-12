@@ -718,6 +718,40 @@ def _inside_mask(polygons, window, pixel_mm, rows, cols):
     return out
 
 
+def copper_numbering(layers):
+    """!
+    @brief The first and the last copper layer number of a set, as the files number them, for the layer span of the drill files.
+    @details CAD programs do not all number the copper 1..n: Proteus writes a two-layer board as `Copper,L1,Top` and `Copper,L16,Bot` with the drill span 1,16, and a
+             one-layer board with the span 0,1. When every copper file carries an X2 number (`Copper,L<k>,...`) the ends are the smallest and the largest of them;
+             otherwise the plain count 1..n is used.
+    @param layers List of gerber.Layer (the copper layers in use, top first).
+    @return (first, last) layer numbers.
+    """
+    nums = []
+    for lay in layers:
+        ff = list(getattr(lay, "file_function", []) or [])
+        if len(ff) >= 2 and ff[0] == "Copper" and ff[1][:1] == "L" and ff[1][1:].isdigit():
+            nums.append(int(ff[1][1:]))
+    if len(nums) == len(layers) and nums:
+        return min(nums), max(nums)
+    return 1, len(layers)
+
+
+def span_is_whole_board(span, stack):
+    """!
+    @brief True when a drill file's layer span reaches both ends of the copper stack (a through via), or says nothing.
+    @details One copper layer has no blind or buried via (a hole there joins nothing), so any span is whole. A span counts as whole when it COVERS the stack (first at or
+             above the span's start, last at or below its end), so the Proteus spans 1,16 on L1/L16 and 0,1 on a one-layer board are through holes.
+    @param span (a, b) from `DrillFile.span`, or None when the file does not say.
+    @param stack (first, last) from `copper_numbering`.
+    @return bool
+    """
+    if span is None or stack[0] == stack[1]:
+        return True
+    lo, hi = sorted(span)
+    return lo <= stack[0] and hi >= stack[1]
+
+
 def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, supersample=4, mapping=DEFAULT_MAPPING, names=None, thickness_um=35.0,
                   fraction=None, ram=None, base=None):
     """!
@@ -796,9 +830,10 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
     holes = []
     skipped = {"slot": 0, "unplated": 0}
     partial = 0                                    # Vias whose drill file says they do not span the whole stack (blind, buried, micro)
+    stack = copper_numbering(layers)
     for df in drills:
-        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span is not 1..n is counted for the warning below
-        short = df.span is not None and tuple(sorted(df.span)) != (1, n)
+        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span does not reach both ends of the stack is counted for the warning below
+        short = not span_is_whole_board(df.span, stack)
         for h in df.holes:
             plated = h.plated if h.plated is not None else df.plated
             if h.is_slot:
