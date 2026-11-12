@@ -25,7 +25,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Added
 
-- **Profiles: a thumbnail of the board with the cut line** (`plots.draw_profile`): the real outline, the elements of the layer and the cut, inside the figure (so saved PNGs and the command line plot have it; above the curves when the figure is narrow). The line and the title now give the position of the cell row or column actually plotted, not the slider value.
+- **Profiles: a thumbnail of the board with the cut line** (`plots.draw_profile`): the real outline, the elements of the layer and the cut, inside the figure (so saved PNGs and the command line plot have it; above the curves when the figure is narrow). The line and the title now give the position of the cell row or column actually plotted, not the slider value. The thumbnail follows the shape of the canvas on resize, and the Results page no longer scrolls sideways in a narrow centre area (the Animation and Power profile pages and the cut position text no longer set its minimum width).
 
 ## [2.6.0] - 2026-11-07
 

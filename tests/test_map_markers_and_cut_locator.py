@@ -144,3 +144,41 @@ def test_profile_thumbnail_survives_every_layer_and_the_default_cut(sim, tmp_pat
     out = tmp_path / "p.png"
     plots.plot_profiles(sim.results, sim.problem, str(out))
     assert out.stat().st_size > 1000
+
+
+@pytest.mark.parametrize("size", [(900, 700), (1280, 800)])
+def test_profiles_tab_never_scrolls_sideways_and_keeps_its_thumbnail(qtbot, sim, size):
+    """!
+    @brief At 900 x 700 and 1280 x 800 with both docks open the Results page has no horizontal scroll, the Profiles canvas has its thumbnail axis and, after a resize
+           across the wide/narrow shape, the layout follows the canvas.
+    @param qtbot pytest-qt fixture.
+    @param sim Simulation of the example board.
+    @param size Window size in pixels.
+    """
+    import os
+    from PySide6.QtWidgets import QAbstractScrollArea
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import TAB_RESULTS, MainWindow
+    doc = Document()
+    doc.open(os.path.join(os.path.dirname(__file__), "..", "examples", "example_board.pcbt.json"))
+    win = MainWindow(doc)
+    qtbot.addWidget(win)
+    win.resize(*size)
+    win.show()
+    win._on_done(sim)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.profile)
+    qtbot.wait(200)
+    page = win.tabs.widget(TAB_RESULTS)
+    for area in [page] + page.findChildren(QAbstractScrollArea):
+        if area.isVisible():
+            assert not area.horizontalScrollBar().isVisible(), (size, area)
+    tab = win.results.profile
+    assert len(tab.fig.axes) == 2                       # The curves and the thumbnail
+    thumb = [a for a in tab.fig.axes if a.get_title().startswith("Layer ")]
+    assert thumb and thumb[0].get_position().width * tab.fig.get_figwidth() * tab.fig.dpi > 40
+    # A canvas that changes shape moves the thumbnail without any other event
+    narrow = plots.profile_is_wide(tab.fig)
+    tab.canvas.resize(int(tab.canvas.height() * (0.8 if not narrow else 2.0)) + 1, tab.canvas.height())
+    qtbot.wait(300)
+    assert tab._thumb_wide == plots.profile_is_wide(tab.fig)

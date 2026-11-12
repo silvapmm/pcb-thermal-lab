@@ -752,6 +752,15 @@ def _draw_thumbnail(ax, problem, layer, axis, position_mm):
     ax.set_title(f"Layer {layer + 1}", fontsize=8)
 
 
+def profile_is_wide(fig):
+    """!
+    @brief Whether the Profiles figure puts the board thumbnail beside the curves (True) or above them (False).
+    @param fig Matplotlib Figure.
+    @return bool, True when the figure is at least 1.3 times wider than high.
+    """
+    return fig.get_figwidth() >= 1.3 * fig.get_figheight()
+
+
 @_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     """!
@@ -768,7 +777,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     """
     fig.clear()
     b = problem.board
-    wide = fig.get_figwidth() >= 1.3 * fig.get_figheight()
+    wide = profile_is_wide(fig)
     if wide:
         gs = fig.add_gridspec(1, 2, width_ratios=[3, 1])
         ax, tx = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])

@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QPlainTextEdit, QSlider, QSpinBox, QSplitter, QTableWidget,
+                               QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, plots
@@ -229,6 +229,8 @@ class PlotTab(QWidget):
             controls.addWidget(QLabel("Cut"))
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
+            # The position text may be clipped in a very narrow centre area; its width must not set the minimum width of the Results page
+            self.pos_label.setMinimumWidth(40)
             controls.addWidget(self.pos_label)
         if kind not in ("temperature", "gradient"):
             controls.addStretch(1)
@@ -247,6 +249,19 @@ class PlotTab(QWidget):
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
+        if kind == "profile":
+            # The thumbnail goes beside the curves or above them by the shape of the canvas, so a resize that crosses that shape draws the figure again
+            self._thumb_wide = None
+            self.canvas.mpl_connect("resize_event", self._on_canvas_resized)
+
+    def _on_canvas_resized(self, _event):
+        """!
+        @brief Draw the Profiles figure again when the canvas changed between wide (thumbnail beside the curves) and narrow (thumbnail above them).
+        @param _event Matplotlib ResizeEvent (unused).
+        """
+        wide = plots.profile_is_wide(self.fig)
+        if self._thumb_wide is not None and wide != self._thumb_wide and self.sim is not None:
+            self.redraw()
 
     def map_view(self):
         """!
@@ -397,6 +412,7 @@ class PlotTab(QWidget):
                 pos = self.pos.value() / 1000.0 * length
                 self.pos_label.setText(f"{'y' if axis == 'x' else 'x'} = {pos:.1f} mm")
                 res = {k: r for k, r in sim.results.items() if r.T is not None}
+                self._thumb_wide = plots.profile_is_wide(self.fig)
                 plots.draw_profile(self.fig, res, prob, layer=self._layer_index(),
                                    axis=axis, position_mm=pos)
             elif self.kind == "compare":
@@ -492,6 +508,10 @@ class ResultsView(QWidget):
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
+        # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
+        # sideways in a narrow centre area, also on the Profiles tab. Ignoring their width hint lets the page be as narrow as the others (their rows wrap or clip).
+        for page in (self.animation, self.time_sim):
+            page.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
     def set_layer_note(self, text):
         """!
