@@ -1,5 +1,7 @@
 # 03. Finite differences: the node-centred comparison (FDM)
 
+*(audit 2.7.0: the FDM also gets the laminate edge band of 2.6.0; the FDM has no cut-cell treatment (the FVM scheme did not transfer, `research/ROADMAP.md` A32); the reference is `docs/theory.md` 3.)*
+
 ![FVM cells and FDM control volumes](../figures/fig_03_fdm_nodes.png)
 
 *Figure 3 (`figures/fig_03_fdm_nodes.png`): the same board with the two layouts of the unknowns. FVM: the unknown is at the cell centre and the board edge is a cell face. FDM: the unknown is at the node, the nodes include the board edge, and each node owns a control volume that is full inside, half on an edge and a quarter at a corner.*
