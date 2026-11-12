@@ -363,6 +363,7 @@ class BoardView(QGraphicsView):
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
         self.show_imported_copper = True            # View - Imported copper
+        self.copper_under_map = True                # False while a map is on the board and the Underlay is not Copper: the imported copper is hidden
         self.show_labels = True                     # Names of the heaters on the active layer
         self._fitted = False
 
@@ -509,8 +510,18 @@ class BoardView(QGraphicsView):
         item.setOpacity(0.55)
         item.setZValue(0.3)                                       # Over the background photo, under the temperature map and the elements
         item.setAcceptedMouseButtons(Qt.NoButton)
+        item.setVisible(self.copper_under_map)
         self.scene().addItem(item)
         self._copper_item = item
+
+    def set_copper_under_map(self, on):
+        """!
+        @brief Show the imported copper (True) or hide it while a map is on the board over another underlay (False).
+        @param on True to show the copper.
+        """
+        self.copper_under_map = bool(on)
+        if self._copper_item is not None:
+            self._copper_item.setVisible(self.copper_under_map)
 
     def set_show_imported_copper(self, on):
         """!

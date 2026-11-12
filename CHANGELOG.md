@@ -25,6 +25,8 @@ Version 2.6.0 is the release of the model corrections that followed the independ
 
 ### Changed
 
+- **The Keyboard and mouse window is a dialog of two columns** (Help - Keyboard shortcuts): 900 x 600 px at most and never above 80 % of the screen, resizable, scrolls, Esc or Close closes it; it was a message box with one long column that did not fit a laptop screen.
+
 - **Release work has its own folder** (`feature/releases-folder`; no program change): the regression harness moved from `research/release-regression-245` to `releases/regression-harness`, and the reproduction passes and the final opinion of each release to `releases/<version>/`; the documentation and licence-header tests cover the new folder.
 
 - **The frozen numbers are refrozen once for 2.6.0** (`tests/regression/data/v2.6.0.json`, from the tag v2.5.2 and the integration tree; table `releases/regression-harness/reference/expected_shifts_2.6.0.json`, 0 alarms): the ten pending shift files of the 2.6.0 items are folded in and deleted, the three hashes of the Current-view test are regenerated, and two 3D solid records at 0.5 mm (`t_outline`, `two_layer_partial`) are now skipped by the harness cap (the slabs by thickness raised them to 192 000 unknowns). *(`feature/refreeze-260`; tests only, no program change)*
@@ -62,6 +64,8 @@ Version 2.6.0 is the release of the model corrections that followed the independ
 - **Shorter hints on the buttons and the menu entries** (`fix/shorter-button-hints`, reviewed; text only): one short sentence each (about 3 to 10 words); what the label already says is not repeated, a destructive or undoable effect and the key of the command stay (*Replace the stack-up by a typical one for this number of layers (undoable)*, *Stop the running calculation (Ctrl+.)*), the reasons of a greyed control (*Run a simulation first*, *The result is outdated: run the simulation again*) and the hints of the parameter fields are unchanged, and the details that were in long hints (Subdivide, the typical stack-up templates, element names on an imported board, the Display dot, the Advanced mappings of the import) are in the user guide.
 
 ### Fixed
+
+- **A project imported from Gerber files starts with Copper under the map.** The Underlay of the Display panel was None for every project until the user chose, so after the thermometer (T) and a change of layer the imported copper was not the underlay. Now an imported project starts with Copper (board, Results maps, Animation), your own choice (None included) is kept across layers, tabs and runs, and with None the imported copper is hidden under the map on the board. Drawn boards still start with None.
 
 - **A via drawn on bare laminate no longer stops the run.** A via whose drilled hole touches no copper and no part on any layer (for example a via drawn before the zones) made the FVM, FDM and Lumped models fail with a singular-matrix error since the rim rule of 2.6.0 (`viawell.kron_barrel`); such a via now couples nothing, as the rule intends. A metal block that lies inside the box of the board but wholly outside its outline no longer makes the FVM, FDM and 3D solid fail when the block temperatures are read (also in 2.5.2); it carries no heat and reports no temperature. *(`docs/final-opinion-260`, the reviewer's final opinion; no number moves; tests in `tests/test_via_barrel_and_rim.py` and `tests/test_block_outline.py`)*
 
