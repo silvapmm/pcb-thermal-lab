@@ -4,6 +4,10 @@ Question: with imported copper `viawell.rim_copper_shares` returns 1.0 on every 
 by a full well, also through a plane where it has an antipad. How big is the effect, can the rim test be read from the masks, and what is the smallest fix?
 The program is not touched: the prototype is `lib/rimmask.py` (monkeypatch of `viawell.rim_copper_shares`), the independent reference is `lib/truth_via.py`.
 
+![A signal via through a plane with an antipad, and the two rim tests](figures/fig_01_antipad_and_ray_test.png)
+
+*Figure 1 (`fig_01_antipad_and_ray_test.png`): left, the section of a two-layer board at a signal via whose bottom plane has a clearance (the pad is an island); right, the plan of that layer with the 48 drill-circle samples (all on the pad) and the rays of the ray test (cut by the clearance).*
+
 ## 1. The drill-circle rim test cannot be read from the masks of a real board
 
 The 48 samples on the circle of the drill look at the pixel at the barrel. In KiCad Gerber sets every through via has its pad (annular ring) on every copper layer, so the
@@ -23,6 +27,10 @@ by 0.05 to 0.2 (cmm2 top 0.61 to 0.43), so the reach is a parameter to settle (0
 Limit: a via on an outer layer reached by one track reads a small share (the share is the angle of the track).
 
 ## 3. Size of the effect on real boards (FVM, 1 W in one part at a time, today against the ray rule at reach 0.5 mm)
+
+![Shift of the hottest rise on real boards](figures/fig_03_real_board_shift.png)
+
+*Figure 3 (`fig_03_real_board_shift.png`): ray rule minus today, per cent of the rise, three parts per board, FVM, cells 1 and 0.5 mm (third-party boards of the local library: numbers only, no render).*
 
 Hottest rise of the board; the 3 parts with the most vias within 3 mm of their box. Positive = the part is hotter with the rule, i.e. today is on the unsafe side.
 
@@ -53,7 +61,11 @@ cell and slab convergence not studied). Patterns: solid, antipad (pad 0.25 mm ra
 | 4L L2, L3 relief | 506.91 | 507.22 (+0.1) | 506.93 (0.0) | 507.26 (+0.1) | 506.96 (0.0) | 522.43 |
 | 4L L2 antipad, L3 solid | 507.16 | 507.41 (0.0) | 507.17 (0.0) | 507.48 (+0.1) | 507.19 (0.0) | 522.56 |
 
-Reading: (a) the ghost path exists (2L antipad: via effect 9.9 K today against 6.3 K in the reference at 1 mm, 7.2 K at 0.5 mm) but on these boards it is below 1 % of the rise, since the layers the
+![Synthetic boards against the 3D reference](figures/fig_02_synthetic_against_reference.png)
+
+*Figure 2 (`fig_02_synthetic_against_reference.png`): error of the hottest rise against `lib/truth_via.py`, today and with the ray rule, every synthetic case, cells 1 and 0.5 mm.*
+
+Reading: (a) the ghost path exists (2L antipad: via effect 9.39 K today at 1 mm and 7.19 K at 0.5 mm, each against the program's own board without vias at the same cell, against 6.32 K in the reference: +49 % and +14 %; the review corrected a first 9.9 K that took the board without vias at 0.5 mm) but on these boards it is below 1 % of the rise, since the layers the
 via does join carry the effect; on 4L below 0.3 %. (b) The ray rule removes the antipad coupling entirely, but in the reference the pad island still gives 6 K (heat from the barrel into the island and the
 faces) which the rule drops: it goes to the safe side (+1.1 to +1.2 % on 2L antipad, 0.0 to +0.1 % on 4L). (c) The relief is kept (partial share) within 0.1 %.
 The real-board effect of section 3 (up to 4 %) is larger than the synthetic one (many close vias under small parts); it was not reproduced against a reference on a real board.
@@ -72,6 +84,28 @@ Open: the reach (a rule from the drill and pad radius would be better than 0.5 m
 "Imported copper: every via is treated as joined to every copper layer it crosses, also where the Gerber copper has a clearance around it (a signal via through a plane). On six boards tried the hottest part
 reads 0 to 4 % cooler than with the clearance read from the copper (FVM, 1 mm cell; under 1.5 % on a synthetic board against a 3D reference)." One aggregated line, quoted as a sample, not a bound.
 The cell-fill check `check_via_partial_copper` is silent at the 1 mm Auto cell; a check by the ray rule would count the vias with share below 0.5 per layer (cmm2 at reach 0.3: 32 to 78 % of the vias on L2, L3).
+
+## 7. Review
+
+Independent review (re-run on the research branch with `develop` merged in; the program is not edited: `git diff develop...HEAD -- pcbthermal tests examples ico` is empty).
+
+* **Code read.** `viawell.rim_copper_shares` returns 1.0 on every layer when the problem has imported copper; `lib/rimmask.py` replaces it by monkeypatch only inside `install()` /
+  `uninstall()`; the ray test marches one pixel at a time and keeps a sample only when every pixel on the ray is copper. The reference `lib/truth_via.py` shares nothing with the program
+  and models the same via (0.3 mm drill, 25 um plating, open barrel, 385 W/mK copper, FR-4 0.9 / 0.3 W/mK); its barrel is a 0.3 mm square block carrying the copper area of the round barrel.
+* **Re-run.** `study_synthetic.py 2 1.0,0.5 0.5`: every number of the 2L rows reproduced to the digit (peak memory 3.5 GB, the sparse LU of the reference; above the 3 GB budget of a
+  shared machine). `study_real_boards.py rp2040 1.0,0.5 3`: the six shifts reproduced (+3.3, +0.1, +1.5 / +1.4, +0.0, +0.3 %), `oswlight 1.0`: +2.4, +4.4, +3.4 %. The other boards and
+  the 4L synthetic rows were not re-run. Tests of the folder: 2 passed.
+* **Convergence of the reference (not studied before).** 2L antipad, with an AMG-preconditioned CG in a scratch copy: rise 517.123 / 517.000 / 517.056 K at 0.1 mm and 12 sub-slabs,
+  0.05 mm and 12, 0.1 mm and 24; via effect 6.32 / 6.44 / 6.39 K. The reference moves 0.02 % of the rise and 2 % of the via effect: every reading stands. With the converged effect the
+  overstatement is +46 % (1 mm) and +12 % (0.5 mm).
+* **Corrected.** The via effect 'today' of the 2L antipad (9.9 K, a difference across two cells; 9.39 K at 1 mm, +49 % rather than +57 %); the docstring of `lib/truth_via.py` named a test
+  file and a series-circuit test that do not exist; the docstring of `study_real_boards.py` said 1.5 mm for the part window (the code uses 3 mm).
+* **What the real-board numbers are.** Section 3 measures the ray rule against today, not against a reference: on the synthetic boards the ray rule itself is up to 1.2 % hot (it drops the pad
+  island), so 'today is 0 to 4.4 % too cool' is an upper bound of the unsafe error on those boards, and part of each shift may be the island the rule leaves out. Stated, not resolved.
+* **Not verified.** A reference on a real board; the FDM; 0.25 mm; the reach (only the shares were swept, not the temperatures); vstcm and gi-alleg temperatures; one-track outer connections.
+
+**Verdict: GO** for closing the investigation and for the proposal of `INTEGRATION.md` (the ray test for imported layers, reach 0.5 mm, a decision of the maintainer). The implementation on
+`fix/imported-via-rim-mask` is reviewed separately.
 
 ## What was read and what was not verified
 

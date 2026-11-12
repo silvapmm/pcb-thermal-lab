@@ -63,7 +63,7 @@ def via_stats(prob):
 
 def candidates(sx, prob, n):
     """!
-    @brief The parts with the most vias within their box (grown by 1.5 mm).
+    @brief The parts with the most vias within their box (grown by 3 mm).
     @param sx ImportSession.
     @param prob Problem with the vias.
     @param n Number of parts.

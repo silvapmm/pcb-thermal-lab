@@ -10,7 +10,8 @@
          around the via, bare laminate out to `anti_r`, the plane beyond: the antipad of a signal via; the pad touches the barrel but not the plane), 'relief' (as 'anti' with
          four copper spokes of width `spoke_w` joining the pad to the plane). The board is square, the sides are insulated, the top and bottom faces have films (also under the heater),
          the heater is a square of the top face over the top copper. Returns the mean and the maximum rise of the heater cells, the heat balance and the rim data used by the program run.
-@note Written for this investigation; own tests (`tests/test_truth_via.py`): a one-via-free board equals a series circuit, the energy balance closes.
+@note Written for this investigation; own test `tests/test_rimmask.py::test_reference_balance_and_vias_help` (the energy balance closes, vias lower the rise). No series-circuit
+      test was written (the review corrected a docstring that named one); convergence checked by the review at 0.05 mm and 24 sub-slabs (README 7).
 """
 
 import numpy as np
