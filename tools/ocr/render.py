@@ -14,6 +14,9 @@ DEFAULT_DPI = 200       # the resolution that worked for the scanned papers (230
 MAX_PIXELS = 40_000_000  # a hostile or odd page (a 200 x 200 inch box) would need GB at 200 dpi: the dpi is lowered
 INFO_PAGES = 3           # pages whose text the confidential check reads (a mark is often on page 2, as in the ODB++ spec)
 HALVES = ((0.0, 0.0, 1.0, 0.55), (0.0, 0.45, 1.0, 1.0))   # top and bottom with 10 % overlap, for RECITATION
+# Three horizontal strips with 10 % overlap: a page that is refused as a whole and as two halves is often accepted in
+# pieces of 40 % (the filter acts on the amount of recognisable text in one answer).
+STRIPS = ((0.0, 0.0, 1.0, 0.40), (0.0, 0.30, 1.0, 0.70), (0.0, 0.60, 1.0, 1.0))
 
 
 def _pdfium():

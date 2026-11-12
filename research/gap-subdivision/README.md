@@ -1,5 +1,7 @@
 # Subdividing the gap of multilayer boards, and the baseline of the program on simple boards (investigation A1)
 
+*Superseded by [`laminate-nodes/`](../laminate-nodes/README.md) (the laminate nodes of the rule, 2.4.5); this folder keeps the first measurement and the baseline of the program on simple boards.*
+
 **Question.** Does cutting the dielectric gap of a multilayer board into more than one node through its thickness remove the error of the layered models against a resolved 3D solution? The earlier measurement (a 2-layer board reads 2 to 8 % low in the FVM, `power-calculator` 4.5 to 4.7, `docs/validation.md` 21.1) ran from a scratch directory and is not versioned. And: what are the program's current numbers on simple designed boards against independent references, as a common reference for judging the changes proposed for 2.5.0 (the point via, the bare spot, block SOR, Lumped and Analytic vias)?
 
 **Status (audit 2.7.0).** P2 is in the program since 2.4.5 in the form of `research/laminate-nodes` (`fix/laminate-nodes`; equal sub-gaps `n = min(4, ceil(d / 0.4 mm))`, not the 2:1 grading); the sections at the end ('Update for the program of 2.4.5') give the moved baseline. The audit re-ran `scripts/rerun_baseline.py` on the 2.7.0 tree (section 'Audit 2.7.0' at the end).
