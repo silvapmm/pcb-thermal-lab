@@ -55,9 +55,9 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 
 | Scenario | FVM board field | FVM reading at the part face | 3D solid, slab-centre maximum | Field against the 3D solid |
 | :-- | --: | --: | --: | --: |
-| heater straddling the top-copper edge | 146.64 | 148.98 | 149.27 | -1.8 % |
+| heater straddling the top-copper edge | 146.65 | 148.98 | 149.27 | -1.8 % |
 | no copper on the heater layer | 152.36 | 154.70 | 153.19 | -0.5 % |
-| hatched copper (fill 0.5) on the top layer | 106.17 | 108.51 | 106.23 | -0.05 % |
+| hatched copper (fill 0.5) on the top layer | 106.18 | 108.51 | 106.23 | -0.05 % |
 
 The face reading is above the 3D solid by 2.1 % on the hatched board: that overshoot is the face term of 2.33 K, not an error of the field (the field is 0.05 % from the 3D solid). The table above (and the comparison with the 3D solid in the rows) uses the board field. The whole table was re-run for the laminate nodes with `validation_study.py` (about 5 minutes); the Lumped, Analytic and 3D solid values are unchanged except through the new FVM reference, the FDM moves with the same cut of the laminate (straddling the copper edge 139.77 to 142.45 °C).
 
@@ -122,7 +122,9 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.2 (−0.7 %) |
 | 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.4 (−0.9 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.4 (−6.7 %) |
 | 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 133.5 (−2.4 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 109.2 (−24.3 %) |
-| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.2 (−0.7 %) | 85.1 (−0.8 %) | 85.4 (−0.3 %) | 86.6 (+1.7 %) | 84.6 (−1.7 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.3 (−0.5 %) | 85.3 (−0.6 %) | 85.4 (−0.3 %) | 86.8 (+2.0 %) | 84.7 (−1.5 %) |
+
+*Re-run on the 2.6.1 tree for the FVM, FDM, Lumped and Analytic columns (the finite-element references are those above; the example board row moved by 0.1 to 0.3 K with the via barrel and the first ring, the other three rows are unchanged at the printed digit); the 3D solid (FV) column was not re-run, because the 3D solid at 0.5 mm of the example board needs about 11 GB by the memory guard (the 2.6.0 slab rule changed its cost), so its value is that of the earlier run. The face readings of the 'reading of the part' table of section 2 were re-computed on the tree (face term 2.33 K in all three rows; the readings are unchanged, the board fields 146.65 and 106.18 moved by 0.01 K).*
 
 **Metal block** (a heatsink with a thickness; `research/solid3d-verification/scripts/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; the table is printed by `research/solid3d-verification/scripts/study_block_against_fem.py`, no script printed it before this folder. Board: 100 × 80 mm, 2 layers, 5 W, full top copper, 10 × 10 mm heater at the centre, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated, aluminium 204 W/mK; FVM, FDM and the 3D solid (FV) at 1 mm; error on the rise):
 
