@@ -1098,8 +1098,8 @@ def check_edge_laminate(problem, models):
              gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). On a 1.6 mm four-layer board (gaps of 0.49 mm, two sub-gaps by
              default; research/strong-edge-laminate 8, against an independent 3D solver, cell 0.25 mm) with the physical slabs: -0.8 / -2.5 / -5.1 / -8.9 % at 200 / 500 / 1000 / 2000 W/m2K,
              within 0.5 % with eight sub-gaps; the effect of a via 0.16 mm from the edge -5 / -10 / -19 / -33 % (-3 to -13 % with eight), a via 0.5 to 3 mm from the edge -2 % at 200 and -10 to
-             -13 % at 1000 (within 1 % with eight). A simple stack-up of three or more layers gives every layer node T / L, so the outer nodes carry too much edge film and the board reads cooler
-             still (-8.9 instead of -5.1 % at 1000 W/m2K): the text says so for such a board. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
+             -13 % at 1000 (within 1 % with eight). The simple stack-up takes the same physical slabs as the advanced one (until 2.6.x it gave every node T / L and read cooler still, -8.9
+             instead of -5.1 % at 1000 W/m2K), so the text has no clause for it. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
              FDM and a gap that the rule cuts.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.

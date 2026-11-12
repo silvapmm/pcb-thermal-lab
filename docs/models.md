@@ -286,7 +286,7 @@ A `.pcbtz` is a standard ZIP (deflate): `manifest.json` (`package_format` 1, `wr
 | In-plane laminate of a layer node | FR-4 `k_inplane` | thickness-weighted mean of the two adjacent gaps |
 | Heat capacity | FR-4 `ρ c` of the slab | `ρ c` of the adjacent gaps |
 
-Switching to advanced (`make_advanced`) keeps the same board with equal gaps (within 0.1 K of the simple result: the laminate of the layer nodes is shared by half-gaps instead of thickness/N); switching back (`make_simple`) keeps the total thickness. Project files store `dielectrics` only for an advanced board; simple boards are unchanged.
+Switching to advanced (`make_advanced`) keeps the same board with equal gaps (bit-identical results since 2.7.0: both stack-ups give a layer node its copper plus half of each adjacent gap; until 2.6.x the simple one gave thickness/N and the two differed by up to 0.1 K); switching back (`make_simple`) keeps the total thickness. Project files store `dielectrics` only for an advanced board; simple boards are unchanged.
 The through-board resistance between two layers is `Σ d/k` of the gaps in between, so a thin prepreg under a hot part and a thick core elsewhere, or a metal-core dielectric, change the result a lot (`validation.md` section 12).
 The 3D solid takes every gap as real slabs (`ceil(d / 0.2 mm)` per gap, 4 to 16) of its own thickness and conductivities. Presets (`DIELECTRICS`) are typical indicative values: FR-4 0.3/0.9 W/mK, high-Tg 0.4/1.0, polyimide 0.15, PTFE-ceramic (RO4350B type) 0.69, metal-core dielectric 2, alumina 24, aluminium nitride 170;
 the FR-4 and RO4350B figures agree with vendor data found on the web (about 0.3 and 0.69 W/mK), the others are general values to replace with your datasheet.

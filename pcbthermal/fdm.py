@@ -123,7 +123,7 @@ class Network:
         wx = np.full(nx, dx); wx[[0, -1]] = 0.5 * dx
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
-        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
+        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (copper plus half of each adjacent gap)
         use_rule = laminate.uses_rule(problem)                               # The laminate nodes of the rule (laminate.py); a board with a metal block keeps the earlier treatment
         self.ladder, self.drop = None, None
         self.laminate = None if use_rule else laminate.nodes(b)              # Legacy: laminate nodes under the copper of a one-layer board
