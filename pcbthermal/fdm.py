@@ -433,7 +433,7 @@ def _power_out(net, theta):
     """
     out = {"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
            "heatsinks": float((net.g_heatsink * theta).sum()), "sides": float((net.g_side * theta).sum())}
-    if net.extra_links:
+    if net.block_info:                                             # Not extra_links: the laminate rule fills those on boards with no block
         out["blocks"] = float((net.g_block * theta).sum())
     return out
 
