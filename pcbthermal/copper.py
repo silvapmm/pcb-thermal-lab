@@ -30,7 +30,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import uicontext
-from .geometry import zone_fill
+from .geometry import exact_coverage, face_apertures, zone_fill
 from .numfmt import num
 
 log = logging.getLogger(__name__)
@@ -433,7 +433,7 @@ class CopperSource:
         r = 0.5 * (dx + dy) / self.pix
         return int(min(max(2 * math.ceil(r / 2.0 - 1e-9), 2), MAX_PIXELS_PER_CELL))
 
-    def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False):
+    def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False, outline=None):
         """!
         @brief The in-plane face conductances of one imported layer on the reduced sheet.
         @details The pixel sheet is b + coverage (a - b) (the program's two-phase formula per pixel), minus `reduction` (the sheet conductance per area that the laminate rule took
@@ -451,6 +451,10 @@ class CopperSource:
         @param width Board width in m.
         @param height Board height in m.
         @param nodes True for the FDM node grid.
+        @param outline Board outline polygon (n, 2) in m, or None. With an outline (and not `nodes`) the board is applied PER PIXEL: every pixel sheet is multiplied by the exact
+               share of the pixel on the board (`geometry.exact_coverage` on the pixel grid) instead of the cover of its cell, so a face window that the outline cuts carries only
+               the sheet that is on the board: the open fraction of the shared face (the aperture) and the copper edge held inside the outline come out of the pixels. If the
+               pixel grid is too fine for the exact cover (`OUTLINE_MAX_CROSSINGS`) the cell cover is used, as without `outline`.
         @return Tuple (gx, gy) of W/K for square cells: shapes (rows, cols - 1) and (rows - 1, cols).
         """
         dx, dy = width / nx, height / ny
@@ -469,6 +473,14 @@ class CopperSource:
         if self.reduce_sheet:
             s4 -= reduction.astype(np.float32)[:, None, :, None]                  # the laminate the copper node no longer carries
         np.maximum(s, 0.0, out=s)
+        masked = None
+        if outline is not None and not nodes:
+            try:
+                masked = self._outline_faces(s, n, outline, cover, ny, nx, dx, dy)
+            except ValueError:
+                masked = None                                                       # too many edge crossings on the pixel grid: the cell cover below
+        if masked is not None:
+            return masked
         s4 *= cover.astype(np.float32)[:, None, :, None]
         gx, gy = face_conductances(s, n, self.mapping)
         gx *= dy / dx                                                               # the pixel problems are for square pixels; the cell may not be
@@ -479,6 +491,39 @@ class CopperSource:
             gy[:, 0] *= 0.5
             gy[:, -1] *= 0.5
         return gx, gy
+
+    def _outline_faces(self, s, n, outline, cover, ny, nx, dx, dy):
+        """!
+        @brief The faces of an imported layer on a board with an outline: the outline at the pixel level where both cell centres are on the board, the aperture elsewhere.
+        @details (1) Pixel mask: every pixel sheet times the exact share of the pixel on the board, so a face window that the outline cuts carries only the sheet that is on the
+                 board (the open fraction of the shared face) and a copper edge held inside the outline is seen by the same pixels. (2) A window whose end cell has its centre
+                 OFF the board (a sliver cell: the centre lies outside the outline) has a zero electrode in the pixel problem and would get no link, isolating the cell and its
+                 edge film; there the face is the one of the UNMASKED pixels times the open fraction of the shared face (`geometry.face_apertures`), as the drawn layers have it.
+        @param s Pixel sheet conductance (ny n, nx n) in W/K, float32, rows from the bottom, the laminate reduction already taken off; NOT modified.
+        @param n Pixels per cell side.
+        @param outline Outline polygon (m).
+        @param cover Cell cover (ny, nx).
+        @param ny Cell rows.
+        @param nx Cell columns.
+        @param dx Cell width in m.
+        @param dy Cell height in m.
+        @return Tuple (gx, gy) in W/K, shapes (ny, nx - 1) and (ny - 1, nx).
+        @throws ValueError If the outline crosses too many grid lines for the exact cover.
+        """
+        pixel_cover = exact_coverage(outline, nx * n, ny * n, dx / n, dy / n)
+        gx_u, gy_u = face_conductances(s, n, self.mapping)                          # the unmasked pixels (the sheet is physical: the cover is not applied)
+        gx_m, gy_m = face_conductances(s * pixel_cover.astype(np.float32), n, self.mapping)
+        ax, ay = face_apertures(outline, nx, ny, dx, dy, cover=cover)
+        gx_u *= ax * dy / dx
+        gy_u *= ay * dx / dy
+        gx_m *= dy / dx
+        gy_m *= dx / dy
+        # Cell centres on the board (the pixel at the centre of the cell has a board share above one half)
+        h = n // 2
+        inside = pixel_cover[h::n, h::n] >= 0.5
+        keep_x = inside[:, :-1] & inside[:, 1:]
+        keep_y = inside[:-1, :] & inside[1:, :]
+        return np.where(keep_x, gx_m, gx_u), np.where(keep_y, gy_m, gy_u)
 
 
 def resolve(faces, problem):
@@ -774,12 +819,6 @@ REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these 
                          "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and the finite-volume "
                          "model itself reads the smallest parts hotter still at a finer cell; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
                          "use the finite-volume model for the result")
-CUT_CELLS_IMPORTED_NOTE = ("the board has an outline and imported copper: in the finite-volume model a cell that the outline cuts is joined to its neighbours by its sheet scaled "
-                           "by the share of the cell on the board, and the edge film acts on the cell centre (with drawn copper the program joins such a cell through the open part "
-                           "of its sides and puts the film in series with the conduction to the edge, which the imported copper cannot use yet). Near a slanted or curved edge the "
-                           "peak then depends on where the edge falls on the grid, by up to a few tenths of a kelvin at an edge coefficient of 10 W/m2K and by more for a cooled edge")
-
-
 def outline_cuts_cells(board):
     """!
     @brief True when the board has an outline that is not its whole box, so that some cells can be cut by it (an imported outline is often the plain rectangle of the box).
@@ -816,8 +855,6 @@ def model_warnings(problem, model, cell_mm=None):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
-        if model == "fvm" and outline_cuts_cells(problem.board):
-            out.append(CUT_CELLS_IMPORTED_NOTE)
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
             out.append(coarse_cell_warning())
             if cell_mm > SCREENING_CELL_MM + 1e-9:

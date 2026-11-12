@@ -1953,3 +1953,33 @@ Frozen numbers (`tests/regression`): none moves (the harness has no profiles). T
 ### 37.4 Limits and what was not verified
 
 The closed form rests on two independent reference solvers (the author's axisymmetric modal one and the reviewer's Cartesian frequency-domain one) and on the semi-infinite solid (Lienhard eq. 5.62, R); there is **no published fast-wave case of a layered board and no measurement**. Not covered by the closed form and warned (`checks.check_fast_wave`): bare laminate or copper over part of the footprint (fill below 0.9), a metal block on the board, one-shot tables, a slow wave near a side. Limits kept: vias (safe side, up to 2.0 times at 0.1 to 1 Hz with 36 vias on 4 layers), the neighbour's wave (not added), a curved outline (not computed), boards thicker than 1.6 mm (the 4 s and 2 s limits were measured on 1.6 mm). The 3D solid is not changed. A resolved laminate by nodes (8 graded nodes per gap, 4.5 times the unknowns) was measured in the research (README 8.7) and not adopted. The ripple is at the heater and not in the maps: a neighbour sees the average field.
+
+## 38. Imported copper on a board with an outline: the outline per pixel (FVM)
+
+`fix/imported-copper-outline-mask` (2.6.1; `copper.CopperSource._outline_faces`, `fvm.Network`; tests `tests/test_cut_cell_links.py`). Before it, a board with an outline and imported copper kept the cover-weighted links and the film on the node. Now the imported layers multiply every pixel sheet by the exact share of the pixel on the board, with the unmasked pixels times the aperture where a cell centre is off the board (models 19.1, theory 1.7).
+
+### 38.1 Method
+
+A 30 mm board, two layers, outline either a square turned by 0, 10, 22.5, 35 or 45 degrees or a 360-vertex disc, imported copper (0.05 mm pixel): the top layer stripes of 1 mm plus a 7 mm pad under the heater, the bottom plane, both held 1.2 mm inside the outline; a 4 mm heater of 1 W at the centre, `h_top = h_bottom = 10`, `h_side` 10 or 200 W/m2K. Error of the mean rise of the heater cells at the cell against the same program at 0.25 mm (the reference moves with the treatment, so the converged value is also given in 38.2). Script: scratchpad study of the executor, not kept in the repository.
+
+| h_side | board | cell | spread over angles, before | after | mean error before | after |
+| --: | :-- | --: | --: | --: | --: | --: |
+| 10 | squares | 2 / 1 / 0.5 mm | 4.27 / 1.00 / 0.99 % | 4.43 / 0.96 / 1.00 % | +2.45 / +0.52 / +0.33 % | +2.30 / +0.48 / +0.32 % |
+| 200 | squares | 2 | 5.99 % | 5.31 % | +3.93 % | +2.08 % |
+| 200 | squares | 1 | 2.68 % | 1.28 % | +1.26 % | +0.34 % |
+| 200 | squares | 0.5 | 1.24 % | 1.41 % | +0.62 % | +0.26 % |
+| 200 | disc | 2 / 1 / 0.5 | | | +5.69 / +1.31 / +0.82 % | +4.03 / +0.23 / +0.42 % |
+| 10 | disc | 2 / 1 / 0.5 | | | +3.71 / +0.55 / +0.44 % | +3.57 / +0.50 / +0.43 % |
+
+At `h_side` 10 W/m2K nothing moves (0.1 point); at 200 the mean error and the spread fall at 2 and 1 mm, and at 0.5 mm the spread is the same within 0.2 points (1.24 to 1.41 %) while the mean error halves.
+
+### 38.2 Converged values and the two variants that were rejected
+
+Mean rise of the heater (K) at 1, 0.5, 0.25 and 0.125 mm, `h_side` 200: turned square 22.5 degrees, before 62.22 / 61.55 / 60.99 / 60.95, after 61.58 / 61.23 / 60.84 / 60.86 (the two agree to 0.15 % at 0.125 mm); aligned square, before and after (no film) 60.04 / 60.23 / 60.11 / 59.99, and 60.99 / 60.70 / 60.35 / 60.11 with the series film (see below); disc, before 65.57 / 65.26 / 64.72 / 64.47, after (the final hybrid) 64.54 / 64.66 / 64.39 at 1 / 0.5 / 0.25 mm (the 0.125 mm value was run for the no-fallback variant only: 64.40).
+
+* **Pixel mask alone** (without the aperture fallback): a cell whose centre is off the board has a zero electrode in the face window, so its links vanish and its edge film is lost; on a 12 mm turned board with full copper at 0.5 mm the board read 126.3 K against 117.3 K for the drawn aperture links (+7.7 %). The fallback brings it to 117.8 K (+0.4 %; at 1 mm 115.9 K against 116.8 K, -0.7 %; the old cover-scaled treatment was 121.2 K at 0.5 mm, +3.3 %, and 116.4 K at 1 mm).
+* **The film in series with the conduction to the edge** (the drawn layers' scheme, `fvm._cut_edge_film`) on top of the pixel faces: +1.6 % on the aligned board at 1 mm (60.99 against 60.04 K, copper held 1.2 mm inside the edge) and no better on the turned ones, so it stays off for imported copper (the film acts on the node, as before).
+
+### 38.3 What is unchanged, tests, limits
+
+Heat balance holds (`balance_error` of the order 1e-13); a rectangle and an outline equal to the box are unchanged (the box outline differs from no outline only by the film, 0.5 % of the rise at 200 W/m2K, as before); the FDM, Lumped, Analytic and 3D solid are unchanged; the frozen numbers do not move (317 passed at 2, 1 and 0.5 mm, the harness has no board with imported copper and an outline). The edge of DRAWN copper held inside the outline is not changed (no method; the pixels give it for imported copper). Not verified: a real imported outline board against a converged reference (no open outline board with a Gerber set in the library was run through this), a time simulation, the FDM, a cell much finer than the pixel, and the cost (the face problems run twice on an outline board: the masked and the unmasked pixels).

@@ -61,7 +61,7 @@ def _table(headers):
     @return QTableWidget.
     """
     t = QTableWidget(0, len(headers))
-    t.setToolTip("Values of the reference model; hover the column titles for what each column means.")
+    t.setToolTip("Values of the reference model; hover a column title for its meaning.")
     t.setHorizontalHeaderLabels(headers)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -206,13 +206,12 @@ class PlotTab(QWidget):
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
         self.model.setToolTip("Model whose result is drawn.")
-        self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
-                              "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
-                              "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
-        self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
-        self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
-        self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
-        self.pos.setToolTip("Position of the cut: drag to move the line across the board.")
+        self.equiv.setToolTip("Lumped and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
+                              "Unticked: the field stretched back onto the box (parts look larger).")
+        self.vmin.setToolTip("Lowest temperature of the colour scale, °C (Auto range off).")
+        self.vmax.setToolTip("Highest temperature of the colour scale, °C (Auto range off).")
+        self.axis.setToolTip("Direction of the line the temperature is plotted along.")
+        self.pos.setToolTip("Position of the cut: drag to move it.")
 
         # The temperature and gradient rows wrap (Auto range, min and max go to a second line in a narrow centre area); the profile row has a stretching slider
         controls = FlowLayout() if kind in ("temperature", "gradient") else QHBoxLayout()
@@ -378,12 +377,11 @@ class PlotTab(QWidget):
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    loc = r.t_max_location
                     plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
-                                     layer=layer, marker=(loc[1], loc[2]) if loc and loc[0] == layer else None,
+                                     layer=layer, extremes=True,
                                      hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
                                      title=f"{r.model.upper()} - layer {layer + 1}   "
-                                           f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                                           f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()

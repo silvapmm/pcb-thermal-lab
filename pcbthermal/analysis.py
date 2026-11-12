@@ -265,3 +265,30 @@ def block_stats(result, problem):
                      "w_to_air": result.extras[f"block_{tag}_w_to_air"]})
     return rows
 
+
+def extreme_points(field, mask, dx, dy, nodes=False):
+    """!
+    @brief The hottest and the coolest sample of a field on the board, with their positions (shared by the Results maps and the map on the board).
+    @details The extremes are taken over the samples that the map draws (`mask`, the cells on the board; NaN ignored), so they are the two ends of the colour bar under Auto
+             range. A cell is at its centre, a grid point (`nodes`) at its own position.
+    @param field Array (ny, nx) of temperatures in degC.
+    @param mask Boolean array (ny, nx), True for the samples on the board, or None for all.
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @param nodes True when the field holds values at grid points (the first sample sits at 0), False for cell values (the first centre sits at half a cell).
+    @return dict with `tmax`, `tmin` (degC) and `pmax`, `pmin` ((x, y) in millimetres), or None when no sample is finite.
+    """
+    f = np.asarray(field, float)
+    ok = np.isfinite(f) if mask is None else (np.isfinite(f) & np.asarray(mask, bool))
+    if not ok.any():
+        return None
+    hot = np.where(ok, f, -np.inf)
+    cold = np.where(ok, f, np.inf)
+    jmax, imax = np.unravel_index(int(np.argmax(hot)), f.shape)
+    jmin, imin = np.unravel_index(int(np.argmin(cold)), f.shape)
+    off = 0.0 if nodes else 0.5
+
+    def pos(j, i):
+        return ((i + off) * dx * 1000.0, (j + off) * dy * 1000.0)
+
+    return {"tmax": float(f[jmax, imax]), "tmin": float(f[jmin, imin]), "pmax": pos(jmax, imax), "pmin": pos(jmin, imin)}

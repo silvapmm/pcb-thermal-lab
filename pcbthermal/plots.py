@@ -23,6 +23,7 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.figure import Figure
 from scipy import ndimage
 
+from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
 from .results import model_label
@@ -169,6 +170,36 @@ def _outline(ax, problem, layer):
             ax.plot(p[:, 0], p[:, 1], color="cyan", lw=1.2, ls=":")
     if problem.vias:
         ax.plot([v.x * 1000.0 for v in problem.vias], [v.y * 1000.0 for v in problem.vias], "k.", ms=3)
+
+
+MAX_MARK_COLOUR = "#ef5350"   # The red of the `bad` token: the same ring as the map on the board (gui/canvas.py)
+MIN_MARK_COLOUR = "#3aa0ff"   # The blue of the `heatsink` token: the coolest point
+FLAT_FIELD_K = 1e-9           # A field flatter than this has no hottest or coolest point worth marking
+
+
+def _mark_extremes(ax, field, problem, dx, dy):
+    """!
+    @brief Mark the hottest (red ring) and the coolest (blue ring) sample of the field AS DRAWN, like the map on the board.
+    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a Lumped or Analytic outline board), so the marks sit on the
+             samples that the colour bar's ends belong to. The first sample wins a tie; a field flatter than `FLAT_FIELD_K` marks nothing.
+    @param ax Matplotlib axis (coordinates in mm).
+    @param field Array (ny, nx) of temperatures, NaN off the board.
+    @param problem The Problem whose frame the field is drawn in (the solved rectangle for a stretched map).
+    @param dx Spacing along x in metres of that field.
+    @param dy Spacing along y in metres of that field.
+    @return The result of `analysis.extreme_points`, or None when nothing was marked.
+    """
+    f = np.asarray(field, float)
+    xs, _ys, _ext = _field_axes(f, problem, dx, dy)
+    nodes = bool(xs[0] == 0.0)          # A node field starts at 0, cell values at half a cell
+    ext = extreme_points(f, None, dx, dy, nodes)
+    if ext is None or ext["tmax"] - ext["tmin"] < FLAT_FIELD_K:
+        return None
+    for key, colour in (("pmin", MIN_MARK_COLOUR), ("pmax", MAX_MARK_COLOUR)):
+        x, y = ext[key]
+        ax.plot(x, y, "o", ms=10, mfc="none", mec="white", mew=3.4, zorder=6)            # Halo so that it reads on any colour map
+        ax.plot(x, y, "o", ms=10, mfc="none", mec=colour, mew=1.7, zorder=7)
+    return ext
 
 
 EQUIVALENT_LABEL = "rectangle solved (same area as the outline"
@@ -548,7 +579,7 @@ def _draw_copper(ax, problem, layer, view, solved_view):
 
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
-               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None):
+               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None, extremes=False):
     """!
     @brief Draw one layer of a scalar field over the board, with outlines and a colour bar.
     @param fig Target Figure (cleared first).
@@ -570,6 +601,8 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
            dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
     @param equivalent_color Colour of that dashed line.
     @param view Optional MapView (Smooth, Terrain, copper under the map); None or mode "current" without copper is the original picture.
+    @param extremes If True mark the hottest (red ring) and the coolest (blue ring) sample of the field as drawn, as the map on the board does, and ignore `marker`
+           (for temperature maps; a gradient map has no coolest point worth marking).
     @return The axes.
     """
     fig.clear()
@@ -588,7 +621,9 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
         ax.contour(xs, ys, field, levels=[hotspot], colors="#ff00cc", linewidths=1.2)
     if outline:
         _outline(ax, problem, layer)
-    if marker is not None:
+    if extremes:
+        _mark_extremes(ax, field, problem, dx, dy)
+    elif marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
     if solved_view:
         lines = _equivalent_lines(ax, real, problem, equivalent_color)
@@ -668,6 +703,7 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_xlim(0, b.width * 1000)
         ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
+        _mark_extremes(ax, T[l], problem, dx, dy)                           # Every panel marks its own hottest and coolest sample
         if solved_view:
             lines = _equivalent_lines(ax, real, problem, equivalent_color)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
@@ -675,10 +711,6 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_aspect("equal")
         if l % ncol == 0:
             ax.set_ylabel("y (mm)")
-    loc = result.t_max_location
-    if loc is not None and loc[0] < L:
-        f = s if solved_view else 1.0                                       # The location is stored on the real box (stretched back)
-        axes[loc[0]].plot(loc[1] * 1000 * f, loc[2] * 1000 * f, "c+", ms=10)
     fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
@@ -687,10 +719,46 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
                  f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
 
 
+CUT_COLOUR = "#ffb000"        # The amber of the alert token: the cut line on the thumbnail of the board
+THUMBNAIL_BOARD = "#2b2f36"   # Dark board face so that the white outlines of `_outline` read on it
+
+
+def _draw_thumbnail(ax, problem, layer, axis, position_mm):
+    """!
+    @brief Small picture of the board (real outline, the elements of the layer) with the cut line drawn on it.
+    @details The aspect is fixed (equal), the ticks are left out, and the line is the one that is plotted: the caller gives the position of the cell row or column.
+    @param ax Matplotlib axis.
+    @param problem The Problem.
+    @param layer 0-based layer whose elements are drawn.
+    @param axis "x" for a horizontal cut (a line at y = position), "y" for a vertical one.
+    @param position_mm Position of the plotted row (axis "x") or column (axis "y") in mm.
+    """
+    b = problem.board
+    w, h = b.width * 1000.0, b.height * 1000.0
+    if b.has_outline():
+        ax.add_patch(MplPolygon(np.asarray(b.outline) * 1000.0, closed=True, fc=THUMBNAIL_BOARD, ec="none"))
+    else:
+        ax.add_patch(MplPolygon([(0, 0), (w, 0), (w, h), (0, h)], closed=True, fc=THUMBNAIL_BOARD, ec="none"))
+    _outline(ax, problem, layer)                    # Compares layer indices only, so any layer (also one without elements) is safe
+    if axis == "x":
+        ax.plot([0, w], [position_mm, position_mm], color=CUT_COLOUR, lw=1.6)
+    else:
+        ax.plot([position_mm, position_mm], [0, h], color=CUT_COLOUR, lw=1.6)
+    ax.set_xlim(0, w)
+    ax.set_ylim(0, h)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(f"Layer {layer + 1}", fontsize=8)
+
+
 @_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     """!
-    @brief Temperature along a line through the board for every model.
+    @brief Temperature along a line through the board for every model, with a thumbnail of the board that shows where the line lies.
+    @details The thumbnail (real outline, the elements of the layer, the cut line) is inside the figure, so a saved PNG and the command line have it too; it sits to the
+             right of the curves, or above them when the figure is narrower than about 1.3 times its height. The curve of each model is the nearest cell row (column) to the
+             asked position, so the line and the title quote the position of the row actually plotted for the reference model, not the asked value.
     @param fig Target Figure (cleared first).
     @param results Dict {model: SteadyResult}.
     @param problem The Problem.
@@ -699,12 +767,19 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     @param position_mm Cut position in mm (default: the hottest point of the reference model).
     """
     fig.clear()
-    ax = fig.add_subplot(111)
     b = problem.board
+    wide = fig.get_figwidth() >= 1.3 * fig.get_figheight()
+    if wide:
+        gs = fig.add_gridspec(1, 2, width_ratios=[3, 1])
+        ax, tx = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])
+    else:
+        gs = fig.add_gridspec(2, 1, height_ratios=[1, 3])
+        tx, ax = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[1, 0])
     ref = results.get("fvm") or next(iter(results.values()))
     if position_mm is None and ref.t_max_location is not None:
         position_mm = (ref.t_max_location[2] if axis == "x" else ref.t_max_location[1]) * 1000.0
     position_mm = position_mm if position_mm is not None else (b.height if axis == "x" else b.width) * 500.0
+    actual = None                                    # Position of the row or column that the reference model really plots
     for name, r in results.items():
         if r.T is None:
             continue
@@ -713,14 +788,21 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
         if axis == "x":
             i = int(np.argmin(np.abs(ys * 1000.0 - position_mm)))
             ax.plot(xs * 1000, T[i], label=name)
+            pos = float(ys[i]) * 1000.0
         else:
             j = int(np.argmin(np.abs(xs * 1000.0 - position_mm)))
             ax.plot(ys * 1000, T[:, j], label=name)
+            pos = float(xs[j]) * 1000.0
+        if actual is None or r is ref:
+            actual = pos
+    if actual is None:
+        actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
     ax.set_ylabel(f"Layer {layer + 1} temperature (°C)")
-    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {position_mm:.1f} mm", fontsize=10)
+    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm", fontsize=10)
     ax.grid(alpha=0.3)
     ax.legend()
+    _draw_thumbnail(tx, problem, layer, axis, actual)
 
 
 @_with_engineering_ticks

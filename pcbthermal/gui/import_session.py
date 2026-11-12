@@ -531,9 +531,8 @@ class ImportSession:
         if self.profile_choice is not None and self.profile_choice.source == "user":
             text += f"  [your choice: {prof_mod.profile_name(self.profile_choice.key)}]" if self.profile_choice.key != "unknown" else "  [your choice: none, generic rules]"
         marks = ", ".join(f"{m} ({n} file{'s' if n != 1 else ''})" for m, n in ev["markers"]) or "none"
-        tip = (f"The program that wrote the files, found from their headers and names. Markers: {marks}. It only gives better defaults for the file names; the X2 attributes, the "
-               "Excellon header and your own choice of a function always win, and the bottom-side X sign of a placement file is never preset by it. "
-               "Help us test your CAD tool: a sample of the files of another program makes its profile possible (see the user guide, Import Gerber board).")
+        tip = (f"The program that wrote the files, from their headers and names. Markers: {marks}. Only file-name defaults (never the bottom-side X sign); X2, the Excellon header and your choices win. "
+               "Help us test your CAD tool: send sample files of another program (user guide, Import Gerber board).")
         return text, bool(ev["check"] or r.confidence == "low"), tip
 
     def profile_keys(self) -> list:
@@ -1575,12 +1574,16 @@ class ImportSession:
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
         @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
-        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files.
+        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files; "add" then adds nothing.
         @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators), `typed` (designators whose power, tick, Tj max
                 or role the user changed in step 2: these values win over the stored ones, see `take_stored_parts`).
         """
         new = self.record
         shapes = self._res.shapes if self._res else None
+        if mode == "add" and not carry:
+            # Another board: its placement and paste files name parts that are not the stored ones, so nothing of it enters the record
+            return {"record": copy.deepcopy(old), "changes": ["another board: no file or part was added (use Replace, or a new project)"], "parts": list(old.parts),
+                    "orphans": [], "typed": set()}
         if mode == "add":
             rec = copy.deepcopy(old)
             files = list(rec.files)

@@ -69,6 +69,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
+What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary at the top) and [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Which model should I use?
 
 | Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
