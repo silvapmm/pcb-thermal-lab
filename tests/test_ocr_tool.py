@@ -260,7 +260,7 @@ def test_recitation_everywhere_ends_as_failed_with_a_note(tmp_path):
 
 def test_fallback_model_after_refused_crops(tmp_path):
     rec = Result("", "RECITATION", recitation=True)
-    p = FakeProvider([rec, rec, rec, Result("from fallback")])
+    p = FakeProvider([rec] * 6 + [Result("from fallback")])      # full, two halves, three strips
     p.name = "gemini"                                              # take the fallbacks of data/models.json
     o = runner(tmp_path, p).run_page(PDF, 2)
     assert o.status == "ok" and o.text == "from fallback" and p.calls[-1][1] == config.models()["gemini"]["fallbacks"][0]
@@ -1531,3 +1531,77 @@ def test_local_provider_falls_back_when_the_first_output_fails_the_guard(monkeyp
     monkeypatch.setattr(p, "_convert", lambda image, model: Result(text="\n".join(["x"] * 30), model=model, seconds=0.0))
     with pytest.raises(ProviderError):
         p.transcribe(b"", "", {})
+
+
+# ---------------------------------------------------------------- refusal retry: three strips joined at the overlap
+def test_merge_strips_drops_the_overlap_and_keeps_every_line():
+    """!
+    @brief Three strips whose neighbours repeat the lines of the overlap (one cut line partial) join into the page once.
+    @return None
+    """
+    from tools.ocr.pipeline import merge_strips
+    lines = [f"line {i} of the page has these words in it number {i * 7}" for i in range(12)]
+    a = "\n".join(lines[0:5] + ["line 5 of the page has"])            # cut line, partial
+    b = "\n".join(lines[4:9])
+    c = "\n".join(lines[7:12])
+    out = merge_strips([a, b, c])
+    for ln in lines:
+        assert out.count(ln) == 1, ln
+    assert "strip seam" not in out
+
+
+def test_merge_strips_marks_a_seam_without_overlap():
+    """!
+    @brief Two strips with no common lines are joined with a visible comment, nothing is dropped.
+    @return None
+    """
+    from tools.ocr.pipeline import merge_strips
+    out = merge_strips(["alpha beta gamma delta epsilon zeta", "one two three four five six seven"])
+    assert "strip seam" in out and "alpha" in out and "seven" in out
+
+
+def test_refusal_retry_tries_three_strips_after_the_halves(tmp_path):
+    """!
+    @brief With `strips`, a page refused whole and as halves is read as three strips; without it the page stays refused.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    refused = lambda: Result("", "RECITATION", recitation=True)       # noqa: E731
+    answers = [refused(), refused(), refused(),
+               Result("one two three four five six seven"), Result("three four five six seven eight nine ten eleven"),
+               Result("seven eight nine ten eleven twelve thirteen")]
+    p = FakeProvider(answers)
+    o = runner(tmp_path, p).run_page(PDF, 2)
+    assert o.status == "ok" and o.note == "strips" and len(p.calls) == 6
+    assert "one two three four five six seven eight nine ten eleven twelve thirteen" in " ".join(o.text.split())
+    clips = [c[0].decode() for c in p.calls[3:]]
+    assert "0.4" in clips[0] and "0.3" in clips[1] and "0.7" in clips[1] and "0.6" in clips[2]
+    p2 = FakeProvider([refused(), refused(), refused()])
+    assert runner(tmp_path / "off", p2, strips=False).run_page(PDF, 2).status == "failed" and len(p2.calls) == 3
+
+
+def test_ladder_order_is_full_halves_strips_then_fallback_model(tmp_path):
+    """!
+    @brief The default ladder tries the full page, two halves, three strips and only then the fallback model.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    ref = lambda: Result("", "RECITATION", recitation=True)       # noqa: E731
+    p = FakeProvider([ref()] * 6 + [Result("fallback text")])
+    r = runner(tmp_path, p)
+    r.fallbacks = ["alt-model"]
+    o = r.run_page(PDF, 4)
+    assert o.status == "ok" and len(p.calls) == 7 and p.calls[6][1] == "alt-model" and all(c[1] != "alt-model" for c in p.calls[:6])
+
+
+def test_cli_refusal_retry_flags():
+    """!
+    @brief The strips step is on by default; `--no-refusal-retry` turns it off and `--refusal-retry` is still accepted.
+    @return None
+    """
+    from tools.ocr import cli
+    ps = cli.build_parser()
+    base = ["transcribe", "X"]
+    assert ps.parse_args(base).refusal_retry is True
+    assert ps.parse_args(base + ["--no-refusal-retry"]).refusal_retry is False
+    assert ps.parse_args(base + ["--refusal-retry"]).refusal_retry is True
