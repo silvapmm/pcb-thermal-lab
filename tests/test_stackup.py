@@ -54,7 +54,9 @@ def test_simple_mode_is_unchanged_and_the_geometry_helpers_are_consistent():
     p = board()
     b = p.board
     assert not b.is_advanced() and b.total_thickness() == b.thickness
-    assert np.allclose(b.slab_thicknesses(), b.thickness / b.layers)
+    # The simple stack-up takes the physical slabs (copper plus half of each gap, fix/simple-stackup-physical-layers); it used to be thickness / layers
+    assert np.isclose(b.slab_thicknesses().sum(), b.thickness)
+    assert np.allclose(b.slab_thicknesses()[1:-1], b.copper_thickness[1] + b.dielectric_thickness())
     assert np.allclose(b.gap_thicknesses(), b.dielectric_thickness())
     b.make_advanced()
     assert b.is_advanced() and len(b.dielectrics) == 3

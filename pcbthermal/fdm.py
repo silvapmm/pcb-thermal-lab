@@ -123,7 +123,7 @@ class Network:
         wx = np.full(nx, dx); wx[[0, -1]] = 0.5 * dx
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
-        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
+        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (copper plus half of each adjacent gap)
         use_rule = laminate.uses_rule(problem)                               # The laminate nodes of the rule (laminate.py); a board with a metal block keeps the earlier treatment
         self.ladder, self.drop = None, None
         self.laminate = None if use_rule else laminate.nodes(b)              # Legacy: laminate nodes under the copper of a one-layer board
@@ -201,7 +201,7 @@ class Network:
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
             plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
             rule = laminate.build(b, fill, area, ncov, self.active, edge_nodes if b.h_side else np.zeros((ny, nx)), S, self.C, gz0, g_bottom0, g_side0, plans)
-            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them, as in the FVM)
+            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them: the same convention as the FVM, docs/theory.md 2.6, pinned by tests/test_via_well_sheet_order.py)
             via_S = S
             S = np.concatenate([rule.S, np.stack([ly["S"] for ly in rule.layers])]) if rule.layers else rule.S
             self.C = np.concatenate([rule.C, np.stack([ly["C"] for ly in rule.layers])]) if rule.layers else rule.C

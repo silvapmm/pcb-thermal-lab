@@ -329,7 +329,7 @@ def _effective_sheet(problem, cell_mm):
     b = problem.board
     m = b.materials
     W, H, L = b.width, b.height, b.layers
-    slab = b.slab_thicknesses()                       # Per layer node (equal in the simple stack-up)
+    slab = b.slab_thicknesses()                       # Per layer node (copper plus half of each adjacent gap)
     k_lam, rho_cp_lam = b.layer_laminate()
     nx = max(int(round(W * 1000.0 / cell_mm)), 2)
     ny = max(int(round(H * 1000.0 / cell_mm)), 2)
