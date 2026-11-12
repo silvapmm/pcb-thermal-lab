@@ -1548,6 +1548,10 @@ class ReimportDialog(QDialog):
         self.carry_box.toggled.connect(self._mode)
         self.carry_box.setVisible(False)
         lay.addWidget(self.carry_box)
+        if self.different:
+            # Add would put the parts of the other board in the record: not offered (the reason is the tooltip)
+            self.radios["add"].setEnabled(False)
+            self.radios["add"].setToolTip("Greyed: these files look like another board, whose parts must not enter the stored import. Use Replace or a new project.")
         # A different board: the new project is preselected; the replace commands stay available (hand-drawn elements are kept, no part is carried over)
         self.radios["new" if self.different else ("update" if any(d["change"] != "kept" for d in self.diff) else "replace")].setChecked(True)
         self.table = QTableWidget(0, 4)

@@ -267,6 +267,12 @@ class BoardPanel(QWidget):
         self._updating = True
         self.width.setValue(b.width * 1000)
         self.height.setValue(b.height * 1000)
+        # The masks of imported copper have the extent of the board they were read for: the size is fixed until the Gerber files are imported again
+        locked = self.doc.problem.imported is not None
+        for w in (self.width, self.height):
+            w.setEnabled(not locked)
+        self.width.setToolTip("Board size along x in millimetres." + ("\n\nGreyed: the copper was imported for this size; change the Gerber files and import again." if locked else ""))
+        self.height.setToolTip("Board size along y in millimetres." + ("\n\nGreyed: the copper was imported for this size; change the Gerber files and import again." if locked else ""))
         self.thickness.setValue(b.thickness * 1000)
         self.layers.setValue(b.layers)
         self.copper.setValue(b.copper_thickness[0] * 1e6)
@@ -1594,7 +1600,17 @@ class SolverPanel(QWidget):
         tone = th.colors(th.current_name())
         colours = {"ok": tone["ok"], "slow": tone["warn"], "refuse": tone["bad"]}
         names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
-        for v in self.verdicts():
+        try:
+            verdicts = self.verdicts()
+        except ValueError as exc:
+            # A project that cannot be counted (imported copper whose masks no longer fit the board size) must not raise inside a Qt slot: say it and block Run
+            msg = str(exc)
+            self.cells_label.setText(f'<span style="color:{colours["refuse"]}">{html.escape(msg)}</span>')
+            self.blocked = msg
+            self.run.setEnabled(False)
+            self.run.setToolTip(f"Cannot run: {msg}")
+            return
+        for v in verdicts:
             gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
             least = "" if v.exact else "at least "
             text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)

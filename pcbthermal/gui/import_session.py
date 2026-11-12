@@ -1575,12 +1575,16 @@ class ImportSession:
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
         @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
-        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files.
+        @param carry False for another board: the stored parts are not matched by designator (no orphans, no carried power); the parts are those of the new files; "add" then adds nothing.
         @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators), `typed` (designators whose power, tick, Tj max
                 or role the user changed in step 2: these values win over the stored ones, see `take_stored_parts`).
         """
         new = self.record
         shapes = self._res.shapes if self._res else None
+        if mode == "add" and not carry:
+            # Another board: its placement and paste files name parts that are not the stored ones, so nothing of it enters the record
+            return {"record": copy.deepcopy(old), "changes": ["another board: no file or part was added (use Replace, or a new project)"], "parts": list(old.parts),
+                    "orphans": [], "typed": set()}
         if mode == "add":
             rec = copy.deepcopy(old)
             files = list(rec.files)
