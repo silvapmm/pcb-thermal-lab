@@ -178,15 +178,11 @@ def pdf_layers(pdf: Path) -> dict[int, str]:
     """!
     @brief Text layer of every page of a PDF.
     @param pdf PDF path.
-    @return dict[int, str] Page (1-based) to text; empty when PyMuPDF is missing or the file cannot be opened.
+    @return dict[int, str] Page (1-based) to text; empty when pypdfium2 is missing or the file cannot be opened.
     """
     try:
-        try:
-            import pymupdf
-        except ImportError:
-            import fitz as pymupdf
-        with pymupdf.open(pdf) as doc:
-            return {i + 1: doc[i].get_text() for i in range(len(doc))}
+        from . import render
+        return {i + 1: t for i, t in enumerate(render.page_texts(pdf))}
     except Exception:
         return {}
 

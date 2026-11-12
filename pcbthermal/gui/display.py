@@ -18,7 +18,7 @@ from .. import plots
 from . import theme as th
 from .underlay import DEFAULT_OPACITY, OPACITY_TIP, UNDERLAY_TIP, ReleaseSync, cached_underlay_image
 
-CONTEXTS = ("editor", "temperature", "gradient", "animation", "other")   # Where the popover is opened from
+CONTEXTS = ("editor", "temperature", "gradient", "animation", "profile", "other")   # Where the popover is opened from
 
 VIEW_TIP = ("How the map is drawn: Current (cells as solved), Smooth (bicubic, cosmetic) or Terrain (relief with contours; Temperature and Gradients). "
             "Nothing is solved again.")
@@ -365,13 +365,15 @@ class DisplayPopover(QFrame):
         # What applies where: the editor map has no Terrain or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
         editor, anim = ctx == "editor", ctx == "animation"
         # View stays usable on the board (Current and Smooth); only Terrain is greyed, with the reason as the tooltip of the entry
-        self.view.setEnabled(True)
+        prof = ctx == "profile"
+        self.view.setEnabled(not prof)                  # The cut picture is the plain map: no View, no contours
+        self.view.setToolTip("Not used by the cut picture." if prof else VIEW_TIP)
         item = self.view.model().item(self.view.findData("terrain"))
         if item is not None:
             item.setEnabled(not anim and not editor)
             item.setToolTip("Terrain is shown in the Results tab only." if editor else
                             "No Terrain in the Animation (Current is used)." if anim else "")
-        terrain = s.view == "terrain" and not anim and not editor
+        terrain = s.view == "terrain" and not anim and not editor and not prof
         self.contour.setEnabled(terrain)
         self.contour_label.setEnabled(terrain)
         # The opacity matters on the board always (the map over the copper and the parts); in the Results maps only when something is under the map
@@ -380,6 +382,8 @@ class DisplayPopover(QFrame):
         text = ""
         if editor:
             text = "On the board the map uses Underlay, Map opacity, Colour map and View (Current or Smooth); Terrain and Contour are shown in the Results tab."
+        elif prof:
+            text = "The cut picture uses Underlay, Map opacity and Colour map; the map is shown while the Map button (T) is on."
         elif anim:
             text = "The Terrain relief is not drawn in the Animation (Current is used)."
         elif not terrain:

@@ -510,9 +510,9 @@ class CopperSource:
         @return Tuple (gx, gy) in W/K, shapes (ny, nx - 1) and (ny - 1, nx).
         @throws ValueError If the outline crosses too many grid lines for the exact cover.
         """
-        pixel_cover = exact_coverage(outline, nx * n, ny * n, dx / n, dy / n)
+        pixel_cover = _pixel_board_cover(outline, nx * n, ny * n, dx / n, dy / n)
         gx_u, gy_u = face_conductances(s, n, self.mapping)                          # the unmasked pixels (the sheet is physical: the cover is not applied)
-        gx_m, gy_m = face_conductances(s * pixel_cover.astype(np.float32), n, self.mapping)
+        gx_m, gy_m = face_conductances(s * pixel_cover, n, self.mapping)
         ax, ay = face_apertures(outline, nx, ny, dx, dy, cover=cover)
         gx_u *= ax * dy / dx
         gy_u *= ay * dx / dy
@@ -524,6 +524,34 @@ class CopperSource:
         keep_x = inside[:, :-1] & inside[:, 1:]
         keep_y = inside[:-1, :] & inside[1:, :]
         return np.where(keep_x, gx_m, gx_u), np.where(keep_y, gy_m, gy_u)
+
+
+PIXEL_COVER_BAND = 1_000_000           # pixels of one band of the exact board cover on the pixel grid (the exact cover holds about 40 bytes per pixel while it runs)
+
+
+def _pixel_board_cover(outline, cols, rows, px, py):
+    """!
+    @brief The exact share of every pixel on the board, built in bands of rows so that its working set stays small.
+    @details `geometry.exact_coverage` integrates every column of the grid and holds about five float64 arrays of the whole grid while it runs (about 40 bytes per
+             pixel, 640 MB for 16 million pixels: more than the face construction itself, which the memory law counts at 40 bytes per pixel). The integral of a band
+             of rows is the same integral with the outline shifted down by the height of the rows below it, so the bands give the same numbers as one call to round-off
+             (at most 6e-11 of a pixel on outlines of 4 to 1675 vertices; the shift rounds the coordinates); the result is float32, as the pixel sheet it multiplies.
+    @param outline Outline polygon (n, 2) in m.
+    @param cols Pixel columns.
+    @param rows Pixel rows.
+    @param px Pixel width in m.
+    @param py Pixel height in m.
+    @return float32 array (rows, cols), rows from the bottom.
+    @throws ValueError If the outline crosses too many grid lines for the exact cover.
+    """
+    p = np.asarray(outline, dtype=float)
+    out = np.empty((rows, cols), np.float32)
+    band = max(1, PIXEL_COVER_BAND // max(cols, 1))
+    for r0 in range(0, rows, band):
+        r1 = min(rows, r0 + band)
+        # (the outline shifted down so that row r0 starts at y = 0; parts of the outline outside the band are integrated as they are, column by column)
+        out[r0:r1] = exact_coverage(p - np.array([0.0, r0 * py]), cols, r1 - r0, px, py)
+    return out
 
 
 def resolve(faces, problem):
@@ -690,6 +718,40 @@ def _inside_mask(polygons, window, pixel_mm, rows, cols):
     return out
 
 
+def copper_numbering(layers):
+    """!
+    @brief The first and the last copper layer number of a set, as the files number them, for the layer span of the drill files.
+    @details CAD programs do not all number the copper 1..n: Proteus writes a two-layer board as `Copper,L1,Top` and `Copper,L16,Bot` with the drill span 1,16, and a
+             one-layer board with the span 0,1. When every copper file carries an X2 number (`Copper,L<k>,...`) the ends are the smallest and the largest of them;
+             otherwise the plain count 1..n is used.
+    @param layers List of gerber.Layer (the copper layers in use, top first).
+    @return (first, last) layer numbers.
+    """
+    nums = []
+    for lay in layers:
+        ff = list(getattr(lay, "file_function", []) or [])
+        if len(ff) >= 2 and ff[0] == "Copper" and ff[1][:1] == "L" and ff[1][1:].isdigit():
+            nums.append(int(ff[1][1:]))
+    if len(nums) == len(layers) and nums:
+        return min(nums), max(nums)
+    return 1, len(layers)
+
+
+def span_is_whole_board(span, stack):
+    """!
+    @brief True when a drill file's layer span reaches both ends of the copper stack (a through via), or says nothing.
+    @details One copper layer has no blind or buried via (a hole there joins nothing), so any span is whole. A span counts as whole when it COVERS the stack (first at or
+             above the span's start, last at or below its end), so the Proteus spans 1,16 on L1/L16 and 0,1 on a one-layer board are through holes.
+    @param span (a, b) from `DrillFile.span`, or None when the file does not say.
+    @param stack (first, last) from `copper_numbering`.
+    @return bool
+    """
+    if span is None or stack[0] == stack[1]:
+        return True
+    lo, hi = sorted(span)
+    return lo <= stack[0] and hi >= stack[1]
+
+
 def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, supersample=4, mapping=DEFAULT_MAPPING, names=None, thickness_um=35.0,
                   fraction=None, ram=None, base=None):
     """!
@@ -768,9 +830,10 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
     holes = []
     skipped = {"slot": 0, "unplated": 0}
     partial = 0                                    # Vias whose drill file says they do not span the whole stack (blind, buried, micro)
+    stack = copper_numbering(layers)
     for df in drills:
-        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span is not 1..n is counted for the warning below
-        short = df.span is not None and tuple(sorted(df.span)) != (1, n)
+        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span does not reach both ends of the stack is counted for the warning below
+        short = not span_is_whole_board(df.span, stack)
         for h in df.holes:
             plated = h.plated if h.plated is not None else df.plated
             if h.is_slot:

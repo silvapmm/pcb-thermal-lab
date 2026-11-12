@@ -478,3 +478,20 @@ def test_smooth_and_terrain_reach_the_outline_and_the_bar_is_opaque():
         cbar = fig.axes[-1]
         assert all(getattr(c, "get_alpha", lambda: None)() in (None, 1.0) for c in cbar.collections + cbar.images)
         _rgba(fig)
+
+
+def test_single_layer_title_quotes_the_ringed_values_of_that_layer(tab):
+    """!
+    @brief The title of a one-layer map quotes the max and min the rings mark on that layer (review: it quoted the board Tmax and Tmin, which on the inner layers of
+           the example board differ from the blue ring by 0.4 to 0.5 K and from the red ring by several kelvin).
+    @param tab PlotTab fixture.
+    """
+    r = tab._result()
+    for layer in range(r.T.shape[0]):
+        tab.set_layer(layer)
+        tab.redraw()
+        ax = tab.fig.axes[0]
+        f = r.T[layer]
+        assert f"min {np.nanmin(f):.1f} °C" in ax.get_title()
+        hot = r.t_max if int(r.t_max_location[0]) == layer else np.nanmax(f)
+        assert f"max {hot:.1f} °C" in ax.get_title() and f"mean {r.layer_mean[layer]:.1f} °C" in ax.get_title()

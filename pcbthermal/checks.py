@@ -57,6 +57,52 @@ def line(w):
     return getattr(w, "short", None) or str(w)
 
 
+TITLE_MAX = 64                                   # Characters of a warning title (the accordion row of the interface)
+TITLE_COLON_WORDS = 7                            # A colon ends the title only after a first clause of this many words ("Analytic model:", "Via 3 and 1 more vias:" are prefixes)
+_SEVERE_WORDS = ("will not run", "cannot", "refus", "unsafe", "did not converge", "too hot", "very hot", "heats nothing", "runaway", "unreliable",
+                 "not valid", "wrong")
+
+
+def warning_title(w):
+    """!
+    @brief A short clean title for a warning (the closed row of the accordion): its first clause, at most TITLE_MAX characters, with a capital first letter.
+    @details The checks return plain sentences, so this is a classifier on the text and not a stored field: the first clause ends at the first semicolon, at
+             the first full stop, at a parenthesis after the first 20 characters, or at a colon that closes a first clause of at least TITLE_COLON_WORDS
+             words (four words for a clause that follows a prefix), whichever comes first. A shorter text before a colon is a prefix (a part name "U1:", a model "Analytic model:", "lumped:", "Via 3 and 1 more
+             vias:") and stays in the title with the clause that follows it (the review found titles that were only "Analytic model" or "Lumped and Analytic").
+    @param w A warning (CheckWarning or plain string).
+    @return str The title, without a final full stop.
+    """
+    text = " ".join(line(w).split())
+    cuts = [len(text)]
+    for token, minimum in ((";", 0), (". ", 0), (" (", 20)):
+        at = text.find(token, minimum)
+        if at > 0:
+            cuts.append(at)
+    at, start = text.find(": "), 0
+    while 0 < at < min(cuts):                    # The first colon that closes a whole clause (not a prefix) ends the title
+        # A first clause needs TITLE_COLON_WORDS words; a clause after a prefix ("lumped: the board has an outline:") needs four
+        if len(text[start:at].split()) >= (TITLE_COLON_WORDS if start == 0 else 4):
+            cuts.append(at)
+            break
+        start, at = at + 2, text.find(": ", at + 2)
+    title = text[:min(cuts)].rstrip(" .,;:")
+    if len(title) > TITLE_MAX:
+        title = title[:TITLE_MAX].rsplit(" ", 1)[0].rstrip(" .,;:") + "…"
+    title = title or text[:TITLE_MAX]
+    return title[:1].upper() + title[1:]
+
+
+def warning_severity(w):
+    """!
+    @brief The severity of a warning for the interface: "high" for a result that is wrong, refused or unsafe, otherwise "note".
+    @param w A warning (CheckWarning or plain string).
+    @return str "high" or "note".
+    """
+    text = str(w).lower()
+    return "high" if any(word in text for word in _SEVERE_WORDS) else "note"
+
+
 def _add(out, kind, index, text, short=None):
     """!
     @brief Append a warning to a list, tagged with the element it is about.

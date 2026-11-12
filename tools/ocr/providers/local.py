@@ -83,19 +83,15 @@ class LocalProvider(Provider):
         @throws ProviderError If the converter is missing, fails or times out.
         """
         try:
-            import pymupdf
+            from .. import render
         except ImportError as e:
-            raise ProviderError("pymupdf is needed to wrap the image in a PDF") from e
+            raise ProviderError("Pillow is needed to wrap the image in a PDF") from e
         if not (self.folder / "pdf2md_local.py").is_file():
             raise ProviderError(f"converter not found in {self.folder} (set PCBT_EXTRACTPDF)")
         t0 = time.time()
         with tempfile.TemporaryDirectory() as tmp:
             pdf, out = Path(tmp) / "page.pdf", Path(tmp) / "page.md"
-            img = pymupdf.Pixmap(image_bytes)
-            doc = pymupdf.open()
-            page = doc.new_page(width=img.width * 72 / 200, height=img.height * 72 / 200)  # the pages are rendered at 200 dpi
-            page.insert_image(page.rect, stream=image_bytes)
-            doc.save(str(pdf))
+            render.png_to_pdf(image_bytes, 200, pdf)     # the pages are rendered at 200 dpi
             try:
                 r = subprocess.run(self.command(pdf, out, options.get("model") or self.default_model),
                                    capture_output=True, text=True, timeout=self.timeout, cwd=str(self.folder),

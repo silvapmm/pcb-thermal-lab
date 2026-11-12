@@ -14,7 +14,8 @@ import pytest
 pytest.importorskip("pytestqt")
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QGroupBox
+from PySide6.QtWidgets import QAbstractSpinBox, QComboBox
+from pcbthermal.gui.boxes import CollapsibleBox as QGroupBox
 
 from pcbthermal.examples import example_block_board, example_board
 from pcbthermal.gui.document import Document
@@ -43,19 +44,19 @@ def select(win, kind, i=0):
 
 def test_boxes_of_every_element(win):
     select(win, "zone")
-    assert titles(win) == ["Copper", "Position and size"]
+    assert titles(win) == ["Zone", "Copper", "Position and size"]
     select(win, "heater")
-    assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Position and size"]            # No heatsink: no top boxes
+    assert titles(win) == ["Heater", "Power", "Junction", "Heatsink on the package", "Position and size"]            # No heatsink: no top boxes
     win.doc.set_props("heater", 0, theta_sa=12.0)
-    assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
+    assert titles(win) == ["Heater", "Power", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
     win.doc.set_props("heater", 0, theta_sa=0.0)
     select(win, "via")
-    assert titles(win) == ["Position, size and fill"]
+    assert titles(win) == ["Via", "Position, size and fill"]
     select(win, "heatsink")
-    assert titles(win) == ["Manual input", "Position and size"]
+    assert titles(win) == ["Heatsink", "Manual input", "Position and size"]
     win._load_problem(example_block_board(), "block")
     select(win, "heatsink")
-    assert titles(win) == ["Metal block", "Interface: board to block", "Fins (optional)",
+    assert titles(win) == ["Heatsink", "Metal block", "Interface: board to block", "Fins (optional)",
                            "Extra cooling of the exposed surface (optional)", "Position and size"]
     assert not missing(win.inspector.form_host, "block boxes")
 
@@ -139,7 +140,7 @@ def test_direct_contact_is_cooler_than_a_gap_pad_under_a_metal_block(win):
 
 
 def test_fields_that_do_not_apply_are_greyed(win):
-    from PySide6.QtWidgets import QGroupBox
+    from pcbthermal.gui.boxes import CollapsibleBox as QGroupBox
     # Top path of a part: its boxes appear as soon as there is a heatsink resistance theta_SA
     h = win.doc.problem.heaters[0]
     h.theta, h.theta_sa, h.role = 0.0, 0.0, "component"
@@ -215,18 +216,18 @@ def test_side_panels_scroll_so_every_field_stays_reachable(win):
 
 
 def test_heater_type_source_or_component_with_the_interface_under_a_source_and_the_family_library(win):
-    from PySide6.QtWidgets import QGroupBox
+    from pcbthermal.gui.boxes import CollapsibleBox as QGroupBox
     from pcbthermal.model import PACKAGE_THETA
     h = lambda: win.doc.problem.heaters[0]                                                       # noqa: E731
     select(win, "heater")
     typ = lambda: next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Heat source")      # noqa: E731
     assert h().is_component() and typ().currentText() == "Component"                            # The example's U1 has a theta: a component
-    assert titles(win)[:2] == ["Part", "Junction"] and "Interface under the source" not in titles(win)
+    assert titles(win)[:3] == ["Heater", "Power", "Junction"] and "Interface under the source" not in titles(win)
     # Component -> source clears the component fields, shows only the power and the interface under it
     typ().setCurrentIndex(0)
     assert h().role == "source" and h().theta == 0.0 and h().theta_sa == 0.0 and h().tj_max == 0.0
     select(win, "heater")
-    assert titles(win) == ["Part", "Interface under the source", "Position and size"]
+    assert titles(win) == ["Heater", "Power", "Interface under the source", "Position and size"]
     mat = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Interface material"))
     mat.setCurrentIndex(mat.findText("Soft gap pad", Qt.MatchStartsWith))
     assert h().base_pad_thickness > 0 and h().base_pad_k == 3.0 and h().junction_theta() > 0           # The sheet under the source gives a resistance over the footprint
@@ -258,7 +259,8 @@ def test_heater_type_source_or_component_with_the_interface_under_a_source_and_t
 
 
 def test_heatsink_selector_fills_the_typical_theta_sa_and_the_top_boxes_say_when_they_count(win):
-    from PySide6.QtWidgets import QGroupBox, QLabel
+    from PySide6.QtWidgets import QLabel
+    from pcbthermal.gui.boxes import CollapsibleBox as QGroupBox
     from pcbthermal import defaults, model
     from pcbthermal.model import HEATSINKS
     h = lambda: win.doc.problem.heaters[0]                                                       # noqa: E731

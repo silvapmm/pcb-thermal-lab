@@ -3,10 +3,10 @@
 PDF pages to Markdown (equations in LaTeX, tables, page markers) through pluggable providers. It is a developer tool,
 not part of the `pcbthermal` package (the program never imports it). MIT, like the rest of the repository.
 
-Run from the repository root with a Python that has PyMuPDF (the markitdown environment has it; the project `.venv` does not):
+Run from the repository root with a Python that has pypdfium2 and Pillow (`pip install pypdfium2`; the project `.venv` has Pillow through Matplotlib but not pypdfium2, which is not in `requirements.txt`):
 
 ```sh
-PY=python   # any Python that has PyMuPDF; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
+PY=python   # any Python that has pypdfium2; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
 $PY -W ignore -m tools.ocr providers                       # providers, models, key variables
 $PY -W ignore -m tools.ocr check-key --pdf ArXiv2307.08354 # one tiny request, no retry, 60 s timeout; prints OK or FAIL, model, time
 $PY -W ignore -m tools.ocr transcribe ShenWang2019Vias --pages 1   # a stem in papers/pdf or a path; --pages '3,5-6', '10-', 'all'
@@ -105,7 +105,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 * **Suspect pages**: low word count, undecoded equations, base-36 cipher, broken-font tokens, a garbage PDF text layer; each
   page is reported as `PDF N / printed M` and the file's usual offset (a paper quoted at "page 418" is a different PDF page).
   The printed number is read from a line that is only a number (or "Page N") at the top or bottom of the page, or from a
-  journal line such as `JUNE 2003, Vol. 125 / 179`; when the file has an offset (the most common pdf - printed, at least two
+  journal line such as `JUNE 2003, Vol. 125 / 179`, or from a header that the pdfium text layer joined to the number on one line (`86 Chapter 2: Heat conduction`, `Problems 87`, `5.3. Moduli 77`; only the first and last two lines, and `suspects.printed_numbers` keeps such a reading only when it agrees with the file's offset, which is the mode of pdf - number over both kinds of reading; ligatures are expanded first, `suspects.normalise_layer`); when the file has an offset (the most common pdf - printed, at least two
   pages), every page's printed number is `pdf - offset`, because a single reading can be a table entry or a contents line
   (Lienhard2024: offset 14 on 753 of 765 readings, PDF 323 to 325 are printed 309 to 311; Muzychka2003: offset -177).
 * **Verify**: one HTML file, page image left and transcription right. A transcription counts as read only after a reviewer
@@ -147,7 +147,7 @@ metadata or first three pages say "confidential", unless `--allow-confidential` 
 A PDF that cannot be read for the check is not sent either. `check-key --pdf` passes the same guard. On the 110 PDFs of the
 library the guard refuses only the ODB++ specification. The local provider sends nothing anywhere and is not subject to the guard.
 
-PDFs are hostile input for PyMuPDF (MuPDF, C code): pages are rendered one at a time and an oversized page is rendered at a
+PDFs are hostile input for pypdfium2 (PDFium, C++ code): pages are rendered one at a time and an oversized page is rendered at a
 lower resolution (at most 40 million pixels); there is no time limit on a page, so open only files from known sources.
 
 ## Tests

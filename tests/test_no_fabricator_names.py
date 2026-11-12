@@ -78,4 +78,4 @@ def test_summary_warnings_have_a_blank_line_between_them(qtbot):
     qtbot.addWidget(view)
     view._show_warnings(["first", "second"])
     text = view.warnings.text()
-    assert "first</span><br><br><span" in text and text.count("<br>") == 2
+    assert text == "first\n\nsecond"
