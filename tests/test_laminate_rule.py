@@ -278,7 +278,9 @@ def test_the_fdm_has_the_rule_too():
     r = fdm.solve_steady(p, 0.5)
     assert abs(r.balance_error) < 1e-9
     new = analysis.heater_stats(r, p)[0]["t_max"] - 25.0
-    assert 100 * (new / ref - 1) == pytest.approx(-7.1, abs=2.0)     # measured -7.1 % (one node per layer: see the FVM test); the FDM stays below the FVM (node sampling at the window edge)
+    # measured -7.1 % with the arithmetic face mean, -3.2 % with the harmonic mean (fix/fdm-harmonic-face-mean: no leak across the window edge), -1.76 % with the face sheet from the
+    # copper fill of the cells (fix/fdm-copper-edge-faces); still below the FVM (node sampling at the window edge)
+    assert 100 * (new / ref - 1) == pytest.approx(-1.76, abs=0.5)
 
 
 def test_the_extra_nodes_hold_the_heat_capacity_the_copper_nodes_gave_up():

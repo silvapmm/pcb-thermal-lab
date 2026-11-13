@@ -298,3 +298,49 @@ def test_every_laminate_node_and_a_mixed_board_take_the_centroid_but_a_block_lay
     assert seen == net.nl
     # the two distances differ on these cells, so the test tells the rules apart
     assert not np.allclose(d_cent, np.maximum(d_centre, 0.0))
+
+
+def test_a_hostile_outline_that_overflows_only_the_centroid_grid_falls_back_on_the_cell_centre(monkeypatch, caplog):
+    # The centroids are read on a grid 8 times finer than the cover: with the crossing bound between the two counts the plain cover passes and cover_centroids raises ValueError.
+    # The film then keeps the cell-centre distance (the drawn behaviour before 2.7.0) and a plain warning is logged, instead of an exception out of the Network
+    import logging
+    from pcbthermal import geometry
+    p = board(False)
+    p.board.validate()
+    monkeypatch.setattr(geometry, "OUTLINE_MAX_CROSSINGS", 100)       # extent / cell = 12 for the cover, 96 x ... above the bound for the 8 x finer grid of the centroids
+    with caplog.at_level(logging.WARNING, logger="pcbthermal.fvm"):
+        net = fvm.Network(p, 24, 24)
+    assert any("cell centre" in r.getMessage() for r in caplog.records)
+    assert np.isfinite(net.g_side).all() and (net.g_side >= 0).all()
+
+
+def test_a_slot_that_puts_the_centroid_off_the_board_changes_the_heater_rise_by_under_half_a_percent(monkeypatch):
+    # F4 of the review: a concave board part (two slivers either side of a 0.6 mm slot in a 1 mm cell) has its centroid in the slot, outside the board; the distance is clamped to 0
+    # and the series term of the cell is lost. The variant that keeps |distance| gives the bound of that choice: under 0.5 % of the rise at 200 to 5000 W/m2K
+    from pcbthermal import geometry
+    out = [[0, 0], [20, 0], [20, 6.2], [10, 6.2], [10, 6.8], [20, 6.8], [20, 12], [0, 12]]
+    rises = []
+    for h in (200.0, 5000.0):
+        q = Problem.new(20, 12, 2, h_side=h)
+        q.set_outline(out)
+        q.add_zone(1, rect=(0, 0, 20, 12))
+        q.add_zone(2, rect=(0, 0, 20, 12))
+        q.add_heater(1, 1.0, rect=(3, 5, 5, 7), name="U")
+        net = fvm.Network(q, 20, 12)
+        L = net._edge_lengths()
+        cx, cy, _ = geometry.cover_centroids(q.board.outline, 20, 12, 1e-3, 1e-3, L > 0)
+        r, c = np.argwhere(L > 0).T
+        assert (geometry.signed_distance_to_outline(q.board.outline, cx[r, c], cy[r, c]) < 0).any()     # the case exists
+        t0 = fvm.solve_steady(q, cell_mm=1.0).t_max
+        real = fvm.signed_distance_to_outline
+        calls = [0]
+
+        def absolute(o, x, y):
+            calls[0] += 1
+            d = real(o, x, y)
+            return np.abs(d) if calls[0] % 2 == 0 else d          # the second call of a film build is the centroid call
+        monkeypatch.setattr(fvm, "signed_distance_to_outline", absolute)
+        t1 = fvm.solve_steady(q, cell_mm=1.0).t_max
+        monkeypatch.setattr(fvm, "signed_distance_to_outline", real)
+        rises.append(abs(t1 - t0) / (t0 - q.board.ambient))
+    assert max(rises) < 0.005, rises

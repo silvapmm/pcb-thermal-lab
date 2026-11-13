@@ -1,6 +1,6 @@
 # The edge film of imported copper on a board with an outline: where the cool bias comes from
 
-*Status: **reviewed and closed** (section 8: go). Adopted for the imported layers on `fix/imported-copper-edge-film-centroid`; the drawn layers are a decision for the maintainer. Two runs of the author were paused by the machine; the reviewer ran the copper-to-the-wall case and the other boards of section 6 on the program of the fix branch (section 8).*
+*Status: **reviewed and closed** (section 8: go). Adopted for the imported layers (`fix/imported-copper-edge-film-centroid`) and for the drawn layers (`fix/drawn-layers-edge-film-centroid`, reviewed: GO), both merged into `develop`. Two runs of the author were paused by the machine; the reviewer ran the copper-to-the-wall case and the other boards of section 6 on the program of the fix branch (section 8).*
 
 **Question.** After the pixel-level outline mask (`fix/imported-copper-outline-mask`, `docs/validation.md` 38), the heater rise of an imported-copper board with an outline reads cool: at `h_side` 200 W/m2K, five turned squares, mean -2.20 % (spread 1.86 %) at 1 mm, -1.24 % at 0.5 mm, -2.51 % at 2 mm; the aligned square -2.43 % at 1 mm. The series film fixes the aligned board (+0.32 %) and not the turned ones (-1.56 %). What is the cause, and what is the correction? The program is untouched here; the candidates are copies (`lib/variants.py`).
 
@@ -102,6 +102,10 @@ Heat balance 1e-13 for all; the aligned run takes 0.4 s (1 mm) and 0.2 to 0.35 s
 | 1000, 0.5 | -4.78 / 4.39 / 6.88 | -4.08 / 2.37 / 4.78 | -2.85 / 5.61 / 5.19 | -2.33 / 2.37 / 2.84 | -0.42 / 3.48 / 2.41 |
 
 At `h_side` 10 every candidate is within 0.2 points of the program (the reviewer's "all agree within 0.4 %" holds). Above 50 the centroid film is the only change that helps at every cell with no cost; the cool bias that grows with `h_side` in the program (-9.5 % at 1000, 2 mm) falls to -2.0 %. The spread over the angles at 2 mm (9 to 13 %) is the cut-cell scatter of a cell as big as the heater; no candidate reduces it.
+
+![The two films against the edge coefficient](figures/fig_03_film_against_h_side.png)
+
+*Figure 3 (`figures/fig_03_film_against_h_side.png`): the mean error and the spread of the table above for the program's film on the node (c0) and the centroid film (c9) at the 1 mm cell, against `h_side`; the numbers are those of the table.*
 
 ### 3.3 Robustness (frame reference, cell error; `scripts/study_robustness.py 200 1,0.5`, mean / spread / worst %, node film then centroid)
 
