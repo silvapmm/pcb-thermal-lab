@@ -15,7 +15,7 @@ What was implemented in every version (with the module where it lives and how it
 
 ## 2.7.0 - 2026-11-13: the GUI redesign, edge-film and slab corrections, the independent finite-element reference (prepared on `develop`, not yet on `main`)
 
-* *How 2.7.0 was tested*: whole battery on `fd49b969` (an earlier tip of the same content; open boards and Gerber samples present): `3432 passed, 9 skipped, 2 xfailed, 1 warning in 40 min 18 s`; 5 passed on `tests/test_format_compat_245.py` with `PCBT_COMPAT_V245=1`; 317 passed on `tests/regression` at 2, 1 and 0.5 mm; 4 passed on `tests/test_no_secrets.py` with `PCBT_SCAN_KEY_VALUES=1`. The number is repeated on the release tip by the tester after the refreeze (`tests/regression/data/v2.7.0.json`).
+* *How 2.7.0 was tested*: whole battery on the refreeze branch (`release/2.7.0-refreeze`, open boards and Gerber samples present): `3445 passed, 9 skipped, 2 xfailed, 1 warning in 40 min 48 s`; 5 passed on `tests/test_format_compat_245.py` with `PCBT_COMPAT_V245=1`; 4 passed on `tests/test_no_secrets.py` with `PCBT_SCAN_KEY_VALUES=1`; 317 passed on `tests/regression` at 2, 1 and 0.5 mm against `tests/regression/data/v2.7.0.json` with no pending file; `study_diff.py --strict` against v2.6.0: 0 alarms (249 records, 171 bit-identical, 78 moved, 1008 numbers expected, 0 unexplained; table `releases/regression-harness/reference/expected_shifts_2.7.0.json`). An earlier battery on `fd49b969` gave `3432 passed, 9 skipped, 2 xfailed, 1 warning in 40 min 18 s`.
 
 * **Vias through imported copper read the masks** (`fix/imported-via-rim-mask`, from `research/imported-via-rim`; `viawell.RimMasks`, `viawell.rim_masks`, `viawell.rim_copper_shares(masks=)`, `checks.uncoupled_vias`; tests `tests/test_imported_via_rim.py`; theory 2.6, models 19.1, validation 45). Ray test of the 48 rim samples on the imported masks (reach `max(0.5 mm, 3 pixels)`), FVM and FDM wells only; the hottest part of five real boards reads 0 to 4.4 % hotter (1 mm) and 0.0 to 3.6 % (0.5 mm), the synthetic 2-layer antipad board goes from -0.7 / -0.2 % to +1.1 / +1.2 % of the 3D reference (safe side). Frozen numbers unchanged. Review: FDM and 0.25 mm measured (the shift falls with the cell, +0.0 to +1.4 % at 0.25 mm), an Allegro set +11 % at 1 mm, a via at an edge of imported copper loses its effect (at most 0.5 % of the rise, safe side; the full contact read it 1.5 to 5 times high), the uncoupled-via live warning limited to drawn layers (`checks.uncoupled_vias(drawn_only=)`). Open: a reach from the pad size (1.2 mm drops real track contacts, up to +8 %), the Lumped and Analytic, a reference on a real board.
 
@@ -341,6 +341,8 @@ There is no separate 2.6.1 release (maintainer's decision): everything below, th
 22. (done: the centroid edge film for the drawn layers, `fix/drawn-layers-edge-film-centroid`, see 'What was implemented' and `validation.md` 40)
 
 ### Planned: 2.8.0 (investigations that may become features; NOT for 2.7.0)
+
+7. **Version-comparison notes for v2.5.0 to v2.7.0**: `releases/regression-harness/reference/version_notes.json` has hand-written notes for the pairs v2.0.0 to v2.5.0 only; the pairs v2.5.0 to v2.5.1, to v2.5.2, to v2.6.0 and to v2.7.0 in `docs/version-comparison.md` have no 'implemented' and 'reading' text (they need the CHANGELOG items and the numbers the result sets print, written by hand).
 
 The maintainer decided that these investigations are not part of 2.7.0, because their answer may become a feature (a minor number). The ids are those of `research/ROADMAP.md`.
 
