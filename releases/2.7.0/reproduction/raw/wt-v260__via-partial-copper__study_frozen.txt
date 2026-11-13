@@ -1,0 +1,32 @@
+board                   vias  cell partial model   current   d sheet   d plane    d star
+example_board              9   2.0       0 fvm      85.203    0.0000    0.0000   -0.1258
+example_board              9   2.0       0 fdm      84.412    0.0000    0.0000   -0.1513
+example_board              9   1.0       0 fvm      85.376    0.0000    0.0000   -0.1431
+example_board              9   1.0       0 fdm      85.267    0.0000    0.0000   -0.5953
+example_board              9   0.5       0 fvm      85.324    0.0000    0.0000   -0.3002
+example_board              9   0.5       0 fdm      85.263    0.0000    0.0000   -0.2206
+profile_board              9   2.0       0 fvm      85.203    0.0000    0.0000   -0.1258
+profile_board              9   2.0       0 fdm      84.412    0.0000    0.0000   -0.1513
+profile_board              9   1.0       0 fvm      85.376    0.0000    0.0000   -0.1431
+profile_board              9   1.0       0 fdm      85.267    0.0000    0.0000   -0.5953
+profile_board              9   0.5       0 fvm      85.324    0.0000    0.0000   -0.3002
+profile_board              9   0.5       0 fdm      85.263    0.0000    0.0000   -0.2206
+example_cut_to_T           9   2.0       1 fvm      94.582    0.0000    0.0000   -0.1745
+example_cut_to_T           9   2.0       1 fdm      93.854    0.0000    0.0000   -0.1551
+example_cut_to_T           9   1.0       0 fvm      94.654    0.0000    0.0000   -0.1775
+example_cut_to_T           9   1.0       0 fdm      94.483    0.0000    0.0000   -0.5878
+example_cut_to_T           9   0.5       0 fvm      94.582    0.0000    0.0000   -0.3117
+example_cut_to_T           9   0.5       0 fdm      94.492    0.0000    0.0000   -0.2298
+plate_vias                16   2.0       0 fvm     137.815    0.0000    0.0000   -0.0693
+plate_vias                16   2.0       0 fdm     133.504    0.0000    0.0000   -0.0609
+plate_vias                16   1.0       0 fvm     135.682    0.0000    0.0000   -0.0622
+plate_vias                16   1.0       0 fdm     137.310    0.0000    0.0000   -0.0613
+plate_vias                16   0.5       0 fvm     136.319    0.0000    0.0000   -0.4516
+plate_vias                16   0.5       0 fdm     136.414    0.0000    0.0000   -0.7980
+plate_lone_via             1   2.0       0 fvm     151.569    0.0000    0.0000   -0.0278
+plate_lone_via             1   2.0       0 fdm     148.746    0.0000    0.0000   -0.0495
+plate_lone_via             1   1.0       0 fvm     150.432    0.0000    0.0000   -0.0399
+plate_lone_via             1   1.0       0 fdm     149.918    0.0000    0.0000   -0.0350
+plate_lone_via             1   0.5       0 fvm     150.290    0.0000    0.0000   -0.0331
+plate_lone_via             1   0.5       0 fdm     150.104    0.0000    0.0000   -0.0290
+rc=0 time=36s

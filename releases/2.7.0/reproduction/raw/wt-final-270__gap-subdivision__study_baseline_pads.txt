@@ -1,0 +1,36 @@
+52 boards, 52 references to compute with 4 processes
+  ref pad6-full                      136.636 K  spread +0.949 %  p 0.49  bal 1.000000  15 s
+  ref pad6-empty                     182.182 K  spread +0.928 %  p 0.57  bal 1.000000  20 s
+  ref pad6-pad                       180.201 K  spread +0.948 %  p 0.57  bal 1.000000  28 s
+  ref pad10-empty                    127.534 K  spread +0.248 %  p 1.18  bal 1.000000  38 s
+  ref pad10-full                     100.400 K  spread +0.147 %  p 1.23  bal 1.000000  33 s
+  ref pad10-pad                      124.864 K  spread +0.250 %  p 1.19  bal 1.000000  30 s
+  ref pad14-empty                    102.727 K  spread +0.121 %  p 1.55  bal 1.000000  33 s
+  ref pad14-full                      87.818 K  spread +0.062 %  p 1.58  bal 1.000000  29 s
+  ref pad14-pad                      100.148 K  spread +0.123 %  p 1.55  bal 1.000000  36 s
+  ref pad20-full                      80.635 K  spread +0.149 %  p 0.69  bal 1.000000  28 s
+  ref pad20-empty                     85.694 K  spread +0.152 %  p 0.94  bal 1.000000  40 s
+  ref pad20-pad                       83.650 K  spread +0.158 %  p 0.92  bal 1.000000  32 s
+  ref gap0.1-empty                   238.222 K  spread +0.422 %  p 1.04  bal 1.000000  2 s
+  ref gap0.1-full                     75.671 K  spread +0.042 %  p 1.55  bal 1.000000  1 s
+  ref gap0.2-empty                   209.408 K  spread +0.396 %  p 1.09  bal 1.000000  5 s
+  ref gap0.2-full                     78.702 K  spread +0.049 %  p 1.58  bal 1.000000  3 s
+  ref pad26-empty                     79.891 K  spread +0.084 %  p 1.01  bal 1.000000  32 s
+  ref gap0.4-empty                   177.931 K  spread +0.347 %  p 1.14  bal 1.000000  7 s
+  ref pad26-full                      78.256 K  spread +0.082 %  p 0.97  bal 1.000000  30 s
+  ref pad26-pad                       78.441 K  spread +0.085 %  p 0.98  bal 1.000000  31 s
+  ref gap0.4-full                     83.542 K  spread +0.064 %  p 1.54  bal 1.000000  7 s
+  ref gap0.8-full                     90.922 K  spread +0.083 %  p 1.53  bal 1.000000  12 s
+  ref gap0.8-empty                   149.127 K  spread +0.258 %  p 1.28  bal 1.000000  13 s
+  ref gap1.6-full                    100.400 K  spread +0.147 %  p 1.23  bal 1.000000  24 s
+  ref gap1.6-empty                   127.534 K  spread +0.248 %  p 1.18  bal 1.000000  41 s
+  ref L3-gap0.2-top-pad               76.034 K  spread +0.037 %  p 1.69  bal 1.000000  14 s
+  ref gap3.2-full                    109.192 K  spread +0.188 %  p 1.17  bal 1.000000  80 s
+  ref L3-gap0.4-all-pads             138.779 K  spread +0.285 %  p 1.24  bal 1.000000  57 s
+  ref L4-gap0.2-top-pad               75.691 K  spread +0.046 %  p 1.61  bal 1.000000  13 s
+  ref gap3.2-empty                   116.483 K  spread +0.208 %  p 1.21  bal 1.000000  95 s
+  ref L4-gap0.4-all-pads             124.821 K  spread +0.505 %  p 1.03  bal 1.000000  28 s
+  ref L6-gap0.2-top-pad               75.883 K  spread +0.044 %  p 1.60  bal 1.000000  52 s
+  ref L4-gap1.6-top-pad              102.433 K  spread +0.235 %  p 1.00  bal 1.000000  79 s
+/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown: {'/mp-ccqoxjk4', '/mp-pvh_lptc', '/mp-hs9o0v44', '/mp-8a53l4gd', '/mp-h5d6z7_7', '/mp-qgnxkh77'}
+  warnings.warn(

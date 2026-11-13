@@ -1,0 +1,7 @@
+| eps = a/b | Yovanovich Table 3 (isoflux) | series, circular tube | series, square tube | 3D solid, cell 1 mm | 3D solid against the table | against the square tube |
+| --: | --: | --: | --: | --: | --: | --: |
+| 0.2 | 0.8009 | 0.8010 | 0.8027 | 0.8062 | +0.7 % | +0.4 % |
+| 0.3 | 0.6649 | 0.6649 | 0.6676 | 0.6700 | +0.8 % | +0.4 % |
+
+Square source, cells 4, 2, 1 mm: Tmean rise per watt 75.4712, 71.0158, 69.6240 K/W (monotone: True); observed order 1.68, extrapolated 68.9916 K/W, GCI of the fine mesh 1.14 %
+rc=0 time=23s

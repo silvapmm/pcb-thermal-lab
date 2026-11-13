@@ -1,0 +1,24 @@
+reference board (centred 20 mm heater)               program    90.13 copy    90.13 | vert    90.13 ( -0.0 %) | n=2+v    90.13 ( -0.0 %) | n=4+v    90.13 ( -0.0 %) | refined cells [0] | 3D solid 90.27
+example board (full)                                 program    85.37 copy    85.37 | vert    85.37 ( +0.0 %) | n=2+v    85.37 ( +0.0 %) | n=4+v    85.38 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 85.98
+example, no heatsink                                 program    88.43 copy    88.43 | vert    88.43 ( +0.0 %) | n=2+v    88.44 ( +0.0 %) | n=4+v    88.44 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 89.08
+example, no vias                                     program    94.67 copy    94.67 | vert    94.67 ( +0.0 %) | n=2+v    94.68 ( +0.0 %) | n=4+v    94.68 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 94.91
+example, top copper over the full board              program    84.86 copy    84.86 | vert    84.86 ( +0.0 %) | n=2+v    84.86 ( +0.0 %) | n=4+v    84.86 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 85.42
+example, uniform (no heatsink, no vias, full copper) program    96.68 copy    96.68 | vert    96.68 ( +0.0 %) | n=2+v    96.68 ( +0.0 %) | n=4+v    96.68 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 96.88
+example, only heater U1                              program    79.52 copy    79.52 | vert    79.53 ( +0.0 %) | n=2+v    79.53 ( +0.0 %) | n=4+v    79.53 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 80.12
+example, only U1, uniform                            program    90.30 copy    90.30 | vert    90.30 ( +0.0 %) | n=2+v    90.30 ( +0.0 %) | n=4+v    90.30 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 90.51
+reference board, heater in the corner                program   109.40 copy   109.40 | vert   109.40 ( -0.0 %) | n=2+v   109.40 ( -0.0 %) | n=4+v   109.40 ( -0.0 %) | refined cells [0] | 3D solid 109.54
+reference board, small 5 mm heater                   program   103.06 copy   103.06 | vert   103.06 ( -0.0 %) | n=2+v   103.06 ( -0.0 %) | n=4+v   103.06 ( -0.0 %) | refined cells [0] | 3D solid 103.71
+reference board, 8 layers                            program    65.70 copy    65.70 | vert    65.70 ( +0.0 %) | n=2+v    65.70 ( +0.0 %) | n=4+v    65.70 ( +0.0 %) | refined cells [0, 0, 0, 0, 0, 0, 0] | 3D solid MemoryGuardError
+heater 5 mm inside the top-copper edge               program    94.45 copy    94.45 | vert    94.46 ( +0.0 %) | n=2+v    94.49 ( +0.0 %) | n=4+v    94.50 ( +0.1 %) | refined cells [4964, 0, 0] | 3D solid 94.78
+heater straddling the top-copper edge                program   143.89 copy   143.89 | vert   148.05 ( +3.5 %) | n=2+v   148.98 ( +4.3 %) | n=4+v   149.30 ( +4.5 %) | refined cells [4964, 0, 0] | 3D solid 149.27
+no copper on the heater layer                        program   150.16 copy   150.16 | vert   154.58 ( +3.5 %) | n=2+v   154.70 ( +3.6 %) | n=4+v   154.73 ( +3.7 %) | refined cells [8000, 0, 0] | 3D solid 153.19
+30 x 30 mm copper island around the heater           program    92.39 copy    92.39 | vert    92.39 ( +0.0 %) | n=2+v    92.44 ( +0.1 %) | n=4+v    92.46 ( +0.1 %) | refined cells [7324, 0, 0] | 3D solid 92.78
+hatched copper (fill 0.5) on the top layer           program   105.78 copy   105.78 | vert   107.25 ( +1.8 %) | n=2+v   107.34 ( +1.9 %) | n=4+v   107.37 ( +2.0 %) | refined cells [8000, 0, 0] | 3D solid 106.23
+heater on the bottom layer                           program    88.37 copy    88.37 | vert    88.37 ( +0.0 %) | n=2+v    88.37 ( +0.0 %) | n=4+v    88.37 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 88.58
+long thin heater, 40 x 4 mm                          program    67.84 copy    67.84 | vert    67.84 ( +0.0 %) | n=2+v    67.84 ( +0.0 %) | n=4+v    67.84 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 67.92
+heater in the corner (10 mm from two edges)          program   105.34 copy   105.34 | vert   105.34 ( +0.0 %) | n=2+v   105.34 ( +0.0 %) | n=4+v   105.34 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 105.54
+two heaters 60 mm apart (4 W + 2 W)                  program   100.41 copy   100.41 | vert   100.41 ( +0.0 %) | n=2+v   100.41 ( +0.0 %) | n=4+v   100.41 ( +0.0 %) | refined cells [0, 0, 0] | 3D solid 100.62
+project example_board                                program    85.37 copy    85.37 | vert    85.37 ( +0.0 %) | n=2+v    85.37 ( +0.0 %) | n=4+v    85.38 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 85.98
+project profile_board                                program    85.37 copy    85.37 | vert    85.37 ( +0.0 %) | n=2+v    85.37 ( +0.0 %) | n=4+v    85.38 ( +0.0 %) | refined cells [4964, 0, 0] | 3D solid 85.98
+project reference_board                              program    90.13 copy    90.13 | vert    90.13 ( -0.0 %) | n=2+v    90.13 ( -0.0 %) | n=4+v    90.13 ( -0.0 %) | refined cells [0] | 3D solid 90.27
+rc=0 time=162s

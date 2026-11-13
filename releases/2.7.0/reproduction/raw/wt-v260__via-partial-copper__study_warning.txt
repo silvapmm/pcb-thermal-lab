@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<scratch>/wt-v260/research/via-partial-copper/scripts/study_warning.py", line 68, in <module>
+    main()
+    ~~~~^^
+  File "<scratch>/wt-v260/research/via-partial-copper/scripts/study_warning.py", line 40, in main
+    data = json.load(open(os.path.join(os.path.dirname(HERE), "out", "variants.json")))
+                     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '<scratch>/wt-v260/research/via-partial-copper/out/variants.json'
+rc=1 time=1s

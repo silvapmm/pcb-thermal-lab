@@ -1,0 +1,77 @@
+## 1. Barrel conductance in the FVM network against the closed form (example board, 1 mm cells)
+
+gaps 0.4867, 0.4867, 0.4867 mm; via area 0.0216 mm2
+network: 0.01649, 0.01649, 0.01649 W/K per gap; closed form: 0.01709, 0.01709, 0.01709 W/K
+series resistance through the board: network 181.9 K/W, closed form over the gaps 175.6 K/W, textbook over the full 1.6 mm 192.4 K/W (the copper layers are plane copper in the model)
+
+## 2. Every model, every fill, and the two limits (example board; change against the open via in K)
+
+Cells of 0.5 mm:
+
+| Case | fvm | fdm | lumped | analytic |
+| :-- | --: | --: | --: | --: |
+| Open | 85.32 (+0.00) | 85.26 (+0.00) | 85.60 (+0.00) | 84.84 (+0.00) |
+| Epoxy resin | 85.32 (-0.01) | 85.26 (-0.01) | 85.59 (-0.01) | 84.83 (-0.01) |
+| Conductive paste | 85.14 (-0.19) | 85.08 (-0.19) | 85.40 (-0.20) | 84.65 (-0.19) |
+| Copper | 81.09 (-4.23) | 81.02 (-4.24) | 81.08 (-4.52) | 80.52 (-4.31) |
+| no vias | 94.72 (+9.40) | 94.68 (+9.41) | 94.69 (+9.10) | 94.18 (+9.34) |
+| perfect vias (area x 10^4) | 75.54 (-9.78) | 75.51 (-9.76) | 72.68 (-12.92) | 71.99 (-12.85) |
+
+Cells of 1.0 mm:
+
+| Case | fvm | fdm | lumped | analytic | solid3d |
+| :-- | --: | --: | --: | --: | --: |
+| Open | 85.38 (+0.00) | 85.27 (+0.00) | 86.79 (+0.00) | 84.72 (+0.00) | 85.98 (+0.00) |
+| Epoxy resin | 85.37 (-0.01) | 85.26 (-0.01) | 86.78 (-0.01) | 84.71 (-0.01) | 85.97 (-0.01) |
+| Conductive paste | 85.19 (-0.18) | 85.08 (-0.18) | 86.58 (-0.21) | 84.53 (-0.18) | 85.78 (-0.20) |
+| Copper | 81.19 (-4.18) | 81.07 (-4.19) | 82.09 (-4.70) | 80.50 (-4.22) | 81.48 (-4.49) |
+| no vias | 94.68 (+9.31) | 94.59 (+9.32) | 96.51 (+9.72) | 94.02 (+9.31) | 94.91 (+8.93) |
+the copper of the vias in one cell is larger than the cell: the excess is clipped; use a finer cell for this model
+| perfect vias (area x 10^4) | 75.52 (-9.86) | 75.47 (-9.79) | 72.41 (-14.37) | 71.83 (-12.89) | 72.46 (-13.51) |
+
+## 3. FVM cell size and the gain of a copper fill (example board)
+
+| Cell (mm) | open (°C) | copper fill (°C) | gain (K) | no vias (°C) |
+| --: | --: | --: | --: | --: |
+| 2.0 | 85.20 | 81.47 | -3.74 | 94.37 |
+| 1.0 | 85.38 | 81.19 | -4.18 | 94.68 |
+| 0.5 | 85.32 | 81.09 | -4.23 | 94.72 |
+| 0.25 | 85.30 | 81.06 | -4.25 | 94.73 |
+
+## 4. Via-array board (21 x 21 mm, four planes, 3 x 3 vias of 0.3 mm under a 10 mm source, 2 W, h 10 / 200 W/m2K, insulated edges)
+
+| Solver | open (K) | copper fill (K) | gain of the copper fill (K) |
+| :-- | --: | --: | --: |
+| independent, barrels resolved, 0.1 mm | 40.39 | 35.94 | -4.46 |
+| independent, barrels resolved, 0.08333 mm | 40.47 | 36.03 | -4.44 |
+| FVM 1.0 mm | 40.68 | 36.13 | -4.55 |
+| FDM 1.0 mm | 40.57 | 36.10 | -4.47 |
+| Lumped 1.0 mm | 40.45 | 35.71 | -4.74 |
+| Analytic 1.0 mm | 40.60 | 36.01 | -4.59 |
+| 3D solid 1.0 mm | 40.42 | 35.65 | -4.77 |
+| FVM 0.5 mm | 40.66 | 36.14 | -4.52 |
+| FDM 0.5 mm | 40.64 | 36.08 | -4.56 |
+| Lumped 0.5 mm | 40.76 | 35.91 | -4.86 |
+| Analytic 0.5 mm | 40.59 | 36.07 | -4.53 |
+| 3D solid 0.5 mm | 40.67 | 36.16 | -4.51 |
+| FVM 0.25 mm | 40.64 | 36.10 | -4.54 |
+| FVM 0.125 mm | 40.64 | 36.09 | -4.54 |
+| FVM 0.0625 mm | 40.64 | 36.09 | -4.54 |
+
+Peaceman's equivalent radius of a point source in one cell of a five-point stencil is 0.198 dx: it equals the via radius 0.15 mm at dx = 0.76 mm.
+
+## 5. 3D solid: the per-cell via fraction is clipped at 1
+
+| Via (mm) | fill | area (mm2) | cell 0.5 mm kept | cell 0.25 mm kept | largest cell that clips (mm) |
+| --: | :-- | --: | --: | --: | --: |
+| 0.3 | open | 0.0216 | 100 % | 100 % | 0.147 |
+| 0.3 | copper | 0.0707 | 100 % | 88 % | 0.266 |
+| 0.5 | open | 0.0373 | 100 % | 100 % | 0.193 |
+| 0.5 | copper | 0.1963 | 100 % | 32 % | 0.443 |
+
+## 6. The diameter read as the drill (program) or as the finished hole (plating inside the drill)
+
+open: drill 0.3 mm 0.0216 mm2, 192.4 K/W; finished hole 0.3 mm (drill 0.35) 0.0255 mm2, 162.8 K/W (-15 %)
+copper: drill 0.3 mm 0.0707 mm2, 58.8 K/W; finished hole 0.3 mm (drill 0.35) 0.0962 mm2, 43.2 K/W (-27 %)
+
+rc=0 time=270s

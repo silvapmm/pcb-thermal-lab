@@ -1,0 +1,7 @@
+74 cases, 2 mm cells, bound q'' t / (2 k) in % of the FVM rise
+| flux | median | maximum | above 5 % |
+| :-- | --: | --: | --: |
+| into the block (program) | 0.07 % | 0.34 % | 0 |
+| power over the footprint | 0.50 % | 1.78 % | 0 |
+flux into the block / footprint flux: 8 to 21 %
+rc=0 time=1s

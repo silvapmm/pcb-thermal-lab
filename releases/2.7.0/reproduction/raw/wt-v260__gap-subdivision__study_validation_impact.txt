@@ -1,0 +1,26 @@
+board                                                 L    FVM K  copy n=1  n=2 all  n=4 all   n=4 gr  n=4 bare  3D solid unk x all4 unk x bare4
+reference board (centred 20 mm heater)                2    65.13     65.13    +0.15    +0.19    +0.18     -0.00     65.27       2.50        1.00
+example board (full)                                  4    60.37     60.37    +0.05    +0.06    +0.06     +0.02     60.98       3.25        1.47
+example, no heatsink                                  4    63.43     63.43    +0.04    +0.06    +0.06     +0.02     64.08       3.25        1.47
+example, no vias                                      4    69.67     69.67    +0.07    +0.09    +0.09     +0.02     69.91       3.25        1.47
+example, top copper over the full board               4    59.86     59.86    +0.04    +0.04    +0.04     +0.00     60.42       3.25        1.00
+example, uniform (no heatsink, no vias, full copper)  4    71.68     71.68    +0.06    +0.07    +0.07     +0.00     71.88       3.25        1.00
+example, only heater U1                               4    54.52     54.52    +0.05    +0.06    +0.06     +0.02     55.12       3.25        1.47
+example, only U1, uniform                             4    65.30     65.30    +0.06    +0.08    +0.08     +0.00     65.51       3.25        1.00
+reference board, heater in the corner                 2    84.40     84.40    +0.11    +0.14    +0.13     -0.00     84.54       2.50        1.00
+reference board, small 5 mm heater                    2    78.06     78.06    +0.59    +0.75    +0.74     -0.00     78.71       2.50        1.00
+  solid3d: MemoryGuardError
+reference board, 8 layers                             8    40.70     40.70    +0.00    +0.00    +0.00     +0.00       nan       3.62        1.00
+heater 5 mm inside the top-copper edge                4    69.45     69.45    +0.10    +0.13    +0.14     +0.06     69.78       3.25        1.47
+heater straddling the top-copper edge                 4   118.89    118.89    +0.68    +0.90    +0.92     +0.88    124.27       3.25        1.47
+no copper on the heater layer                         4   125.16    125.16    +0.09    +0.11    +0.11     +0.08    128.19       3.25        1.75
+30 x 30 mm copper island around the heater            4    67.39     67.39    +0.12    +0.17    +0.18     +0.10     67.78       3.25        1.69
+hatched copper (fill 0.5) on the top layer            4    80.78     80.78    +0.11    +0.14    +0.14     +0.13     81.23       3.25        1.75
+heater on the bottom layer                            4    63.37     63.37    +0.06    +0.08    +0.08     +0.00     63.58       3.25        1.00
+long thin heater, 40 x 4 mm                           4    42.84     42.84    +0.04    +0.05    +0.05     +0.00     42.92       3.25        1.00
+heater in the corner (10 mm from two edges)           4    80.34     80.34    +0.05    +0.06    +0.06     +0.00     80.54       3.25        1.00
+two heaters 60 mm apart (4 W + 2 W)                   4    75.41     75.41    +0.05    +0.07    +0.07     +0.00     75.62       3.25        1.00
+project example_board                                 4    60.37     60.37    +0.05    +0.06    +0.06     +0.02     60.98       3.25        1.47
+project profile_board                                 4    60.37     60.37    +0.05    +0.06    +0.06     +0.02     60.98       3.25        1.47
+project reference_board                               2    65.13     65.13    +0.15    +0.19    +0.18     -0.00     65.27       2.50        1.00
+rc=0 time=731s
