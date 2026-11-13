@@ -3,7 +3,7 @@
 """!
 @file make_diagrams.py
 @brief Drawings of research/independent-fem-edge: the four canonical boards (plan views with the wall, the source and the via), and the section of a cooled wall in the two methods (the finite-element bricks with the film integrated on the face, the cell-centred cell with the half-cell conduction in series).
-@details No data and no program. Writes figures/fig_01_cases.png and figures/fig_02_methods_at_the_wall.png. Run (repository root): .venv/bin/python research/independent-fem-edge/scripts/make_diagrams.py
+@details No data and no program. Writes figures/fig_05_cases.png and figures/fig_06_methods_at_the_wall.png. Run (repository root): .venv/bin/python research/independent-fem-edge/scripts/make_diagrams.py
 """
 
 import os
@@ -72,7 +72,7 @@ def fig_01():
         x.set_aspect("equal")
         x.set_xticks([])
         x.set_yticks([])
-    K.save(fig, os.path.join(FIG, "fig_01_cases.png"), "Four canonical cooled-wall boards (red: wall with the film; dashed: symmetry plane; orange: source)")
+    K.save(fig, os.path.join(FIG, "fig_05_cases.png"), "Four canonical cooled-wall boards (red: wall with the film; dashed: symmetry plane; orange: source)")
 
 
 def fig_02():
@@ -103,7 +103,7 @@ def fig_02():
                     a.plot([x], [y], "ko", ms=3)
             a.plot([5.25, 6], [1.6, 1.6], "k-", lw=2)
             a.annotate("k/(dx/2) and h\nin series", (5.6, 1.6), (6.4, 1.0), fontsize=7, arrowprops=dict(arrowstyle="->"))
-    K.save(fig, os.path.join(FIG, "fig_02_methods_at_the_wall.png"), "Section at a cooled wall: copper over laminate, the node placement and the wall film in the two methods")
+    K.save(fig, os.path.join(FIG, "fig_06_methods_at_the_wall.png"), "Section at a cooled wall: copper over laminate, the node placement and the wall film in the two methods")
 
 
 if __name__ == "__main__":
