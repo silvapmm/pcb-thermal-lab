@@ -4,15 +4,18 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
-## Summary of the current version (2.6.0, 2026-11-07)
+## Summary of the current version (2.7.0, 2026-11-13)
 
-* **Models**: exact cover of the board outline and cut-cell links with an edge film (FVM, 3D solid); a laminate band along the board edge; 3D solid slabs by thickness; the Analytic per-layer edge and local transient; a capped first ring and a near-edge warning in the Lumped model; a longer via barrel; the face turned down on a 1/5 law; fast square waves. Several move numbers on purpose (`tests/regression/data/v2.6.0.json`).
-* **Program**: the project package `.pcbtz`, a single Layer box, the Display view modes on the board, shorter button hints.
-* **Next**: 2.7.0 (fixes and a GUI redesign), see 'Planned: 2.7.0' below; every version is listed newest first after this summary.
+* **Interface**: the GUI redesign (boxes, the Warnings (N) accordion, layer keys L / Shift+L and 0..9, export of the maps over the copper), the cut overlay of the profile plots, the coldest-point marker, shorter hints, the hole categories on the editor canvas, five small bug fixes of the window and the import.
+* **Models**: the edge film from the centroid of the cut cell for drawn and imported copper, the outline mask of imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone far via; edge-laminate warnings that quote an independent finite-element solution (`research/independent-fem-edge`).
+* **Release state**: 2.7.0 is prepared on `develop` and not yet on `main`; the numbers moved on purpose are held to the new frozen reference `tests/regression/data/v2.7.0.json`.
+* **Next**: 2.8.0 (investigations that may become features), see 'Planned: 2.8.0' below; every version is listed newest first after this summary.
 
 ---
 
-## 2.7.0 (unreleased)
+## 2.7.0 - 2026-11-13: the GUI redesign, edge-film and slab corrections, the independent finite-element reference (prepared on `develop`, not yet on `main`)
+
+* *How 2.7.0 was tested*: whole battery on `fd49b969` (an earlier tip of the same content; open boards and Gerber samples present): `3432 passed, 9 skipped, 2 xfailed, 1 warning in 40 min 18 s`; 5 passed on `tests/test_format_compat_245.py` with `PCBT_COMPAT_V245=1`; 317 passed on `tests/regression` at 2, 1 and 0.5 mm; 4 passed on `tests/test_no_secrets.py` with `PCBT_SCAN_KEY_VALUES=1`. The number is repeated on the release tip by the tester after the refreeze (`tests/regression/data/v2.7.0.json`).
 
 * **Vias through imported copper read the masks** (`fix/imported-via-rim-mask`, from `research/imported-via-rim`; `viawell.RimMasks`, `viawell.rim_masks`, `viawell.rim_copper_shares(masks=)`, `checks.uncoupled_vias`; tests `tests/test_imported_via_rim.py`; theory 2.6, models 19.1, validation 45). Ray test of the 48 rim samples on the imported masks (reach `max(0.5 mm, 3 pixels)`), FVM and FDM wells only; the hottest part of five real boards reads 0 to 4.4 % hotter (1 mm) and 0.0 to 3.6 % (0.5 mm), the synthetic 2-layer antipad board goes from -0.7 / -0.2 % to +1.1 / +1.2 % of the 3D reference (safe side). Frozen numbers unchanged. Review: FDM and 0.25 mm measured (the shift falls with the cell, +0.0 to +1.4 % at 0.25 mm), an Allegro set +11 % at 1 mm, a via at an edge of imported copper loses its effect (at most 0.5 % of the rise, safe side; the full contact read it 1.5 to 5 times high), the uncoupled-via live warning limited to drawn layers (`checks.uncoupled_vias(drawn_only=)`). Open: a reach from the pad size (1.2 mm drops real track contacts, up to +8 %), the Lumped and Analytic, a reference on a real board.
 
