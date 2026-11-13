@@ -115,7 +115,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | E10 | LM, LR, LS and AB | blocked | `gerber-import` 4.19 | L | d | maintainer decision; count the usage first |
 | E12 | CAD profiles of untested tools | blocked | `gerber-cad-profiles` 10.5 | L to M | d | real sample files |
 | E13 | the reduced models on small imported parts; (b) and (c) open: the converged reference | partly | (a) done in 2.6.0 (first ring) | H | d to w | - |
-| E15 | the BOM role on other CAD names (deferred with the BOM role) | blocked | the maintainer deferred the BOM role | L | - | returns with a BOM feature |
+| E15 | the BOM role on other CAD names | closed | the maintainer dropped the BOM role (`docs/versions.md` Planned item 5) | L | - | - |
 
 ### F. Theory and sources
 
@@ -161,6 +161,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | F8 | papers read only in part (`theory-sources` 3.11) |
 | F9 | dropped: the legacy rows are marked as quoted, not re-run |
 | the long runs | the twelve long runs reproduced the READMEs to the digit except the cost numbers of the 3D solid and the layered FVM and of the mappings, corrected in the research documents and in the program documents; the guard by estimated memory replaced the old limit |
+| E14 | a power list from a CSV by designator: not adopted, kept as an idea (`docs/versions.md`, Ideas item 10), to be studied later |
 
 ## 5. G1: what exactly is needed
 
