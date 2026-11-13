@@ -2,6 +2,8 @@
 
 One list for every topic of this folder. Each entry has a **key** (used in the `Sources` of the topic files, for example `[Patankar1980]`), the citation as the repository records it, the address as recorded, a **reading status** and the topics that use it.
 
+**Licence and source address of every entry** (rule of `tests/test_third_party_text.py`, after the reviewer's opinion `releases/2.7.0/final-opinion/papers-in-git-opinion.md`): each entry carries a `**Licence:**` and a `**Source URL:**` line. Allowed licence values: an SPDX-like identifier (for example `CC-BY-4.0`, `MIT`), `public domain`, `all rights reserved`, `confidential` and `not checked`. `not checked` is the default and means that nobody opened the landing page for the licence; **no licence is guessed**. `public domain` is given only to the US government reports (NISTIR 7648, the NACA reports of Ostrach). The address is the first one the entry records, or `not recorded`. This says what a later study may quote at length; the papers themselves stay in the local, untracked `papers/` folder.
+
 **Reading status** (the rule of `CLAUDE.md`, "Method and honesty": never present a guess as a finding):
 
 | Code | Meaning |
@@ -23,500 +25,953 @@ Topic numbers: 01 layered idealisation, 02 finite volumes, 03 finite differences
 ## 1. Numerical methods: finite volumes, differences, time, solvers, verification
 
 ### [Patankar1980]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, Hemisphere (McGraw-Hill), 1980, xiii + 197 pages, ISBN 0-89116-522-3 (CRC reissue 978-0-89116-522-4), bibliography pp. 189-193 (library catalogue records and The maintainer's reference compilation (`docs/reference-compilation.md`); the book itself was not opened). Chapters seen in catalogue listings: 1 Introduction, 2 Mathematical description of physical phenomena, then discretisation, heat conduction, convection-diffusion, flow calculation (SIMPLE) and worked examples. Used for the finite-volume discretisation, harmonic means at interfaces and the theta method (`docs/theory.md` section 12). The power-law scheme `A(|P|) = max(0, (1 - 0.1|P|)^5)` is quoted there from memory. **Status M for the content, S for the citation.** Topics 02, 03, 07. Also used from memory (status M, not opened) by `research/laminate-edge-band` for the film behind half a cell of a cell-centred node (the edge film of its laminate nodes); checked there only by two independent 3D solvers that use the same condition and by the convergence of one of them with the cell.
 
 ### [JohansenColella1998]
+
+**Licence:** not checked. **Source URL:** https://escholarship.org/uc/item/08z7t0bm.
+
 H. Johansen, P. Colella, *A Cartesian grid embedded boundary method for Poisson's equation on irregular domains*, J. Comput. Phys. 147 (1998) 60-85; read as the LBNL report LBNL-39908 (January 1997, same title), https://escholarship.org/uc/item/08z7t0bm (open; the page images carry an OCR layer, rendered and searched locally, nothing stored in the repository). **Status R for the report pages 1 to 18 (abstract, introduction, the one-dimensional scheme and its error analysis, the two-dimensional scheme, equations 13 to 18, Figures 1 to 4, the numerical tests up to Problem 3 with Tables I and II checked on the page image; first read to page 11, extended by the literature check of `research/rotated-square-3d`, whose `lib/jc_poisson.py` reproduces Problem 1 and Tables I and II to three digits in the maximum error, `docs/literature.md` 3)**; Tables IV and V, the conclusions and the multigrid and adaptive refinement were not read; the journal version was not opened and the report may differ from it. What is used: cell-centred unknowns on the Cartesian grid even when the centre is outside the domain; the divergence is taken over the cut volume `A_ij dx dy` with the volume fraction (eq. 14); the flux through a partial face is the **aperture** times the face length times the gradient interpolated at the face midpoint (eq. 15 whole face, eq. 16 partial face, 'apertures a in [0, 1]'); the truncation error of a partial cell is first order but its effect on the solution is third order (a dipole, report p. 6 and 10), so the overall scheme is second order; the Dirichlet boundary flux uses a stencil that does not touch the cut cell, which keeps the conditioning independent of the smallest volume fraction (Figure 2; the price is a non-symmetric matrix). Not used: that boundary stencil (the board edge is a film, not a prescribed temperature). Topic: the cut cells of the layered FVM (`research/rotated-square-3d/INTEGRATION.md`).
 
 ### [BergerHelzel2012]
+
+**Licence:** not checked. **Source URL:** https://cs.nyu.edu/berger/simplifiedHboxFinal.pdf.
+
 M. Berger, C. Helzel, *A simplified h-box method for embedded boundary grids*, SIAM J. Sci. Comput. 34(2) (2012) A861-A888, DOI 10.1137/110829398; preprint https://cs.nyu.edu/berger/simplifiedHboxFinal.pdf (open; downloaded and text-extracted locally). **Status R for the abstract and the introduction only (page A861)**; the method itself (hyperbolic conservation laws, explicit time stepping, h-boxes) was not read and is not used. What the introduction gives: for an explicit scheme the time step is proportional to the cut-cell volume, so cut cells orders of magnitude smaller than a regular cell force a tiny step (the small-cell problem); remedies are cell merging (hard in practice, special cases in 3D, repeated at every step for moving geometry), flux redistribution (Chern and Colella) and the h-box methods. Relevance here: the program's transient is implicit (theta method), so the small-cell time-step limit does not arise; the steady state is unaffected. Topic: same as above.
 
 ### [IngramCausonMingham2003]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. M. Ingram, D. M. Causon, C. G. Mingham, *Developments in Cartesian cut cell methods*, Mathematics and Computers in Simulation 61(3-6) (2003) 561-572. **Status S** (bibliographic record and abstract found by a search; full text behind a subscription, an earlier conference version at Manchester Metropolitan University's repository had no file). The author list is Ingram, Causon and Mingham (the task brief said Zhang: not confirmed by any record opened). The same paper is listed again below as `[IngramEtAl2003]` with status N for the full text; the two entries agree: the abstract was seen (S), the text not obtained. Not used for a formula; named as the source of the 'cut cell' vocabulary for finite-volume solvers (Cartesian grid, special treatment of the cells a body cuts). Topic: same as above.
 
 ### [SchwartzEtAl2006]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Status R** (printed pages 1 to 16, as the entry says). P. Schwartz, M. Barad, P. Colella, T. Ligocki, *A Cartesian grid embedded boundary method for the heat equation and Poisson's equation in three dimensions*, J. Comput. Phys. 211 (2006) 531-550 (citation from a search result of the Johansen-Colella query; the author list and pages are from memory). **Superseded: status R for printed pages 1 to 16**, see the entry of the same key in the section 'Cut cells and embedded boundaries' below (this first entry said N: the copies at OSTI and eScholarship returned empty or 404 in an earlier session; the eScholarship copy opened later through the fetch tool). Wanted for the conservative treatment of the heat equation (time stepping) on cut cells; a follow-up, Crockett, Colella and Graves, J. Comput. Phys. 230 (2011) (discontinuous coefficients, three dimensions), is **status M**. Topic: same as above.
 
 ### [EymardGallouetHerbin]
+
+**Licence:** not checked. **Source URL:** https://raphaeleh.github.io/PUBLI/bookevol.pdf.
+
 R. Eymard, T. Gallouët, R. Herbin, *Finite Volume Methods*, https://raphaeleh.github.io/PUBLI/bookevol.pdf. **Status S** (cited in `docs/validation.md` section 10 for the statement that a finite-volume method is a balance on every cell, so the energy is conserved locally and globally, while finite differences work on point values). Topics 02, 03.
 
 ### [SpringerFVHeat]
+
+**Licence:** not checked. **Source URL:** https://link.springer.com/rwe/10.1007/978-94-007-2739-7_896.
+
 *Finite Volume Method in Heat Conduction*, Springer reference work entry, https://link.springer.com/rwe/10.1007/978-94-007-2739-7_896. **Status S.** Same use as above. Topic 02.
 
 ### [Khouider]
+
+**Licence:** not checked. **Source URL:** https://www.pims.math.ca/files/Khouider_1.pdf.
+
 B. Khouider, *Finite difference and finite volume methods for transport and conservation laws*, PIMS summer school, University of Victoria, July 14-18, 2008 (56 pages), https://www.pims.math.ca/files/Khouider_1.pdf (the entry used to say "lecture notes on the finite volume method" and the initial A.; title page and contents read on the page image). **Status S.** Same use (the balance on a cell in conservative form). Chapters 1 to 4 (PDF 3 to 11, 13, 17, 18, 20 compared with the page image) are finite differences (the heat equation: explicit, implicit, von Neumann analysis, splitting; advection); the finite volume chapter (5, "Finite volume methods for scalar conservation laws", from PDF 43, whose first page was read by image: Burgers' equation, the wrong shock speed of a non-conservative scheme) is about hyperbolic conservation laws, not heat conduction, and was not read further. Cite it for the conservative form, chapter 5. Topic 02.
 
 ### [Roache]
+
+**Licence:** not checked. **Source URL:** https://ntrs.nasa.gov/api/citations/20100027422/downloads/20100027422.pdf.
+
 **Update (research/theory-sources/ 3.10):** the three-grid GCI procedure (equations 3 to 7, safety factor 1.25) was read in the open ASME copy of Celik, Ghia, Roache and Freitas (2008) and its Table 1 reproduced (see [Celik2008]); the Roache NASA paper and ASME V&V 20 stay as before.
 
 P. J. Roache, grid convergence index (safety factor 1.25 for three grids), as used in ASME V&V 20 (see [ASMEVV20]). The standard was **not read**; the formula is the common three-grid GCI. **Status M.** Summaries read: *In search of grid converged solutions*, NASA, https://ntrs.nasa.gov/api/citations/20100027422/downloads/20100027422.pdf (**S**) and *Application of grid convergence index in FE computation*, https://bibliotekanauki.pl/articles/201974.pdf (**S**). Topics 04, 18.
 
 ### [AgelasEymardHerbin2009]
+
+**Licence:** not checked. **Source URL:** https://comptes-rendus.academie-sciences.fr/mathematique/item/10.1016/j.crma.2009.03.013.pdf.
+
 L. Agelas, R. Eymard, R. Herbin, cell-centred nine-point finite-volume scheme for heterogeneous anisotropic media, Comptes Rendus Mathématique (2009), https://comptes-rendus.academie-sciences.fr/mathematique/item/10.1016/j.crma.2009.03.013.pdf. **Status S** (a search result; the article was not read). Topic 17.
 
 ### [Positivity9pt]
+
+**Licence:** not checked. **Source URL:** https://journal.global-sci.org/intro/article_detail/cicp/12482.html.
+
 A paper on the positivity of nine-point schemes (a linear nine-point scheme that is monotone and second order does not exist for any anisotropic diffusion on distorted meshes), https://journal.global-sci.org/intro/article_detail/cicp/12482.html. **Status S**; the authors and the title were not recorded. Topic 17.
 
 ### [MFEMStaticCond]
+
+**Licence:** not checked. **Source URL:** https://docs.mfem.org/4.6/staticcond_8hpp_source.html.
+
 MFEM documentation, static condensation (the Schur complement used by finite-element codes), https://docs.mfem.org/4.6/staticcond_8hpp_source.html. **Status S.** Topics 06, 11.
 
 ### [Kron2022]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/pdf/2204.05554.
+
 Kron reduction of a network, https://arxiv.org/pdf/2204.05554 (authors and title not recorded). **Status S.** Topics 06, 11.
 
 ### [PMC11410250]
+
+**Licence:** not checked. **Source URL:** https://pmc.ncbi.nlm.nih.gov/articles/PMC11410250/.
+
 *A modeling method for thermal steady-state simulation of the four-layer printed circuit board*, https://pmc.ncbi.nlm.nih.gov/articles/PMC11410250/. **Status R** (text read, `docs/validation.md` section 10): Fourier series for the insulating layers combined with a lateral-only finite-volume discretisation of the metal layers, the same architecture as the FVM and Analytic pair of this program; 1.8 to 2.5 % against COMSOL at the hot region and 4 to 5 % against measurements on a real board; under 9 minutes against about 50 for COMSOL. Topics 01, 06.
 
 ### [FourierMultilayerJCU]
+
+**Licence:** not checked. **Source URL:** https://researchonline.jcu.edu.au/86884/.
+
 Fourier-series multilayer analytical models against finite elements, 1 to 4 % in the studies found by a search (https://researchonline.jcu.edu.au/86884/ and others). **Status S** (figures from search summaries). Topic 06.
 
 ### [FDvsFVSpringer]
+
+**Licence:** not checked. **Source URL:** https://link.springer.com/chapter/10.1007/978-981-97-0037-0_9.
+
 A comparison of finite differences and finite volumes on 1D steady conduction, https://link.springer.com/chapter/10.1007/978-981-97-0037-0_9. **Status N** (login wall; not read). Topic 03.
 
 ### [Pyamg]
+
+**Licence:** not checked. **Source URL:** https://github.com/pyamg/pyamg.
+
 PyAMG: Algebraic Multigrid Solvers in Python, https://github.com/pyamg/pyamg ; developed by L. Olson, J. Schroder and B. Southworth; licence MIT, version 5.3.0 (PyPI metadata, read through the package index, the one host reachable from the session); requires NumPy and SciPy; paper in the Journal of Open Source Software, doi 10.21105/joss.05495 (named on the package page). Named in `docs/versions.md` "Planned", "Solvers and validation". **Status R for the package metadata, N for the paper.** Topic 16.
 
 ### [Briggs2000]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 W. L. Briggs, V. E. Henson, S. F. McCormick, *A Multigrid Tutorial*, 2nd edition, SIAM, 2000, ISBN 978-0-89871-462-3, xii + 193 pages (catalogue records, The maintainer's reference compilation (`docs/reference-compilation.md`); the book was not opened). Chapters: 1 model problems, 2 basic iterative methods, 3 elements of multigrid, 4 implementation, 5 some theory, 6 nonlinear problems, 7 selected applications, **8 algebraic multigrid (AMG)**, 9 multilevel adaptive methods, 10 finite elements; new in the second edition: nonlinear equations, Neumann boundary conditions, variable mesh and coefficients, anisotropic problems, AMG, adaptive methods, finite elements. Weighted Jacobi with `omega = 2/3` in 1D as the smoother for the model problem and full weighting with linear interpolation are quoted from memory. **Status S for the citation and contents, N for the formulas.** Topic 16.
 
 ### [McCormickTamstorf]
+
+**Licence:** not checked. **Source URL:** https://grandmaster.colorado.edu/~stevem/mgprimer.pdf.
+
 **Update (research/theory-sources/ 3.9):** the arXiv PDF (11 pages) was opened and its text read around Algorithm 3 (the V-cycle) and the statements on convergence factors independent of h (section 8); a V(2,1) cycle with red-black Gauss-Seidel written from Algorithm 3 reproduces the independence of h (0.07 per cycle from 15 to 255 points per side). The primer prints no numeric convergence factor, so only the property is reproduced.
 
 S. McCormick and R. Tamstorf (byline to confirm on the title page), a multigrid primer, https://grandmaster.colorado.edu/~stevem/mgprimer.pdf . **Read in The maintainer's reference compilation (`docs/reference-compilation.md`).** Contents: 1 introduction, 2 preliminaries, 3 smoothing, 4 coarse-grid correction, 5 a word about residuals, 6 multilevel solvers (V- and W-cycles), 7 full multigrid, 8 basic theory, 9 development, 10 summary, appendix A approximation properties. Formulas extracted there: Richardson smoothing `v <- v - (1/||L||)(L v - g)`, error propagation `G = I - L/||L||`; restriction `R = alpha P^t`; Galerkin coarse operator `L^(2h) = R L^h P`; coarse-grid correction `v <- v - P (L^(2h))^(-1) R (L v - g)`; the V-cycle as relax mu times, restrict the residual, solve the coarse problem recursively from a zero guess, correct, relax nu times; the W-cycle visits the coarse problem twice; two-grid convergence `||TG||^2 <= gamma < 1`; Theorem 1: with the strong approximation property a V(0,1)-cycle has `||MV||^2 <= 1 - 1/C`; full multigrid reduces the error by about `2^(-(m + 1/2))` per level and, for the model Poisson problem, a V(2,1)-cycle is typically enough; the cost of a cycle is proportional to the unknowns of the finest level. **Status R (compilation).** Topic 16. **Byline and title confirmed** from the arXiv page (arXiv:2605.17828, version 1 of 18 May 2026): *Multigrid Primer: Basic Principles*, Stephen F. McCormick and Rasmus Tamstorf; the abstract read there says it presents multigrid as a V-cycle iterative solver in a variational view (symmetric positive definite systems from elliptic PDEs) and then full multigrid. The Colorado address above returned a 404 when fetched, so the PDF may have moved; the contents list and formulas above stay as the compilation gave them.
 
 ### [SciPySuperLU]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 SciPy's sparse direct solver (SuperLU) with the symmetric minimum-degree ordering is the program's direct solver (`docs/theory.md` section 2); the library documentation is not recorded as a source. **Status M.** Topic 02.
 
 ### [Peaceman1978]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir simulation*, SPE Journal 18 (3) (1978) 183-194, doi 10.2118/6893-PA. **Status S**: the full text was not obtained (SPE, paywalled); the abstract (found through a search) says that the well-block pressure equals the actual flowing pressure at a radius of about 0.2 Δx, and the 0.14 sqrt(Δx² + Δy²) of the original (0.198 Δx on a square grid) is from memory and from patents that quote it. Used by `research/point-via-convergence/` for the idea of the well index (a point source in one cell of a five-point stencil has the pressure of a hole of radius 0.2 Δx); the constant used there is **computed** (exp(-(γ + 1.5 ln 2)) = 0.19851, README 2), not taken from this source. Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [Peaceman1983]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir simulation with nonsquare grid blocks and anisotropic permeability*, SPE Journal 23 (3) (1983) 531-543, doi 10.2118/10528-PA. **Status N** (paywalled; the form `r0 = 0.28 [ ... ]^(1/2) / [ ... ]` seen in a conference paper reduces to 0.198 Δx on a square isotropic grid, which agrees with the computed constant). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [Ibraguimov2022]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/pdf/2203.10140.
+
 **Status R in part** (sections 1 and 5.1, text extracted from the PDF). A. Ibraguimov, E. Zakirov, I. Indrupskiy, D. Anikeev, *Fundamentals in Peaceman model for well-block radius for non-linear flows near well*, arXiv:2203.10140 (2022), https://arxiv.org/pdf/2203.10140. **Read in part (R for sections 1 and 5.1, text extracted from the PDF)**: the five-point balance (1.1), Peaceman's argument that `p1 - p0 = q α / 4` and the radial Darcy law `p(r) = p_θ + q α ln(r/θ) / (2π)` fix `R0 = Δ e^(-π/2)` (= 0.2079 Δ), independent of the flow rate and the well radius; their Theorem 3 (the same value from the Green function) was **not** read. The study here finds that the exact lattice value is 0.19851 Δ, not 0.2079 Δ: the e^(-π/2) argument takes the four neighbours as equal and the radial law as exact at the first neighbour, which is an approximation (README 2). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [Gjerde2019]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/pdf/1812.03055.
+
 I. G. Gjerde, K. Kumar, J. M. Nordbotten, *A singularity removal method for coupled 1D-3D flow models*, arXiv:1812.03055 (2018; Computational Geosciences 24 (2020)), https://arxiv.org/pdf/1812.03055. **Status S** (the abstract and introduction read: a line source induces a logarithmic singularity in the reservoir pressure that is hard to resolve numerically; the pressure is split into an explicit singular term and a smooth background that the grid can carry). The idea (subtract the known logarithm, let the grid carry the rest) is the same as the well and the footprint of the point-via study; the paper's formulas were not checked. Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [WolfsteinerDurlofskyAziz2003]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 C. Wolfsteiner, L. J. Durlofsky, K. Aziz, *Calculation of well index for nonconventional wells on arbitrary grids*, Computational Geosciences 7 (2003) 61-82, doi 10.1023/A:1022431729275. **Status S** (abstract seen: the well index of each block from an accurate semi-analytical Green's-function solution coupled with a local finite-difference calculation). **Not obtained** (paywalled). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [FukaiUchiyama1996]
+
+**Licence:** not checked. **Source URL:** https://projecteuclid.org/euclid.aop/1041903213.
+
 Y. Fukai, K. Uchiyama, *Potential kernel for two-dimensional random walk*, Annals of Probability 24 (4) (1996) 1979-1992, https://projecteuclid.org/euclid.aop/1041903213; and [KozmaSchreiber2004] G. Kozma, E. Schreiber, *An asymptotic expansion for the discrete harmonic potential*, Electron. J. Probab. 9 (2004), arXiv:math/0212156. **Status S** (found through a search; the expansion `a(x) = (2/π) ln|x| + (2γ + 3 ln 2)/π + O(|x|^-2)` is quoted from memory and from the abstracts' wording; **verified numerically here** by the exact recurrence and a finite solve, `lib/lattice.py`, status L). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [ShenWang2019Vias]
+
+**Licence:** not checked. **Source URL:** https://vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf.
+
 **Status R in part** (pages listed in the entry and in the image pass at the end of this file). Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal modeling and design optimization of PCB vias and pads*, IEEE Trans. Power Electronics (2019), doi 10.1109/TPEL.2019.2915029 (accepted manuscript, Aalborg University repository https://vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf). **Read in part (R for the abstract, the introduction, section II-A (equations 1 to 5, Table I) and the CFD verification IV-A with Fig. 17 and 18 (pages rendered to images), see the later entry [ShenWang2019Vias] (read here) for the exact statuses and the reproduction of the case)**: the via array as parallel vertical resistances of the unit cells; the CFD check in ANSYS Icepak of a DPAK pad (120.3 K/W without vias, 1.86 K/W with 0.25 mm vias). It contains no guidance on meshing a via. Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [IcepakGuidance]
+
+**Licence:** not checked. **Source URL:** https://innovationspace.ansys.com/courses/wp-content/uploads/sites/5/2021/07/AEDT_Icepak_Int_2020R1_EN_LE02.2.pdf.
+
 ANSYS training and forum pages on PCB via arrays in Icepak (https://innovationspace.ansys.com/courses/wp-content/uploads/sites/5/2021/07/AEDT_Icepak_Int_2020R1_EN_LE02.2.pdf and a 2023 forum thread). **Status S** (search summaries only): vias are either smeared into an orthotropic board conductivity or modelled explicitly with a mesh fine enough to resolve them; no rule for the cell size next to a via was found. Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ## 2. Heat conduction theory, spreading resistance, fins
 
 ### [CarslawJaeger]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 H. S. Carslaw and J. C. Jaeger, *Conduction of Heat in Solids*, 2nd edition, Clarendon Press, Oxford, 1959 (paperback reprint 1986), viii + 510 pages, ISBN 0-19-853303-9 (hardcover) and 0-19-853368-3 (paperback); first edition 1946 (catalogue records in The maintainer's reference compilation (`docs/reference-compilation.md`)). Fourier-series solutions, Green functions of the fin equation (K0), disc sources (I0, I1) (`docs/theory.md` section 12); the transient slab and semi-infinite solutions with `erfc` and the point, line and disc sources behind spreading-resistance formulas. **Status M for the content, S for the citation.** Topics 05, 06, 18. Also used from memory (status M, not opened) by `research/laminate-edge-band` for the separation of variables of the laminate half-gap cooled at its edge (the efficiency `eta`), checked there by an independent finite-volume solution, not by the book.
 
 ### [Lee1995]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 S. Lee, S. Song, V. Au, K. P. Moran, constriction/spreading resistance model for electronics packaging, 1995 (the venue is not recorded in the repository; searches for the title and the 1995 ASME/JSME conference found no record of it, twice). **Status M/N.** The Electronics Cooling article that the studies call by these authors is, as opened, by Seri Lee alone (`[EC1998Spreading]`); the 1995 paper itself has still not been located. `research/block-and-fins/README.md` says it could not be read and was not used; the program's plate model is compared with the worked example of [EC1998Spreading] (+0.6, -0.8 and -4.6 % at the centre, the edge midpoint and the corner with the 25 mm source, `research/effective-conductivity/` 4.8 A; the +4.5 % that `docs/theory.md` quoted before was a 24 mm source; the current `docs/theory.md` 7 has the corrected numbers and says the 1995 paper has not been located). Topics 11, 18. A second round of searches (title, authors, venue) found no record of this paper; the closest hits were the Electronics Cooling articles of Lee (1998) and Simons (2004).
 
 ### [EC1998Spreading]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/1998/01/calculating-spreading-resistance-in-heat-sinks/.
+
 Seri Lee, *Calculating Spreading Resistance in Heat Sinks*, Electronics Cooling, 1 January 1998, https://www.electronics-cooling.com/1998/01/calculating-spreading-resistance-in-heat-sinks/ . **Opened** through the page converter: the article is by Seri Lee alone, and the formulas for the centre-mounted source (equations 1 and 2) and the correction factor of Figure 4 are images that did not come through (**N for those**). What the text gives: for a source at a corner or an edge, `Rc = C x Rc(A_p, A_s, k, t/C, R0/C)` with `C = 2` for the corner; total `R_total = R0 + Cf x Rc`; accurate to about 5 % for source and base shapes with aspect ratio up to 2.5; `Cf = 1` is acceptable for a source nearer the centre than the edges (5 to 10 % error); for a planar-fin sink the base thickness is increased by 20 % to account for the spreading in the fins, for a pin-fin sink nothing; Kennedy's solution is the limit `R0 -> 0` and can grossly underestimate when `R0` is not small. **Worked example** (aluminium base 100 x 100 x 1.3 mm, source 25 x 25 mm, `k = 200 W/mK`, `R0 = 1.0 K/W`): centre `Rc = 0.66` (total 1.66 K/W), edge midpoint 1.29 (2.29), corner 2.38 (3.38). All three cases are now compared: the program's plate model gives 0.664, 1.280 and 2.270 K/W (+0.6, -0.8, -4.6 %; `research/effective-conductivity/` 4.8 A, every cell from 0.4 to 1.7 mm) and an independent 3D solver 0.668, 1.284 and 2.275 (+1.2, -0.4, -4.4 %; 4.4). The review of `research/effective-conductivity/` opened the article again through the page converter and read the positions of the edge-midpoint and corner sources, (37.5, 0) and (37.5, 37.5) mm from the centre of the plate. Whether the article presents the model of `[Lee1995]` was not seen in the converted text. **Status S (numbers R, formulas N).** Topics 11, 18, 26.
 
 ### [YovanovichMuzychkaEllison]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Yovanovich and Muzychka, Ellison: spreading resistance of a small source on a larger plate (`R = R0 + Rc`, accurate to about 5 % for aspect ratio below 2.5), as summarised in `research/component-heatsink/NOTES.md`. **Status M/S** (the notes record the claim from literature searches). Topic 18.
 
 ### [Yovanovich2003]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl03-20.pdf.
+
 M. M. Yovanovich, *Thermal Resistances of Circular Source on Finite Circular Cylinder With Side and End Cooling*, J. Electronic Packaging 125 (2003) 169-177, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl03-20.pdf. **Status R for Table 3** (the dimensionless spreading resistance of an isoflux circular source on a flux tube; the values 0.9401, 0.8009, 0.6649, 0.5337 for epsilon 0.1 to 0.4 are recorded in the script); the rest of the paper was not re-read. Topics 04, 18.
 
 ### [IncroperaDeWitt]
+
+**Licence:** not checked. **Source URL:** https://www.sciencedirect.com/topics/engineering/fin-efficiency.
+
 F. P. Incropera, D. P. DeWitt (and later co-authors), *Fundamentals of Heat and Mass Transfer*, Wiley (the edition used by the project is not recorded). Chapter 9 is free convection; equation numbers shift between editions: the 3rd edition (1990) has the vertical plate as Eqs. 9.26 and 9.27 and the channel as 9.46 (pp. 543 and 557); one table sheet lists the plate as 9.26-9.27, horizontal plates 9.30-9.32, cylinder 9.34, sphere 9.35, channels 9.37-9.38. The 6th edition (2006) is ISBN 978-0-471-45728-2; the international *Principles of Heat and Mass Transfer*, 7th edition, ISBN 978-0-470-64615-1, 1048 pages (The maintainer's reference compilation (`docs/reference-compilation.md`), catalogue records; the books were not opened). Fin and sheet equations, fin efficiency of a straight fin with a convecting tip (corrected length Hc = H + t/2), natural and forced convection correlations, radiation; also the general statement of fin efficiency at https://www.sciencedirect.com/topics/engineering/fin-efficiency (**S**). **Status M for the content, S for the citations.** Topics 01, 08, 11. **Face turned down**: the form `0.52 Ra^(1/5)`, 1e4 to 1e9, attributed to later editions was searched for in the papers library, the open web (three searches, two fetches) and not found; every page found prints the older `0.27 Ra^(1/4)` (the reviewer's searches: 10^5 to 10^10, one calculator page citing the 6th edition, 2007, for it; a search summary quoted a patent that applies `0.52 Ra^(1/5)` with 10^4 to 10^7, a second-hand use, not the book, whose PDF did not open). It stays M and the program does not use it (`fix/face-down-convection` uses the Goldstein-Lau mean 0.475, read).
 
 ### [FinChannelSources2]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Sources opened by `research/fin-channel-sources/` (details and reproductions in its README). **Read in full (R)**: M. M. Yovanovich, P. Teertstra, Y. S. Muzychka, *Natural convection inside vertical isothermal ducts of constant arbitrary cross section*, J. Thermophysics Heat Transfer 16 (1) (2002) 116-121 (Waterloo archive `mhtl02-9.pdf`; prints the relations of Elenbaas's tube paper, Physica 9 (8) 865-874, the Raithby-Hollands exponents, the composite of equation 29 and the plot of Elenbaas's parallel-plate data, Figure 11, which is read as plot values); J. R. Culham, P. Teertstra, M. M. Yovanovich, *Natural convection modeling of heat sinks using web-based tools*, Electronics Cooling, September 2000 (`mhtl00-1`; replaces the "downloaded, not read" status of the archive entry); I. Tari, M. Mehrtash, *Natural convection heat transfer from horizontal and slightly inclined plate-fin heat sinks*, Applied Thermal Engineering 61 (2013) 728-736 (equations 4, 5, 10; Tables 1 and 2); V. A. da Silva and others, *Analysis of steady-state heat dissipation in short horizontal rectangular fin array*, ENCIT 2012, paper 324 (six measured arrays, plot values); S. Ostrach, NACA Report 1111 (1953), Table I read from images (`-H'(0)` of the vertical plate for Pr 0.01 to 100; reproduced to 0.02 % except Pr 0.01, where the table is 0.75 % high). **Read in part**: A. Bar-Cohen, M. Iyengar, A. D. Kraus, *Design of optimum plate-fin natural convective heat sinks*, J. Electronic Packaging 125 (2) (2003) 208-216 (pages 1 to 6 of 9: equation 13, 576 and 2.873, identical to the review's equation 21; equation 17 with 2.66 and Nu 1.25, which differ from the 2.7156 and 1.308 derived from the composite; the array of Figures 2 and 4 reproduced to 0.2 and 1.0 %); Tari and Mehrtash, IJHMT 56 (2013) 574-593 (sections 2.5, 2.6, 3.4 to 3.6); M. Dogan, D. Dogan, J. Thermal Science and Technology 37 (1) (2017) 147-157. **Status S**: the constants 2.714 and 1.307 in a course note of unknown author; abstracts of Leung, Probert, Shilston, Applied Energy 20 (1985) 123-140. **Status N (paywalled or not found)**: Elenbaas, Physica 9 (1) (1942) 1-28; Bar-Cohen and Rohsenow, J. Heat Transfer 106 (1984) 116-123; Churchill and Chu (1975); Sparrow and Gregg (1956); Raithby and Hollands (1975, 1985); Leung and Probert (several); Starner and McManus (1963); Harahap and McManus (1967); Harahap and Setio (2001); Harahap and Rudianto (2005); Welling and Wooldridge (1965); Van de Pol and Tierney (1973); Kraus and Bar-Cohen (1995); Incropera and DeWitt chapter 9; Wong and Huang (2013); Jones and Smith (no record found). Topic 13 and `research/fin-channel-sources/`.
 
 ### [ElenbaasBCR]
+
+**Licence:** not checked. **Source URL:** https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-1466.pdf.
+
 W. Elenbaas, Physica 9 (1942), *Heat dissipation of parallel plates by free convection* (pages "1-28" from memory; the original was not opened), and A. Bar-Cohen and W. M. Rohsenow, *Thermally Optimum Spacing of Vertical, Natural Convection Cooled, Parallel Plates*, J. Heat Transfer 106 (1) (1984) 116-123 (abstract seen: they maximise the heat transfer per unit volume or per unit primary area for symmetric or asymmetric, isothermal or isoflux plates and combine the fully developed channel and single-plate asymptotes by composite relations; also as described at https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-1466.pdf, where the constants could not be read). From The maintainer's reference compilation (`docs/reference-compilation.md`) and the Maya channel page and a course note (all secondary): **Elenbaas** `Nu = (Ra*/24)[1 - exp(-35/Ra*)]^(3/4)`, `Ra* = Ra_S (S/L) = g beta dT S^4/(nu alpha L)`, for 0.1 < Ra* < 1e5 (isothermal, symmetric, air), with the limits `Ra*/24` and, at large Ra*, about `0.62 Ra*^(1/4)`; optimum `Ra* about 50` (Simons). **Bar-Cohen and Rohsenow**, isothermal symmetric plates: `Nu_S = [576/(Ra_S S/L)^2 + 2.873/(Ra_S S/L)^(1/2)]^(-1/2)` (Incropera Eq. 9.45), a Churchill-Usagi blend with n = -2 whose limits are `Ra*/24` and `0.590 Ra*^(1/4)`; optimum spacing `S_opt about 2.714 L / Ra_L^(1/4)` with `Nu_opt about 1.307` (from memory, marked "verify"). Checked here (`scripts/check_correlations.py`): both limits of the composite are reproduced; `2.714^4 = 54.3`, close to Simons' 50; the Elenbaas form tends to `Ra*/24` and, at large Ra*, to within about 3 % of `0.62 Ra*^(1/4)`. Aung et al. channel correlations (Maya page): `m = -1.9, c = 1.2, C_l = 0.515` (isothermal, air, to Ra about 1e5) and `m = -3.5, c = 1.07, H_l = 0.624` (uniform flux). Related: Bodoia and Osterle, J. Heat Transfer 84 (1962); Sparrow and Bahrami, J. Heat Transfer 102 (1980); Bejan (1984, 1995); Fujii and Miyatake (1972). **Status S for the citations and the forms, M for the optimum.** The program's fins do not use these (a uniform coefficient). Topics 11, 13. **Update from `research/fin-channel-sources/` (see [FinChannelSources2])**: the originals are still N; the composite constants are printed in the 2003 paper of Bar-Cohen, Iyengar and Kraus (R, pages 1 to 6) and the Elenbaas data were read as plot values (R for Yovanovich and others 2002). **Update from `research/fin-channel/`**: the originals of Elenbaas (1942) and of Bar-Cohen and Rohsenow (1984) were **not obtained (N)**, but equations 8, 20, 21 and 22 of the review of [TeertstraReview] (Elenbaas, Churchill 1977, Bar-Cohen and Rohsenow 1984, Raithby and Hollands 1985) were **read in full as images** (status R for the forms as printed there), with their constants (`24`, `0.59`, `0.62`, `m = -1.9`); the optimum constants `2.7156`, `Ra_b = 54.38` and `Nu_b = 1.308` were **recomputed** by maximising `Nu_b / b^2` on equation 21 (`research/fin-channel/scripts/study_channel_correlations.py`), which turns the remembered 2.714 and 1.307 into derived numbers (the original paper's own constants are still not read).
 
 ### [Simons2002]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/?p=228.
+
 R. Simons, *Estimating Natural Convection Heat Transfer for Arrays of Vertical Parallel Flat Plates*, Electronics Cooling, February 2002, https://www.electronics-cooling.com/?p=228 . **Read in The maintainer's reference compilation (`docs/reference-compilation.md`)** (the equations are images): the Elenbaas correlation (Eq. 1) in terms of Nu and Ra, the channel Rayleigh number (Eq. 2), the gap `b` from the base width W, the number of plates and the plate thickness (Eq. 3), the total heat rate with the fin efficiency taken as 1 (Eq. 4), and the **optimum spacing from a channel Rayleigh number of about 50** (Eqs. 5-6); it has no Bar-Cohen and Rohsenow formula and cites Kraus and Bar-Cohen, *Design and Analysis of Heat Sinks* (1995). Other items of the series: Simons, *Estimating Parallel Plate-fin Heat Sink Thermal Resistance* (February 2003); Teertstra, *Natural convection modeling of heat sinks using web-based tools* (September 2000). **Status R (compilation).** Topics 11, 13.
 
 ## 3. Convection and radiation
 
 ### [TeertstraReview]
+
+**Licence:** not checked. **Source URL:** https://www.literature.wolkersdorfer.info/literature/Comprehensive%20Review%20of%20Natural%20and%20Mixed%20Convection%20Heat%20Transfer%20Models%20for%20Circuit%20Board%20Arrays.pdf.
+
 P. Teertstra, J. R. Culham, M. M. Yovanovich, *Comprehensive review of natural and mixed convection heat transfer models for circuit board arrays*, report of the Microelectronics Heat Transfer Laboratory, University of Waterloo (the copy read is hosted at https://www.literature.wolkersdorfer.info/literature/Comprehensive%20Review%20of%20Natural%20and%20Mixed%20Convection%20Heat%20Transfer%20Models%20for%20Circuit%20Board%20Arrays.pdf , 16 pages; the group's own address was not found). **Read in `research/fin-channel/`: pages 3 to 6 rendered to images and read in full** (equations 1 to 22 of the natural convection part: the Elenbaas Rayleigh number `Ra_b = g beta (Tw - T0) b^4 Pr / (nu^2 L)` (3), `Nu_b = h b / k` (6); Elenbaas (8) `Nu_b = (1/24) Ra_b [1 - exp(-35/Ra_b)]^(3/4)`; Bodoia and Osterle (9, 10: `Ra_b/24`, `0.68 Ra_b^(1/4)` for Pr 0.7); Aung (12); Miyatake and Fujii (14 to 17); Raithby and Hollands (1975, 18); Churchill (1977, 20); Bar-Cohen and Rohsenow (1984, 21): `Nu_b = [(C/Ra_b)^2 + (1/(0.59 Ra_b^(1/4)))^2]^(-1/2)`, `C = 24` symmetric, 12 one adiabatic wall; Raithby and Hollands (1985, 22) with `C = 0.62` and `m = -1.9`; air properties at the film temperature, `beta = 1/T0`); its statement that the four models are within 16 % of each other and that the data are within 14 to 18 % for `Ra_b > 1e3` (plot, not reproduced). The figures of the models against data were seen, not digitised. The later pages (mixed convection) were not read. **Status R for pages 3 to 6.** Topics 11, 13 and `research/fin-channel/`.
 
 ### [MartinRaithbyYovanovich1991Pages]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl91-11.pdf.
+
 L. Martin, G. D. Raithby, M. M. Yovanovich (same paper as [MartinRaithbyYovanovich1991], from the group's archive https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl91-11.pdf): **pages 1, 3, 4 and 5 of the scan were read as images in `research/fin-channel/`** (the earlier entry had pages 1 and 2): the governing equations (4 to 12), the parabolic limit (no dependence on the plenum or on `L_c`), the dimensional analysis showing that Elenbaas' `Nu(Ra*)` holds only when `L_c* = L_c/b` is large (the low-`Ra*` asymptote depends on the channel aspect ratio and on the plenum when `L_c* <= 10`: Fig. 4 and 5, equations 20 to 27 with the blend `m = -1.9` and the boundary-layer constant 0.62; the equations of the short-channel correction were **not** used because the printed exponents could not be told apart at the resolution of the scan). **Status R for pages 1 to 5, the numerical tables of Table 1 were not used.** Topic 13.
 
 ### [Yazicioglu2009]
+
+**Licence:** not checked. **Source URL:** https://dergipark.org.tr/en/download/article-file/399879.
+
 B. Yazicioglu, H. Yuncu, *A correlation for optimum fin spacing of vertically-based rectangular fin arrays subjected to natural convection heat transfer*, Isı Bilimi ve Tekniği Dergisi (J. of Thermal Science and Technology) 29 (1) (2009) 99-105, open copy https://dergipark.org.tr/en/download/article-file/399879 . **Read in full in `research/fin-channel/`** (7 pages; Table 1 of eight published arrays rendered and read as an image: length, width, thickness, height, spacing, temperature difference, optimum spacing and material of the arrays of Leung and others (1985, 1986), Leung and Probert (1987, 1989), Ko and others (1989), Guvenc and Yuncu (2001) and Yazicioglu and Yuncu (2007)); scale analysis `s_opt/L ~ Ra_L^(-1/4)` (eq. 1), least-squares fit `s_opt / L = 3.15 Ra_L^(-1/4)` (eq. 3, average error under 24 %), `Q_max` correlation (eq. 6, 11); Figures 6 and 7 (Leung and others 1985, `Q(s)` at 20 and 40 K) read as **plot values** (+-0.5 W) in `scripts/study_optimum_spacing.py`; Figures 2 to 5 (`Q` against the temperature difference) seen, not digitised beyond one check (the level of the array of Figure 5 does not agree with the model, see the README of `research/fin-channel/` section 7). The original experimental papers were not opened. **Status R for the paper, plot for the numbers read from the figures, S for the original experiments.** Topic 13.
 
 ### [AvelarGanzarolli2003]
+
+**Licence:** not checked. **Source URL:** https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-1466.pdf.
+
 A. C. Avelar, M. M. Ganzarolli, *Optimum spacing in an array of vertical plates with two-dimensional protruding heat sources cooled by natural convection*, COBEM 2003, 17th International Congress of Mechanical Engineering, Sao Paulo, https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-1466.pdf . **Read in full in `research/fin-channel/`** (10 pages): the scale analysis of the optimum spacing for plates with uniform heat flux (`d_opt/l ~ 3.06 Ra_l^(-1/4)`, `q''' ~ 0.39 k Delta T / l^2 Ra_l^(1/2)`), a numerical (SIMPLEC) and experimental study of five plates with protruding sources (spacing 2 to 4 cm, 20 to 60 W per plate); a different configuration (uniform heating, protrusions); used only as a second statement that an optimum exists and scales as `Ra^(-1/4)`. **Status R.** Topic 13.
 
 ### [Abuska2024]
+
+**Licence:** not checked. **Source URL:** https://dergipark.org.tr/en/download/article-file/4142085.
+
 M. Abuska, V. Corumlu, *The thermal performance of the plate-fin heat sink under natural convection at different power levels and ambient temperatures*, Celal Bayar University Journal of Science 20 (3) (2024) 91-99, doi 10.18466/cbayarfbe.1532575, open copy https://dergipark.org.tr/en/download/article-file/4142085 . **Read in full in `research/fin-channel/`** (9 pages, Table 1 read as an image): an 80 x 80 x 5 mm aluminium base with ten fins of 10 mm height, 2.6 mm thickness and 4.33 mm gap, 54 mm long, on a horizontal base, and a flat plate of the same base, at 16.5 and 33 W and 30 and 40 degC, with measured `R_th` (2.15 to 2.38 K/W against 3.83 to 4.09 K/W) and `h` (21.4 to 23.6 against 29.0 to 30.5 W/m2K). The flat-plate resistance corresponds to a total coefficient of about 39 W/m2K, three to four times the textbook value for such a plate, so the absolute numbers cannot validate a model (losses through the support, emissivity not stated); not reproduced. **Status R.** Topic 13.
 
 ### [ChurchillChu1975]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Update (research/theory-sources/ 3.1, 3.2):** the paper itself is still **N** (paywalled: no open copy was found). The two equations of the program are printed, with their equation numbers, in [Lienhard2024] (8.13a laminar, Ra up to 1e9; 8.13b all Ra), read in full, and the worked value of Lienhard's Example 8.1 (Nu 47.33) is reproduced (47.34). The authors' own conclusion about the all-range form is quoted in [Jaffer2023] (page 3). Status for the equations: R (secondary, with page); for the paper: N.
 
 S. W. Churchill and H. H. S. Chu, *Correlating Equations for Laminar and Turbulent Free Convection from a Vertical Plate*, Int. J. Heat Mass Transfer 18 (11) (1975) 1323-1329, doi 10.1016/0017-9310(75)90243-4. The paper itself was not opened. The correlation used by `convection.py`, `Nu = {0.825 + 0.387 Ra^(1/6) / [1 + (0.492/Pr)^(9/16)]^(8/27)}^2` (all Rayleigh numbers), was confirmed by three independent secondary sources (The maintainer's reference compilation (`docs/reference-compilation.md`): the Python `ht` library, pychemqt, Incropera tables), and **the source of the `ht` package (version 1.2.0, MIT licence) was read in this work: its worked example, `Nu(Pr 0.69, Gr 2.63e9) = 147.16`, from Bergman and others, is reproduced to the digit by the program's form** (`scripts/check_correlations.py`). The laminar form, slightly more accurate for Ra up to about 1e9, is `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)`; against the all-range form it is +6.6 % at Ra 1e5, -5.2 % at 1e7 and -25 % at 1e9 for Pr 0.71 (the all-range form includes the turbulent rise). A vertical cylinder can be treated as a plate if `D/L >= 35 / Gr_L^(1/4)`; inclined plates use `g cos(theta)` up to 60 degrees. Companion paper on the horizontal cylinder: IJHMT 18 (9) (1975) 1049, `Nu_D = {0.60 + 0.387 Ra_D^(1/6) / [1 + (0.559/Pr)^(9/16)]^(8/27)}^2` for `Ra_D <= 1e12`. **Status S for the paper (correlation confirmed), R for the implementation of the form in `ht`.** Topic 08. **The two forms seen in secondary sources (the paper was never opened):** the laminar form `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)` for Ra below 1e9 and the all-range form (the page of `thermal.mayahtt.com`, which cites Incropera and DeWitt, 3rd edition, equations 9.26 and 9.27 on p. 543; the library `ht`, whose worked example `Nu(Pr 0.69, Gr 2.63e9) = 147.16` is Example 9.2 of Bergman and others; and [Yovanovich1993Flat], who writes the laminar blend of Churchill without the 0.68).
 
 ### [LloydMoran1974]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. R. Lloyd and W. R. Moran, *Natural Convection Adjacent to Horizontal Surface of Various Planforms*, J. Heat Transfer 96 (4) (1974) 443-447, doi 10.1115/1.3450224 (citation and the summary of the abstract by search results of `research/horizontal-plate-h/`: electrochemical technique, Sc about 2200, circular, square, rectangular and right-triangular planforms, `L = A/P`, laminar `Nu = 0.54 Ra^(1/4)` for about 2.2e4 to 8e6 and turbulent `Nu = 0.15 Ra^(1/3)` for 8e6 to about 1.6e9, transition at about 8e6). The paper itself was not opened; Jaffer (2023, sections 1.3 and 7.1, **read**) quotes the scatter of about +-5 % and the collapse of all planforms with `L = A/P` and shows the data as a figure (his digitisation, not the original table; lowest `Ra` 2.6e4). **Status S for the correlations (abstract and a secondary paper), N for the paper.** Topic 30, `research/horizontal-plate-h/`.
 
 ### [ChurchillBlend]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2401.09469.
+
 **Update (research/theory-sources/ 3.4):** Churchill (1977) is still **N**. Open evidence on the exponent: Jaffer and Jaffer (arXiv 2401.09469, read in part) find l_p-norm blends with p between sqrt(3) and 3 for a vertical plate (aiding and opposing forced flow), p = 2 for a level flow over an upward-facing plate and p = 5 for a downward-facing one (their Table 4); the program's p = 3 is inside the vertical range; for a horizontal board it gives a lower coefficient than p = 2 on the top face (7 to 11 %) and a higher one than p = 5 on the bottom face (0.5 to 8 %), so it is not conservative overall, see `research/theory-sources/` 3.4 (corrected by the review, README 6; the first version called it conservative). Table 4 also gives p = 2 for a vertical plate in a level flow. Status for the rule: S (a measured paper, not Churchill's).
 
 S. W. Churchill, *A comprehensive correlating equation for laminar, assisting, forced and free convection*, AIChE Journal 23 (1) (1977) 10-16 (confirmed by citation lists, The maintainer's reference compilation (`docs/reference-compilation.md`)). The paper was not opened. The mixed-convection blending `Nu^n = Nu_forced^n +- Nu_free^n` (plus for assisting, minus for opposing flow), with n = 3 as the usual value for external flows, is written there **from memory and marked "verify"**: whether the program's cube-root rule `h = (h_n^3 + h_f^3)^(1/3)` is this paper's rule is not confirmed (the program uses the plus sign only). Related: the general rule of Churchill and Usagi (below). Other Churchill papers confirmed: Churchill and Churchill, AIChE J. 21 (3) (1975) 604; Churchill, Ind. Eng. Chem. Fundam. 16 (1) (1977) 109-116; Churchill and Bernstein, J. Heat Transfer 99 (2) (1977) 300-306; Churchill, Lett. Heat Mass Transfer 4 (3) (1977) 193-199. **Status S for the citation, M for the rule.** Topic 08.
 
 ### [ChurchillUsagi]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 S. W. Churchill and R. Usagi, a general expression for the correlation of rates of transfer and other phenomena, AIChE J. 18 (1972) 1121-1128 (volume and pages from memory); extension in Ind. Eng. Chem. Fundam. 13 (1) (1974) 39-44, doi 10.1021/i160049a008 (The maintainer's reference compilation (`docs/reference-compilation.md`); abstracts seen only). The rule: `Y = (1 + Z^n)^(1/n)`, with Y and Z built from the asymptotic solutions for large and small values of the independent variable; n comes from plots of Y against Z and Y/Z against 1/Z and is insensitive, so the nearest integer is acceptable; the power-mean form is `Phi^n = Phi_0^n + Phi_inf^n`. The composite of Bar-Cohen and Rohsenow is this form with n = -2. **Status S.** Topics 08, 13.
 
 ### [AirProperties]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Dry air at 1 atm, Sutherland-type fits for viscosity and conductivity between 250 and 450 K, as used in `convection.py` (`docs/theory.md` section 8): the program's fits are checked against textbook values (1 to 3 %), no single source is recorded. **Status M.** Topic 08.
 
 ### [Ostrach1953]
+
+**Licence:** public domain. **Source URL:** not recorded.
+
 S. Ostrach, *An Analysis of Laminar Free-Convection Flow and Heat Transfer About a Flat Plate Parallel to the Direction of the Generating Body Force*, NACA Report 1111 (1953) (supersedes NACA TN 2635, 1952), open copy NASA NTRS 19930092147 (18 pages, read as page images and as the OCR text layer). **Read in full in `research/plate-h-level/`**: the similarity equations (Nu_x = -H'(0) (Gr_x/4)^(1/4), the section on the heat-transfer parameter, printed page 71, PDF page 9), Table I (pages 77 and 78 of the report; Pr 0.01, 0.72, 0.733, 1, 2, 10, 100, 1000): -H'(0) = 0.0812 / 0.5046 / 0.5080 / 0.5671 / 0.7165 / 1.1694 / 2.191 at Pr 0.01 / 0.72 / 0.733 / 1 / 2 / 10 / 100, F''(0) = 0.6760 at Pr 0.72, and the rows of Table I(b) used in the profile check; the comparison with the experiments of Schmidt and Beckmann (page 69, profiles only). Reproduced by the independent solver `research/plate-h-level/lib/similarity.py` to 0.02 % (Pr 0.72 to 100; at Pr 0.01 the report is 0.75 % above the solver); the report's own worked value (same page: Nu = 63.6 at Pr 0.72, Gr 1e9) is 0.3 % above its Table I. **Status R.** Used in `docs/theory.md` 8 for the check of the laminar form (`-H'(0)` = 0.5046 at Pr 0.72 checked on the page image of Table I(b), report p. 77; program 0.25 % below). Topic 08.
 
 ### [Jaffer2023]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2201.02612.
+
 A. G. Jaffer, *Natural Convection Heat Transfer From an Isothermal Plate*, arXiv:2201.02612v6 (21 Jan 2023), published in Thermo 3 (2023) 10 (the arXiv version was read; the page-15 figure was read as page image and as **vector drawing**). **Read in full in `research/plate-h-level/`** for what concerns the vertical plate: equation 2 (the Churchill and Chu all-range form), Table 1 (the data sets that Churchill and Chu used: King, Jakob and Cheesewright in air, Pr 0.70, Ra 3.6e3 to 1e12; Saunders in mercury), Table 6 (bias of King +11.1 %, Jakob +3.1 %, Cheesewright -15.4 %, Saunders -1.2 % against Jaffer's own formula, which differs from Churchill and Chu's by less than 1 % RMSRE) and Figure 6 (the markers, taken as plot values from the vector drawing: 8 King, 6 Cheesewright, 5 Jakob points). The data are Jaffer's digitisation of Churchill and Chu's graphs, not the original tables; his own thermodynamic theory was not evaluated. **Status R for the figure and the tables, S for the data sets (the original measurements King 1932, Cheesewright 1968 and Jakob were not obtained).** Topic 08. **Horizontal plates, read in `research/horizontal-plate-h/`** (the arXiv listing of that time, 26 pages, as extracted text; the figures were not viewed): section 1 (the flow topologies of the upward and downward faces and Table 1, the ranges of the data sets), section 3.4 (Schulenberg's downward formulas 4 and 5 and his argument that 1.156 is a misprint), section 7 (the upward formula 30, `Nu = [0.642 + 0.370 Ra^(1/6)]^2` with `L = A/P`, `Nu0 = 2/pi`), Table 3 (RMSRE 4.9 % against Lloyd and Moran, 7.2 % against Goldstein et al., 5.0 % and 12.0 % against the two Fujii and Imura plates), sections 10, 11, 15 and 17 (the downward formulas 46 and 56 with the metric L_R of half the shorter side of a rectangle and 2R/pi of a disc, equations 57 and 58, and Table 7, RMSRE 3.7 to 4.2 %). The review re-read sections 10 to 13 and 17: equation 56 scales Ra by the unified function `Xi_all(Pr) = [1 + (0.5/Pr)^sqrt(1/3)]^sqrt(3)` (equation 54), not by `Xi_R` of equation 51 (Schulenberg's strip), which the first version of the folder had used (1.1 to 1.3 % high); `L_R` is half the shorter side (section 10, read). The formulas are Jaffer's fits to plot values of the measurements; the originals of the measurements were not opened. **Status R for the pages named, plot values for the data.**
 
 ### [Schulenberg1984KfK]
+
+**Licence:** not checked. **Source URL:** https://publikationen.bibliothek.kit.edu/200019703.
+
 T. Schulenberg, *Waermeuebergang durch Naturkonvektion unter horizontalen, geheizten Platten* (Natural convection heat transfer below horizontal heated plates), dissertation, Universitaet Karlsruhe; Kernforschungszentrum Karlsruhe report KfK 3713 (March 1984), 49 pages, open copy at https://publikationen.bibliothek.kit.edu/200019703 (KIT library). **Read in `research/horizontal-plate-h/`**: the text layer for the whole report and the page images of report pages 16 and 31 (the formulas): the Prandtl-to-zero asymptotes `Nu = 0.571 (Gr Pr^2)^(1/5)` for the isothermal infinite strip (equation 43, page 16, table 1 with A = 0.188) and `Nu = 0.705 (Gr Pr^2)^(1/5)` for the isothermal disc (equation 45), the Prandtl-to-infinity asymptotes `Nu = 0.544 (Gr Pr)^(1/5)` (strip, equation 87) and `0.619 (Gr Pr)^(1/5)` (disc, equation 89) (page 30, text layer), and the Churchill-Usagi interpolation with n = 3 fixed by the experiments of Aihara, Yamada and Endo (strip in air) and Faw and Dullforce (disc in air), equations 92 to 95 (page 31, image): `Nu/Ra^(1/5) = 0.571 Pr^(1/5) / [1 + 1.156 Pr^(3/5)]^(1/3)` for the strip and `0.705 Pr^(1/5) / [1 + 1.48 Pr^(3/5)]^(1/3)` for the disc (`R`, the half width of the strip or the radius of the disc, is the length of Nu and Ra: nomenclature page). Figures 6 to 9 (comparison with integral solutions and experiments) were not read. **Read by the review** (page images of report pages 30, 31, 36 and 37 and the text of pages 32 and 36): the solution is locally similar and restricted to the region round the stagnation point at the centre of the plate, so **equations 92 to 95 are the local Nusselt number there, not the plate mean**; the report states that the edges transfer more and its figure 11 (page 37) shows `(Nu_mean - Nu)/Nu` of about 0.3 to 0.5 at Ra 5e4 to 1e6 and 0.1 to 0.2 near 1e7 for measured squares and strips (plot values), falling roughly as Ra^(-1/5). An independent numerical solution reproduces the local value at the centre within 4 % (`research/horizontal-plate-h/` README 5). Jaffer (2023) calls the 1.156 a typographical error and replaces it with 1.56 and the 0.571 with 0.631: the report's own asymptotes are consistent with the printed numbers (`(0.571/0.544)^3 = 1.156`), see the README of the folder. **Status R for the pages named, N for the rest.** Topic 30.
 
 ### [Schulenberg1985]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 T. Schulenberg, *Natural convection heat transfer below downward facing horizontal surfaces*, Int. J. Heat Mass Transfer 28 (2) (1985) 467-477 (citation from Jaffer 2023 and a search summary; the journal paper was not opened; the dissertation above is the same work). **Status S.** Topic 30.
 
 ### [GoldsteinSparrowJones1973]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 R. J. Goldstein, E. M. Sparrow and D. C. Jones, *Natural convection mass transfer adjacent to horizontal plates*, Int. J. Heat Mass Transfer 16 (5) (1973) (the abstract was seen through search results: naphthalene sublimation, circular, square and 7:1 rectangular planforms, Sherwood number against Rayleigh number, corresponding to a heated isothermal upward-facing plate or a cooled downward-facing one). The paper was not opened. Jaffer (2023, Table 1, **read**) lists its range, Ra 1.6 to 6.2e3 (Sc 2.5, upward). **Status S.** Topic 30.
 
 ### [GoldsteinLau1983]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 R. J. Goldstein and K. S. Lau, *Laminar natural convection from a horizontal plate and the influence of plate-edge extensions*, J. Fluid Mech. (1983) (volume and pages not recorded; the abstract was seen on the publisher page: finite-difference solution of a heated strip in a 2D domain at Pr 0.7 and experiments on naphthalene squares in air, Ra about 10 to 1e4, both supporting a 1/5-power law, one active face with an insulated back, and edge extensions that reduce the transfer). The paper is behind a paywall and was not opened. Its constants are known second hand from [YovanovichJafarpur1993Bounds], p 8 (page image read): facing down, the theoretical studies they summarise give area-mean `C Ra^(1/5)` on `A/P` with C 0.44 to 0.527 (the highest at Sc 2.5) and an average of 0.475 at Pr 0.71, their numerical strip `0.524 Ra^(1/5)` for 40 < Ra < 8e3; facing up the strip is `0.621 Ra^(1/5)` (p 7 to 8); the program's face down uses the 0.475 (`fix/face-down-convection`). Jaffer (2023, Table 1) lists the downward squares: Ra 250 to 4500, uncertainty 10 %. **Status S.** Topic 30.
 
 ### [FujiiImura1972]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 T. Fujii and H. Imura, *Natural-convection heat transfer from a plate with arbitrary inclination*, Int. J. Heat Mass Transfer 15 (4) (1972) 755-764. Not opened. Lienhard 6.00 (book page 437, read) prints their downward form `Nu_L = 0.58 Ra_L^(1/5)` on the **width L** of a two-dimensional plate (end effects suppressed), 1e6 <= Ra_L < 1e11; evaluated on A/P it is inflated by 30 to 80 % (the error found by the review of `research/theory-sources/`); on the half width of a strip it is `0.4396 Ra^(1/5)`, within 5 % of Schulenberg's and Jaffer's strip forms (`research/horizontal-plate-h/` README 3.3). Jaffer (2023) uses its measured data (water, Pr 5.0, plates with side walls: upward 5 x 10 cm, Ra 5.7e6 to 1.3e9 and 30 x 15 cm, 4.1e9 to 4.8e11; downward 5 x 10 cm, 1.8e7 to 4.5e9, 30 x 15 cm 9.3e9 to 7.6e11), recorded in his Table 1 (read). **Status S** (through Jaffer). Topic 30.
 
 ### [AiharaFaw]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 T. Aihara, Y. Yamada and S. Endo, free convection along the downward-facing surface of a heated horizontal plate, Int. J. Heat Mass Transfer (1972; the title and year are from memory, the reference list of Schulenberg's report, entry 11 on its page 41, was read only as far as "Free convection along the ..."), and R. E. Faw and T. A. Dullforce, *Holographic interferometry measurement of convective heat transport beneath a heated horizontal plate in air*, Int. J. Heat Mass Transfer 25 (1982) (title from Jaffer's reference list). Neither was opened. Their ranges (Aihara: 25 x 35 cm in air, Ra 7.2e6 to 1.0e7; Faw and Dullforce: 18.1 cm disc, 1.1e6 to 1.6e6) are from Jaffer's Table 1 (read). **Status S** (through Jaffer and Schulenberg). Topic 30.
 
 ### [KadambiDrake]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 V. Kadambi and R. M. Drake, the downward-facing heated disc (the reference [8.24] of Lienhard 6.00; title, journal and year not recorded): `Nu_D = 0.82 Ra_D^(1/5) Pr^0.034`, as printed by Lienhard (book page 437, equation 8.39, read in the review of `research/horizontal-plate-h/`). The original was not opened. **Status S** (through Lienhard). Topic 30.
 
 ### [AlArabiElRiedy1976]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. Al-Arabi and M. K. El-Riedy, natural convection heat transfer from isothermal horizontal plates of different shapes, Int. J. Heat Mass Transfer 19 (1976). **Status N** (not opened; no summary read in `research/horizontal-plate-h/`; named by the maintainer's task, the citation is from memory). Topic 30.
 
 ### [RaithbyHollands]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 G. D. Raithby and K. G. T. Hollands, natural convection, in *Handbook of Heat Transfer*, Rohsenow, Hartnett and Cho (eds.), McGraw-Hill (chapter 4; from memory). **Status N** for the chapter (not opened). Their horizontal-plate forms are read as Lienhard prints them (*A Heat Transfer Textbook* 6.00, book pages 435 and 436, equations 8.35 and 8.37a/b with `L* = A/P`, the correction `1.4/ln(1 + 1.4/Nu)` below Nu 10, 1 < Ra < 1e7; read in `research/horizontal-plate-h/` by its review and in `research/theory-sources/`, whose entry `[Lienhard2024]` holds the book). Topic 30.
 
 ### [IIETAIntegral]
+
+**Licence:** not checked. **Source URL:** https://iieta.org/download/file/fid/10648.
+
 An open paper on the integral method for the vertical isothermal wall (hosted at https://iieta.org/download/file/fid/10648 ; authors and title not recovered from the text layer, which has no header), read as extracted text for its equations 11 to 14 only: Squire's integral-method local coefficient Nu_y = 0.508 [Pr/(0.952 + Pr)]^(1/4) Ra_y^(1/4) (equation 13), Churchill and Chu's local form 0.503 Ra_y^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9) (equation 12), LeFevre's fit (equation 14) and the limits of the mean coefficient (0.677 Ra^(1/4) for Pr to infinity, 0.68 Pr^(1/4) Ra^(1/4) for Pr to zero). **Status S** (a secondary paper; the originals of Squire, LeFevre and Churchill and Usagi were not obtained). Used only to say which constant belongs to which method.
 
 ### [SparrowGregg1958]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 E. M. Sparrow and J. L. Gregg, *The Variable Fluid-Property Problem in Free Convection*, Trans. ASME 80 (1958) 879 (the reference list of a Cambridge paper gives this volume and page; the paper was not opened). Seen as search-result summaries only: variable-property solution for the isothermal vertical plate, properties of a gas at the reference temperature T_r = T_w - 0.38 (T_w - T_inf), beta = 1/T. **Status S.** A first similarity solution of the constant-property plate for Pr 0.72 and 1 is attributed to Sparrow and Gregg in the same search results; not opened. Topic 08.
 
 ### [McAdams0.59]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The empirical Nu = 0.59 Ra^(1/4) for 1e4 < Ra < 1e9 (textbook form of the vertical isothermal plate, attributed to McAdams, quoted by Incropera and DeWitt as equation 9.27 in the editions seen by the web search; two web calculators and a textbook excerpt on Scribd list it with that range). **Status S/M**: no copy of McAdams (Heat Transmission, 3rd ed., 1954) or of the textbook was opened; the attribution rests on the secondary pages. It is also the plate limit (0.59) of the composite of Bar-Cohen and Rohsenow ([ElenbaasBCR], equation 21 of [TeertstraReview]). Topic 08.
 
 ## 4. Packages, the junction, compact models, datasheets
 
 ### [JESD15-3]
+
+**Licence:** not checked. **Source URL:** http://www.simu-cad.com/userfiles/images/ZaiXianXiaZai/ef8f29116ed54c67a8a8d77502611043.pdf.
+
 JEDEC JESD15-3, *Two-Resistor Compact Thermal Model Guideline* (July 2008; free download after registration, per the JEDEC listing page in The maintainer's reference compilation (`docs/reference-compilation.md`)). **Status R** (text read earlier, through a mirror at http://www.simu-cad.com/userfiles/images/ZaiXianXiaZai/ef8f29116ed54c67a8a8d77502611043.pdf): definitions of theta-JB and theta-JC-top, replacing theta-JB by theta-JC-bottom for exposed-pad packages, psi-JB as a substitute, psi-JT not allowed, the block-and-plate construction, accuracy "30 % or less"; scope: a two-resistor model from the junction-to-case and junction-to-board metrics of JESD51-8 and JESD51-12, single-die packages only (the two resistors in parallel from the junction node is from memory). Companion: JESD15-4, *Delphi Compact Thermal Model Guideline* (October 2008). Topics 09, 12, 14.
 
 ### [JESD51family]
+
+**Licence:** not checked. **Source URL:** https://www.jedec.org/node/3931.
+
 JEDEC JESD51 family. The JEDEC listing page (read in The maintainer's reference compilation (`docs/reference-compilation.md`)) shows every entry as a free download after registration: JESD51-2A natural convection (still air) conditions (January 2007); JESD51-5 thermal-via test boards (February 1999, reaffirmed 2026); JESD51-6 forced convection (March 1999); JESD51-8 junction-to-board (October 1999); JESD51-9 area-array test boards (July 2000); JESD51-10 through-hole perimeter-leaded packages (July 2000); JESD51-11 through-hole area-array leaded packages (June 2001); JESD51-12.01 reporting and using package thermal information (November 2012); JESD51-13 glossary (June 2009); JESD51-14 transient dual interface junction-to-case method (November 2010); JESD51-31, -32 and -34 multichip packages; JESD51-51A, -52A and -53A LED testing (2022); JESD88G dictionary (March 2025). **JESD51-1** (electrical test method, K-factor of a temperature-sensitive parameter) is behind a login: index pages https://www.jedec.org/node/3931 and https://www.vektrex.com/news-articles/measuring-led-junction-temperature-tj/ . **JESD51-3** (low-k board, 1s0p) and **JESD51-7** (high-k board, 2s2p) did not appear in the part of the listing that could be read; their roles are from memory: search by number. None of the standards was opened; the project knows them through Electronics Cooling ([EC2019JEDEC]). **Status S for the list, N for the content.** Topics 09, 14, 23.
 
 ### [NISTIR7648]
+
+**Licence:** public domain. **Source URL:** https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nistir7648.pdf.
+
 J. Stori, K. Brady, T. Thurman, *Representation of a Thermal Resistor Network Model of a Packaged Component in STEP AP210 Edition 2*, NISTIR 7648, 2008, https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nistir7648.pdf. **Status R**: JESD15 family, 2R with three nodes and two resistances, DELPHI with shunt resistors. Topic 09.
 
 ### [TI-SPRA953B]
+
+**Licence:** not checked. **Source URL:** https://e2e.ti.com/cfs-file/__key/communityserver-discussions-components-files/171/4745.TI_5F00_PackageThermalMetrics_5F00_spra953b.pdf.
+
 Texas Instruments, *Semiconductor and IC Package Thermal Metrics*, SPRA953B, 2012, https://e2e.ti.com/cfs-file/__key/communityserver-discussions-components-files/171/4745.TI_5F00_PackageThermalMetrics_5F00_spra953b.pdf (**the local copy read is revision D, December 2003, revised March 2024**; the definitions are unchanged; the share of the heat through the board is given three times: 70-95 % on p 2, JEDEC still air; 60-95 % on p 7, 'many models'; 75-95 % on p 11, psi-JB). **Status R** (in part: by image PDF 2, 5, 6, 7, 8, 11; PDF 1, 14 by the text layer only): definitions of theta-JC, theta-JB, psi-JT, psi-JB, the three-resistor estimate, the theta-JB redistribution problem, 75 to 95 % of the heat through the PCB. Topics 09, 14, 23.
 
 ### [Renesas-Thermal]
+
+**Licence:** not checked. **Source URL:** https://www.renesas.com/en/document/whp/thermal-characterization-packaged-semiconductor-devices.
+
 Renesas, *Thermal Characterization of Packaged Semiconductor Devices*, https://www.renesas.com/en/document/whp/thermal-characterization-packaged-semiconductor-devices. **Status R**: psi-JB within about 15 % of theta-JB, psi-JT, mould compound emissivity about 0.95, theta-JA = theta-JC + theta-CS + theta-SA. Topics 09, 23.
 
 ### [SemiDigest2007]
+
+**Licence:** not checked. **Source URL:** https://sst.semiconductor-digest.com/2007/03/compact-thermal-modeling-impacting-the-industry/.
+
 *Compact Thermal Modeling: Impacting the Industry*, Semiconductor Digest, 2007, https://sst.semiconductor-digest.com/2007/03/compact-thermal-modeling-impacting-the-industry/. **Status R**: DELPHI within 10 %, boundary-condition independence, dynamic models in standardisation. Topic 09.
 
 ### [Siemens-CTM]
+
+**Licence:** not checked. **Source URL:** https://blogs.sw.siemens.com/simulating-the-real-world/2013/04/05/experiment-vs-simulation-part-4-compact-thermal-models/.
+
 Siemens, *Experiment vs. Simulation, Part 4: Compact Thermal Models*, https://blogs.sw.siemens.com/simulating-the-real-world/2013/04/05/experiment-vs-simulation-part-4-compact-thermal-models/. **Status R**: standard 2R and DELPHI lack thermal capacitance; RC ladders from transient measurements add it. Topics 09, 12.
 
 ### [EC2007Compact]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2007/05/compact-thermal-modeling-in-electronics-design/.
+
 Electronics Cooling, *Compact thermal modeling in electronics design* (2007), https://www.electronics-cooling.com/2007/05/compact-thermal-modeling-in-electronics-design/. **Status R**: 2R about 30 % or less, DELPHI within 10 %, typical errors under 5 % against detailed models, lack of theta-JB data from some manufacturers. Topic 09.
 
 ### [EC2019JEDEC]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2019/11/jedec-thermal-standards-developing-a-common-understanding/.
+
 Electronics Cooling, *JEDEC Thermal Standards: Developing a Common Understanding* (2019), https://www.electronics-cooling.com/2019/11/jedec-thermal-standards-developing-a-common-understanding/. **Status R**: JESD51-2, -3, -5, -6, -7, -8, -9, -14, JESD15-3 and -4; test boards of at least 76 x 114 mm. Topics 09, 14.
 
 ### [EC1999RJB]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/1999/01/use-of-junction-to-board-thermal-resistance-in-predictive-engineering/.
+
 Electronics Cooling, *Use of junction-to-board thermal resistance in predictive engineering* (1999), https://www.electronics-cooling.com/1999/01/use-of-junction-to-board-thermal-resistance-in-predictive-engineering/. **Status R**: R-JB depends on the board, about 10 % scatter, errors under 25 % in a CFD study. Topic 09.
 
 ### [EC2024JESD5114]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2024/04/the-applicability-of-jesd51-14-for-the-determination-of-junction-to-case-thermal-resistance/.
+
 Electronics Cooling, *The Applicability of JESD51-14 for the Determination of Junction to Case Thermal Resistance* (2024), https://www.electronics-cooling.com/2024/04/the-applicability-of-jesd51-14-for-the-determination-of-junction-to-case-thermal-resistance/. **Status R**: single-path packages, Rjb/Rjc above about 10, an overmolded BGA 0.82 against 1.79 K/W. Topic 09.
 
 ### [RichtekAN061]
+
+**Licence:** not checked. **Source URL:** https://www.richtek.com/Design%20Support/Technical%20Document/~/media/AN%20PDF/AN061_EN.ashx.
+
 Richtek, *Application and Definition of Thermal Resistances on Datasheet*, AN061 (2020), https://www.richtek.com/Design%20Support/Technical%20Document/~/media/AN%20PDF/AN061_EN.ashx. **Status R**: theta-JB on the lead foot for leaded parts, theta-JA/JC/JB not applicable to another board, the psi-JB and psi-JT estimates and their measured check. Topics 09, 14, 23.
 
 ### [TI-AN2020]
+
+**Licence:** not checked. **Source URL:** https://www.ti.com/lit/an/snva419c/snva419c.pdf.
+
 Texas Instruments, *AN-2020 Thermal Design by Insight, Not Hindsight*, SNVA419C (2013), https://www.ti.com/lit/an/snva419c/snva419c.pdf. **Status R**: theta-Cu, theta-VIA, copper weight, board-area rule of thumb, heatsink on the bottom against the top. Topics 09, 21.
 
 ### [ROHM-64AN113E]
+
+**Licence:** not checked. **Source URL:** https://fscdn.rohm.com/en/products/databook/applinote/ic/power/switching_regulator/thermal_resistance_appli-e.pdf.
+
 ROHM, *Thermal resistance and thermal characterization parameter*, 64AN113E, https://fscdn.rohm.com/en/products/databook/applinote/ic/power/switching_regulator/thermal_resistance_appli-e.pdf. **Status R**: JEDEC test boards 114.3 x 76.2 mm, 70 um traces, 74.2 mm planes of 35 um, thermal vias diameter 0.30 mm at 1.2 mm pitch. Topics 14, 23.
 
 ### [ROHM-65AN114E]
+
+**Licence:** not checked. **Source URL:** https://fscdn.rohm.com/en/products/databook/applinote/common/theta_ja_and_psi_jt_an-e.pdf.
+
 ROHM, *theta-JA and psi-JT*, 65AN114E, https://fscdn.rohm.com/en/products/databook/applinote/common/theta_ja_and_psi_jt_an-e.pdf. **Status R**, confirmed by image for PDF 2 to 4: why theta-JA and psi-JT change in other applications; equations 1 to 5 (`theta_JA = (T_Jss - T_Ass)/P_H`, `psi_JT = (T_Jss - T_Tss)/P_H`, `T_J = psi_JT P_D + T_T`); Figs 6 and 9: theta_JA from about 98 to 36 K/W with 0 to 5500 mm2 of inner and bottom copper (HTSOP-J8, JEDEC four-layer), psi_JT about 10 to 7 (plot reading); the note gives no `theta_JA - psi_JT` shortcut (consistent with `docs/validation.md`). Topic 23.
 
 ### [ROHM-2R-not-used]
+
+**Licence:** not checked. **Source URL:** https://fscdn.rohm.com/en/products/databook/applinote/common/two_resistor_model_for_thermal_simulation-e.pdf.
+
 **Status: not used** as a source. ROHM application note "two-resistor model", https://fscdn.rohm.com/en/products/databook/applinote/common/two_resistor_model_for_thermal_simulation-e.pdf. **Not used** as a source for the 2R model: it defines junction-to-board and board-to-ambient resistances, which is not the JESD15-3 definition. Topic 09.
 
 ### [Infineon-AN2012-03]
+
+**Licence:** not checked. **Source URL:** https://www.infineon.com/assets/row/public/documents/24/42/infineon-mosfet-optimos-datasheet-explanation-applicationnote-en.pdf.
+
 Infineon, *OptiMOS Power MOSFET Datasheet Explanation*, AN 2012-03, https://www.infineon.com/assets/row/public/documents/24/42/infineon-mosfet-optimos-datasheet-explanation-applicationnote-en.pdf. **Status R**: Ptot, RthJA conditions, ZthJC. Topics 09, 12.
 
 ### [Datasheets]
+
+**Licence:** not checked. **Source URL:** https://www.ti.com/lit/ds/symlink/csd17308q3.pdf.
+
 **Status R-** (datasheet values as recorded by `docs/research.md`). Datasheets read for the parts (`docs/research.md`, evidence list): Texas Instruments CSD17308Q3 (SLPS262C, https://www.ti.com/lit/ds/symlink/csd17308q3.pdf; RthetaJC 4.5, RthetaJA 46 typical and 58 maximum on 1 in2 of 2 oz copper), LMR36510 (SNVSBD7B, https://www.ti.com/lit/ds/symlink/lmr36510.pdf), TPS7A47 (https://www.ti.com/lit/ds/symlink/tps7a47.pdf; RthetaJA 32.5, theta-JC(bot) 1.7, psi-JT 0.3, psi-JB 11.9 K/W); SX Semiconductor SS12 to SS120 (**R**, RthetaJ-L 20 K/W; not reopened by the review); SS54 SMC rectifier (**R**); **opened again by the review of `research/component-heatsink/`** (text extracted from the PDFs): TI CSD17308Q3 (SLPS262C: RthetaJC 4.5 maximum, RthetaJA 46 typical and 58 maximum, Tj -55 to 150 C), TI TPS7A47 (SBVS204G: theta-JC(bot) 1.7, theta-JB 11.9, psi-JB 11.9, theta-JC(top) 27 K/W, operating Tj -40 to 125 C), TI LMR36510 (theta-JC(bot) 4.3, theta-JB 13.6, psi-JB 13.8, theta-JC(top) 54 K/W, Tj -40 to 150 C), Vishay SS12 (document 88746: RthetaJL 28 K/W, Tj -65 to 150 C; the junction-to-terminal resistance of an SS12 depends on the maker, 20 against 28 K/W); Vishay WSL power metal strip resistors (https://www.vishay.com/docs/30100/wsl.pdf, **R**: power rating at 70 C and the derating curve). Samsung LED high-power datasheets: the thermal figures came from a search summary and the files were **not read** (**N**). Topics 09, 14.
 
 ### [Nexperia-AN11261]
+
+**Licence:** not checked. **Source URL:** https://mouser.com/pdfDocs/AN11261-3.pdf.
+
 **Update (research/theory-sources/ 3.8):** the Rev. 5.0 (18 March 2021) 19-page PDF was opened from a mirror (`docs.ampnuts.ru`; the vendor host answers 403) and read, pages 1 to 12 (sections 1 to 6): equations 2 and 3 (page 4), the Cauer netlist of the BUK7S1R0-40H (page 6), examples 1 to 3 and the power profile of Table 3. The network values reproduce the published Rth 0.4 K/W and Zth 0.26 K/W (4 ms). Status R for those pages; S for the rest.
 
 Nexperia, AN11261, *Using RC thermal models* (Foster and Cauer networks), https://mouser.com/pdfDocs/AN11261-3.pdf (the older NXP edition; the current one is Rev. 5.0, March 2021; the host cannot be opened from the session). **Status S**: a search summary says that a Foster model comes from fitting a curve to `Zth` (a one-dimensional RC chain whose values do **not** correspond to places in the device), that a Cauer model maps to physical layers and gives access to internal nodes and can be connected to external networks (heatsink, PCB), that `Zth` is measured from step power pulses of different lengths and reaches a plateau equal to `Rth` after about a second, and that for a square pulse `Zth` read from the datasheet times the power gives the rise, while pulsed or sinusoidal power needs the RC ladder. Nexperia's own device models use a Foster network (for example eight `Rth, Cth` pairs for one MOSFET). Topic 12.
 
 ### [TI-SLUAAT8]
+
+**Licence:** not checked. **Source URL:** https://www.ti.com/lit/pdf/sluaat8.
+
 Texas Instruments SLUAAT8, *Using MOSFET Transient Thermal Impedance Curves in Your Design*, https://www.ti.com/lit/pdf/sluaat8 (repetitive pulses). **Status R** (all 7 pages: 2-5 by image, 1, 6, 7 by the text layer). Content: `Delta T_J = P Z_thetaJC R_thetaJC` with `Z` read from the duty-cycle curves of the data sheet (eq 2) and the peak-current forms of eqs 3-12 (CSD19532Q5B). **It contains no formula `D + (1 - D) z(t)`**; that form, used in topics 10 and 12, has no source found (searched in the OCR'd texts) and stays M. Topic 12.
 
 ### [Microchip-Thermal]
+
+**Licence:** not checked. **Source URL:** https://support.microchip.com/s/article/Thermal-parameters-of-an-IC.
+
 Microchip, *Thermal parameters of an IC*, https://support.microchip.com/s/article/Thermal-parameters-of-an-IC; Texas Instruments SLRR012 one-page thermal reference, http://www.ti.com/lit/pdf/SLRR012. **Status S.** Topics 09, 14.
 
 ## 5. Heatsinks and interfaces
 
 ### [HeatsinkCatalogues]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The catalogue entries of theta-SA with air flow and test conditions behind the heatsink library (11 entries, `docs/models.md` and `docs/research.md` R2, R3, R6). The research folder `component-heatsink/NOTES.md` records which were read and which are search summaries. **Status R/S per entry.** Topics 11, 13.
 
 ### [VolumetricGuide]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The forced-convection factors on theta-SA (1, 0.31, 0.18 and 0.10 at 0, 1, 2.5 and 5 m/s) of a volumetric heatsink guide, recorded in `docs/versions.md` "Planned" ("Heatsink air flow") and `docs/research.md` R3; the guide itself is named in `research/component-heatsink/NOTES.md`. **Status S.** Topic 13.
 
 ### [ASTMD5470]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 ASTM D5470, *Standard Test Method for Thermal Transmission Properties of Thermally Conductive Electrical Insulation Materials*: edition D5470-17 (listed as reapproved 2024 by DIN Media; it superseded D5470-12 and -06). Scope seen in the catalogue entries (The maintainer's reference compilation (`docs/reference-compilation.md`)): thermal impedance and an **apparent** thermal conductivity, for materials from liquids to hard solids; "thermal conductivity" applies only to homogeneous materials; steady state with idealised one-dimensional heat flow; prices about 74 euro (DIN Media) and 86 US dollars (ASTM, 06 edition). Formulas from memory: `theta = A (T_hot - T_cold)/Q`, `theta = R_c1 + R_c2 + BLT/k`, `k_app` from the slope of `theta` against the bond-line thickness. The standard was not read. **Status S for the scope, M for the formulas.** Topics 09, 11, 24. **Edition confirmed** on the ASTM store page: ASTM D5470-17(2024), also written D5470-17R24, status Active (the page shows only a site update date, not the approval date).
 
 ### [MetalTables]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Metal property tables read by the heatsink study (`docs/research.md` R2): Ferrotec material table and Engineering ToolBox (aluminium 204 W/mK, 2.71 g/cm3, 0.90 J/gK; copper 386, 8.96, 0.385; brass 111, 8.49, 0.34; stainless 304 about 14, 8.01, 0.46; carbon steel 54, 0.49 J/gK, a textbook value). Addresses not recorded. **Status R as recorded.** Topic 24.
 
 ### [GreaseValues]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Typical thermal grease and pad values read by the heatsink study (`docs/research.md` R2): bond line of 7 to 20 um at best and 0.05 to 0.1 K cm2/W in the laboratory (Dow Corning); in assembly 25 to 100 um and 1 to 5 W/mK; gap pads 1 to 6 W/mK and 0.5 to 1.2 mm; adhesives 0.5 to more than 6 W/mK; phase-change pads like grease above 55 to 60 C. Addresses not recorded. **Status R as recorded.** Topic 24.
 
 ### [ECD5470RoundRobin]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Electronics Cooling (2014) on ASTM D5470 thermal interface measurements, an inter-laboratory round robin: a paste 32 mm2K/W = 0.32 K cm2/W at 300 kPa (30.9 at a 23.5 um bond line), a ceramic paste 41 mm2K/W, a 1.575 mm gap pad 12.1 K cm2/W at 690 kPa; the joint formula `R = BLT/(kA) + (R''c1 + R''c2)/A`. Address not recorded. **Status R as recorded.** Topic 24.
 
 ### [ECHowToSelectHeatsink]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Electronics Cooling, "How to select a heat sink": `Rja = Rjc + Rcs + Rsa`, `Rsa = (Ts - Ta)/Q - Rjc - Rcs`, spreading of a source much smaller than the base adds 5 to 30 %, the volumetric performance `C = R V` of 500 to 800 cm3K/W in natural convection falling to 150-250, 80-150 and 50-80 at 1, 2.5 and 5 m/s, interface values 0.07 to 0.81 in2 C/W. Address not recorded (the notes in `docs/research.md` R6 cite it by title). **Status R as recorded.** Topics 13, 24.
 
 ### [AlphaNovatech]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Alpha Novatech and similar heatsink catalogues: natural convection `W = beta dT^1.25`, so the resistance falls as `dT^(-0.25)` (a heatsink at 30 K rise 1.257 times worse than at 75 K); a bad orientation about 25 % worse; anodised aluminium (emissivity about 0.8) against bare (about 0.1). Address not recorded. **Status R as recorded.** Topic 13.
 
 ### [ECSimpleSpreading2004]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2004/05/simple-formulas-for-estimating-thermal-spreading-resistance/.
+
 R. Simons, *Simple Formulas for Estimating Thermal Spreading Resistance*, Electronics Cooling, 1 May 2004, https://www.electronics-cooling.com/2004/05/simple-formulas-for-estimating-thermal-spreading-resistance/ . **Opened** through the page converter: the equations (the total and convective resistances, the equivalent radii `r1` and `r2`, equation 12 for the spreading resistance, the non-square case) are images and did not come through. What the text gives: a **centrally located** square source on a square plate (and on a non-square plate with the source still central; **no edge or corner source**); accuracy against the exact solution of the TAMS software, square plate, total resistance -1.2 % to +3.9 %, spreading resistance -2.1 % to +4.8 %, for plates of 20 to 40 mm, a 10 x 10 mm source, 2.5 mm thickness, `k` 25 to 400 W/mK and `h_eff` 250 to 1000 W/m2K; for a non-square plate the error grows as the length grows (tested from 20 to 50 mm with a width of 20 mm), without numbers; no worked example, only comparison plots. It cites the paper of Lee and others (its reference 3). **Status S (statements read, formulas N).** Topics 25, 26.
 
 ### [GapHandbooks]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Heat-transfer handbooks, the documentation of the `ht` library and Purdue ME 418 notes, as named by `docs/research.md` R3, for conduction of still air across a gap, radiation between parallel faces and the critical Rayleigh number of a horizontal layer (1708). Addresses not recorded. **Status R as recorded.** Topic 25.
 
 ### [Hollands]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Update (research/theory-sources/ 3.3):** the correct exponent inside the logarithm is the cube root (the `ht` code), not the fifth root of its documentation: the ISO 15099 / Rohsenow (1985) form printed as equation 9 of the open ASHRAE preprint OR-05-4-3 (page 5; read as an image) has k2 = Ra^(1/3)/450.5 and k1 = 1.40, which is the Prandtl 0.71 limit of the 1984 constants (75 exp(1.5/sqrt(0.71)) = 444.9, 1.44/(1 + 0.018/0.71 + 0.00136/0.71^2) = 1.40), and the code form is within 0.3 % of it for Ra 2e3 to 1e7, while the docstring's form (fifth root inside the logarithm only, read in `ht` 1.2.0 by the review) is 3.0 % low at 1e7. Equation 14 of the same page gives the Hollands et al. (1976) air form (with 5830, `ht` uses 5803). Neither Hollands paper was obtained (**N**).
 
 Two Hollands papers are candidates for the correlation named in `docs/research.md` R3 for a gap above about 7 mm (which one the notes mean is not recorded; it may also be Raithby and Hollands, Advances in Heat Transfer 11 (1975) 265): (1) K. G. T. Hollands, T. E. Unny, G. D. Raithby and L. Konicek, *Free convective heat transfer across inclined air layers*, J. Heat Transfer 98 (1976) 189-193 (existence confirmed in a reference list), classic form from memory `Nu = 1 + 1.44[1 - 1708/(Ra cos(theta))]* + [(Ra cos(theta)/5830)^(1/3) - 1]*` (* = positive part only); (2) K. G. T. Hollands, *Multi-Prandtl number correlation equations for natural convection in layers and enclosures*, Int. J. Heat Mass Transfer 27 (3) (1984) 466-468, doi 10.1016/0017-9310(84)90295-3. For the second, the form **as implemented in the Python `ht` library** (source read in this work, version 1.2.0, MIT; see [HtLibrary]) is `Nu = 1 + [1 - 1708/Ra]* [k1 + 2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/3)/k2))]* + [(Ra/5803)^(1/3) - 1]*`, `k1 = 1.44/(1 + 0.018/Pr + 0.00136/Pr^2)`, `k2 = 75 exp(1.5 Pr^(-0.5))`, `Nu = 1` below `Ra_c` = 1708 (and for a layer not heated from below). **A correction of the compilation**: the library's documentation writes `Ra^(1/5)` inside the logarithm while its code uses `Ra^(1/3)`, and the library's example `Nu(Pr 5.54, Gr 3.21e8) = 69.0267` has the **Grashof number** as its argument (`Ra = Gr Pr = 1.778e9`); only the code form reproduces it, as `scripts/check_correlations.py` shows (69.03). The paper itself was not opened, so the exponent in the original is not confirmed. **Status S for the citations, R for the implementation.** Topic 25. **Further citation found by search**: K. G. T. Hollands, G. D. Raithby, L. Konicek, *Correlation equations for free convection heat transfer in horizontal layers of air and water*, Int. J. Heat Mass Transfer 19 (7) (1975) 879-884, doi 10.1016/0017-9310(75)90179-9 (no open copy found).
 
 ### [HtLibrary]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 `ht`, *Heat transfer component of the Chemical Engineering Design Library*, version 1.2.0, author Caleb Bell, licence MIT (package metadata, read through the package index, the one host reachable from the session); the source of `ht/conv_free_enclosed.py` (Hollands) and `ht/conv_free_immersed.py` (Churchill-Chu) was downloaded and read in this work, with the library's own worked examples. It cites Bergman, Lavine, Incropera and DeWitt, *Introduction to Heat Transfer*, 6th edition (Wiley, 2011), Example 9.2, for the Churchill-Chu value. Used only as a read-only reference for the form of correlations; not a dependency of the project. **Status R (software source).** Topics 08, 25. **The documentation pages also give**: the horizontal-plate correlation of McAdams (1985, *Heat Transmission*, 3rd edition), `Nu = 0.54 Ra^(1/4)` up to Ra 1e7 and `0.15 Ra^(1/3)` above for a hot plate facing up, `Nu = 0.27 Ra^(1/4)` up to Ra 1e10 and `0.15 Ra^(1/3)` above for the cold or downward case, which is what `convection.py` uses (the program keeps `0.27 Ra^(1/4)` above Ra 1e10, where the difference does not matter on a board).
 
 ## 6. Inverse problems and power estimation
 
 ### [Chen-style]
+
+**Licence:** not checked. **Source URL:** https://www.researchgate.net/publication/241629467_A_method_to_measure_heat_dissipation_from_component_on_PCB:.
+
 *A method to measure heat dissipation from component on PCB*, https://www.researchgate.net/publication/241629467_A_method_to_measure_heat_dissipation_from_component_on_PCB: inverse heat-transfer estimate of the power of a component, calibration with a heater of known input, about 10 % error, multi-layer boards need an adjustment for the board conductance. **Status S.** Topics 14, 23.
 
 ### [ArXiv2307.08354]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/html/2307.08354v2:.
+
 *Component-wise Power Estimation of Electrical Devices Using Thermal Imaging*, https://arxiv.org/html/2307.08354v2: resistors of known power; mean error of 10 % with consumer infrared cameras above 300 mW. **Status S.** Topic 23.
 
 ### [OSTI21026063]
+
+**Licence:** not checked. **Source URL:** https://www.osti.gov/etdeweb/biblio/21026063:.
+
 *Theoretical and experimental characterization of heat dissipation in a board-level microelectronic component*, https://www.osti.gov/etdeweb/biblio/21026063: black paint for a usable infrared reading; validation against finite elements and a thermal test die. **Status S.** Topic 23.
 
 ### [IITPalakkad]
+
+**Licence:** not checked. **Source URL:** https://publications.iitpkd.ac.in/publication/studies-on-influence-of-anisotropic-thermal-conductivity-1.
+
 IIT Palakkad, *Studies on influence of anisotropic thermal conductivity* (inverse estimation of in-plane conductivity of PCBs with different copper layouts), https://publications.iitpkd.ac.in/publication/studies-on-influence-of-anisotropic-thermal-conductivity-1. **Status S.** Topic 23.
 
 ### [PohankaRaudensky]
+
+**Licence:** not checked. **Source URL:** https://engmechx.it.cas.cz/improc/2002/Pohanka.pdf.
+
 Pohanka and Raudensky, thermocouple disturbance of the field in inverse problems, https://engmechx.it.cas.cz/improc/2002/Pohanka.pdf. **Status S.** A Missouri S&T poster, quoted in `docs/calculators.md`, notes that fitting k and h together is weakly identifiable for a good conductor (**S**; no address). Topic 23.
 
 ## 7. Printed circuit boards: models, vias, stack-ups
 
 ### [EC2010Tiled]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Electronics Cooling (2010) on tiled conductivity maps of PCBs, quoted in `docs/theory.md` section 12; see [Blackmore2010]. **Status R through a converted text** (below). Topics 04, 17.
 
 ### [EC1998Conduction]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/1998/05/conduction-heat-transfer-in-a-printed-circuit-board/.
+
 Electronics Cooling Editors, *Conduction heat transfer in a printed circuit board*, Electronics Cooling, May 1998 (Calculation Corner), https://www.electronics-cooling.com/1998/05/conduction-heat-transfer-in-a-printed-circuit-board/ . **Read in the maintainer's compilation** (the equations are images on the page; the formulas below are the standard layer formulas, written from memory and checked against the article's numbers): layers in parallel `k_in-plane = sum(k_i t_i) / sum(t_i)`, layers in series `k_through = sum(t_i) / sum(t_i / k_i)`, a trace layer `k_i = f_i k_Cu` with `f_i` the copper coverage. The article's example (1.59 mm thick, `k_Cu` 390, `k_FR4` 0.25 W/mK, four 35 um copper layers) gives about 17.4 W/mK in plane and 0.26 W/mK through the thickness; **reproduced here: 17.41 and 0.2615** (`scripts/check_correlations.py`). Its messages: a continuous copper path in the heat-flow direction dominates; count only layers that can spread heat a useful distance; for a JEDEC test board include the trace layers. References of the article: Graebner, Electronics Cooling 1 (2) (1995) 27; Azar and Graebner, SEMI-THERM XII (1996) 169-182. A follow-up article in the same series is *Convection and radiation heat loss from a printed circuit board* (1998). **Status R (compilation).** Topics 01, 17.
 
 ### [Shen2019]
+
+**Licence:** not checked. **Source URL:** https://tenglong.eng.cam.ac.uk/files/thermalmodelinganddesignoptimizationofpcbviasandpads.pdf.
+
 Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal Modeling and Design Optimization of PCB Vias and Pads*, IEEE Trans. Power Electronics (2019), https://tenglong.eng.cam.ac.uk/files/thermalmodelinganddesignoptimizationofpcbviasandpads.pdf. **Status S** (abstract and structure read: analytical via-array and pad models verified by CFD and measurements). Topic 21. **Update (research/theory-sources/ 8.1):** read now in the pages that matter (1 to 17 of 20): equations 1 to 7 (via unit and optimum diameter), 8 to 9 (outer-zone vias), 10 to 27 (pad, two-port Bessel model), 28 to 36 (fixed-point iteration), Table I (conductivities: copper 393, solder 57.3, FR4 0.29 through-plane and 0.81 in-plane, air 0.026 W/mK), Table II (measured top-case temperatures and equivalent resistances). **Status R for pages 1 to 17**; pages 18 to 20 (conclusion, references) not read. Printed claims reproduced by `scripts/study_via_array_sources.py` (optimum 0.25 and 0.78 mm, penalties 43.4 and 22.4 % against the printed 44 and 23 %, pattern ratio 0.867 against 86.6 %; the 47, 89.5 and 46.4 % reductions against the references [15], [17], [18] are those of the staggered (pattern II) optimum: 47.3, 89.8, 46.7 %; the first version compared with the square optimum only (39, 88, 38.5 %) and called them not reproduced, corrected by the review). **Used by `research/reduced-models-imported-passives/`:** equation (19), PDF page 10 (the general solution of the leaking circular sheet, `dT = a I0(z) + b K0(z)`, `P = -2 pi k t z [a I1(z) + b K1(z)]`), re-read on the page image by the review of that folder; the closed form `K0(z)/(2 pi k t z K1(z))` of its fin test is this equation with `a = 0`. **Citation corrected:** IEEE Trans. Power Electronics 35 (1) (2020) 882-900 (as cited by [Mondragon2025], reference 4; the DOI 10.1109/TPEL.2019.2915029 and the 2019 early-access date of the accepted manuscript are unchanged).
 
 ### [ViaGuides]
+
+**Licence:** not checked. **Source URL:** https://jlcpcb.com/blog/via-filling-guide.
+
 **Status R-** for the JLCPCB and ALLPCB pages (as recorded), **N** for IPC-4761. Via fill and thermal via guides: JLCPCB https://jlcpcb.com/blog/via-filling-guide (table of fill materials, IPC-4761 types V to VII, **R as recorded**); ALLPCB https://www.allpcb.com/allelectrohub/how-to-choose-the-optimal-via-fill-material-for-pcb-design (**R**); Atlas PCB https://www.atlaspcb.com/blog/thermal-via-pcb-heat-dissipation-array-design (192 K/W per via; its 185 K/W for an epoxy-filled via is not a model of the fill, **R as recorded**); JLCPCB / RayPCB: 4 thermal vias about 40 K/W, 16 about 10 K/W (as recorded in `docs/versions.md` "Planned", **S**). The review of `research/via-fill/` opened the three pages again through a summary of each (not the raw HTML): Atlas PCB 192 K/W per open via from `L/(k A)` with the program's geometry and 12 K/W for 16 vias, 185 K/W for an epoxy-filled capped via and 45 K/W for a copper-filled one without a geometry; JLCPCB epoxy about 0.3, copper-epoxy 8, electroplated copper about 400 W/mK; ALLPCB copper fill about 400 W/mK and epoxy 1 to 3 W/mK; "up to 16" and "silver 3 to 15 W/mK" were found in none of them. The IPC-4761 standard was **not read** (**N**). Topic 21.
 
 ### [StackupTables]
+
+**Licence:** not checked. **Source URL:** https://docs.oshpark.com/services/four-layer.
+
 Fabricator stack-up tables (`docs/validation.md` sections 10 and 14, read): OSH Park four-layer https://docs.oshpark.com/services/four-layer; Bittele https://www.7pcb.com/Upload_file/Multi-layer-stack-up.pdf; PCBGOGO https://www.pcbgogo.com/pcbgogo-standard-stackup-for-multilayer-pcbs.pdf; AdvancedPCB https://www.advancedpcb.com/en-us/resources/stackups/; NextPCB https://www.nextpcb.com/tech-center/pcb-layer-stack-up (prepreg thicknesses only); JLCPCB https://jlcpcb.com/impedance; PCBWay https://www.pcbway.com/multi-layer-laminated-structure.html and the older blog table https://www.pcbway.com/blog/Engineering_Technical/stackup___pcbway.html; Eurocircuits https://www.eurocircuits.com/standard-multilayer-builds/ (only the catalogue of cores and prepregs readable); Sierra Circuits https://www.protoexpress.com/kb/no-touch-pcbs-specs/ (no layer tables). **Status R/partial per page**, as the validation document says. Topic 22.
 
 ### [IsolaPrepreg]
+
+**Licence:** not checked. **Source URL:** https://www.isola-group.com/wp-content/uploads/Prepreg-Selection-Individulal-Dielectric-Space.pdf.
+
 Isola, application note on prepreg selection and the individual dielectric space (2013), https://www.isola-group.com/wp-content/uploads/Prepreg-Selection-Individulal-Dielectric-Space.pdf . **Status R** (PDF text extracted and read in full by `research/stackup/`, README 4.6): the copper-to-copper dielectric space is the overall thickness of the plies minus, for each adjacent layer, the etched fraction times the copper thickness (the resin that fills the etched area); cores are bought thicknesses and do not change. Two fabricators' numbers follow it. Topic 36.
 
 ## 8. Copper to cells: effective conductivity, upscaling, composites, orientation
 
 ### [Sampson2017]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/.
+
 R. L. Sampson, *The Problem with Effective Thermal Conductivity*, Electronics Cooling, 28 April 2017, https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/ (method in ASME IPACK2005-73013, 2005). **Status R through a converted text supplied by the maintainer** (the equations were reconstructed by the converter; tables and figures missing). The flow-based faces are his procedure. Topic 17.
 
 ### [Guenin2015]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2015/03/strategies-for-the-thermal-modeling-of-metal-traces-on-printed-circuit-boards/.
+
 B. Guenin, *Strategies for the Thermal Modeling of Metal Traces on Printed Circuit Boards*, Electronics Cooling, 20 March 2015, https://www.electronics-cooling.com/2015/03/strategies-for-the-thermal-modeling-of-metal-traces-on-printed-circuit-boards/. **Status R** (converted text, same limits). Topics 17, 21.
 
 ### [Blackmore2010]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-maps-using-image-processing/.
+
 B. Blackmore, *Creating PCB Thermal Conductivity Maps Using Image Processing*, Electronics Cooling, 13 September 2010, https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-maps-using-image-processing/ (validation in Blackmore, SEMI-THERM 2009, pp. 76-86). **Status R** (converted text). His tile formulas are the `lambda = 0` bound of the program's mappings. Topic 17.
 
 ### [CulhamYovanovich1998]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl98-3.pdf.
+
 **Update (research/theory-sources/ 3.6):** pages 6 and 7 (pp. 465 and 466) re-read as images: Table 2, equation 11 `k_e = 1/(R_solid A/L)` (the paper says the flow area and length are 'difficult to quantify' in two-dimensional flow), the convective boundary-condition section, the definition Bi = h l / k_1 with l the side of the source, and Figure 5 (the plateau of about 4.8 W/mK above Bi 100 is read from the plot). The method of the three averaging schemes and Figure 5 were re-checked against a cosine-series solution (see the folder README 3.6).
 
 J. R. Culham and M. M. Yovanovich, *Factors affecting the calculation of effective conductivity in printed circuit boards*, Proc. Sixth Intersociety Conference on Thermal and Thermomechanical Phenomena in Electronic Systems (ITherm'98), Seattle, pp. 460-467 (1998), from the author group's archive https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl98-3.pdf (a scan; **pages 460 to 466 read as images, the last page, the references, not read**). **What it says**: the board is replaced by one homogeneous layer; the bounds are the series (cross-plane) and parallel (in-plane) conductivities, `k_s = sum t_i / sum(t_i / k_i)` and `k_p = sum(k_i t_i) / sum t_i`; three means of the two are compared, arithmetic `(k_s + k_p)/2`, geometric `sqrt(k_s k_p)` and harmonic `2 k_s k_p / (k_s + k_p)`, for a five-layer coupon (FR4 0.5263 mm, `k` 0.4; copper 0.0356 mm, `k` 400; 50 x 50 mm, a concentric 25 x 25 mm source of 2.5 W, `h` = 5 W/m2K on the free top face and the bottom, sides insulated) with in-plane 17.62, cross-plane 0.42, arithmetic 9.02, geometric 2.71 and harmonic 0.82 W/mK (Table 1). The **effective conductivity** is defined (equations 8 to 11) from the **solid-body resistance** `R_solid = (T_source,mean - T_walls,mean) / Q = R_bulk + R_spread`: the conductivity of a single layer of the same thickness and boundary conditions that gives the same `R_solid`. A three-dimensional Fourier-series solution gives: **layer order** (Table 2: Cu-Cu-FR4x3, Cu-FR4x3-Cu, FR4-Cu-FR4-Cu-FR4, FR4-Cu-Cu-FR4, FR4x3-Cu-Cu) 15.02, about 11.6, 8.28 (the base case), about 7.4 and 5.00 W/mK; **source size** (epsilon = source area / board area) from 0.42 at 1.0 through a maximum near 8.3 at 0.25 to about 3.4 at 0.01; **source position** (base case 8.28; translated along one axis +42 %, along two +67 %); **film coefficient** (k_e constant below Bi 1 and above Bi 100, about 8.6 to 4.8 W/mK between). The paper's conclusions: none of the averaging schemes is a good estimate; the effective conductivity can vary by 300 % with the layer order; the geometric mean can be 70 % off; the film coefficient matters little for Bi below 10. **Reproduced** by `research/effective-conductivity/` with an independent solver (layer orders within 2 to 6 %, the base case 7.81 against 8.28). Note: the layers add to 1.6501 mm, not the 1.62 mm of the text. **Status R for pages 460 to 466; the values marked plot in the study are read from the figures (about 0.5 W/mK).** Not opened again by the later reviews: their numbers come from this reading. Topics 17, 22, 25.
 
 ### [Muzychka2003]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl03-1.pdf.
+
 **Update (research/theory-sources/ 3.7):** the text layer was extracted and the three examples read in full, with Tables 1 to 4 (pp. 182 to 184): case 1 (b) (the 2 mm spreader of k 350 on the plate) and case 2 (the baseplate of a heat sink with four sources) were run in `research/theory-sources/`.
 
 Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal Spreading Resistance of Eccentric Heat Sources on Rectangular Flux Channels*, J. Electronic Packaging 125 (2) (2003) 178-185, doi 10.1115/1.1568125, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl03-1.pdf (text extracted and the first pages, the method of images for edge and corner sources and the three worked cases read; the series coefficients were not checked). **Read in full for the worked cases** by the review of `research/effective-conductivity/` (section 8): pages 182 and 183 with Tables 1 and 2, extracted from the PDF; every number quoted below matches. Edge source: the resistance is `R_s = 2R` and corner source `R_s = 4R` of the mirrored centred system. **Worked cases** (reproduced in `research/effective-conductivity/`): case 1 (a), a 300 x 300 x 10 mm plate, `k` 10, `h` 10 on the bottom, ambient 25 C, sources 25 x 25 mm of 10 W at (90, 90) and 15 W at (210, 210): centroid and mean temperatures 84.97 and 80.56, 108.43 and 101.81, mean base 53.06 C (the Fourier series of Culham and Yovanovich gives 85.95, 80.20, 109.92, 101.26); case 1 (b) with a 2 mm layer of `k` 350: 56.55, 56.05, 59.94, 59.19 (Culham 56.63, 56.03, 60.08, 59.16); case 3, five 20 x 20 mm sources of 5 W in a cross on a 100 x 100 x 10 mm plate, `k` 50, `h` 50: maximum at the centre 80.61 C, area-weighted mean source temperature 78.87 C. Case 2 (a 50 x 50 x 10 mm base plate, `k` 150, `h` 400, four sources) was not used. **Status R for the cases quoted.** Topic 18.
 
 ### [Lemczyk1992]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl92-1.pdf.
+
 **Update (research/theory-sources/ 3.7):** pages 414 to 417 now read as images (equations 1 to 36, Fig. 2 and 3, Tables 1 to 3 and Figs. 4 to 9); the numbers of Table 1 and of Tables 2 and 3 were read at 190 dpi (four digits; a misread digit is possible) and reproduced with an independent 2D solver. The first two pages and the final pages (conclusions, references) were not re-read. Status R for pages 414 to 417.
 
 T. F. Lemczyk, B. L. Mack, J. R. Culham, M. M. Yovanovich, *PCB Trace Thermal Analysis and Effective Conductivity*, ASME J. Electronic Packaging 114 (4) (1992) 413-419, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl92-1.pdf (a scan; **the first two pages read as images**, the results pages not read). The trace is a finite strip of copper held at a uniform temperature in a homogeneous board; the layered board is solved in 2D by a separable Fourier series with continuity of temperature and flux at every interface and a convective bottom (the formulas of pages 414 to 415: coefficients `a_i,n`, `b_i,n`, `kappa_i = k_i / k_{i+1}`, `Bi = h L / k`); the effective conductivity is proposed as the **harmonic mean of the series and the parallel conductivities** (`k_H` of its nomenclature; confirmed by [Teertstra1995], which quotes the recommendation). The same series is the basis of the 3D model of [CulhamYovanovich1998]. **Status S/R: the method of pages 413 to 415 read, the results not.** Topics 17, 22.
 
 ### [YovanovichCulhamTeertstra1998]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl98-2.pdf.
+
 M. M. Yovanovich, J. R. Culham, P. Teertstra, *Analytical Modeling of Spreading Resistance in Flux Tubes, Half Spaces, and Compound Disks*, IEEE Trans. Components, Packaging, Manufacturing Technology Part A 21 (1) (1998) 168-176, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl98-2.pdf (text extracted; the abstract and introduction read, the formulas and their tables were not checked). A review of the solutions for a circular source on a compound disk of two layers with convective or contact cooling at the bottom, with simple correlations and bounds. **Status S.** Topic 18.
 
 ### [Teertstra2004Enclosure]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl04-14.pdf.
+
 P. M. Teertstra, M. M. Yovanovich, J. R. Culham, *Modeling of Natural Convection in Electronic Enclosures*, ITherm 2004, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl04-14.pdf (text extracted, abstract read). A vertical isothermal circuit card at the centre of a sealed cuboid enclosure; a composite model from three asymptotes, pure conduction (a shape factor), laminar boundary-layer convection and transition flow, validated against CFD for many enclosure shapes within 10 % RMS. Relevant to the air gap and enclosure of topic 25. **Status S.** Topics 25, 30.
 
 ### [YovanovichMuzychkaCulham1999]
+
+**Licence:** not checked. **Source URL:** https://uwaterloo.ca/microelectronics-heat-transfer-laboratory/sites/default/files/uploads/documents/spreading_resistance_3-mhtl99-2.pdf.
+
 M. M. Yovanovich, Y. S. Muzychka, J. R. Culham, *Spreading Resistance of Isoflux Rectangles and Strips on Compound Flux Channels*, J. Thermophysics and Heat Transfer 13 (4) (1999) 495-500, https://uwaterloo.ca/microelectronics-heat-transfer-laboratory/sites/default/files/uploads/documents/spreading_resistance_3-mhtl99-2.pdf (the same paper as mhtl99-2; 6 pages). The general expression for an isoflux rectangle on a two-layer rectangular flux channel with a film on one face, the 2D and 3D special cases, and a correlation for an isoflux square source on a square flux tube. **Read by `research/gap-subdivision/` (the first 3 pages as text, Eq. 15 on the page image because the text layer misplaces its bracket): Eqs. 11 to 18 (Eq. 14 the three-sum expression of `R_s`, Eq. 15 `phi` of the two-layer channel, Eq. 17 the semi-infinite second layer, Eq. 18 the isotropic finite channel) and Table 1; the strip tables and the square-flux-tube correlation were not read.** **Reproduced**: an independent transfer-admittance series (`research/gap-subdivision/lib/series.py`) gives the spreading resistance of Eq. 14 to 2.4e-6 relative or better on three two-layer cases (a copper-like layer over an FR-4-like one, kappa = 0.00078, included), and `phi` of Eq. 15 equals Eq. 17 in the semi-infinite limit (`lib/yovanovich1999.py`, `tests/test_series.py`). No printed number of the paper's tables was compared. **Status R** for Eqs. 11 to 18. Topics 18, 01.
 
 ### [Muzychka2004Orthotropic]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl04-27.pdf.
+
 Y. S. Muzychka, M. M. Yovanovich, J. R. Culham, *Thermal Spreading Resistance in Compound and Orthotropic Systems*, J. Thermophysics and Heat Transfer 18 (1) (2004) 45-51, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl04-27.pdf (text extracted, abstract read). Compound and orthotropic systems, with the transformation that turns an orthotropic flux channel into an isotropic one with an effective conductivity, and edge cooling; the formulas were not checked. It is relevant to the anisotropic dielectric of the program's boards (`k_in-plane` different from `k_through`); the link was not checked. **Status S.** Topics 18, 22.
 
 ### [CulhamTeertstraYovanovich2000]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl00-3.pdf.
+
 J. R. Culham, P. Teertstra, M. M. Yovanovich, *The Role of Spreading Resistance on Effective Conductivity in Laminated Substrates*, Future Circuits 6 (2000) 73-78, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl00-3.pdf (text extracted, abstract read): the study of [CulhamYovanovich1998] plus a web calculator of effective conductivity for laminated substrates. **Status S.** Topic 22.
 
 ### [MHTLArchive]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/MHTLarchive.html.
+
 The archive of the Microelectronics Heat Transfer Laboratory of the University of Waterloo, https://www.mhtlab.uwaterloo.ca/MHTLarchive.html (291 papers with open PDFs, as `https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtlYY-N.pdf`). Opened and noted above: mhtl98-3, mhtl92-1, mhtl03-1, mhtl98-2, mhtl99-2, mhtl04-27, mhtl04-14, mhtl00-3, mhtl03-20 (see [Yovanovich2003]). **Read in part as images**: mhtl91-11 ([MartinRaithbyYovanovich1991], pages 1 and 2), mhtl93-4 ([Yovanovich1993Flat], pages 1 to 4), mhtl95-4 ([Teertstra1995], the abstract). **Downloaded but not read** (scans or fonts the text extraction could not read; to read as images): mhtl99-6 (thermal wake effects in printed circuit boards), the rest of the three papers above, mhtl95-1 (isothermal cuboids and rectangular heat sinks cooled by natural convection), mhtl91-6 (geometry and orientation in laminar natural convection from isothermal bodies), mhtl03-9 and mhtl03-10 (rectangular flux channels: geometric equivalences, edge cooling), mhtl01-6, mhtl02-9 (natural convection in vertical ducts) and mhtl00-1 (natural convection modelling of heat sinks with web tools). The paper called [Lee1995] is not in the archive; the archive has Lee, Yovanovich, Song and Moran on bolted joints (mhtl93-2), which is another paper. **Status N for those not read.** Topics 11, 13, 18, 22, 25.
 
 ### [Lush2004]
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2004/05/modeling-heat-conduction-in-printed-circuit-boards-using-finite-element-analysis/.
+
 A. M. Lush (Allen M. Lush), *Modeling Heat Conduction in Printed Circuit Boards Using Finite Element Analysis*, Electronics Cooling, 1 May 2004, https://www.electronics-cooling.com/2004/05/modeling-heat-conduction-in-printed-circuit-boards-using-finite-element-analysis/ , as cited by Blackmore and Sampson ([Blackmore2010], [Sampson2017]). **It exists**: the page opens with this title, author and date (the earlier statement that no article by this author appeared in May 2004 was wrong; the Calculation Corner of that month by Simons, [ECSimpleSpreading2004], is a different article). **Opened** through the page converter (figures and equations are images and did not come through; the text states no equation): the method of the TASPCB software of Harvard Thermal; input from the electrical CAD file with filled traces (closed polygons, one power plane of over 80,000 points) and line traces (centre-line segments of constant width); each copper layer is a 2D unstructured triangular mesh that does not follow the trace outlines: each triangle gets an effective anisotropic conductivity from the copper inside it and is turned into three resistors (triangles inside a filled trace: the solid plate; partly covered ones: resistances increased for the missing area and resistors omitted where conduction is cut; line traces: the overlap of each segment with a triangle becomes a conductor); each dielectric layer is one layer of wedge elements; a via is three effective resistors joining the copper nodes of the element it falls in; an example board of two copper layers around one dielectric with three heated rectangles. **No quantitative validation** is given (no measured data, errors or run times; only a qualitative contour comparison with a smeared board), so it supports the idea of mapping copper to anisotropic conductances per element, as `gerber-models` does, but cannot serve as a numerical reference. **Status S.** Topic 17.
 
 ### [MartinRaithbyYovanovich1991]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl91-11.pdf.
+
 L. Martin, G. D. Raithby, M. M. Yovanovich, *On the Low Rayleigh Number Asymptote for Natural Convection Through an Isothermal, Parallel-Plate Channel*, J. Heat Transfer 113 (4) (1991) 899-905, from the group's archive https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl91-11.pdf (a scan; **pages 1 and 2 of 7 read as images**). With the Nusselt number based on the half-width `b` of the channel and the Elenbaas number `Ra* = Ra b / L_c`: **Elenbaas (1942)**, equation 1, `Nu = (Ra*/3) [1 - exp(-35/(16 Ra*))]^(3/4)`, whose limits are the boundary-layer `Nu = 0.60 Ra*^(1/4)` for `Ra* -> infinity` and the fully developed `Nu = Ra*/3` for `Ra* -> 0`; Elenbaas' data covered `0.1 < Ra* < 1e5`; the **blend of Raithby and Hollands (1975, 1985)**, equation 3, `Nu = (Nu_fd^m + Nu_bl^m)^(1/m)`, `m = -1.9`, `Nu_fd = Ra*/3`, `Nu_bl = 0.62 Ra*^(1/4)`, in close agreement with equation 1 and with the measurements of Aung and others (1972); the paper recalls the blending function of Churchill and Usagi (1972) and the review of Bar-Cohen and Rohsenow (1984). **Its conclusion (abstract)**: the low-Rayleigh fully developed asymptote should not be expected except under very special conditions; the earlier numerical studies that seemed to confirm it used inappropriate boundary conditions. The rest of the paper (the full numerical solution) was not read. Reproduced in `research/effective-conductivity/` (4.10). **Status R for pages 1 and 2.** Topics 13, 25.
 
 ### [Yovanovich1993Flat]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl93-4.pdf.
+
 M. M. Yovanovich, *General Expression for Laminar Forced and Natural Convection Heat Transfer from Isothermal Flat Plates for all Prandtl Numbers*, AIAA-93-2750, 28th AIAA Thermophysics Conference, Orlando, 1993, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl93-4.pdf (a scan; **pages 1 to 4 of 7 read as images**). It recalls the correlation of Churchill for the area-mean Nusselt number of natural convection from an isothermal plate valid for all Prandtl numbers, equation 2, `Nu_L = 0.670 Ra_L^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)` for `1e4 < Gr_L < 1e9`, **written without the additive 0.68** of the laminar form of Churchill and Chu, and the corresponding forced-convection form (equation 1, `Nu_L = 0.6774 Re^(1/2) Pr^(1/3) / [1 + (0.0468/Pr)^(2/3)]^(1/4)` for `Pe_L > 100`); the large-Prandtl asymptotes are `Nu = 0.664 Re^(1/2) Pr^(1/3)` and `Nu = 0.670 Ra^(1/4)`, the small-Prandtl ones `Nu = (2/sqrt(pi)) Re^(1/2) Pr^(1/2)` and `Nu = 0.8005 Ra^(1/4) Pr^(1/4)`. The general expression developed in the later pages was not read. **Status R for pages 1 to 4.** Topic 08.
 
 ### [Teertstra1995]
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl95-4.pdf.
+
 P. Teertstra, J. R. Culham, M. M. Yovanovich, *An Investigation of the Relationship Between Packaging Density and Effective Thermal Conductivity in Laminated Printed Circuit Boards*, XXth International Electronic Packaging Society Conference, San Diego, 1995, https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl95-4.pdf (a scan; **pages 1 to 4 of 13 read as images**). An experimental and numerical study of fibreglass boards with several copper layers, vertical, naturally cooled, three heat-source configurations; the finding stated in the abstract: when the fluid-side resistance controls the heat transfer, as in natural convection, the effective conductivity required by the numerical and analytical solutions **exceeds the upper limit of the parallel path**, so another model is needed. The test board of the study is a three-layer vertical board (copper 0.036 mm, FR4 1.575 mm of `k` 0.41, copper 0.036 mm, `L = W = 0.15 m`), for which the series and parallel limits are `k_s` = 0.429 and `k_p` = 17.27 W/mK (Table 1, reproduced by the formulas `k_s = sum t_i / sum(t_i/k_i)` and `k_p = sum(k_i t_i)/sum t_i`); the paper recalls that Lemczyk and others (1992) **suggest the harmonic mean of the two limits** as the best estimate, and that the single-layer finite-volume models (FLOTHERM) needed conductivities **significantly larger than the handbook values** to match the measured component temperatures. Pages 5 to 13 (the experiments, the relationship with the packaging density) were not read. **Status R for pages 1 to 4.** Topic 22.
 
 ### [Durlofsky2005]
+
+**Licence:** not checked. **Source URL:** https://pangea.stanford.edu/departments/ere/dropbox/SmartFields/SFC_publications/2005_Durlofsky_upsc_grid_review_ifrs.pdf:.
+
 L. J. Durlofsky, *Upscaling and gridding of fine scale geological models for flow simulation* (2005), https://pangea.stanford.edu/departments/ere/dropbox/SmartFields/SFC_publications/2005_Durlofsky_upsc_grid_review_ifrs.pdf: local, extended-local and global upscaling; transmissibility. **Status S.** Topic 17.
 
 ### [PowerLawAveraging]
+
+**Licence:** not checked. **Source URL:** https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF.
+
 *Power-law averaging of permeability* (exponents between -1 and 1; the geometric mean for isotropic 2D media), https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF. **Status S.** Topic 17.
 
 ### [KellerDykhne]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Update (research/theory-sources/ 3.5):** [Milton2002] chapter 3, pages 47 to 50 (equations 3.1 to 3.11, Figure 3.1), read in full: Keller's phase interchange (3.9), the checkerboard result (3.11), Mendelson's general duality and its proof by the 90-degree rotation of Dykhne; both originals are still N.
 
 J. B. Keller, J. Math. Phys. 5 (1964) 548, and A. M. Dykhne, Zh. Eksp. Teor. Fiz. 59 (1970) 110 (English translation in Sov. Phys. JETP; the maintainer's compilation writes "Sov. Phys. JETP 59 (1970) 110", which mixes the Russian volume with the English journal name, and an earlier note here gave "JETP 7, 110" from a course solution, which is probably a wrong volume; the translation volume is not confirmed). Duality of two-phase two-dimensional conductivity; the phase-interchange relation `s_eff(x; s1, s2) s_eff(1 - x; s1, s2) = s1 s2` and, at equal fractions of a statistically symmetric medium (random or chessboard), `s_eff = sqrt(s1 s2)`; the inversion form `s_e(1/s1, 1/s2) = 1/s_e(s1, s2)`. The mechanism, from summaries of arXiv cond-mat/0007022, 2512.20401, 0310065 and 0002181: a local 90-degree rotation maps divergence-free current fields to curl-free electric fields. The self-dual extension for compact inclusions `s1^x s2^(1-x)` is **approximate, not exact**; Efros and Shklovskii extended it near percolation (`s1 (s2/s1)^s`); Milton's 2D result is that laminates generate all effective conductivity functions of 2D two-phase materials, satisfying the Keller-Dykhne-Mendelson relation; Helsing, McPhedran and Milton proved a conjecture on checkerboards. Neither original paper was opened. **Status S** (secondary sources only). Topic 17.
 
 ### [HashinShtrikman]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/1808.02553.
+
 **Update (research/theory-sources/ 3.5):** equation 7.10 of [Milton2002] (page 116) gives the bounds for d = 2 and 3 and is reproduced to 1e-15 against the forms of `conduction.py`; the original 1962 paper is still N.
 
 Z. Hashin and S. Shtrikman, *A variational approach to the theory of the effective magnetic permeability of multiphase materials*, J. Appl. Phys. 33 (10) (1962) 3125-3131, doi 10.1063/1.1728579: the bounds for dielectric constant, electric conductivity, **heat conductivity** and diffusivity of two-phase materials, the most restrictive possible in terms of the phase properties and volume fractions (The maintainer's reference compilation (`docs/reference-compilation.md`); abstract seen). **A correction of this repository's earlier notes**: they cited J. Mech. Phys. Solids 11 (1963) 127-140, which is the *elastic-moduli* paper (with JMPS 10 (1962) 335-342). The program's 2D forms (used in `conduction.py`) and the 2D Bruggeman equation `k^2 - (a - b)(2f - 1)k - ab = 0` were written from memory and are now supported three ways: their **properties checked numerically** (`scripts/check_mapping_formulas.py`: the Bruggeman root satisfies its defining equation to 2e-16, gives sqrt(ab) at one half and obeys `k(f) k(1 - f) = ab`; the Hashin-Shtrikman bounds bracket it and lie between the Wiener bounds; the upper bound is the dual of the lower one to 1e-15) and, in `scripts/check_correlations.py`, **for `s1 = 1`, `s2 = 4`, `phi = 1/2` the bounds are 13/7 and 28/13 and multiply to `s1 s2`, and `lower(phi) x upper(1 - phi) = s1 s2` to 1e-15**; their **general-dimension forms with d = 2** seen in search summaries (Bruggeman `sum_i f_i (s_i - s_B)/(s_i + (d - 1) s_B) = 0`, unique positive root, self-dual in 2D; Hashin-Shtrikman `s_1 + f_2 / (1/(s_2 - s_1) + f_1/(d s_1))` with the matrix phase as `s_1`; an equivalent upper form `<s> - phi1 phi2 (s2 - s1)^2 / [d s2 + (s1 - s2) phi2]`, arXiv 1808.02553; 3D form from Milton, arXiv 1105.0954); and a lattice paper reports the 2D Bruggeman approximation very accurate for random multi-phase lattices (arXiv math-ph/0111048). The bounds are attainable (coated circles, second-rank laminates, Vigdergauz constructions); if the percolating phase is the better conductor the upper bound applies, and vice versa. No primary source was opened. **Status S for the citation and the forms, M for the textbooks.** Topic 17. **Confirmed in Milton (2002)**, chapter 23, section 23.1: the text names Hashin and Shtrikman (1962a) as the conductivity paper and (1963b) as the elasticity paper, and gives the d-dimensional bound (see `[Milton2002]`), which for d = 2 reproduces the 13/7 above.
 
 ### [Milton2002]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Update (research/theory-sources/ 3.5):** also read in full: section 7 page 116 (equations 7.9 coated cylinders and 7.10 the Hashin-Shtrikman bounds for d = 2 or 3), section 10.5 pages 195 and 196 (equations 10.31 and 10.32, the Bruggeman effective-medium equation for spherical grains; the book gives no two-dimensional form: the form for disks follows from the same step applied to equation 7.9, derived and checked in `research/theory-sources/`). The PDF is the author's open copy (`gwmilton.com/TheoryCompositesNOPRINT.pdf`, 745 pages).
 
 G. W. Milton, *The Theory of Composites*, Cambridge University Press, 2002 (Cambridge Monographs on Applied and Computational Mathematics, vol. 6; 745 pages in the author's file). **Opened**: the author's PDF (`gwmilton.com/TheoryCompositesNOPRINT.pdf`; the older `math.utah.edu/~milton/` address redirects there) was downloaded through the fetch tool and its text extracted locally (the file is the author's copy, not stored in the repository; the extraction loses minus signs and some symbols, so every formula quoted below was re-derived and checked numerically). **Table of contents (all 31 chapters seen)**: 3 duality transformations in two-dimensional media; 13 variational principles and inequalities; 14 series expansions; 15 correlation functions; 16 other perturbation solutions; 17 the general theory of exact relations and links between effective tensors; 18 analytic properties; 19 Y-tensors; 20 Y-tensors in electrical circuits; 21 bounds (p. 425); 22 classical variational bounds (p. 437); **23 bounds from the Hashin-Shtrikman variational inequalities (p. 457)**; 24 compensated compactness; 25 microgeometries that attain the bounds; 26 three-point bounds; 27 the analytic method; **28 fractional linear transformations (p. 603)**; 29 field equation recursion; 30 G-closure; 31 quasiconvexification. **Read in the text**: (a) chapter 3, section 3.1, *Duality transformations for conductivity*: Keller (1963, 1964) phase interchange, Matheron (1967), Dykhne (1970) and Mendelson (1975); Figure 3.1 (p. 50): a checkerboard, or any isotropic microstructure that is invariant when the two phases are interchanged, has effective conductivity `sigma* = sqrt(sigma1 sigma2)`; this is the **2D duality chapter** that the earlier notes could not locate. (b) Chapter 23, section 23.1 (pp. 457 to 459): the Hashin-Shtrikman bound for a d-dimensional composite of n isotropic phases `sigma1 > ... > sigma_n`, equation (23.5): `1 / (d/(sigma*_HS - sigma_n) + 1/sigma_n) = sum_{i=1}^{n-1} f_i / (d/(sigma_i - sigma_n) + 1/sigma_n)`, with the three-dimensional two-phase form (23.6) `sigma2 + 3 f1 sigma2 (sigma1 - sigma2) / (3 sigma2 + f2 (sigma1 - sigma2))`; the book states that Hashin and Shtrikman (1962a) is the conductivity paper and (1963b) the elasticity one, which confirms the correction of `[HashinShtrikman]`. **Checked here**: equation (23.5) with d = 3 and two phases equals (23.6) exactly (`sigma1 = 7, sigma2 = 2, f1 = 0.3` gives 56/19 from both), and with d = 2 it gives 13/7 for `sigma1 = 4, sigma2 = 1, f1 = 1/2`, the lower bound already used in `conduction.py`. The upper 2D bound follows by exchanging the roles of the phases. **Status R for chapter 3 section 3.1 and chapter 23 section 23.1; S for the table of contents; N for chapters 17 and 28 beyond their titles.** Topic 17.
 
 ### [Torquato2002]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 S. Torquato, *Random Heterogeneous Materials: Microstructure and Macroscopic Properties*, Springer, 2002 (Interdisciplinary Applied Mathematics vol. 16; another listing says 2001), xxi + 701 pages, ISBN 0-387-95167-9 / 978-0-387-95167-6, doi 10.1007/978-1-4757-6355-3 (The maintainer's reference compilation (`docs/reference-compilation.md`), catalogue records). Part I characterises the microstructure; Part II effective properties: local and homogenised equations, variational principles, phase-interchange relations, exact results, single-inclusion solutions, effective-medium approximations (Maxwell-Garnett, Bruggeman), cluster expansions, contrast expansions, rigorous bounds (Wiener, Hashin-Shtrikman, Beran and Milton three-point), evaluation of bounds, cross-property relations. The exact forms were not retrieved. **Status S for the citation, N for the content.** Topic 17.
 
 ### [Wiener1912]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 O. Wiener, bounds of the effective conductivity of a two-phase medium (parallel and series, arithmetic and harmonic means); the program's `low` and `up` bounds. Named in the research code; no publication details are recorded. **Status M.** Topic 17.
 
 ### [StructureTensor]
+
+**Licence:** not checked. **Source URL:** https://people.compute.dtu.dk/vand/notes/ST_intro.pdf.
+
 Structure tensor and coherence (the dominant orientation of an image and its coherence (l1 - l2)/(l1 + l2)): DTU notes https://people.compute.dtu.dk/vand/notes/ST_intro.pdf, Brox et al. https://www.mia.uni-saarland.de/Publications/brox-pp141.pdf, the G'MIC tutorial https://gmic.eu/oldtutorial/_structuretensors.html. **Status S.** Topic 17.
 
 ## 9. Electrical networks, Joule heat, supply networks
 
 ### [PDNSim]
+
+**Licence:** not checked. **Source URL:** https://openroad.readthedocs.io/.
+
 OpenROAD PDNSim documentation (supply pins as voltage sources, loads as current sources, the metal as resistances), https://openroad.readthedocs.io/. **Status S** (a search excerpt). Topic 19.
 
 ### [AltiumPDN]
+
+**Licence:** not checked. **Source URL:** https://altium.com/documentation/altium-nexus/pdn-analyzer-example-guide-v2.
+
 Altium PDN Analyzer example guide, https://altium.com/documentation/altium-nexus/pdn-analyzer-example-guide-v2 (a source with internal resistance, a load as a current sink, shapes that dropped a 5 V rail to 4.5 V). **Status S.** Topic 19.
 
 ### [CadenceJoule]
+
+**Licence:** not checked. **Source URL:** https://resources.pcb.cadence.com/.
+
 Cadence, *The influence of the Joule heating effect on PCBs and ICs*, and the IR-drop analysis pages, https://resources.pcb.cadence.com/. **Status S.** Topic 19.
 
 ### [IPC2152]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 IPC-2152, *Standard for Determining Current Carrying Capacity in Printed Board Design* (August 2009, 108 pages): a guide to the relation between current, conductor size and temperature rise, including the effect of thermal conductivity, vias, copper planes, power dissipation, board material and thickness (The maintainer's reference compilation (`docs/reference-compilation.md`); catalogue entries; the table of contents file `electronics.org/TOC/IPC-2152.pdf` was not read). The older IPC-2221 chart relation `I = k dT^0.44 A^0.725` (A in mil2, k = 0.048 external, 0.024 internal) is the legacy method that IPC-2152 replaces with data that include board thermal effects (from memory; check in the standard). **Status S for the scope, M for the legacy formula.** Topic 19.
 
 ### [IPC4761]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 IPC-4761, *Design Guide for Protection of Printed Board Via Structures* (July 2006, 16 to 28 pages depending on the vendor): **seven via-protection types, I to VII** (tenting, plugging, filling, capping); a preview with the table of contents is at `webstore.ansi.org/preview-pages/IPC/preview_IPC+4761-2006.pdf`; price seen about 173 euro (PDF) (The maintainer's reference compilation (`docs/reference-compilation.md`)). The standard was not read. **Status S.** Topic 21.
 
 ### [ASMEVV20]
+
+**Licence:** not checked. **Source URL:** https://www.marin.nl/en/publications/on-the-interpretation-and-scope-of-the-vv-20-standard-for-verification-and-validation-in-computational-fluid-dynamics-and-heat-transfer.
+
 ASME V&V 20-2009 (R2021), *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, 100 pages (The maintainer's reference compilation (`docs/reference-compilation.md`); the contents page is on asme.org, `.../21356.pdf`). It quantifies accuracy by comparing a simulation S with data D at a validation point with an uncertainty analysis. Contents: 1 introduction to the validation methodology, 2 code and solution verification, 3 effect of input-parameter uncertainty, 4 uncertainty of an experimental result, 5 evaluation of validation uncertainty, 6 interpretation of validation results, 7 examples (code verification, fin-tube heat transfer), appendices A (method of manufactured solutions), B (importance factors), C (additional topics). The comparison error is `E = S - D` and `u_val^2 = u_num^2 + u_input^2 + u_D^2`; the model error lies in `E +- k u_val` (Fig. 7-3-7 shows `E +- 2 u_val` at 95 % for Gaussian errors; the interval centre `E = S - D` confirmed by Eca, Dowding and Roache, https://www.marin.nl/en/publications/on-the-interpretation-and-scope-of-the-vv-20-standard-for-verification-and-validation-in-computational-fluid-dynamics-and-heat-transfer ); validation is "not pass/fail" in the 2009 edition. This is the standard the measurement protocol of `research/models-comparison/docs/measurement-protocol.md` follows in spirit (an uncertainty budget and an expanded uncertainty, not a pass/fail). **Status S.** Topics 29 and the protocol.
 
 ### [OpenToolsIdeas]
+
+**Licence:** not checked. **Source URL:** https://jrainimo.com/build/2024/11/oss-thermal-simulation-of-pcbs/.
+
 Open-source thermal and power-integrity projects read as web summaries for ideas (`docs/versions.md` "Planned", "Ideas from similar projects and tools"): KiCad_Thermal_Sim (Dietschi10), pcb-sim-toolkit (mgburr), kicad-electrothermal-sim (krosa-laboratory), KiPIDA (kbralten), SPIKE (krishna-swaroop), KITS (SchrodingersGat, MIT), FYPA (Tomachie, fork of anarthrous-eda, AGPL-3.0), padne (atx, AGPL-3.0), altium_monkey (wavenumber-eng, AGPL-3.0), the Elmer and OpenFOAM write-up https://jrainimo.com/build/2024/11/oss-thermal-simulation-of-pcbs/. **Status S**; the AGPL projects are **ideas only**, no code is copied (`CLAUDE.md`, "Licences"). Topics 15, 19.
 
 ## 10. File formats, readers, outline
 
 ### [UcamcoGerber]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/en/gerber.
+
 **Update (research/theory-sources/ 3.9):** revision 2026.05 (219 pages) was downloaded from the Ucamco downloads page and read where cited: the contents, section 2.11 (pages 25 and 26, two square boxes) and section 4.10.4.8 (pages 112 and 113, contours with fully-coincident segments); the three examples were run through the independent reader (areas within 0.01 %). Status R for those pages, S for the rest.
 
 Ucamco, *The Gerber Layer Format Specification*, landing page https://www.ucamco.com/en/gerber , announcement https://www.ucamco.com/en/news/gerber-layer-format-specification-revision-202405 , downloads https://www.ucamco.com/en/guest/downloads/gerber-format . **Latest revision 2026.05, published 19 May 2026** (the Downloads page lists it with the file `gerber-layer-format-specification-revision-2026-05_en.pdf`; the previous one, 2024.05 of 3 July 2024, is still listed; the PDF of 2026.05 was not downloaded). Earlier text of this entry, from the compilation: latest revision 2024.05, dated 3 July 2024 (The maintainer's reference compilation (`docs/reference-compilation.md`); Wikipedia agrees). **Warning from the compilation**: the announcement page links a PDF whose file name says `revision-2022-02`; download from the Downloads page and read the revision on the cover. The page was read there; the PDF was not downloaded (here the host is blocked). Confirmed from KiCad's source and forum posts and Wikipedia: `TF.FileFunction` examples such as `%TF.FileFunction,Copper,L1,Top*%` (L1 is always top copper), drill spans such as `1,4`, the standard link between a layer and its file, X2 (February 2014) adding attributes, and the `G04 #@!` comment form of the attributes; the syntax of `TO.N` was **not** confirmed by any result. Related Ucamco documents (not verified): XNC drill format, GerberJob. The maintainer pasted the text of the Ucamco format page (not the specification), which says that attributes carry net names and the function of an object (`TO.N`, `TA.AperFunction`) and that a job file exists. **Later**: revision 2024.05 of the specification was downloaded by the review of `research/gerber-import` and read in part (macro primitive rotation, single-quadrant arcs, aperture holes, exposure off, the deprecated `AS` and `G91`, regions: its README section 7), and the review of the separation of the three Gerber folders read the `.N` attribute (syntax `.N,<netname>{,<netname>}`, the reserved empty name and `N/C`, so the syntax of `TO.N` is now confirmed), the `G04 #@!` form of the attributes, the aperture functions `ViaPad`, `ComponentPad`, `ViaDrill`, `ComponentDrill` and the statement that attributes do not affect the image (`research/gerber-import/docs/literature.md`); the rest, including the profile layer and 2026.05, was not read. **Status R in part for the specification (revision 2024.05, the passages listed), S for the page.** Topics 15, 19, 20.
 
 ### [Gerbonara]
+
+**Licence:** not checked. **Source URL:** https://pypi.org/project/gerbonara/.
+
 gerbonara, https://pypi.org/project/gerbonara/ (documentation https://gerbolyze.gitlab.io/gerbonara); licence Apache-2.0 (PyPI, version 1.6.3); its companion shapely (https://shapely.readthedocs.io/) is BSD-3-Clause. **Status R as a tool** (used as the vector reference of `research/gerber-import`). Topics 15, 20.
 
 ### [GerberTools]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 pygerber (2.4.3), pcb-tools (0.1.6) and Ucamco's gerber-writer, used as comparison tools (`research/gerber-import/README.md` 4.22 and 4.24). **Status R as tools.** Topic 15.
 
 ### [KiCadFormat]
+
+**Licence:** not checked. **Source URL:** https://github.com/Chromico/stormduino.
+
 KiCad `.kicad_pcb` file format (text, s-expressions), version 20171130, as in the MIT-licensed Stormduino project https://github.com/Chromico/stormduino. **Status R** (read by `research/gerber-import/lib/kicad_pcb.py`). Topics 15, 19.
 
 ### [ProfileLayer]
+
+**Licence:** not checked. **Source URL:** https://diptrace.com/forum/viewtopic.php?p=33620.
+
 The board outline as the Gerber profile layer (web searches, snippets only): the X2 file attribute `TF.FileFunction,Profile,NP` (DipTrace forum https://diptrace.com/forum/viewtopic.php?p=33620; https://en.wikipedia.org/wiki/Gerber_format); Altium on a closed path (https://altium.com/documentation/node/304685/printable/print?version=22); KiCad forum threads on strokes and gaps (https://forum.kicad.info/t/kicad-edge-cuts-rejected-by-jlcpcb/27159, https://forum.kicad.info/t/gerber-file-errors-due-to-edge-cuts-not-connected/9467, https://forum.kicad.info/t/how-to-define-the-board-outline-pcb-edge/32166); MacroFab https://help.macrofab.com/knowledge/how-to-ensure-the-board-outline-is-correct. **Status S.** No source gave a rule for the size of a gap to close. Topic 20.
 
 ### [Gerber2026]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/en/guest/downloads/gerber-format.
+
 Ucamco, *The Gerber Layer Format Specification*, revision 2026.05, downloaded from https://www.ucamco.com/en/guest/downloads/gerber-format (file `gerber-layer-format-specification-revision-2026-05_en.pdf`, 219 pages), text extracted locally, nothing stored in the repository. **Read in full for the points of `research/zone-union`**: the section "Polarity" (printed page 14: objects have a polarity, dark or clear, "Objects can overlap", a clear object clears the objects beneath it, "An object is totally dark or totally clear"), the region statement G36/G37 (printed pages 96 to 97: "Each contour is filled individually. The overall filled area is the union of the filled areas of each individual contour"; two overlapping contours may be merged into one region object), the rule that contours must not self-intersect (4.10.3), and the file attribute `.FileFunction` whose Copper layer type is one of Plane, Signal, Mixed or Hatched (a label of the layer, not a density). The review of `research/zone-union` downloaded the same file (https://www.ucamco.com/files/downloads/file_en/554/gerber-layer-format-specification-revision-2026-05_en.pdf) and found every quotation: Polarity on PDF page 14, the region overview of 4.10 on page 96, the valid contours of 4.10.3 on page 98 (simple contours "do not self-intersect or self-touch"), the Copper layer types in the `.FileFunction` table; it also read the section "Copper Pours, Power and Ground Planes" (page 117: a plane as a dark region with clear clearances; self-intersecting cut-ins "the most frequent cause of scrap"). The rest of the specification was not read. **Status R for those passages.** Used by `research/zone-union` (README 2).
 
 ### [Gerber2016Mirror]
+
+**Licence:** not checked. **Source URL:** https://argmaster.github.io/pygerber/2.3.1/gerber_specification/gerber-layer-format-specification-revision-2016-01_en.pdf.
+
 The same specification, revision 2016.01, from a third-party mirror (https://argmaster.github.io/pygerber/2.3.1/gerber_specification/gerber-layer-format-specification-revision-2016-01_en.pdf), text extracted locally: section 2.9 "Dark and Clear Polarity" and section 4.6 (region mode, the examples "Overlapping Contours", "Non-overlapping and Touching", "Overlapping and Touching") read; the statements agree with [Gerber2026]. **Status R for those sections** (a mirror, not Ucamco's own file). `research/zone-union`.
 
 ### [KiCadZones9]
+
+**Licence:** not checked. **Source URL:** https://docs.kicad.org/9.0/en/pcbnew/pcbnew.html.
+
 KiCad 9.0 documentation, PCB Editor, zones: https://docs.kicad.org/9.0/en/pcbnew/pcbnew.html. The page is 520 772 characters; the fetch tool returned answers about two windows of it (characters 0 to 100 000 and 100 000 to 200 000), not the page itself. Statements found: zone priority "determines the order in which multiple zones on a single layer are filled"; lower-priority zones keep clearance to the filled areas of higher-priority zones; two zones on the same layer with the same priority overlap (short-circuit) unless they have different nets; fill type solid or hatch pattern with orientation, hatch width and hatch gap, smoothing. The hatch statement says the pattern "will fill the area with a pattern that contains less copper". The part of the page on islands and refill was only summarised. The review of `research/zone-union` downloaded the page and read in its text the zone properties: the priority sentences above, "Two zones on the same layer with the same priority level will overlap (short-circuit) with each other, unless they are assigned different nets", the hatch pattern ("a pattern that contains less copper", orientation, hatch width, hatch gap, smoothing) and "Zones only fill when they are within the board outline". **Status R for those passages** (the rest of the page was not read). `research/zone-union`.
 
 ### [KiCadZoneFillerSource]
+
+**Licence:** not checked. **Source URL:** https://gitlab.com/kicad/code/kicad/-/raw/master/pcbnew/zone_filler.cpp.
+
 KiCad source file `pcbnew/zone_filler.cpp` (https://gitlab.com/kicad/code/kicad/-/raw/master/pcbnew/zone_filler.cpp), first 100 000 of 190 365 characters, through the fetch tool's summary: hatch handling in `knockoutThermalReliefs`, `findHighestPriorityZone` ("Prefer any same-net zone over a higher-priority different-net zone"), `zone_fill_dependency` ("Same-net zones always use outlines to produce determinate results"), knock-out of the fills of higher-priority zones. The hatch builder and the same-net merge step were not in the part seen. The review of `research/zone-union` downloaded the whole file (master branch at the time of reading, 190 389 characters) and read `subtractHigherPriorityZones` ("Removes the outlines of higher-proirity [sic] zones with the same net. These zones should be in charge of the fill parameters within their own outlines"), the refill that lets lower same-net zones "reclaim any notch the higher zone left unfilled", `findHighestPriorityZone` and the start of the hatch processing. **Status R for those functions** (the rest of the file was not read; which released versions behave as this master branch was not checked). `research/zone-union`.
 
 ### [AltiumPolygonPour]
+
+**Licence:** not checked. **Source URL:** https://altium.com/documentation/altium-designer/pcb-polygon-pour-properties?version=19.
+
 Altium Designer documentation, Polygon Pour properties: https://altium.com/documentation/altium-designer/pcb-polygon-pour-properties?version=19 (version 19 of the page; the current one returned 404 at its address) and the search result for the polygon pour pages (https://www.altium.com/documentation/cstu/polygon-pour-0). Statements found: hatched fill with Track Width and Grid Size (a width below the grid size gives a hatched pour, above it a solid one) and the modes 90 Degree, 45 Degree, Horizontal, Vertical; "Pour Over Same Net Polygons Only" is the default; "When two polygons overlap, Altium Designer needs to know which one should occupy the shared area"; higher pour order takes precedence; the change shows after a repour. The review of `research/zone-union` downloaded https://www.altium.com/documentation/altium-designer/pcb-polygon-pour-properties (it answered at that address) and read these passages in its text, including "Pour Over Same Net Polygons Only – choose this option (default)" and "the higher-order polygon having precedence and pouring over the shared area". **Status R for those passages.** `research/zone-union`.
 
 ### [Clipper2]
+
+**Licence:** not checked. **Source URL:** https://www.angusj.com/clipper2/Docs/Overview.htm:.
+
 A. Johnson, Clipper2 documentation, https://www.angusj.com/clipper2/Docs/Overview.htm: line and polygon clipping, union, difference and XOR, "based on but significantly extends Bala Vatti's polygon clipping algorithm", fill rules EvenOdd, NonZero, Positive, Negative, integer coordinates for robustness. **Status S** (the overview through the fetch tool; the library was not used). `research/zone-union`.
 
 ### [Vatti1992]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 B. R. Vatti, "A generic solution to polygon clipping", Communications of the ACM 35 (7), 1992, pp. 56 to 63. **Status M** (named by Clipper2 and by the paper of Greiner and Hormann; the paper was not opened; the page numbers are from memory). `research/zone-union`.
 
 ### [GreinerHormann1998]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 G. Greiner and K. Hormann, "Efficient clipping of arbitrary polygons", ACM Transactions on Graphics 17 (2), 1998. **Status S**: a search result quoted that "only the Weiler algorithm and Vatti's algorithm can handle the general case in reasonable time" and that simple modifications give the union and the difference; the paper was not opened. `research/zone-union`.
 
 ### [WeilerAtherton1977]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 K. Weiler and P. Atherton, "Hidden surface removal using polygon area sorting", Computer Graphics (SIGGRAPH '77) 11 (2), pp. 214 to 222; the SIGGRAPH history archive lists the title as "Hidden Surface Removal using Polygon Clipping", the page numbers agree. **Status S** (search results; the paper was not opened). `research/zone-union`.
 
 ### [Shapely]
+
+**Licence:** not checked. **Source URL:** https://shapely.readthedocs.io/.
+
 Shapely 2.2.0 (BSD-3-Clause; GEOS), https://shapely.readthedocs.io/. **Status R as a tool**: installed outside the project's environment (`pip install --no-deps --target research/zone-union/out/pylib shapely`, git-ignored) and used as the exact polygon union and cell area in `research/zone-union/lib/zone_shapely.py`; it is not a dependency of the program and the proposal does not use it. `research/zone-union`.
 
 ## 11. Own computations (status L)
@@ -560,21 +1015,39 @@ Every source that was obtained is kept in the local library `papers/` (outside v
 Opened for this investigation; the status is what was done in this folder, not what was recorded before. Searches for sources that give the number of nodes through a PCB, or the thermal resistance of a pad over a copper-free window, found only vendor notes and forum posts (below): **no source was found that prescribes the vertical discretisation of a laminate under a bare spot**, so the treatment of the folder rests on its own convergence study.
 
 ### [Muzychka2003] (read again here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Eqs. 16 to 28 (the separated solution, the coefficients `A_m`, `A_n`, `A_mn`, the mean source temperature of Eq. 27 and the 1D term of Eq. 28) read in full from the open copy of the Waterloo group (`mhtl03-1.pdf`, 8 pages, text extracted locally; nothing stored in the repository) and **reproduced**: `research/bare-spot-under-source/lib/closed_forms.py` implements them and the resolved solver agrees with Eq. 27 within +0.67 / +0.20 % at 0.2 / 0.1 mm cells (README 2.1). The compound-channel form of `f(zeta)` (Eq. 30) was seen only as extracted text and not used. **Status R** for Eqs. 16 to 28. Topics 01, 02.
 
 ### [Muzychka2004Orthotropic] (read again here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The section "Application to Orthotropic Systems" (Eqs. 37 to 42, Fig. 9, Eqs. 39 and 40 for `k_xy` as the thickness-weighted mean and `k_z` as the series value; the transformation `xi = z / gamma`, `gamma = sqrt(k_z / k_r)`, `k_eff = sqrt(k_r k_z)`, `t_eff = t / gamma`) read from the extracted text of `mhtl04-27.pdf`; the rest of the paper (compound disk and channel solutions, edge cooling) was not read. The transformation says that the thickness that matters for lateral spreading in an anisotropic laminate is `t sqrt(k_xy / k_z)` (1.7 times the thickness for FR-4 at 0.9 / 0.3 W/mK); it was not used to build a closed form for the bare window (the window is smaller than the validity of the series-and-parallel rule that the paper states: "if the source size is considerably larger than the thickness of individual layers"). **Status R for the section named, S for the rest.** Topics 01, 18, 22.
 
 ### [MuzychkaMultilayer2018]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Status S** (abstract only). Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it), and the Memorial University thesis records (research.library.mun.ca/13266). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).**
 
 ### [MonierVinard2017]
+
+**Licence:** not checked. **Source URL:** https://thermalscience.vinca.rs/pdfs/papers-2013/TSCI120826072M.pdf.
+
 Analytical multilayer PCB model of Monier-Vinard, Laraqi and others, HAL record hal-01473763: the page was blocked by the bot protection of the archive (same as recorded in `docs/validation.md` section 21). **Status N** here. `research/gap-subdivision/` tried again: the 2013 Thermal Science paper of the same group (Monier-Vinard, Laraqi and others, https://thermalscience.vinca.rs/pdfs/papers-2013/TSCI120826072M.pdf, found by search; a search summary says the multilayer analytical model is within about 10 % of numerical results) could not be opened because the host's TLS certificate had expired and the fetch was refused (not bypassed); HAL stays blocked by its bot protection. **Status N** (the search summary alone is S).
 
 ### [VendorNotes]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Status S** (search summaries). Cadence resources page on thermal design in HDI (thin dielectrics as a vertical conduction path), Wolfspeed application note PRD-07635 (resistance network of horizontal copper and vertical FR-4 branches), Siemens blog "All models are wrong but some are useful, part IV" and the Siemens knowledge base note on the material map (a layer of cells per PCB layer is costly; the board as one orthotropic material; a refined mesh under a component), the CFD-Online thread on SmartPCB meshing (about 5 to 6 cells through 1.6 mm in practice), the Ansys Icepak gridcut method (effective conductivity per cell from copper fraction and layer thickness). All **status S** (search summaries; no formula or number was taken from them). They agree with the observation of the folder that the vertical resolution under the part matters and that it is expensive when done everywhere.
 
 ### [Lasance]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Lasance (Philips), the board models of Lasance and Vinke, and the "pattern continuity check" approach to the effective conductivity of a PCB (found through aminer): named by search results only, **not opened. Status N.** The statement that the effective conductivity depends on the shape of the pattern and not on the copper area alone is the one of [CulhamYovanovich1998] and `research/gerber-models` 4.10.
 
 ### Own computations (status L)
@@ -587,79 +1060,151 @@ Lasance (Philips), the board models of Lasance and Vinke, and the "pattern conti
 Opened for this investigation (text extracted locally in the scratch area, nothing stored in the repository); the status is what was done in that folder. The closed forms used (the Krogh cell, the point sink against the tile mean, the peak of a disc with a central sink) are **own derivations checked numerically** in `research/lumped-analytic-vias/tests/test_via_constriction.py` and README section 3, status L; the literature below is context, not the source of a formula.
 
 ### [Fish2017]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. C. Fish, *Thermal isolation of high power devices in heterogeneous integration*, PhD dissertation, University of Maryland (2017), 197 pages, open copy at the university repository (DRUM, `api.drum.lib.umd.edu/server/api/core/bitstreams/f64ec3c2-21e2-4360-8873-0a4b50fb1da6/content`). **Status R in part**: abstract, contents, the section "Thermal Constriction Resistance" (chapter 3.7) and the opening of chapter 7 with the axisymmetric boundary-value problem of a via cell (eqs. 58 to 67, the dimensionless problem and the 1D temperature of eq. 68) read from the extracted text; the correlations of chapters 5 and 6 (microspreading resistance of via arrays, eqs. 53 to 57) were **not read**. It names the effect this folder measures: the microspreading resistance of a via cell is a constriction that a model with an equivalent vertical conductivity leaves out. Cited by the README, sections 1 and 3.
 
 ### [YovanovichCulhamTeertstra1998]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. M. Yovanovich, J. R. Culham, P. Teertstra, *Analytical modeling of spreading resistance in flux tubes, half spaces, and compound disks*, IEEE Trans. CPMT-A 21 (1) (1998) 168-176 (corrected from 168-178, review of research/theory-sources/ 8), Waterloo archive `mhtl98-2.pdf`. **Status S**: the text of the first pages (the flux-tube and half-space review, isoflux and isothermal source) was read; **the equations did not survive the text extraction and were not read** (pages to be read as images). Used only to place the problem: the constriction of a circular source on a flux tube, for isoflux and isothermal conditions, is a known function of the relative source size. Cited by the README, section 3. **Update (research/theory-sources/ 8.2):** the equations were read as images (pages 3 to 6 of the file): equations 1 to 11 (the problem and the total resistance Rt = Rc + R1D), 12 to 20 (compound disk series, with the film function of equations 15 to 17), 21 to 24 (flux tube, isoflux and equivalent isothermal flux and the printed correlations psi = 1.08076 - 1.41042 e + 0.26604 e^3 - 0.00016 e^5 + 0.058266 e^7), 25 to 26 (finite disks), 27 to 30 (Song and Lee closed form), 31 to 39 (single layer on a flux tube and on a half space, Dryden thin and thick layers). **Status R for pages 168 to 173 (file pages 1 to 6)**; the remaining pages (isoflux on layer on half space, Hui and Tan, the diamond-on-copper application, pages 174 to 176) not read. **Page range corrected: 168-176** (the entry above says 168-176, this one said 168-178; the file has 9 pages and ends at page 176). Reproduced in `scripts/study_flux_tube_sources.py`. Review: equation 38 (thin layer) is printed and transcribed correctly, it is the exact first-order term of equation 34; its printed range t/a <= 0.10 fails for large k1/k2 (expansion parameter (k1/k2) t1/a).
 
 ### [AalborgVias]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 *Thermal modeling and design optimization of PCB vias and pads*, Aalborg University (vbn.aau.dk, file 335464153). **Status S**: downloaded and searched; the text has no constriction or spreading formula for the via cell (a per-via barrel, copper-layer and array decomposition); not read in full.
 
 ### [PolimiVia]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Politecnico di Milano (2009), a one-dimensional lumped model of a via from axisymmetric finite differences with a dimensionless correlation for the constriction/spreading resistance through the via structure (`re.public.polimi.it/handle/11311/521473`). **Status N**: only the abstract was seen in a search.
 
 ### [MondragonVias]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 *Time saving analytical modelling and design of PCBs with through-hole and blind thermal vias*, H. Gezala, D. Garrido, I. Baraia-Etxaburu, I. Aizpuru, IET Conference Proceedings 2025 (9) 97-104, doi 10.1049/icp.2025.2012 (post-print, Mondragon repository, 9 pages). **Status R** (read in full, research/theory-sources/ 8.1): see [Mondragon2025] in section 'Reading pass, batch 1'.
 
 ### [LasanceEllison]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Lasance and Ellison on compact PCB and via models (Electronics Cooling and conference papers). **Status N**: not found by search; not opened. The statement that the equivalent vertical conductivity of a via array ignores the spreading in the planes is not checked against them.
 
 ### [Guenin2004] (added by the review)
+
+**Licence:** not checked. **Source URL:** https://www.electronics-cooling.com/2004/08/thermal-vias-a-packaging-engineers-best-friend/.
+
 B. Guenin, *Thermal vias - a packaging engineer's best friend*, Electronics Cooling, August 2004, https://www.electronics-cooling.com/2004/08/thermal-vias-a-packaging-engineers-best-friend/. **Status S**: the text of the web page was read (a die on a BT substrate between two 35 um copper planes joined by 0 x 0 to 11 x 11 vias, ANSYS reference; a 1D model of the vias underestimates the resistance by up to 27 %, a circular-fin unit cell of the via with the plane as the fin is within 22 %, 6 % with the die spreading; 15.9 K/W without vias); its tables and equations are images that the page does not carry, so the case was **not reproduced**. It is the published statement of the mechanism of this folder: the converging flow in the planes is what a per-via 1D model leaves out.
 
 ### [Dietz1965] and the pseudo-steady-state well equation (added by the review)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. N. Dietz, *Determination of average reservoir pressure from build-up surveys*, J. Petroleum Technology (1965), SPE-1156-PA. **Status S for the equation, M for the shape factors**: the dimensionless productivity index of a well in a closed circular drainage area, `J_D = 1 / (ln(r_e/r_w) - 3/4 + S)`, read on the pengtools wiki page *JD* (which cites Dietz, Wolcott and Rueda et al.); it is the asymptote of the Krogh resistance of this folder (the same mathematics: uniform depletion, a well at the centre, a closed rim). The shape factors 31.62 (circle) and 30.88 (square) are from memory; with them the square cell agrees with its equal-area disc within 0.5 % (`research/lumped-analytic-vias/scripts/study_review.py` part 5).
 
 ### [Li1998] (added by the review)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 R. S. Li, *Optimization of thermal via design parameters based on an analytical thermal resistance model*, ITherm 1998, DOI 10.1109/ITHERM.1998.689605. **Status S**: the abstract only (a catalogue record): the via cluster is treated as one-dimensional parallel networks, lateral spreading neglected, correlated with a finite-element model. Not opened.
 
 ### [DTIC-AD1011632] (added by the review)
+
+**Licence:** not checked. **Source URL:** https://apps.dtic.mil/sti/tr/pdf/AD1011632.pdf.
+
 A DTIC technical report on heterogeneous integration whose contents list thermal constriction resistance and microspreading resistance in via-array unit cells (https://apps.dtic.mil/sti/tr/pdf/AD1011632.pdf; probably related to [Fish2017], not checked). **Status N**: HTTP 403 from the session; only a search snippet of its contents.
 
 ### [Ibraguimov2022] and [Peaceman1978] (used again here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 As in `research/point-via-convergence/`: the lattice constant 0.19851 and the target radius `exp(-1/4) r_v` come from there; nothing new was read.
 
 ## 16. Sources of `research/sor-with-via-couplings/` (SOR with the dense via couplings)
 
 ### [Saad2003]
+
+**Licence:** not checked. **Source URL:** https://www-users.cse.umn.edu/~saad/IterMethBook_2ndEd.pdf.
+
 Y. Saad, *Iterative Methods for Sparse Linear Systems*, 2nd edition, SIAM, 2003, open copy at https://www-users.cse.umn.edu/~saad/IterMethBook_2ndEd.pdf (567 PDF pages; printed page = PDF page - 20). **Status R for the parts used** (extracted to text locally, nothing stored in the repository): section 3.3 (greedy multicolouring, Algorithm 3.6, p. 90-91), section 4.1 (SOR and SSOR, p. 108; block relaxation and Algorithm 4.2, p. 112), section 4.2 (regular splittings and M-matrices, p. 118-119; Theorem 4.9 diagonal dominance, p. 121; Theorem 4.10, SOR converges for 0 < omega < 2 if and only if A is symmetric positive definite, p. 122; Theorem 4.16 of Young, the relation between the SOR and Jacobi eigenvalues for consistently ordered matrices, (lambda + omega - 1)^2 = lambda omega^2 mu^2, p. 126, and eq. 4.47, omega_opt = 2 / (1 + sqrt(1 - rho(B)^2)), p. 127, re-read by the reviewer; Theorem 4.10 is stated for point SOR and without proof), the notes of chapter 4 (relaxation methods are now mostly used as preconditioners, p. 132), section 10.2 (the SSOR preconditioner M = (D - omega E) D^-1 (D - omega F), omega = 1 gives symmetric Gauss-Seidel, p. 299). **Not read**: chapters 11 to 14 (parallel methods, domain decomposition, block Gaussian elimination 14.2.1). Used by the topics of this folder only.
 
 ### [Young1971]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. M. Young, *Iterative Solution of Large Linear Systems*, Academic Press, 1971 (the theory of consistent orderings and the optimal omega). **Status N**: not obtained (a book); its Theorem on consistent orderings is known here only through [Saad2003] Theorem 4.16.
 
 ### [Varga1962]
+
+**Licence:** not checked. **Source URL:** https://eklausmeier.neocities.org/blog/2023/06-06-theorem-of-stein-rosenberg/.
+
 R. S. Varga, *Matrix Iterative Analysis*, Prentice-Hall, 1962 (M-matrices, regular splittings; Theorem 3.6, Ostrowski's theorem: for `A = D - L - L*` Hermitian with `D - omega L` nonsingular, `rho(T_omega) < 1` if and only if `A` is positive definite and `0 < omega < 2`, `D` possibly block diagonal). **Status N for the book, S for Theorem 3.6**: the statement is known from E. Klausmeier's blog post *Theorem of Stein-Rosenberg* (2023, https://eklausmeier.neocities.org/blog/2023/06-06-theorem-of-stein-rosenberg/), which quotes it and says that taking the `a_ii` as matrices gives the block method; cited by [Saad2003] (notes of chapter 4).
 
 ### [Klausmeier]
+
+**Licence:** not checked. **Source URL:** https://eklausmeier.goip.de/pdf/iterative_methods_handout.pdf.
+
 E. Klausmeier, *Iterative methods* (course handout, https://eklausmeier.goip.de/pdf/iterative_methods_handout.pdf). **Status R** (three pages, extracted to text locally): Theorem 8 (Kahan, `rho(T_omega) >= |omega - 1|`), Theorem 9 (Ostrowski-Reich, point SOR converges for a symmetric positive definite matrix and `0 < omega < 2`), Theorem 10 (optimal omega for tridiagonal matrices: for a symmetric positive definite tridiagonal matrix `omega = 2/(1 + sqrt(1 - rho(T_J)^2))` minimises `rho(T_omega)`, and then `rho(T_omega) = omega - 1`, the form of `docs/theory.md` 2.3; confirmed on the page images, PDF 1 to 3), after Burden and Faires, *Numerical Analysis*, section 7.3.
 
 ### [Xu1992]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. Xu, *Iterative methods by space decomposition and subspace correction*, SIAM Review 34 (1992) 581-613 (successive subspace correction: block Gauss-Seidel for any decomposition, convergence in the energy norm). **Status N** (a copy was acquired later, `papers/pdf/Xu1992.pdf`, a JSTOR-stamped file whose terms are to be confirmed; it is acquired and **not read**, so the status stays N): the open copy found first (a course page) returned a web page, not the paper; the energy argument of `research/sor-with-via-couplings/README.md` 8.4 is written out there and does not rest on it.
 
 ### [GolubVanLoan]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 G. H. Golub, C. F. Van Loan, *Matrix Computations* (Sherman-Morrison-Woodbury formula, block Gauss-Seidel). **Status M**: the formula used in `lib/sorvia.py` (`woodbury`) is the push-through form of the identity, checked numerically in the tests of the folder, not read from the book.
 
 ### [OPMFlow2019]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/1910.06059.
+
 A. F. Rasmussen and others, *The Open Porous Media Flow reservoir simulator*, arXiv:1910.06059 (Computers and Mathematics with Applications 81, 2021). **Status R for section 2.2 and 2.3 only** (PDF pages 12-13, equations 25 and 26 and Figure 6): the well equations are added to the global system by a Schur complement, (A - sum_w C_w D_w^-1 B_w) x_r = R_r - sum_w C_w D_w^-1 R_w, x_w = D_w^-1 (R_w - B_w x_r); the rest of the paper was not read.
 
 ### [Wallis1983]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. R. Wallis, *Incomplete Gaussian elimination as a preconditioning for generalized conjugate gradient acceleration*, SPE 12265 (1983), and Wallis, Kendall, Little, SPE 13536 (1985) (the constrained pressure residual, CPR, preconditioner; the SPE number of the second paper is as a search summary gave it). **Status N**: paywalled and not opened; known through search summaries only, which credit the 1983 paper with the origin of CPR.
 
 ### [Nilsen2023]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 H. M. Nilsen and others, *Constrained pressure residual preconditioner including wells for reservoir simulation*, SPE Reservoir Simulation Conference (2023) (the authors and the title as a catalogue record and a search summary gave them). **Status S**: a search summary: wells enter only through a Schur complement, without explicit fill-in, and the pressure system is extended to include the well-reservoir coupling; the paper was not opened.
 
 ### [ZhouJiangTchelepi2013]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Y. Zhou, Y. Jiang, H. A. Tchelepi, *A scalable multistage linear solver for reservoir models with multisegment wells*, Computational Geosciences 17 (2013). **Status N**: named by a search result, not opened.
 
 ### [Peaceman1978] used here
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The Peaceman well of the via treatment is the one of section 7 of this file (status S); this folder does not rely on its text.
 
 ## 21. Sources of `research/young-omega-tiles/` (Young's omega of the SOR; the tile of the Analytic via correction)
 
 ### [SaadEig2011]
+
+**Licence:** not checked. **Source URL:** https://www-users.cse.umn.edu/~saad/eig_book_2ndEd.pdf.
+
 Y. Saad, *Numerical Methods for Large Eigenvalue Problems*, revised edition, SIAM, 2011, open copy of the author at https://www-users.cse.umn.edu/~saad/eig_book_2ndEd.pdf (286 PDF pages; printed page = PDF page - 10). **Status R for the parts used** (extracted to text locally, nothing stored in the repository): section 4.1.1, the power method (Algorithm 4.1, Theorem 4.1, printed pp. 86-87: the iterate converges to the dominant eigenvector at the rate `|lambda_2| / |lambda_1|`, "convergence may be extremely slow" when they are close); section 6.6, convergence of the Lanczos process (Theorem 6.3, eq. 6.39, the angle between an eigenvector and the Krylov space in terms of Chebyshev polynomials of `1 + 2 gamma_i`, printed p. 148; Theorem 6.4, eq. 6.42, `0 <= lambda_1 - lambda_1^(m) <= (lambda_1 - lambda_n) (tan theta(v_1, u_1) / C_{m-1}(1 + 2 gamma_1))^2`, printed p. 149: the Ritz value approaches the largest eigenvalue from below, and a start vector close to the eigenvector makes the angle small). Used for the choice of the estimators of the Jacobi spectral radius; the numbers of the bound were not evaluated for our matrices (the measured error is in the README of the folder).
 
 ### [Saad2003] used again here
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm.
 
 ### Sources of S4
@@ -668,12 +1213,21 @@ The constriction (Krogh cell, `(ln(R/r_t) - 3/4) / (2 pi S)`), the tile self-ter
 ## 20. Sources of `research/via-real-board/` (a via near an edge, a real board with 100 or more vias)
 
 ### [Ibragimov2023edge]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Ibragimov et al., *Einstein material balance and modeling of the flow of compressible fluid near the boundary*, Contemporary Mathematics. Fundamental Directions (journals.rudn.ru/CMFD/article/view/37481). **Status S**: the title and the existence of a treatment of the Peaceman well block near a boundary were seen in a search result; the paper was **not opened**. It is the first source to open for the image of the edge in the well. The image term `c = ln(D_lat / D_true)` of the study is derived by the method of images from the lattice potential kernel and tested numerically; it is not taken from this paper.
 
 ### [ImageWell]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The method of images for a no-flow boundary (a well and its mirror image of equal rate, parallel streamlines along the boundary), as stated in the vignette of the R package `anem` (rdrr.io/github/gopalpenny/anem). **Status S** (search snippet). A standard method; the study uses it with the lattice kernel, not with a source's formula.
 
 ### [Peaceman1978] and [Peaceman1983] near a boundary
+
+**Licence:** not checked. **Source URL:** https://github.com/Chromico/stormduino.
+
 The full texts were not obtained ([Peaceman1978] status S from its abstract, section 1; [Peaceman1983] status N). Whether either gives a well-block radius for a block next to a boundary is **unknown**. To open in the second phase.
 
 ### Boards of study S2
@@ -684,18 +1238,33 @@ Stormduino Rev 2.2 (MIT, https://github.com/Chromico/stormduino, licence read at
 Opened for this investigation: each PDF was downloaded to a scratch directory outside the repository and extracted to text locally; nothing of a third party is stored in the repository. The closed forms used (Krogh cell, lossy cell, annulus with a core) are own derivations checked against a finite-difference cell solver and the earlier investigation's numerical references (status L).
 
 ### [Fish2017] (chapter 6 read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. C. Fish, *Thermal isolation of high power devices in heterogeneous integration*, PhD dissertation, University of Maryland (2017), open copy at DRUM (`api.drum.lib.umd.edu/server/api/core/bitstreams/f64ec3c2-21e2-4360-8873-0a4b50fb1da6/content`, 197 pages). **Status R for chapter 6, "Modeling thermal microspreading resistance in via arrays", dissertation pages 89 to 99** (extracted text; eqs. 40 to 49 read, figures 39 to 44 only as captions): the effective vertical conductivity of a via unit cell is the rule of mixtures (eq. 43) only when the reference faces are isothermal; with a convection or flux condition a microspreading resistance `R_msp` appears in series, `k_eff,z = L / (A (R_1D + R_msp))` (eq. 47), `R_msp = R_msp,max / (1 + (h P / (k_s H0))^beta)` (eq. 49, `H0` = 15.5, `beta` = 0.96, fitted to finite elements), for a 60 um copper via at 100 um pitch in glass (k 400 and 1 W/mK, fill 28.3 %): isothermal `k_eff,z` = 114.5 W/mK (eq. 43 gives 113.8), `R_msp,max` = 1240 K/W (thick substrate). **Reproduced** with an independent axisymmetric solver (`research/lumped-via-groups/lib/axisym_cell.py`, `scripts/study_fish_case.py`): 1215 K/W (-2.0 %), `k_eff,z` 113.81 W/mK, the correlation within 1 to 10 % over h from 1 to 1e7 W/m2K. Chapter 7 (analytic model of the microspreading in via-array unit cells, page 114 on) and chapter 5 were not read here. Topic 05.
 
 ### [FishMcCluskeyBarCohen2016]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. Fish, P. McCluskey, A. Bar-Cohen, *Modeling thermal microspreading resistance in via arrays*, Journal of Electronic Packaging 138 (1) (2016), DOI 10.1115/1.4032348. **Status S**: title, authors and venue seen in a search result; the paper is the journal version of [Fish2017] chapter 6, which was read instead.
 
 ### [ShenWang2019Vias] (read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal modeling and design optimization of PCB vias and pads*, IEEE Trans. Power Electronics (2019), DOI 10.1109/TPEL.2019.2915029, accepted manuscript (`vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf`, 20 pages). **Status R for the text of sections II and III** (the equations of the extraction are partly lost) and, in the reproduction pass of `research/lumped-zones-adoption` (study 8), **R for pages 1 to 6 and 13 to 14 rendered to images: the nomenclature, Table I, equations (1) to (5) (pp. 3 and 4), Fig. 17 with its caption and the CFD numbers 120.3 and 1.86 K/W (p. 14) and Fig. 18(a) and (b) (p. 14, plot values marked as read from the plot); NOT read in detail: the optimisation of II-B beyond equation (5), the outer-zone vias (II-C), the pad model of section III, the experimental section IV-B**. Reproduction: equation (4) at the Fig. 17 geometry (5.6 mm, 12 x 12 vias counted on Fig. 17(c), phi 0.25 mm, s 0.2 mm) gives 1.587 K/W against the CFD 1.86 K/W (-15 %), the one-dimensional no-via board 145.2 K/W against the CFD 120.3 K/W (the CFD corresponds to a through-plane FR-4 conductivity of 0.35 W/mK, Table I says 0.29); with a 5.0 mm pad (inferred, not stated) and the continuous count l w / (phi + s)^2 the equation reproduces the six CFD markers of Fig. 18(a) (read from the plot) within 5 %. An independent axisymmetric unit-cell solver gives 1.461 K/W for the Fig. 17 board (-8 % against equation (4), -21 % against the CFD, which is not reproduced; the CFD model is not known in full); the program's FVM at 0.1 mm gives 1.472 K/W. The second review of that folder (README 10.2) re-read pages 4 and 14 as images, confirmed the transcription of equations (1) to (3) and Table I, found the same 1.456 to 1.470 K/W with a second solver, and placed the gap in the paper's inputs: equation (4) with the stated inputs (1.587 K/W) is an upper bound that the CFD exceeds, and the paper's own analytical curve at 0.25 mm (about 1.82 K/W, plot) is not equation (4) with those inputs either; the no-via 120.3 K/W matches an FR-4 of 0.35 W/mK, possibly the Icepak library material (status M, not checked). Its inner-zone assumption (vertical flow only) is the one the zone model replaces: the via array under a chip is modelled with vertical resistances only ("the radial heat transfer of the inner-zone via array is not pronounced compared with the vertical direction", with a powerful heatsink below), the vias around it ("outer zone") with distributed radial and vertical resistances reduced by series, Y-Delta and cross transformations of the resistor grid; the copper and FR-4 layers are said to matter little for the resistance of the array (copper layers, copper thickness and board thickness have a negligible effect on the normalised resistance, fig. 3); the agreement with CFD (3.2 %) is from a search summary of the abstract. It is the published form of the "vertical conductivity of the inner array" model; it assumes a heatsink under the array, which the boards of this investigation do not have. Its equation (8) did not survive the extraction and was **not read**. Topic 05.
 
 ### [SoleymaniKoohbanani2013]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Soleymani Koohbanani, thesis, Simon Fraser University (`summit.sfu.ca`, file etd9629), chapter 3, "thermal vias": through-plane effective conductivity of a PCB with thermal vias by a one-dimensional parallel network of copper barrel, air and FR-4 (eqs. 17 to 29, whose formulas are images and were **not read**), nine round samples of 25.4 mm, pitch 1 to 2.5 mm, barrel 40 um, measured on a guarded heat-flux meter; the model within 13 % of the measurement and 9 % of a COMSOL unit cell with isothermal top and bottom (text). **Status R for the text of chapter 3 (thesis pages 51 to 66)**, S for the numbers (no table of results, a plot only). It confirms that the vertical-conductivity form of a via field is the isothermal-face limit of [Fish2017]. Topic 05.
 
 ### [Guenin2004], [Li1998], [DTIC-AD1011632], [PolimiVia], [MondragonVias], [LasanceEllison]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 As in section 17: not opened again, statuses unchanged (S, S, N, N, N, N). A new search for "thermal via array, effective vertical conductivity against spreading in the planes" returned vendor notes (for example an equivalent conductivity for the via region with the internal planes modelled explicitly) with no error data; status S, not used.
 
 ### Sources used by `research/analytic-partial-copper/`
@@ -706,21 +1275,39 @@ No new source was opened by this investigation. It rests on: **[Muzychka2003]**,
 Every entry says what was opened, where, and which pages or equations were read; nothing of a third party is stored in the repository. Reading is by text extraction (in a scratch environment) and, for scans and equation images, by rendering the page and looking at it.
 
 ### [Lienhard2024]
+
+**Licence:** not checked. **Source URL:** https://ahtt.mit.edu/wp-content/uploads/2024/04/AHTTv600.pdf.
+
 J. H. Lienhard IV and J. H. Lienhard V, *A Heat Transfer Textbook*, 6th edition, version 6.00 (Phlogiston Press / MIT, open), https://ahtt.mit.edu/wp-content/uploads/2024/04/AHTTv600.pdf (810 pages, text extracted). **Read** (pages as printed in the book; the PDF page is 14 more): section 8.3, pages 419 to 421: equations 8.13a (laminar Churchill-Chu, Ra below 1e9) and 8.13b (all Ra, written `Nu = {0.825 + 0.387 Ra^(1/6) / [1 + (0.492/Pr)^(9/16)]^(8/27)}^2`), Example 8.1 (Nu 47.33, h 4.22 W/m2K, Pr 0.71, Ra 6.78e7, k 0.02672, L 0.30 m); section 8.4, pages 435 to 437: horizontal plates, equation 8.35 (Raithby and Hollands, `Nu = 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr)`, Ra from 1e7), 8.37a/b (`Nu = 0.560 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)` with `L* = A/P`, corrected as `1.4 / ln(1 + 1.4/Nu)` when Nu is 10 or less, 1 < Ra* < 1e7), 8.38 (Fujii and Imura, `Nu_L = 0.58 Ra_L^(1/5)` on the **width L** of a two-dimensional plate nearly horizontal, Ra 1e6 to 1e11, page 437); section 6.5, page 311: laminar plate `Nu = 0.664 Re^(1/2) Pr^(1/3)`; the book gives no 0.037 Re^(0.8) - 871 form (it uses its own equation 6.112 and 6.120) and no mixed-convection blending rule beyond a pointer to references 8.27 to 8.29. **Status R for those pages.**
 
 ### [ASHRAE2005Preprint]
+
+**Licence:** not checked. **Source URL:** https://windows.lbl.gov/sites/default/files/61250.pdf.
+
 A. Gustavsen, C. Kohler, D. Arasteh, D. Curcija, *Two-Dimensional Conduction and CFD Simulations of Heat Transfer in Horizontal Window Frame Cavities*, ASHRAE Winter Meeting 2005 preprint OR-05-4-3 (LBNL report, https://windows.lbl.gov/sites/default/files/61250.pdf, 13 pages; the preprint says it may not be distributed, so the PDF is kept only in the git-ignored `papers/` folder and never committed; authors and title read from page 1 of the PDF itself), **page 5 read as an image from the PDF** (the equations are images, absent from the text layer): equation 9 (the Rohsenow et al. 1985 handbook form of the horizontal-layer equation with `k1 = 1.40`, `k2 = Ra^(1/3)/450.5`, `Ra_cr = exp(0.721 Lv/Lh + 7.46)`) and equation 14 (Hollands et al. 1976: `Nu = 1 + 1.44 [1 - 1708/Ra]* + [(Ra/5830)^(1/3) - 1]*`). A secondary source (it cites the originals), used only to decide the exponent of [Hollands]. **Status R for page 5.**
 
 ### [Celik2008]
+
+**Licence:** not checked. **Source URL:** https://qa12.asme.org/wwwasmeorg/media/ResourceFiles/Shop/Journals/JFENumAccuracy.pdf.
+
 I. B. Celik, U. Ghia, P. J. Roache, C. J. Freitas, *Procedure for estimation and reporting of uncertainty due to discretization in CFD applications*, J. Fluids Engineering 130 (7) (2008) 078001; the open ASME copy of the editorial policy statement (https://qa12.asme.org/wwwasmeorg/media/ResourceFiles/Shop/Journals/JFENumAccuracy.pdf, 15 pages) **read, pages 4 to 9**: equations 1 and 2 (representative cell size), 3a to 3c (apparent order by fixed-point iteration), 4 (Richardson extrapolation), 5 to 7 (approximate error, extrapolated error, GCI with the safety factor 1.25), Table 1 (three columns of worked numbers). The three columns are reproduced by `lib/gci.py` (p 1.54, 0.75, 1.51; GCI 2.2, 1.1 and 0.5 %). **Status R.**
 
 ### [JafferJaffer2025]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2401.09469.
+
 A. G. Jaffer and M. S. Jaffer, *Mixed convection from an isothermal rough plate*, arXiv:2401.09469 (v3, 10 December 2024) (the open version `people.csail.mit.edu/jaffer/convect/blend.pdf`, 38 pages), text extracted and searched: the l_p-norm combination of natural and forced heat transfer, equations 1 and 25 to 27, Table 4, page 18 (p for aiding vertical and opposing vertical, between sqrt(3) and 3; vertical plate in a level flow 2; level flow over an upward-facing plate 2; downward-facing plate 5), the bounds sqrt(3) <= p <= 3 for the vertical cases, and the data comparison tables 6 and 7 (rough plates of 3.00 and 1.04 mm roughness in rough or turbulent forced flow, RMS relative errors 1.3 to 3.8 %; checked by the review). **Status R for the statements quoted; S for the derivations.**
 
 ### [Yovanovich2003] (second reading)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Table 3, page 174 (pdf page 6, text layer), all columns: `4 a k Rs` for e = 0 to 0.8, flux exponent m = 1/2, 0, -1/2, and the Roess, Gibson, Negus and Yovanovich and Smythe isothermal values. The isoflux column (m = 0) is reproduced to its four digits by the Bessel series (`scripts/study_lee_yovanovich_check.py`, largest difference 1e-4). **Status R.**
 
 ### [EC1998Spreading] (equations)
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2204.05554.
+
 The two equation images of the article (files `A3form1_2` and `A3formula` of the page) were downloaded and read: equation 1 `Rc = (sqrt(Ap) - sqrt(As)) / (k sqrt(pi Ap As)) (lam k Ap R0 + tanh(lam t)) / (1 + lam k Ap R0 tanh(lam t))`, equation 2 `lam = pi^(3/2)/sqrt(Ap) + 1/sqrt(As)`, and the worked example (lam 95.68 1/m, tanh 0.124, 191.4, Rc = 0.0846 x 7.743 = 0.66 K/W) which `scripts/study_lee_yovanovich_check.py` reproduces (0.6566). The closed-form equations 1 and 2 are therefore **read** (R); the pre-1998 papers cited by the article (Lee 1995) stay N.
 
 ### What could not be obtained (for the maintainer to fetch)
@@ -761,18 +1348,33 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [LiSuperLU2005] | the symmetric mode of `fvm.lu_factor` (section 3.2.2); memory of the SuperLU factor | R in part (section 3.2.2 and Table III, PDF page 13; Table IV, PDF page 18; compared with the page images); the rest N for the reading; the user guide [SuperLUGuide] stays the citation for the memory statements | sections 22, 24, batch 2, image pass below |
 
 ### [Krogh1919]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Krogh, *The number and distribution of capillaries in muscles with calculations of the oxygen pressure head necessary for supplying the tissue*, J. Physiology 52 (1919) 409-415 (citation from memory). The "Krogh cylinder" is the tissue cylinder around a capillary, with a uniform source and an insulated rim: the cell of `docs/theory.md` 1.5. **Status M**: the paper was not opened; the closed form (1.8) of `docs/theory.md` used by the program is the program's own derivation, checked numerically against a finite-difference cell solver and an axisymmetric solve (`research/lumped-analytic-vias`, `research/lumped-via-groups`; status L), and is the same mathematics as the pseudo-steady-state well equation of [Dietz1965]. Topics 05, 06.
 
 ### [LeFevre1956]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 E. J. LeFevre, *Laminar free convection from a vertical plane surface*, Ninth International Congress of Applied Mechanics, Brussels, 1956, vol. 4, p. 168 (citation from memory). The function `g(Pr) = 0.75 Pr^(1/2) / (0.609 + 1.221 Pr^(1/2) + 1.238 Pr)^(1/4)` that the check of the laminar form uses is written in `docs/theory.md` 8 as LeFevre's; the original was not opened. **Status M**; the check of the program (0.21 %) is own computation against it. Since the source audit the check can rest on [Ostrach1953] (R): Table I(b), checked on the page image, gives `-H'(0)` = 0.5046 at Pr 0.72, mean Nu = 0.5164 Ra^(1/4), the program's coefficient (0.5151) 0.25 % below. Topic 08.
 
 ### [Young1950]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. M. Young, *Iterative methods for solving partial difference equations of elliptic type*, PhD thesis, Harvard University, 1950 (published as Trans. Amer. Math. Soc. 76 (1954) 92-111; citation from memory). The relation between the Jacobi and SOR eigenvalues for consistently ordered matrices and the optimal relaxation factor. **Status N**: not obtained; the statements used by the program are read in [Saad2003] (Theorem 4.16 and equation 4.47, pages 126 and 127), which is the citation the code docstring gives. Topic 02.
 
 ### [BarCohenRohsenow1984]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Bar-Cohen and W. M. Rohsenow, *Thermally optimum spacing of vertical, natural convection cooled, parallel plates*, J. Heat Transfer 106 (1) (1984) 116-123 (the entry [ElenbaasBCR] holds the full record). **Status N for the paper**; the composite `Nu_b = [(24/Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2)` used by `checks.check_fin_channels` is read as printed in the review [TeertstraReview] (equation 21, images) and in Bar-Cohen, Iyengar, Kraus (2003) pages 1 to 6 (R in part); the fraction `phi` is own algebra on it. Topic 11.
 
 ### [Elenbaas1942]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 W. Elenbaas, *Heat dissipation of parallel plates by free convection*, Physica 9 (1) (1942) 1-28 (see [ElenbaasBCR]). **Status N**; the data were read as plot values in Yovanovich, Teertstra, Muzychka (2002) (R). Topics 11, 13.
 
 ## 23. Sources of `research/gerber-real-boards/` (real boards: paste layers, placement files, X3 component layers, ODB++, open boards)
@@ -780,30 +1382,57 @@ W. Elenbaas, *Heat dissipation of parallel plates by free convection*, Physica 9
 Status of this folder: both blocks of studies were run and reviewed (README section 9); the review updated the stale statuses below (files that the studies opened were still marked as not opened). What is marked R below was read while preparing (file headers, repository metadata, download-page listings) or in the first block; nothing of a third party is stored in the repository.
 
 ### [UcamcoDownloads]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/en/gerber/downloads.
+
 Ucamco, Gerber downloads page, https://www.ucamco.com/en/gerber/downloads : the list of specifications (Gerber Layer Format Rev 2026.05 and Rev 2024.05, the job-file schema, the XNC specification), of test and sample files and of the reference viewer. **Status S** (the page through the fetch tool: names, addresses and dates of the files; the files named below were then downloaded one by one). Topics 15, 20.
 
 ### [UcamcoLayerFormatTests]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/files/downloads/file_en/423/gerber-layer-format-test-files_en.zip.
+
 *Gerber Layer Format - Test files*, https://www.ucamco.com/files/downloads/file_en/423/gerber-layer-format-test-files_en.zip (21 files, 54 kB; the names include `Nested_blocks.gbr`, `Block_with_different_orientations.gbr`, `Polarities_and_Apertures.gbr`, `sample_macro.gbr`, `SMD_prim_20.gbr`, `A_drill_file.gbr`, each with a `.png` of the correct rendering). **Status R** for the 11 `.gbr` files (read by `study_conformance_rare.py`; `sample_macro.png` compared by eye; the zip gives 20 files after the names are flattened). Licence not stated on the page. Not stored in the repository.
 
 ### [UcamcoX3Samples]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/files/downloads/file_en/514/gerber-layer-format-x3-stickhub_en.zip.
+
 *Gerber Layer Format - X3* samples (Kit Dev Coldfire Xilinx, StickHub, Li-ion Charger, a component layer from the specification), https://www.ucamco.com/files/downloads/file_en/514/gerber-layer-format-x3-stickhub_en.zip and the neighbours 513, 515, 351. **Status R for StickHub** (the zip was downloaded to a scratch folder; the head of `StickHub-pnp_top.gbr` was read: `%TF.FileFunction,Component,L1,Top*%`, per part `%TO.C,<ref>*%`, `%TO.CFtp`, `%TO.CVal`, `%TO.CLbN`, `%TO.CMnt`, `%TO.CRot`, apertures `ComponentMain`, `ComponentOutline,Courtyard`, `ComponentPin`, `%TO.P,<ref>,<pin>,<name>*%`; 35 `TO.C` in the component layer and 35 in the paste file; the head of `StickHub-F_Paste.gbr` and of the job file: board 16.6 x 40.1 mm, 2 layers, 1.6 mm); **S for the other three** (member lists only). KiCad 8.99 output. **Update (research/gerber-real-boards 12): the other two samples (Coldfire, Li-ion charger) and the three component layers of the three boards (six files with the paste and copper files) were read by `study_x3_components.py`: 434 components, 1711 pins; status R for the three samples. The Ucamco news item on Pentalogix's X3 output and the Eurocircuits guideline are search results (S); a third-party guide on Altium and EAGLE X3 support is S and of low reliability.** Licence not stated. Topic 15.
 
 ### [UcamcoFabricationExamples]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/files/downloads/file_en/220/pcb-fabrication-data-test-file-1_en.zip.
+
 *PCB fabrication data - Test file 1 and 2*, https://www.ucamco.com/files/downloads/file_en/220/pcb-fabrication-data-test-file-1_en.zip and `.../221/pcb-fabrication-data-test-file-2_en.zip`: Gerber layers (4 and 10 copper layers, plated and non-plated drills in Gerber format, profile) **and an IPC-2581 file** (`.ipc`, 1.16 and 0.90 MB). **Status R** for the 32 Gerber and drill files (read and compared with a second reader by `study_conformance_rare.py`); **N** for the `.ipc` files (not opened). Licence not stated.
 
 ### [GerberSpecAttributes]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Ucamco, Gerber Layer Format Specification, revision 2024.05 (and 2026.05): the attribute dictionary (`TF`, `TA`, `TO`, `TD`), the file functions (`Paste`, `Component`, `Copper`), the aperture functions, the object attributes `TO.C`, `TO.CRot`, `TO.CMfr`, `TO.CMPN`, `TO.CFtp`, `TO.CVal`, `TO.CMnt`, `TO.CLbN`, `TO.P`, and the aperture blocks and transformations (`AB`, `LM`, `LR`, `LS`). **Update (`research/gerber-real-boards/` 12): the component-layer passages were read again on the PDF pages of revision 2026.05 (pages 143 `Component,L<p>,(Top|Bot)`, 157 and 158 the aperture functions `ComponentMain`, `ComponentOutline,<type>` with the picture of the four types, `ComponentPin`, 162 and 165 the object attributes `.N`, `.P`, `.C`, 166 and 167 `.CRot` with its picture and `.CMfr .CMPN .CVal .CMnt .CFtp .CPgN .CPgD .CHgt .CLbN .CLbD .CSup`, 179 to 181 the overview, the data set and the annotated example, 11.9 the X3 history on page 213; pages 157 and 166 also as images) and the 2024.05 text was searched for the same entries (pages 145, 150, 153 to 155, 168; same wording, status S for 2024.05). Status R for these pages.** **Status R for the passages listed here, N for the rest**: the text layer of revision 2026.05 (219 pages) was extracted in a scratch environment outside the repository and read at the component-layer aperture functions (`ComponentMain`, `ComponentOutline` Body / Lead2Lead / Footprint / Courtyard, `ComponentPin`), the `.C` object attribute (any layer; mandatory on a component layer) and the characteristics `.CRot .CMfr .CMPN .CVal .CMnt .CFtp .CPgN .CPgD .CHgt .CLbN .CSup`, and at the overview of `AB` (origin = file origin, polarity toggled through nesting, since revision 2016.12). Not read: the rest of the attribute dictionary, the usage chapter of the aperture block, the transformation chapters, the file-function list; revision 2024.05 not opened. The original text of this entry follows. **Status N for this folder** (the 2024.05 PDF was fetched as a binary file, its text layer uses glyph codes and could not be extracted without a PDF library; [Gerber2026] records that revision 2026.05 was extracted in another environment and read for other points). The attribute names used in `lib/x3.py` and `lib/paste.py` come from the real files above (R) and from search snippets (Eurocircuits, Pulsonix, the KiCad source `class_X2_gerber_attributes.cpp`: S); the section numbers are **not** recorded. To read before the code is adopted: the attribute sections, the component-layer section, and the sections on aperture blocks and transformations. *Review: the two statuses of this entry are both kept for the record; the valid one is the first (R for the listed passages of 2026.05). No page or section number was written down for those passages, which the literature rule asks for: they are to be read again with the pages recorded before the reader is adopted.*
 
 ### [OpenBoardsGitHub]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Open hardware projects that publish Gerbers with paste layers and a placement file: Manawyrm/ISASTM (GPL-3.0), Manawyrm/CMM2-JLC (GPL-3.0), Open-Smartwatch/open-smartwatch-light (GPL-3.0), tommy-gilligan/RP2040-minimal-design (BSD-3-Clause), jmdaly/CO60 (CC-BY-SA-4.0), english1234/vstcm (GPL-2.0), brickbots/PiFinder (GPL-3.0, zip only), Duckle29/Vitamins-included (BSD-3-Clause, zip only). **Status R for the licences** (GitHub repository metadata through `gh api`, spdx identifiers) and for the file lists; **R for ISASTM** (the head of `ISASTM-F_Paste.gtp`: KiCad 5.1.6, `%TO.C,<ref>*%` before the openings of each part, `%TF.FileFunction,Paste,Top*%`; the head of `ISASTM-all-pos.csv` (`Ref,Val,Package,PosX,PosY,Rot,Side`) and of `ISASTM_cpl_jlc.csv` (`Designator,Val,Package,Mid X,Mid Y,Rotation,Layer`); the job file: 4 layers, 101.65 x 101.65 mm, 1.6 mm); **S for the others** (the file lists only; their sizes are printed by `fetch_boards.py`). Nothing is stored in the repository (`data/` is git-ignored).
 
 ### [OdbppSiemens]
+
+**Licence:** not checked. **Source URL:** https://eda.sw.siemens.com/en-US/pcb/odb-plus-plus/resources.
+
 Siemens, ODB++ resources, https://eda.sw.siemens.com/en-US/pcb/odb-plus-plus/resources : the specification is free after registration, a free viewer exists. **Status S** (a search summary; the page was not opened). The specification itself: **N** (needs a registration by the maintainer). **First block: the record layout of `lib/odb.py` was checked against the raw component, matrix and feature files of three sample archives (R for those files) and needed no correction; pins of the component layers sit on the paste flashes of the same job to 1.5 micrometres.** The record layout in `lib/odb.py` (`CMP`, `TOP`, `PRP`, the directory tree `matrix/`, `steps/<step>/layers/comp_+_top/components`, `profile`, `eda/data`) is **M**, from memory of the format and of the open parsers.
 
 ### [OdbppParsers]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 mcix/odbpp (Java, MIT; README via the fetch tool: reads .zip/.tgz/.tar.gz, symbols, components, BOM, netlists, EDA data; `examples/` holds `designodb_rigidflex.tgz` 11.6 MB, `flat_hierarchy-odb.tgz` 242 kB, `sandbox-odb_pc4.tgz` 630 kB, `sandbox-odb_wifi.tgz` 69 kB, `video-odb.tgz` 1.2 MB; the licence of the sample archives is not stated), ulikoehler/ODBPy (Python, Apache-2.0, alpha), capablemonkey/odb-pp-parser (Ruby), nam20485/OdbDesign (C++, AGPL-3.0: ideas only, no code). **Status S** for the parsers (README summaries through the fetch tool and a search); **R** for three sample archives of mcix/odbpp (`sandbox-odb_wifi`, `flat_hierarchy-odb`, `sandbox-odb_pc4`: downloaded by `fetch_boards.py --odb` and read by `study_odb_structure.py`).
 
 ### [IPC2581]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 IPC-2581 (the XML standard for PCB design data; two `.ipc` examples exist in [UcamcoFabricationExamples]). **Status N** (not read, no file opened).
 
 ### Earlier folders used as the base
@@ -814,18 +1443,33 @@ IPC-2581 (the XML standard for PCB design data; two `.ipc` examples exist in [Uc
 None of these was opened in the preparation of the folder; the statements that rest on them are hypotheses the measurements test.
 
 ### [George1973]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. George, *Nested dissection of a regular finite element mesh*, SIAM J. Numer. Anal. 10 (1973) 345-363. Fill-in and operation count of the factor of an n x n grid (O(n^2 log n) and O(n^3)), and by extension of a k x k x k grid (O(k^4) fill, N^(4/3) in the unknowns). **Status M** at the time of that folder; **read in part since (section 24, [George1973] update)**. Used for the hypothesis of the exponent of the memory law.
 
 ### [Davis2006]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 T. A. Davis, *Direct Methods for Sparse Linear Systems*, SIAM, 2006. Orderings (minimum degree, nested dissection), fill, the memory of LU and Cholesky factors. **Status M.**
 
 ### [GeorgeLiu1981]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. George, J. W. H. Liu, *Computer Solution of Large Sparse Positive Definite Systems*, Prentice-Hall, 1981. Minimum degree and its tie-breaking (why a different numbering of the same matrix changes the ordering and the fill). **Status N.**
 
 ### [LiSuperLU2005]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 X. S. Li, *An overview of SuperLU: algorithms, implementation, and user interface*, ACM Trans. Math. Softw. 31 (2005) 302-325, and the SuperLU user guide (author's site). Memory held by the factor and the work arrays, the column orderings behind SciPy's `permc_spec`. **Status N** for the article; the user guide was obtained and read in part (section 24, [SuperLUGuide]).
 
 ### [PythonResource]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Python documentation of `resource.getrusage` and `os.wait4`, and the `getrusage` man pages. The unit of `ru_maxrss` (bytes on macOS, kilobytes on Linux) and that `wait4` returns the usage of one child. **Status M.**
 
 ## Cut cells and embedded boundaries (read for `research/rotated-square-3d`)
@@ -833,27 +1477,51 @@ Python documentation of `resource.getrusage` and `os.wait4`, and the `getrusage`
 Added by the literature check of that folder; the page and equation numbers and the formulas are in `research/rotated-square-3d/docs/literature.md`. The entry `[JohansenColella1998]` (status R for printed pages 1 to 11 in its first reading) was read further, to printed page 18 (Problem 1 reproduced, Tables I and II), and its status line now says so (corrected by the review of that folder); `[BergerHelzel2012]` is unchanged.
 
 ### [SchwartzEtAl2006]
+
+**Licence:** not checked. **Source URL:** https://escholarship.org/uc/item/0fp606kk.
+
 P. Schwartz, M. Barad, P. Colella, T. Ligocki, *A Cartesian grid embedded boundary method for the heat equation and Poisson's equation in three dimensions*, J. Comput. Phys. 211 (2006) 531-550 (journal details from a search record, not checked); read as the LBNL report, https://escholarship.org/uc/item/0fp606kk (open; 33 pages, cover dated 2004; opened through the fetch tool, `curl` is refused). **Status R for printed pages 1 to 16** (the whole text; pages 3 to 5, 7 to 10, 12 to 14, 18 and 19 of the file compared with the page images in the second image pass; this is the paper that the local file named after McCorquodale, Colella and Johansen (2001) holds). **Accuracy as printed (page 7, equations 11 to 13, re-read on the image):** the truncation error is `O(h^2)` on regular cells, `O(h/kappa)` on cut cells when the boundary flux is second order accurate (eq 12) and `O(1/kappa)` with the first-order flux (eq 13), `kappa` the volume fraction; the solution is nevertheless second order in the maximum norm (a modified-equation argument that they attribute to Johansen and Colella 1998). A linear (three-face) interpolation of the face flux was unstable (point Jacobi did not converge) and bilinear interpolation was used; the equations are multiplied through by `kappa`, so that no division by a small volume fraction occurs; the time scheme is L0-stable (`a = 2 - sqrt(2) - eps`). Used: the divergence over the cut volume (eq. 1, 4, 5), the bilinear flux interpolation and the remark that a three-face linear interpolation was unstable for adjacent small cells (eq. 6, 7, p. 5), the Dirichlet flux stencils (eq. 8 to 10), the truncation estimates (eq. 11 to 13), the heat equation by an L0-stable scheme on a moving domain. No Robin condition. The sphere tests (radius 0.392) are shown as plots; no number was taken. Topic: the cut cells of the layered FVM and of the 3D solid.
 
 ### [CrockettEtAl2011]
+
+**Licence:** not checked. **Source URL:** https://escholarship.org/uc/item/00q9z6st.
+
 R. K. Crockett, P. Colella, D. T. Graves, *A Cartesian grid embedded boundary method for solving the Poisson and heat equations with discontinuous coefficients in three dimensions*, J. Comput. Phys. 230 (2011) (volume and pages from a search record); read as the LBNL report, https://escholarship.org/uc/item/00q9z6st (open; 39 pages). **Status R for the abstract, the introduction and sections 5.3 and 5.4 (printed pp. 26 to 27); S for the rest**: the matching-condition flux formulas, the multigrid and sections 5.1 and 5.2 were not read. Used: second order and stability up to coefficient ratios of 10^6 (abstract), the 3D sphere tests. Jump conditions (value and flux given functions), not a film proportional to the flux. Topic: as above.
 
 ### [CalhounLeVeque2000]
+
+**Licence:** not checked. **Source URL:** https://donnacalhoun.github.io/files/publications/ca-le-2000.pdf.
+
 D. Calhoun, R. J. LeVeque, *A Cartesian grid finite-volume method for the advection-diffusion equation in irregular geometries*, J. Comput. Phys. 157 (2000) 143-180, https://donnacalhoun.github.io/files/publications/ca-le-2000.pdf (the author's copy, open; 38 pages). **Status R for printed pages 143 to 151 (sections 1 to 3) and the description of the tests (section 6)**; the advection part not read. Used: the capacity function as the open fraction, the flux through the open part of an edge, the bilinear interpolation of four centre-of-mass values for the gradient on a partial edge (eq. 18, 19), Crank-Nicolson with a non-symmetric matrix, no small-cell restriction (p. 151). Only no-flow (insulated) walls. **Read further by image** (printed pp 145, 152-153, 159, 162-163, 166-168, 173, 178; PDF 3, 10, 11, 17, 20, 21, 24-26, 31, 36): with the capacity form and the modified capacity (eq 31, Claim 2, eqs 55-58) the Courant number of a cut cell is at most 2, so the time step does not depend on the size of the smallest cut cell (Claim 2, PDF 35, printed 177, re-read in the text layer: the bound `nu <= 1` on the regular cells guarantees `nu_ij <= 2` in every cell); the implicit diffusion step "smooths out the incorrect values in very small cells" (p 163); the accuracy is reported as a rate fitted from several grids (the error does not vary smoothly with `h` because the cut geometry changes). Topic: as above.
 
 ### [BarrettEtAl2022]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Barrett, A. L. Fogelson, B. E. Griffith, *A hybrid semi-Lagrangian cut cell method for advection-diffusion problems with Robin boundary conditions in moving domains*, J. Comput. Phys. 449 (2022) 110805 (from a search record); read as the arXiv preprint 2102.07966 (open; 25 pages). **Status R for sections 1 to 3.1 and 3.3** (the Robin condition `D dq/dn + a q = g`, the cut-cell diffusion step eq. 5 to 15, the Taylor step to the closest boundary point, the reconstruction of cell-centre values) **and for the description of the test of section 4.1; not read**: the semi-Lagrangian advection and the later tests. The convergence is shown as plots. The Robin scheme is that of Bochkov and Gibou, which was not obtained. Topic: the film boundary of a cut cell.
 
 ### [ZhouMoriYao2026]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2607.26341.
+
 H. Zhou, Y. Mori, L. Yao, *A Cartesian grid method for advection-diffusion equations with Robin boundary conditions on moving domains*, arXiv 2607.26341 (open). **Status S** (abstract and introduction): a method that avoids cut cells; named for the list of Robin methods, not used.
 
 ### [ChomboDischargeDocs]
+
+**Licence:** not checked. **Source URL:** https://chombo-discharge.github.io/chombo-discharge/Source/LinearSolvers.html.
+
 SINTEF Energy Research, documentation of chombo-discharge (a code on Chombo), page "Linear solvers", https://chombo-discharge.github.io/chombo-discharge/Source/LinearSolvers.html. **Status S** (an extract returned by the fetch tool): the Robin condition `A d_n Phi + B Phi = C` on the embedded boundary with the boundary value interpolated by an unweighted least-squares fit over a monotone path of radius one. The licence of the code was not stated on the page; nothing was copied. Topic: the film boundary of a cut cell.
 
 ### [BochkovGibou2019]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 D. Bochkov, F. Gibou, *Solving Poisson-type equations with Robin boundary conditions on piecewise smooth interfaces*, J. Comput. Phys. 376 (2019) 1156-1198, read as chapter 1 of D. Bochkov, *Computational Methods for Solidification of Multicomponent Materials and Moving Boundary Problems in Physics of Inhomogeneous Polymers*, UC Santa Barbara dissertation (2020), eScholarship item 3qj3t08h (open copy in the local library). **Status R for the pages compared with their image** (PDF pp. 34, 37, 38, 41, 54, 66: eqs. 1.7, 1.10 to 1.14, 1.17 to 1.19, 1.21, fig. 1.21) **and S for the rest of pp. 33 to 76** (text layer, no image comparison); not read: the introduction, the integration appendix, chapter 2. The symmetric Robin term (eq. 1.14) is the film of `[BarrettEtAl2022]`; the printed (1.14) has a sign misprint against (1.13). The convergence is shown as plots only; reproduced in `research/bochkov-robin-check`.
 
 ### [PapacEtAl2010] [AriasBochkovGibou2018] [IngramEtAl2003]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. Papac, F. Gibou, C. Ratsch, *Efficient symmetric discretization for the Poisson, heat and Stefan-type problems with Robin boundary conditions*, J. Comput. Phys. 229 (2010) 875-889 (origin of the symmetric scheme, cited by Bochkov-Gibou); V. Arias, D. Bochkov, F. Gibou, J. Comput. Phys. 365 (2018) 1-6 (second-order gradients); D. M. Ingram, D. M. Causon, C. G. Mingham, *Developments in Cartesian cut cell methods*, Math. Comput. Simul. 61 (2003) 561-572 (abstract only, by a search record). **Status N for the three**: no open copy found. Papac et al. is worth obtaining; Arias et al. is a six-page note.
 
 ## 24. Sources opened for the 2.5.0 base (`research/theory-sources/` README 7: Peaceman well and Kron reduction, memory of sparse direct solves, exchange formats, thermal-via models)
@@ -861,75 +1529,147 @@ J. Papac, F. Gibou, C. Ratsch, *Efficient symmetric discretization for the Poiss
 Everything below was downloaded to a scratch folder outside the repository, converted to text with pypdf (no page images were looked at, so equations whose symbols the extraction scrambled are marked) and searched; nothing of a third party is stored here. Page numbers are the printed ones unless "PDF page" is said. A web page read through the fetch tool is a summary made by a small model, so it is **S** even when the address opened.
 
 ### [Lie2019Reservoir]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 K.-A. Lie, *An Introduction to Reservoir Simulation Using MATLAB/GNU Octave*, Cambridge University Press (2019), open access (CC-BY-NC-ND 4.0), doi 10.1017/9781108591416; the chapters are separate PDFs on the book's Cambridge Core page. **Status R for section 4.3.2 "Peaceman-Type Well Models" (chapter 4 PDF pages 14 to 16, book pages 126 to 128)** and for the first page of section 5.4.4 (book page 169, chapter 5); the rest of the book was not read. Content: the repeated five-spot of Muskat and Wyckoff, `Δp = (q μ B / (π K h)) (ln(d/r_w) - C)` (4.32) with C = 0.6190 and the later 0.61738575 of Peaceman; the five-point balance on a square grid gives `p = p_E - q μ B / (4 K h)`, with `p_E = p_w + (q μ B / (2 π K h)) ln(Δx/r_w)`, hence `r_e = e^(-π/2) Δx = 0.20788 Δx` (the book's "classical result"); anisotropy by the coordinate change, `K_e = sqrt(Kx Ky)` (4.33); **for a rectangular block (Δx ≠ Δy) the book prints `r_e = 0.28 [ (Ky/Kx)^(1/2) Δx² + (Kx/Ky)^(1/2) Δy² ]^(1/2) / [ (Ky/Kx)^(1/4) + (Kx/Ky)^(1/4) ]` (4.34), attributed to Peaceman [245] (read as the 1983 paper from its content; the reference list of the book was not opened), and the well law `q = 2 π h K_e (p_R - p_w - ρ g (z - z_bh)) / (μ B [ln(r_e/r_w) + S])` (4.35)**. The square case is printed as `r_e ≈ 0.20788 sqrt(Δx Δy)` with a derivation the book calls "somewhat simplified" (attributed to Peaceman [247]). The book's caution (page 128): the equivalent radius depends on how the method approximates the pressure inside the cell, so the formulas are strictly valid only for the two-point discretisation they were developed for; other discretisations need other values. Used by README 7.1 of `research/theory-sources/`. A remark for the reader: the book gives 0.20788 for the square case and 0.28 (that is 0.1985 on a square cell) for the rectangular one; the two constants differ by 4.7 %, see [Koch2019Well].
 
 ### [Koch2019Well]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/1907.12653.
+
 T. Koch, R. Helmig, M. Schneider, *A new and consistent well model for one-phase flow in anisotropic porous media using a distributed source model*, arXiv:1907.12653 (2019; the journal reference, J. Comput. Phys. 2020, is from memory). **Status R in part**: the introduction, section 5.4 (the Peaceman-type comparison) and appendix E were read (text extracted; the numerical sections were not). Content: Peaceman's well model "is only valid for a cell-centered finite difference scheme with 5-point stencil", on K-orthogonal structured grids with the well along one axis and centred in the cell; its 1983 extension to non-square cells and diagonal anisotropy is written (5.5, 5.6) as `Q = 2 π ρ μ (p_ω - p_0) L / (sqrt(K11 K22) ln(r0/r_ω))` and `r0 = (e^(-γ)/2) [ (K22/K11)^(1/2) Δx² + (K11/K22)^(1/2) Δy² ]^(1/2) / [ (K11/K22)^(1/4) + (K22/K11)^(1/4) ]` with γ the Euler-Mascheroni constant (the extraction scrambled one exponent; the form is read as the same as Lie's 4.34, whose constant 0.28 is `e^(-γ)/2 = 0.2807`); the same appendix gives the slanted-well extension of Alvestad (E.1 to E.4, not used here). The paper also says that computational cells "may have to be significantly larger than the well radius (depending on the degree of anisotropy)" and that Peaceman's well model is generally superior to its distributed source model when all its assumptions hold ("our numerical studies (not shown here)"). Setting Δx = Δy in 5.6 gives the constant of the isotropic square case, `(e^(-γ)/2) sqrt(2)/2 = 0.19851` (the paper does not print this number), which is the program's computed constant (`research/point-via-convergence/`), not Peaceman's 0.2079.
 
 ### [KarpinskiPeaceman2010]
+
+**Licence:** not checked. **Source URL:** https://sinmec.ufsc.br/site/arquivos/m-miauiqepbu_peaceman.pdf.
+
 L. Karpinski, M. P. Tada, A. F. C. da Silva, C. R. Maliska, U. Sansoni Junior, *Peaceman's well model evaluation for non-isolated and partially penetrating wells*, Rio Oil & Gas Expo and Conference 2010 (IBP2681_10), https://sinmec.ufsc.br/site/arquivos/m-miauiqepbu_peaceman.pdf. **Status R in part** (the abstract, the problem statement and example 2 of section 4.2 were read). Content: Peaceman's formulation assumes an isolated well, a fully penetrating well and steady flow; against a semi-analytical Green's-function reference, it "is not exact when non-isolated wells are used" (horizontal wells in thin reservoirs, wells near the boundaries) and mis-distributes the flow along a partially penetrating well (22 % error at the ends and 6 % in the centre of the vertical injectors of example 2, grid 31 x 31 x 15). It is the only source found that measures the Peaceman well near a boundary, and it does so for a reservoir (flow) problem, not for heat.
 
 ### [DorflerBullo2013Kron]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/1102.2950.
+
 F. Dörfler, F. Bullo, *Kron reduction of graphs with applications to electrical networks*, arXiv:1102.2950 (v1, 2011; published in IEEE Trans. Circuits and Systems I 60 (2013) 150-163, from memory; the theorem numbers below are those of the arXiv text). **Status R in part** (introduction, section 2 with Lemma 2.1, Theorems 3.4, 3.7 and 3.9 as stated; the proofs and the applications section were not read). Content: Kron reduction is the Schur complement of the (loopy) Laplacian with respect to the interior nodes, `Q_red = Q[α,α] - Q[α,β] Q(β,β)^(-1) Q[β,α]` (2.1, notation of the paper); Lemma 2.1: it exists, a symmetric loopy / strictly loopy / loop-less Laplacian stays one (closure), the accompanying matrix `-Q[α,β] Q(β,β)^(-1)` is non-negative (column-stochastic for a loop-less one); Theorem 3.7: irreducibility is kept, `Q_red[i,j] ≤ Q[α,α][i,j]` (the reduced couplings are at least the original ones), the reduced self-loops equal the original ones plus the accompanying-matrix sums of the interior self-loops (3.10); Theorem 3.4 (connectivity kept) and 3.9 (effective resistances between the kept nodes are unchanged). It is the theoretical base of the first step of `viawell.py` (`kron_barrel`: the barrel nodes of the star eliminated into couplings `G_lm` between the plane means): a reduction of a conductance network with ground conductances stays a conductance network, with positive couplings and no new unknowns. It does not cover the second step, the projection `G_lm u uᵀ` (u = e_l ⊗ w - e_m ⊗ w) onto the footprint cells, which puts positive off-diagonal entries between the cells of one plane (review: 16 at 1 mm, 144 at 0.5 mm on the example board), so the cell matrix is positive semidefinite but not a Laplacian (`docs/theory.md` 2.3). The notation `Q[α,β]` above is ours (β the interior nodes); the paper writes `Q[α,α)`. `docs/theory.md` cites another arXiv paper ([Kron2022], S) for the Kron reduction; this one, read in part, could replace it. The paper does not treat a finite-difference grid with a well in particular.
 
 ### [Peaceman1983] (update)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Still **not obtained** (SPE, paywalled). Its anisotropic, non-square formula is now known at second hand from two sources that print it, [Lie2019Reservoir] (4.34) and [Koch2019Well] (5.6), and **checked numerically here** (L): `research/theory-sources/scripts/study_peaceman_nonsquare.py` solves the five-point lattice with a unit sink and reads the equivalent radius from the potential at nodes 10 steps away; the printed formula is within 0.09 to 0.93 % of a finite 401 x 401 lattice for Kx/Ky = 1, 4, 1/4, 1/10, 1/9 and Δx/Δy = 1, 2, 1/2 (7 to 8 % when the stretched cell is 1:10), and the review showed that these differences are the effect of the finite rectangle: on the infinite lattice (Fourier integral, README 7.1) the formula holds to 2e-5 in all ten cases, so it is the exact lattice value; it equals, algebraically, the exact stretching of the isotropic non-square lattice (`0.14 sqrt(Δx'² + Δy'²)`, `Δx' = Δx/sqrt(Kx)`) times the conversion from an elliptic to a circular hole, `2 sqrt(Kx Ky) / (sqrt(Kx) + sqrt(Ky))`.
 
 ### [Ding1995]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Y. Ding, near-well upscaling, SPE 1995, named (as "Ding, 1995") by [Ligero2003] and by a search summary ("Ding employs the potential layer theory to determine an analytical pressure field near the well and changes the transmissibilities in the well-block faces"). **Status N**: not obtained; the title and the SPE number are not recorded because they were not seen. The idea (change the block transmissibilities so that the discrete solution carries the analytical near-well field) is the same as the footprint and well of `viawell.py`.
 
 ### [Ligero2003]
+
+**Licence:** not checked. **Source URL:** https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-0798.pdf.
+
 E. L. Ligero, B. A. Sanjombi, D. J. Schiozer, *Absolute permeability upscaling near wells in fine grids representing petroleum reservoirs*, COBEM 2003 (COB03-0798), https://abcm.org.br/anais/cobem/2003/html/pdf/COB03-0798.pdf. **Status S** (the text was extracted and the paragraph on well treatments read: Peaceman 1978 and 1983, the 1983 model "has become, according to Wolfsteiner et al. (2001), the default procedure in virtually all commercial simulators"). Cited only as the secondary source of that statement.
 
 ### [George1973] (update)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Now **Status R in part**: a scan of the whole paper, hosted as a handout of a university course (a JSTOR copy at courseflow.cs.illinois.edu, file `george_1973_nest_diss.pdf`; third-party copy, not stored here), was extracted. Read: the abstract (a mesh of n² squares, N = (n+1)² unknowns: the banded order needs O(n⁴) operations and O(n³) storage; the nested-dissection numbering needs **O(n³) operations and O(n² log₂ n) storage, and every ordering needs at least O(n³) operations**), Theorem 4.1 and Corollary 4.2, Theorem 5.2 (more than n³/6 multiplicative operations for any ordering), and the closing remark that the extension to the cube of n³ elements is "straightforward" and gives **O(n⁶) operations and O(n⁴) storage** (that is N², N^(4/3) for N = n³ unknowns), with "we have been unable to extend our lower bound proof to the three-dimensional problem". The constants of Theorem A.6 are scrambled by the text recognition of the scan; the leading storage constant is `(31/4) n² log₂ n` according to [LiGolub2013] page 19. The finite element mesh of the paper has nine-point couplings; the laws are quoted for the five-point grids of the program as the same order, not as the same constant. Topics 02, 03.
 
 ### [LiGolub2013]
+
+**Licence:** not checked. **Source URL:** https://cseweb.ucsd.edu/classes/sp23/cse245-a/slides/letMatrixLi.pdf.
+
 X. S. Li, *Sparse direct methods: combinatorics*, lecture 3 of the 4th Gene Golub SIAM Summer School (Shanghai, 2013), https://cseweb.ucsd.edu/classes/sp23/cse245-a/slides/letMatrixLi.pdf. **Status R for slides 19 and 20**: the fill of the nested-dissection ordering of a k x k grid is "(more precisely: 31/4 (k² log₂ k) + O(k²))" and the operation count O(k³) = O(n^(3/2)); a table "Complexity of direct methods": 2D space (fill) O(n log n), time (flops) O(n^(3/2)); 3D space O(n^(4/3)), time O(n²), for n unknowns, "on any well-shaped finite element mesh" (the Lipton-Rose-Tarjan 1979 generalisation is cited on slide 21, not read).
 
 ### [Martinsson2014] and [FastDirect2025]
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2511.07773.
+
 P. G. Martinsson, nested dissection lecture notes (CBMS 2014, a handout of a course at relate.cs.illinois.edu); and a survey, *Fast Direct Solvers*, arXiv:2511.07773 (2025). **Status S**: only the lines giving the same complexity table (2D: build O(N^(3/2)), storage O(N log N); 3D: build O(N²), storage O(N^(4/3))) were read through the text search; nothing else was opened. Another course note found in the same search says the constants of nested dissection are less clear and that its costs are "2 to 10 times higher than the lexicographical ordering because of indirect addressing" (search summary only, **S**).
 
 ### [SuperLUGuide]
+
+**Licence:** not checked. **Source URL:** https://portal.nersc.gov/project/sparse/superlu/ug.pdf.
+
 X. S. Li, J. W. Demmel, J. R. Gilbert, L. Grigori, P. Sao, M. Shao, I. Yamazaki, *SuperLU Users' Guide* (September 1999, last update June 2018), https://portal.nersc.gov/project/sparse/superlu/ug.pdf (80 pages). **Status R in part** (the paragraph on the space query `dQuerySpace()` on PDF page 8, sections 1.4.4 "Memory Management" (printed page 12) and 2.8 "Memory management for L and U" (printed pages 28 and 29), and the list of column orderings of section 2.4). Content: "If Pr and Pc are not already known, we cannot determine the number and locations of these nonzeros before performing the numerical factorization" (with partial pivoting the fill depends on the values); for that reason the sequential code guesses `FILL * nnz(A)` entries (FILL = 20 by default), reduces the guess until the allocation succeeds, and grows each of the four L and U arrays by `EXPAND = 1.5` with a copy when the guess is too small, so the peak holds the old and the new array at once and the extra space is not given back (external fragmentation); `dQuerySpace()` reports the memory of the factors and the work arrays **after** the factorisation; the column orderings are natural, MMD on A^T A, MMD on A^T + A and COLAMD (the SciPy default; **the program passes MMD on A^T + A**, `fvm.ORDERING`). This is the nearest thing to the program's `splu`/`spsolve` memory behaviour in an open document; its statement that the nonzeros cannot be determined before the numerical phase is conditional on the pivots not being known, and with the program's symmetric ordering no row pivot was taken on nine matrices, whose fill then equals the symbolic Cholesky count (`research/theory-sources/scripts/study_fill_prediction.py`, review). The guide does not give the bytes per entry of the supernodal storage. It supersedes the entry [LiSuperLU2005] for the user-guide part (the 2005 journal article itself was not obtained).
 
 ### [UMFPACKGuide]
+
+**Licence:** not checked. **Source URL:** https://github.com/DrTimothyAldenDavis/SuiteSparse.
+
 T. A. Davis, *UMFPACK User Guide*, version 6.3.8 (SuiteSparse repository, https://github.com/DrTimothyAldenDavis/SuiteSparse, file `UMFPACK/Doc/UMFPACK_UserGuide.pdf`, 159 pages). **Status R in part** (the overview of the symbolic and numeric phases and the descriptions of `Info[UMFPACK_SYMBOLIC_PEAK_MEMORY]`, `Info[UMFPACK_NUMERIC_SIZE_ESTIMATE]`, `Info[UMFPACK_PEAK_MEMORY_ESTIMATE]` and `Info[UMFPACK_PEAK_MEMORY]`, PDF pages 43 and 53). Content: the symbolic phase (ordering and analysis, `O(|A|)` space) "computes upper bounds on the nonzeros in L and U, the floating-point operations required, and the memory usage" of the numeric phase; the peak-memory estimate "can be a very loose upper bound, particularly when the symmetric strategy is used", and the guide says the estimate is normally an upper bound on the actual peak but that this is not guaranteed (the author reports never having seen it fail on hundreds of matrices). UMFPACK is what other codes use to predict memory before factorising; SciPy reaches it only through the optional scikit-umfpack package, which the program does not depend on. **Licence:** the guide's first page carries `SPDX-License-Identifier: GPL-2.0+` for UMFPACK (copyleft; under the project's rules it could only be an optional, separately installed import, never vendored). The Davis book [Davis2006] and the UMFPACK article of 2004 (doi 10.1145/992200.992206) were not obtained.
 
 ### [GilbertNgPeyton1994]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. R. Gilbert, E. G. Ng, B. W. Peyton, *An efficient algorithm to compute row and column counts for sparse Cholesky factorization*, SIAM J. Matrix Anal. Appl. 15 (1994) 1075-1091, text of the paper from a course page of the University of California at Santa Barbara (sites.cs.ucsb.edu/~gilbert, file `RowColCounts.PDF`; third-party copy, not stored). **Status R for the abstract and the introduction**; the algorithms and the experiments were not read. Content: the number of nonzeros in each row and column of the Cholesky factor of a symmetric matrix can be computed from its pattern and an elimination tree in time almost linear in the size of the input, "a prediction [that] makes storage allocation for sparse matrix factorizations more efficient". For an LU with partial pivoting the same counts of `A^T A` are an upper bound (statement of a 2001 BIT paper by Gilbert, Li, Ng and Peyton found as a search summary, **S**; the paper was not opened). This is the published way to predict the memory of the factor of a symmetric matrix before factorising; the program's matrices are symmetric (conduction), so the count could be computed without a numeric factorisation. Tested by the review (L): with the program's ordering (MMD on A^T + A, not COLAMD) `splu` took no row pivot and its `nnz(L)` equalled the symbolic Cholesky count in its own elimination order on nine program matrices of 15 000 to 160 000 unknowns (`research/theory-sources/scripts/study_fill_prediction.py`); the count used there is the plain row-subtree method, not this paper's almost-linear algorithm, which was not implemented.
 
 ### [SciPySplu]
+
+**Licence:** not checked. **Source URL:** https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.splu.html.
+
 SciPy v1.18.0 manual, `scipy.sparse.linalg.splu`, https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.splu.html. **Status S** (fetch tool summary): signature `splu(A, permc_spec=None, diag_pivot_thresh=None, relax=None, panel_size=None, options=None)`, `permc_spec` default COLAMD (alternatives NATURAL, MMD_ATA, MMD_AT_PLUS_A), `options` passed to SuperLU; **the page says nothing about memory or fill**. The program's own measurements (`research/memory-guard/`) are therefore the only source for the resident memory of SciPy's solves; the fill itself is predictable (see [GilbertNgPeyton1994]).
 
 ### [LiptonRoseTarjan1979], [HoffmanMartinRose1973], [MUMPSGuide]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Lipton, Rose, Tarjan, *Generalized nested dissection*, SIAM J. Numer. Anal. 16 (1979) 346-358; Hoffman, Martin, Rose, *Complexity bounds for regular finite difference and finite element grids*, SIAM J. Numer. Anal. 10 (1973) 364-369 (cited by [George1973] for the matching lower bounds); the MUMPS users' guide (memory estimates from the analysis phase, `ICNTL(14)` / `INFO(15)`, from memory). **Status N** for [HoffmanMartinRose1973] and [MUMPSGuide] (the first paywalled, the MUMPS address tried returned a web page, not the guide); the details of those citations are from memory. **[LiptonRoseTarjan1979]: status R** (the local scan, PDF 1 to 12 of 13, compared with the page images; the first page, with the abstract, re-read here): for graphs with a `sqrt(n)` separator the fill is at most `c3 n log2 n + O(n)` and the multiplications at most `c7 n^(3/2) + O(n (log n)^2)` (planar graphs `c3 <= 129`, `c7 <= 4002`, Theorem 4); matching lower bounds on the k x k grid (`Omega(n log n)` fill, `Omega(n^(3/2))` work); d-dimensional grids fill `O(n^(2(d-1)/d))` and work `O(n^(3(d-1)/d))` (Theorem 6), that is `O(n^(4/3))` fill and `O(n^2)` work for a 3D grid. **The abstract prints the two bounds swapped** (the sentence on George's method on the first page puts `O(n log n)` with the time and `O(n^(3/2))` with the space; the body of the paper, Theorem 4, has the fill (space) `n log n` and the work (time) `n^(3/2)`): cite page 347 or the Remarks of page 356, not the abstract. The fitted exponents of `docs/theory.md` 2.7 (`p` 1.24 to 1.34 for the memory) lie between the 2D bound and the 3D bound, as for a thin 3D graph; nothing to correct.
 
 ### [OdbppSpec81U4]
+
+**Licence:** confidential. **Source URL:** https://odbplusplus.com/wp-content/uploads/sites/2/2024/08/odb_spec_user.pdf.
+
 Siemens EDA, *ODB++ Design Format Specification*, Release 8.1 Update 4, August 2024 (515 pages), https://odbplusplus.com/wp-content/uploads/sites/2/2024/08/odb_spec_user.pdf (an 8.1 Update 3 edition of February 2021 is on the same host). **Status R in part**: the copyright page, section "Legal Entity Names" and the directory tree (PDF pages 22 and 24), and the component-layer file (PDF pages 150 to 153). **Licence terms, recorded as facts and not copied**: the file opened without registration from this machine, but its second page says that it "contains trade secrets or otherwise confidential information owned by Siemens", that access and use are limited by the reader's agreement with Siemens (the Siemens Universal Customer Agreement when there is none), and that it "may not be copied, distributed, or otherwise disclosed" without Siemens's written permission; the resources page of Siemens says the specification is free after signing up. So the facts of the format may be used to write a reader (as the repository already does from memory and from open parsers), but the text and its tables must not be reproduced in the repository, and whether writing a reader from the specification is allowed under those terms belongs to the maintainer. **Facts read** (PDF pages 22, 24, 150 to 153): the tree `<product>/matrix/matrix`, `misc/info`, `fonts/standard`, `steps/<step>/stephdr` and `steps/<step>/layers/<layer>/features` are mandatory; the component layers are `steps/<step>/layers/comp_+_top/components` and `comp_+_bot/components`, which link to `steps/<step>/eda/data` (the package list); entity names are at most 64 characters of `a-z 0-9 - _ . +`; the unit is `UNITS=MM` or `INCH` and areas are in mm² or in²; the record `CMP <pkg_ref> <x> <y> <rot> <mirror> <comp_name> <part_name> ;<attributes>;ID=<id>` has the board location of the part in inches or mm, **the rotation in degrees clockwise**, a mirror flag N or M, and is followed by `PRP` property records and `TOP <pin_index> <x> <y> <rot> <mirror> <net_num> <subnet_num> <toeprint_name>` toeprint records with the board location of each pin; a BOM block follows with `CPN`, `PKG`, `IPN`, `DSC`, `VPL_VND`, `VPL_MPN`, `VND`, `MPN`; component attributes (`.comp_mount_type`: Other, SMT, THMT, PressFit; `.comp_height`; `.no_pop`) are assigned in the CMP record by index into a lookup table. That agrees with the layout of `research/gerber-real-boards/lib/odb.py` written from memory and checked on three archives (README 4.4 F there). Supersedes the "specification N" part of [OdbppSiemens]. Topic 15.
 
 ### [IPC2581] (update)
+
+**Licence:** not checked. **Source URL:** https://www.ipc2581.com/.
+
 Still **N** (the standard was not opened). Facts found: IPC sells the standard (Revision C, 2020, standard only: about 198 US dollars for a non-member, search snippet, **S**); the consortium site https://www.ipc2581.com/ (fetch summary, **S**) offers free viewers and test cases and says nothing of a specification or schema download, and states no licence; the Ucamco fabrication-data examples contain two `.ipc` files ([UcamcoFabricationExamples]) that could serve as test material, unopened. Whether the XML schema is freely redistributable is **not established**; ask the maintainer or the consortium before any reader depends on it.
 
 ### [XNC2021]
+
+**Licence:** not checked. **Source URL:** https://www.ucamco.com/files/downloads/file_en/452/xnc-format-specification-revision-2021-11_en.pdf.
+
 Ucamco, *XNC: the PCB CAD to CAM exchange NC format, a subset of IPC-NC-349, aka Excellon*, Rev 2021.11 (21 pages), https://www.ucamco.com/files/downloads/file_en/452/xnc-format-specification-revision-2021-11_en.pdf. **Status R in part** (the preface, sections 2.5 and 2.6, 3.2 to 3.5 and 4.1; the command reference after 3.5 and the BNF were not read). Content: IPC-NC-349 (August 1985) is expensive; Excellon no longer publishes its own specification, so Excellon files in the wild are of many dialects (the specification's wording: "Many of these NC files are of deplorable quality"; fixed-point coordinates with an implied decimal point and no way to say where the point is); XNC fixes this: a header opened by `M48`, a unit `METRIC` (mm, recommended) or `INCH`, tools `T<nn>C<diameter>` where the diameter is the finished diameter on the board (for plated holes, after plating), `%` ends the header, **coordinates are decimal numbers (no zero suppression, no format statement)**, and the file must share the coordinate system of the Gerber copper layers (no offset, rotation or mirroring); holes are drills, straight rout segments and arcs; plating and span are file attributes `; #@! TF.FileFunction,Plated,1,4,PTH` (plated and non-plated holes in separate files, mixed files not supported). Legacy Excellon dialects (leading/trailing zero suppression `LZ`/`TZ`, `FMAT`, `INCH,TZ`) are described here only through web pages seen as search snippets (**S**: JLCPCB, FlatCAM and others); the original Excellon manual and the IPC-NC-349 text are **N**. The repository's reader has already read the Gerber-format drill files and the Excellon files of the open boards of `research/gerber-import` and `research/gerber-real-boards`.
 
 ### [KiCad9Manual]
+
+**Licence:** not checked. **Source URL:** https://docs.kicad.org/9.0/en/pcbnew/pcbnew.html.
+
 KiCad 9.0 documentation, *PCB Editor*, https://docs.kicad.org/9.0/en/pcbnew/pcbnew.html, section "Component placement files" (text of the HTML page searched). **Status R for that section**: the file is made by File - Fabrication Outputs - Component Placement (.pos, .gbr); formats ASCII, CSV or **Gerber X3**; units chosen; options "Include only SMD footprints", "Exclude all footprints with through hole pads", "Exclude all footprints with the Do Not Populate flag set", "Use drill/place file origin" (otherwise the origin is the page origin, the upper left corner), **"Use negative X coordinates for footprints on bottom layer"** (the X coordinates of the bottom parts are negated), and "Generate single file with both front and back positions"; a footprint marked "Exclude from position files" is left out. The page does not say in which direction the rotation is counted. Together with the real files read in `research/gerber-real-boards` (the header `Ref,Val,Package,PosX,PosY,Rot,Side` of a KiCad 5.1.6 file; JLCPCB's `Designator, Val, Package, Mid X, Mid Y, Rotation, Layer`), it settles that the bottom sign of X is an option of the export and has to be detected, not assumed (the sign of the bottom side found from the names, as the earlier study did).
 
 ### [JLCPCBCpl]
+
+**Licence:** not checked. **Source URL:** https://jlcpcb.com/help/article/how-to-generate-the-bom-and-centroid-file-from-kicad.
+
 JLCPCB help, *How to generate the BOM and centroid file from KiCad*, https://jlcpcb.com/help/article/how-to-generate-the-bom-and-centroid-file-from-kicad. **Status S** (fetch summary): the assembly file expects the columns Designator, Mid X, Mid Y, Rotation and Layer, coordinates in millimetres; the page says nothing about the bottom-side mirroring, the origin or the rotation offsets (the "automatic component translations" option of the KiCad plug-in "fixes part rotations/positions for JLCPCB" without saying how). The rotation offsets between a CAD library zero and an assembler's zero are therefore not documented by either source.
 
 ### [IPC7351], [AltiumPnP]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 IPC-7351 (B, June 2010) *Generic requirements for surface mount design and land pattern standard*: it fixes a zero orientation of every component family so that CAD land patterns and assembly machines agree on the rotation in a centroid file (search summaries from vendor blogs, **S**; the standard was not opened, **N**). Altium's pick-and-place documentation: the address tried returned "not found"; **N**. Neither gives the sign of the rotation or the mirroring of the bottom side in the text seen.
 
 ### [ShenWang2019Vias] (availability only)
+
+**Licence:** not checked. **Source URL:** https://vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf.
+
 The accepted manuscript opens as a PDF (HTTP 200, application/pdf) at https://vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf; a Cambridge repository record (https://www.repository.cam.ac.uk/handle/1810/292789) lists an accepted version. Another researcher reads it in `research/lumped-zones-adoption/`; this pass did not open it.
 
 ### [Mondragon2025]
+
+**Licence:** not checked. **Source URL:** https://research.mondragon.edu/documentos/68bee0f1487e182b7b98b0b9.
+
 *Time saving analytical modelling and design of PCBs with through-hole and blind thermal vias*, a 2025 conference paper of Mondragon University (IET; record at https://research.mondragon.edu/documentos/68bee0f1487e182b7b98b0b9). **Status S** (search snippets: an analytical model for through-hole and blind vias covering the area under the heat source and its surroundings, "deviation of only 7 %" from CFD with much less computing time). The paper was not opened; the authors, the venue details and the model are not known to this record. First source to open for a second zonal via model besides [ShenWang2019Vias]. **Update (research/theory-sources/ 8.1): now R (read in full, 9 pages of the post-print); the authors, the DOI and the venue details are in the entry [Mondragon2025] of the section 'Reading pass, batch 1'.**
 
 ### [Guenin2004] (second reading)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The page was fetched again through the summary tool: the unit-cell model (a circular fin for the via, a one-dimensional substrate block in parallel, plates of the width of the via pitch, effective boundary conductances on each plane) and the validation figures are as recorded; **the two tables that hold the equations (3 and 4) are images and were not read**, so the equations of the circular-fin via model are not recorded here. Status stays S. The maximum errors of 22 % and 6 % of the two circular-fin cases against the FEA reference, and the 27 % of the one-dimensional model, are those of the page.
 
 
@@ -938,36 +1678,69 @@ The page was fetched again through the summary tool: the unit-cell model (a circ
 Statuses as of this pass; page and equation numbers are those of the files read. Numbers read from a plot are marked "plot".
 
 ### [LeeLemczykYovanovich1992]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 S. Lee, T. F. Lemczyk, M. M. Yovanovich, *Analysis of thermal vias in high density interconnect technology*, Eighth IEEE SEMI-THERM Symposium (1992) 55-60 (the file has 7 pages; the reference page was not viewed), Waterloo archive scan. **Status R for pages 55 to 60** (read as images): the unit-cell model of a staggered via island of polyamide layers 5 um thick with copper vias (35 um outer, 28 um inner diameter, Table 1) and a gold die-attach pad; equations 1 (die-attach or fourth via pad: ring source, adiabatic rim, isothermal other face, roots of J1), 2 (barrel, one dimensional), 3 (intermediate via pad, roots of J0), 4 (alpha = b*^2 - a*^2 in the reading that makes equation 2 the barrel area; the printed exponent is ambiguous in the scan), 7 (island: R = 4/N (R_aD + 6 R_b + 4 R_v + R_aG)), the package equations 8 to 14 (die interface resistance), Tables 1 and 2, Figures 9 and 10 (plot values only). Printed numbers: R_vias 0.196 K/W at 20 % routing and 0.342 K/W at 40 % (page 60). **Reproduction: not reproduced** (`scripts/study_lee_lemczyk_vias.py`; corrected by the review): the cells are drawn on page 58 (Figure 6: hexagonal cell of the 100 um staggered pitch, 8660 um2; Figure 7: a rectangle P/2 wide and one row high, read from the drawing), and Table 2 counts the vias of one layer (0 % routing: 3973 vias on 5.9 x 5.9 mm, 8762 um2 per via), so the N of equation 7 is four times the table count; with the drawn cells R_vias is 0.229 and 0.428 K/W (+17, +25 %). Equation 7 scales as 1/N at fixed cells, so the 40 to 20 % ratio is 1.869 for any reading against the printed 1.745: the printed pair holds a term that equation 7 does not have. The first version's 'within 12 and 6 %' used an assumed quarter cell and is a coincidence, not an agreement. Not the source of any formula of the program. Topics 17, 21.
 
 ### [CulhamFourier2000]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 J. R. Culham, M. M. Yovanovich, T. F. Lemczyk, *Thermal characterization of electronic packages using a three-dimensional Fourier series solution*, J. Electronic Packaging 122 (3) (2000) 233-239, Waterloo archive (text layer). **Status R for pages 233 to 235** (introduction, assumptions, the single-layer model, equations 1 to 15: separable series with Robin side conditions Bi_1..4, roots of equations 13 and 14, "typical values of m and n in the range 10-30"); the matching of layers, the package cases and Tables 1 to 5 were seen as a list of captions only. **Status S for the rest.** The series of the Analytic model has cosine terms with insulated sides; this paper's X(x) = cos(e x/L1) + (Bi1/e) sin(e x/L1) handles a film on every side face. The statement of 10 to 30 terms supports the truncation hypothesis of README 3.6.
 
 ### [CulhamYovanovich1998] (equation 10 and the model, read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Page 462 (file page 3) read as an image: equation 7 (geometric mean = sqrt(arithmetic mean x harmonic mean)), equation 8 (R_solid = (T_source - T_walls)/Q_T), equation 9 (R_solid = R_bulk + R_spread), **equation 10** (the spreading resistance of a two-layer square substrate with a concentric square source, a double series plus two single series, quoted from Yovanovich and others [7] = [YovanovichMuzychkaCulham1999]) and the statement that all simulations of the paper used "a general three-dimensional Fourier series solution" of Culham and Yovanovich [8] (= [CulhamFourier2000]). **Status unchanged (R for pages 460 to 466)**; the number of terms of that series is not printed on the pages read, only (through [CulhamFourier2000]) "10 to 30".
 
 ### [Mondragon2025] (read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 H. Gezala, D. Garrido, I. Baraia-Etxaburu, I. Aizpuru, *Time saving analytical modelling and design of PCBs with through-hole and blind thermal vias*, IET Conference Proceedings 2025 (9) (2025) 97-104, doi 10.1049/icp.2025.2012. **Status R (9 pages, text layer, read in full).** Equations 1 to 5 (through-hole via unit: filler, barrel and laminate paths in parallel over the cell (phi + s)^2; array = unit / number of units), 6 to 9 (blind vias: series of the unperforated layers), 10 to 11 (radial resistance by the rule of mixtures, printed as k_e = sum V_i k_i / V_t, a parallel average), 12 to 15 (the outer zone: square isotherms, 2 (l + w)/(s + phi) + 4 (2J - 1) unit cells on isotherm J for a central source, (l + w)/(s + phi) + 2 (2J - 1) for a corner source; series-parallel combination), 16 (R = (T_av - T_hs)/P). Validation by COMSOL (four boards, J up to 5): "maximum relative error 7 %" (Figures 10 and 11 plot values only; the text refers to Figure 9). No table of numbers. Review: Fig. 11(b) (corner source, through-hole vias) plots a relative error of about 8 to 9 %, about 9.2 % at J = 2 (plot), and Fig. 10(b) about 0.71 against 0.65 K/W, so the printed maximum of 7 % is not that of the paper's own figure. The model has no constriction term and no angular resolution. Same first author as [Rodero2025].
 
 ### [Rodero2025]
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 H. G. Rodero, D. Garrido, I. Baraia-Etxaburu, I. Aizpuru, J. P. Amillano, *Steady-state temperature calculation tool for multilayer PCBs*, IEEE Trans. Power Electronics, doi 10.1109/TPEL.2025.3626813 (accepted manuscript, Mondragon repository, 21 pages). **Status R for pages 1 to 21** (the thermal network: unit cells, equations 1 to 20, convection and radiation 21 to 24, validation Tables VI and VII, Figures 4 to 8; the electrical model and its Table VIII read as headings and the results paragraph; pages 15 to 21 read by image and the text layer: the Joule validation, Figs 12 and 13 (Structure 2 and 2*, 50 A), Table IX of the thermal-electrical cases, the conclusion and the references; page 19 (Table IX) and page 20 (the conclusion) checked against the text layer in this pass). Joule validation: maximum deviation below 4.3 C, relative errors below 8.4 % (page 20: relative temperature errors 3.4 % to 8.4 %, absolute deviations below 6 C in thermal-only cases and under 4.3 C in Joule-heated ones); Table IX: IR against the tool up to 12.80 K / 22.26 % on Q3 (no vias) for two layers, CFD against the tool at most 3.40 K / 5.67 %; the tool needed 126 to 252 unit cells where the CFD needed 300 000 to 500 000 elements (the CFD count as read in the first pass of the entry, not re-read here); steady state only (transients are future work). Convection law, equation 21: h_c = 0.52 C [(T_s - T_amb)/L]^0.25 with C = 0.56, 0.52, 0.26 (Table II): **read literally in SI the coefficient is 0.29 against the usual 1.42 of a vertical plate** (`scripts/study_plate_asymptotes_sources.py`). Review: not a misprint of the prefactor but a unit: 0.29 is the coefficient of the English-unit form (h in Btu/(h ft2 F), Delta T in F, L in ft) of the law that Table II attributes to Steinberg [13], and 0.29 x 5.678 x (1.8 x 0.3048)^0.25 = 1.417 W/m2K (K/m)^-0.25 (Steinberg not opened; the arithmetic is exact). Validation: errors of the tool against an IR camera 3.4 to 7.6 % without heatsink and **7.0 to 8.2 % with** (Table VII, PDF page 10, compared with the page image on 2026-11-12: St3 8, St4 7.4, St7 7, St8 8.2, St9 7.9, St10 7.7 %; the 6.4 to 8.8 % written here before matched no row set of the table: IR against the CFD with heatsink is 6.1 to 9.0 % and IR against the thermocouple 5.9 to 8.8 %); the experimental power "had to be nearly doubled" because of losses through terminals that the model does not have (page 10). The vertical via unit equations (5) and (6) are those of [ShenWang2019Vias] (the paper cites its reference [6], which its reference list prints as Shen, Wang, Blaabjerg, Zhao, Long, IEEE TPEL 35 (2020) 882-900; corrected by the review, the first version said 'inferred, not printed'). The first author, Haitz Gezala Rodero, is the first author of [Mondragon2025] (cited there as H. Gezala).
 
 ### [Muzychka2004Orthotropic] (equations read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Equations 1 to 4 (R_T = R_1D + R_s) and 37 to 50 read in the text layer: orthotropic flux tube and flux channel by the transformation xi = z/gamma, gamma = sqrt(kz/kr) (or kxy), k_eff = sqrt(kr kz), t_eff = t/gamma, Bi_eff = h b/k_eff; the composite-board conductivities are the parallel sum k_xy = sum k_i t_i/t (equation 39) and the series k_z = t / sum(t_i/k_i) (equation 40), valid "if the source size is considerably larger than the thickness of individual layers". **Status R for pages 1 to 6 (45 to 50)**; the numerical figures are plots. Not reproduced numerically (README 8).
 
 ### [Teertstra2004Enclosure] (read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 1 to 3 of the ITherm 2004 paper (text layer): the enclosure model Nu = S* + [(1/Nu_tr)^n + (1/Nu_bl)^n]^(-1/n) (equation 6: conduction shape factor by linear superposition plus a Churchill-Usagi blend of the transition and boundary-layer terms), the shape factor equations 7 to 10, Tables 1 to 4 and Figures 7 to 15 as captions. **Status R for the model; S for the validation numbers** (RMS differences against Flotherm CFD not read). Not used by the program (no enclosure): context for a planned enclosure view factor only. The blend of the program (`h = (h_n^3 + h_f^3)^(1/3)`) is Churchill's mixed-convection rule, not this paper's.
 
 ### [Yovanovich1993Flat] (pages 5 to 7 read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Equations 7 to 26 and the references: scale analysis of the thermal boundary layer (delta_T/Delta = 2/(3 Pr^n)), the small-Pr asymptotes (equations 16 to 19: Nu = (2/sqrt(pi)) Re^(1/2) Pr^(1/2) forced, Nu = 0.8005 Ra^(1/4) Pr^(1/4) natural, replaced by sqrt(2/pi) = 0.7979), the Churchill-Usagi interpolation (23, 24), **equation 25 (natural: m = 9/4, n = 1/4)** and **equation 26 (forced: m = 4, n = 1/6)**. The paper has 7 pages with no data tables (page 7 is the reference list: Churchill and Ozoe 1973a, b, Churchill 1976, LeFevre 1956). **Status R (all 7 pages).** Numbers by `scripts/study_plate_asymptotes_sources.py`: equation 25 is 0.4 % below the Ra^(1/4) coefficient of the laminar Churchill-Chu form at Pr 0.71 (0.5122 against 0.5142); equation 26 is 3.1 % below the Pohlhausen mean value 0.664 Pr^(1/3) at Pr 0.71 and 10 % below at Pr 0.1 (the paper prints no accuracy for it).
 
 ### [MartinRaithbyYovanovich1991] (page 6 read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Page 904 (file page 6): the effect of upstream conduction (finite plenum), the blending equation 28 Nu = (Nu_COND^n + Nu_CONV^n)^(1/n) with n = 1.9 (between L_p/L_c 0.1 and 1.0 for L_c* = 10), the Discussion and the Summary: **"Elenbaas' low Rayleigh number asymptote will not be observed except under extremely special conditions"** (the real low-Ra heat transfer is larger because of conduction to the upstream boundary and through the outlet). **Status R for pages 1 to 6 of 7**; page 7 not read. Review: the quotation was checked on the page image; the same page limits it ("these predictions will only be valid under restrictive conditions"; for one or a few channels the low-Ra heat transfer depends on the inlet and outlet), so the Elenbaas branch as a lower bound is the direction the paper supports for its configuration, not a measured property of a finned block.
 
 ### [Ostrach1952TN2635]
+
+**Licence:** public domain. **Source URL:** not recorded.
+
 S. Ostrach, NACA TN 2635 (1952), 48 pages, same title as Report 1111. **Status R for the passage of page 14 (file page 15)** (read as an image): solutions for Pr = 0.01, 0.72, 0.733, 1, 2, 10, 100 and 1000 (table I); the Pr = 0.733 results agree with Schmidt and Beckmann "up to the third significant figure", the results for 10, 100 and 1000 "in general" with reference 3 (curves only). The tables of this report were **not compared digit by digit** with Report 1111 (whose Table I is reproduced to 0.02 % in `research/plate-h-level`); the OCR text of the tables is not usable.
 
 ### [Fish2017] (chapter 7, read in the part named)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. C. Fish, PhD dissertation (2017), chapter 7, pages 114 to 138 of the printed numbering: the coaxial via cell with an isoflux top face, adiabatic outer wall, isothermal bottom and an interfacial conductance h between via and substrate; equations 58 to 83 (the two domains and the splitting into spreading and coupling sub-problems), the parameters b/a, L/a, K = k1/k2, H = h a/k1, equation 68 (the one-dimensional temperature drop), equation 177 (total resistance R_T pi b k1) and the rule of mixtures, equations 178 to 182 (k_eff = k_s (K phi + 1 - phi), phi = (a/b)^2; R_T k_s A / L = 1/(1 - phi + phi K) as the bound of the isothermal cell). **Status R for the formulation and the limits; S for the series solution** (equations 84 to 176 not read). The program's Krogh constriction (a barrel as a sink in a plane) is a different geometry from this vertical cell; no number of this chapter was reproduced.
 
 ### Sources of the batch that were already recorded and were not re-read
@@ -978,45 +1751,87 @@ M. C. Fish, PhD dissertation (2017), chapter 7, pages 114 to 138 of the printed 
 The whole folder of local copies (110 PDFs, outside the repository) was checked: every file opened, its text layer extracted (86 have one, 24 are scans read as page images where a page mattered), its identity checked against its first page, and the sources behind the five models read where batch 1 had not. The full table (every file, status, verdict) is kept with the copies, outside the repository; the findings and the statuses are here and in `research/theory-sources/` section 9. Statuses as of this pass; nothing below was read from a converted text.
 
 ### [YovanovichJafarpur1993] (new)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. M. Yovanovich, K. Jafarpur, *Bounds on laminar natural convection from isothermal disks and finite plates of arbitrary shape for all orientations and Prandtl numbers* (Waterloo MHTL, 1993; text layer, 18 pages). **Status R for pages 1 to 15**: equation 1 (`Nu_sqrtA = Nu_inf + F(Pr) G_sqrtA Ra_sqrtA^(1/4)`), 2 (`F(Pr) = 0.670/[1 + (0.5/Pr)^(9/16)]^(4/9)`), 20 and 21 (diffusive limits 3.545 and 2.257), **25 (upper bound in air, `3.545 + 0.571 Ra^(1/4)` on sqrt(A))**, 26 (lower bound, `2.257 + 0.382 Ra^(1/4)`), 27 and 28 (all Pr); page 7: Lloyd and Moran's `Nu_L = 0.54 Ra_L^(1/4)` with its range **2.2e4 to 8e6** on `L = A/P` (mass transfer, second hand); page 8: Goldstein and Lau, face down, `C Ra^(1/5)`, C 0.44 to 0.527; page 9: the body-gravity function of a face looking down taken as half that of a face looking up. Used in `research/theory-sources/` 9.1.
 
 ### [YovanovichTeertstra2001] (new)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 M. M. Yovanovich, P. Teertstra, *Laminar forced convection modeling of isothermal rectangular plates*, J. Thermophysics Heat Transfer 15 (2) (2001), 7 pages (text layer). **Status R for pages 1 to 7**: the shape factor equations 7 to 11 (`S*_sqrtA = (1 + sqrt(L/W))^2 / sqrt(pi L/W)`), equation 12 (the Pohlhausen form with C = 0.664, 0.677 for large Pr after Kays and Crawford), equation 17 (their linearised C = 0.742), equation 18 (`[(S*_L)^n + (0.742 Re^(1/2) Pr^(1/3))^n]^(1/n)`), equations 24 and 25 (n from the aspect ratio), validity Pr > 0.5 and Re below 5000 (a fit to CFD). Used in 9.1.
 
 ### [Schulenberg1984KfK] (pages read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Pages 5 (abstract), 30 and 31 (equations 87 to 95, file pages 37 and 38, as an image) and 39 and 40 (nomenclature) read.** Equations 92 to 95 are the **local** Nusselt numbers at the stagnation point below a heated strip or disc (Nu and Ra on the half width or radius R; blend exponent n = 3 from air data of Aihara and others and of Faw and Dullforce). As `research/horizontal-plate-h` found, they are not plate means; a comparison of this pass that used them as means was withdrawn (9.1).
 
 ### [TeertstraReview] (citation corrected, pages read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 The file is the journal paper: P. Teertstra, J. R. Culham, M. M. Yovanovich, *Comprehensive review of natural and mixed convection heat transfer models for circuit board arrays*, **Journal of Electronics Manufacturing 7 (2) (June 1997) 79-92** (World Scientific), not a university report. **Pages 79, 82 and 83 read as images**: equations 10 to 22, among them equation 12 (Ra_b/24 at r_T = 1), 13 (the channel Rayleigh number with `(1 + r_T)(T_1 - T_0)`), 20 (Churchill's composite), **21 (Bar-Cohen and Rohsenow, `[(C/Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2)`, C = 24 symmetric, 12 with one adiabatic wall)** and 22 (Raithby and Hollands, exponent 1.9, C = 0.62); properties at the film temperature, beta = 1/T_0. Equation 21 is the one `checks.fin_channel_fraction` uses (9.3).
 
 ### [YovanovichMuzychkaCulham1999] (Table 2 reproduced here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Pages 3 to 5 read (equations 14 to 28, Tables 1 to 3).** Table 2 (the strip on a semi-infinite flux channel, `psi = k R_s`) reproduced to all four printed digits by a direct sum of equation 24 (1.1377, 0.4083, 0.0882, 0.0255 at eps 0.02, 0.2, 0.6, 0.8) and by equation 27 (1.1015, 0.3738, 0.0160). Status R, case reproduced. Also (review of `research/paper-case-studies`, pages 498 and 499 read as images): equation 19 (the square isoflux source on a deep square isotropic flux tube) and its correlation, equation 20, `k sqrt(A_s) R_s = 0.47320 - 0.62075 eps + 0.1198 eps^3` (about 0.3 % for eps <= 0.5), reproduced by `research/paper-case-studies/lib/flux_channel.py` (equation 50 of [Muzychka2004Orthotropic] in the deep limit) to 0.003 % at eps 0.02 to 0.25 and 0.23 % at 0.5 (a test of that folder).
 
 ### [Muzychka2006EdgeCooling] (new key for the local copy of Muzychka and others 2006)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Y. S. Muzychka, M. M. Yovanovich, J. R. Culham, *Influence of geometry and edge cooling on thermal spreading resistance*, J. Thermophysics Heat Transfer 20 (2) (2006) 247-255. **Status S** (nomenclature, equation 35, the captions of Figures 16 to 19, the summary): edge cooling matters only for large edge Biot numbers `h_e b / k`, large source aspect ratios or thick channels, and can be transferred to the bottom face. Used in 9.2.
 
 ### [SoleymaniKoohbanani] (read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 A. Soleymani Koohbanani, MSc thesis, Simon Fraser University (2016), *Board-level thermal management systems with application in electronics and power electronics*. The file opens without a password (owner-only protection). **Status R for chapter 3, pages 56 to 63 (file pages 73 to 80)**: a one-dimensional parallel network per unit cell (barrel, air core, FR-4) with isothermal faces, equations 17 to 29 (printed as images; equations 28 and 29 read on the page image by `research/paper-case-studies`, R), Table 9 (nine round samples of 25.4 mm, square and staggered arrays, pitch 1 to 2.5 mm, outer diameter 0.40 to 0.65 mm, inner 0.36 to 0.61 mm; the column "copper barrel thickness 0.04 mm" is the diameter difference, the wall is 0.02 mm), Table 10 (COMSOL benchmark: FR-4 0.33, copper 385 W/mK), the measurement by a guarded heat flux meter within 13 % of the model (Fig. 33, plot). Used in 9.4. Also read on the page image (review of `research/paper-case-studies`): Fig. 27 (a sample in section, no surface foil drawn) and Fig. 28 (the square and staggered unit cells, one and two vias). Case reproduced: equations 28 and 29 by an independent axisymmetric unit-cell solver (1e-13); the four measured markers of Fig. 33 (plot) are bracketed by them for three of the four arrangements, the straight 1.25 mm marker lies 43 % below its only sample.
 
 ### [TI-AN2020] (example read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Pages 4 and 5 read**: the via resistance example (length 0.165 cm, plating 0.00175 cm, drill radius 6 mil, copper 4 W/cmK: 261 C/W). Reproduced with the plating inside the drill radius (261.16 C/W, +0.06 %, the program's `Via.thermal_area`; the 259.4 C/W first written here came from a scratch script and was not reproduced); status R for those pages (9.4).
 
 ### [Ibraguimov2022] (section 5.1 read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Pages 11 and 12 read**: Theorem 1, Peaceman's radial-flow derivation gives `ln(Delta/R_0) = pi/2`, `R_0 = e^(-pi/2) Delta = 0.2079 Delta`. The program's 0.1985 is the exact infinite-lattice value (9.4).
 
 ### [Durlofsky2005] (page read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Page 21 read**: equations 34 and 35, the well index and Peaceman's anisotropic radius `r_0 = 0.28 sqrt(...)/(...)` (second hand), the same form as in [Koch2019Well] (9.4).
 
 ### [Saad2003] (re-checked)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 126 and 127 re-opened: Theorem 4.16 (equation 4.46, consistently ordered matrices) and `omega_opt = 2/(1 + sqrt(1 - rho(B)^2))` (equation 4.47), the program's formula (9.5).
 
 ### [GreinerHormann1998] (now R in part)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 **Pages 1 and 7 read**: the sentence that only Weiler's and Vatti's algorithms handle the general case in reasonable time is on page 1; degeneracies are handled by perturbing a vertex (page 7). The program unites zones per sample point, without clipping, so the paper concerns the planned exact union only.
 
 ### [StackupTables] (Bittele page read here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Bittele, standard multilayer stack-up, 2 pages, **R**: 2 layers 1 oz copper (0.0014 in) on a 0.057 in core; 4 layers two 2116 prepregs of 0.0091 in, a 0.037 in core and 1 oz inner copper; 6 layers 2116 + 3313 prepreg 0.0081 in and 0.013 in cores; finished 0.062 in +- 10 %.
 
 ### [Lienhard2024] (pages added)
+
+**Licence:** not checked. **Source URL:** https://arxiv.org/abs/2204.05554.
+
 Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password.
 
 ### Citations and identities corrected in this pass
@@ -1035,15 +1850,27 @@ Summary or skim only (S): the enclosure and channel papers of the Waterloo group
 * **[LeeYovanovich1989Discrete]** used by that folder only for the assumption of insulated plate edges (the solid side of the model); the entry is the one below (K.-T. Lee, the review of `via-edge-image` corrected the initial and the title it had written).
 
 ### [LeeYovanovich1989Discrete] (new key; read and reproduced here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 K.-T. Lee, M. M. Yovanovich, *Conjugate heat transfer from vertical plates with discrete heat sources*, ASME J. Electronic Packaging 111 (December 1989) 261-266 (the local copy, 7 pages). **Status R** for pages 262 to 266 (page images): the model (solid side one-dimensional, equations 7 to 12; fluid side the integral model of Lee 1988, not obtained; the iteration of steps 1 to 7), the inputs of p 265 (L 96.52 mm, half thickness 1.143 mm, strip 5.08 mm at L/4 and 3L/4, q_p 3875 W/m2 per face of the half plate, k_s 1.032 / 28.38 W/mK, emissivity 0.387 / 0.366, air 298 K, nu 15.614e-6, k_f 0.0258, Pr 0.72), Figs. 5 and 6 (the paper's curves and Zinnes' 1969 measurements, plots: values read to +-2 K). **Case reproduced** with an independent solver (`research/paper-case-studies/lib/vertical_plate.py`, a marching boundary layer plus a one-dimensional plate, not the integral model): 13 of 16 compared values within 5 % (the others 6.2 to 7.4 %, 1 to 6 K, inside the plot reading); the solver's isothermal-plate Nusselt number equals the exact similarity solution to 0.3 % at the top. Zinnes (1969) itself and Lee (1988) not obtained (N).
 
 ### [Muzychka2004Orthotropic] (equation 50 reproduced here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Equations 48 to 51 (page image) evaluated by `research/paper-case-studies/lib/flux_channel.py` and compared with an independent 3D finite-volume reference extrapolated in the sub-slab count and the pixel: -1.15 to -0.07 % of R' on 33 combinations (the single grid S/16 was 0.5 to 2.6 % high: the reference was not converged, the equation is right). Status R, case reproduced.
 
 ### [SoleymaniKoohbanani] (measurements compared here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Equations 28 and 29 reproduced by the axisymmetric unit-cell solver (1e-15 to 2e-13); Fig. 28 (page 72 of the PDF) read as an image: the straight unit cell has one via per cell (quarter vias at the corners), the staggered cell adds a via at its centre. The four plotted markers of Fig. 33 (plot) are bracketed by the equations for three groups; the straight 1.25 mm group (10.0 against 7.0 W/mK) is not. The program's five models agree with the solver within 0.4 to 13.1 % (fvm, fdm, solid3d 0.4 to 2.2 %). Status R for chapter 3 pp 56 to 64 and Fig. 28, case reproduced; the measurements only as plots.
 
 ### [ShenWang2019Vias] (Table II compared here)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Table II differences compared with the program, the independent unit cell and the exact network of Fig. 22: the predicted contrasts of psi_ta are 0.07 to 0.67 of the measured ones for air minus solder; the paper's own CFD (Fig. 18, plot) is 2.2 to 6.3 times smaller than the measurement too. Status R for Table II and Figs. 18, 20, 22; no reproduction of the measured contrasts (heatsink and array extent not in the text).
 
 ## OCR verification pass (`research/theory-sources/docs/models-evidence-and-gaps.md` section 1)
@@ -1051,33 +1878,63 @@ Table II differences compared with the program, the independent unit cell and th
 The Gemini transcriptions of 191 pages (31 files, outside the repository) were screened against the PDF text layers and 44 pages were compared with their page images by the reviewer. A status R below is given only for the pages compared with the image; the transcriptions themselves are not a reading (10 of the 44 pages carry a material error, listed in the document named above).
 
 ### [Lienhard2024] (pages compared with the images)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 PDF pages 323, 325, 433, 434, 435, 449, 450, 451 and 769 (book pages 309, 311, 419, 420, 421, 435, 436, 437 and 755) **R**: equations 6.65 to 6.68 and 6.71, Example 6.5 (reproduced by the program's forced law: 21.39 against 21.4 W/m2K), equations 8.11 to 8.13b, **Example 8.1 uses the laminar form 8.13a** (reproduced by the program's laminar form: 4.233 against 4.22 W/m2K; the general form gives 4.86), the horizontal and inclined plates (8.35 to 8.39: Raithby-Hollands with `L* = A/P` and the thick-layer correction for 1 < Ra < 1e7, Fujii-Imura 0.58 Ra^(1/5) for 1e6 to 1e11, Kadambi-Drake for discs, the inclined-plate rule, the Clausing-Berton reference temperature), Table A.6 (air; the program's properties within -1.4 to +1.3 % for k and alpha and -0.2 to -0.9 % for nu between 250 and 400 K). **The book does not print the program's horizontal laws 0.54 / 0.15 / 0.27.** The transcription of PDF p 433 is degenerate (equation 8.13a lost).
 
 ### [YovanovichJafarpur1993] (figures compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 11, 13, 14 R as images: equation 25 prints `0.571`, the legends of Figs. 3 to 6 print `0.570` (an inconsistency of the report, not of a transcription). The cuboid report (pages 11 to 13 and 16): figures only, captions R.
 
 ### [Muzychka2003Part1] (new key; pages compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal spreading resistances in rectangular flux channels, Part I: geometric equivalences*, 36th AIAA Thermophysics Conference, AIAA 2003-4187 (2003). Pages 2 to 6 **R** as images: equations 1 to 30 (compound disk, compound and isotropic flux channel, the geometric equivalence of equations 19 and 20, `a_e = sqrt(A_s/pi)`, `b_e = sqrt(A_b/pi)`) and the result on page 6: **the equivalent flux tube is within +-10 % of the rectangular channel for most combinations with tau < 1, better as Bi grows and tau falls**. Equation 25 carries two misprints of the paper (`eps_s` for `eps_b`, the double index m). Used for the equal-area rectangle of the reduced models on an outline.
 
 ### [Muzychka2003Part2] (pages compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 3, 4 and 5 **R** as images (equations 6 to 31; the earlier status was the text layer of p 4 and the image of p 5). Equation 18 has `beta_mn t tanh(beta_mn t)` in its denominator (the transcription drops the `t`).
 
 ### [Muzychka2004Orthotropic] (pages compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 5 and 6 (journal pages 49 and 50) **R** as images: equations 37 to 56 (39 and 40 the series and parallel sums used in theory 1.2; 46 reads `h_e b / k_r`).
 
 ### [MuzychkaMultilayered1999] (page compared; subject corrected)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 4 and 5 R as images: equations 27 to 41. **The paper is on the contact conductance of coated surfaces** (single and double coated layers, a correction `C_L`, data of Marotta), not on the spreading in a board; it is not a source of the Analytic model. Status S for the rest.
 
 ### [CulhamFourier2000] (tables compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Pages 5 and 6 (journal pages 237 and 238) R as images: Tables 1 to 5 and equation 59; the row 10 / 10 / 500 / 500 of Table 2 prints 32.1 and 28.5 C with a difference of 6.0 % (the two numbers give -11.2 %), as recorded earlier.
 
 ### [CulhamYovanovich1998], [TeertstraReview], [SoleymaniKoohbanani], [LeeYovanovich1989Discrete], [Lemczyk1992], [Yovanovich2003], [Yovanovich1995ImageMethod] (pages compared)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Culham and Yovanovich (1998) page 463 (coupon, Table 1) R; Teertstra review page 83 (equations 20 to 22 and the rule on the properties) R; Soleymani thesis pages 59 to 61 (equations 27 to 29, Tables 9 and 10) R; Lee and Yovanovich (1989) page 265 (all inputs; the scan has a pen stroke through the line of `q_p`, which stays legible) R; Lemczyk (1992) page 416 (Tables 1 to 3) R; Yovanovich (2003) pages 174 and 175 (Tables 3 to 7, equations 29 to 41; Table 3, mu = 0, reproduced by the Bessel series to the printed digits) R; Yovanovich (1995) pages 27 and 28 (equations 4 to 21, Table 1; `G_s(0)` = 0.2394 reproduced) R (the earlier status was a transcription not compared).
 
 ### [Saad2003] (page of the list)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 PDF page 454 is the multigrid Fig. 13.4, not the SOR page; the SOR statements stand on pages 126 and 127 (PDF 146, 147) as recorded.
 
 ### [Muzychka2003Part2] (key used by `docs/theory.md`; entry added by the review of `analytic-edge-spatial`)
+
+**Licence:** not checked. **Source URL:** https://gitlab.com/gerbolyze/gerbonara.
+
 Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal spreading resistances in rectangular flux channels, Part II: edge cooling*, 36th AIAA Thermophysics Conference, AIAA 2003-4188 (2003); local copy in the git-ignored `papers/`. **Pages 3 to 5 read from a text layer made by a model from the page images (untrusted; the pages were not seen as images in `analytic-edge-spatial`)**; p. 5, eq. 27 to 31, was read as an image earlier (`docs/theory.md` 6). Eq. 12 to 21: the edge-cooled rectangular channel with a centred source, eigenvalues `delta tan delta = Bi_e` (eq. 14, 15), total resistance eq. 21; the review re-derived eq. 21 from eq. 13 to 20 and reproduced it against an independent 3D solver with side films (-0.16 to +1.06 % at k 50, -0.07 to +0.28 % at k 385, 24 cases; `analytic-edge-spatial` README 2). Eq. 18 as transcribed is not dimensionally consistent; the dimensional form of eq. 24 is used. No numerical table for the rectangle is printed, so no published number was reproduced. **Status R for eq. 12 to 21 (text layer, confirmed by the derivation) and eq. 27 to 31 (image).**
 
 
@@ -1090,6 +1947,9 @@ Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal spreading resistances i
 * **Not obtained (N):** any real Zuken (CR-8000, CR-5000, CADSTAR), PADS Professional, Valor, Allegro X, OrCAD X, EasyEDA Pro, Horizon EDA, Sprint-Layout or Ultiboard output; any IPC-2581 file.
 
 ### [Lienhard2024] and [YovanovichJafarpur1993] (re-read in research/convection-laws)
+
+**Licence:** not checked. **Source URL:** not recorded.
+
 Lienhard 6.00, PDF pages 449 and 450 (printed 435 and 436) rendered and read as images: equation 8.35 (`Nu_L = 0.14 Ra_L^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr)`, horizontal plates with `Ra_L >= 1e7`, `0.024 <= Pr <= 2000`, "the choice of the length scale L is immaterial") and equations 8.37a and 8.37b (`0.560 Ra_L*^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)` with `L* = A/P`, corrected by `1.4 / ln(1 + 1.4/Nu)` when `Nu <= 10`, "recommended for `1 < Ra_L* < 1e7`"). Yovanovich and Jafarpur 1993 (the bounds paper), PDF page 8, read as an image: upward facing, Goldstein and Lau (1983) `Nu = C Ra^(1/5)`, `C` 0.560 to 0.688 on `L = A/P` for disk, square and semi-infinite plate, and for their numerical **infinite strip at Pr 0.71, 40 < Ra < 8e3, `Nu = 0.621 Ra^(1/5)`**; downward facing, `C` 0.44 to 0.527, **the mean over the Pr 0.71 results `C = 0.475`**, and the numerical infinite strip `C = 0.524` for 40 < Ra < 8e3. The Goldstein-Lau paper itself was not obtained, so these coefficients are **R through the 1993 report, N for the paper**. de Vahl Davis (1983), the differentially heated cavity (Int. J. Numer. Methods Fluids 3, 249-264): **Status M** (the benchmark values `Nu` 1.118, 2.243, 4.519 and 8.800 for `Ra` 1e3 to 1e6 and the midplane maxima are from memory; the paper was not opened; the solver of `research/convection-laws/lib/mac2d.py` reproduces them to 0.0 to 0.5 %, which is a check of the memory and of the solver together).
 
 ## Image pass of the OCR reviewer (statuses applied in the theory review for 2.5.0)
