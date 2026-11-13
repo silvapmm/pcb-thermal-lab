@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.7.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3445%20passed-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.7.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3478%20passed-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -18,6 +18,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 **Tools**
 - **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
+- **Interface of 2.7.0**: the dock panels are **boxes** whose title row is the button (collapsible, remembered between sessions); the live input warnings are a **Warnings (N)** accordion with one closed row and a short title per warning, with a severity icon; the **layer keys** `L` / `Shift+L` and `0` to `9` choose the layer in every context; the hot and the **coldest** point are ringed on the temperature maps; the Profiles tab draws a **cut overlay** (the board with the cut line); component and non-plated **holes** are shown on the editor board.
 - **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
