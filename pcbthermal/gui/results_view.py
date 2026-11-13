@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QPlainTextEdit, QSlider, QSpinBox, QSplitter, QTableWidget,
+                               QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, plots
@@ -233,13 +233,21 @@ class PlotTab(QWidget):
             controls.addWidget(QLabel("Cut"))
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
+            # The position text may be clipped in a very narrow centre area; its width must not set the minimum width of the Results page
+            self.pos_label.setMinimumWidth(40)
             controls.addWidget(self.pos_label)
             controls.addWidget(self.cut_overlay)
+            # In a narrow centre area the Cut overlay box goes to a line of its own (`_place_cut_overlay`); its width must not set the minimum width of the page
+            self.cut_overlay.setMinimumWidth(1)
         if kind not in ("temperature", "gradient"):
             controls.addStretch(1)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(controls)
+        self._controls = controls
+        if kind == "profile":
+            self._controls2 = QHBoxLayout()             # Second line of the profile controls, used only when the first does not hold the Cut overlay box
+            lay.addLayout(self._controls2)
         lay.addWidget(self.toolbar)
         lay.addWidget(self.canvas, 1)
 
@@ -252,6 +260,50 @@ class PlotTab(QWidget):
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
+        if kind == "profile":
+            # The cut picture is an inset over the curves or a strip above them by the width of the canvas, so a resize that crosses that width draws the figure again
+            self._thumb_strip = None
+            self.canvas.mpl_connect("resize_event", self._on_canvas_resized)
+
+    def resizeEvent(self, e):
+        """!
+        @brief Put the Cut overlay box of the Profiles tab on the first control line when the line holds it at its natural width, on a second line otherwise.
+        @param e QResizeEvent.
+        """
+        super().resizeEvent(e)
+        if self.kind == "profile":
+            self._place_cut_overlay(e.size().width())
+
+    def _place_cut_overlay(self, width):
+        """!
+        @brief Move the Cut overlay box between the first control line of the Profiles tab and a second line, by the width of the tab.
+        @param width Width of the tab in pixels.
+        """
+        m = self.layout().contentsMargins()
+        row = self._controls
+        # Natural width of the first line with the box: every widget at its size hint (the slider at its minimum), plus the spacing
+        widgets = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget() is not None]
+        widgets += [] if self.cut_overlay in widgets else [self.cut_overlay]
+        need = sum(w.minimumSizeHint().width() if w is self.pos else w.sizeHint().width() for w in widgets if not w.isHidden() or w is self.cut_overlay)
+        need += row.spacing() * len(widgets) + m.left() + m.right()
+        inline = row.indexOf(self.cut_overlay) >= 0
+        if width < need and inline:
+            row.removeWidget(self.cut_overlay)
+            self._controls2.addWidget(self.cut_overlay)
+            self._controls2.addStretch(1)
+        elif width >= need and not inline:
+            while self._controls2.count():
+                self._controls2.takeAt(0)
+            row.insertWidget(row.indexOf(self.pos_label) + 1, self.cut_overlay)
+
+    def _on_canvas_resized(self, _event):
+        """!
+        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them.
+        @param _event Matplotlib ResizeEvent (unused).
+        """
+        strip = plots.profile_has_strip(self.fig)
+        if self._thumb_strip is not None and strip != self._thumb_strip and self.sim is not None:
+            self.redraw()
 
     def map_view(self):
         """!
@@ -422,6 +474,7 @@ class PlotTab(QWidget):
                 # The picture follows the shared Display choice (underlay, opacity, colour map) and the Map button; the Cut overlay box only shows or hides it
                 under = self.display.apply(plots.MapView(), self.theme)
                 picture = "off" if not self.cut_overlay.isChecked() else "map" if self.map_on() else "board"
+                self._thumb_strip = plots.profile_has_strip(self.fig)
                 plots.draw_profile(self.fig, res, prob, layer=self._layer_index(), axis=axis, position_mm=pos,
                                    picture=picture, underlay=under, map_alpha=self.display.value(), cmap=self.display.cmap)
             elif self.kind == "compare":
@@ -516,6 +569,21 @@ class ResultsView(QWidget):
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
+        # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
+        # sideways in a narrow centre area, also on the Profiles tab. Only the page shown counts: the hidden pages ignore their size hints, so a narrow tab
+        # never scrolls and a wide one (Animation) still scrolls to reach its controls instead of clipping them.
+        self.tabs.currentChanged.connect(self._size_to_current_page)
+        self._size_to_current_page(self.tabs.currentIndex())
+
+    def _size_to_current_page(self, index):
+        """!
+        @brief Let only the page shown set the minimum size of the Results tabs (the hidden pages get the Ignored size policy).
+        @param index Index of the page shown.
+        """
+        for i in range(self.tabs.count()):
+            policy = QSizePolicy.Preferred if i == index else QSizePolicy.Ignored
+            self.tabs.widget(i).setSizePolicy(policy, policy)
+        self.tabs.updateGeometry()
 
     def set_layer_note(self, text):
         """!

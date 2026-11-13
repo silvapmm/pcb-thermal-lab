@@ -1,0 +1,31 @@
+memory guard: the estimate of 9.4 GB is above the 7.9 GB available now, the machine may swap
+memory guard: the estimate of 9.4 GB is above the 9.1 GB available now, the machine may swap
+## 3 x 3 via-array board, FVM of the program
+
+References (open rise, copper-fill gain, K):
+
+* fine-grid layered solver, 0.0625 mm: open 40.47, gain -4.51
+* fine-grid layered solver, 0.0312 mm: open 40.47, gain -4.51
+* 3D solver, barrels drawn, 0.1000 mm: open 40.46, gain -4.52
+* 3D solver, barrels drawn, 0.0833 mm: open 40.51, gain -4.47
+
+| treatment | 1.0 mm | 0.5 mm | 0.25 mm | 0.125 mm | 0.0625 mm |
+| :-- | --: | --: | --: | --: | --: |
+| program | 40.68 / -4.55 | 40.66 / -4.52 | 40.64 / -4.54 | 40.64 / -4.54 | 40.64 / -4.54 |
+memory guard: the estimate of 9.4 GB is above the 9.1 GB available now, the machine may swap
+| peaceman | 40.56 / -4.58 | 39.77 / -5.30 | 40.22 / -4.79 | 40.49 / -4.50 | 40.47 / -4.52 |
+memory guard: the estimate of 9.4 GB is above the 9.0 GB available now, the machine may swap
+memory guard: the estimate of 9.4 GB is above the 8.9 GB available now, the machine may swap
+| area | 39.66 / -5.52 | 39.77 / -5.30 | 40.22 / -4.79 | 40.49 / -4.50 | 40.47 / -4.52 |
+| tuned | 40.56 / -4.58 | 40.44 / -4.76 | 40.35 / -4.71 | 40.32 / -4.69 | 40.33 / -4.67 |
+| mw_point | 40.56 / -4.58 | 40.76 / -4.38 | 41.05 / -3.98 | 41.35 / -3.64 | 41.65 / -3.34 |
+memory guard: the estimate of 9.4 GB is above the 9.4 GB available now, the machine may swap
+| mw_ring | 40.37 / -4.67 | 40.35 / -4.63 | 40.33 / -4.66 | 40.33 / -4.66 | 40.33 / -4.66 |
+| mw_area | 40.37 / -4.67 | 40.35 / -4.63 | 40.33 / -4.66 | 40.50 / -4.47 | 40.47 / -4.50 |
+memory guard: the estimate of 9.4 GB is above the 9.3 GB available now, the machine may swap
+memory guard: the estimate of 9.4 GB is above the 9.1 GB available now, the machine may swap
+| mw_tuned | 40.56 / -4.58 | 40.48 / -4.63 | 40.37 / -4.66 | 40.33 / -4.66 | 40.33 / -4.66 |
+| mw_area@eta | 40.52 / -4.50 | 40.50 / -4.47 | 40.48 / -4.49 | 40.50 / -4.47 | 40.48 / -4.49 |
+| mw_tuned@eta | 40.71 / -4.41 | 40.65 / -4.48 | 40.53 / -4.49 | 40.48 / -4.49 | 40.48 / -4.49 |
+| mw_disc@eta | 40.52 / -4.50 | 40.50 / -4.47 | 40.48 / -4.49 | 40.48 / -4.49 | 40.48 / -4.49 |
+rc=0 time=295s

@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "<scratch>/wt-v260/research/gerber-models/scripts/study_lumped_analytic.py", line 204, in <module>
+    main()
+    ~~~~^^
+  File "<scratch>/wt-v260/research/gerber-models/scripts/study_lumped_analytic.py", line 179, in main
+    masks, meta = windows.load()
+                  ~~~~~~~~~~~~^^
+  File "<scratch>/wt-v260/research/gerber-import/lib/windows.py", line 62, in load
+    return build()
+  File "<scratch>/wt-v260/research/gerber-import/lib/windows.py", line 39, in build
+    x0, y0, x1, y1 = readers.box(files.get("edge"), files["F"])
+                                                    ~~~~~^^^^^
+KeyError: 'F'
+rc=1 time=0s

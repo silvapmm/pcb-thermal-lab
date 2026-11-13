@@ -11,6 +11,12 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.6.0/final-opinion/`](2.6.0/final-opinion/README.md) | The reviewer's final opinion on 2.6.0 (release gate step 5). |
 | [`2.7.0/research-audit/`](2.7.0/research-audit/README.md) | The directed audit 'README against code, folder by folder' of every research folder on the 2.7.0 tree (branch `release/2.6.1-research-audit`, named when the next version was still planned as 2.6.1; it is now 2.7.0, and the branch keeps its name as the record), with the folder renames by topic. |
 | [`2.7.0/doc-review/`](2.7.0/doc-review/README.md) | The documentation review of 2.7.0 (step 6b of the release gate): the checklist of what was checked, changed and left stale on purpose. |
+| [`2.7.0/reproduction/`](2.7.0/reproduction/README.md) | The reproduction pass of 2.7.0 (tester report) with the raw text outputs of the studies in `raw/`. |
+| [`2.7.0/battery/`](2.7.0/battery/README.md) | The whole-battery records of 2.7.0: the final battery and the later gates (`README.md`), the bisect of the 11 stale expectations of candidate 06cb04d6 (`bisect-stale-failures.md`) and the battery of the 2.6.1 candidate (`candidate-2-6-1.md`). |
+| [`2.7.0/final-opinion/`](2.7.0/final-opinion/README.md) | The reviewer's final opinion of 2.7.0 and the opinions kept as decision records (finite-element reference, papers in git, icons design). |
+| [`2.7.0/rename/`](2.7.0/rename/README.md) | The text rename of the integration branch `develop` to `development`. |
+| [`2.7.1/final-opinion/`](2.7.1/final-opinion/README.md) | The reviewer's final opinion on 2.7.1, the patch release of the first wave of the 2.8.0 plan: go, with the list of the release commit and the proposed CHANGELOG text. |
+| [`2.8.0/wave-1/`](2.8.0/wave-1/enter-focus-and-calculator.md) | Reviews of the 2.8.0 wave-1 branches: `enter-focus-and-calculator.md` (the Enter-focus fix, the Duplicate selection, the JEDEC numbers of the calculator). |
 
 ## Layout rule
 
@@ -35,3 +41,7 @@ Release work was first done on `research/` and `docs/` branches. The commits are
 | `research/reproduction-250` | `release/2.5.0-reproduction` | `2.5.0/reproduction/` |
 | `research/reproduction-260` | `release/2.6.0-reproduction` | `2.6.0/reproduction/` |
 | `docs/final-opinion-260` | `release/2.6.0-final-opinion` | `2.6.0/final-opinion/` |
+
+The integration branch was called `develop` until 2.7.0 (renamed `development` after the release of 2.7.0); older entries keep the old name.
+
+The rename is done: the branch is `development` locally and on `origin` (`origin/develop` was deleted by the maintainer); see `2.7.0/rename/README.md`.

@@ -18,7 +18,7 @@ import calculator_validation as cv                                          # no
 def test_csd17308q3_datasheet_board_gives_its_typical_rtheta_ja():
     """TI CSD17308Q3: RθJA typical 46 K/W on 1 in² of 2 oz copper. The calculator returns 1 W within 3 % when the junction is 46 K above ambient."""
     out = cv.recovered(cv.csd17308q3_board(), 46.0, cell_mm=0.5)
-    assert out["power_w"] == pytest.approx(1.0, abs=0.04)                       # 0.968 W with the laminate nodes of the rule (it was within 3 % before; docs/calculators.md moves)
+    assert out["power_w"] == pytest.approx(1.0, abs=0.04)                       # 0.986 W on 2.6.0 and 2.7.0 (0.968 W with the laminate nodes of 2.4.5 and the face-down law of 2.5; docs/calculators.md 2.1)
     assert 44.0 < 46.0 / out["power_w"] < 48.5                                  # The model's RθJA on that board, K/W
 
 

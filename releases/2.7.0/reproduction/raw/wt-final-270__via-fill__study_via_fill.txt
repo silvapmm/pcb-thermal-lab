@@ -1,0 +1,14 @@
+| Fill | k of the fill (W/mK) | A equivalent (mm²) | R of one 0.3 mm via, 1.6 mm long (K/W) | vs open |
+| :-- | --: | --: | --: | --: |
+| Open | - | 0.0216 | 192.4 | +0 % |
+| Epoxy resin | 0.3 | 0.0216 | 192.1 | -0 % |
+| Conductive paste | 8 | 0.0226 | 183.7 | -5 % |
+| Copper | 385 | 0.0707 | 58.8 | -69 % |
+
+| Fill | example board Tmax (°C) | change vs open (K) |
+| :-- | --: | --: |
+| Open | 85.41 | +0.00 |
+| Epoxy resin | 85.40 | -0.01 |
+| Conductive paste | 85.23 | -0.19 |
+| Copper | 81.17 | -4.24 |
+rc=0 time=6s

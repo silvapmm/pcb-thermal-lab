@@ -1,0 +1,17 @@
+h 1000 asis    cell 0.5: 26.203 K  error +6.8 %
+h 1000 asis    cell 0.25: 25.040 K  error +2.0 %
+h 1000 wide3   cell 0.5: 26.210 K  error +6.8 %
+h 1000 wide3   cell 0.25: 25.045 K  error +2.1 %
+h 1000 wide6   cell 0.5: 26.211 K  error +6.8 %
+h 1000 wide6   cell 0.25: 25.049 K  error +2.1 %
+h 1000 nofilm  cell 0.5: 22.798 K  error -7.1 %
+h 1000 nofilm  cell 0.25: 23.219 K  error -5.4 %
+h 200 asis    cell 0.5: 37.638 K  error +1.5 %
+h 200 asis    cell 0.25: 37.201 K  error +0.3 %
+h 200 wide3   cell 0.5: 37.645 K  error +1.5 %
+h 200 wide3   cell 0.25: 37.206 K  error +0.3 %
+h 200 wide6   cell 0.5: 37.646 K  error +1.5 %
+h 200 wide6   cell 0.25: 37.210 K  error +0.4 %
+h 200 nofilm  cell 0.5: 36.457 K  error -1.7 %
+h 200 nofilm  cell 0.25: 36.594 K  error -1.3 %
+rc=0 time=15s

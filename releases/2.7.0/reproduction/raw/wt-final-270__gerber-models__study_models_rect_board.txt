@@ -1,0 +1,44 @@
+shift 0.0 solid3d: failed (MemoryGuardError: the 3D solid model would have 1080000 unknowns and need about 16.4 GB at the cel)
+shift 0.4 solid3d: failed (MemoryGuardError: the 3D solid model would have 1080000 unknowns and need about 16.4 GB at the cel)
+
+1 copper layer(s), shift 0.0 mm: mean rise over the heater (K); zones on 0.1 mm cells = each model's truth
+                                         fvm         fdm      lumped    analytic     solid3d
+zones, 0.1 mm cells (truth)            103.7       103.6        83.3        82.2         nan
+same zones, 1 mm cells                 105.6       101.2        85.4        82.3         nan
+  error vs truth (%)                     1.8        -2.4         2.5         0.1           -
+mapping: arithmetic (today) (%)          1.8        -2.4         2.5         0.1           -
+mapping: geometric (%)                   2.0        -2.2         3.0         0.7           -
+mapping: lam 0.5 mean (%)                1.9        -2.3         2.8         0.5           -
+mapping: dual faces mean (%)             1.8        -1.5         7.6         3.7           -
+each model against the FVM truth (%): fvm +0.0, fdm -0.1, lumped -19.6, analytic -20.8
+
+1 copper layer(s), shift 0.4 mm: mean rise over the heater (K); zones on 0.1 mm cells = each model's truth
+                                         fvm         fdm      lumped    analytic     solid3d
+zones, 0.1 mm cells (truth)            103.0       102.9        83.2        81.6         nan
+same zones, 1 mm cells                  94.1        91.2        80.7        81.3         nan
+  error vs truth (%)                    -8.7       -11.3        -3.0        -0.4           -
+mapping: arithmetic (today) (%)         -8.6       -11.2        -3.0        -0.4           -
+mapping: geometric (%)                   0.0        -2.8         8.6         4.6           -
+mapping: lam 0.5 mean (%)               -1.9        -5.6         3.7         3.0           -
+mapping: dual faces mean (%)            -5.3        -7.9         1.4         2.4           -
+each model against the FVM truth (%): fvm +0.0, fdm -0.1, lumped -19.2, analytic -20.8
+Traceback (most recent call last):
+  File "<scratch>/wt-final-270/research/gerber-models/scripts/study_models_rect_board.py", line 104, in <module>
+    main()
+    ~~~~^^
+  File "<scratch>/wt-final-270/research/gerber-models/scripts/study_models_rect_board.py", line 100, in main
+    np.savez(OUT / f"models_rect_board_{LAYERS}l.npz", **{f"s{int(k * 10)}_{n}": np.array([v[i].get(m_, np.nan) if i < 2 else np.nan for m_ in MODELS]) for k, v in out.items() for i, n in enumerate(("truth", "native"))})
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/.venv/lib/python3.13/site-packages/numpy/lib/_npyio_impl.py", line 673, in savez
+    _savez(file, args, kwds, False, allow_pickle=allow_pickle)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/.venv/lib/python3.13/site-packages/numpy/lib/_npyio_impl.py", line 779, in _savez
+    zipf = zipfile_factory(file, mode="w", compression=compression)
+  File "<repo>/.venv/lib/python3.13/site-packages/numpy/lib/_npyio_impl.py", line 112, in zipfile_factory
+    return zipfile.ZipFile(file, *args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/zipfile/__init__.py", line 1367, in __init__
+    self.fp = io.open(file, filemode)
+              ~~~~~~~^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '<scratch>/wt-final-270/research/gerber-models/out/models_rect_board_1l.npz'
+rc=1 time=34s

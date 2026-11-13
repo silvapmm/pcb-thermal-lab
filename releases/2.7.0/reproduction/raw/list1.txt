@@ -1,0 +1,33 @@
+gerber-models/study_models_rect_board.py
+gerber-models/study_models_self.py
+gerber-models/study_lumped_analytic.py
+solid3d-verification/solid3d_verification.py
+solid3d-verification/study_one_layer_board.py
+solid3d-verification/study_small_pad_convergence.py
+rotated-square-3d/study_exact_cover.py
+rotated-square-3d/study_part_across_outline.py
+rotated-square-3d/study_regression.py
+effective-conductivity/study_program_vs_coupon.py
+effective-conductivity/study_corrections_impact.py
+effective-conductivity/study_one_layer_independent.py
+block-and-fins/study_finned_block_all_models.py
+block-and-fins/study_thick_plate_criterion.py
+via-real-board/study_validation_rows.py
+via-contact-geometry/study_frozen_models.py
+via-contact-geometry/study_frozen.py
+via-partial-copper/study_frozen.py
+via-partial-copper/study_fullcopper.py
+via-partial-copper/study_warning.py
+point-via-convergence/study_example_board.py
+point-via-convergence/study_array_board.py
+point-via-convergence/study_edge_via.py
+via-edge-image/study_adoption_impact.py
+via-edge-image/study_edge_sweep.py
+laminate-nodes/study_one_layer.py
+laminate-nodes/study_analytic.py
+gap-subdivision/study_baseline_uniform.py
+gap-subdivision/study_baseline_pads.py
+bare-spot-under-source/study_reference.py
+zone-union/study_cases.py develop
+zone-union/study_cases.py variant
+zone-union/study_cases.py hatch

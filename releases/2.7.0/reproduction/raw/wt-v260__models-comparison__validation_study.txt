@@ -1,0 +1,37 @@
+memory guard: the estimate of 15.3 GB is above the 9.1 GB available now, the machine may swap
+memory guard: the 3D solid model has 512000 unknowns: about 11.0 GB of memory and a solve that may take more than 30 s; the estimate of 11.0 GB is above the 9.5 GB available now, the machine may swap
+## Scenarios, 1 mm cells (error on the temperature rise against the FVM)
+
+| Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
+| :-- | --: | --: | --: | --: | --: | :-: |
+| reference board (centred 20 mm heater) | 90.14 | 90.14 (-0.0 %) | 90.27 (+0.2 %) | 89.69 (-0.7 %) | 90.09 (-0.1 %) | - |
+| example board (full) | 85.38 | 85.27 (-0.2 %) | 85.98 (+1.0 %) | 86.79 (+2.3 %) | 84.72 (-1.1 %) | - |
+| example, no heatsink | 88.44 | 88.32 (-0.2 %) | 89.08 (+1.0 %) | 89.67 (+2.0 %) | 87.70 (-1.2 %) | - |
+| example, no vias | 94.68 | 94.59 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.02 (-0.9 %) | - |
+| example, top copper over the full board | 84.86 | 84.82 (-0.1 %) | 85.42 (+0.9 %) | 86.26 (+2.3 %) | 84.68 (-0.3 %) | - |
+| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (-0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 96.53 (-0.2 %) | - |
+| example, only heater U1 | 79.53 | 79.41 (-0.2 %) | 80.12 (+1.1 %) | 79.95 (+0.8 %) | 78.88 (-1.2 %) | - |
+| example, only U1, uniform | 90.31 | 90.27 (-0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.16 (-0.2 %) | - |
+| reference board, heater in the corner | 109.41 | 109.40 (-0.0 %) | 109.54 (+0.1 %) | 102.09 (-8.7 %) | 109.36 (-0.1 %) | - |
+| reference board, small 5 mm heater | 103.07 | 103.07 (-0.0 %) | 103.71 (+0.8 %) | 102.87 (-0.2 %) | 103.29 (+0.3 %) | - |
+| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.16 (+1.1 %) | 65.69 (-0.0 %) | - |
+| heater 5 mm inside the top-copper edge | 94.49 | 94.05 (-0.6 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.30 (-1.7 %) | warns |
+| heater straddling the top-copper edge | 146.65 | 142.45 (-3.4 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 113.88 (-26.9 %) | warns |
+| no copper on the heater layer | 152.36 | 152.35 (-0.0 %) | 153.19 (+0.7 %) | 150.12 (-1.8 %) | 150.06 (-1.8 %) | warns |
+| 30 x 30 mm copper island around the heater | 92.44 | 91.98 (-0.7 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 89.07 (-5.0 %) | warns |
+| hatched copper (fill 0.5) on the top layer | 106.18 | 106.18 (-0.0 %) | 106.23 (+0.1 %) | 105.79 (-0.5 %) | 105.60 (-0.7 %) | warns |
+| heater on the bottom layer | 88.38 | 88.38 (-0.0 %) | 88.58 (+0.3 %) | 88.02 (-0.6 %) | 88.23 (-0.2 %) | - |
+| long thin heater, 40 x 4 mm | 67.84 | 67.84 (-0.0 %) | 67.92 (+0.2 %) | 71.91 (+9.5 %) | 67.69 (-0.3 %) | - |
+| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.2 %) | 98.51 (-8.5 %) | 105.19 (-0.2 %) | - |
+| two heaters 60 mm apart (4 W + 2 W) | 100.42 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.27 (-0.2 %) | - |
+
+## Example board against the grid
+
+| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
+| --: | --: | --: | --: | --: |
+| 4 | 83.68 | 83.93 | 86.83 | 83.10 |
+| 2 | 85.20 | 84.41 | 85.90 | 85.48 |
+| 1 | 85.38 | 85.27 | 86.05 | 85.98 |
+| 0.5 | 85.32 | 85.26 | 85.62 | 85.40 |
+| 0.25 | 85.30 | 85.28 | 85.41 | - |
+rc=0 time=311s

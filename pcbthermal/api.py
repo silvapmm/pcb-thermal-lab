@@ -35,7 +35,7 @@ from . import defaults
 from . import uicontext
 from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
-from .results import SteadyResult
+from .results import DISCLAIMER, SteadyResult
 from .numfmt import num
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
@@ -205,10 +205,11 @@ class Simulation:
 
     def to_markdown(self):
         """!
-        @brief The comparison table as Markdown, followed by the warnings.
+        @brief The comparison table as Markdown, headed by the disclaimer and followed by the warnings.
         @return String.
         """
-        lines = ["| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [K/W] | Power [W] | Balance | Error vs " +
+        lines = [f"> {DISCLAIMER}", "",
+                 "| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [K/W] | Power [W] | Balance | Error vs " +
                  self.reference.model + " | Time [s] |",
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
@@ -288,7 +289,7 @@ class Simulation:
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} degC, "
-                 f"total power {self.problem.total_power():.3f} W", "", self.to_text(inline_warnings)]
+                 f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings)]
         if self.h_used:
             b = self.problem.board
             lines.append("")
@@ -356,7 +357,7 @@ class Simulation:
         @brief JSON-ready summary of the whole simulation.
         @return Dict with options, table and per-model summaries.
         """
-        d = {"version": __version__, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
+        d = {"version": __version__, "disclaimer": DISCLAIMER, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
              "models": {k: r.summary() for k, r in self.results.items()}}
         if self.decisions:
             d["profile"] = {"reference": self.profile_reference, "error": self.profile_error,

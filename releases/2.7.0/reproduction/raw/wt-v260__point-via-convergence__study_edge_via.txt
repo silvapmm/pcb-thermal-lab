@@ -1,0 +1,13 @@
+| edge | treatment | 1.0 mm | 0.5 mm | 0.25 mm | 0.125 mm | 0.0625 mm |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| box edge | program | 3.16 | 3.14 | 3.13 | 3.12 | 3.12 |
+| box edge | mw_disc@eta | 3.62 | 3.36 | 3.18 | 3.15 | 3.15 |
+| outline at 7.03 mm | program | 7.58 | 7.51 | 7.49 | 7.47 | 7.46 |
+| outline at 7.03 mm | mw_disc@eta | 8.60 | 8.03 | 7.59 | 7.52 | 7.52 |
+
+footprint at 1.0 mm: 1 cells, 0.05 ms per via
+footprint at 0.5 mm: 3 cells, 0.38 ms per via
+footprint at 0.25 mm: 4 cells, 1.34 ms per via
+footprint at 0.125 mm: 9 cells, 1.57 ms per via
+footprint at 0.0625 mm: 29 cells, 0.57 ms per via
+rc=0 time=5s

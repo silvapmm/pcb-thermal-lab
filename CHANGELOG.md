@@ -3,6 +3,30 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [2.7.1] - 2026-11-13
+
+A patch release: interface fixes, a disclaimer line in the reports, tests and documents. No result changes (the frozen numbers of 2.7.0 hold) and the project file format is unchanged.
+
+### Fixed
+
+- **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view**: only the tab shown sets the width of the Results page (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when it moves between the inset over the curves and the strip above them. At 900 x 700 with both docks open the Cut slider is very short; the arrow keys still move it.
+- **Enter in a Properties field keeps the focus in the field** for an element shown in Properties that is not drawn on the active layer (two heaters on two layers picked in the element tree, or a selection set by code): the canvas told the panel 'nothing selected' after every edit, which destroyed the form and its focus. The maintainer's report (the first Enter after a change of the Layer box) was not reproduced offscreen; the fix covers the neighbouring path that was found.
+- **Duplicate (Ctrl+D) selects the copy in Properties and in the element list**: they kept showing the original, so the next value typed changed the original.
+
+### Changed
+
+- **A disclaimer line in every report**: the text report (saved and on screen), the Markdown report and so the output of `python -m pcbthermal run`, the JSON summary (new key `disclaimer`) and the Power Calculator result say that PCB Thermal Lab is a design aid whose models have not yet been compared with measurements of a real board, and that critical designs are to be validated by measurement. A script that reads the first lines of the command-line output sees one more line.
+
+### Docs
+
+- The JEDEC 2s2p row of the Power Calculator help and of `docs/calculators.md` 2.1 quoted the 2.6.0 program (31.4 K/W, +3.4 %); the 2.7.0 program gives 31.6 K/W, +2.9 % at the 0.5 mm cell. The help no longer says that the Gerber import is not in the interface.
+- Screenshots: the outline pictures and the warnings picture no longer show a part off the board; the Results summary pictures show the disclaimer.
+- Every entry of the research bibliography carries its licence and source address; the OCR tool is run from `.venv-research`; the version-comparison notes cover v2.5.0 to v2.7.0; the integration branch is called `development`.
+
+### Tests
+
+- `tests/test_third_party_text.py` (no third-party text, OCR output or confidential fingerprint in git; a licence field on every bibliography entry), `tests/test_report_disclaimer.py`, `tests/test_enter_focus.py`, `tests/test_calculator_dialog.py` (the Power Calculator dialog driven on the datasheet boards), and the narrow-window cases in `tests/test_map_markers_and_cut_locator.py`.
+
 ## [2.7.0] - 2026-11-13
 
 ### Added
