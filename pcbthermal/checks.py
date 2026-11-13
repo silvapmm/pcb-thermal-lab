@@ -1116,7 +1116,7 @@ def check_edge_laminate(problem, models):
     out = []
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
-         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a converged 3D solver: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
+         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
          "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps, against an independent finite-element solution "
          "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.2 % at 1000 and -6.0 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
          "and reads lower still, so the via helps more than shown: on that board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, a via 3 mm from the edge -2 % at 200 and "
@@ -1148,8 +1148,8 @@ def _edge_laminate_uncut(b, s_max):
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K and every laminate gap of this board is under the longest sub-gap ({num(s_max * 1e3, 2)} mm), "
          "so no gap is cut and the laminate along the board edge is one node per gap: the layered FVM and FDM may read the board too cool. Measured on 10 x 10 mm boards of 4 to 8 layers "
-         "and 1.0 to 1.6 mm, at a 0.25 mm cell, against an independent 3D solver at the same cell: about -0.1 to -1 % of the rise at 200 W/m2K, -1 to -3 % at 500, -2 to -6 % at 1000 and "
-         "-4 to -10 % at 2000 (a sample, not a bound). The reference is an independent finite-element solution, a different method from the program; "
+         "and 1.0 to 1.6 mm, at a 0.25 mm cell, against an independent finite-element solution: about -0.1 to -1 % of the rise at 200 W/m2K, -1 to -3 % at 500, -2 to -6 % at 1000 and "
+         "-4 to -10 % at 2000 (a sample, not a bound). The finite-element solution is a different method from the program; "
          "the cell-centred 3D solver used before reads 1 to 9.5 % hot at that cell, which is why earlier texts quoted about twice these errors. "
          "Eight sub-gaps are not better at this cell: they read HOT, +1 % at 200 to +7 % at 2000 W/m2K at a 0.25 mm cell (the half-cell film of a cell wider than the sub-gap), so the default at 0.25 mm and eight sub-gaps at 0.125 mm "
          "bracket the truth; a gap of d mm gets eight from a "
