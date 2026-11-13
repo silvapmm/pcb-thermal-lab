@@ -63,4 +63,12 @@ CHANGELOG `[Unreleased]` was merged with the sections already on `development` (
 
 ## 5. Quick tests run
 
-See the report of the review: docs, licence header, version, help, tooltips, shortcuts, the two new files, `test_calculator_window.py`, `test_gui_stress.py` once, `tests/regression` at 2 mm.
+These were run on the branch after the review's changes:
+
+| Run | Result |
+| :-- | :-- |
+| docs, licence header, version, help, tooltips, shortcuts, `test_enter_focus.py`, `test_calculator_dialog.py`, `test_calculator_window.py`, `test_calculator_validation.py`, `test_third_party_text.py` | 797 passed, 1 skipped, 127 s |
+| `tests/regression` at 2 mm | 153 passed |
+| `tests/test_gui_stress.py`, once | 61 passed, 9 min 39 s |
+
+The whole battery was not run; it belongs to the maintainer before the merge.
