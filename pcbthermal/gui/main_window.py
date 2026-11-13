@@ -466,8 +466,7 @@ class MainWindow(QMainWindow):
         self.a_delete = self._act("Delete", lambda: self.doc.delete(self.canvas.selected_elements()), "Del")
         # Backspace (the key labelled delete on a Mac keyboard) is the second key of the same action, so the menu shows it and the canvas needs no branch
         self.a_delete.setShortcuts([QKeySequence("Del"), QKeySequence("Backspace")])
-        self.a_dup = self._act("Duplicate", lambda: self.canvas.set_selection(
-            self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
+        self.a_dup = self._act("Duplicate", self._duplicate, "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
 
         self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
@@ -1172,6 +1171,18 @@ class MainWindow(QMainWindow):
         """
         self.layer_choice.follow(layer)                  # Not a pick: a stored All layers stays in Temperature, the drawing layer and the single maps move
         self._apply_layer()
+
+    def _duplicate(self):
+        """!
+        @brief Duplicate the selected elements and select the copies on the board, in the element list and in the Properties panel.
+        @details `canvas.set_selection` selects without a signal, so the list and the Properties panel kept showing the originals while the board showed the
+                 copies: a value typed in Properties after Ctrl+D changed the original, not the copy that was highlighted.
+        """
+        items = self.doc.duplicate(self.canvas.selected_elements())
+        if not items:                                          # Nothing selected on the board: nothing to copy, the panels keep what they show
+            return
+        self.canvas.set_selection(items)
+        self._on_canvas_selection(self.canvas.selected_elements())
 
     def _select_all(self):
         """!

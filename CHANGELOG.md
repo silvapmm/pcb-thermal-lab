@@ -5,14 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
-### Docs
-
-- **The outline pictures no longer show a part off the board** (`docs/screenshots-outline-heater`; pictures only): in `outline.png` and `outline_temperature.png` the heater U2 (0 W) sat inside the cut-away corner of the L; `examples/make_screenshots.py` now puts it in the other arm (x 75 to 81 mm, y 10 to 16 mm) with 0.5 W, and the two pictures were regenerated.
-
-- **The warnings picture no longer shows a part hanging off the board** (`docs/screenshots-warnings-placement`; pictures only): `examples/make_screenshots.py` places the second source X1 fully on the RP2040 board over copper, and the Results summary picture of the imported board gets a genuine alert (the chip's junction limit exceeded) instead; `editor_warnings.png` and `results_summary_imported.png` regenerated.
-
 ### Fixed
 
+- **Enter in a Properties field keeps the focus in the field** (`fix/enter-focus-and-calculator-test`; display only, no number moves): the canvas reported its selection after every rebuild, also when nothing had changed, so an element shown in Properties that is not drawn on the active layer (two heaters on two layers picked in the element tree, or a selection set by code) lost its form, and the keyboard focus with it, at the first edit (the focus fell to the tab bar), and a selection on two layers was cut to the one drawn after any edit. `Canvas.rebuild` now reports the selection only when the rebuild changed it; the Properties form still refreshes after undo, redo and values written elsewhere (it listens to the document itself). **The maintainer's report (the first Enter after a change of the Layer box) was not reproduced through the real window offscreen** (Layer box, L, Shift+L, digits, element tree, warning links, Results tab shown), by the executor or by the review, so the fix covers the neighbouring path that was found, not necessarily the reported one. Tests `tests/test_enter_focus.py`.
+- **Duplicate (Ctrl+D) selects the copy in Properties and in the element list** (review of the same branch): the board selected the copies without telling the panels, so Properties and the list kept the originals and the next value typed changed the original. `MainWindow._duplicate`.
 - **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view** (`fix/results-map-markers-and-cut-locator`; display only, no number moves): the Results tabs took the minimum width of their widest page (the Animation and Power profile controls, about 530 px), so at 900 x 700 with both docks open the Profiles tab scrolled sideways and its cut picture was out of view. Now only the page shown sets that width (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when the canvas crosses the width at which it moves between the inset over the curves and the strip above them. *(tests in `tests/test_map_markers_and_cut_locator.py`)*
 
 ### Added
@@ -25,6 +21,17 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - The OCR tool README and the README say that `tools.ocr` is run with `.venv-research/bin/python` (pypdfium2 is not in the project `.venv`).
 - `releases/regression-harness/reference/version_notes.json` has notes for the pairs v2.5.0 to v2.7.0 quoted from the CHANGELOG; the numeric table `docs/version-comparison.md` is regenerated at the next release.
 - **A disclaimer line in every report** (`fix/report-disclaimer`; text only, no number moves): the text report (the saved `report.txt` and the on-screen Results summary), the Markdown report (and so the command-line output), the JSON summary (key `disclaimer`) and the Power Calculator result carry one line, `results.DISCLAIMER`: PCB Thermal Lab is a design aid, its models have not yet been compared with measurements of a real board, validate critical designs by measurement. The note about the computed heat transfer coefficients stays as it was. User guide, chapter 18.
+
+### Tests
+
+- **Power Calculator dialog** (`tests/test_calculator_dialog.py`): the dialog is driven offscreen on the datasheet boards (CSD17308Q3 46.7 K/W, -1.4 %; JEDEC 2s2p 31.6 K/W, +2.9 % at the dialog's 0.5 mm cell) and closed while its calculation runs; the greyed fields, the case selector and the Help page stay in `tests/test_calculator_window.py`.
+- **The JEDEC row of `docs/calculators.md` 2.1 and of the calculator help corrected** (documents only): they quoted the 2.6.0 program (31.4 K/W, +3.4 %); the 2.7.0 program gives 31.6 K/W, 1.029 W, +2.9 % at 0.5 mm (32.2 K/W, +0.8 % at 1 mm), and the board without vias 74.6 K/W (70.9); the 2.7.0 documentation review had called 2.1 current. The help no longer says that the Gerber import is not in the interface.
+
+### Docs
+
+- **The outline pictures no longer show a part off the board** (`docs/screenshots-outline-heater`; pictures only): in `outline.png` and `outline_temperature.png` the heater U2 (0 W) sat inside the cut-away corner of the L; `examples/make_screenshots.py` now puts it in the other arm (x 75 to 81 mm, y 10 to 16 mm) with 0.5 W, and the two pictures were regenerated.
+
+- **The warnings picture no longer shows a part hanging off the board** (`docs/screenshots-warnings-placement`; pictures only): `examples/make_screenshots.py` places the second source X1 fully on the RP2040 board over copper, and the Results summary picture of the imported board gets a genuine alert (the chip's junction limit exceeded) instead; `editor_warnings.png` and `results_summary_imported.png` regenerated.
 
 ## [2.7.0] - 2026-11-13
 

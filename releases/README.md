@@ -15,6 +15,7 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.7.0/battery/`](2.7.0/battery/README.md) | The whole-battery records of 2.7.0: the final battery and the later gates (`README.md`), the bisect of the 11 stale expectations of candidate 06cb04d6 (`bisect-stale-failures.md`) and the battery of the 2.6.1 candidate (`candidate-2-6-1.md`). |
 | [`2.7.0/final-opinion/`](2.7.0/final-opinion/README.md) | The reviewer's final opinion of 2.7.0 and the opinions kept as decision records (finite-element reference, papers in git, icons design). |
 | [`2.7.0/rename/`](2.7.0/rename/README.md) | The text rename of the integration branch `develop` to `development`. |
+| [`2.8.0/wave-1/`](2.8.0/wave-1/enter-focus-and-calculator.md) | Reviews of the 2.8.0 wave-1 branches: `enter-focus-and-calculator.md` (the Enter-focus fix, the Duplicate selection, the JEDEC numbers of the calculator). |
 
 ## Layout rule
 
