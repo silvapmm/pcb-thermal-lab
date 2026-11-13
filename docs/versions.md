@@ -4,7 +4,7 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
-## Summary of the current version (2.7.1, 2026-11-13; 2.7.0 is the last version on `main` until the 2.7.1 merge)
+## Summary of the current version (2.7.1, 2026-11-13)
 
 * **Interface**: the GUI redesign (boxes, the Warnings (N) accordion, layer keys L / Shift+L and 0..9, export of the maps over the copper), the cut overlay of the profile plots, the coldest-point marker, shorter hints, the hole categories on the editor canvas, five small bug fixes of the window and the import.
 * **Models**: the edge film from the centroid of the cut cell for drawn and imported copper, the outline mask of imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone far via; edge-laminate warnings that quote an independent finite-element solution (`research/independent-fem-edge`).
@@ -24,7 +24,7 @@ A patch release of the first wave of the 2.8.0 plan (fixes, documents and tests;
 * **Disclaimer** (`fix/report-disclaimer`): `results.DISCLAIMER` in the text, Markdown and JSON reports and the Power Calculator result, the on-screen summary and the command-line output; `tests/test_report_disclaimer.py`; user guide chapter 18.
 * **Documents and guards**: the JEDEC numbers of the calculator (`docs/calculators.md` 2.1), the third-party text guard (`tests/test_third_party_text.py`) and licences in the bibliography, the OCR environment, the version notes, the screenshots, the branch rename.
 
-How it was tested: the reviewer's final opinion (`releases/2.7.1/final-opinion/README.md`: quick set 1028 passed, an offscreen drive of the window with 29 checks), the frozen numbers at 2, 1 and 0.5 mm, and the whole battery on the final tree (to be recorded at the release).
+How it was tested: the reviewer's final opinion (`releases/2.7.1/final-opinion/README.md`: quick set 1028 passed, an offscreen drive of the window with 29 checks), the frozen numbers at 2, 1 and 0.5 mm, and the whole battery on the tip 633fa3fb: `3502 passed, 9 skipped, 2 xfailed, 1 warning in 42 min 57 s`, 5 passed on `tests/test_format_compat_245.py` with `PCBT_COMPAT_V245=1`, 4 passed on `tests/test_no_secrets.py` with `PCBT_SCAN_KEY_VALUES=1`, 317 passed on `tests/regression` at 2, 1 and 0.5 mm against `v2.7.0.json` untouched. The harness `study_diff` was not run: no number moved, and the frozen-number test is the number check.
 
 ---
 
