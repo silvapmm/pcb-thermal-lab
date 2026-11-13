@@ -312,54 +312,54 @@ reference `ref` at 0.25 and 0.125 mm with 8 slabs (0.125 mm not for 8 layers) th
 program, not by the FEM**: the 6-layer boards at 0.125 mm with 8 sub-gaps (294 000 program unknowns, direct solver) took the process to 3.15 GB (full) and
 4.4 GB (pad); in hindsight those two settings should have been skipped like the 8-layer ones. Every FEM solve closed the balance to 1e-11.
 
-### 6.1 Table (errors in % against the FEM; the FEM column "hottest 0.25 mm cell" is the like-for-like read-out of the program and of the reference at 0.25 mm; the 0.5 and 0.125 mm columns are measured against the FEM hottest cell of their own size; the FEM point extrapolation carries the 6 / 12 elements-per-gap correction measured at 1000 W/m2K, at most +0.03 K)
+### 6.1 Table (errors in % against the FEM; the FEM column "hottest 0.25 mm cell" is the like-for-like read-out of the program and of the reference at 0.25 mm; the 0.5 and 0.125 mm columns are measured against the FEM hottest cell of their own size; the FEM point extrapolation carries the 6 / 12 elements-per-gap correction measured at 1000 W/m2K and applied at 1000 and 2000, 4 (v12 - v6) / 3, at most +0.12 K; the closing review corrected it from (v12 - v6) / 3, which left the 1000 and 2000 W/m2K limits low by up to 0.09 K, 0.33 %, and moved the program errors there by -0.0 to -0.35 point; the FDM in brackets is the first run's, as it printed before that correction)
 
 | board | h_side | FEM point ext (GCI) | FEM hottest 0.25 mm cell | ref 0.25/8 | ref 0.125/8 | FVM 0.25: default / 8 | FVM 0.5: default / 8 | FVM 0.125/8 | FDM 0.25 default / 8 (pads: [first run, harmonic faces]) |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | full 2L 1.0 mm | 200 | 36.918 (-0.08 %) | 36.868 | +0.7 | +0.4 | -0.3 / +0.3 | +0.5 / +1.3 | +0.1 | -0.6 / -0.1 |
 | full 2L 1.0 mm | 500 | 31.188 (0.02 %) | 31.143 | +1.8 | +0.9 | -1.5 / +0.6 | -0.2 / +2.5 | -0.0 | -2.3 / -0.8 |
-| full 2L 1.0 mm | 1000 | 27.033 (0.02 %) | 26.988 | +3.3 | +1.8 | -3.8 / +0.6 | -2.1 / +3.6 | -0.3 | -4.8 / -1.7 |
-| full 2L 1.0 mm | 2000 | 23.499 (0.05 %) | 23.444 | +5.8 | +3.5 | -7.5 / +0.3 | -5.7 / +3.8 | -1.0 | -8.5 / -2.8 |
-| full 4L 1.0 mm | 200 | 34.563 (0.02 %) | 34.522 | +0.9 | +0.3 | -0.8 / +0.7 | -0.4 / +2.0 | +0.2 | -0.9 / -0.3 |
-| full 4L 1.0 mm | 500 | 28.047 (0.05 %) | 28.007 | +2.7 | +1.1 | -2.9 / +2.0 | -2.4 / +5.3 | +0.6 | -2.9 / -1.1 |
-| full 4L 1.0 mm | 1000 | 23.281 (0.12 %) | 23.235 | +5.1 | +2.1 | -5.9 / +3.6 | -5.3 / +8.9 | +1.1 | -5.9 / -2.2 |
-| full 4L 1.0 mm | 2000 | 19.495 (0.23 %) | 19.444 | +8.0 | +3.4 | -9.6 / +5.0 | -8.9 / +11.8 | +1.6 | -9.6 / -3.4 |
-| full 4L 1.6 mm | 200 | 36.975 (0.09 %) | 36.929 | +0.9 | +0.3 | -0.4 / +0.6 | +0.5 / +2.1 | +0.1 | -1.0 / -0.4 |
-| full 4L 1.6 mm | 500 | 29.117 (0.05 %) | 29.075 | +2.5 | +1.0 | -1.4 / +1.5 | +0.3 / +4.8 | +0.4 | -2.6 / -1.2 |
-| full 4L 1.6 mm | 1000 | 24.300 (0.06 %) | 24.257 | +4.3 | +1.8 | -3.2 / +2.3 | -1.1 / +7.1 | +0.5 | -4.8 / -2.0 |
-| full 4L 1.6 mm | 2000 | 20.762 (0.12 %) | 20.712 | +6.4 | +3.0 | -6.0 / +2.8 | -4.0 / +8.3 | +0.5 | -7.6 / -2.9 |
-| full 6L 1.6 mm | 200 | 35.496 (0.02 %) | 35.455 | +1.2 | +0.4 | -1.1 / +0.9 | -0.7 / +2.6 | +0.3 | -1.1 / -0.4 |
-| full 6L 1.6 mm | 500 | 27.454 (0.06 %) | 27.414 | +3.2 | +1.2 | -3.2 / +2.4 | -2.7 / +6.1 | +0.7 | -3.3 / -1.2 |
-| full 6L 1.6 mm | 1000 | 22.489 (0.13 %) | 22.444 | +5.4 | +2.1 | -5.8 / +3.8 | -5.2 / +9.4 | +1.2 | -5.9 / -2.2 |
-| full 6L 1.6 mm | 2000 | 18.897 (0.22 %) | 18.846 | +7.8 | +3.3 | -8.9 / +5.0 | -8.2 / +11.7 | +1.6 | -9.0 / -3.2 |
-| full 6L 1.0 mm | 200 | 32.990 (0.01 %) | 32.948 | +1.0 | +0.4 | -0.3 / +0.9 | +0.1 / +2.2 | +0.3 | -0.4 / -0.2 |
+| full 2L 1.0 mm | 1000 | 27.122 (0.02 %) | 27.077 | +3.0 | +1.5 | -4.1 / +0.3 | -2.4 / +3.2 | -0.7 | -5.1 / -2.0 |
+| full 2L 1.0 mm | 2000 | 23.588 (0.05 %) | 23.533 | +5.4 | +3.1 | -7.9 / -0.1 | -6.1 / +3.4 | -1.4 | -8.9 / -3.2 |
+| full 4L 1.0 mm | 200 | 34.563 (0.02 %) | 34.522 | +0.9 | +0.3 | -0.8 / +0.7 | -0.4 / +2.0 | +0.2 | -0.8 / -0.3 |
+| full 4L 1.0 mm | 500 | 28.047 (0.05 %) | 28.007 | +2.7 | +1.1 | -2.9 / +2.0 | -2.4 / +5.3 | +0.6 | -3.0 / -1.1 |
+| full 4L 1.0 mm | 1000 | 23.299 (0.12 %) | 23.254 | +5.0 | +2.0 | -6.0 / +3.5 | -5.4 / +8.8 | +1.0 | -6.0 / -2.2 |
+| full 4L 1.0 mm | 2000 | 19.514 (0.23 %) | 19.463 | +7.9 | +3.3 | -9.7 / +4.9 | -9.0 / +11.7 | +1.5 | -9.7 / -3.5 |
+| full 4L 1.6 mm | 200 | 36.975 (0.09 %) | 36.929 | +0.9 | +0.3 | -0.4 / +0.6 | +0.5 / +2.1 | +0.1 | -1.0 / -0.5 |
+| full 4L 1.6 mm | 500 | 29.117 (0.05 %) | 29.075 | +2.5 | +1.0 | -1.4 / +1.6 | +0.3 / +4.8 | +0.4 | -2.6 / -1.1 |
+| full 4L 1.6 mm | 1000 | 24.338 (0.06 %) | 24.295 | +4.1 | +1.7 | -3.4 / +2.2 | -1.3 / +6.9 | +0.3 | -5.0 / -2.2 |
+| full 4L 1.6 mm | 2000 | 20.800 (0.12 %) | 20.749 | +6.2 | +2.8 | -6.2 / +2.6 | -4.2 / +8.1 | +0.3 | -7.8 / -3.1 |
+| full 6L 1.6 mm | 200 | 35.496 (0.02 %) | 35.455 | +1.2 | +0.5 | -1.1 / +0.9 | -0.7 / +2.6 | +0.3 | -1.1 / -0.4 |
+| full 6L 1.6 mm | 500 | 27.454 (0.06 %) | 27.414 | +3.2 | +1.2 | -3.2 / +2.4 | -2.7 / +6.1 | +0.8 | -3.2 / -1.2 |
+| full 6L 1.6 mm | 1000 | 22.507 (0.13 %) | 22.462 | +5.3 | +2.1 | -5.9 / +3.7 | -5.3 / +9.4 | +1.1 | -5.9 / -2.3 |
+| full 6L 1.6 mm | 2000 | 18.915 (0.22 %) | 18.864 | +7.7 | +3.2 | -9.0 / +4.9 | -8.3 / +11.6 | +1.5 | -9.1 / -3.3 |
+| full 6L 1.0 mm | 200 | 32.990 (0.01 %) | 32.948 | +1.1 | +0.4 | -0.3 / +0.9 | +0.1 / +2.2 | +0.3 | -0.4 / -0.2 |
 | full 6L 1.0 mm | 500 | 26.389 (0.11 %) | 26.344 | +3.2 | +1.3 | -1.5 / +2.6 | -1.0 / +6.0 | +1.0 | -1.5 / -0.9 |
-| full 6L 1.0 mm | 1000 | 21.486 (0.27 %) | 21.437 | +6.2 | +2.6 | -3.2 / +4.8 | -2.6 / +10.4 | +1.8 | -3.2 / -1.9 |
-| full 6L 1.0 mm | 2000 | 17.609 (0.53 %) | 17.555 | +9.5 | +4.1 | -5.6 / +7.0 | -4.8 / +14.1 | +2.7 | -5.6 / -3.2 |
-| full 6L 2.4 mm | 200 | 37.551 (0.06 %) | 37.506 | +1.2 | +0.4 | -0.4 / +0.8 | +0.7 / +2.6 | +0.2 | -1.0 / -0.5 |
-| full 6L 2.4 mm | 500 | 28.614 (0.05 %) | 28.572 | +2.8 | +1.1 | -1.2 / +1.8 | +0.7 / +5.4 | +0.5 | -2.6 / -1.3 |
-| full 6L 2.4 mm | 1000 | 23.716 (0.07 %) | 23.673 | +4.5 | +1.9 | -2.6 / +2.6 | -0.4 / +7.6 | +0.6 | -4.4 / -2.1 |
-| full 6L 2.4 mm | 2000 | 20.268 (0.13 %) | 20.218 | +6.5 | +2.9 | -5.1 / +3.1 | -2.9 / +8.9 | +0.7 | -6.9 / -2.9 |
+| full 6L 1.0 mm | 1000 | 21.495 (0.27 %) | 21.446 | +6.1 | +2.5 | -3.2 / +4.8 | -2.6 / +10.3 | +1.8 | -3.3 / -1.9 |
+| full 6L 1.0 mm | 2000 | 17.618 (0.53 %) | 17.564 | +9.4 | +4.0 | -5.6 / +7.0 | -4.9 / +14.1 | +2.7 | -5.6 / -3.3 |
+| full 6L 2.4 mm | 200 | 37.551 (0.06 %) | 37.506 | +1.2 | +0.4 | -0.4 / +0.8 | +0.7 / +2.6 | +0.2 | -1.1 / -0.5 |
+| full 6L 2.4 mm | 500 | 28.614 (0.05 %) | 28.572 | +2.8 | +1.1 | -1.2 / +1.8 | +0.7 / +5.4 | +0.5 | -2.6 / -1.2 |
+| full 6L 2.4 mm | 1000 | 23.748 (0.07 %) | 23.705 | +4.3 | +1.7 | -2.8 / +2.5 | -0.6 / +7.4 | +0.5 | -4.6 / -2.2 |
+| full 6L 2.4 mm | 2000 | 20.300 (0.13 %) | 20.250 | +6.3 | +2.8 | -5.2 / +3.0 | -3.0 / +8.7 | +0.5 | -7.0 / -3.1 |
 | full 8L 1.0 mm | 200 | 31.652 (0.02 %) | 31.606 | +1.1 | - | -0.1 / +0.9 | +0.3 / +2.2 | - | -0.2 / -0.1 |
-| full 8L 1.0 mm | 500 | 25.116 (0.22 %) | 25.068 | +3.3 | - | -0.9 / +2.7 | -0.4 / +5.9 | - | -0.9 / -0.7 |
-| full 8L 1.0 mm | 1000 | 20.234 (0.63 %) | 20.183 | +6.2 | - | -2.2 / +5.0 | -1.6 / +10.3 | - | -2.2 / -1.6 |
-| full 8L 1.0 mm | 2000 | 16.374 (1.26 %) | 16.319 | +9.5 | - | -4.0 / +7.3 | -3.3 / +13.9 | - | -4.0 / -3.0 |
+| full 8L 1.0 mm | 500 | 25.116 (0.22 %) | 25.068 | +3.3 | - | -0.9 / +2.7 | -0.4 / +6.0 | - | -0.9 / -0.7 |
+| full 8L 1.0 mm | 1000 | 20.239 (0.63 %) | 20.187 | +6.2 | - | -2.2 / +5.0 | -1.6 / +10.3 | - | -2.2 / -1.7 |
+| full 8L 1.0 mm | 2000 | 16.379 (1.26 %) | 16.324 | +9.4 | - | -4.0 / +7.3 | -3.3 / +13.9 | - | -4.0 / -3.0 |
 | full 8L 1.6 mm | 200 | 34.330 (0.02 %) | 34.290 | +1.3 | - | -0.6 / +1.1 | -0.2 / +2.8 | - | -0.7 / -0.3 |
-| full 8L 1.6 mm | 500 | 26.282 (0.10 %) | 26.239 | +3.5 | - | -2.1 / +2.8 | -1.5 / +6.7 | - | -2.1 / -1.1 |
-| full 8L 1.6 mm | 1000 | 21.276 (0.21 %) | 21.229 | +6.1 | - | -3.9 / +4.6 | -3.2 / +10.5 | - | -3.9 / -2.0 |
-| full 8L 1.6 mm | 2000 | 17.669 (0.37 %) | 17.616 | +8.8 | - | -6.2 / +6.2 | -5.4 / +13.2 | - | -6.2 / -3.1 |
-| pad 4L 1.6 mm | 200 | 61.073 (0.11 %) | 61.029 | +2.9 | +1.4 | -0.6 / +1.9 | +1.9 / +4.8 | +0.5 | -3.1 / -2.0 [-5.4 / -3.4] |
-| pad 4L 1.6 mm | 500 | 54.337 (0.14 %) | 54.295 | +3.8 | +1.8 | -1.0 / +2.5 | +2.0 / +6.3 | +0.7 | -4.1 / -2.5 [-6.9 / -4.1] |
-| pad 4L 1.6 mm | 1000 | 50.299 (0.17 %) | 50.257 | +4.6 | +2.1 | -1.7 / +2.9 | +1.6 / +7.4 | +0.8 | -5.2 / -3.0 [-8.3 / -4.8] |
-| pad 4L 1.6 mm | 2000 | 47.383 (0.20 %) | 47.342 | +5.5 | +2.6 | -2.7 / +3.1 | +0.7 / +8.1 | +0.9 | -6.4 / -3.5 [-9.7 / -5.4] |
-| pad 6L 1.6 mm | 200 | 50.150 (0.11 %) | 50.106 | +2.5 | +1.1 | -1.3 / +1.9 | +0.5 / +4.4 | +0.6 | -3.2 / -1.8 [-4.9 / -2.6] |
-| pad 6L 1.6 mm | 500 | 42.671 (0.16 %) | 42.628 | +3.8 | +1.7 | -2.4 / +3.0 | -0.2 / +6.9 | +1.0 | -4.8 / -2.5 [-6.8 / -3.4] |
-| pad 6L 1.6 mm | 1000 | 38.159 (0.21 %) | 38.117 | +5.1 | +2.2 | -3.7 / +3.8 | -1.3 / +8.8 | +1.3 | -6.5 / -3.2 [-8.8 / -4.2] |
-| pad 6L 1.6 mm | 2000 | 34.985 (0.26 %) | 34.943 | +6.2 | +2.8 | -5.1 / +4.5 | -2.5 / +10.0 | +1.6 | -8.1 / -3.8 [-10.6 / -5.0] |
-| pad 8L 1.0 mm | 200 | 37.130 (0.15 %) | 37.094 | +1.8 | - | +0.3 / +1.3 | +1.2 / +2.8 | - | -1.4 / -1.2 [-1.8 / -1.4] |
+| full 8L 1.6 mm | 500 | 26.282 (0.10 %) | 26.239 | +3.5 | - | -2.0 / +2.8 | -1.5 / +6.7 | - | -2.1 / -1.1 |
+| full 8L 1.6 mm | 1000 | 21.287 (0.21 %) | 21.240 | +6.0 | - | -3.9 / +4.6 | -3.3 / +10.4 | - | -4.0 / -2.1 |
+| full 8L 1.6 mm | 2000 | 17.679 (0.37 %) | 17.627 | +8.7 | - | -6.2 / +6.2 | -5.5 / +13.1 | - | -6.3 / -3.2 |
+| pad 4L 1.6 mm | 200 | 61.073 (0.11 %) | 61.029 | +2.9 | +1.4 | -0.6 / +1.9 | +1.9 / +4.8 | +0.6 | -3.1 / -2.0 [-5.4 / -3.4] |
+| pad 4L 1.6 mm | 500 | 54.337 (0.14 %) | 54.295 | +3.8 | +1.8 | -1.0 / +2.5 | +2.0 / +6.3 | +0.8 | -4.1 / -2.5 [-6.9 / -4.1] |
+| pad 4L 1.6 mm | 1000 | 50.357 (0.17 %) | 50.316 | +4.5 | +2.0 | -1.9 / +2.8 | +1.5 / +7.3 | +0.7 | -5.3 / -3.1 [-8.3 / -4.8] |
+| pad 4L 1.6 mm | 2000 | 47.441 (0.20 %) | 47.401 | +5.3 | +2.5 | -2.8 / +3.0 | +0.6 / +8.0 | +0.8 | -6.5 / -3.6 [-9.7 / -5.4] |
+| pad 6L 1.6 mm | 200 | 50.150 (0.11 %) | 50.106 | +2.5 | +1.1 | -1.3 / +1.9 | +0.5 / +4.4 | +0.7 | -3.2 / -1.8 [-4.9 / -2.6] |
+| pad 6L 1.6 mm | 500 | 42.671 (0.16 %) | 42.628 | +3.8 | +1.7 | -2.4 / +3.0 | -0.2 / +6.9 | +1.1 | -4.8 / -2.5 [-6.8 / -3.4] |
+| pad 6L 1.6 mm | 1000 | 38.181 (0.21 %) | 38.138 | +5.0 | +2.1 | -3.8 / +3.8 | -1.4 / +8.7 | +1.3 | -6.5 / -3.2 [-8.8 / -4.2] |
+| pad 6L 1.6 mm | 2000 | 35.006 (0.26 %) | 34.965 | +6.2 | +2.7 | -5.2 / +4.4 | -2.6 / +9.9 | +1.5 | -8.1 / -3.8 [-10.6 / -5.0] |
+| pad 8L 1.0 mm | 200 | 37.130 (0.15 %) | 37.094 | +1.8 | - | +0.3 / +1.3 | +1.2 / +2.9 | - | -1.4 / -1.2 [-1.8 / -1.4] |
 | pad 8L 1.0 mm | 500 | 30.676 (0.26 %) | 30.642 | +3.8 | - | +0.3 / +3.2 | +1.6 / +6.5 | - | -2.0 / -1.7 [-2.5 / -2.0] |
-| pad 8L 1.0 mm | 1000 | 25.890 (0.39 %) | 25.857 | +6.5 | - | -0.0 / +5.5 | +1.7 / +10.6 | - | -3.0 / -2.4 [-3.5 / -2.7] |
-| pad 8L 1.0 mm | 2000 | 22.131 (0.54 %) | 22.100 | +9.3 | - | -0.7 / +7.7 | +1.2 / +14.0 | - | -4.2 / -3.3 [-4.8 / -3.6] |
+| pad 8L 1.0 mm | 1000 | 25.894 (0.39 %) | 25.862 | +6.5 | - | -0.0 / +5.5 | +1.7 / +10.6 | - | -3.0 / -2.5 [-3.5 / -2.7] |
+| pad 8L 1.0 mm | 2000 | 22.136 (0.54 %) | 22.104 | +9.3 | - | -0.7 / +7.7 | +1.2 / +14.0 | - | -4.2 / -3.3 [-4.8 / -3.6] |
 
 The FEM plan sequences of the 8-layer boards at 1000 and 2000 W/m2K are the least converged (observed order 0.6 to 0.9, GCI 0.4 to 1.3 %): the gaps are 0.10 to
 0.19 mm and the 0.05 mm plan size is not yet asymptotic for the field at the wall; the 0.25 mm cell mean, which is what every comparison uses, is less
@@ -371,19 +371,20 @@ sensitive than the point maximum. Elsewhere the GCI is 0.01 to 0.27 %.
    section 36 and `ref` of `study_thin_laminate.py`) are the same scheme and give identical numbers on the 4-layer 1.6 mm board (37.0797 / 24.7338 K at
    0.125 mm, 37.2694 / 25.2978 K at 0.25 mm, 200 / 1000 W/m2K). Section 44 measured the program against the reference **at 0.25 mm** (-1.3 / -3.9 / -7.2 /
    -11.7 %), section 36 / 43 against the reference **at 0.125 mm** (-0.8 / -2.5 / -5.1 / -8.9 %); against the FEM (hottest 0.25 mm cell) the same program
-   value (FVM 0.25 mm, default rule) is **-0.4 / -1.4 / -3.2 / -6.0 %** at 200 / 500 / 1000 / 2000 W/m2K. The reference is +0.9 / +2.5 / +4.3 / +6.4 % hot at
-   0.25 mm and +0.3 / +1.0 / +1.8 / +3.0 % at 0.125 mm (first order from above: the half-cell film at the cell centre).
+   value (FVM 0.25 mm, default rule) is **-0.4 / -1.4 / -3.4 / -6.2 %** at 200 / 500 / 1000 / 2000 W/m2K (-3.2 / -6.0 before the closing review corrected the
+   thickness term of the FEM limit). The reference is +0.9 / +2.5 / +4.1 / +6.2 % hot at
+   0.25 mm and +0.3 / +1.0 / +1.7 / +2.8 % at 0.125 mm (first order from above: the half-cell film at the cell centre).
 2. **The real error behind the thin-laminate warning** (thin-gap full-copper boards 4L 1.0, 6L 1.0 / 1.6, 8L 1.0 / 1.6 mm; FVM 0.25 mm, shipped rule, against
-   the FEM): **-0.1 .. -1.1 % at 200, -0.9 .. -3.2 % at 500, -2.2 .. -5.9 % at 1000, -4.0 .. -9.6 % at 2000 W/m2K** (the warning says -1 .. -4 / -5 .. -6 / -6 .. -11 /
+   the FEM): **-0.1 .. -1.1 % at 200, -0.9 .. -3.2 % at 500, -2.2 .. -6.0 % at 1000, -4.1 .. -9.7 % at 2000 W/m2K** (-5.9 and -4.0 .. -9.6 before the correction of the thickness term) (the warning says -1 .. -4 / -5 .. -6 / -6 .. -11 /
    -9 .. -16 %, measured against the reference at 0.25 mm, which carries +1 / +3 / +5 .. +6 / +8 .. +9.5 % of it). Pads on the outer layers: +0.3 .. -1.3 / +0.3 .. -2.4 /
-   -0.0 .. -3.7 / -0.7 .. -5.1 %. The boards whose gap is cut (2L 1.0, 4L 1.6, 6L 2.4 mm): -0.3 .. -0.4 / -1.2 .. -1.5 / -2.6 .. -3.8 / -5.1 .. -7.5 %. So a thin
+   -0.0 .. -3.8 / -0.7 .. -5.2 %. The boards whose gap is cut (2L 1.0, 4L 1.6, 6L 2.4 mm): -0.3 .. -0.4 / -1.2 .. -1.5 / -2.8 .. -4.1 / -5.2 .. -7.9 %. So a thin
    laminate is as under-resolved as a thick one (the warning's point stands), but the sizes are about **half** of the quoted ones.
-3. **Eight sub-gaps at 0.25 mm are not "within 0.5 to 2.6 %": they are HOT**, +0.7 .. +1.1 / +2.0 .. +2.8 / +3.6 .. +5.0 / +5.0 .. +7.3 % on the thin-gap boards
+3. **Eight sub-gaps at 0.25 mm are not "within 0.5 to 2.6 %": they are HOT**, +0.7 .. +1.1 / +2.0 .. +2.8 / +3.5 .. +5.0 / +4.9 .. +7.3 % on the thin-gap boards
    (+1.3 .. +7.7 % on the pads), and at 0.5 mm +2 .. +3 / +5 .. +7 / +9 .. +10.5 / +12 .. +14 % (the half-cell film of a cell wider than the sub-gap, as
    `check_edge_laminate` already says of the 0.5 mm cell). Against the hot reference at 0.25 mm they looked right (-0.2 .. -2.6 %). The program at 0.125 mm
-   with eight sub-gaps is +0.2 .. +2.7 % (thin), +0.5 .. +1.6 % (pads), -1.0 .. +0.7 % (cut gaps): the layered idealisation converges to the FEM from above
+   with eight sub-gaps is +0.2 .. +2.7 % (thin), +0.5 .. +1.5 % (pads), -1.4 .. +0.5 % (cut gaps): the layered idealisation converges to the FEM from above
    with the cell and from below with the sub-gap count; the default at 0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
-4. **FDM** (default, 0.25 mm): on the full-copper boards the same as the FVM to 0.1 point (-0.2 .. -1.1 / -0.9 .. -3.3 / -2.2 .. -5.9 / -4.0 .. -9.6 %;
+4. **FDM** (default, 0.25 mm): on the full-copper boards the same as the FVM to 0.1 point (-0.2 .. -1.1 / -0.9 .. -3.3 / -2.2 .. -6.0 / -4.1 .. -9.7 %;
    unchanged by the cell-fill faces); on the **pad boards 1.7 to 3.7 points cooler than the FVM** on `develop` e39de188 (-1.4 .. -3.2 % at 200 W/m2K, -3.0 .. -6.5
    at 1000, -4.2 .. -8.1 at 2000), where the first run with the harmonic faces read 2 to 5 points (-1.8 .. -5.4 / -3.5 .. -8.8 / -4.8 .. -10.6 %): the copper edge
    inside the outline again (section 4, item 5a), on a four- to eight-layer board with inner planes; the faces of validation 47 cut the FDM error of the pads by a fifth to two fifths.
@@ -391,19 +392,21 @@ sensitive than the point maximum. Elsewhere the GCI is 0.01 to 0.27 %.
 #### 6.3 Proposed corrections (not edited)
 
 * `docs/validation.md` 44, paragraph "Not reconciled": replace by "Reconciled by the finite-element check (`research/independent-fem-edge`, section 6): the two reference codes
-  give identical values; section 44 compared with the reference at 0.25 mm and section 36 with it at 0.125 mm, and the reference is +0.9 / +2.5 / +4.3 /
-  +6.4 % (0.25 mm) and +0.3 / +1.0 / +1.8 / +3.0 % (0.125 mm) above a conforming finite-element solution at 200 / 500 / 1000 / 2000 W/m2K; against the
-  finite elements the program (0.25 mm, default rule) reads -0.4 / -1.4 / -3.2 / -6.0 % on that board."
+  give identical values; section 44 compared with the reference at 0.25 mm and section 36 with it at 0.125 mm, and the reference is +0.9 / +2.5 / +4.1 /
+  +6.2 % (0.25 mm) and +0.3 / +1.0 / +1.7 / +2.8 % (0.125 mm) above a conforming finite-element solution at 200 / 500 / 1000 / 2000 W/m2K; against the
+  finite elements the program (0.25 mm, default rule) reads -0.4 / -1.4 / -3.4 / -6.2 % on that board." (Numbers of the closing review; the text applied in
+  `develop` quotes the first run's +4.3 / +6.4, +1.8 / +3.0 and -3.2 / -6.0: see `docs/validation-text.md`.)
 * `docs/validation.md` 44, the table and the sentence "the program's own finest value lies 0.1 to 2.4 % below the reference at 0.125 mm": add the FEM
   column of 6.2 item 2 and say that the finest program value (0.125 mm, eight sub-gaps) is +0.2 .. +2.7 % above the finite elements (hot, not cool).
 * `checks.check_edge_laminate` warning text (and validation 44 / 36 where quoted): the thin-gap error of the shipped rule is about -0.1 .. -1.1 / -1 .. -3 /
   -2 .. -6 / -4 .. -10 % at 200 / 500 / 1000 / 2000 W/m2K against a conforming finite-element reference (0.25 mm cell; pads on the outer layers up to
-  -1.3 / -2.4 / -3.7 / -5.1 %), half of the quoted -1 .. -4 / -5 .. -6 / -6 .. -11 / -9 .. -16 %, which were against a cell-centred reference 1 to 9.5 %
+  -1.3 / -2.4 / -3.8 / -5.2 %), half of the quoted -1 .. -4 / -5 .. -6 / -6 .. -11 / -9 .. -16 %, which were against a cell-centred reference 1 to 9.5 %
   hot; and "eight sub-gaps within 0.5 to 2.6 %" should become "eight sub-gaps read 1 to 7 % HOT at 0.25 mm and 2 to 14 % hot at 0.5 mm; at 0.125 mm
   within +0.2 .. +2.7 %". The sentence "the reference is not fully converged" can be replaced by the measured figures above. The maintainer decides
   whether the warning keeps quoting the reference numbers (safe side, exaggerated) or the finite-element ones.
 * `docs/validation.md` 43.2 (same board): the 'now: eight sub-gaps' column (+0.19 / +0.41 / +0.35 / -0.35 %) is against the 0.125 mm reference; against the
-  FEM it is +0.6 / +1.6 / +2.3 / +2.8 %, and the default column (-0.83 / -2.55 / -5.09 / -8.90 %) is -0.4 / -1.4 / -3.2 / -6.0 %.
+  FEM it is +0.6 / +1.6 / +2.2 / +2.6 %, and the default column (-0.83 / -2.55 / -5.09 / -8.90 %) is -0.4 / -1.4 / -3.4 / -6.2 % (closing review; the first run
+  printed +2.3 / +2.8 and -3.2 / -6.0 at 1000 / 2000 W/m2K).
 
 ## 7. Review
 
@@ -451,6 +454,13 @@ read-out sentence of validation 46, the places that call the reference "outside 
   item 4, 3(c) item 3, 3(d), 4 item 5, 6.2 item 4: the FDM is now about twice the FVM's error at a copper edge inside the outline, no longer two to three
   times), the "not verified" list of section 5 (section 44 boards are run in section 6; the FDM finding 4.5(a) was traced by `research/fdm-inset-edge`).
 
+* **Defect in a study, fixed**: `scripts/study_thin_laminate.py` (report) added (v12 - v6) / 3 as the through-thickness correction at 1000 and 2000 W/m2K, the
+  distance from the 12-element value to the limit, to the extrapolation of the 6-element plan sequence; the right term is 4 (v12 - v6) / 3. Found because the
+  same board (four layers, 1.6 mm, full copper, 1000 W/m2K) had two limits, 24.300 K (section 6) against 24.332 K (section 3(a), its own 3 / 6 / 12 / 24
+  sequence); corrected it is 24.338 K. The limits at 1000 and 2000 W/m2K rise by 0.005 to 0.09 K (at most 0.33 %, the two-layer 1.0 mm board) and the
+  program errors there by 0 to -0.35 point; table 6.1, the readings 6.2 and 6.3 carry the corrected numbers (four-layer 1.6 mm board -3.4 / -6.2 % instead
+  of -3.2 / -6.0 %; thin-gap boards -2.2 .. -6.0 / -4.1 .. -9.7 % instead of -5.9 / -4.0 .. -9.6 %).
+
 #### 7.0.3 Findings in the project documents (for the maintainer; text in `docs/validation-text.md`)
 
 1. **Wrong document, validation 46**: the paragraph says the FEM hottest value "is read as the hottest cell mean like the program's", but the plate rows of
@@ -459,7 +469,10 @@ read-out sentence of validation 46, the places that call the reference "outside 
    numbers (44, 46, the warnings) ARE cell means and stand. Either the rows or the sentence must change; no conclusion moves (0.1 to 0.2 point).
 2. **Stale document, validation 46**: "The FDM at its harmonic default reads a drawn copper edge inside the outline 2 to 3 times cooler than the FVM (-7.0 /
    -14.2 %)" and "on thin-gap boards with pads, 2 to 5 points colder": since validation 47 the default FDM reads -5.8 / -12.0 % and 1.7 to 3.7 points.
-3. **Stale location**: validation 46, `CLAUDE.md` (open decision 1, gate item 1, the Decisions Log entry on the edge warnings) and the 2.7.0 final opinion
+3. **Numbers moved by the study defect above** (at most 0.35 point): validation 43.2, 44, 46, the user-guide limits table, the edge-laminate warning texts of
+   `checks.py` and the CLAUDE.md Decisions Log quote -3.2 / -6.0 %, +2.3 / +2.8 %, -2.2 to -5.9 / -4.0 to -9.6 %, the reference +4.3 / +6.4 %; the corrected values
+   are in `docs/validation-text.md` 3. Rewording the warnings is the maintainer's decision (a text-only `fix/`).
+4. **Stale location**: validation 46, `CLAUDE.md` (open decision 1, gate item 1, the Decisions Log entry on the edge warnings) and the 2.7.0 final opinion
    (`README.md` 2, 5, 6; `fdm-copper-edge-faces.md`) say the reference is outside the repository or cite its git-ignored location; once this folder is
    merged it is `research/independent-fem-edge`. The list is in `docs/validation-text.md`.
 

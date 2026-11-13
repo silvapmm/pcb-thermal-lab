@@ -158,7 +158,10 @@ def report():
                 r = {"p": float("nan"), "ext": vals[-1] + (vals[-1] - vals[0]) / 3.0, "gci": 1.25 * abs(vals[-1] - vals[0]) / 3.0 / vals[-1]}
             k12 = f"{variant}|{L}|{total}|1000|0.1|12"
             k6 = f"{variant}|{L}|{total}|1000|0.1|6"
-            zc = (cache[k12]["tmax"] - cache[k6]["tmax"]) / 3.0 if k12 in cache and k6 in cache else 0.0   # second order in the gap count: ext - v6 = (v12 - v6)/3
+            # Second order in the gap count: the limit lies (v12 - v6) / 3 beyond v12, so 4 (v12 - v6) / 3 beyond v6, which is what the plan extrapolation of the 6-element
+            # sequence needs (the review found (v12 - v6) / 3 here, the distance from v12, which left the limit low by v12 - v6: up to 0.09 K; on the strong-edge plate the
+            # 3 / 6 / 12 / 24 sequence gives 0.045 K against 4 / 3 x 0.038 = 0.050 K from this rule)
+            zc = 4.0 * (cache[k12]["tmax"] - cache[k6]["tmax"]) / 3.0 if k12 in cache and k6 in cache else 0.0
             zc_h = zc if h == 1000 else zc * (0.0 if h < 1000 else 1.0)    # measured only at 1000; applied there, and above it as the same amount (an under-estimate)
             ext = r["ext"] + zc_h
             fine = cache[have[-1]]
