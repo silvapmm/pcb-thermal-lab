@@ -99,6 +99,7 @@ The project is MIT (`LICENSE`). Rules (maintainer, 2026-10-23, after the incoher
 
 ## Git Workflow
 
+- **Note on the name of the integration branch**: it was called `develop` until 2.7.0 and was renamed `development` after the release of 2.7.0; older entries (the Decisions Log, the records of `docs/`, `research/` and `releases/`) keep the old name `develop`, which in them means the branch `development`.
 - Default branch: `main`; active branch: `development`. Do not commit features directly
   to `main`; use a branch and open a PR with `gh pr create`.
 - **Branch rule** (maintainer, mandatory): every working branch (`fix/<topic>`, `feature/<topic>`, `docs/<topic>` and `research/<topic>`) is created **from `development`**, right when the work starts, never from `main` or from another working branch. When the work is finished (reviewed, the whole battery green) it is **merged into `development`** with a merge commit (`git merge --no-ff`, so that the branch stays visible in the history). **Work branches are never deleted, locally or on the remote: they stay as the record of the work**, the same for `research/<topic>`, `feature/<topic>` and `fix/<topic>`. Names are exactly `fix/<topic>`, `feature/<topic>` and `research/<topic>` (kebab-case, English). `main` receives `development` only when everything planned for the next version is done and the maintainer is satisfied, and that merge is the release (version bump, `CHANGELOG.md`, tag; see "Branches and Versions").
