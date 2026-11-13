@@ -50,6 +50,21 @@ def test_an_explicit_severity_wins_over_the_words_and_plain_strings_fall_back():
         checks.warn("x", "high")
 
 
+def test_the_fallback_of_a_plain_model_string_follows_the_definition_of_an_alert():
+    """!
+    @brief The warnings of the models are plain strings: a measured error ('9 % too hot', 'the unsafe side') stays a note, a failure is an alert.
+    @details Review: the first word list turned the Analytic copper-spread note and the imported-copper coarse-cell notes into alerts in the Results Summary.
+    """
+    from pcbthermal import copper
+    note = ("copper coverage varies around the heaters (spread 0.50): the Analytic model spreads the copper of each layer into one uniform sheet and has no copper "
+            "edge; on a part over a copper pad or a window it was measured between 76 % too cool and 9 % too hot against a resolved 3D solution")
+    assert checks.warning_severity(note) == "note"
+    assert checks.warning_severity(copper.COARSE_CELL_WARNING) == "note" and checks.warning_severity(copper.SCREENING_WARNING) == "note"
+    for failure in ("SOR did not converge in 5000 sweeps (residual 1.00E-3)", "the 3D solid was not run: too large",
+                    "the per-layer edge iteration of the Analytic model did not reach its tolerance in 30 products"):
+        assert checks.warning_severity(failure) == "alert", failure
+
+
 def test_the_severity_survives_the_process_boundary():
     """!
     @brief The calculation process sends results by pickle; the field must come back.

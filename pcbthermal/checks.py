@@ -62,8 +62,9 @@ ALERT = "alert"                                  # Severity: the run is refused 
 NOTE = "note"                                    # Severity: everything else (a limit of a model, a coarse cell, a measured error)
 TITLE_MAX = 64                                   # Characters of a warning title (the accordion row of the interface)
 TITLE_COLON_WORDS = 7                            # A colon ends the title only after a first clause of this many words ("Analytic model:", "Via 3 and 1 more vias:" are prefixes)
-_SEVERE_WORDS = ("will not run", "cannot", "refus", "unsafe", "did not converge", "too hot", "very hot", "heats nothing", "runaway", "unreliable",
-                 "not valid", "wrong")
+# The fallback for a plain string (the warnings of the models and of the runs, which have no field): only the words of a failure, as in the definition of ALERT.
+# Words of a measured error ("too hot", "unsafe", "unreliable", "wrong") are not in it: a note that quotes "9 % too hot" against a reference is still a note.
+_SEVERE_WORDS = ("will not run", "cannot", "refus", "not run", "did not converge", "did not settle", "did not reach", "heats nothing", "runaway")
 
 
 def warning_title(w):
@@ -101,7 +102,9 @@ def warning_severity(w):
     @brief The severity of a warning for the interface: "alert" when the model will not run or cannot, a part is outside the board or heats nothing, a loop does
            not converge, the power runs away or the input is wrong; otherwise "note".
     @details The severity is a field set where the warning is created (warn, _add). Only a plain string, which has none, falls back on a search for the words
-             of _SEVERE_WORDS in its text (the old classifier, kept for strings that come from outside the checks).
+             of _SEVERE_WORDS in its text (the words of a failure only: a run not done or refused, a loop that did not converge, settle or reach its
+             tolerance, a runaway; the review removed the words of a measured error, which turned model notes such as the Analytic copper-spread note,
+             quoting '9 % too hot', and the coarse-cell notes of imported copper into alerts).
     @param w A warning (CheckWarning or plain string).
     @return str "alert" or "note".
     """
