@@ -14,6 +14,8 @@ import sys
 import tempfile
 import time
 
+import numpy as np
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
 # Neutral configuration folder: Preferences shows the path of user_defaults.json, which must never be a personal path in a committed picture
@@ -127,7 +129,8 @@ def main(out_dir):
     # A board with an outline: the L-shaped board and its temperature map
     win._load_problem(example_board(), "example-outline")
     win.doc.set_outline([[0, 0], [100, 0], [100, 30], [60, 30], [60, 80], [0, 80]])
-    win.doc.set_props("heater", 1, power=0.0, merge=False)
+    # U2 moves from the cut-away corner into the other arm of the L (x 75 to 81 mm, y 10 to 16 mm) so that it stands on the board; 0.5 W is a small real power
+    win.doc.set_props("heater", 1, power=0.5, polygon=np.array([[0.075, 0.010], [0.081, 0.010], [0.081, 0.016], [0.075, 0.016]]), merge=False)
     win.tabs.setCurrentIndex(0)
     win.canvas.fit()
     shot("outline.png")

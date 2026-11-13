@@ -7,6 +7,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Docs
 
+- **The outline pictures no longer show a part off the board** (`docs/screenshots-outline-heater`; pictures only): in `outline.png` and `outline_temperature.png` the heater U2 (0 W) sat inside the cut-away corner of the L; `examples/make_screenshots.py` now puts it in the other arm (x 75 to 81 mm, y 10 to 16 mm) with 0.5 W, and the two pictures were regenerated.
+
 - **The warnings picture no longer shows a part hanging off the board** (`docs/screenshots-warnings-placement`; pictures only): `examples/make_screenshots.py` places the second source X1 fully on the RP2040 board over copper, and the Results summary picture of the imported board gets a genuine alert (the chip's junction limit exceeded) instead; `editor_warnings.png` and `results_summary_imported.png` regenerated.
 
 ### Fixed
