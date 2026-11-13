@@ -3,6 +3,18 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Added
+
+- **Guard against third-party text in git** (`docs/third-party-text-guard`; tests and documents only, no number moves): `tests/test_third_party_text.py` fails when a tracked path is under `papers/`, when a tracked Markdown file carries OCR page markers, when a tracked file holds the SHA-256 or the title of the confidential ODB++ specification, or when an entry of `research/theory/BIBLIOGRAPHY.md` has no licence field (after the reviewer's opinion `releases/2.7.0/final-opinion/papers-in-git-opinion.md`).
+- **Licence and source address in the bibliography**: every entry of `research/theory/BIBLIOGRAPHY.md` carries `**Licence:**` and `**Source URL:**`; no licence is guessed (`not checked` is the default, `public domain` only for the US government reports).
+
+### Changed
+
+- The OCR tool README and the README say that `tools.ocr` is run with `.venv-research/bin/python` (pypdfium2 is not in the project `.venv`).
+- `releases/regression-harness/reference/version_notes.json` has notes for the pairs v2.5.0 to v2.7.0 quoted from the CHANGELOG; the numeric table `docs/version-comparison.md` is regenerated at the next release.
+
 ## [2.7.0] - 2026-11-13
 
 ### Added

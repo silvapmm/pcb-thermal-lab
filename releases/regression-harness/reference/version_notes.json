@@ -115,5 +115,37 @@
    "Last bit: the symmetric LU changes the last bits of the sums in 143 records (differences far below 1e-8 K, the tolerance of the frozen-numbers test); no other number of the FVM, FDM or 3D solid moves.",
    "The pending-shift files were folded into the 2.5.0 frozen file (`tests/regression/data/v2.5.0.json`) and deleted at the refreeze; the shifts of this pair are checked against the table `reference/expected_shifts_2.5.0.json`."
   ]
+ },
+ "v2.5.0->v2.5.1": {
+  "implemented": [
+   "CHANGELOG [2.5.1]: 'Fixes, display work and text corrections after 2.5.0; the solvers are unchanged except for the speed items below, and the frozen numbers of 2.5.0 hold (tests/regression).' Added: the Display control (display only, no solve changes) and the screenshots of the 2.5.1 views."
+  ],
+  "reading": [
+   "The numeric table of this pair is not generated yet: `docs/version-comparison.md` is regenerated at the next release (`regen_version_comparison.sh` re-runs every tag, so it is not run here). The frozen-number shifts of the pair are in `expected_shifts_2.5.0 (the 2.5.1 frozen numbers equal v2.5.0.json).json`."
+  ]
+ },
+ "v2.5.1->v2.5.2": {
+  "implemented": [
+   "CHANGELOG [2.5.2]: 'Fixes after 2.5.1: files that always save and reopen, the Pulsonix placement header, the licence header on every file, the re-import of a different board and theory text corrections. The solvers and the frozen numbers are unchanged.'"
+  ],
+  "reading": [
+   "The numeric table of this pair is not generated yet: `docs/version-comparison.md` is regenerated at the next release (`regen_version_comparison.sh` re-runs every tag, so it is not run here). The frozen-number shifts of the pair are in `expected_shifts_2.5.0 (the 2.5.2 frozen numbers equal v2.5.0.json).json`."
+  ]
+ },
+ "v2.5.2->v2.6.0": {
+  "implemented": [
+   "CHANGELOG [2.6.0]: 'the release of the model corrections that followed the independent reviews of 2.5: the cut cells of a board with an outline (the exact board cover, the cut-cell links and the edge film), the laminate along the board edge, the via barrel and its rim, the Analytic per-layer edge and local transient, the 3D solid slabs by thickness, the Lumped first ring, the face turned down and the fast square waves. It also adds the project package .pcbtz, a single Layer choice with a clickable model name, the Display view modes on the board, the package size preference and new warnings. Several of these move numbers on purpose; the frozen numbers are refrozen once (tests/regression/data/v2.6.0.json).'"
+  ],
+  "reading": [
+   "The numeric table of this pair is not generated yet: `docs/version-comparison.md` is regenerated at the next release (`regen_version_comparison.sh` re-runs every tag, so it is not run here). The frozen-number shifts of the pair are in `expected_shifts_2.6.0.json`."
+  ]
+ },
+ "v2.6.0->v2.7.0": {
+  "implemented": [
+   "CHANGELOG [2.7.0] (sections Added, Changed, Fixed): among the items that move numbers on purpose, the FDM face of a drawn copper layer from the copper fill of the cells and the harmonic mean of two node sheets, the edge film from the centroid of the board part of a cell for drawn and imported layers (FVM), the outline taken per pixel for imported copper, the ray test of the via rim on imported copper, and the physical layer slabs of the simple stack-up. The rest is display, warnings and tools (boxes, warnings accordion, layer keys, cut overlay, OCR changes)."
+  ],
+  "reading": [
+   "The numeric table of this pair is not generated yet: `docs/version-comparison.md` is regenerated at the next release (`regen_version_comparison.sh` re-runs every tag, so it is not run here). The frozen-number shifts of the pair are in `expected_shifts_2.7.0.json`. The reasons of each shift are the items of the final opinion, releases/2.7.0/final-opinion/README.md section 2."
+  ]
  }
 }
