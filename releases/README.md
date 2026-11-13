@@ -37,3 +37,5 @@ Release work was first done on `research/` and `docs/` branches. The commits are
 | `docs/final-opinion-260` | `release/2.6.0-final-opinion` | `2.6.0/final-opinion/` |
 
 The integration branch was called `develop` until 2.7.0 (renamed `development` after the release of 2.7.0); older entries keep the old name.
+
+The rename is done: the branch is `development` locally and on `origin` (`origin/develop` was deleted by the maintainer); see `2.7.0/rename/README.md`.
