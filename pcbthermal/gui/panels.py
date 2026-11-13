@@ -1412,6 +1412,7 @@ class SolverPanel(QWidget):
         self.cells_label.setToolTip("Unknowns and estimated memory of each model against the limit (Preferences). Green: fits; amber: slow; red: will not run, use the cell shown.")
         self._running = False                              # True while a calculation runs
         self._busy = False                                 # True while any calculation runs or waits: the Run button is then the Stop button
+        self._hold = False                                 # True for a double-click interval after a Stop: Run is shown but not yet clickable
         self.blocked = ""                                  # Why Run is disabled (a model above the memory limit), "" when it is not
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
@@ -1631,6 +1632,14 @@ class SolverPanel(QWidget):
         self._busy = bool(busy)
         self._style_run_button()
 
+    def set_hold(self, hold):
+        """!
+        @brief Keep the Run button disabled for a moment after a Stop, so that the second click of a double click on Stop does not start a new run.
+        @param hold True while the hold lasts.
+        """
+        self._hold = bool(hold)
+        self._style_run_button()
+
     def _style_run_button(self):
         """!
         @brief Text, tooltip and enabled state of the Run / Stop button: Stop is always usable; Run is off while a model is above the memory limit.
@@ -1641,7 +1650,7 @@ class SolverPanel(QWidget):
             self.run.setEnabled(True)
             return
         self.run.setText(self.RUN_TEXT)
-        self.run.setEnabled(not self.blocked and not self._running)
+        self.run.setEnabled(not self.blocked and not self._running and not self._hold)
         self.run.setToolTip(f"Cannot run: {self.blocked}" if self.blocked else "Solve the selected models (F5).")
 
     def set_running(self, running, text=""):

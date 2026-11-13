@@ -1628,7 +1628,8 @@ def test_run_becomes_stop_cancels_and_becomes_run_again(win, qtbot):
     assert len(compute.ENGINE.known) == jobs_before == 1
     win.solver_panel.run.click()                                           # Stop
     qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=20000)
-    assert win.solver_panel.status.text() == "Cancelled." and _is_run(win) and not compute.busy()
+    assert win.solver_panel.status.text() == "Cancelled." and not compute.busy()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=5000)                    # Run comes back after the short hold that follows a Stop
     run(win, qtbot, ("fvm",), cell=2.0)                                    # A new run works and the button is Run when it ends
     assert win.sim.reference.model == "fvm"
     qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
@@ -1644,6 +1645,33 @@ def test_the_toolbar_stop_button_and_ctrl_dot_cancel_too(win, qtbot):
         (win.a_stop if how == "toolbar" else win.a_cancel).trigger()
         qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
         assert win.solver_panel.status.text() == "Cancelled."
+
+
+def test_a_double_click_on_stop_does_not_start_a_new_run(win, qtbot):
+    """A double click on Stop (dock button or toolbar): the first click stops, the second lands on the Run button that took its place and must start nothing (review)."""
+    from pcbthermal.gui import compute
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    for where in ("dock", "toolbar"):
+        win.run_simulation()
+        qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+        if where == "dock":
+            b = win.solver_panel.run
+        else:
+            b = win.toolbar.widgetForAction(win.a_stop)
+        c = b.rect().center()
+        QTest.mousePress(b, Qt.LeftButton, Qt.NoModifier, c)
+        QTest.mouseRelease(b, Qt.LeftButton, Qt.NoModifier, c)               # Stop
+        if where == "toolbar":
+            b = win.toolbar.widgetForAction(win.a_run)                       # The toolbar button of Run now stands where Stop was
+            c = b.rect().center()
+        QTest.mouseDClick(b, Qt.LeftButton, Qt.NoModifier, c)                # The second press of the double click, then its release
+        QTest.mouseRelease(b, Qt.LeftButton, Qt.NoModifier, c)
+        qtbot.wait(50)
+        assert not compute.busy() and not compute.ENGINE.known, where
+        assert win.solver_panel.status.text() == "Cancelled."
+        qtbot.waitUntil(lambda: _is_run(win), timeout=5000)                  # and Run comes back by itself
+        assert win.solver_panel.run.isEnabled()
 
 
 def test_stop_cancels_an_animation_and_a_profile_run(win, qtbot):

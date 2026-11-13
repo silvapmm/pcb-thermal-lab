@@ -9,6 +9,7 @@ import copy
 import dataclasses
 import json
 import os
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSettings, Qt, QTimer, Signal
@@ -1466,7 +1467,13 @@ class MainWindow(QMainWindow):
         @param busy True while any calculation runs or waits.
         """
         self.solver_panel.set_busy(busy)
-        self.a_run.setEnabled(not busy)                         # F5 does nothing while a calculation runs (a disabled action ignores its key)
+        # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
+        # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
+        hold = (not busy) and time.monotonic() < getattr(self, "_run_hold_until", 0.0)
+        self.solver_panel.set_hold(hold)
+        self.a_run.setEnabled(not busy and not hold)            # F5 does nothing while a calculation runs (a disabled action ignores its key)
+        if hold:
+            QTimer.singleShot(max(1, int(1000 * (self._run_hold_until - time.monotonic())) + 1), self._release_run_hold)
         actions = self.toolbar.actions()
         if busy and self.a_run in actions:
             self.toolbar.removeAction(self.a_run)
@@ -1474,6 +1481,16 @@ class MainWindow(QMainWindow):
         elif not busy and self.a_stop in actions:
             self.toolbar.removeAction(self.a_stop)
             self.toolbar.addAction(self.a_run)
+
+    def _release_run_hold(self):
+        """!
+        @brief End the short hold of the Run button after a Stop (unless a calculation started meanwhile, which keeps the Stop state).
+        """
+        if not shiboken6.isValid(self):
+            return
+        busy = compute.busy()
+        self.solver_panel.set_hold(False)
+        self.a_run.setEnabled(not busy)
 
     def run_simulation(self):
         """!
@@ -1511,6 +1528,8 @@ class MainWindow(QMainWindow):
         """!
         @brief Cancel every calculation (simulation, animation, profile run, analysis, power calculator) without waiting: the calculation process is stopped.
         """
+        # Set before the cancel, which turns the button back into Run at once (see _on_busy)
+        self._run_hold_until = time.monotonic() + QApplication.doubleClickInterval() / 1000.0
         compute.cancel_all()
 
     def _on_cancelled(self, panel):
