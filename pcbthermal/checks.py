@@ -46,6 +46,7 @@ class CheckWarning(str):
     kind = None
     index = None
     short = None                                   # One-line form of the text for the live list; None when the text is already one line
+    severity = None                                # "alert" or "note", set where the warning is created (see warn); None for a plain string
 
 
 def line(w):
@@ -57,6 +58,8 @@ def line(w):
     return getattr(w, "short", None) or str(w)
 
 
+ALERT = "alert"                                  # Severity: the run is refused or wrong, a part heats nothing, a loop fails, the input is wrong
+NOTE = "note"                                    # Severity: everything else (a limit of a model, a coarse cell, a measured error)
 TITLE_MAX = 64                                   # Characters of a warning title (the accordion row of the interface)
 TITLE_COLON_WORDS = 7                            # A colon ends the title only after a first clause of this many words ("Analytic model:", "Via 3 and 1 more vias:" are prefixes)
 _SEVERE_WORDS = ("will not run", "cannot", "refus", "unsafe", "did not converge", "too hot", "very hot", "heats nothing", "runaway", "unreliable",
@@ -95,15 +98,42 @@ def warning_title(w):
 
 def warning_severity(w):
     """!
-    @brief The severity of a warning for the interface: "high" for a result that is wrong, refused or unsafe, otherwise "note".
+    @brief The severity of a warning for the interface: "alert" when the model will not run or cannot, a part is outside the board or heats nothing, a loop does
+           not converge, the power runs away or the input is wrong; otherwise "note".
+    @details The severity is a field set where the warning is created (warn, _add). Only a plain string, which has none, falls back on a search for the words
+             of _SEVERE_WORDS in its text (the old classifier, kept for strings that come from outside the checks).
     @param w A warning (CheckWarning or plain string).
-    @return str "high" or "note".
+    @return str "alert" or "note".
     """
+    explicit = getattr(w, "severity", None)
+    if explicit in (ALERT, NOTE):
+        return explicit
     text = str(w).lower()
-    return "high" if any(word in text for word in _SEVERE_WORDS) else "note"
+    return ALERT if any(word in text for word in _SEVERE_WORDS) else NOTE
 
 
-def _add(out, kind, index, text, short=None):
+def warn(text, severity=NOTE, kind=None, index=None, short=None):
+    """!
+    @brief Make a warning with its severity (the one place where a warning gets it).
+    @param text Full warning text.
+    @param severity ALERT or NOTE.
+    @param kind Element kind ("zone", "heater", "heatsink" or "via"), or None for a warning about the whole design.
+    @param index 0-based index of the element in its list, or None.
+    @param short One-line form for the live list (None: the full text is already short).
+    @return CheckWarning (a str that carries kind, index, short and severity).
+    @throws ValueError If the severity is neither ALERT nor NOTE.
+    """
+    if severity not in (ALERT, NOTE):
+        raise ValueError(f"unknown warning severity {severity!r}")
+    w = CheckWarning(text)
+    w.severity = severity
+    w.kind = kind
+    w.index = index
+    w.short = short
+    return w
+
+
+def _add(out, kind, index, text, short=None, severity=NOTE):
     """!
     @brief Append a warning to a list, tagged with the element it is about.
     @param out List of warnings being built.
@@ -111,12 +141,9 @@ def _add(out, kind, index, text, short=None):
     @param index 0-based index of the element in its list, or None.
     @param text Full warning text (what the Results summary shows and the tooltip of the live list).
     @param short One-line form for the live list under Run (None: the full text is already short).
+    @param severity ALERT or NOTE (default NOTE).
     """
-    w = CheckWarning(text)
-    w.short = short
-    w.kind = kind
-    w.index = index
-    out.append(w)
+    out.append(warn(text, severity, kind, index, short))
 
 
 def check_problem(problem, cell_mm=1.0, models=None):
@@ -141,7 +168,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         imported_layers = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
     except ValueError as exc:
         # Damaged or mismatched imported copper: every run would refuse it, so say why here and check the rest on the drawn zones
-        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).")
+        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).", ALERT)
         fill = copper.problem_fill(problem, nx, ny, dx, dy, 4, source=False)
         imported_layers = set()
 
@@ -157,7 +184,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
                  f"{name}: a heat source ignores {', '.join(ignored)}.")
         area = polygon_area(h.polygon)
         if area <= 0:
-            _add(out, "heater", k, f"{name}: the footprint has zero area.")
+            _add(out, "heater", k, f"{name}: the footprint has zero area.", severity=ALERT)
             heater_poly.append(None)
             continue
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
@@ -168,7 +195,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         if inside <= 0.0:
             # Nothing of the part is on the board: there is no "part that is inside" to take the power
             _add(out, "heater", k, f"{name}: the whole footprint is outside the board, so the part heats nothing; move it onto the board.",
-                 f"{name}: the footprint is entirely outside the board.")
+                 f"{name}: the footprint is entirely outside the board.", ALERT)
         elif inside < 0.98:
             _add(out, "heater", k, f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
                        "is applied to the part that is inside.", f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board.")
@@ -310,7 +337,7 @@ def _outline_warning(text):
     @return CheckWarning tagged with no element.
     """
     out = []
-    _add(out, None, None, text, "The board outline is too complex for this cell (see the details).")
+    _add(out, None, None, text, "The board outline is too complex for this cell (see the details).", ALERT)
     return out[0]
 
 
@@ -1278,9 +1305,9 @@ def check_thick_plates(problem, rows, result=None):
         for what, t, k, q, note in plates:
             drop = thick_plate_bound(q, 1.0, t, k)
             if drop > THICK_PLATE_LIMIT * rise:
-                out.append(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
+                out.append(warn(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K){note}; the models "
-                           "keep one temperature through the thickness. The value is a bound, not added to the results.")
+                           "keep one temperature through the thickness. The value is a bound, not added to the results."))
     return out
 
 
@@ -1386,10 +1413,10 @@ def check_fin_channels(problem, result=None):
                          "the effect is not otherwise quantified.")
             else:
                 where = "Fins down on a horizontal board: the effect is not quantified (no measurement was found)."
-            out.append(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
+            out.append(warn(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
                        f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {loss_text} than a plate of the same height "
                        f"({phi:.2f} of its coefficient), and the model does not slow it. Use a larger pitch, shorter channels, or the datasheet theta_SA. "
-                       + where)
+                       + where))
     return out
 
 
@@ -1421,10 +1448,10 @@ def check_low_rayleigh(board, info):
     ras = [info[f]["rayleigh"] for f in ("top", "bottom") if info[f]["natural"] > info[f]["forced"]]
     if not ras or min(ras) >= LOW_RAYLEIGH_LIMIT:
         return []
-    return [f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
+    return [warn(f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
             "the face is too small or too little heated for a thin boundary layer, and the natural-convection coefficient is not checked there "
             "(the plate correlation does not count the air drawn in at the sides; the general and laminar forms differ by 4 to 6 %); treat the "
-            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients"]
+            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients")]
 
 
 # Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
