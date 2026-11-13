@@ -4,17 +4,31 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
-## Summary of the current version (2.7.0, 2026-11-13)
+## Summary of the current version (2.7.1, 2026-11-13; 2.7.0 is the last version on `main` until the 2.7.1 merge)
 
 * **Interface**: the GUI redesign (boxes, the Warnings (N) accordion, layer keys L / Shift+L and 0..9, export of the maps over the copper), the cut overlay of the profile plots, the coldest-point marker, shorter hints, the hole categories on the editor canvas, five small bug fixes of the window and the import.
 * **Models**: the edge film from the centroid of the cut cell for drawn and imported copper, the outline mask of imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone far via; edge-laminate warnings that quote an independent finite-element solution (`research/independent-fem-edge`).
 * **Release state**: 2.7.0 is released (`main`, tag `v2.7.0`); the numbers moved on purpose are held to the new frozen reference `tests/regression/data/v2.7.0.json`.
-* **Done for 2.8.0 (branch `fix/report-disclaimer`)**: one disclaimer line (`results.DISCLAIMER`, a design aid never compared with a measured board) in the text and Markdown reports, the on-screen summary, the command-line output, the JSON summary and the Power Calculator result; tests `tests/test_report_disclaimer.py`; no number moves.
+* **Released in 2.7.1 (branch `fix/report-disclaimer`)**: one disclaimer line (`results.DISCLAIMER`, a design aid never compared with a measured board) in the text and Markdown reports, the on-screen summary, the command-line output, the JSON summary and the Power Calculator result; tests `tests/test_report_disclaimer.py`; no number moves.
 * **Next**: 2.8.0 (investigations that may become features), see 'Planned: 2.8.0' below; every version is listed newest first after this summary.
 
 ---
 
-## 2.7.0 - 2026-11-13: the GUI redesign, edge-film and slab corrections, the independent finite-element reference (prepared on `develop`, not yet on `main`)
+## 2.7.1 - 2026-11-13: interface fixes and a disclaimer in the reports
+
+A patch release of the first wave of the 2.8.0 plan (fixes, documents and tests; no number moves, the frozen file `v2.7.0.json` holds, the project format is unchanged).
+
+* **Results page in a narrow window** (`fix/results-map-markers-and-cut-locator`): `ResultsView._size_to_current_page`, `PlotTab._place_cut_overlay`, `plots.profile_has_strip`; tests in `tests/test_map_markers_and_cut_locator.py`. **Known limit**: at 900 x 700 with both docks open the Cut slider of Profiles is very short; the arrow keys move it (see 'Planned: 2.8.0').
+* **Properties focus** (`fix/enter-focus-and-calculator-test`): `BoardView.rebuild` reports the selection only when it changed; `tests/test_enter_focus.py`. The reported sequence was not reproduced offscreen.
+* **Duplicate selects the copies in Properties and the list** (same branch): `MainWindow._duplicate`.
+* **Disclaimer** (`fix/report-disclaimer`): `results.DISCLAIMER` in the text, Markdown and JSON reports and the Power Calculator result, the on-screen summary and the command-line output; `tests/test_report_disclaimer.py`; user guide chapter 18.
+* **Documents and guards**: the JEDEC numbers of the calculator (`docs/calculators.md` 2.1), the third-party text guard (`tests/test_third_party_text.py`) and licences in the bibliography, the OCR environment, the version notes, the screenshots, the branch rename.
+
+How it was tested: the reviewer's final opinion (`releases/2.7.1/final-opinion/README.md`: quick set 1028 passed, an offscreen drive of the window with 29 checks), the frozen numbers at 2, 1 and 0.5 mm, and the whole battery on the final tree (to be recorded at the release).
+
+---
+
+## 2.7.0 - 2026-11-13: the GUI redesign, edge-film and slab corrections, the independent finite-element reference
 
 * *How 2.7.0 was tested*: whole battery (open boards and Gerber samples present): `3478 passed, 9 skipped, 2 xfailed, 1 warning in 41 min 34 s` (on the merge of `fix/gui-warning-icons-270` with `develop` 5d95c54f; the commits since are documents only; the refreeze branch gave `3445 passed` in 40 min 48 s before that branch); 5 passed on `tests/test_format_compat_245.py` with `PCBT_COMPAT_V245=1`; 4 passed on `tests/test_no_secrets.py` with `PCBT_SCAN_KEY_VALUES=1`; 317 passed on `tests/regression` at 2, 1 and 0.5 mm against `tests/regression/data/v2.7.0.json` with no pending file; `study_diff.py --strict` against v2.6.0: 0 alarms (249 records, 171 bit-identical, 78 moved, 1008 numbers expected, 0 unexplained; table `releases/regression-harness/reference/expected_shifts_2.7.0.json`). An earlier battery on `fd49b969` gave `3432 passed, 9 skipped, 2 xfailed, 1 warning in 40 min 18 s`.
 
@@ -344,11 +358,13 @@ There is no separate 2.6.1 release (maintainer's decision): everything below, th
 
 ### Planned: 2.8.0 (a version of confidence, not of features)
 
-**The aim of 2.8.0 is confidence**: settle the model questions with independent references, correct or bound the known large errors, and fix the small interface defects. It is NOT a feature release; the numbering rule allows any `feature/` branch to give a minor number, but the goal is stability. There is **no 2.7.1**: the Profiles-tab narrow-window fix (merged into `development`) is released with 2.8.0. Dropped items stay dropped (vector copper, the BOM role). The electro-thermal coupling is a wish list item, not planned (Ideas, item 1).
+**The aim of 2.8.0 is confidence**: settle the model questions with independent references, correct or bound the known large errors, and fix the small interface defects. It is NOT a feature release; the numbering rule allows any `feature/` branch to give a minor number, but the goal is stability. The first wave (the Profiles-tab narrow-window fix, the Properties focus and Duplicate fixes, the disclaimer, the documents and the guard) was released as **2.7.1**, a patch release because it holds fixes only; this plan starts from 2.7.1. Dropped items stay dropped (vector copper, the BOM role). The electro-thermal coupling is a wish list item, not planned (Ideas, item 1).
 
 **The measured board (G1) will happen, but it does not block the version**: when the data exists (the colleague's board; request list in `research/ROADMAP.md` section 5) the comparison study runs on its own branch `research/measured-board-colleague`; if the data is late, 2.8.0 ships without it and the Results-summary line 'never compared with a measured copper board' stays.
 
 Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `viawell.py`, `lumped.py`, `checks.py` or `docs/theory.md` are merged one after another; each branch goes executor, reviewer, maintainer with the whole battery before the merge; a number-moving fix writes its pending frozen-number file and the refreeze happens once, after the version bump. Type: F feature, X fix, I investigation, V validation, D documents or tools. Size: S under a day of agents, M a few days, L a week or more. Frozen: whether the frozen numbers move.
+
+**Released in 2.7.1 (wave 1)**: the rows below that are marked done in the 2.7.1 chapter (narrow window, Enter focus, Duplicate, the disclaimer, the third-party guard, the JEDEC numbers, the OCR environment, the version notes). Small interface item left for 2.8.0: the Cut slider of Profiles is very short at 900 x 700 with both docks open (the arrow keys move it; give it a minimum width or a line of its own).
 
 **Wave 1: cheap and safe (no number moves)**
 

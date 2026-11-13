@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.7.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3478%20passed-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.7.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3478%20passed-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -152,6 +152,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.7.1** (2026-11-13): a patch release: the Results page no longer scrolls sideways in a narrow window, the Properties focus and Duplicate fixes, a disclaimer line in every report, tests and documents; no result changes.
 - **2.7.0** (2026-11-13): the GUI redesign (boxes, a collapsible Warnings list, layer keys), the cut overlay of the profile plots, the coldest-point marker, the edge film from the centroid for drawn and imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone via, the hole categories, edge warnings quoting an independent finite-element solution (`research/independent-fem-edge`), and the five small bug fixes; the frozen numbers refrozen once (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.6.0** (2026-11-07): model corrections after the independent reviews (cut cells, laminate edge band, via barrel, Analytic per-layer edge, 3D solid slabs, face-down convection, fast square waves), the project package `.pcbtz`, a single Layer box, the Display views on the board; the frozen numbers refrozen once.
 - **2.5.2** (2026-11-07): fixes: non-finite and absurd lengths refused on load and never written, the Pulsonix placement preamble, the licence header on every file, the re-import of a different board, theory text corrections (details in [`CHANGELOG.md`](CHANGELOG.md)).

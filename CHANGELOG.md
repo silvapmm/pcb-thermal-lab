@@ -3,35 +3,29 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
-## [Unreleased]
+## [2.7.1] - 2026-11-13
+
+A patch release: interface fixes, a disclaimer line in the reports, tests and documents. No result changes (the frozen numbers of 2.7.0 hold) and the project file format is unchanged.
 
 ### Fixed
 
-- **Enter in a Properties field keeps the focus in the field** (`fix/enter-focus-and-calculator-test`; display only, no number moves): the canvas reported its selection after every rebuild, also when nothing had changed, so an element shown in Properties that is not drawn on the active layer (two heaters on two layers picked in the element tree, or a selection set by code) lost its form, and the keyboard focus with it, at the first edit (the focus fell to the tab bar), and a selection on two layers was cut to the one drawn after any edit. `Canvas.rebuild` now reports the selection only when the rebuild changed it; the Properties form still refreshes after undo, redo and values written elsewhere (it listens to the document itself). **The maintainer's report (the first Enter after a change of the Layer box) was not reproduced through the real window offscreen** (Layer box, L, Shift+L, digits, element tree, warning links, Results tab shown), by the executor or by the review, so the fix covers the neighbouring path that was found, not necessarily the reported one. Tests `tests/test_enter_focus.py`.
-- **Duplicate (Ctrl+D) selects the copy in Properties and in the element list** (review of the same branch): the board selected the copies without telling the panels, so Properties and the list kept the originals and the next value typed changed the original. `MainWindow._duplicate`.
-- **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view** (`fix/results-map-markers-and-cut-locator`; display only, no number moves): the Results tabs took the minimum width of their widest page (the Animation and Power profile controls, about 530 px), so at 900 x 700 with both docks open the Profiles tab scrolled sideways and its cut picture was out of view. Now only the page shown sets that width (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when the canvas crosses the width at which it moves between the inset over the curves and the strip above them. *(tests in `tests/test_map_markers_and_cut_locator.py`)*
-
-### Added
-
-- **Guard against third-party text in git** (`docs/third-party-text-guard`; tests and documents only, no number moves): `tests/test_third_party_text.py` fails when a tracked path is under `papers/`, when a tracked Markdown file carries OCR page markers, when a tracked file holds the SHA-256 or the title of the confidential ODB++ specification, or when an entry of `research/theory/BIBLIOGRAPHY.md` has no licence field (after the reviewer's opinion `releases/2.7.0/final-opinion/papers-in-git-opinion.md`).
-- **Licence and source address in the bibliography**: every entry of `research/theory/BIBLIOGRAPHY.md` carries `**Licence:**` and `**Source URL:**`; no licence is guessed (`not checked` is the default, `public domain` only for the US government reports).
+- **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view**: only the tab shown sets the width of the Results page (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when it moves between the inset over the curves and the strip above them. At 900 x 700 with both docks open the Cut slider is very short; the arrow keys still move it.
+- **Enter in a Properties field keeps the focus in the field** for an element shown in Properties that is not drawn on the active layer (two heaters on two layers picked in the element tree, or a selection set by code): the canvas told the panel 'nothing selected' after every edit, which destroyed the form and its focus. The maintainer's report (the first Enter after a change of the Layer box) was not reproduced offscreen; the fix covers the neighbouring path that was found.
+- **Duplicate (Ctrl+D) selects the copy in Properties and in the element list**: they kept showing the original, so the next value typed changed the original.
 
 ### Changed
 
-- The OCR tool README and the README say that `tools.ocr` is run with `.venv-research/bin/python` (pypdfium2 is not in the project `.venv`).
-- `releases/regression-harness/reference/version_notes.json` has notes for the pairs v2.5.0 to v2.7.0 quoted from the CHANGELOG; the numeric table `docs/version-comparison.md` is regenerated at the next release.
-- **A disclaimer line in every report** (`fix/report-disclaimer`; text only, no number moves): the text report (the saved `report.txt` and the on-screen Results summary), the Markdown report (and so the command-line output), the JSON summary (key `disclaimer`) and the Power Calculator result carry one line, `results.DISCLAIMER`: PCB Thermal Lab is a design aid, its models have not yet been compared with measurements of a real board, validate critical designs by measurement. The note about the computed heat transfer coefficients stays as it was. User guide, chapter 18.
-
-### Tests
-
-- **Power Calculator dialog** (`tests/test_calculator_dialog.py`): the dialog is driven offscreen on the datasheet boards (CSD17308Q3 46.7 K/W, -1.4 %; JEDEC 2s2p 31.6 K/W, +2.9 % at the dialog's 0.5 mm cell) and closed while its calculation runs; the greyed fields, the case selector and the Help page stay in `tests/test_calculator_window.py`.
-- **The JEDEC row of `docs/calculators.md` 2.1 and of the calculator help corrected** (documents only): they quoted the 2.6.0 program (31.4 K/W, +3.4 %); the 2.7.0 program gives 31.6 K/W, 1.029 W, +2.9 % at 0.5 mm (32.2 K/W, +0.8 % at 1 mm), and the board without vias 74.6 K/W (70.9); the 2.7.0 documentation review had called 2.1 current. The help no longer says that the Gerber import is not in the interface.
+- **A disclaimer line in every report**: the text report (saved and on screen), the Markdown report and so the output of `python -m pcbthermal run`, the JSON summary (new key `disclaimer`) and the Power Calculator result say that PCB Thermal Lab is a design aid whose models have not yet been compared with measurements of a real board, and that critical designs are to be validated by measurement. A script that reads the first lines of the command-line output sees one more line.
 
 ### Docs
 
-- **The outline pictures no longer show a part off the board** (`docs/screenshots-outline-heater`; pictures only): in `outline.png` and `outline_temperature.png` the heater U2 (0 W) sat inside the cut-away corner of the L; `examples/make_screenshots.py` now puts it in the other arm (x 75 to 81 mm, y 10 to 16 mm) with 0.5 W, and the two pictures were regenerated.
+- The JEDEC 2s2p row of the Power Calculator help and of `docs/calculators.md` 2.1 quoted the 2.6.0 program (31.4 K/W, +3.4 %); the 2.7.0 program gives 31.6 K/W, +2.9 % at the 0.5 mm cell. The help no longer says that the Gerber import is not in the interface.
+- Screenshots: the outline pictures and the warnings picture no longer show a part off the board; the Results summary pictures show the disclaimer.
+- Every entry of the research bibliography carries its licence and source address; the OCR tool is run from `.venv-research`; the version-comparison notes cover v2.5.0 to v2.7.0; the integration branch is called `development`.
 
-- **The warnings picture no longer shows a part hanging off the board** (`docs/screenshots-warnings-placement`; pictures only): `examples/make_screenshots.py` places the second source X1 fully on the RP2040 board over copper, and the Results summary picture of the imported board gets a genuine alert (the chip's junction limit exceeded) instead; `editor_warnings.png` and `results_summary_imported.png` regenerated.
+### Tests
+
+- `tests/test_third_party_text.py` (no third-party text, OCR output or confidential fingerprint in git; a licence field on every bibliography entry), `tests/test_report_disclaimer.py`, `tests/test_enter_focus.py`, `tests/test_calculator_dialog.py` (the Power Calculator dialog driven on the datasheet boards), and the narrow-window cases in `tests/test_map_markers_and_cut_locator.py`.
 
 ## [2.7.0] - 2026-11-13
 
