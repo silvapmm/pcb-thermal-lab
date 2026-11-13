@@ -59,10 +59,10 @@ def test_the_harmonic_mean_is_the_default():
 
 @pytest.mark.parametrize("cell, bound", [(1.0, 0.07), (0.5, 0.04)])
 def test_across_a_copper_gap_the_harmonic_mean_is_closer_to_the_independent_solver(cell, bound):
-    # Measured (same cell): arithmetic -14.32 / -6.29 %, harmonic -5.49 / -3.17 % at 1 / 0.5 mm
+    # Measured (same cell): arithmetic -14.32 / -6.29 %, harmonic -5.49 / -3.17 % at 1 / 0.5 mm (this test keeps face_fill=False: the harmonic mean of the nodal sheets)
     ref = gap_reference(cell)
     a = float(fdm.solve_steady(gap_board(), cell, "arithmetic").t_max) - 25.0
-    h = float(fdm.solve_steady(gap_board(), cell).t_max) - 25.0
+    h = float(fdm.solve_steady(gap_board(), cell, face_fill=False).t_max) - 25.0
     assert abs(h / ref - 1.0) < abs(a / ref - 1.0)
     assert h / ref - 1.0 == pytest.approx(-bound + 0.015, abs=0.015)
     assert h / ref - 1.0 < 0.0                                  # still on the cool side: the mean never overshoots the reference here

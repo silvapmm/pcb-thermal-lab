@@ -28,11 +28,13 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
 # 2.7.0 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
 # coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
+# 2.7.0 (fix/simple-stackup-physical-layers, merge 35f242aa): the 'field' hash (489e1bd3 -> a32414ed) and the 'fields' hash (324047ee -> 07e40550, All layers draws the same field) moved, because the 4-layer example board's FVM field moved exactly
+# there (hottest 85.203 -> 85.294 K at 2 mm); not the markers, the hot mark or the display code and the 'gradient' hash (f1046ff0 -> f3c6d4e3) is the gradient of that same field; the drawing code is unchanged.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
-    "field": "489e1bd374f122f91948e79e61b6cd90968dae6b9b146bbf7d39ecabb67f37bf",
-    "fields": "324047eef5590cc0773753e30e9b6c5debdc30046bfc758d93c7a8a5016370bd",
-    "gradient": "f1046ff0c00f471af1e2223dd60cf4c5a8c46650475f1aa604bfc0be63def206",
+    "field": "a32414ed17a349d01fa6453f2f972c4aef94036b0a670ca270eefdbc1e3cadf4",
+    "fields": "07e405503f2f7d094e122246b6e4a18c5c9d6d308badf72700926bc8152b201e",
+    "gradient": "f3c6d4e35e58d695307747a726722348e4bfec6c31bbdb84816d5e55a38a55ec",
 }
 
 

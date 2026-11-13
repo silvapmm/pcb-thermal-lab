@@ -24,6 +24,8 @@ from .geometry import exact_coverage, part_weights, coverage_fraction, edge_leng
 from . import blocks, copper, fvm, laminate, viawell
 from .results import SteadyResult
 
+FACE_FILL_TOL = 1e-9        # Copper fill difference (0..1) below which the nodal fill is taken to equal the fill of the face: uniform copper keeps the earlier faces bit for bit
+
 
 def _mean(a, b, kind, ca=None, cb=None):
     """!
@@ -93,7 +95,50 @@ class Network:
              the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
     """
 
-    def __init__(self, problem, cell_mm=2.0, mean="harmonic", sampling="area", faces=None):
+    def _copper_face_sheets(self, fx, fy, S, ncov, cell_fill, fill, tc, k_lam, k_copper):
+        """!
+        @brief Replace the in-plane face sheets of the drawn copper layers by the sheet built from the copper fill of the cells the face runs through (in place).
+        @details The cell between two nodes is uniform along the face, so the face needs no mean of two nodal values: `S_face = (A_face + B f_face) c_face`, with
+                 `B = (k_cu - k_lam) t_cu`, `A` the physical sheet of the node without copper (laminate and the sub-gaps the node keeps), `f_face` the mean copper fill of
+                 the cells flanking the face and `c_face` the mean outline cover of the two nodes. With the harmonic mean of the nodal sheets a node whose control volume is
+                 cut by a copper edge reads half copper, the first copper link 0.67 of the copper sheet and the edge is smeared over a cell (docs/theory.md 3, validation 47).
+                 Only faces where a nodal fill differs from the fill of the face are replaced (uniform copper keeps the earlier arithmetic, bit for bit); layers with imported
+                 copper keep their own mappings.
+        @param fx Face sheets in x (layers, ny, nx - 1), W/K, changed in place for the copper layers.
+        @param fy Face sheets in y (layers, ny - 1, nx), W/K, changed in place for the copper layers.
+        @param S Sheet conductance of the nodes after the laminate rule (W/K), (layers, ny, nx).
+        @param ncov Outline cover of the nodes (0..1).
+        @param cell_fill Copper fill of the cells (L, cells_y, cells_x), 0..1.
+        @param fill Copper fill of the nodes (L, ny, nx), 0..1.
+        @param tc Copper thickness of every layer, (L, 1, 1) in m.
+        @param k_lam Laminate conductivity of every layer, (L, 1, 1) in W/(m K).
+        @param k_copper Copper conductivity (W/(m K)).
+        @return None.
+        """
+        L = cell_fill.shape[0]
+        skip = set(self.copper.layers) if self.copper is not None else set()
+        B = (k_copper - k_lam) * tc                                          # Sheet that copper adds to the laminate (W/K)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            A = np.where(ncov[None] > 0, (S[:L] - B * ncov[None] * fill) / ncov[None], 0.0)    # Physical sheet of every node with no copper
+        # Fill of the face: mean of the two cells it runs through (a face on the board edge sees one cell twice)
+        cfx = np.pad(cell_fill, ((0, 0), (1, 1), (0, 0)), mode="edge")
+        ffx = 0.5 * (cfx[:, :-1, :] + cfx[:, 1:, :])
+        cfy = np.pad(cell_fill, ((0, 0), (0, 0), (1, 1)), mode="edge")
+        ffy = 0.5 * (cfy[:, :, :-1] + cfy[:, :, 1:])
+        cvx = 0.5 * (ncov[:, :-1] + ncov[:, 1:])[None]
+        cvy = 0.5 * (ncov[:-1, :] + ncov[1:, :])[None]
+        new_x = np.maximum((0.5 * (A[:, :, :-1] + A[:, :, 1:]) + B * ffx) * cvx, 0.0)
+        new_y = np.maximum((0.5 * (A[:, :-1, :] + A[:, 1:, :]) + B * ffy) * cvy, 0.0)
+        tol = FACE_FILL_TOL                                                  # Uniform copper: the nodal fill equals the fill of the face
+        diff_x = (np.abs(fill[:, :, :-1] - ffx) > tol) | (np.abs(fill[:, :, 1:] - ffx) > tol)
+        diff_y = (np.abs(fill[:, :-1, :] - ffy) > tol) | (np.abs(fill[:, 1:, :] - ffy) > tol)
+        for k in range(L):
+            if k in skip:
+                continue
+            fx[k] = np.where(diff_x[k], new_x[k], fx[k])
+            fy[k] = np.where(diff_y[k], new_y[k], fy[k])
+
+    def __init__(self, problem, cell_mm=2.0, mean="harmonic", sampling="area", faces=None, face_fill=True):
         """!
         @param problem A Problem.
         @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
@@ -105,6 +150,8 @@ class Network:
         @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks, False ignores it, or a copper.CopperSource. The fill of the imported layers
                comes from the masks (averaged around the nodes); with the "faces" or "lambda" mapping the in-plane couplings of those layers are the face conductances of
                the reduced sheet between node centres (the windows are centred on the nodes), with "fill" the mean of the two nodal values. Only with area sampling.
+        @param face_fill True (default): the in-plane face sheet of a drawn copper layer is built from the copper fill of the cells the face runs through (`_copper_face_sheets`); False: the
+               harmonic mean of the nodal sheets of the earlier versions (studies, tests). Only with the laminate rule, area sampling and the harmonic mean.
         @throws ValueError If the sampling is unknown.
         """
         problem.validate()
@@ -230,6 +277,8 @@ class Network:
         on = self.active
         fx = _mean(S[:, :, :-1], S[:, :, 1:], mean, ncov[None, :, :-1], ncov[None, :, 1:])
         fy = _mean(S[:, :-1, :], S[:, 1:, :], mean, ncov[None, :-1, :], ncov[None, 1:, :])
+        if face_fill and rule is not None and sampling == "area" and mean == "harmonic":
+            self._copper_face_sheets(fx, fy, S, ncov, cell_fill, fill, tc, k_lam, m.k_copper)
         # Imported copper: the face conductances of the sheet the copper node keeps after the rule (the sheet before the rule is via_S)
         faces_xy = {}
         if self.copper is not None and self.copper.mapping != "fill":
@@ -400,7 +449,7 @@ def unknowns(problem, cell_mm=2.0):
     return layers * nx * ny, layers, nx, ny
 
 
-def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area"):
+def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area", face_fill=True):
     """!
     @brief Steady-state finite-difference solution of a problem.
     @param problem A Problem.
@@ -409,9 +458,10 @@ def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area"):
                arithmetic value), "arithmetic" (the classic mean, which lets half of the sheet leak across a copper edge: a bare-pad board at 1 mm reads 13 % low against an independent 3D solver, 7 % with the harmonic mean) or
                "harmonic_plain" (the harmonic mean of the cover-scaled values, for studies).
     @param sampling "area" (default) or "point" (see Network).
+    @param face_fill True (default) builds the in-plane face sheet of a drawn copper layer from the cells the face runs through; False is the harmonic mean of the nodal sheets (see Network).
     @return SteadyResult with the field at the nodes (layers, ny + 1, nx + 1).
     """
-    net = Network(problem, cell_mm, mean, sampling)
+    net = Network(problem, cell_mm, mean, sampling, face_fill=face_fill)
     b = problem.board
     theta_all, res = net.solve_steady()
     nb = net.n_board

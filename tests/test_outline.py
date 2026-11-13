@@ -313,7 +313,12 @@ def test_time_constant_of_a_curved_board_matches_the_closed_form(outline, cell_m
     net = fvm.Network(p, n, n, assemble=False, with_blocks=False)
     # Within 3e-3 (1e-3 before the laminate band): at 100 W/m2K the film of the half cell now sits on the laminate nodes of the edge band as well (the copper nodes took almost none),
     # which the closed form does not have; measured +0.15 % (disc 1 mm) and +0.21 % (ellipse 1 mm), and within 1e-3 for the others
-    assert fvm.board_time_constant(net) == pytest.approx(closed_tau(p), rel=3e-3)
+    # Re-baselined for 2.7.0 (fix/drawn-layers-edge-film-centroid, b24c43fc): the edge film of a cut cell now sits at the centroid of the cell's board part, a first-order
+    # error that is documented as hot, at most +1.5 %. Measured +0.70 % (disc 1 mm), +0.34 % (disc 0.5 mm), +0.78 % (ellipse), +0.76 % (turned square), so rel 1e-2;
+    # the sign and the 1.5 % bound are asserted too, so that a real regression (a lost edge length, a cooler film) cannot hide in the wider tolerance.
+    tau, ref = fvm.board_time_constant(net), closed_tau(p)
+    assert tau == pytest.approx(ref, rel=1e-2)
+    assert -1e-3 < tau / ref - 1.0 < 0.015
 
 
 def test_a_turned_square_gives_the_answer_of_the_square_on_the_grid():
