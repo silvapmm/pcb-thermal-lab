@@ -577,9 +577,8 @@ def test_warning_links_follow_the_theme(win, qtbot):
     assert lst.warnings
 
     def symbol_colour_is_of_the_theme():
-        # The symbol of a row is written in the alert token (a severe warning) or the muted token (a note) of the current theme
-        c, head = th.colors(win.theme_name), lst.rows[0].head.text()
-        return c["alert"] in head or c["muted"] in head
+        # The badge of a row is drawn in the alert token (an alert) or the muted token (a note) of the current theme
+        return lst.rows[0].glyphs.icon_token() in ("alert", "muted")
 
     for _ in range(2):
         accent = th.colors(win.theme_name)["link"]
