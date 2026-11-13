@@ -52,9 +52,15 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Environment panel: computed heat transfer, vertical board and its natural convection form](docs/images/environment_natural_form.png)
 
+![Board outline drawn in the editor](docs/images/outline.png)
+
 ![Board outline](docs/images/outline_temperature.png)
 
 ![Temperature](docs/images/results_temperature.png)
+
+![Components tab: the statistics of every part](docs/images/results_components.png)
+
+![Animation tab: the heat-up of the example board, frame at 55 % of the run](docs/images/animation.png)
 
 ![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
 

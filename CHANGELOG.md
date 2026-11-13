@@ -3,6 +3,16 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Changed
+
+- `viawell.build` no longer needs its `active` argument (it was ignored); the keyword stays optional and ignored for research code that still passes it. The `fvm.factor_reuse` docstring states the memory peak correctly (one LU plus the matrices of the solve under way).
+
+### Docs
+
+- The README uses the three screenshots that no document showed (the outline editor, the Components tab and the Animation tab).
+
 ## [2.7.1] - 2026-11-13
 
 A patch release: interface fixes, a disclaimer line in the reports, tests and documents. No result changes (the frozen numbers of 2.7.0 hold) and the project file format is unchanged.
