@@ -13,6 +13,11 @@ import numpy as np
 # Names of the models shown to the user (tables, lists, plots); the keys (fvm, lumped, ...) stay in the files, the reports and the API
 MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
 
+# The one disclaimer line of every report the program writes (text and Markdown reports, the on-screen Results summary, the CLI output, the JSON summary,
+# the Power Calculator result): a design aid, never compared with a measured board. Reports import this constant; none words it again.
+DISCLAIMER = ("PCB Thermal Lab is a design aid. Its models have not yet been compared with measurements of a real board: "
+              "validate critical designs by measurement.")
+
 
 def model_label(key):
     """!

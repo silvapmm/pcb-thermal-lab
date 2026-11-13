@@ -8,6 +8,18 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ### Fixed
 
 - **Enter in a Properties field keeps the focus in the field** (`fix/enter-focus-and-calculator-test`; display only, no number moves): the canvas reported an empty selection after every rebuild, so an element shown in Properties that is not selectable on the drawn layer (another layer than the Layer box shows) lost its form, and the keyboard focus with it, at the first edit that Enter committed (the focus fell to the tab bar). `Canvas.rebuild` now reports the selection only when the rebuild changed it. Tests `tests/test_enter_focus.py` (after the Layer box, the keys L, Shift+L and the digits, and the element on another layer).
+- **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view** (`fix/results-map-markers-and-cut-locator`; display only, no number moves): the Results tabs took the minimum width of their widest page (the Animation and Power profile controls, about 530 px), so at 900 x 700 with both docks open the Profiles tab scrolled sideways and its cut picture was out of view. Now only the page shown sets that width (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when the canvas crosses the width at which it moves between the inset over the curves and the strip above them. *(tests in `tests/test_map_markers_and_cut_locator.py`)*
+
+### Added
+
+- **Guard against third-party text in git** (`docs/third-party-text-guard`; tests and documents only, no number moves): `tests/test_third_party_text.py` fails when a tracked path is under `papers/`, when a tracked Markdown file carries OCR page markers, when a tracked file holds the SHA-256 or the title of the confidential ODB++ specification, or when an entry of `research/theory/BIBLIOGRAPHY.md` has no licence field (after the reviewer's opinion `releases/2.7.0/final-opinion/papers-in-git-opinion.md`).
+- **Licence and source address in the bibliography**: every entry of `research/theory/BIBLIOGRAPHY.md` carries `**Licence:**` and `**Source URL:**`; no licence is guessed (`not checked` is the default, `public domain` only for the US government reports).
+
+### Changed
+
+- The OCR tool README and the README say that `tools.ocr` is run with `.venv-research/bin/python` (pypdfium2 is not in the project `.venv`).
+- `releases/regression-harness/reference/version_notes.json` has notes for the pairs v2.5.0 to v2.7.0 quoted from the CHANGELOG; the numeric table `docs/version-comparison.md` is regenerated at the next release.
+- **A disclaimer line in every report** (`fix/report-disclaimer`; text only, no number moves): the text report (the saved `report.txt` and the on-screen Results summary), the Markdown report (and so the command-line output), the JSON summary (key `disclaimer`) and the Power Calculator result carry one line, `results.DISCLAIMER`: PCB Thermal Lab is a design aid, its models have not yet been compared with measurements of a real board, validate critical designs by measurement. The note about the computed heat transfer coefficients stays as it was. User guide, chapter 18.
 
 ### Tests
 

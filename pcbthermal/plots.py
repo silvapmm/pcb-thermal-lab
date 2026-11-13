@@ -859,6 +859,15 @@ def _draw_cut_picture(ax, problem, layer, axis, position_mm, picture="board", un
     ax.set_title(f"Layer {layer + 1}" + (f" ({note})" if note else ""), fontsize=7, pad=2)
 
 
+def profile_has_strip(fig):
+    """!
+    @brief Whether the Profiles figure puts the cut picture in a strip above the curves (True) or as an inset over them (False).
+    @param fig Matplotlib Figure.
+    @return bool, True when the figure is narrower than INSET_MIN_WIDTH_IN inches.
+    """
+    return fig.get_figwidth() < INSET_MIN_WIDTH_IN
+
+
 @_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
@@ -882,7 +891,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     fig.clear()
     b = problem.board
     picture = picture if picture in PICTURES else "map"
-    strip = picture != "off" and fig.get_figwidth() < INSET_MIN_WIDTH_IN        # Only a narrow figure keeps the strip above the curves
+    strip = picture != "off" and profile_has_strip(fig)        # Only a narrow figure keeps the strip above the curves
     tx = None
     if strip:
         gs = fig.add_gridspec(2, 1, height_ratios=[1, 3])
