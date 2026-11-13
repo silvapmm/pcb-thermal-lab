@@ -300,3 +300,65 @@ def test_cut_picture_takes_the_emptiest_corner_upper_left_on_a_tie(sim):
     corner = _inset_corner(fig)
     assert share["ul"] > 0.0                                    # The case of the review: the upper left covers part of the curve
     assert share[corner] <= min(share.values()) + plots.INSET_LOAD_TIE and corner != "ul"
+
+
+def _cut_picture_axes(fig):
+    """!
+    @brief The axes of the cut picture of a Profiles figure, inset or strip.
+    @param fig Matplotlib Figure drawn by `plots.draw_profile`.
+    @return list of the axes whose title starts with "Layer ".
+    """
+    axes = list(fig.axes) + [c for a in fig.axes for c in a.child_axes]
+    return [a for a in axes if a.get_title().startswith("Layer ")]
+
+
+@pytest.mark.parametrize("size", [(900, 700), (1280, 800)])
+def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, sim, size):
+    """!
+    @brief At 900 x 700 and 1280 x 800 with both docks open the Results page has no horizontal scroll, the Profiles canvas has its cut picture and, after a resize
+           across the width between the inset and the strip, the figure is drawn again for the new width.
+    @param qtbot pytest-qt fixture.
+    @param sim Simulation of the example board.
+    @param size Window size in pixels.
+    """
+    import os
+    from PySide6.QtWidgets import QAbstractScrollArea
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import TAB_RESULTS, MainWindow
+    doc = Document()
+    doc.open(os.path.join(os.path.dirname(__file__), "..", "examples", "example_board.pcbt.json"))
+    win = MainWindow(doc)
+    qtbot.addWidget(win)
+    win.resize(*size)
+    win.show()
+    win._on_done(sim)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.profile)
+    qtbot.wait(200)
+    page = win.tabs.widget(TAB_RESULTS)
+    for area in [page] + page.findChildren(QAbstractScrollArea):
+        if area.isVisible():
+            assert not area.horizontalScrollBar().isVisible(), (size, area)
+    # Only the page shown sets the minimum width of the Results tabs: narrow on Profiles, the full control row on Animation (it scrolls instead of clipping)
+    assert win.results.tabs.minimumSizeHint().width() < 240, win.results.tabs.minimumSizeHint()
+    if size[0] < 1000:
+        assert win.results.profile._controls2.indexOf(win.results.profile.cut_overlay) >= 0      # The Cut overlay box on a line of its own
+    win.results.tabs.setCurrentWidget(win.results.animation)
+    qtbot.wait(50)
+    assert win.results.tabs.minimumSizeHint().width() >= win.results.animation.minimumSizeHint().width()
+    win.results.tabs.setCurrentWidget(win.results.profile)
+    qtbot.wait(200)
+    tab = win.results.profile
+    thumb = _cut_picture_axes(tab.fig)
+    assert len(thumb) == 1
+    bb = thumb[0].get_window_extent()
+    fig_bb = tab.fig.bbox
+    assert bb.width > 40 and bb.x1 <= fig_bb.x1 + 1 and bb.x0 >= fig_bb.x0 - 1     # The whole picture is inside the canvas
+    # A canvas that crosses the inset/strip width is drawn again without any other event
+    strip = plots.profile_has_strip(tab.fig)
+    target = (plots.INSET_MIN_WIDTH_IN + (1.0 if strip else -1.5)) * tab.fig.dpi / tab.canvas.devicePixelRatioF()
+    tab.canvas.resize(int(target), tab.canvas.height())
+    qtbot.wait(300)
+    assert plots.profile_has_strip(tab.fig) != strip
+    assert tab._thumb_strip == plots.profile_has_strip(tab.fig)
+    assert len(_cut_picture_axes(tab.fig)) == 1
