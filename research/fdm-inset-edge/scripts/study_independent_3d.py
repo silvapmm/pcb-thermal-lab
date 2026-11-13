@@ -114,19 +114,19 @@ def main():
     @brief Print the table.
     @return None.
     """
-    var = fdm_variant.load(face_fill=True)
+    harm = fdm_variant.harmonic()                            # the program with face_fill=False (as the study found it)
     cases = [("plate_pad", lambda: RB.build("plate_pad"), lambda c: spec_ref("plate_pad", c), (1.0, 0.5)),
              ("one_layer_pad", lambda: RB.build("one_layer_pad"), lambda c: spec_ref("one_layer_pad", c), (1.0, 0.5)),
              ("gap 3 mm (50x24)", gap_board, gap_ref, (1.0, 0.5, 0.25)),
              ("strips 2/2 (40x20)", strips_board, strips_ref, (1.0, 0.5, 0.25))]
     res = {}
-    print(f"{'board':20s} {'cell':>5s} {'ref K':>8s} {'FVM %':>8s} {'FDM %':>8s} {'face %':>8s}")
+    print(f"{'board':20s} {'cell':>5s} {'ref K':>8s} {'FVM %':>8s} {'FDM harm %':>10s} {'face %':>8s}")
     for name, build, ref, cells in cases:
         for cell in cells:
             r = ref(cell)
             p = build()
             amb = p.board.ambient
-            v = [float(m.solve_steady(p, cell).t_max) - amb for m in (fvm, fdm, var)]
+            v = [float(m.solve_steady(p, cell).t_max) - amb for m in (fvm, harm, fdm)]
             res[f"{name}|{cell}"] = [100 * (x / r - 1) for x in v]
             print(f"{name:20s} {cell:5.2f} {r:8.3f} " + " ".join(f"{100 * (x / r - 1):+8.2f}" for x in v), flush=True)
 

@@ -4,14 +4,16 @@
 @file fdm_variant.py
 @brief Experimental copies of `pcbthermal/fdm.py` with switches, built from the program's own source text (the program is not edited).
 @details `load(**switches)` reads `pcbthermal/fdm.py`, applies the text patches of the chosen switches and returns a module object with the same API (`Network`, `solve_steady`).
+         The study was made on a program without the face fill (the harmonic mean of the nodal sheets); the correction was then adopted in the program as
+         `fdm.Network(face_fill=True)` (`_copper_face_sheets`, the default). `harmonic()` gives the program with `face_fill=False` (the 'FDM harmonic' column of the
+         tables, the program as the study found it), and `load(face_fill=True)` switches the program's own face path off and adds this folder's prototype, so that the
+         prototype and the adopted code can be compared (`tests/test_variant.py`).
          Switches (all default off, so `load()` is the program bit for bit, which `tests/test_variant.py` checks):
          * `face_fill`: the in-plane sheet of a copper-layer face is built from the copper fill of the CELLS that the face runs through (the cell between two nodes is uniform along
            the face, so no mean of two nodal values is needed), instead of the harmonic mean of the two nodal fills (a node whose control volume is cut by a copper edge reads a
            half-copper sheet, and the copper edge is smeared over a cell). The nodal fill still carries capacity, vertical links, the top film and the sources.
          * `no_film_lam`: switch off the edge film on the laminate nodes (ablation, not a model).
          * `no_film_cu`: switch off the edge film on the copper nodes (ablation).
-         * `edge_full_volume`: ablation of the half control volume of the edge nodes is NOT offered (it would change the grid); see README 3.
-         * `arith_cover`: use the arithmetic mean at the faces of nodes cut by the outline only (the program's harmonic mean already keeps the cover weighted link).
 """
 
 import os
@@ -69,6 +71,10 @@ def source(face_fill=False, no_film_lam=False, no_film_cu=False):
     """
     s = open(SRC).read()
     if face_fill:
+        # The program's own face path (adopted from this prototype) is switched off, so that only the prototype acts
+        h = '        if face_fill and rule is not None and sampling == "area" and mean == "harmonic":\n'
+        if h in s:
+            s = s.replace(h, h.replace("if face_fill and", "if False and"))
         a = "            fill = np.stack([_node_average(cell_fill[k]) for k in range(L)])\n"
         assert a in s
         s = s.replace(a, a + "            self._cell_fill = cell_fill\n")
@@ -85,6 +91,46 @@ def source(face_fill=False, no_film_lam=False, no_film_cu=False):
         assert a in s
         s = s.replace(a, "            self.g_bottom[:L], self.g_side[:L] = rule.g_bottom, 0.0 * rule.g_side\n")
     return s
+
+
+class _Harmonic:
+    """!
+    @brief The program's FDM with the face fill switched off (`face_fill=False`): the harmonic mean of the nodal sheets, the program as this study found it.
+    """
+
+    @staticmethod
+    def solve_steady(problem, cell_mm=2.0, **kw):
+        """!
+        @brief `pcbthermal.fdm.solve_steady` with `face_fill=False`.
+        @param problem Problem.
+        @param cell_mm Cell in mm.
+        @param kw Further arguments of `solve_steady`.
+        @return SteadyResult.
+        """
+        from pcbthermal import fdm
+        return fdm.solve_steady(problem, cell_mm, face_fill=False, **kw)
+
+    @staticmethod
+    def Network(problem, cell_mm=2.0, *args, **kw):
+        """!
+        @brief `pcbthermal.fdm.Network` with `face_fill=False`.
+        @param problem Problem.
+        @param cell_mm Cell in mm.
+        @param args Further positional arguments of `Network`.
+        @param kw Further keyword arguments of `Network`.
+        @return Network.
+        """
+        from pcbthermal import fdm
+        kw.setdefault("face_fill", False)
+        return fdm.Network(problem, cell_mm, *args, **kw)
+
+
+def harmonic():
+    """!
+    @brief The program's FDM without the adopted face fill.
+    @return Object with `solve_steady` and `Network` like the module.
+    """
+    return _Harmonic
 
 
 def load(**switches):

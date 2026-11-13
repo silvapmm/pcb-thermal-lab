@@ -6,7 +6,7 @@
 @details All boards are built through the program's public API. The square is the `sq_in` / `sq_wall` board of `research/imported-copper-edge-film` (2 layers, 35 um copper,
          h_top = h_bottom = 10 W/m2K, a 4 mm heater of 1 W at the centre, copper `inset` mm inside the wall) but kept aligned with the grid (no turn, no shift), so that the
          plain edge and the cut-cell treatment of an outline can be told apart: `outline=False` leaves the board a plain rectangle (no outline polygon), `outline=True` gives
-         the same rectangle as an explicit outline (exact cover, cut-cell links of the FVM). The finite-element values of `tmp/fem/REPORT.md` 3 are quoted in `FEM`.
+         the same rectangle as an explicit outline (exact cover, cut-cell links of the FVM). The finite-element limits of an independent finite-element comparison are quoted in `FEM_*`.
 """
 
 import logging
@@ -25,7 +25,7 @@ from pcbthermal import Problem, analysis                       # noqa: E402
 
 logging.disable(logging.WARNING)
 
-# Finite-element limits (tmp/fem/REPORT.md 3(a) and 3(c); Richardson extrapolation of the conforming meshes)
+# Finite-element limits of an independent finite-element comparison (Richardson extrapolation of conforming meshes; quoted, not re-run here)
 FEM_SQUARE_INSET = {10.0: 124.551, 200.0: 57.201, 1000.0: 38.972}        # 20 mm square, copper 1.2 mm in, heater mean rise (K)
 FEM_SQUARE_WALL = {200.0: 50.635, 1000.0: 30.114}                        # copper to the wall
 FEM_PLATE_WALL = {10.0: 51.687, 200.0: 36.981, 1000.0: 24.332}           # 10 mm plate hottest rise (K)

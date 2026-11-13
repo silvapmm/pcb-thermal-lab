@@ -2,9 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
-@brief Drawings of the situation: a copper edge held inside the board, seen by the node-centred FDM (control volumes and the face between two nodes) and by the face-fill variant.
+@brief Drawings of the situation: a copper edge held inside the board, seen by the node-centred FDM (control volumes and the face between two nodes) and by the face fill (adopted in the program as `fdm.Network(face_fill=True)`).
 @details No data and no program: a cross-section of the strip between the wall and the copper (laminate strip, copper edge on a node), the control volumes of the nodes, the fill
-         each node reads, and the sheet each face between two nodes reads in the program and in the variant. Writes `figures/fig_01_copper_edge_between_nodes.png`.
+         each node reads, and the sheet each face between two nodes reads with the harmonic mean and with the face fill. Writes `figures/fig_01_copper_edge_between_nodes.png`.
          Run from the repository root: `.venv/bin/python research/fdm-inset-edge/scripts/make_diagrams.py`.
 """
 
@@ -55,10 +55,10 @@ def fig_edge():
     # sheet read by each face: program (harmonic of the nodal sheets) and variant (cell fill)
     faces = [(0.5, 0.0, 0.0), (1.5, 0.0, 0.0), (2.5, 0.667, 1.0), (3.5, 1.0, 1.0), (4.5, 1.0, 1.0)]
     for xf, prog, var in faces:
-        b.plot([xf - 0.35, xf + 0.35], [prog] * 2, "-", color="#1f3a5f", lw=3, label="face sheet, program (harmonic mean of nodes)" if xf == 0.5 else None)
-        b.plot([xf - 0.35, xf + 0.35], [var + 0.0] * 2, "--", color="#2a8a3a", lw=3, label="face sheet, variant (cell fill)" if xf == 0.5 else None)
+        b.plot([xf - 0.35, xf + 0.35], [prog] * 2, "-", color="#1f3a5f", lw=3, label="face sheet, earlier FDM (harmonic mean of nodes)" if xf == 0.5 else None)
+        b.plot([xf - 0.35, xf + 0.35], [var + 0.0] * 2, "--", color="#2a8a3a", lw=3, label="face sheet, adopted face fill (cell fill)" if xf == 0.5 else None)
     b.text(1.0, 0.12, "faces 0-1, 1-2 (bare cells): both read bare", fontsize=8, ha="center", color="#3a3a3a")
-    b.text(3.2, 1.12, "face 2-3 (copper cell): program 0.67, variant 1", fontsize=8, ha="center", color="#2a6a30")
+    b.text(3.2, 1.12, "face 2-3 (copper cell): harmonic 0.67, face fill 1", fontsize=8, ha="center", color="#2a6a30")
     b.set_ylim(-0.05, 1.28)
     b.set_ylabel("copper fraction / face sheet\n(1 = full copper)")
     b.set_xlabel("x (cells)")

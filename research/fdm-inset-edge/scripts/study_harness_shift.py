@@ -3,8 +3,8 @@
 """!
 @file study_harness_shift.py
 @brief Which FDM numbers of the 17 harness boards would move with the face-fill correction (README 6)?
-@details Runs the FDM of the program and the variant `fdm_variant.load(face_fill=True)` (its `Network` put in the place of `pcbthermal.fdm.Network`, so that the steady
-         solve, the profile runner and the step responses all use it) on the boards of `tests/regression/regress_boards.py` at 2, 1 and 0.5 mm (FDM above 120 000 unknowns skipped
+@details Runs the FDM of the program with `face_fill=False` (the harmonic mean, as the study found it) and as adopted (`face_fill=True`; the base `Network` is wrapped in
+         the place of `pcbthermal.fdm.Network`, so that the steady solve, the profile runner and the step responses all use it) on the boards of `tests/regression/regress_boards.py` at 2, 1 and 0.5 mm (FDM above 120 000 unknowns skipped
          to keep the memory under 3 GB) and prints, per board and cell, the shift of the hottest temperature, the mean and the first part's hottest and mean rise in percent of the
          rise, and the time to 63 % at the transient cell. Run from the repository root:
          `.venv/bin/python research/fdm-inset-edge/scripts/study_harness_shift.py [board,board,...]`. Output also in `research/fdm-inset-edge/out/harness_shift.json`.
@@ -22,7 +22,6 @@ sys.path.insert(2, os.path.join(HERE, "..", "lib"))
 
 import regress_boards as RB                                  # noqa: E402
 import regress_harness as RH                                 # noqa: E402
-import fdm_variant                                           # noqa: E402
 from pcbthermal import fdm                                   # noqa: E402
 
 OUT = os.path.join(HERE, "..", "out", "harness_shift.json")
@@ -47,14 +46,19 @@ def main():
     @return None.
     """
     names = sys.argv[1].split(",") if len(sys.argv) > 1 else RB.board_names()
-    var = fdm_variant.load(face_fill=True)
     base_net = fdm.Network
+
+    def harm_net(*a, **k):
+        # The program's network with the adopted face fill switched off
+        k["face_fill"] = False
+        return base_net(*a, **k)
+
     res = {}
     for name in names:
         for cell in CELLS:
             p = RB.build(name)
             recs = {}
-            for tag, net in (("base", base_net), ("face", var.Network)):
+            for tag, net in (("base", harm_net), ("face", base_net)):
                 fdm.Network = net
                 try:
                     recs[tag] = RH.run_one(p, name, "fdm", cell, max_unknowns=CAP)

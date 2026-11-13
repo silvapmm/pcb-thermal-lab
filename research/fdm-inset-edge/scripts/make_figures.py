@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt                                # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIG = os.path.join(HERE, "..", "figures")
 OUT = os.path.join(HERE, "..", "out")
-COL = {"FVM": "#2a6fb0", "FDM (program)": "#b0261c", "FDM face fill": "#2a8a3a"}
+COL = {"FVM": "#2a6fb0", "FDM harmonic (face_fill=False)": "#b0261c", "FDM face fill (adopted)": "#2a8a3a"}
 
 
 def fig_position(cause):
