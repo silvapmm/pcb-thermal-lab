@@ -1,0 +1,17 @@
+| board | time constant, pin counted (old) | time constant (program) | closed form C/G |
+| :-- | --: | --: | --: |
+| square 60 x 60 mm | 0.01 s | 107.0 s | 107.0 s |
+| round, 59.8 mm across | 0.00 s | 107.0 s | 107.0 s |
+| 1-layer square | 104.62 s | 104.6 s | 104.6 s |
+| 1-layer round | 0.02 s | 104.6 s | 104.6 s |
+| 4-layer square | 0.01 s | 111.8 s | 111.8 s |
+| 4-layer round | 0.00 s | 111.8 s | 111.8 s |
+
+| model | end of the step response (program) | steady resistance | end / steady |
+| :-- | --: | --: | --: |
+| FVM | 1070 s, 30.472 K/W | 30.472 K/W | 1.0000 |
+| FDM | 1070 s, 30.472 K/W | 30.472 K/W | 1.0000 |
+| FVM with the old length (0.0 s) | 0.661 K/W | 30.472 K/W | 0.0217 |
+
+Transient of the round board at 600 s: board mean 52.42 C (program), plain mean over the box 47.42 C (old), maximum 85.67 C
+rc=0 time=0s

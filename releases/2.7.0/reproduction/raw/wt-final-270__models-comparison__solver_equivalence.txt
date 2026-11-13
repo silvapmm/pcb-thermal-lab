@@ -1,0 +1,24 @@
+| Board | Solver | Tmax [°C] | max abs diff to direct [K] | Residual | Sweeps | Time [s] |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| reference, 2 layers | direct (sparse LU) | 90.0689 | 0.0e+00 | 3e-14 | - | 0.02 |
+| reference, 2 layers | cg (Jacobi) | 90.0689 | 3.1e-12 | 1e-12 | - | 0.01 |
+| reference, 2 layers | SOR, residual 1e-9, auto omega | 90.0689 | 2.8e-09 | 1e-09 | 282 | 0.04 |
+| reference, 2 layers | SOR, step 0.01 K, omega 1.5 (original rule) | 87.3953 | 2.7e+00 | 6e-02 | 367 | 0.05 |
+| reference, 8 layers | direct (sparse LU) | 65.6779 | 0.0e+00 | 8e-14 | - | 0.12 |
+| reference, 8 layers | cg (Jacobi) | 65.6779 | 5.2e-12 | 1e-12 | - | 0.02 |
+| reference, 8 layers | SOR, residual 1e-9, auto omega | 65.6779 | 3.0e-09 | 1e-09 | 673 | 0.15 |
+| reference, 8 layers | SOR, step 0.01 K, omega 1.5 (original rule) | 53.1332 | 1.3e+01 | 1e-01 | 384 | 0.08 |
+| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.4650 | 0.0e+00 | 1e-13 | - | 0.23 |
+| example board (vias, heatsink, 2 heaters) | cg (Jacobi) | 85.4650 | 1.0e-11 | 1e-12 | - | 0.13 |
+| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, auto omega | 85.4650 | 3.9e-09 | 1e-09 | 726 | 0.45 |
+| example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, omega 1.5 (original rule) | 69.6006 | 1.6e+01 | 1e-01 | 570 | 0.35 |
+| weak cooling (h = 2 W/m²K, 200 mm) | direct (sparse LU) | 44.2990 | 0.0e+00 | 1e-13 | - | 0.04 |
+| weak cooling (h = 2 W/m²K, 200 mm) | cg (Jacobi) | 44.2990 | 6.5e-12 | 1e-12 | - | 0.03 |
+| weak cooling (h = 2 W/m²K, 200 mm) | SOR, residual 1e-9, auto omega | 44.2990 | 7.8e-10 | 1e-09 | 779 | 0.17 |
+| weak cooling (h = 2 W/m²K, 200 mm) | SOR, step 0.01 K, omega 1.5 (original rule) | 37.5624 | 6.7e+00 | 3e-01 | 162 | 0.04 |
+| reference, insulated edges | direct (sparse LU) | 90.3925 | 0.0e+00 | 2e-13 | - | 0.04 |
+| reference, insulated edges | cg (Jacobi) | 90.3925 | 5.6e-12 | 1e-12 | - | 0.03 |
+| reference, insulated edges | SOR, residual 1e-9, auto omega | 90.3925 | 1.6e-09 | 1e-09 | 636 | 0.14 |
+| reference, insulated edges | SOR, step 0.01 K, omega 1.5 (original rule) | 80.3174 | 1.0e+01 | 2e-01 | 550 | 0.11 |
+
+rc=0 time=3s

@@ -1,0 +1,36 @@
+A. Advanced stack-up: rise of the hottest point [K] (FVM) and the other models as a difference from the FVM [%]
+| Stack | FVM | FDM | 3D solid | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: |
+| simple, equal FR-4 gaps | 79.1 | -1.2 % | +0.5 % | +1.2 % | +0.3 % |
+| advanced, the same gaps | 79.1 | -1.2 % | +0.4 % | +1.2 % | +0.3 % |
+| thin prepreg 0.1 mm top and bottom, 0.7 mm core | 75.6 | -1.1 % | +0.2 % | +1.3 % | +0.4 % |
+| prepreg 0.1 mm, metal-core dielectric 1 mm (2 W/mK) | 73.9 | -1.1 % | +0.1 % | +1.4 % | +0.4 % |
+| polyimide flex 0.1 mm gaps (0.15 W/mK) | 75.6 | -1.8 % | +0.2 % | +0.0 % | -0.4 % |
+| alumina core 0.6 mm (24 W/mK) | 69.9 | -0.8 % | -0.4 % | +1.2 % | +0.5 % |
+| copper 70 / 35 / 35 / 70 µm | 69.3 | -0.9 % | +0.2 % | +1.0 % | +0.1 % |
+| copper 17.5 µm on every layer | 99.0 | -1.5 % | +0.8 % | +1.7 % | +0.6 % |
+
+B. Board outline: rise of the hottest point [K] with the FVM, and the FDM and the 3D solid as a difference from it [%]
+| Shape | Board area | FVM | FDM | 3D solid |
+| :-- | --: | --: | --: | --: |
+| rectangle (no outline) | 2400 mm² | 79.1 | -1.2 % | +0.5 % |
+| L shape | 1800 mm² | 103.5 | -1.4 % | -3.3 % |
+| T shape | 1600 mm² | 103.5 | -0.9 % | +0.4 % |
+| ellipse | 1880 mm² | 91.4 | -1.0 % | +0.4 % |
+| chamfered corners (6 mm) | 2328 mm² | 80.5 | -1.2 % | +0.5 % |
+
+C. Sensitivity of the rise of the hottest point to the stack-up numbers (typical 4-layer stack-up, base rise 83.2 K)
+| Change | Rise [K] | Change in the rise |
+| :-- | --: | --: |
+| dielectric k through -30 % (0.21 W/mK) | 83.9 | +0.9 % |
+| dielectric k through +30 % (0.39 W/mK) | 82.6 | -0.7 % |
+| all dielectric thicknesses -10 % (fabricator tolerance) | 82.9 | -0.4 % |
+| all dielectric thicknesses +10 % | 83.5 | +0.4 % |
+| prepreg 0.25 and core 0.35 W/mK | 83.2 | +0.1 % |
+| finished copper 15 % thinner (etch and plating spread) | 87.7 | +5.5 % |
+| finished copper 15 % thicker | 79.7 | -4.2 % |
+
+Without the vias under the part: base rise 93.4 K; dielectric k through -30 % / +30 %: +3.3 % / -2.3 %
+
+Two plies of 105 µm of the same prepreg are one gap of 210 µm with k through 0.30 W/mK: the plies matter only through their total pressed thickness and, when their materials differ, through the series formula.
+rc=0 time=18s

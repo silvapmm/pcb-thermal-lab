@@ -1,0 +1,44 @@
+
+### area of the board cover of the 20 mm square (relative error against the polygon area; minimum=0, i.e. before the 0.01 cut-off of Board.cover)
+
+| angle (deg) | cell (mm) | sampled 8 x 8 | exact |
+| --: | --: | --: | --: |
+| 0 | 1 | -1.11e-16 | -1.11e-16 |
+| 0 | 0.5 | -1.11e-16 | -1.11e-16 |
+| 5 | 1 | -1.56e-04 | -1.11e-16 |
+| 5 | 0.5 | +3.91e-05 | -2.22e-16 |
+| 10 | 1 | +2.22e-16 | +0.00e+00 |
+| 10 | 0.5 | +2.22e-16 | -1.11e-16 |
+| 18.435 | 1 | -3.75e-03 | +2.22e-16 |
+| 18.435 | 0.5 | -1.84e-03 | +2.22e-16 |
+| 30 | 1 | -5.55e-16 | -2.22e-16 |
+| 30 | 0.5 | -5.55e-16 | -1.11e-16 |
+| 45 | 1 | +6.41e-03 | +2.22e-16 |
+| 45 | 0.5 | +1.99e-03 | +2.22e-16 |
+
+### turn spread: hottest temperature of the turned 20 mm square against the frame reference (K), FVM, h_side 10
+
+| cell (mm) | rule | 0 | 5 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | spread |
+| --: | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 1 | sampled | +1.445 | +1.439 | +1.412 | +1.382 | +1.432 | +1.400 | +1.404 | +1.371 | +1.396 | +0.421 | 1.024 |
+| 1 | exact | +1.445 | +1.428 | +1.418 | +1.407 | +1.406 | +1.403 | +1.415 | +1.423 | +1.411 | +1.426 | 0.042 |
+| 0.5 | sampled | -0.048 | -0.057 | -0.054 | -0.056 | -0.053 | -0.045 | -0.050 | -0.051 | -0.053 | -0.336 | 0.291 |
+| 0.5 | exact | -0.048 | -0.046 | -0.054 | -0.054 | -0.053 | -0.047 | -0.044 | -0.045 | -0.049 | -0.022 | 0.032 |
+
+### small T: scatter of the error of the hottest point over twelve neck positions (K)
+
+| model | cell (mm) | sampled | exact |
+| :-- | --: | --: | --: |
+| fvm | 1 | 1.11 (mean +1.34) | 0.57 (mean +1.34) |
+| fvm | 0.5 | 0.67 (mean +0.43) | 0.39 (mean +0.43) |
+| fdm | 1 | 2.04 (mean -0.76) | 1.40 (mean -0.75) |
+| fdm | 0.5 | 0.97 (mean -0.18) | 0.91 (mean -0.18) |
+
+### heat balance and the power of the part (FVM, FDM, 3D solid; turned square, 1 mm)
+
+| angle (deg) | FVM balance | FDM balance | 3D balance | area of the part on the board / 9 mm2 |
+| --: | --: | --: | --: | --: |
+| 0 | 3.0e-13 | 2.2e-13 | 1.2e-13 | 1.000000000000 |
+| 17 | 3.3e-13 | 1.7e-13 | 1.3e-13 | 1.000000000000 |
+| 45 | 2.6e-13 | 2.2e-13 | 1.1e-13 | 1.000000000000 |
+rc=0 time=58s

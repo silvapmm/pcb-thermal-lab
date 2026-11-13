@@ -1,0 +1,52 @@
+== A. FDM against the FVM on a board cut by a gap (rise over the ambient in K; error of the FDM against the FVM at 0.25 mm, the converged value) ==
+gap mm | dist mm | cell | FVM | FDM arithmetic | FDM harmonic | arithmetic vs FVM(0.25) % | harmonic vs FVM(0.25) %
+0.0 | 1.0 | 1.0 | 90.89 | 90.83 | 90.83 | -0.1 | -0.1
+0.0 | 1.0 | 0.5 | 90.95 | 90.92 | 90.92 | -0.0 | -0.0
+0.0 | 1.0 | 0.25 | 90.96 | 90.94 | 90.94 | -0.0 | -0.0
+0.0 | 4.0 | 1.0 | 91.75 | 91.66 | 91.66 | -0.1 | -0.1
+0.0 | 4.0 | 0.5 | 91.79 | 91.74 | 91.74 | -0.0 | -0.0
+0.0 | 4.0 | 0.25 | 91.79 | 91.76 | 91.76 | -0.0 | -0.0
+3.0 | 1.0 | 1.0 | 115.56 | 97.63 | 113.51 | -18.9 | -5.7
+3.0 | 1.0 | 0.5 | 120.67 | 114.27 | 119.92 | -5.1 | -0.4
+3.0 | 1.0 | 0.25 | 120.40 | 117.44 | 120.18 | -2.5 | -0.2
+3.0 | 4.0 | 1.0 | 112.72 | 96.59 | 110.80 | -17.5 | -5.4
+3.0 | 4.0 | 0.5 | 117.28 | 111.65 | 116.69 | -4.6 | -0.3
+3.0 | 4.0 | 0.25 | 117.06 | 114.46 | 116.87 | -2.2 | -0.2
+6.0 | 1.0 | 1.0 | 132.48 | 123.71 | 131.04 | -6.1 | -0.6
+6.0 | 1.0 | 0.5 | 131.99 | 127.87 | 131.43 | -3.0 | -0.3
+6.0 | 1.0 | 0.25 | 131.79 | 129.85 | 131.63 | -1.5 | -0.1
+6.0 | 4.0 | 1.0 | 128.80 | 121.32 | 127.72 | -5.4 | -0.4
+6.0 | 4.0 | 0.5 | 128.42 | 124.95 | 128.00 | -2.6 | -0.2
+6.0 | 4.0 | 0.25 | 128.27 | 126.63 | 128.13 | -1.3 | -0.1
+
+== B. Harmonic mean on the regression-harness boards (FDM hottest temperature, K; only the records that move) ==
+example_board | cell 2.0 | arithmetic 84.4831 | harmonic 84.5189 | +0.0358 K
+example_board | cell 1.0 | arithmetic 85.3496 | harmonic 85.3999 | +0.0502 K
+profile_board | cell 2.0 | arithmetic 84.4831 | harmonic 84.5189 | +0.0358 K
+profile_board | cell 1.0 | arithmetic 85.3496 | harmonic 85.3999 | +0.0502 K
+reference_board | cell 2.0 | arithmetic 90.0675 | harmonic 90.0675 | +0.0000 K
+reference_board | cell 1.0 | arithmetic 90.1354 | harmonic 90.1354 | +0.0000 K
+example_cut_to_T | cell 2.0 | arithmetic 93.9344 | harmonic 93.9740 | +0.0396 K
+example_cut_to_T | cell 1.0 | arithmetic 94.5649 | harmonic 94.6192 | +0.0544 K
+plate_pad | cell 2.0 | arithmetic 291.2924 | harmonic 336.3037 | +45.0113 K
+plate_pad | cell 1.0 | arithmetic 315.2488 | harmonic 342.5098 | +27.2610 K
+plate_vias | cell 2.0 | arithmetic 133.5042 | harmonic 133.5042 | +0.0001 K
+plate_vias | cell 1.0 | arithmetic 137.3099 | harmonic 137.3099 | +0.0000 K
+plate_lone_via | cell 2.0 | arithmetic 148.7464 | harmonic 148.7465 | +0.0001 K
+plate_lone_via | cell 1.0 | arithmetic 149.9180 | harmonic 149.9180 | +0.0000 K
+round_outline | cell 2.0 | arithmetic 175.0195 | harmonic 175.0195 | +0.0001 K
+round_outline | cell 1.0 | arithmetic 175.4615 | harmonic 175.4616 | +0.0000 K
+t_outline | cell 2.0 | arithmetic 186.3859 | harmonic 186.3869 | +0.0010 K
+t_outline | cell 1.0 | arithmetic 186.6296 | harmonic 186.6300 | +0.0004 K
+two_layer_partial | cell 2.0 | arithmetic 159.6119 | harmonic 161.3255 | +1.7136 K
+two_layer_partial | cell 1.0 | arithmetic 161.3952 | harmonic 162.9192 | +1.5240 K
+one_layer_pad | cell 2.0 | arithmetic 81.1920 | harmonic 89.6830 | +8.4910 K
+one_layer_pad | cell 1.0 | arithmetic 85.9040 | harmonic 91.2874 | +5.3834 K
+finned_block | cell 2.0 | arithmetic 129.6428 | harmonic 129.6429 | +0.0001 K
+finned_block | cell 1.0 | arithmetic 129.8997 | harmonic 129.8998 | +0.0001 K
+part_top_path | cell 2.0 | arithmetic 146.8095 | harmonic 155.7495 | +8.9400 K
+part_top_path | cell 1.0 | arithmetic 154.1334 | harmonic 160.9874 | +6.8539 K
+part_across_outline | cell 2.0 | arithmetic 230.7482 | harmonic 230.7508 | +0.0026 K
+part_across_outline | cell 1.0 | arithmetic 230.4131 | harmonic 230.4143 | +0.0012 K
+28 of 34 (board, cell) records move
+rc=0 time=17s

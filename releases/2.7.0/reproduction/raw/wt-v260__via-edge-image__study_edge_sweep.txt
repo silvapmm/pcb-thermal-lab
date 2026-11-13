@@ -1,0 +1,57 @@
+
+## h_side = 0 W/m2K
+
+| d (mm) | reference E (K) | mode | 1 mm | 0.5 mm | 0.25 mm |
+| --: | --: | :-- | --: | --: | --: |
+| 0.16 | 3.162 | none | +13.5 % | +5.3 % | -0.3 % |
+| 0.16 | 3.162 | program | -0.2 % | -0.8 % | -1.1 % |
+| 0.16 | 3.162 | mirror | -0.2 % | -0.8 % | -1.1 % |
+| 0.16 | 3.162 | robin | -0.2 % | -0.8 % | -1.1 % |
+| 0.3 | 3.358 | none | +6.8 % | -0.9 % | -1.0 % |
+| 0.3 | 3.358 | program | -0.2 % | -0.7 % | -1.0 % |
+| 0.3 | 3.358 | mirror | -0.2 % | -0.7 % | -1.0 % |
+| 0.3 | 3.358 | robin | -0.2 % | -0.7 % | -1.0 % |
+| 0.5 | 3.542 | none | +1.3 % | -0.8 % | -1.1 % |
+| 0.5 | 3.542 | program | -0.4 % | -0.7 % | -1.0 % |
+| 0.5 | 3.542 | mirror | -0.4 % | -0.7 % | -1.0 % |
+| 0.5 | 3.542 | robin | -0.4 % | -0.7 % | -1.0 % |
+| 1 | 3.839 | none | -0.6 % | -0.9 % | -1.1 % |
+| 1 | 3.839 | program | -0.5 % | -0.8 % | -1.1 % |
+| 1 | 3.839 | mirror | -0.5 % | -0.8 % | -1.1 % |
+| 1 | 3.839 | robin | -0.5 % | -0.8 % | -1.1 % |
+| 2 | 4.274 | none | -0.9 % | -0.9 % | -1.2 % |
+| 2 | 4.274 | program | -0.9 % | -0.8 % | -1.2 % |
+| 2 | 4.274 | mirror | -0.9 % | -0.8 % | -1.2 % |
+| 2 | 4.274 | robin | -0.9 % | -0.8 % | -1.2 % |
+| 4 | 5.343 | none | -1.7 % | -1.3 % | -1.4 % |
+| 4 | 5.343 | program | -1.7 % | -1.3 % | -1.4 % |
+| 4 | 5.343 | mirror | -1.7 % | -1.3 % | -1.4 % |
+| 4 | 5.343 | robin | -1.7 % | -1.3 % | -1.4 % |
+
+## h_side = 10 W/m2K
+
+| d (mm) | reference E (K) | mode | 1 mm | 0.5 mm | 0.25 mm |
+| --: | --: | :-- | --: | --: | --: |
+Traceback (most recent call last):
+  File "<scratch>/wt-v260/research/via-edge-image/scripts/study_edge_sweep.py", line 64, in <module>
+    main()
+    ~~~~^^
+  File "<scratch>/wt-v260/research/via-edge-image/scripts/study_edge_sweep.py", line 57, in main
+    ref = er.via_effect_reference(p, 1.0 / 16.0)
+  File "<scratch>/wt-v260/research/via-real-board/lib/edge_reference.py", line 122, in via_effect_reference
+    return reference_rise(problem_with_via, dx_mm, False, x_cut_mm) - reference_rise(problem_with_via, dx_mm, True, x_cut_mm)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<scratch>/wt-v260/research/via-real-board/lib/edge_reference.py", line 83, in reference_rise
+    S, gz, g_amb = rb._arrays(par, n, dx, vias, par["r_via"][0] if par["r_via"] else 1e-4, 0.0, None)
+                   ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<scratch>/wt-v260/research/point-via-convergence/lib/resolved_boards.py", line 41, in _arrays
+    gz = np.broadcast_to((np.asarray(par["gz_area"]) * dx * dx)[:, None, None], (L - 1, n, n)).copy()
+         ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/.venv/lib/python3.13/site-packages/numpy/lib/_stride_tricks_impl.py", line 517, in broadcast_to
+    return _broadcast_to(array, shape, subok=subok, readonly=True)
+  File "<repo>/.venv/lib/python3.13/site-packages/numpy/lib/_stride_tricks_impl.py", line 456, in _broadcast_to
+    it = np.nditer(
+        (array,), flags=['multi_index', 'refs_ok', 'zerosize_ok'] + extras,
+        op_flags=['readonly'], itershape=shape, order='C')
+ValueError: operands could not be broadcast together with remapped shapes [original->remapped]: (3,1,1)  and requested shape (6,160,160)
+rc=1 time=10s

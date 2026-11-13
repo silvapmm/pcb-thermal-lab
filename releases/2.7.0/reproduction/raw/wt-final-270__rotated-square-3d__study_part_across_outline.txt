@@ -1,0 +1,12 @@
+| board | cell (mm) | outline on grid lines | FVM | FVM, power on the board part | 3D solid | 3D, power on the board part |
+| :-- | --: | :-- | --: | --: | --: | --: |
+| small T | 1.0000 | no | 232.00 | 232.00 | 232.67 | 232.67 |
+| small T | 0.5000 | no | 231.09 | 231.09 | 231.48 | 231.48 |
+| small T | 0.3333 | yes | 230.82 | 230.82 | 231.13 | 231.13 |
+| small T | 0.2500 | no | 230.69 | 230.69 | 231.04 | 231.04 |
+| small T | 0.1667 | yes | 230.66 | 230.66 | 231.03 | 231.03 |
+| small T | 0.1250 | no | 230.58 | 230.58 | 231.00 | 231.00 |
+| small T | 0.0833 | yes | 230.56 | 230.56 | - | - |
+| example board, T | 1.0000 | no | 107.16 | 107.16 | 107.79 | 107.79 |
+| example board, T | 0.6667 | yes | 106.92 | 106.92 | 107.08 | 107.08 |
+rc=0 time=118s

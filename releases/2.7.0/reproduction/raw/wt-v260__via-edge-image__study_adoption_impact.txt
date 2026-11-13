@@ -1,0 +1,16 @@
+| board | vias | vias with a wall within 6 cells, prototype rule (2 / 1 / 0.5 mm) | change of FVM T_max, program's image (2 / 1 / 0.5 mm) | the same, prototype |
+| :-- | --: | :-- | :-- | :-- |
+| example_board | 9 | 0 / 0 / 0 | +0.0000 K / +0.0000 K / +0.0000 K | +0.0000 K / +0.0000 K / +0.0000 K |
+| profile_board | 9 | 0 / 0 / 0 | +0.0000 K / +0.0000 K / +0.0000 K | +0.0000 K / +0.0000 K / +0.0000 K |
+| example_cut_to_T | 9 | 9 / 3 / 0 | -0.0099 K / -0.0001 K / +0.0000 K | -0.1900 K / -0.0023 K / +0.0000 K |
+| plate_vias | 16 | 0 / 0 / 0 | +0.0000 K / +0.0000 K / +0.0000 K | +0.0000 K / +0.0000 K / +0.0000 K |
+| plate_lone_via | 1 | 0 / 0 / 0 | +0.0000 K / +0.0000 K / +0.0000 K | +0.0000 K / +0.0000 K / +0.0000 K |
+
+none: T_max 73.1734 degC, max |K - K^T| 0.0e+00, max |row sum(K) - row sum(K without vias)| 1.7e-18 W/K, positive off-diagonals 0, heat balance error -6.84e-14
+program: T_max 73.5888 degC, max |K - K^T| 0.0e+00, max |row sum(K) - row sum(K without vias)| 1.3e-18 W/K, positive off-diagonals 0, heat balance error -6.51e-14
+
+cell 1 mm: footprint 2 cells, edge term 0.037 ms
+cell 0.5 mm: footprint 2 cells, edge term 0.036 ms
+cell 0.25 mm: footprint 4 cells, edge term 0.037 ms
+cell 0.125 mm: footprint 10 cells, edge term 0.041 ms
+rc=0 time=48s
