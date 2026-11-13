@@ -88,12 +88,12 @@
 <h2>How good is it?</h2>
 <table>
 <tr><th>Check</th><th>Result</th></tr>
-<tr><td>TI CSD17308Q3 on its datasheet board (1 in², 2 oz): datasheet RθJA 46 K/W</td><td>model 46.8 K/W, power error −1.7 %</td></tr>
-<tr><td>JEDEC JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, package assumed): datasheet RθJA 32.5 K/W</td><td>model 31.6 K/W, power error +3.0 %</td></tr>
+<tr><td>TI CSD17308Q3 on its datasheet board (1 in², 2 oz): datasheet RθJA 46 K/W</td><td>model 46.7 K/W, power error −1.4 %</td></tr>
+<tr><td>JEDEC JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, package assumed): datasheet RθJA 32.5 K/W</td><td>model 31.4 K/W, power error +3.4 %</td></tr>
 <tr><td>A wrong board: top copper half filled / copper 17.5 µm instead of 35 µm / no inner planes / no vias</td><td>power −13 % / −24 % / −34 % / −11 %</td></tr>
 <tr><td>Heat transfer ±30 %; θ ±20 %; ψJT ±1 K/W; 3 K of reading error</td><td>+6 / −9 %; ±7 %; ±6 %; ±8.5 %</td></tr>
 </table>
-<p>On the datasheet's own board the calculator is within 2 to 3 %; the large errors appear only when the drawn board is not the real one. <b>Everything depends on the copper.</b> That is why the band exists. A probe that touches the board cools it a little, and an infrared spot is too large for a small part. When the copper of the real board comes from Gerber files (planned: the reader exists, the import in the interface does not yet) it will be exact and this dominant error goes away.</p>
+<p>On the datasheet's own board the calculator is within 1 to 4 %; the large errors appear only when the drawn board is not the real one. <b>Everything depends on the copper.</b> That is why the band exists. A probe that touches the board cools it a little, and an infrared spot is too large for a small part. When the copper of the real board comes from Gerber files (planned: the reader exists, the import in the interface does not yet) it will be exact and this dominant error goes away.</p>
 
 <h2>Limits</h2>
 <ul>
