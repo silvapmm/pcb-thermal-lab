@@ -472,7 +472,12 @@ class BoardView(QGraphicsView):
         self.refit_if_board_changed()
         self._fit_labels()
         self.viewport().update()
-        self.selection_changed.emit(self.selected_elements())
+        # Report the selection only when the rebuild changed it. An element shown in the Properties panel that is on another layer is not selectable here, so
+        # it was never in `selected`; an unconditional emission told the panel "nothing selected" after every edit, which destroyed the form and its keyboard focus
+        # (the first Enter after a layer change sent the focus to the tab bar)
+        now = self.selected_elements()
+        if set(now) != selected:
+            self.selection_changed.emit(now)
 
     def refit_if_board_changed(self, force=False):
         """!
