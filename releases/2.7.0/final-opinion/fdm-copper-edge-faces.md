@@ -38,3 +38,5 @@ The one-shot power tables; transients other than the 63 % times of the frozen re
 * Accept the 0.05 to 0.5 point loss where the copper reaches a turned or curved outline (stated), or wait for the FDM wall term.
 * Open an FDM item for finding 3 (box edge against outline edge of the same board).
 * Re-baseline or fix the two stale tests on `develop` (curved-board time constant, Lumped boards without vias) on their own branches.
+
+**Note after the merge:** the finite-element limits cited above from a git-ignored report are now README 3(a) of `research/independent-fem-edge`.

@@ -1097,8 +1097,8 @@ def check_edge_laminate(problem, models):
              about -2.4 % at 200 W/m2K, -5.5 % at 500 and -16 % at 2000, with eight -2 % at 500 and with sixteen -2.8 % at 2000 W/m2K. On a thin board (0.8 mm) at 2000 W/m2K with a cell larger than the
              gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). On a 1.6 mm four-layer board (gaps of 0.49 mm, two sub-gaps by
              default; research/strong-edge-laminate 8, cell 0.25 mm, against an independent hexahedral finite-element solution, a different METHOD from the program, which agrees with the
-             cell-centred 3D references of those studies only to 0.3 to 1.7 % (they read hot, first order in the cell)) with the physical slabs: -0.4 / -1.4 / -3.2 / -6.0 % at 200 / 500 / 1000 / 2000 W/m2K;
-             eight sub-gaps read HOT at a 0.25 mm cell, +0.6 / +1.6 / +2.3 / +2.8 % (the half-cell film of a cell wider than the sub-gap; at 0.5 mm up to +6 %), so the default
+             cell-centred 3D references of those studies only to 0.3 to 1.7 % (they read hot, first order in the cell)) with the physical slabs: -0.4 / -1.4 / -3.4 / -6.2 % at 200 / 500 / 1000 / 2000 W/m2K;
+             eight sub-gaps read HOT at a 0.25 mm cell, +0.6 / +1.6 / +2.2 / +2.6 % (the half-cell film of a cell wider than the sub-gap; at 0.5 mm up to +6 %), so the default
              and eight sub-gaps at a finer cell bracket the truth; the effect of a via 0.16 mm from the edge -2.9 % at 200 and -12.3 % at 1000 (-0.7 / +0.5 % with eight), a via 3 mm from the edge
              -2.3 / -8.3 % (-0.3 / +2.4 % with eight). The simple stack-up takes the same physical slabs as the advanced one, so the text has no clause for it. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
              FDM and a gap that the rule cuts; with no gap cut (all under the longest sub-gap) the text is the thin-laminate one (_edge_laminate_uncut).
@@ -1118,9 +1118,9 @@ def check_edge_laminate(problem, models):
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
          "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
          "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps, against an independent finite-element solution "
-         "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.2 % at 1000 and -6.0 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
+         "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.4 % at 1000 and -6.2 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
          "and reads lower still, so the via helps more than shown: on that board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, a via 3 mm from the edge -2 % at 200 and "
-         "-8 % at 1000. More sub-gaps do not simply improve it: with eight the plate reads HOT (+0.6 % at 200 to +2.8 % at 2000 at a 0.25 mm cell, up to +6 % at 0.5 mm, because the half-cell film of "
+         "-8 % at 1000. More sub-gaps do not simply improve it: with eight the plate reads HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, up to +6 % at 0.5 mm, because the half-cell film of "
          "a cell wider than the sub-gap over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth. A larger "
          f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce the cool error; with a cell larger than the gap many sub-gaps over-correct "
          "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
@@ -1137,8 +1137,8 @@ def _edge_laminate_uncut(b, s_max):
     @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
              stack-up), at a 0.25 mm cell, against an independent hexahedral finite-element solution (a different METHOD from the program; the cell-centred 3D reference first used for
              this text reads 1 to 9.5 % hot at that cell, so the old figures of -1 to -16 % were about twice the real error; a sample, not a bound): the shipped rule reads the hottest rise
-             -0.1 to -1.1 % at 200 W/m2K, -0.9 to -3.2 % at 500, -2.2 to -5.9 % at 1000 and -4.0 to -9.6 % at 2000 (pads on the outer layers up to -1.3 / -2.4 / -3.7 / -5.1 %), and eight
-             sub-gaps at the same cell read HOT, +0.7 to +1.1 / +2.0 to +2.8 / +3.6 to +5.0 / +5.0 to +7.3 % (at a 0.5 mm cell +2 to +14 %; at 0.125 mm +0.2 to +2.7 %): the default at
+             -0.1 to -1.1 % at 200 W/m2K, -0.9 to -3.2 % at 500, -2.2 to -6.0 % at 1000 and -4.1 to -9.7 % at 2000 (pads on the outer layers up to -1.3 / -2.4 / -3.8 / -5.2 %), and eight
+             sub-gaps at the same cell read HOT, +0.7 to +1.1 / +2.0 to +2.8 / +3.5 to +5.0 / +4.9 to +7.3 % (at a 0.5 mm cell +2 to +14 %; at 0.125 mm +0.2 to +2.7 %): the default at
              0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
     @param b The Board.
     @param s_max Longest sub-gap in m (laminate.parameters()).
