@@ -543,7 +543,7 @@ class ResultsView(QWidget):
         @brief Keep the notes of a finished animation and show them in the summary under those of the run.
         @param warns List of warning strings of the animation.
         """
-        self._anim_warns = [str(w) for w in warns]
+        self._anim_warns = list(warns)                 # Keep the objects: they carry their severity
         if getattr(self, "sim", None) is not None:
             self._show_warnings(self.sim.warnings)
             self.warnings.setVisible(bool(self.warnings.warnings))

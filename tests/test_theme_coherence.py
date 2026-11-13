@@ -196,16 +196,16 @@ def test_help_pages_follow_a_live_theme_switch(win):
 
 
 def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
+    from pcbthermal.gui import warning_box as wb
     class Warn(str):
         kind, index = "heater", 0
 
     lst = win.solver_panel.checks
-    lst.set_warnings([Warn("unsafe: one"), Warn("two")])
+    lst.set_warnings([Warn("will not run: one"), Warn("two")])                # a failure word: an alert by the fallback of plain strings
 
     def symbol_colour():
-        # The symbol colour written into the title of the first row (a severe warning uses the alert token)
-        head = lst.rows[0].head.text()
-        return next(name for name in ("alert", "muted") if QColor(th.colors(win.theme_name)[name]).name() in head.lower() or th.colors(win.theme_name)[name] in head)
+        # The token that colours the badge of the first row (an alert uses the alert token); it is drawn from the current theme at every paint
+        return lst.rows[0].glyphs.icon_token()
 
     assert symbol_colour() == "alert"                                       # Entries take the alert token, not the link colour
     verdict_light = win.solver_panel.cells_label.text()
@@ -216,7 +216,10 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
     assert th.colors("dark")["ok"] in verdict_dark or th.colors("dark")["warn"] in verdict_dark or th.colors("dark")["bad"] in verdict_dark
     link = QApplication.palette().link().color().name()
     assert link == QColor(th.colors("dark")["link"]).name()
-    assert th.colors("dark")["alert"] in lst.rows[0].head.text()            # the rows were drawn again in the colours of the new theme
+    # The badge is drawn from the current theme at every paint: the dark alert amber is the opaque colour of the cached badge of the new theme
+    pm = wb.badge_pixmap(True, lst.rows[0].glyphs.size_px, lst.rows[0].glyphs.devicePixelRatioF(), th.colors("dark")["alert"])
+    img = pm.toImage()
+    assert win.theme_name == "dark" and QColor(th.colors("dark")["alert"]).name() in {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height())}
 
 
 def test_every_window_object_changes_its_palette_on_a_toggle(win):

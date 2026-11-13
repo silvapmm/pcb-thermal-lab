@@ -93,7 +93,7 @@ def test_warning_titles_are_short_and_clean():
     assert checks.warning_title("analytic (time simulation): the transient keeps the heatsinks local").startswith("Analytic (time simulation): the transient")
     long = checks.warning_title("word " * 40)
     assert len(long) <= checks.TITLE_MAX + 1 and long.endswith("…")
-    assert checks.warning_severity("this will not run") == "high" and checks.warning_severity("a note") == "note"
+    assert checks.warning_severity("this will not run") == "alert" and checks.warning_severity("a note") == "note"
 
 
 def test_the_accordion_lists_closed_rows_and_the_select_button_names_the_element(win, qtbot):

@@ -33,7 +33,7 @@ from . import __version__, analytic, blocks, convection, copper, fdm, fvm, lamin
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
-from .checks import check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates
+from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -160,13 +160,14 @@ class Simulation:
         @brief Every warning: input checks first, then those of each model.
         @return List of strings.
         """
-        out = list(self.problem_warnings) + list(self.part_warnings)
+        # A plain string (the notes of the models, the guard messages) gets its severity here, so that every line of the summary has one
+        out = [w if getattr(w, "severity", None) else warn(str(w), warning_severity(w)) for w in list(self.problem_warnings) + list(self.part_warnings)]
         for name, r in self.results.items():
-            out += [f"{name}: {w}" for w in r.warnings]
+            out += [warn(f"{name}: {w}", warning_severity(w)) for w in r.warnings]
         for name, r in self.profile_results.items():
-            out += [f"{name} (time simulation): {w}" for w in r.warnings]
+            out += [warn(f"{name} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
         if self.profile_error:
-            out.append(f"time simulation not run: {self.profile_error}")
+            out.append(warn(f"time simulation not run: {self.profile_error}", ALERT))
         return out
 
     @property
@@ -617,14 +618,14 @@ def _solve_with_tc(problem, name, options, computed):
     res.extras["top_path_solves"] = float(solves)
     res.extras["thermal_runaway"] = float(runaway)
     if runaway:
-        res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
+        res.warnings.append(warn("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)", ALERT))
     elif not settled:
         # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
-        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {num(change)}): "
-                            "the board is close to thermal runaway and the temperatures are underestimated")
+        res.warnings.append(warn(f"the powers of the parts did not settle in {it} iterations (last relative change {num(change)}): "
+                                 "the board is close to thermal runaway and the temperatures are underestimated", ALERT))
     if not split_ok:
-        res.warnings.append("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
-                            "(the junction temperatures may be wrong)")
+        res.warnings.append(warn("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
+                                 "(the junction temperatures may be wrong)", ALERT))
     return res, hh, totals
 
 
@@ -666,8 +667,8 @@ def _part_warnings(sim):
     runaway = any(r.extras.get("thermal_runaway") for r in sim.results.values())
     for row, h in zip(sim.heater_rows(), sim.problem.heaters):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
-            out.append(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
-                       f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)")
+            out.append(warn(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
+                            f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)", ALERT))
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
@@ -774,7 +775,7 @@ def _solve_computed_h(problem, name, o):
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
                             "choose the general form")
     if it == 30 and not done:
-        res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
+        res.warnings.append(warn("the computed heat transfer coefficients did not settle in 30 iterations", ALERT))
     return res, ht, hb, it
 
 
@@ -927,7 +928,7 @@ def _run_profiles(sim, progress, start):
     usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and (p.board.has_outline() or blocks.has_blocks(p))))
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
-        sim.problem_warnings.append("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)")
+        sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)"))
     ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
         sim.profile_error = "select the FVM or the FDM (or Lumped/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
@@ -1014,14 +1015,14 @@ def _simulate(problem, options, progress):
                 skipped.add(v.model)
             else:
                 raise memory.MemoryGuardError(v.message)
-    guard_warnings = [f"the 3D solid was not run: {v.message}" if v.verdict == "refuse" else v.message for v in verdicts if v.message]
+    guard_warnings = [warn(f"the 3D solid was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
     # The time simulation of a power profile (profiles.run_fvm / run_fdm at the cell of the run) holds a step factor while the next one is built: about twice a
     # steady solve (measured 1.7 times the law on the profile example at 0.5 mm). Checked now, before the steady solves; a refusal leaves the steady results and
     # says why the time simulation was not run (the step responses run on a cell of at least 2 mm and are smaller).
     profile_verdicts = (memory.check(problem, tuple(m for m in options.models if m in ("fvm", "fdm")), options.cell_mm, fraction=options.memory_fraction,
                                      factor=memory.PROFILE_FACTOR, refuse="return") if problem.has_profiles() else [])
     profile_refused = next((v for v in profile_verdicts if v.verdict == "refuse"), None)
-    guard_warnings += [v.message for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
+    guard_warnings += [warn(v.message) for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
     sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm)
                      + guard_warnings)
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
@@ -1042,7 +1043,7 @@ def _simulate(problem, options, progress):
         except ValueError as exc:
             if name != "solid3d" or len(options.models) == 1:
                 raise
-            sim.problem_warnings.append(f"the 3D solid was not run: {exc}")        # Too large: the other models still answer
+            sim.problem_warnings.append(warn(f"the 3D solid was not run: {exc}", ALERT))        # Too large: the other models still answer
             continue
         sim.seconds[name] = time.time() - t0
     if blocks.has_blocks(problem):

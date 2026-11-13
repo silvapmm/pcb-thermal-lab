@@ -1364,6 +1364,9 @@ class SolverPanel(QWidget):
 
     run_requested = Signal()
     cancel_requested = Signal()
+    RUN_TEXT = "Run simulation   (F5)"
+    STOP_TEXT = "Stop   (Ctrl+.)"
+    STOP_TIP = "Stop the calculation (Ctrl+.)"
 
     def __init__(self, doc, parent=None):
         """!
@@ -1408,6 +1411,8 @@ class SolverPanel(QWidget):
         self.cells_label.setTextFormat(Qt.RichText)        # The verdict of each model is coloured
         self.cells_label.setToolTip("Unknowns and estimated memory of each model against the limit (Preferences). Green: fits; amber: slow; red: will not run, use the cell shown.")
         self._running = False                              # True while a calculation runs
+        self._busy = False                                 # True while any calculation runs or waits: the Run button is then the Stop button
+        self._hold = False                                 # True for a double-click interval after a Stop: Run is shown but not yet clickable
         self.blocked = ""                                  # Why Run is disabled (a model above the memory limit), "" when it is not
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
@@ -1443,13 +1448,9 @@ class SolverPanel(QWidget):
         f.addRow("Laminate sub-gaps", self.lam_n)
         lay.addWidget(g)
 
-        self.run = QPushButton("Run simulation   (F5)")
+        self.run = QPushButton(self.RUN_TEXT)
         self.run.setObjectName("primary")
-        self.run.clicked.connect(self.run_requested)
-        self.cancel = QPushButton("Cancel")
-        self.cancel.setToolTip("Stop the calculation (Ctrl+.); nothing is kept.")
-        self.cancel.clicked.connect(self.cancel_requested)
-        self.cancel.setVisible(False)
+        self.run.clicked.connect(self._run_clicked)        # Run when idle, Stop while a calculation runs
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -1463,7 +1464,6 @@ class SolverPanel(QWidget):
         fl = QVBoxLayout(self.footer)
         fl.setContentsMargins(8, 4, 8, 8)
         fl.addWidget(self.run)
-        fl.addWidget(self.cancel)
         fl.addWidget(self.progress)
         fl.addWidget(self.status)
         lay.addWidget(self.checks)
@@ -1546,8 +1546,7 @@ class SolverPanel(QWidget):
             msg = str(exc)
             self.cells_label.setText(f'<span style="color:{colours["refuse"]}">{html.escape(msg)}</span>')
             self.blocked = msg
-            self.run.setEnabled(False)
-            self.run.setToolTip(f"Cannot run: {msg}")
+            self._style_run_button()
             return
         for v in verdicts:
             gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
@@ -1566,8 +1565,7 @@ class SolverPanel(QWidget):
                 blocked = blocked or v.message
         self.cells_label.setText("<br>".join(rows))
         self.blocked = blocked
-        self.run.setEnabled(not blocked and not self._running)
-        self.run.setToolTip(f"Cannot run: {blocked}" if blocked else "Solve the selected models (F5).")
+        self._style_run_button()
 
     def _auto_cell(self):
         """!
@@ -1620,6 +1618,41 @@ class SolverPanel(QWidget):
             return ""
         return getattr(items[index], "name", "") or f"{kind.capitalize()} {index + 1}"
 
+    def _run_clicked(self):
+        """!
+        @brief The one button: it stops the calculation while one runs or waits, otherwise it asks for a run.
+        """
+        (self.cancel_requested if self._busy else self.run_requested).emit()
+
+    def set_busy(self, busy):
+        """!
+        @brief Turn the Run button into the Stop button while any calculation (simulation, animation, profile run, analysis, power calculator) runs or waits.
+        @param busy True while the calculation engine is busy.
+        """
+        self._busy = bool(busy)
+        self._style_run_button()
+
+    def set_hold(self, hold):
+        """!
+        @brief Keep the Run button disabled for a moment after a Stop, so that the second click of a double click on Stop does not start a new run.
+        @param hold True while the hold lasts.
+        """
+        self._hold = bool(hold)
+        self._style_run_button()
+
+    def _style_run_button(self):
+        """!
+        @brief Text, tooltip and enabled state of the Run / Stop button: Stop is always usable; Run is off while a model is above the memory limit.
+        """
+        if self._busy:
+            self.run.setText(self.STOP_TEXT)
+            self.run.setToolTip(self.STOP_TIP)
+            self.run.setEnabled(True)
+            return
+        self.run.setText(self.RUN_TEXT)
+        self.run.setEnabled(not self.blocked and not self._running and not self._hold)
+        self.run.setToolTip(f"Cannot run: {self.blocked}" if self.blocked else "Solve the selected models (F5).")
+
     def set_running(self, running, text=""):
         """!
         @brief Enable or disable the Run button while a simulation runs.
@@ -1627,8 +1660,7 @@ class SolverPanel(QWidget):
         @param text Status text.
         """
         self._running = running
-        self.cancel.setVisible(running)
-        self.run.setEnabled(not running and not self.blocked)
+        self._style_run_button()
         self.status.setText(text)
         if not running:
             self.progress.setValue(0)

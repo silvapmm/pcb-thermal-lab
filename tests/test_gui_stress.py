@@ -620,7 +620,7 @@ def test_a_result_delivered_without_a_run_is_not_outdated(win):
 
 
 def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
-    """A simulation started while an animation and an analysis are computing used to abort the process (SuperLU in two threads)."""
+    """An animation and an analysis computing at once wait for each other (SuperLU in two threads used to abort); a Run asked meanwhile is ignored (the button is Stop), and works afterwards."""
     load(win, example_profile_board())
     win.doc.set_options(models=ALL_MODELS, cell_mm=1.0)
     anim = win.results.animation
@@ -630,9 +630,12 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     anim.tr = None
     anim.compute.click()                                                   # Animation starts...
     win.profile_page.run_analysis()                                        # ...an analysis...
-    win.run_simulation()                                                   # ...and a simulation, all at once
-    qtbot.waitUntil(lambda: anim.tr is not None and win.sim is not None and bool(win.profile_page.decisions), timeout=240000)
-    qtbot.waitUntil(lambda: not win.worker.isRunning() and not win.profile_page.worker.isRunning(), timeout=60000)
+    win.run_simulation()                                                   # ...and a Run while they compute: ignored, the button is Stop
+    assert win.sim is None or not win.worker or not win.worker.isRunning()
+    qtbot.waitUntil(lambda: anim.tr is not None and bool(win.profile_page.decisions), timeout=240000)
+    qtbot.waitUntil(lambda: not win.profile_page.worker.isRunning(), timeout=60000)
+    win.run_simulation()                                                   # Idle again: the simulation runs
+    qtbot.waitUntil(lambda: win.sim is not None and not win.worker.isRunning(), timeout=240000)
 
 
 def test_metal_block_in_the_application(win, qtbot):
@@ -804,8 +807,8 @@ def test_cancel_a_simulation_from_the_window(win, qtbot):
     load(win, example_board())
     win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
     win.run_simulation()
-    assert win.worker.isRunning() and win.solver_panel.cancel.isVisible() is not None
-    win.solver_panel.cancel.click()
+    assert win.worker.isRunning() and win.solver_panel.run.text() == "Stop   (Ctrl+.)"       # The Run button is the Stop button now
+    win.solver_panel.run.click()
     assert not win.worker.isRunning() and win.solver_panel.status.text() == "Cancelled."
     assert win.sim is None or win.sim is not None                         # No result is taken from the cancelled run
     run(win, qtbot, ("fvm",), cell=2.0)
@@ -1578,3 +1581,153 @@ def test_hole_kinds_in_the_application(win, qtbot, tmp_path):
     win.doc.open_problem(example_board(), "example")
     assert view._hole_items == {} and view.hole_counts()["component"] == 0
     win.doc.stack.setClean()
+
+
+# ---------------------------------------------------------------------------------------------------------------- Run becomes Stop while a calculation runs
+STOP_TEXT, RUN_TEXT = "Stop   (Ctrl+.)", "Run simulation   (F5)"
+
+
+def _toolbar_shows_stop(win):
+    """!
+    @brief Which of the two run actions the toolbar holds right now.
+    @param win MainWindow.
+    @return "stop", "run" or None.
+    """
+    acts = win.toolbar.actions()
+    return "stop" if win.a_stop in acts else ("run" if win.a_run in acts else None)
+
+
+def _is_stop(win):
+    """!
+    @brief True when both the dock button and the toolbar are in their Stop state (tooltip included) and F5 is off.
+    @param win MainWindow.
+    @return bool.
+    """
+    b = win.solver_panel.run
+    return (b.text() == STOP_TEXT and b.isEnabled() and "Stop the calculation (Ctrl+.)" in b.toolTip() and _toolbar_shows_stop(win) == "stop"
+            and not win.a_run.isEnabled() and win.a_stop.toolTip() == "Stop the calculation (Ctrl+.)")
+
+
+def _is_run(win):
+    """!
+    @brief True when the button, the toolbar and F5 are back in their Run state.
+    @param win MainWindow.
+    @return bool.
+    """
+    return win.solver_panel.run.text() == RUN_TEXT and _toolbar_shows_stop(win) == "run" and win.a_run.isEnabled()
+
+
+def test_run_becomes_stop_cancels_and_becomes_run_again(win, qtbot):
+    """Run -> the button is Stop -> a click cancels -> Run again; F5 while busy starts nothing; the next run works and ends in the Run state."""
+    from pcbthermal.gui import compute
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    assert _is_run(win)
+    win.run_simulation()
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+    jobs_before = len(compute.ENGINE.known)
+    win.a_run.trigger()                                                    # F5 (the disabled action) and a direct call: both ignored
+    win.run_simulation()
+    assert len(compute.ENGINE.known) == jobs_before == 1
+    win.solver_panel.run.click()                                           # Stop
+    qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=20000)
+    assert win.solver_panel.status.text() == "Cancelled." and not compute.busy()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=5000)                    # Run comes back after the short hold that follows a Stop
+    run(win, qtbot, ("fvm",), cell=2.0)                                    # A new run works and the button is Run when it ends
+    assert win.sim.reference.model == "fvm"
+    qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+
+
+def test_the_toolbar_stop_button_and_ctrl_dot_cancel_too(win, qtbot):
+    """The toolbar Stop action and the Cancel calculation action (Ctrl+.) use the same cancel path."""
+    load(win, example_board())
+    for how in ("toolbar", "ctrl-dot"):
+        win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+        win.run_simulation()
+        qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+        (win.a_stop if how == "toolbar" else win.a_cancel).trigger()
+        qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+        assert win.solver_panel.status.text() == "Cancelled."
+
+
+def test_a_double_click_on_stop_does_not_start_a_new_run(win, qtbot):
+    """A double click on Stop (dock button or toolbar): the first click stops, the second lands on the Run button that took its place and must start nothing (review)."""
+    from pcbthermal.gui import compute
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    for where in ("dock", "toolbar"):
+        win.run_simulation()
+        qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+        if where == "dock":
+            b = win.solver_panel.run
+        else:
+            b = win.toolbar.widgetForAction(win.a_stop)
+        c = b.rect().center()
+        QTest.mousePress(b, Qt.LeftButton, Qt.NoModifier, c)
+        QTest.mouseRelease(b, Qt.LeftButton, Qt.NoModifier, c)               # Stop
+        if where == "toolbar":
+            b = win.toolbar.widgetForAction(win.a_run)                       # The toolbar button of Run now stands where Stop was
+            c = b.rect().center()
+        QTest.mouseDClick(b, Qt.LeftButton, Qt.NoModifier, c)                # The second press of the double click, then its release
+        QTest.mouseRelease(b, Qt.LeftButton, Qt.NoModifier, c)
+        qtbot.wait(50)
+        assert not compute.busy() and not compute.ENGINE.known, where
+        assert win.solver_panel.status.text() == "Cancelled."
+        qtbot.waitUntil(lambda: _is_run(win), timeout=5000)                  # and Run comes back by itself
+        assert win.solver_panel.run.isEnabled()
+
+
+def test_the_power_calculator_job_shows_stop_and_is_cancelled(win, qtbot):
+    """The Power Calculator is modal, so the window's Stop cannot be clicked while it computes: the window shows Stop (its job is a calculation), the
+    cancel path stops it ('Cancelled.' in the calculator, Compute usable again), and closing the calculator also stops its job (review)."""
+    from pcbthermal.gui import calculator as calc, compute
+    load(win, example_board())
+    win.doc.set_options(models=("fvm",), cell_mm=0.5)
+    for how in ("stop", "close"):
+        dlg = calc.PowerCalculator(win.doc, win)
+        qtbot.addWidget(dlg)
+        dlg.band.setChecked(True)                                             # the band runs several solves: long enough to stop
+        dlg.measured.setValue(90.0)
+        dlg.compute.click()
+        qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+        if how == "stop":
+            win.cancel_simulation()                                          # the same path as the Stop button and Ctrl+.
+            assert dlg.result.text() == "Cancelled." and dlg.compute.isEnabled()
+        else:
+            dlg.reject()                                                     # closing the calculator cancels its job
+        assert not compute.busy() and not compute.ENGINE.known
+        qtbot.waitUntil(lambda: _is_run(win), timeout=5000)
+        dlg.close()
+
+
+def test_stop_cancels_an_animation_and_a_profile_run(win, qtbot):
+    """An animation and a power-profile run are calculations too: the button is Stop, a click cancels them, and Run returns."""
+    load(win, example_board())
+    win.doc.set_options(models=("fvm",), cell_mm=0.5)
+    win.compute_animation({"t_end": 100.0, "n_out": 40, "theta_scheme": 1.0, "model": "fvm", "log_times": False})
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+    win.solver_panel.run.click()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+    assert win._anim_worker is not None and not win._anim_worker.isRunning()
+    load(win, example_profile_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    win.run_simulation()
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+    win.solver_panel.run.click()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+    assert win.solver_panel.status.text() == "Cancelled."
+
+
+def test_a_finished_and_a_failed_calculation_give_the_button_back(win, qtbot):
+    """The button returns to Run when a calculation ends normally and when it fails (an unknown job fails in the process)."""
+    from pcbthermal.gui import compute
+    load(win, example_board())
+    run(win, qtbot, ("fvm",), cell=2.0)
+    qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+    bad = compute.ProcessWorker("no-such-job")
+    seen = []
+    bad.failed.connect(seen.append)
+    compute.start(bad)
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+    qtbot.waitUntil(lambda: bool(seen), timeout=60000)
+    qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
