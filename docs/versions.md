@@ -394,7 +394,7 @@ Release gate after wave 3: the review of `docs/theory.md` against the code, the 
 
 **Detail of the earlier 2.8.0 items** (kept; the ids are those of `research/ROADMAP.md`):
 
-7. **Version-comparison notes for v2.5.0 to v2.7.0**: `releases/regression-harness/reference/version_notes.json` has hand-written notes for the pairs v2.0.0 to v2.5.0 only; the pairs v2.5.0 to v2.5.1, to v2.5.2, to v2.6.0 and to v2.7.0 in `docs/version-comparison.md` have no 'implemented' and 'reading' text (they need the CHANGELOG items and the numbers the result sets print, written by hand).
+7. **Version-comparison notes for v2.5.0 to v2.7.0** (DONE on `docs/third-party-text-guard`, in the Unreleased section of `CHANGELOG.md`): `releases/regression-harness/reference/version_notes.json` has the hand-written 'implemented' and 'reading' notes for the pairs v2.5.0 to v2.5.1, to v2.5.2, to v2.6.0 and to v2.7.0, quoted from the CHANGELOG; the numeric tables of `docs/version-comparison.md` are regenerated at the next release (`regen_version_comparison.sh` re-runs every tag and was not run). Also done there: the guard `tests/test_third_party_text.py` and the licence and source fields of `research/theory/BIBLIOGRAPHY.md` (no `papers/` text in git).
 
 The maintainer decided that these investigations are not part of 2.7.0, because their answer may become a feature (a minor number). The ids are those of `research/ROADMAP.md`.
 
