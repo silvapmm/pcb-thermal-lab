@@ -3,6 +3,16 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Fixed
+
+- **Enter in a Properties field keeps the focus in the field** (`fix/enter-focus-and-calculator-test`; display only, no number moves): the canvas reported an empty selection after every rebuild, so an element shown in Properties that is not selectable on the drawn layer (another layer than the Layer box shows) lost its form, and the keyboard focus with it, at the first edit that Enter committed (the focus fell to the tab bar). `Canvas.rebuild` now reports the selection only when the rebuild changed it. Tests `tests/test_enter_focus.py` (after the Layer box, the keys L, Shift+L and the digits, and the element on another layer).
+
+### Tests
+
+- **Power Calculator dialog** (`tests/test_calculator_dialog.py`): the dialog is driven offscreen on the datasheet boards (CSD17308Q3 46.7 K/W, -1.4 %; JEDEC 2s2p 31.6 K/W, +2.9 % at the dialog's 0.5 mm cell), with the greyed fields, the case selector that writes the power into the part (one undo step), the Help page and the dialog closed while its calculation runs.
+
 ## [2.7.0] - 2026-11-13
 
 ### Added
