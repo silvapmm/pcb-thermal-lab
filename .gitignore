@@ -10,6 +10,7 @@ __pycache__/
 
 # Virtual environments (create with: python3 -m venv .venv)
 .venv/
+.venv
 venv/
 env/
 

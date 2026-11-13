@@ -23,6 +23,7 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.figure import Figure
 from scipy import ndimage
 
+from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
 from .results import model_label
@@ -169,6 +170,40 @@ def _outline(ax, problem, layer):
             ax.plot(p[:, 0], p[:, 1], color="cyan", lw=1.2, ls=":")
     if problem.vias:
         ax.plot([v.x * 1000.0 for v in problem.vias], [v.y * 1000.0 for v in problem.vias], "k.", ms=3)
+
+
+MAX_MARK_COLOUR = "#ef5350"   # The red of the `bad` token: the same ring as the map on the board (gui/canvas.py)
+MIN_MARK_COLOUR = "#3aa0ff"   # The blue of the `heatsink` token: the coolest point
+FLAT_FIELD_K = 1e-9           # A field flatter than this has no hottest or coolest point worth marking
+
+
+def _mark_extremes(ax, field, problem, dx, dy, hot_mm=None):
+    """!
+    @brief Mark the hottest (red ring) and the coolest (blue ring) sample of the field AS DRAWN, like the map on the board.
+    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a Lumped or Analytic outline board), so the marks sit on the
+             samples that the colour bar's ends belong to. The first sample wins a tie; a field flatter than `FLAT_FIELD_K` marks nothing.
+    @param ax Matplotlib axis (coordinates in mm).
+    @param field Array (ny, nx) of temperatures, NaN off the board.
+    @param problem The Problem whose frame the field is drawn in (the solved rectangle for a stretched map).
+    @param dx Spacing along x in metres of that field.
+    @param dy Spacing along y in metres of that field.
+    @param hot_mm Optional (x, y) in mm, in the frame of `problem`, where the model reports its hottest point; the red ring goes there and only the blue
+           ring is computed from the field. None computes both.
+    @return The result of `analysis.extreme_points`, or None when nothing was marked.
+    """
+    f = np.asarray(field, float)
+    xs, _ys, _ext = _field_axes(f, problem, dx, dy)
+    nodes = bool(xs[0] == 0.0)          # A node field starts at 0, cell values at half a cell
+    ext = extreme_points(f, None, dx, dy, nodes)
+    if ext is None or ext["tmax"] - ext["tmin"] < FLAT_FIELD_K:
+        return None
+    if hot_mm is not None:
+        ext["pmax"] = (float(hot_mm[0]), float(hot_mm[1]))      # The model's own Tmax point; the field only gives the cold end
+    for key, colour in (("pmin", MIN_MARK_COLOUR), ("pmax", MAX_MARK_COLOUR)):
+        x, y = ext[key]
+        ax.plot(x, y, "o", ms=10, mfc="none", mec="white", mew=3.4, zorder=6)            # Halo so that it reads on any colour map
+        ax.plot(x, y, "o", ms=10, mfc="none", mec=colour, mew=1.7, zorder=7)
+    return ext
 
 
 EQUIVALENT_LABEL = "rectangle solved (same area as the outline"
@@ -548,7 +583,7 @@ def _draw_copper(ax, problem, layer, view, solved_view):
 
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
-               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None):
+               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None, extremes=False):
     """!
     @brief Draw one layer of a scalar field over the board, with outlines and a colour bar.
     @param fig Target Figure (cleared first).
@@ -570,7 +605,11 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
            dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
     @param equivalent_color Colour of that dashed line.
     @param view Optional MapView (Smooth, Terrain, copper under the map); None or mode "current" without copper is the original picture.
-    @return The axes.
+    @param extremes If True mark the hottest (red ring) and the coolest (blue ring) of the map, as the map on the board does (for temperature maps; a gradient map
+           has no coolest point worth marking). The coolest is the coolest sample of the field as drawn; the hottest is `marker` when given (the point where the model
+           reports its Tmax) and the hottest sample of the field otherwise.
+    @return The axes; its attribute `extreme_marks` holds the dict of `analysis.extreme_points` for the two rings (tmax, tmin and their points), or None when
+            nothing was marked.
     """
     fig.clear()
     ax = fig.add_subplot(111)
@@ -588,7 +627,10 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
         ax.contour(xs, ys, field, levels=[hotspot], colors="#ff00cc", linewidths=1.2)
     if outline:
         _outline(ax, problem, layer)
-    if marker is not None:
+    ax.extreme_marks = None                     # What the rings mark (read by the Results title, so that the numbers it quotes are the ringed ones)
+    if extremes:
+        ax.extreme_marks = _mark_extremes(ax, field, problem, dx, dy, None if marker is None else (marker[0] * 1000.0, marker[1] * 1000.0))
+    elif marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
     if solved_view:
         lines = _equivalent_lines(ax, real, problem, equivalent_color)
@@ -668,6 +710,11 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_xlim(0, b.width * 1000)
         ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
+        loc = result.t_max_location
+        hot = None                                                           # The layer of the model's Tmax keeps the model's point; the others compute theirs
+        if loc is not None and int(loc[0]) == l:
+            hot = (loc[1] * 1000.0 * (s if solved_view else 1.0), loc[2] * 1000.0 * (s if solved_view else 1.0))
+        _mark_extremes(ax, T[l], problem, dx, dy, hot)                      # Every panel marks its own coolest sample
         if solved_view:
             lines = _equivalent_lines(ax, real, problem, equivalent_color)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
@@ -675,10 +722,6 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_aspect("equal")
         if l % ncol == 0:
             ax.set_ylabel("y (mm)")
-    loc = result.t_max_location
-    if loc is not None and loc[0] < L:
-        f = s if solved_view else 1.0                                       # The location is stored on the real box (stretched back)
-        axes[loc[0]].plot(loc[1] * 1000 * f, loc[2] * 1000 * f, "c+", ms=10)
     fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
@@ -687,24 +730,171 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
                  f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
 
 
-@_with_engineering_ticks
-def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
+CUT_COLOUR = "#ffb000"        # The amber of the alert token: the cut line on the plain board
+THUMBNAIL_BOARD = "#2b2f36"   # Dark board face so that the white outlines of `_outline` read on it
+PICTURES = ("off", "board", "map")      # What the cut picture shows: nothing, the board (with the underlay), or the board with the temperature map on top
+INSET_W, INSET_H = 0.30, 0.40           # Size of the cut picture over the curves, as fractions of the axes (the board keeps its aspect inside)
+INSET_TITLE = 0.06                      # Band over the picture for its title, as a fraction of the axes height
+INSET_LOAD_TIE = 0.002                  # Corners whose shares of curve samples under the picture differ by less than this are equally empty (the first in order wins)
+INSET_MIN_WIDTH_IN = 5.0                # Narrower figures (inches) keep the picture in a strip above the curves, as before the overlay
+
+
+def _inset_region(corner):
     """!
-    @brief Temperature along a line through the board for every model.
+    @brief The region of the axes that the cut picture covers in a corner.
+    @param corner "ul", "ur", "ll" or "lr" (upper or lower, left or right).
+    @return (x0, y0, w, h) in axes fractions of the picture itself; its title band (INSET_TITLE) sits over it, so an upper corner leaves room above.
+    """
+    x0 = 0.99 - INSET_W if corner[1] == "r" else 0.01
+    y0 = 0.99 - INSET_TITLE - INSET_H if corner[0] == "u" else 0.07      # A lower corner stays clear of the x axis
+    return x0, y0, INSET_W, INSET_H
+
+
+def _inset_load(ax, curves, peak, corner):
+    """!
+    @brief How much of the curves, and whether the hottest sample, lies under the cut picture in a corner.
+    @param ax Axes with its limits set.
+    @param curves List of (x, y) arrays of the plotted curves, data units.
+    @param peak (x, y) of the hottest sample of the reference curve, or None.
+    @param corner "ul", "ur", "ll" or "lr".
+    @return (share of all curve samples under the picture and its title 0..1, True when the hottest sample (3 % margin) is under it).
+    """
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    bx, by, bw, bh = _inset_region(corner)
+    bh += INSET_TITLE
+    inside = total = 0
+    for x, y in curves:
+        u, v = (np.asarray(x, float) - x0) / (x1 - x0), (np.asarray(y, float) - y0) / (y1 - y0)
+        inside += int(np.sum((u > bx) & (u < bx + bw) & (v > by) & (v < by + bh)))
+        total += len(u)
+    ring = False
+    if peak is not None:
+        uk, vk = (peak[0] - x0) / (x1 - x0), (peak[1] - y0) / (y1 - y0)
+        ring = bx - 0.03 < uk < bx + bw + 0.03 and by - 0.03 < vk < by + bh + 0.03
+    return inside / max(total, 1), ring
+
+
+def choose_inset_corner(ax, curves, peak):
+    """!
+    @brief The corner for the cut picture: the emptiest corner, the upper left whenever it is as empty as the best (within `INSET_LOAD_TIE` of the samples).
+    @details Deterministic: the four corners are scored by the share of the curve samples under the picture (plus a large penalty when the hottest point is under it)
+             and the lowest score wins, ties in the order upper left, upper right, lower left, lower right. The review replaced the earlier rule (the upper left up to 3 %
+             of the samples, the other three corners only): on the example board it hid the rising flank of every curve (1.3 % of the samples, 2.2 % on an outline
+             board) while the upper right was empty, and it could never come back to the upper left when every corner was loaded.
+    @param ax Axes with its limits set (the curves are drawn).
+    @param curves List of (x, y) arrays of the plotted curves, data units.
+    @param peak (x, y) of the hottest sample of the reference curve, or None.
+    @return "ul", "ur", "ll" or "lr".
+    """
+    order = ("ul", "ur", "ll", "lr")
+    score = {}
+    for c in order:
+        sh, rg = _inset_load(ax, curves, peak, c)
+        score[c] = sh + (10.0 if rg else 0.0)
+    best = min(score.values())
+    return next(c for c in order if score[c] <= best + INSET_LOAD_TIE)
+
+
+def _cut_map_source(results, problem):
+    """!
+    @brief The result whose temperature map the cut picture may show, and why there is none when it cannot.
+    @param results Dict {model: SteadyResult}.
+    @param problem The Problem.
+    @return (SteadyResult or None, note): the reference model (the finite-volume one when present) when its map is drawn as solved, else None and a short note
+            (a Lumped or Analytic map of an outline board is stretched onto the box, which the board picture would contradict).
+    """
+    ref = results.get("fvm") or next(iter(results.values()))
+    if ref.T is None:
+        return None, ""
+    if ref.equivalent_scale is not None and problem.board.has_outline():
+        return None, "no map: equivalent rectangle"
+    return ref, ""
+
+
+def _draw_cut_picture(ax, problem, layer, axis, position_mm, picture="board", underlay=None, field_result=None, cmap="inferno", map_alpha=0.7, note=""):
+    """!
+    @brief The picture of the board with the cut line: the underlay and the temperature map of the layer under it, the elements of the layer and the line.
+    @details The content is the one of the maps of the Results (a MapView from the shared Display state: copper or image under, the opacity of the map over it, the colour
+             map): the board plain when there is nothing to show, the copper or image of the layer when an underlay is set, the temperature map on top when `picture`
+             is "map". Cells off an outline are transparent. The cut line is white with a black halo over copper or a map (amber would vanish on a hot colour) and amber on
+             the plain board. The aspect is fixed (equal) and the ticks are left out.
+    @param ax Matplotlib axis (the inset over the curves, or the strip above them).
+    @param problem The Problem.
+    @param layer 0-based layer.
+    @param axis "x" for a horizontal cut (a line at y = position), "y" for a vertical one.
+    @param position_mm Position of the plotted row (axis "x") or column (axis "y") in mm.
+    @param picture "board" or "map".
+    @param underlay MapView with the copper or image settings (`show_copper`, `underlay`, `image`, colours, cache), or None for the plain board.
+    @param field_result SteadyResult whose layer field is the map (picture "map"), or None.
+    @param cmap Colour map name of the map.
+    @param map_alpha Opacity 0 to 1 of the map when something is under it (opaque on the plain board).
+    @param note Short note added to the title (why a map is not drawn).
+    """
+    b = problem.board
+    w, h = b.width * 1000.0, b.height * 1000.0
+    under = underlay is not None and underlay.show_copper and not note       # No underlay either when the map cannot be drawn as solved (plain board)
+    if under:
+        _draw_underlay(ax, problem, layer, underlay, False)
+    else:
+        ax.add_patch(MplPolygon(np.asarray(b.outline) * 1000.0 if b.has_outline() else [(0, 0), (w, 0), (w, h), (0, h)], closed=True, fc=THUMBNAIL_BOARD, ec="none", zorder=0.5))
+    mapped = picture == "map" and field_result is not None
+    if mapped:
+        r = field_result
+        field = _off_board(r.T[min(layer, r.T.shape[0] - 1)], problem, r.dx, r.dy)
+        _xs, _ys, ext = _field_axes(field, problem, r.dx, r.dy)
+        ax.imshow(field, origin="lower", cmap=cmap, extent=ext, vmin=np.nanmin(field), vmax=np.nanmax(field), alpha=map_alpha if under else None,
+                  interpolation="nearest", zorder=1)       # Over the plain board patch (0.5), under the element outlines
+    _outline(ax, problem, layer)                    # Compares layer indices only, so any layer (also one without elements) is safe
+    xy = ([0, w], [position_mm, position_mm]) if axis == "x" else ([position_mm, position_mm], [0, h])
+    if under or mapped:
+        ax.plot(*xy, color="#000000", lw=3.4, solid_capstyle="butt")       # The black halo under the white line
+        ax.plot(*xy, color="#ffffff", lw=1.5, solid_capstyle="butt")
+    else:
+        ax.plot(*xy, color=CUT_COLOUR, lw=1.6)
+    ax.set_xlim(0, w)
+    ax.set_ylim(0, h)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(f"Layer {layer + 1}" + (f" ({note})" if note else ""), fontsize=7, pad=2)
+
+
+@_with_engineering_ticks
+def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
+    """!
+    @brief Temperature along a line through the board for every model, with a picture of the board over the curves that shows where the line lies.
+    @details The picture is an opaque inset inside the axes (so a saved PNG and the command line have it too): the corner with the fewest curve samples and not over
+             the hottest point, the upper left when it is as empty as the best (`choose_inset_corner`); the legend goes to the emptiest other corner (never `best`). It
+             shows what the Results maps show (`underlay` and the temperature map of the reference model with `map_alpha` and `cmap`); see `_draw_cut_picture`.
+             In a figure narrower than 5 in the picture sits in a strip above the curves, as before. The curve of each model is the nearest cell row
+             (column) to the asked position, so the line and the title quote the position of the row actually plotted for the reference model, not the asked value.
     @param fig Target Figure (cleared first).
     @param results Dict {model: SteadyResult}.
     @param problem The Problem.
     @param layer 0-based layer.
     @param axis "x" for a horizontal cut at y = position, "y" for a vertical cut at x = position.
     @param position_mm Cut position in mm (default: the hottest point of the reference model).
+    @param picture "off" (no picture), "board" (board with the underlay) or "map" (the same with the temperature map on top). The command line default is "map".
+    @param underlay MapView with the copper or image settings of the picture (None: the plain board).
+    @param map_alpha Opacity 0 to 1 of the map over an underlay (opaque when nothing is under it).
+    @param cmap Colour map name of the map.
     """
     fig.clear()
-    ax = fig.add_subplot(111)
     b = problem.board
+    picture = picture if picture in PICTURES else "map"
+    strip = picture != "off" and fig.get_figwidth() < INSET_MIN_WIDTH_IN        # Only a narrow figure keeps the strip above the curves
+    tx = None
+    if strip:
+        gs = fig.add_gridspec(2, 1, height_ratios=[1, 3])
+        tx, ax = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[1, 0])
+    else:
+        ax = fig.add_subplot(111)
     ref = results.get("fvm") or next(iter(results.values()))
     if position_mm is None and ref.t_max_location is not None:
         position_mm = (ref.t_max_location[2] if axis == "x" else ref.t_max_location[1]) * 1000.0
     position_mm = position_mm if position_mm is not None else (b.height if axis == "x" else b.width) * 500.0
+    actual = None                                    # Position of the row or column that the reference model really plots
+    curves, ref_curve = [], None
     for name, r in results.items():
         if r.T is None:
             continue
@@ -712,15 +902,48 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
         xs, ys = r.coords()
         if axis == "x":
             i = int(np.argmin(np.abs(ys * 1000.0 - position_mm)))
-            ax.plot(xs * 1000, T[i], label=name)
+            xd, yd, pos = xs * 1000, T[i], float(ys[i]) * 1000.0
         else:
             j = int(np.argmin(np.abs(xs * 1000.0 - position_mm)))
-            ax.plot(ys * 1000, T[:, j], label=name)
+            xd, yd, pos = ys * 1000, T[:, j], float(xs[j]) * 1000.0
+        ax.plot(xd, yd, label=name)
+        curves.append((xd, yd))
+        if r is ref:
+            ref_curve = (xd, yd)
+        if actual is None or r is ref:
+            actual = pos
+    if actual is None:
+        actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
     ax.set_ylabel(f"Layer {layer + 1} temperature (°C)")
-    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {position_mm:.1f} mm", fontsize=10)
+    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm", fontsize=10)
     ax.grid(alpha=0.3)
-    ax.legend()
+    src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
+    if picture == "off" or strip:
+        ax.legend()
+        if strip:
+            _draw_cut_picture(tx, problem, layer, axis, actual, picture, underlay, src, cmap, map_alpha, note)
+        return
+    # The inset covers a corner of the plot: the curves are drawn, so the limits (with a little headroom) are known; then the corner is chosen
+    lo, hi = ax.get_ylim()
+    ax.set_ylim(lo, hi + 0.04 * (hi - lo))
+    finite = [(x, y) for x, y in curves if np.isfinite(np.asarray(y, float)).any()]
+    peak = None
+    if ref_curve is not None and np.isfinite(np.asarray(ref_curve[1], float)).any():
+        k = int(np.nanargmax(ref_curve[1]))
+        peak = (float(ref_curve[0][k]), float(ref_curve[1][k]))
+    corner = choose_inset_corner(ax, finite, peak)
+    x0, y0, w, h = _inset_region(corner)
+    ins = ax.inset_axes([x0, y0, w, h])
+    ins.set_anchor({"ur": "NE", "ul": "NW", "lr": "SE", "ll": "SW"}[corner])    # The board keeps its aspect and hugs the corner
+    ins.set_zorder(5)
+    _draw_cut_picture(ins, problem, layer, axis, actual, picture, underlay, src, cmap, map_alpha, note)
+    ins.patch.set_alpha(1.0)                        # The frame is opaque: the curves never show through
+    # The legend to an explicit corner, the emptiest of the other three (never "best", which can land under the picture)
+    loc = {"ur": "upper right", "ul": "upper left", "lr": "lower right", "ll": "lower left"}
+    others = [c for c in ("ur", "ll", "lr", "ul") if c != corner]
+    load = {c: (lambda sh, rg: sh + (10.0 if rg else 0.0))(*_inset_load(ax, finite, peak, c)) for c in others}     # The legend must not hide the peak either
+    ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
 
 
 @_with_engineering_ticks
@@ -940,27 +1163,34 @@ def _save(fig, path, dpi=150):
     fig.savefig(path, dpi=dpi)
 
 
-def plot_fields(result, problem, path):
+def plot_fields(result, problem, path, view=None, cmap="inferno"):
     """!
     @brief Save the all-layers temperature map.
     @param result A SteadyResult with a field.
     @param problem The Problem.
     @param path Output PNG path.
+    @param view Optional MapView (Smooth, Terrain, the copper or the image under the map); None draws the cells as solved.
+    @param cmap Colormap name.
     """
     fig = new_figure(4.6 * result.T.shape[0] + 1.2, 4.6)
-    draw_fields(fig, result, problem)
+    draw_fields(fig, result, problem, cmap=cmap, view=view)
     _save(fig, path)
 
 
-def plot_profiles(results, problem, path):
+def plot_profiles(results, problem, path, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
-    @brief Save the temperature profile through the hottest row of the top layer.
+    @brief Save the temperature profile through the hottest row of the top layer, with the cut picture over the curves.
+    @details The default `picture` "map" (the board with the temperature map) is the command line's choice; "board" and "off" are the alternatives.
     @param results Dict {model: SteadyResult}.
     @param problem The Problem.
     @param path Output PNG path.
+    @param picture "off", "board" or "map".
+    @param underlay MapView with a copper or image underlay for the picture, or None for the plain board.
+    @param map_alpha Opacity 0 to 1 of the map over an underlay.
+    @param cmap Colour map name of the map.
     """
     fig = new_figure(7, 4)
-    draw_profile(fig, results, problem)
+    draw_profile(fig, results, problem, picture=picture, underlay=underlay, map_alpha=map_alpha, cmap=cmap)
     _save(fig, path)
 
 

@@ -13,6 +13,20 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "research", "solid3d-verification", "scripts"))
 
 import solid3d_verification as sv                                              # noqa: E402
+from pcbthermal import memory                                                  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def small_process_baseline(monkeypatch):
+    """!
+    @brief Give the memory guard the base of a fresh process, whatever the size of the pytest process.
+    @details The guard reads the resident size ONCE per process (`memory.baseline_bytes`), at the first estimate; in the whole battery that first estimate
+             happens late, in a process of several GB (GUI tests), and the 105 000-unknown solid of these tests then reads 10.5 GB against 3.7 GB alone and is refused.
+             The tests check the physics of the solid, not the guard, so the base is fixed at the measured fresh-process value and restored afterwards.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(memory, "_BASELINE", 0.108e9)
 
 
 @pytest.mark.parametrize("eps", [0.2, 0.3])

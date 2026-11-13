@@ -1,5 +1,7 @@
 # Entering the program: SOR with the mean-potential via couplings
 
+**Status (audit 2.7.0).** Option 1, the block SOR with relaxed, coloured blocks (c'), is implemented in 2.4.5 together with the mean-potential via (`fix/point-via`, `fvm.Network.solve_sor`, visible fallback to the direct solver; in 2.4.5 above 5000 unknowns per block, since 2.5.0 when the dense block inverses, 75 n^2 bytes summed, exceed a quarter of the memory limit of the memory guard), and the Young omega on the full K in `fix/sor-omega`; the block SOR agrees with the direct solver to 6e-9 K on the example board (`docs/validation.md` 5). The text below is the design as proposed.
+
 Applies only when the treatment of `research/point-via-convergence/INTEGRATION.md` is adopted (on `develop` today the vias are links in the stencil and the program's SOR is correct: `tests/test_fvm.py` and `research/models-comparison/scripts/solver_equivalence.py` pass). Without a change here, adopting that treatment turns the SOR of the FVM into a solver that never converges on a board with vias (19 to 27 K cool, README 2.4 and 5). The decision between the two options below is the maintainer's.
 
 ## 1. Option 1 (recommended): block SOR with relaxed, coloured blocks, variant (c')

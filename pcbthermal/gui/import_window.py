@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
+from .elided import ElidedLabel, clamp_to_screen
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
@@ -227,7 +228,7 @@ class Preview(QWidget):
             p.setBrush(Qt.NoBrush)
             for h in b.holes:
                 # A via-sized hole in the via colour, a larger one (a component hole) in the warning colour, a non-plated one in the muted colour
-                tone = "muted" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "warn"
+                tone = th.HOLE_TONE["nonplated" if not h.plated else "via" if h.diameter <= self.session.via_max_mm else "component"]
                 p.setPen(QPen(QColor(c[tone]), 1.2))
                 r = max(h.diameter * s / 2, 1.6)
                 p.drawEllipse(self.to_px(h.x, h.y), r, r)
@@ -394,7 +395,7 @@ class Preview(QWidget):
             x, y = 8.0, top + 17 * r + 8.5
             for kind, text, w in row:
                 if kind:
-                    tone = "muted" if kind == "non-plated" else "via" if kind == "via" else "warn"
+                    tone = th.HOLE_TONE["nonplated" if kind == "non-plated" else "via" if kind == "via" else "component"]
                     p.setPen(QPen(QColor(c[tone]), 1.4))
                     p.setBrush(Qt.NoBrush)
                     p.drawEllipse(QPointF(x + 4, y), 4, 4)
@@ -602,7 +603,7 @@ class Step1Page(QWidget):
         gl.addWidget(self.table)
         self.problem = QLabel("")
         self.problem.setWordWrap(True)
-        self.problem.setToolTip("What stops the import (red) or what it goes on without (muted).")
+        self.problem.setToolTip("What stops the import (red) or is skipped (muted).")
         gl.addWidget(self.problem)
         left.addWidget(self.box, 1)
         g = QGroupBox("Board")
@@ -610,18 +611,17 @@ class Step1Page(QWidget):
         self.layers_label = QLabel("")
         self.layers_label.setWordWrap(True)
         self.layers_label.setTextFormat(Qt.PlainText)                       # File names and file text are never read as rich text
-        self.layers_label.setToolTip("Number of copper layers (the copper files in use) and the typical stack-up of the program for that count: typical values, check your fabricator's stack-up. "
-                                     "The files do not carry the dielectrics; edit them in the Stack-up tab after the import.")
+        self.layers_label.setToolTip("Copper layers in use and the typical stack-up for that count (check your fabricator's). Edit the dielectrics in the Stack-up tab.")
         f.addRow("Copper layers", self.layers_label)
         self.outline_label = QLabel("")
         self.outline_label.setWordWrap(True)
         self.outline_label.setTextFormat(Qt.PlainText)
-        self.outline_label.setToolTip("Size and area of the board outline (the profile layer). Without an outline the box of the copper is used.")
+        self.outline_label.setToolTip("Size and area of the outline (profile layer); without one, the copper box.")
         f.addRow("Outline", self.outline_label)
         self.drill_label = QLabel("")
         self.drill_label.setWordWrap(True)
         self.drill_label.setTextFormat(Qt.PlainText)
-        self.drill_label.setToolTip("Plated holes up to 0.5 mm are vias and are imported; larger plated holes are component holes (a lead is not modelled); non-plated holes are ignored.")
+        self.drill_label.setToolTip("Plated holes up to 0.5 mm are vias; larger ones are component holes (no lead modelled); non-plated holes are ignored.")
         f.addRow("Drills", self.drill_label)
         # The CAD tool that wrote the files (profiles.detect_profile): a plain-text line, coloured when it needs a check, and a list to change it (replaces only the profile tier)
         self.tool_row = QWidget()
@@ -633,7 +633,7 @@ class Step1Page(QWidget):
         self.tool_label.setWordWrap(True)
         self.tool_label.setToolTip("The program that wrote the files.")
         self.tool_pick = QComboBox()
-        self.tool_pick.setToolTip("Change the CAD tool: it replaces only the file-name rules (the X2 attributes, the Excellon header and your own choice of a function still win).")
+        self.tool_pick.setToolTip("Change the CAD tool: only its file-name rules change (X2, the Excellon header and your choices still win).")
         self.tool_pick.addItem("Automatic (detected)", None)
         self.tool_pick.currentIndexChanged.connect(self._tool_changed)
         tl.addWidget(self.tool_label, 1)
@@ -908,7 +908,7 @@ class Step2Page(QWidget):
         left = QVBoxLayout()
         self.info = QLabel("")
         self.info.setWordWrap(True)
-        self.info.setToolTip("How many parts the files give and how each was matched to its paste openings.")
+        self.info.setToolTip("Parts in the files and how each matched its paste openings.")
         left.addWidget(self.info)
         self.frame_box = QGroupBox("The placement file and the Gerber files")
         fl = QVBoxLayout(self.frame_box)
@@ -931,8 +931,7 @@ class Step2Page(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setToolTip("The parts of the files. Tick a part to make it a heat source and give it a power in W. The Source column says how the part was found: X3 component layer, "
-                              "paste TO.C + placement, by position (approx.), paste only, or placement only (no opening); hold the pointer on the Source cell for what it means. Click a row, or a part or paste opening in the preview, to select it.")
+        self.table.setToolTip("Parts of the files: tick one to make it a heat source, give a power in W. Source: how it was found (hover the cell). Click a row or the preview to select.")
         self.table.itemSelectionChanged.connect(self._row)
         self.table.cellChanged.connect(self._tick)
         left.addWidget(self.table, 1)
@@ -940,13 +939,10 @@ class Step2Page(QWidget):
         gl = QVBoxLayout(g)
         self.radios = {}
         grp = QButtonGroup(g)
-        for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223, DPAK)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
-                                "These packages put almost all their heat through that pad and the datasheet θJC(bottom) is measured to it, so the whole power goes there (worst case: the leads, "
-                                "which carry a few per cent, are left out). Give the part θ = θJC(bottom): its junction is then the hottest point under the pad plus θ times the power. "
-                                "The outline of the part is drawn dashed. A single tab is this choice too. Enabled only for a part whose paste has such a pad."),
-                               ("hull", "Convex hull of the paste openings (suggested for other parts)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
-                                "over a body that does not carry it and reads the junction 10 to 40 % cooler."),
-                               ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too.")):
+        for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223, DPAK)", "The exposed pad (QFN, DFN) or tab (SOT-223, DPAK): almost all the heat goes through it, so all the power does (worst case). "
+                                "Use θ = θJC(bottom). Only for parts with such a pad."),
+                               ("hull", "Convex hull of the paste openings (suggested for other parts)", "Convex polygon around the openings. On an exposed-pad part it reads the junction 10 to 40 % cooler."),
+                               ("box", "Bounding box of the paste openings", "Rectangle around the openings; the power also covers the gaps.")):
             r = QRadioButton(text)
             r.setToolTip(tip)
             r.toggled.connect(lambda on, k=key: on and self._shape(k))
@@ -989,7 +985,7 @@ class Step2Page(QWidget):
         right.addWidget(cap)
         self.warn = QLabel("")
         self.warn.setWordWrap(True)
-        self.warn.setToolTip("What the matching found about the files: a placement file that does not fit, parts matched by position (the paste file gives no designators), differences between the X3 layer and the placement file.")
+        self.warn.setToolTip("Matching findings: a placement file that does not fit, parts matched by position, X3 and placement differences.")
         right.addWidget(self.warn)
         lay.addLayout(right, 9)
         self.preview.clicked.connect(self._clicked)
@@ -1014,7 +1010,7 @@ class Step2Page(QWidget):
             it.setFlags((Qt.ItemIsUserCheckable | Qt.ItemIsEnabled) if has and not orphan else Qt.ItemIsEnabled)
             it.setCheckState(Qt.Checked if sx.is_source(p) else Qt.Unchecked)
             it.setToolTip("Heat source: the part's power enters the board in its shape." if has and not orphan else
-                          "An orphan does not heat the board." if orphan else "No paste opening and no outline: there is no area to heat; click an opening in the preview to give it one.")
+                          "An orphan does not heat the board." if orphan else "No opening or outline, no area to heat: click an opening in the preview.")
             t.setItem(k, 0, it)
             size = "-"
             if has:
@@ -1039,13 +1035,13 @@ class Step2Page(QWidget):
                 if col in (2, 3):                                    # These two columns share the spare width and may be cut: the full text is in the tooltip
                     item.setToolTip(_plain_tip(sx.source_explanation(p) + (" " + self._shape_tip(p, note) if note else "") if col == 3 else text))      # the package name comes from the files
                 t.setItem(k, col, item)
-            sp = _spin(0, 1000, p.power, 3, "W", "Power the part dissipates, in W. Worst case: all of it enters the board. From the datasheet or the Power Calculator.")
+            sp = _spin(0, 1000, p.power, 3, "W", "Power of the part, W (all into the board: worst case). From the datasheet or the Power Calculator.")
             sp.setSuffix("")                                         # The unit is in the header, so the column can be narrow
             sp.setFixedWidth(sp.minimumSizeHint().width())          # As narrow as the widest value (1000.000) in the font of the platform: a fixed 76 px cut it with the 13 px macOS font
             sp.setEnabled(has and not orphan)
             sp.valueChanged.connect(lambda v, d=p.designator: self._set(d, power=v))
             t.setCellWidget(k, 7, sp)
-            tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Highest junction temperature of the datasheet (0: none). The result reports the margin.")
+            tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Datasheet Tj max, °C (0: none); the result gives the margin.")
             tj.setSuffix("")
             tj.setFixedWidth(tj.minimumSizeHint().width())
             tj.valueChanged.connect(lambda v, d=p.designator: self._set(d, tj_max=v))
@@ -1054,7 +1050,7 @@ class Step2Page(QWidget):
             cb.addItems(["Component", "Source"])
             cb.setFixedWidth(int(cb.fontMetrics().horizontalAdvance("Component")) + 36)    # The text and the arrow, in the font of the platform; the combo's own size hint is 40 px wider
             cb.setCurrentText(p.edits.get("role", "Component"))
-            cb.setToolTip("Component: a package with a junction (theta, Tj limit, optional heatsink on top). Source: only a heated area on the board.")
+            cb.setToolTip("Component: junction, Tj limit, optional heatsink. Source: a heated area only.")
             cb.currentTextChanged.connect(lambda v, d=p.designator: self._set(d, role=v))
             t.setCellWidget(k, 9, cb)
         # Fit the table to the window: the package and the source take the spare width, the numeric columns are as narrow as their content, and the horizontal scroll bar
@@ -1258,10 +1254,9 @@ class Step3Page(QWidget):
     """
 
     MAPPINGS = {"faces": ("Faces from the heat flow, on the reduced sheet (recommended)",
-                          "Each cell face takes the conductance of the copper pattern across it, computed from the flow. Within about 3 to 5 % of the pixel network on windows of real boards at cells of 0.5 to 1.3 mm "
-                          "(up to 10 % too hot at a 2 mm cell on 4 mm parts). The default."),
-                "lambda": ("Lambda 0.5 (fast, comparison)", "A quick blend of the series and parallel limits of the copper in the cell. Better than the fill, not as good as the faces."),
-                "fill": ("Fill fraction per cell, as for a drawn zone (comparison)", "The mean copper fraction of the cell as a drawn zone's fill. Reads 10 to 30 % too cool on thin copper of real boards: for comparison only.")}
+                          "Each cell face takes the conductance of the copper across it, from the flow: 3 to 5 % of the pixel network at 0.5 to 1.3 mm cells. Default."),
+                "lambda": ("Lambda 0.5 (fast, comparison)", "Blend of the series and parallel copper limits; between the fill and the faces."),
+                "fill": ("Fill fraction per cell, as for a drawn zone (comparison)", "Mean copper fraction as a zone fill; 10 to 30 % too cool on thin copper. Comparison only.")}
 
     def __init__(self, win: "ImportBoardWindow"):
         """!
@@ -1307,7 +1302,7 @@ class Step3Page(QWidget):
         left.addWidget(g)
         g = QGroupBox("Pixel, cell and memory")
         f = QFormLayout(g)
-        self.pix = _spin(0.005, 1.0, 0.1, 3, "mm", "Pixel of the copper masks. Auto: the thinnest line of the files, and at most a tenth of the cell (about ten pixels per cell, which the faces need).")
+        self.pix = _spin(0.005, 1.0, 0.1, 3, "mm", "Pixel of the copper masks, mm. Auto: the thinnest line, at most a tenth of the cell.")
         self.pix.valueChanged.connect(self._pix)
         row = QHBoxLayout()
         row.addWidget(self.pix, 1)
@@ -1315,7 +1310,7 @@ class Step3Page(QWidget):
         a.clicked.connect(self._auto_pix)
         row.addWidget(a)
         f.addRow("Mask pixel", row)
-        self.cell = _spin(0.1, 20, 1.0, 2, "mm", "Cell of the solver grid. The masks are reduced to this grid by the mapping above. Imported copper warns above 1 mm.")
+        self.cell = _spin(0.1, 20, 1.0, 2, "mm", "Solver cell, mm; the masks are mapped onto it. Warned above 1 mm.")
         self.cell.valueChanged.connect(self._cell)
         row = QHBoxLayout()
         row.addWidget(self.cell, 1)
@@ -1330,7 +1325,7 @@ class Step3Page(QWidget):
         self.note.setTextFormat(Qt.PlainText)
         th.hint(self.note)
         f.addRow(self.note)
-        self.mem.setToolTip("Memory verdict of the memory guard before anything is drawn: the unknowns of the model grid and the masks of the import, against the limit of Preferences.")
+        self.mem.setToolTip("Memory verdict: the grid unknowns and the import masks against the limit (Preferences).")
         f.addRow(self.mem)
         left.addWidget(g)
         g = QGroupBox("Layers and vias")
@@ -1338,9 +1333,9 @@ class Step3Page(QWidget):
         self.layers_label = QLabel("")
         self.layers_label.setWordWrap(True)
         self.layers_label.setTextFormat(Qt.PlainText)
-        self.layers_label.setToolTip("The copper layers come from the functions of the files (step 1: the file list is the only place to change them).")
+        self.layers_label.setToolTip("Copper layers from the file functions (change them in step 1).")
         f.addRow("Copper layers", self.layers_label)
-        self.via_max = _spin(0.1, 5, self.session.via_max_mm, 2, "mm", "Largest diameter of a plated hole that is a via. Larger plated holes are component holes: a lead is not modelled.")
+        self.via_max = _spin(0.1, 5, self.session.via_max_mm, 2, "mm", "Largest plated hole that is a via, mm; larger ones are component holes.")
         self.via_max.valueChanged.connect(self._via)
         f.addRow("Vias up to", self.via_max)
         self.vias = QLabel("")
@@ -1487,6 +1482,7 @@ class ReimportDialog(QDialog):
         self.session, self.old, self.new = session, old, session.record
         self.setWindowTitle("The project already has an imported board")
         self.resize(900, 620)
+        clamp_to_screen(self)
         c = th.colors(th.current_name())
         self.diff = session.part_diff(old)
         self.sources = session.classify_files(old, self.new)
@@ -1541,11 +1537,14 @@ class ReimportDialog(QDialog):
         self.different = not same
         # The rule can be wrong (a revision whose files were all renamed and whose parts moved): the user can still carry the parts over by designator
         self.carry_box = QCheckBox("Carry the parts of the stored import over by designator (these files are a revision of the same board)")
-        self.carry_box.setToolTip("Ticked: Replace and Update match the parts by designator as for a revision (powers, Tj max, roles and edits kept, parts that left the files become "
-                                  "orphans). Leave it unticked when the files are another board: a designator of the stored board then names an unrelated part.")
+        self.carry_box.setToolTip("Ticked: Replace and Update match parts by designator as for a revision (powers and edits kept). Untick for another board.")
         self.carry_box.toggled.connect(self._mode)
         self.carry_box.setVisible(False)
         lay.addWidget(self.carry_box)
+        if self.different:
+            # Add would put the parts of the other board in the record: not offered (the reason is the tooltip)
+            self.radios["add"].setEnabled(False)
+            self.radios["add"].setToolTip("Greyed: these files look like another board, whose parts must not enter the stored import. Use Replace or a new project.")
         # A different board: the new project is preselected; the replace commands stay available (hand-drawn elements are kept, no part is carried over)
         self.radios["new" if self.different else ("update" if any(d["change"] != "kept" for d in self.diff) else "replace")].setChecked(True)
         self.table = QTableWidget(0, 4)
@@ -1613,7 +1612,7 @@ class ReimportDialog(QDialog):
         mode = self.mode
         self.combos, self.checks = {}, {}
         self.carry_box.setVisible(self.different and mode in ("replace", "update"))
-        self.go.setToolTip("Open the files as a new project (you are asked to save the open one first)." if mode == "new"
+        self.go.setToolTip("Open the files as a new project (you are asked to save first)." if mode == "new"
                            else "Apply the chosen command to the project as one undo step.")
         if mode == "add":
             t.setHorizontalHeaderLabels(["Function", "Stored import", "New file", "Choose"])
@@ -1632,7 +1631,7 @@ class ReimportDialog(QDialog):
                     cb = QComboBox()
                     cb.addItems(["Keep the stored file", "Use the new file"])
                     cb.setCurrentIndex(1)                       # the user added these files to change the import: the new one is the default (the stored file is one click away)
-                    cb.setToolTip("Two files claim this function and they differ. The new file is the default; choose the stored one to leave it as it is.")
+                    cb.setToolTip("Two different files claim this function; the new one is the default.")
                     t.setCellWidget(k, 3, cb)
                     self.combos[self.session.choice_key(s)] = cb
             geo = sum(1 for s in rows if s["function"] in GEOMETRY and s["status"] in ("added", "changed"))
@@ -1668,7 +1667,7 @@ class ReimportDialog(QDialog):
                     it = QTableWidgetItem("Remove this part")
                     it.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
                     it.setCheckState(Qt.Unchecked)
-                    it.setToolTip("Unticked: the part stays in the project as an orphan (kept with its power, not heating) until you remove it.")
+                    it.setToolTip("Unticked: the part stays as an orphan (power kept, not heating) until removed.")
                     t.setItem(k, 3, it)
                     self.checks[d["ref"]] = it
                 else:
@@ -1844,11 +1843,12 @@ class ImportBoardWindow(QDialog):
         self.notify = lambda title, text: _plain_box(self, QMessageBox.Information, title, text, QMessageBox.Ok)
         self.setWindowTitle("Import Gerber board")
         self.resize(1280, 820)
+        clamp_to_screen(self)                                 # never larger than the screen it opens on
         lay = QVBoxLayout(self)
         self.stepper = Stepper(self.step_states)
         self.stepper.step_clicked.connect(self.go)
         lay.addWidget(self.stepper)
-        self.subtitle = QLabel("")
+        self.subtitle = ElidedLabel("")                                     # a long text never widens the window
         th.hint(self.subtitle)
         lay.addWidget(self.subtitle)
         self.page1 = Step1Page(self)
@@ -1864,8 +1864,8 @@ class ImportBoardWindow(QDialog):
             self.stack.addWidget(sc)
         lay.addWidget(self.stack, 1)
         row = QHBoxLayout()
-        self.status = QLabel("")
-        self.status.setTextFormat(Qt.PlainText)                             # it lists file names
+        # It lists file names and says why Next is disabled: up to three wrapped lines, the rest cut with an ellipsis, the whole text in the tooltip
+        self.status = ElidedLabel("", max_lines=3)
         th.hint(self.status)
         row.addWidget(self.status, 1)
         self.help_btn, self.close_btn = QPushButton("Help"), QPushButton("Close")

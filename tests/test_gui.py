@@ -440,18 +440,20 @@ def test_input_warnings_list_selects_the_element(win, qtbot):
     win.doc.edit("Add", lambda proj: (proj.problem.add_heater(1, 2.0, rect=(10, 10, 20, 20), name="Q1"), proj.problem.add_via(500.0, 500.0)))
     win._update_checks()
     box = win.solver_panel.checks
-    assert box.isVisibleTo(win.solver_panel.footer)
+    assert box.isVisibleTo(win.solver_panel) and box.box.title() == f"Warnings ({len(box.warnings)})"
     assert len(box.warnings) >= 2
     tagged = {(w.kind, w.index) for w in box.warnings if w.kind}
     assert ("heater", 0) in tagged and ("via", 0) in tagged
-    # A click on the via warning selects the via
-    box.warning_clicked.emit("via", 0)
+    # The select button of the opened via warning selects the via
+    row = next(r for r in box.rows if getattr(r.warning, "kind", None) == "via")
+    row.set_open(True)
+    row.button.click()
     assert win.canvas.selected_elements() == [("via", 0)]
-    # One warning only: no count heading; none: hidden
+    # One warning: the count says 1; none: the box is hidden
     box.set_warnings(box.warnings[:1])
-    assert "warnings" not in box.toPlainText().split("\n")[0]
+    assert box.box.title() == "Warnings (1)"
     box.set_warnings([])
-    assert not box.isVisibleTo(win.solver_panel.footer)
+    assert not box.isVisibleTo(win.solver_panel)
 
 
 def test_numbers_use_the_decimal_point_with_a_portuguese_system_locale(qtbot, tmp_path):
@@ -574,24 +576,14 @@ def test_warning_links_follow_the_theme(win, qtbot):
     lst = win.solver_panel.checks
     assert lst.warnings
 
-    def anchor_colour():
-        # Colour of the first character of the first link in the document
-        doc = lst.document()
-        block = doc.begin()
-        while block.isValid():
-            it = block.begin()
-            while not it.atEnd():
-                frag = it.fragment()
-                if frag.charFormat().isAnchor():
-                    return frag.charFormat().foreground().color().name()
-                it += 1
-            block = block.next()
-        return None
+    def symbol_colour_is_of_the_theme():
+        # The badge of a row is drawn in the alert token (an alert) or the muted token (a note) of the current theme
+        return lst.rows[0].glyphs.icon_token() in ("alert", "muted")
 
     for _ in range(2):
         accent = th.colors(win.theme_name)["link"]
         assert QApplication.instance().palette().color(QPalette.Link).name() == accent
-        assert anchor_colour() == th.colors(win.theme_name)["alert"]   # the entries take the alert token
+        assert symbol_colour_is_of_the_theme()
         lst.set_stale()
         win.toggle_theme()
         assert lst.stale

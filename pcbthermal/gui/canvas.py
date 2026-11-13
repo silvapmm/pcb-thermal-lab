@@ -14,7 +14,7 @@ from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                            QMouseEvent, QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
-                               QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
+                               QGraphicsPathItem, QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
 
 from .. import copper, defaults
@@ -363,7 +363,11 @@ class BoardView(QGraphicsView):
         self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
         self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
         self.show_imported_copper = True            # View - Imported copper
+        self.copper_under_map = True                # False while a map is on the board and the Underlay is not Copper: the imported copper is hidden
         self.show_labels = True                     # Names of the heaters on the active layer
+        self.show_holes = {"via": True, "component": True, "nonplated": True}      # View - Holes: which kinds are drawn (the vias are the via elements)
+        self._hole_items = {}                       # kind -> the one path item that draws every hole of that kind (no selection, no undo)
+        self._hole_xy = {}                          # kind -> (centres (n, 2) mm, radii (n,) mm, record dicts) for the hover text
         self._fitted = False
 
         doc.changed.connect(self.rebuild)
@@ -434,6 +438,7 @@ class BoardView(QGraphicsView):
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
             self._add_imported_copper()
+            self._add_holes()
             if keep is not None:
                 self.set_overlay(**keep)
             active = self.layer
@@ -456,6 +461,7 @@ class BoardView(QGraphicsView):
                         it.setSelected(True)
             for i, v in enumerate(pr.vias):
                 it = ViaItem(self, i, v.x * 1000.0, v.y * 1000.0, v.diameter * 1000.0)
+                it.setVisible(self.show_holes["via"])
                 sc.addItem(it)
                 if ("via", i) in selected:
                     it.setSelected(True)
@@ -463,9 +469,151 @@ class BoardView(QGraphicsView):
         finally:
             self._rebuilding = False
         self._update_handles()
+        self.refit_if_board_changed()
         self._fit_labels()
         self.viewport().update()
         self.selection_changed.emit(self.selected_elements())
+
+    def refit_if_board_changed(self, force=False):
+        """!
+        @brief Fit the view again when the board is no longer the one the view was fitted to and the view does not show it well (a re-import of another board, its undo or redo).
+        @details Without this the view keeps the zoom and centre of the old board: a smaller board is a speck in a corner and a larger one runs off the screen, which looked like an
+                 empty project. The view is fitted again when the size of the board changed and either the view still had the zoom of the last fit, or the imported copper
+                 changed with the size (another board was read: the old zoom and centre mean nothing on it), or the view no longer looks at the board. A zoom the user chose
+                 stays for an edit of the board size in the dock while the board still fills at least a quarter of the view (zoomed in on it), or at least half of the board is
+                 in view at no less than half the fit scale (review: the first rule, "less than half of the board in view", fitted again whenever the user had zoomed in and
+                 typed a new width).
+        @param force True to fit whenever the size of the board changed.
+        @return bool True when the view was fitted again.
+        """
+        b = self.doc.problem.board
+        box = (b.width * 1000.0, b.height * 1000.0)
+        old = getattr(self, "_fit_box", None)
+        if not self._fitted or old is None:
+            return False
+        if abs(box[0] - old[0]) <= 1e-9 * max(box) and abs(box[1] - old[1]) <= 1e-9 * max(box):
+            return False
+        copper_now = self._copper_token()
+        if not force and not self._at_fit_zoom() and copper_now == getattr(self, "_fit_copper", None):
+            view = self.mapToScene(self.viewport().rect()).boundingRect()
+            vis = view.intersected(QRectF(0.0, 0.0, box[0], box[1]))
+            shown = vis.width() * vis.height() / max(box[0] * box[1], 1e-12)          # Share of the board that is in the view
+            fills = vis.width() * vis.height() / max(view.width() * view.height(), 1e-12)  # Share of the view that the board covers
+            s_now = abs(self.transform().m11())
+            vw, vh = max(self.viewport().width(), 50), max(self.viewport().height(), 50)
+            s_fit = 0.9 * min(vw / box[0], vh / box[1])
+            if fills >= 0.25 or (shown >= 0.5 and s_now >= 0.5 * s_fit):
+                self._fit_box = box                       # Still looking at the board: the user's zoom stays
+                return False
+        self.fit()
+        return True
+
+    def _copper_token(self):
+        """!
+        @brief A cheap token of the imported copper of the document, to tell a re-import of another board from an edit of the board size in the dock.
+        @return tuple of (layer, length, hash) of every packed mask, empty without imported copper.
+        """
+        imp = self.doc.problem.imported
+        if imp is None:
+            return ()
+        # The hash of a str is computed once and kept by Python, and this runs only when the size of the board changed
+        return tuple(sorted((int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)))
+
+    def _add_holes(self):
+        """!
+        @brief Draw the component holes and the non-plated holes (and slots) of the import record under the elements: one path item per kind, whatever the number of holes.
+        @details Display only. The holes come from the first import record of the project (`ImportRecord.holes`); the vias are the via elements and are not repeated. The items take
+                 no mouse, are not selectable and never enter the undo stack. A hole is a ring with a cosmetic pen; a slot is a capsule. The tones are those of the import preview
+                 (`theme.HOLE_TONE`). The cursor tooltip is made by `hole_at`.
+        """
+        self._hole_items, self._hole_xy = {}, {}
+        imports = getattr(self.doc.project, "imports", None) or []
+        if not imports:
+            return
+        c = th.colors(self.theme)
+        by_kind = {"component": [], "nonplated": []}
+        for h in imports[0].holes:
+            if h.get("kind") in by_kind:
+                by_kind[h["kind"]].append(h)
+        for kind, lst in by_kind.items():
+            if not lst:
+                continue
+            path = QPainterPath()
+            xy, rad = [], []
+            for h in lst:
+                x, y, r = float(h["x_mm"]), float(h["y_mm"]), max(float(h["d_mm"]) / 2.0, 0.05)
+                xy.append((x, y))
+                rad.append(r)
+                if "x2_mm" in h:
+                    x2, y2 = float(h["x2_mm"]), float(h["y2_mm"])
+                    ang = float(np.arctan2(y2 - y, x2 - x))
+                    nx, ny = -np.sin(ang) * r, np.cos(ang) * r
+                    # The capsule: the two long sides and a ring at each end
+                    path.moveTo(x + nx, y + ny)
+                    path.lineTo(x2 + nx, y2 + ny)
+                    path.addEllipse(QPointF(x2, y2), r, r)
+                    path.moveTo(x - nx, y - ny)
+                    path.lineTo(x2 - nx, y2 - ny)
+                path.addEllipse(QPointF(x, y), r, r)
+            item = QGraphicsPathItem(path)
+            pen = QPen(QColor(c[th.HOLE_TONE[kind]]))
+            pen.setCosmetic(True)
+            pen.setWidthF(1.0)
+            item.setPen(pen)
+            item.setBrush(Qt.NoBrush)
+            item.setOpacity(0.7)                                  # Light: the holes are context, not elements
+            item.setZValue(0.5)                                   # Over the copper, under the elements and the map
+            item.setAcceptedMouseButtons(Qt.NoButton)
+            item.setVisible(self.show_holes[kind])
+            self.scene().addItem(item)
+            self._hole_items[kind] = item
+            self._hole_xy[kind] = (np.asarray(xy, float).reshape(-1, 2), np.asarray(rad, float), lst)
+
+    def hole_counts(self):
+        """!
+        @brief How many holes of each kind the project knows (vias are the via elements).
+        @return dict kind -> count for "via", "component" and "nonplated".
+        """
+        out = {"via": len(self.doc.problem.vias), "component": 0, "nonplated": 0}
+        for kind, (xy, _, _) in self._hole_xy.items():
+            out[kind] = len(xy)
+        return out
+
+    def set_show_holes(self, kind, on):
+        """!
+        @brief Show or hide one kind of hole (View - Holes); no rebuild, the one item of the kind (or every via element) changes visibility.
+        @param kind "via", "component" or "nonplated".
+        @param on True to show.
+        """
+        self.show_holes[kind] = bool(on)
+        if kind == "via":
+            for it in self.scene().items():
+                if isinstance(it, ViaItem):
+                    it.setVisible(bool(on))
+        elif kind in self._hole_items:
+            self._hole_items[kind].setVisible(bool(on))
+
+    def hole_at(self, scene_pt):
+        """!
+        @brief The text of the component or non-plated hole under a point, for the cursor tooltip.
+        @param scene_pt QPointF in mm (scene coordinates).
+        @return str, or "" when no visible hole of those kinds is within its radius or 5 screen pixels.
+        """
+        scale = max(abs(self.transform().m11()), 1e-9)                        # Pixels per mm
+        px, py = scene_pt.x(), scene_pt.y()
+        for kind, (xy, rad, lst) in self._hole_xy.items():
+            if not self.show_holes[kind] or not len(xy):
+                continue
+            d = np.hypot(xy[:, 0] - px, xy[:, 1] - py)
+            k = int(np.argmin(d))
+            if d[k] <= max(rad[k], 5.0 / scale):
+                h = lst[k]
+                name = "Non-plated hole" if kind == "nonplated" else "Component hole"
+                if "length_mm" in h:
+                    slot = "Non-plated slot" if kind == "nonplated" else "Plated slot"
+                    return f"{slot}, {h['d_mm']:g} mm wide, {h['length_mm']:g} mm long (not modelled)"
+                return f"{name}, {h['d_mm']:g} mm (not modelled)"
+        return ""
 
     def _add_imported_copper(self):
         """!
@@ -509,8 +657,18 @@ class BoardView(QGraphicsView):
         item.setOpacity(0.55)
         item.setZValue(0.3)                                       # Over the background photo, under the temperature map and the elements
         item.setAcceptedMouseButtons(Qt.NoButton)
+        item.setVisible(self.copper_under_map)
         self.scene().addItem(item)
         self._copper_item = item
+
+    def set_copper_under_map(self, on):
+        """!
+        @brief Show the imported copper (True) or hide it while a map is on the board over another underlay (False).
+        @param on True to show the copper.
+        """
+        self.copper_under_map = bool(on)
+        if self._copper_item is not None:
+            self._copper_item.setVisible(self.copper_under_map)
 
     def set_show_imported_copper(self, on):
         """!
@@ -981,6 +1139,8 @@ class BoardView(QGraphicsView):
         self.setTransform(QTransform().scale(s, -s))
         self.centerOn(W / 2 + strip / (2.0 * s), H / 2)
         self._fit_scale = s
+        self._fit_box = (W, H)
+        self._fit_copper = self._copper_token()          # The copper the view was fitted to (see refit_if_board_changed)
         self._fitted = True
         self._fit_labels()
 
@@ -1288,7 +1448,7 @@ class BoardView(QGraphicsView):
                 add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
                 k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
                 dele = menu.addAction("Delete this vertex")
-                dele.setToolTip("Delete the vertex under the cursor (a polygon keeps at least three).")
+                dele.setToolTip("Delete the vertex under the cursor (at least three remain).")
                 dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
                 dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
                 menu.addSeparator()
@@ -1379,6 +1539,8 @@ class BoardView(QGraphicsView):
         """
         scene_p = self.mapToScene(e.position().toPoint())
         self.cursor_moved.emit(scene_p.x(), scene_p.y())
+        if self._hole_xy:
+            self.viewport().setToolTip(self.hole_at(scene_p))              # Hover text of the holes that are not vias
         if self._panning:
             d = e.position() - self._pan_last
             self._pan_last = e.position()

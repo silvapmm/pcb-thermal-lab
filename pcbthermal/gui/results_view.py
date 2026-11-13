@@ -24,6 +24,7 @@ from . import tips
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
+from .warning_box import WarningAccordion
 from ..numfmt import num
 
 
@@ -61,7 +62,7 @@ def _table(headers):
     @return QTableWidget.
     """
     t = QTableWidget(0, len(headers))
-    t.setToolTip("Values of the reference model; hover the column titles for what each column means.")
+    t.setToolTip("Values of the reference model; hover a column title for its meaning.")
     t.setHorizontalHeaderLabels(headers)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -205,14 +206,17 @@ class PlotTab(QWidget):
         self.pos = QSlider(Qt.Horizontal)
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
+        self.cut_overlay = QCheckBox("Cut overlay")      # Profiles: the board picture over the curves (content: toolbar Layer, Display, Map button); session only
+        self.cut_overlay.setChecked(True)
+        self.map_on = lambda: False                      # The main window says whether the Map button (T) is on
         self.model.setToolTip("Model whose result is drawn.")
-        self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
-                              "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
-                              "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
-        self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
-        self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
-        self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
-        self.pos.setToolTip("Position of the cut: drag to move the line across the board.")
+        self.equiv.setToolTip("Lumped and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
+                              "Unticked: the field stretched back onto the box (parts look larger).")
+        self.vmin.setToolTip("Lowest temperature of the colour scale, °C (Auto range off).")
+        self.vmax.setToolTip("Highest temperature of the colour scale, °C (Auto range off).")
+        self.axis.setToolTip("Direction of the line the temperature is plotted along.")
+        self.pos.setToolTip("Position of the cut: drag to move it.")
+        self.cut_overlay.setToolTip("Board picture over the curves with the cut line. Hide it if it covers a curve.")
 
         # The temperature and gradient rows wrap (Auto range, min and max go to a second line in a narrow centre area); the profile row has a stretching slider
         controls = FlowLayout() if kind in ("temperature", "gradient") else QHBoxLayout()
@@ -230,6 +234,7 @@ class PlotTab(QWidget):
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
             controls.addWidget(self.pos_label)
+            controls.addWidget(self.cut_overlay)
         if kind not in ("temperature", "gradient"):
             controls.addStretch(1)
         lay = QVBoxLayout(self)
@@ -240,9 +245,9 @@ class PlotTab(QWidget):
 
         for w in (self.model, self.axis):
             w.currentIndexChanged.connect(self.redraw)
-        if kind in ("temperature", "gradient"):
-            self.display.changed.connect(lambda _what: self.redraw())     # A change of the shared display choice draws the map again
-        for w in (self.hot, self.auto, self.equiv):
+        if kind in ("temperature", "gradient", "profile"):
+            self.display.changed.connect(lambda _what: redraw_when_shown(self, self.redraw))     # A change of the shared display choice draws the map again
+        for w in (self.hot, self.auto, self.equiv, self.cut_overlay):
             w.toggled.connect(self.redraw)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
@@ -316,6 +321,17 @@ class PlotTab(QWidget):
         super().showEvent(e)
         redraw_pending(self, self.redraw)
 
+    @staticmethod
+    def _model_hot_point(r, layer):
+        """!
+        @brief Where the model reports its hottest point, when that is on the layer drawn.
+        @param r SteadyResult shown.
+        @param layer 0-based layer drawn.
+        @return (x_m, y_m) of `SteadyResult.t_max_location`, or None (another layer, or no location: the map then computes its own hottest sample).
+        """
+        loc = r.t_max_location
+        return (loc[1], loc[2]) if loc is not None and int(loc[0]) == layer else None
+
     def _layer_index(self):
         """!
         @brief The copper layer a single-layer picture shows (the stored choice kept on the board).
@@ -378,12 +394,17 @@ class PlotTab(QWidget):
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    loc = r.t_max_location
-                    plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
-                                     layer=layer, marker=(loc[1], loc[2]) if loc and loc[0] == layer else None,
-                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                     title=f"{r.model.upper()} - layer {layer + 1}   "
-                                           f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
+                                          layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
+                                          hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
+                                          title=f"{r.model.upper()} - layer {layer + 1}   "
+                                                f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
+                    ext = getattr(ax, "extreme_marks", None)
+                    if ext is not None:
+                        # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
+                        # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
+                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
+                                     f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()
@@ -398,8 +419,11 @@ class PlotTab(QWidget):
                 pos = self.pos.value() / 1000.0 * length
                 self.pos_label.setText(f"{'y' if axis == 'x' else 'x'} = {pos:.1f} mm")
                 res = {k: r for k, r in sim.results.items() if r.T is not None}
-                plots.draw_profile(self.fig, res, prob, layer=self._layer_index(),
-                                   axis=axis, position_mm=pos)
+                # The picture follows the shared Display choice (underlay, opacity, colour map) and the Map button; the Cut overlay box only shows or hides it
+                under = self.display.apply(plots.MapView(), self.theme)
+                picture = "off" if not self.cut_overlay.isChecked() else "map" if self.map_on() else "board"
+                plots.draw_profile(self.fig, res, prob, layer=self._layer_index(), axis=axis, position_mm=pos,
+                                   picture=picture, underlay=under, map_alpha=self.display.value(), cmap=self.display.cmap)
             elif self.kind == "compare":
                 plots.draw_comparison(self.fig, sim.results)
         _paint_figure(self.fig, self.theme)
@@ -443,8 +467,7 @@ class ResultsView(QWidget):
         _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
         # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
         self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.warnings = QLabel()
-        self.warnings.setWordWrap(True)
+        self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
         # An empty Results tab said nothing: it now tells a first-time user what to do
@@ -520,21 +543,18 @@ class ResultsView(QWidget):
         @brief Keep the notes of a finished animation and show them in the summary under those of the run.
         @param warns List of warning strings of the animation.
         """
-        self._anim_warns = [str(w) for w in warns]
+        self._anim_warns = list(warns)                 # Keep the objects: they carry their severity
         if getattr(self, "sim", None) is not None:
             self._show_warnings(self.sim.warnings)
-            self.warnings.setVisible(True)
+            self.warnings.setVisible(bool(self.warnings.warnings))
 
     def _show_warnings(self, warns):
         """!
-        @brief Write the notes of the run under the models table, text and symbol in the same theme token.
+        @brief Write the notes of the run in the Warnings box under the models table (closed rows with clean titles; a row the user opened stays open).
         @param warns List of warning strings.
         """
         warns = list(warns) + [w for w in self._anim_warns if w not in warns]
-        tone = th.colors(self.theme)["alert_note"]
-        self.warnings.setTextFormat(Qt.RichText)
-        # Two line breaks = one blank line between warnings, so that a long list is easy to read
-        self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+        self.warnings.set_warnings(warns)
 
     def set_underlay_source(self, imported, cfg):
         """!
@@ -576,7 +596,7 @@ class ResultsView(QWidget):
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report())
+        self.report.setPlainText(sim.report(inline_warnings=False))      # The warnings are in the box above it
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()

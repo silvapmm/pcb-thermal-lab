@@ -1,5 +1,7 @@
 # Integration: the channel effect between close fins
 
+**Status (audit 2.7.0).** Proposal A implemented in 2.4.4 (`checks.check_fin_channels`; the review weighted the block excess by `block_cov` and gave the 3D solid its own block temperature); proposal B open.
+
 What would enter the program, the measured impact of each proposal, what does not change and the risks. The program is not touched from this branch; every number below was measured on a copy in memory (`lib/program_patch.py`) and is in `README.md` (section numbers in brackets). Decisions are the maintainer's (section 6).
 
 ## 1. What the study found, for the decision

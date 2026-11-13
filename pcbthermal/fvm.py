@@ -30,7 +30,7 @@ import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
 from . import copper, memory, blocks, laminate, viawell
-from .geometry import (part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill,
+from .geometry import (cover_centroids, part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill,
                        face_apertures, signed_distance_to_outline)
 from .results import SteadyResult, TransientResult
 from .numfmt import num
@@ -175,8 +175,8 @@ class Network:
         @param cut_cells True (default): the cut-cell treatment of the board edge: the links of a board with an outline carry the open fraction of the shared face (the aperture,
                `geometry.face_apertures`) on the physical sheet, and the edge film h_side is in series with the conduction from the node to the closest outline point (on a rectangle:
                to the edge, half a cell away). False: the earlier treatment (links of the cover-scaled sheets, the film on the node); the Lumped model, which reads the per-cell
-               arrays ring by ring and never sees the links, asks for it so that its numbers do not move. A problem with an outline and imported copper always keeps the earlier
-               treatment (`cut_cells_note` says so).
+               arrays ring by ring and never sees the links, asks for it so that its numbers do not move. The imported layers take the outline at the pixel level
+               (`copper.lateral(outline=)`); the edge film of every layer of a board with an outline has the distance from the centroid of the board part of the cell (`_cut_edge_film`).
         """
         problem.validate()
         self.problem = problem
@@ -204,23 +204,19 @@ class Network:
         if self.laminate is not None:
             slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
-            raise ValueError("copper thickness must be smaller than thickness / layers")
+            raise ValueError("copper thickness must be smaller than the slab of its layer node (copper plus half of each adjacent gap)")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
-        # The cut-cell treatment is not applied where the imported faces would mix with it: the faces of an imported layer are built from pixel sheets times the cell cover
-        # (copper.lateral), so the aperture would have to enter there as a pixel-level mask of the board; until then a board with an outline and imported copper keeps the
-        # cover-weighted links and the film on the node in all its layers (one consistent treatment), and the run says so
-        self.cut_cells_note = None
+        # The cut-cell treatment of a board with an outline: the aperture links hold for the drawn layers; the imported layers take the outline at the PIXEL level
+        # (copper.lateral(outline=)), so the open fraction of a cut face and the copper edge held inside the outline come out of the pixels. The edge film in series is on every
+        # layer, with the distance measured from the CENTROID of the board part of the cell (`_cut_edge_film`, `research/imported-copper-edge-film`): measured from the cell
+        # centre it added +1.6 % at 1 mm to an aligned board whose copper is held 1.2 mm inside the edge
         self.cut_edge = bool(cut_cells)
         self.cut_links = bool(cut_cells) and b.has_outline()
-        if cut_cells and b.has_outline() and self.copper is not None:
-            # (no note when the outline is the whole box: no cell is cut, only the half-cell series term of the border film is left out)
-            self.cut_cells_note = copper.CUT_CELLS_IMPORTED_NOTE if copper.outline_cuts_cells(b) else None
-            self.cut_edge = self.cut_links = False
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
         tc = t_cu[:, None, None]
@@ -428,7 +424,8 @@ class Network:
         @details The film of a cell is H L with H = h_side times the slab (W/m K) and L the edge length in the cell. The node is the cell centre, a distance d from the edge,
                  so the heat passes the sheet from the node to the edge, d / (S L), and then the film: g = g0 / (1 + g0 d / (S L)) = H L / (1 + H d / S) (L cancels), with S the
                  physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
-                 which stiffens the film); for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
+                 which stiffens the film); **for every copper layer and laminate node of a board with an outline, drawn or imported,** d is the distance from the CENTROID of the board part of the cell
+                 to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film, validation 39 and 40), only the layers of a metal block keeping the cell centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
                  floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
                  nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
                  The ambient term is scaled with the same factor as the conductance (the change goes into g_amb), so a constant field is reproduced to round-off; the unfloored
@@ -448,7 +445,30 @@ class Network:
                 x = (cells[:, 1] + 0.5) * self.dx
                 y = (cells[:, 0] + 0.5) * self.dy
                 d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(b.outline, x, y)
-            pieces = [(L, d)]
+            dist = d
+            if len(cells):
+                # Every copper layer and laminate node of a board with an outline (drawn or imported): d from the centroid of the board part of the cell, never negative. The unknown
+                # of a cut cell is the mean over its board part, which sits at the centroid, not at the cell centre; a sliver cell whose centre is off the board then has its node
+                # where its copper is, and not outside (where the film was stiffened to the floor). Only the layers of a metal block keep the cell centre
+                # The centroids are read on a grid 8 times finer, so an outline whose edges cross between 1/8 and all of the crossing bound of the plain cover reaches the bound
+                # here only (a hostile file that passes Board.validate): fall back on the cell centre, as copper._outline_faces falls back on the cell cover, and say so
+                dc = d.copy()
+                r, c = cells[:, 0], cells[:, 1]
+                try:
+                    cx, cy, share = cover_centroids(b.outline, self.nx, self.ny, self.dx, self.dy, L > 0)
+                except ValueError as exc:
+                    log.warning("edge film measured from the cell centre, not from the centroid of the board part: %s", exc)
+                else:
+                    has = share[r, c] > 0
+                    # A concave board part (a reflex corner or a slot inside one cell) can have its centroid off the board; the distance is then clamped to 0, which drops the
+                    # series term of that cell. Measured on a 0.6 mm slot centred in a 1 mm cell row (10 cells): at most 0.26 % of the heater rise against the |distance| variant
+                    # (200 W/m2K), 0.25 % at 1000 W/m2K and 0.1 % at 5000, so it is left as the smallest rule (tests/test_imported_edge_film_centroid.py)
+                    dc[r[has], c[has]] = np.maximum(signed_distance_to_outline(b.outline, cx[r, c][has], cy[r, c][has]), 0.0)
+                cen = np.ones(self.nl, bool)
+                for info in self.block_info:
+                    cen[info["layer"]] = False
+                dist = np.where(cen[:, None, None], dc[None], d[None])
+            pieces = [(L, dist)]
         else:
             cols = np.zeros((self.ny, self.nx))
             rows = np.zeros((self.ny, self.nx))
@@ -459,6 +479,9 @@ class Network:
             pieces = [(cols * self.dy, 0.5 * self.dx), (rows * self.dx, 0.5 * self.dy)]
         new = np.zeros_like(g0)
         for length, dist in pieces:
+            dist = np.asarray(dist, dtype=float)
+            if dist.ndim == 2:
+                dist = dist[None]
             with np.errstate(divide="ignore", invalid="ignore"):
                 fac = np.where(sp_ > 0, 1.0 + H * dist / sp_, 1.0)
             fac = np.where(H > 0, np.maximum(fac, EDGE_FILM_FLOOR), 1.0)
@@ -508,7 +531,8 @@ class Network:
                 with np.errstate(divide="ignore", invalid="ignore"):
                     for layer in self.copper.layers:
                         red = np.where(self.cover > 0, np.maximum(s_pre[layer] - self.S[layer], 0.0) / self.cover, 0.0)
-                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height)
+                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height,
+                                                                   outline=b.outline if self.cut_links else None)
                 self._face_context = None                       # The copy of the sheet is not needed again
         return self._lateral
 
@@ -842,7 +866,7 @@ class Network:
             "heatsinks": float((self.g_heatsink * theta).sum()),
             "sides": float((self.g_side * theta).sum()),
         }
-        if self.extra_links:
+        if self.block_info:                                          # Not extra_links: the laminate rule fills those on every board with a cut gap
             out["blocks"] = float((self.g_block * theta).sum())           # Heat leaving through the exposed surface of the blocks
         return out
 

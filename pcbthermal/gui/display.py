@@ -18,14 +18,13 @@ from .. import plots
 from . import theme as th
 from .underlay import DEFAULT_OPACITY, OPACITY_TIP, UNDERLAY_TIP, ReleaseSync, cached_underlay_image
 
-CONTEXTS = ("editor", "temperature", "gradient", "animation", "other")   # Where the popover is opened from
+CONTEXTS = ("editor", "temperature", "gradient", "animation", "profile", "other")   # Where the popover is opened from
 
-VIEW_TIP = ("How the map is drawn. Current: the cells as solved. Smooth: bicubic interpolation between the cells, cosmetic (the solver resolution is the cell, "
-            "nothing finer is computed). Terrain: shaded relief with contour lines, for the Temperature and Gradients maps. Nothing is solved again.")
-CONTOUR_TIP = ("Distance between the contour lines of the Terrain view; every second line is thicker and labelled. One value for each kind of map: the Temperature "
-               "map in K and the Gradients map in K/mm, where 'auto' (the lowest value) picks a round step from the range of the map. Used only when View is Terrain.")
-CMAP_TIP = "Colour scale of every map: the Temperature and Gradients maps, the Animation and the map on the board."
-OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (a dot: an active underlay)."
+VIEW_TIP = ("How the map is drawn: Current (cells as solved), Smooth (bicubic, cosmetic) or Terrain (relief with contours; Temperature and Gradients). "
+            "Nothing is solved again.")
+CONTOUR_TIP = ("Step between Terrain contour lines: K for Temperature, K/mm for Gradients ('auto' picks a round step). Terrain only.")
+CMAP_TIP = "Colour scale of every map (Temperature, Gradients, Animation, board)."
+OPEN_TIP = "Display: underlay, opacity, view, contour step, colour map (dot: underlay on)."
 
 
 class DisplayState(QObject):
@@ -49,6 +48,7 @@ class DisplayState(QObject):
         self.image = None                               # plots.UnderlayImage of the project, or None
         self.cache = {}                                 # {layer: copper picture, "image": picture}: valid for one problem and one image
         self.imported, self.has_image = False, False
+        self.user_set = False                           # True once the user chose an entry: the default for an imported project (Copper) no longer applies
 
     def entries(self):
         """!
@@ -77,6 +77,9 @@ class DisplayState(QObject):
         self.imported, self.has_image = bool(imported), img is not None
         if self.kind not in [k for _l, k in self.entries()]:
             self.kind = "none"
+        # A project from Gerber files starts with its copper under the map; a choice made by the user stays, None included
+        if self.imported and not self.user_set and self.kind == "none":
+            self.kind = "copper"
         after = ([k for _l, k in self.entries()], self.kind, self.image)
         if before != after:
             self.changed.emit("source")
@@ -110,6 +113,8 @@ class DisplayState(QObject):
         @param notify True to emit `changed`.
         """
         kind = kind if kind in [k for _l, k in self.entries()] else "none"
+        if notify:
+            self.user_set = True                        # Programmatic calls (notify=False) do not count as the user's choice
         if kind != self.kind:
             self.kind = kind
             if notify:
@@ -170,6 +175,7 @@ class DisplayState(QObject):
         """
         before = (self.kind, self.opacity, self.view)
         self.kind, self.opacity, self.view = "none", DEFAULT_OPACITY, "current"
+        self.user_set = False                           # The next project gets its own default (set_source picks Copper for an imported one)
         self.cache.clear()
         if before != (self.kind, self.opacity, self.view):
             self.changed.emit("underlay")
@@ -359,13 +365,15 @@ class DisplayPopover(QFrame):
         # What applies where: the editor map has no Terrain or Contour; the Animation has no Terrain; the Contour step only matters with Terrain
         editor, anim = ctx == "editor", ctx == "animation"
         # View stays usable on the board (Current and Smooth); only Terrain is greyed, with the reason as the tooltip of the entry
-        self.view.setEnabled(True)
+        prof = ctx == "profile"
+        self.view.setEnabled(not prof)                  # The cut picture is the plain map: no View, no contours
+        self.view.setToolTip("Not used by the cut picture." if prof else VIEW_TIP)
         item = self.view.model().item(self.view.findData("terrain"))
         if item is not None:
             item.setEnabled(not anim and not editor)
-            item.setToolTip("Terrain is shown in the Results tab (Temperature and Gradients)." if editor else
-                            "Terrain is not drawn in the Animation (Current is used)." if anim else "")
-        terrain = s.view == "terrain" and not anim and not editor
+            item.setToolTip("Terrain is shown in the Results tab only." if editor else
+                            "No Terrain in the Animation (Current is used)." if anim else "")
+        terrain = s.view == "terrain" and not anim and not editor and not prof
         self.contour.setEnabled(terrain)
         self.contour_label.setEnabled(terrain)
         # The opacity matters on the board always (the map over the copper and the parts); in the Results maps only when something is under the map
@@ -374,6 +382,8 @@ class DisplayPopover(QFrame):
         text = ""
         if editor:
             text = "On the board the map uses Underlay, Map opacity, Colour map and View (Current or Smooth); Terrain and Contour are shown in the Results tab."
+        elif prof:
+            text = "The cut picture uses Underlay, Map opacity and Colour map; the map is shown while the Map button (T) is on."
         elif anim:
             text = "The Terrain relief is not drawn in the Animation (Current is used)."
         elif not terrain:

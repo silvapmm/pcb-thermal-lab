@@ -1,0 +1,12 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Scratch environment of research/independent-fem-edge ONLY (never merged into the project requirements.txt).
+# python3 -m venv research/independent-fem-edge/.venv-research && research/independent-fem-edge/.venv-research/bin/pip install -r research/independent-fem-edge/requirements.txt
+numpy
+scipy
+matplotlib
+pytest
+# scikit-fem 12.0.2: BSD-3-Clause (LICENSE file and PyPI classifier of the installed package); used by one cross-check test only
+scikit-fem==12.0.2
+# pyamg 5.4.1: MIT; preconditioner of the conjugate-gradient solve above 60 000 unknowns
+pyamg==5.4.1

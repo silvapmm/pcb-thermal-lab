@@ -56,6 +56,8 @@ Geometric mean of the ratio of the rises (range in brackets), by size of the foo
 
 ![ladder of rises](figures/fig_03_ladder.png)
 
+*Figure 3 (`fig_03_ladder.png`): the ladder of rises from the uniform sheet to the imported copper (RP2040, 27 heat sources, cell 0.5 mm, rise of the hottest copper node for 1 W): the FVM rise grows as finer copper is shown, while the reduced models stay at the left.*
+
 What this says, in order:
 
 1. **The averaging of the copper over regions of 1 to 10 mm is not the cause** (hypothesis a). The FVM changes by 0 to 8 % between the layer-average sheet, tiles of 10, 5, 2 and 1 mm: the local fill around the part matters little. The Analytic model on a uniform sheet is within 2 % of the FVM on it, the Lumped within 2 to 16 % cool.
@@ -82,6 +84,8 @@ Rise in K for 1 W (`study_cell_convergence.py`, peak 1.82 GB):
 *Figure 4 (`fig_04_cell_convergence.png`):*
 
 ![cell convergence](figures/fig_04_cell_convergence.png)
+
+*Figure 4 (`fig_04_cell_convergence.png`): the FVM reference of the small parts against the cell (solid: imported copper; dashed: arithmetic fill).*
 
 Two consequences. (i) The arithmetic fill climbs towards the imported value as the cell approaches the pad size (C3 80 to 148 K): the "fill" mapping fails exactly because of the sub-cell structure, which supports section 3.1. (ii) The imported value is not converged at 0.25 mm for the 1 mm parts (C3 +3 %, R5 +20 %, C13 +30 % from 0.5 to 0.25; C13 at 1 mm, 258 K, is above its 0.5 mm value: not monotone); the percentages of the tables above are therefore **lower bounds on the error against a converged reference, and a finer cell would make them larger, not smaller**. The two reduced models hardly move with the cell (3.5), so the agreement of Lumped with the FVM of C3 at 1 mm (-31 %) is an accident of the reference. **Review (6.2):** the masks of this table change with the cell (automatic pixel `min(w, cell / 10)`: 0.1, 0.05, 0.025 mm); with the pixel fixed at 0.025 mm the movement stays (C3 86.1, 207.3, 201.2 K; R5 240.4, 262.4, 302.1 K), so it is the cell, not the masks; and the program's Auto already chooses 0.25 mm for a powered 0402, not 1 mm (figure 6).
 
@@ -116,6 +120,8 @@ The size of the part is the best variable, and it is not a rule: by size class (
 *Figure 5 (`fig_05_error_vs_variables.png`), RP2040:*
 
 ![error against variables](figures/fig_05_error_vs_variables.png)
+
+*Figure 5 (`fig_05_error_vs_variables.png`): the error of the Lumped and the Analytic model against the FVM, in per cent, against the local variables of the parts: no single variable explains it (cut-off pads are plotted at kappa = 100).*
 
 The best case of the pool is -17 % (Analytic) and -25 % (Lumped); big parts on CO60 (RGB1 5.2 mm, U1 9.5 mm) are -50 to -56 %. There is no threshold under which the models are safe, and the "part on a copper edge or bare laminate" test of the program does not predict the error either (distance to bare laminate: AUC 0.77).
 
@@ -162,6 +168,8 @@ Independent review of the investigation (merged `develop` `26616eb` into the bra
 ### 6.1 Re-run of a subset (RP2040 U1, U3, C3, R5, C13, C1; oswlight U2, C11, J1, D1; 0.5 mm)
 
 The FVM on the imported copper, the Lumped and the Analytic print the digits of the CSV and of the tables to the last one (for example C3 195.6 / 56.9 / 66.7 K, R5 251.9 / 66.3 / 64.3 K, U1 78.9 / 46.1 / 52.3 K, oswlight U2 165.7 / 65.0 / 68.0 K). The uniform sheet was rebuilt independently of `lib/variants.py` (the mean of each mask over the board box): on RP2040, whose outline is its box, it gives the same FVM rise within 0.1 K; on oswlight, which has an outline, the box average counts the bare space off the board and reads 9 to 12 % hotter than the library's on-board average, so the library's construction is the right one. `study_rule_search.py` and `study_summary.py` reprint every number of 3.1 and 3.3 from the stored tables (Spearman +0.68, AUC 0.87 for the side; fill 0.07 to 0.29, distance 0.31; the size classes -81 to -52, -82 to -25, -56 to -25 % Lumped and -77 to -39, -76 to -22, -60 to -17 % Analytic). Corrected in the text: the reduced models on the imported board against themselves on the uniform sheet are -12 to +32 % (Lumped) and -9 to +14 % (Analytic) on RP2040, not "0 to 10 %"; the Analytic on a uniform sheet is -8 to -2 % on oswlight, not within -4 to +5 % everywhere. Neither changes the conclusion (the FVM moves 1.2 to 4.5 times).
+
+*(audit 2.7.0: `study_error_decomposition.py rp2040 0.5 U1,U3,C3,R5,C13,C1` on the program of 2.6.0, 140 s, 0.70 GB. FVM / Lumped / Analytic on the imported copper: C3 198.5 / 60.6 / 66.7 K (was 195.6 / 56.9 / 66.7), R5 259.3 / 68.3 / 64.4 K (was 251.9 / 66.3 / 64.3), U1 78.8 / 45.6 / 52.3 K (was 78.9 / 46.1 / 52.3), and C13 222.2 / 90.4 / 68.4, C1 88.4 / 54.6 / 61.4, U3 60.2 / 41.3 / 47.1 K. The FVM of the small parts rose 1.5 to 2.9 % (the via barrel length `d + 0.5 t_cu` and the rim test of 2.6.0: the RP2040 has vias next to these pads); the Lumped of the small parts rose 3 to 7 % (R5, C3; the capped first ring of 2.6.0, `fix/lumped-first-ring`, with the barrel; the two items were not separated by a run); the Analytic is unchanged to 0.1 K. The errors against the FVM hardly move: C3 Lumped -69.5 % (was -70.9 %), Analytic -66.4 % (-65.9 %); R5 -73.6 / -75.2 % (-73.7 / -74.5 %); U1 -42.1 / -33.6 % (-41.6 / -33.7 %). So on these six parts the ranges quoted by `copper.REDUCED_MODEL_WARNING` (25 to 82 % and 17 to 77 % on 42 parts) still hold; the other 36 parts and the oswlight and CO60 boards were not re-run (`docs/versions.md` 'After 2.6.0' item 10).)*
 
 ### 6.2 The FVM reference and the cell; what Auto does
 

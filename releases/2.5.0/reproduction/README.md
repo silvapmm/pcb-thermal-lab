@@ -10,9 +10,9 @@ Units differ by part (a study script, a table group, a harness result set), so t
 
 | Part | Folders | Unit | Checked | Unchanged | EXPLAINED | UNEXPLAINED | Not run |
 | :-- | :-- | :-- | --: | --: | --: | --: | --: |
-| A | analytic-2-6, analytic-edge-spatial, analytic-partial-copper, bare-spot-under-source, block-and-fins, component-heatsink, convection-laws, effective-conductivity, fin-channel, fin-channel-sources, gap-subdivision | study script | 62 | 58 | 4 | 0 | 4 |
+| A | analytic-2-6 (now analytic-edge-and-transient), analytic-edge-spatial, analytic-partial-copper, bare-spot-under-source, block-and-fins, component-heatsink, convection-laws, effective-conductivity, fin-channel, fin-channel-sources, gap-subdivision | study script | 62 | 58 | 4 | 0 | 4 |
 | B | gerber-cad-profiles, gerber-import, gerber-models, gerber-nets, gerber-real-boards | table group or output file | 35 | 20 | 15 | 0 | the scripts that do not import the program (about 30), 2 that need patched copies of the program |
-| C | horizontal-plate-h, laminate-2-6, models-comparison, lumped-analytic-vias, lumped-via-groups, lumped-zones-adoption, laminate-nodes, memory-guard | study | 62 compared (76 run) | 60 | 2 groups | 0 | 7 |
+| C | horizontal-plate-h, laminate-2-6 (now laminate-slabs-and-local-rule), models-comparison, lumped-analytic-vias, lumped-via-groups, lumped-zones-adoption, laminate-nodes, memory-guard | study | 62 compared (76 run) | 60 | 2 groups | 0 | 7 |
 | D | outline, paper-case-studies, plate-h-level, point-via-convergence, power-calculator, releases/regression-harness, rotated-square-3d, solid3d-verification, sor-with-via-couplings, stackup, theory-sources, theory, via-edge-image, via-fill, via-partial-copper, via-real-board, young-omega-tiles, zone-union | test run, harness result set or study | 70 | 55 | 15 | 0 | about 77 scripts (their tests pass) |
 | **all** | | | **229** | **193** | **36** | **0** | |
 

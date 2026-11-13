@@ -24,25 +24,22 @@ from . import theme as th
 from .help import set_themed_page
 
 HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
-DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the doubt about numbers (copper thickness, heat transfer, θ, ψJT, reading). It does not cover a wrongly drawn board."),
-          ("Drawn from the real fabrication files", "cad", "The board was drawn from the real fabrication files (the copper, vias and planes as manufactured): a small doubt about the description (20 % of the 'estimated' amplitudes by default)."),
-          ("Drawn by hand from the layout", "hand", "You drew the zones, pads and vias from the layout by hand: half of the 'estimated' amplitudes by default (copper coverage, copper weight, inner planes, vias)."),
-          ("Estimated (no layout at hand)", "estimated", "The board is a guess (a hatched pour drawn solid, unknown copper weight, planes or vias not known): the full amplitudes of Preferences - Power Calculator."))
+DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the numbers (copper, h, θ, ψJT, reading), not a wrongly drawn board."),
+          ("Drawn from the real fabrication files", "cad", "Drawn from the fabrication files: small doubt (20 % of the 'estimated' amplitudes by default)."),
+          ("Drawn by hand from the layout", "hand", "Drawn by hand from the layout: half the 'estimated' amplitudes by default."),
+          ("Estimated (no layout at hand)", "estimated", "The board is a guess (copper, planes or vias unknown): the full amplitudes of Preferences - Power Calculator."))
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
-           "The board 0.5 to 1.5 mm outside the package: the point where the datasheet's ψJB takes the board temperature. Measure it with a thermocouple taped on the copper "
-           "next to the part. Needs nothing from the datasheet."),
+           "The board 0.5 to 1.5 mm outside the package (where ψJB is defined), e.g. a thermocouple on the copper. No datasheet value needed."),
           ("Hottest board point under the part", "max",
-           "The hottest copper under the footprint (what a probe under the package would read). Needs nothing from the datasheet."),
-          ("Mean board temperature under the part", "mean", "The average board temperature under the footprint. Needs nothing from the datasheet."),
+           "The hottest copper under the footprint. No datasheet value needed."),
+          ("Mean board temperature under the part", "mean", "The mean board temperature under the footprint. No datasheet value needed."),
           ("Junction (needs θ junction-pad)", "junction",
-           "The junction temperature itself, from a sense diode or the part's own sensor. The program adds θ·P between the board and the junction, so it needs the part's "
-           "junction-to-pad resistance θ."),
+           "The junction itself (sense diode or sensor); adds θ·P between board and junction, so it needs θ junction-pad."),
           ("Top of the package (needs θ and ψJT)", "top",
-           "The temperature of the top of the package (thermocouple or infrared). The datasheet's ψJT says how far below the junction it is: Ttop = Tj − ψJT·P, with Tj = board + θ·P. "
-           "Needs the part's θ and the datasheet's ψJT."))
-CASES = (("Best case (lowest power)", "best", "The lowest plausible power: the coolest assumptions inside the uncertainty. The optimistic end of the band."),
+           "The package top (thermocouple or IR): Ttop = Tj − ψJT·P, Tj = board + θ·P. Needs θ and ψJT."))
+CASES = (("Best case (lowest power)", "best", "The lowest plausible power (optimistic end of the band)."),
          ("Nominal", "nominal", "The power from your inputs as typed: the best single estimate."),
-         ("Worst case (highest power)", "worst", "The highest plausible power: the hottest assumptions inside the uncertainty. Use it to check margins (Tj, power limit, hotspots)."))
+         ("Worst case (highest power)", "worst", "The highest plausible power; use it to check margins."))
 
 
 def _spin(lo, hi, value, decimals, suffix, tip):
@@ -81,7 +78,7 @@ class CalculatorHelp(QDialog):
         lay = QVBoxLayout(self)
         self.view = QTextBrowser()
         self.view.setOpenExternalLinks(True)
-        self.view.setToolTip("How the calculator works, what each field means, the uncertainty band, the validation and the limits.")
+        self.view.setToolTip("How the calculator works: fields, uncertainty band, validation, limits.")
         set_themed_page(self.view, HELP_FILE)
         lay.addWidget(self.view, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
@@ -104,10 +101,10 @@ class PowerCalculator(QDialog):
         self.doc, self.worker, self.out = doc, None, None
         lay = QVBoxLayout(self)
         intro = QLabel("Finds the watts a part dissipates from a temperature you measured. Choose <b>one</b> of the two routes.")
-        intro.setToolTip("The routes are independent: you do not fill both. Press Help for how they work, the fields, the uncertainty band and the validation.")
+        intro.setToolTip("The routes are independent: fill one. Help explains them.")
         lay.addWidget(intro)
         self.tabs = QTabWidget()
-        self.tabs.setToolTip("Route 1 solves the board you drew. Route 2 is the datasheet formula. Use one of them.")
+        self.tabs.setToolTip("Route 1 solves your board; route 2 is the datasheet formula. Use one.")
         self.tabs.addTab(self._board_tab(), "Route 1: from the drawn board")
         self.tabs.addTab(self._datasheet_tab(), "Route 2: from a datasheet parameter")
         lay.addWidget(self.tabs, 1)
@@ -141,24 +138,22 @@ class PowerCalculator(QDialog):
         note = QLabel("Uses the board in the editor: change the copper, vias or stack-up there and the answer changes.")
         note.setWordWrap(True)
         th.hint(note)
-        note.setToolTip("The board model is the same one the simulation uses, run backwards.")
+        note.setToolTip("The simulation's board model, run backwards.")
         lay.addWidget(note)
         f = QFormLayout()
         self.heater = QComboBox()
         for k, h in enumerate(self.doc.problem.heaters):
             self.heater.addItem(h.name or f"Heater {k + 1}", k)
-        self.heater.setToolTip("The part whose power is unknown. The other heaters keep the powers typed in the program.")
+        self.heater.setToolTip("The part whose power is unknown; other heaters keep their powers.")
         self.point = QComboBox()
         for label, key, tip in POINTS:
             self.point.addItem(label, key)
             self.point.setItemData(self.point.count() - 1, tip, 3)           # Qt.ToolTipRole: the hint of each option
-        self.point.setToolTip("Where you measured. Each option has a hint; the last two also use datasheet parameters, which appear below when you choose them.")
-        self.measured = _spin(-50, 400, 60.0, 1, "°C", "The temperature you measured at that point, in °C.")
-        self.ambient = _spin(-60, 200, self.doc.problem.board.ambient, 1, "°C", "Air temperature at the time of the measurement (the board's ambient is the default).")
-        self.theta = _spin(0, 5000, 0.0, 2, "K/W", "θ junction-to-pad of the part: the datasheet's junction-to-case (bottom / exposed pad), junction-to-lead or junction-to-solder-point "
-                           "resistance. Never θJA. It starts at the value typed in the part's Properties and is used for this calculation only.")
-        self.psi_jt = _spin(0, 500, 2.0, 2, "K/W", "ψJT of the datasheet (junction-to-top characterisation parameter): Tj − Ttop = ψJT·P. Typically 0.3 to 5 K/W. It belongs to the "
-                            "datasheet's test board: on yours it is an estimate.")
+        self.point.setToolTip("Where you measured (each option has a hint); the last two need datasheet values.")
+        self.measured = _spin(-50, 400, 60.0, 1, "°C", "Temperature measured at that point, °C.")
+        self.ambient = _spin(-60, 200, self.doc.problem.board.ambient, 1, "°C", "Air temperature during the measurement, °C (default: the board's ambient).")
+        self.theta = _spin(0, 5000, 0.0, 2, "K/W", "θ junction-pad, K/W: datasheet junction-to-case (bottom), -lead or -solder point. Never θJA. From the part; used here only.")
+        self.psi_jt = _spin(0, 500, 2.0, 2, "K/W", "Datasheet ψJT, K/W (typically 0.3 to 5): Tj − Ttop = ψJT·P; an estimate on your board.")
         self.theta.setProperty("base_tip", self.theta.toolTip())
         self.psi_jt.setProperty("base_tip", self.psi_jt.toolTip())
         self.theta_label = QLabel("θ junction-pad")
@@ -173,15 +168,12 @@ class PowerCalculator(QDialog):
             self.design.addItem(label, key)
             self.design.setItemData(self.design.count() - 1, tip, 3)
         self.design.setCurrentIndex(max(0, self.design.findData(defaults.value("calculator", "design_level"))))
-        self.design.setToolTip("How well the drawn board matches the real one (the design uncertainty of the band). The copper coverage, copper weight, inner planes and vias are "
-                               "moved one at a time and added to the other sources as the root of the sum of squares. Amplitudes: Preferences - Power Calculator. "
-                               "Without it the band does not cover a wrongly drawn board. Each option has a hint.")
+        self.design.setToolTip("How well the drawn board matches the real one (design uncertainty of the band; amplitudes in Preferences - Power Calculator).")
         f.addRow("Board description", self.design)
         lay.addLayout(f)
         self.band = QCheckBox("Uncertainty band (best case / worst case)")
         self.band.setChecked(True)
-        self.band.setToolTip("Also compute the best and worst case: the copper, heat transfer, θ, ψJT and the reading are moved to both ends of their uncertainty (Preferences) "
-                             "and the effects added as the root of the sum of squares. Slower: about ten times the nominal calculation, about twice as long again with the board description on.")
+        self.band.setToolTip("Also compute best and worst cases (inputs moved to both ends, root sum of squares). About ten times slower, twice again with a board description.")
         self.band.toggled.connect(self.design.setEnabled)                  # The board description only acts on the band: greyed without it
         lay.addWidget(self.band)
         row = QHBoxLayout()
@@ -194,8 +186,7 @@ class PowerCalculator(QDialog):
         self.result.setWordWrap(True)
         self.result.setMinimumHeight(self.result.fontMetrics().lineSpacing() * 9)       # Room for the longest result: the window does not grow when it appears
         self.result.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
-        self.result.setToolTip("The power (best case, nominal, worst case), what the model reads at the nominal power, the board resistance at the measured point and what each "
-                               "source of doubt contributes.")
+        self.result.setToolTip("Power (best, nominal, worst), readings at the nominal power, board resistance and each source's share.")
         lay.addWidget(self.result)
         row = QHBoxLayout()
         self.case = QComboBox()
@@ -203,7 +194,7 @@ class PowerCalculator(QDialog):
             self.case.addItem(label, key)
             self.case.setItemData(self.case.count() - 1, tip, 3)
         self.case.setCurrentIndex(1)
-        self.case.setToolTip("Which power goes into the part: the best case (lowest), the nominal, or the worst case (highest, to check margins). Each option has a hint.")
+        self.case.setToolTip("Power written into the part: best case, nominal or worst case.")
         self.use = QPushButton("Use as the power of this part")
         self.use.setMinimumWidth(240)
         self.use.setToolTip("Write the selected power into the heater (undoable).")
@@ -226,12 +217,12 @@ class PowerCalculator(QDialog):
         note = QLabel("No board model: the datasheet relation P = (Tj − Treference) / parameter. The result updates as you type.")
         note.setWordWrap(True)
         th.hint(note)
-        note.setToolTip("Quick, but the parameter belongs to the datasheet's own test board: on yours it is an estimate.")
+        note.setToolTip("Quick; the parameter belongs to the datasheet's test board.")
         lay.addWidget(note)
         f = QFormLayout()
-        self.tj = _spin(-50, 500, 100.0, 1, "°C", "Junction temperature, for example from the part's sense diode or temperature output.")
-        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Temperature of the reference point: the board 1 mm from the package for ψJB or θJB, the top of the case for ψJT.")
-        self.par = _spin(0.01, 2000, 10.0, 2, "K/W", "ψJB, ψJT or θ from the datasheet. They belong to the datasheet's test board: on yours they are an estimate (ψJB within about 15 % of θJB).")
+        self.tj = _spin(-50, 500, 100.0, 1, "°C", "Junction temperature, °C (e.g. from a sense diode).")
+        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Reference temperature, °C: board 1 mm from the package (ψJB, θJB) or case top (ψJT).")
+        self.par = _spin(0.01, 2000, 10.0, 2, "K/W", "Datasheet ψJB, ψJT or θ, K/W; an estimate on your board (ψJB within about 15 % of θJB).")
         self.out2 = QLabel("")
         self.out2.setToolTip("P = (Tj − Treference) / parameter.")
         for label, wd in (("Junction Tj", self.tj), ("Reference point", self.tref), ("Parameter", self.par)):
@@ -273,7 +264,7 @@ class PowerCalculator(QDialog):
             wd.setEnabled(on)
             label = self.theta_label if wd is self.theta else self.psi_label
             label.setEnabled(on)
-            suffix = "" if on else f"\n\nGreyed: this point does not use it (it is used by the {why})."
+            suffix = "" if on else f"\n\nGreyed: not used by this point (used by the {why})."
             wd.setToolTip(wd.property("base_tip") + suffix)
 
     def _theta(self, *_):

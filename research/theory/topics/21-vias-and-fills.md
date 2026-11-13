@@ -1,5 +1,7 @@
 # 21. Vias: the barrel, the fill and arrays under a part
 
+*(audit 2.7.0: this topic predates the barrel length `d + 0.5 t_cu` and the rim rule of 2.6.0 (a copper layer the drilled hole does not touch is uncoupled) and the mirror image of a board edge in the via well of 2.5.0; the reference is `docs/theory.md` 1.5 and 2.6.)*
+
 ![Via fills](../../via-fill/figures/fig_04_via_fills_schematic.png)
 
 *Figure 4 of `research/via-fill` (`research/via-fill/figures/fig_04_via_fills_schematic.png`): the via fills as cross-sections: an open barrel, a resin plug (0.3 W/mK), conductive paste (8 W/mK) and an electroplated copper fill, with the heat path down the barrel and the thermal area it gives.*

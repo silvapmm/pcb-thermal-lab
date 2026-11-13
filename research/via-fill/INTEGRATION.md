@@ -2,7 +2,7 @@
 
 The via fill itself is in the program (2.4.0). The review (README sections 4.4 to 4.8 and "Review") found three defects around the via model; they are measured here and **not** corrected in `pcbthermal/` (this is a research branch). Each needs a `fix/` branch off `develop` (executor, reviewer, maintainer) and the maintainer's decision.
 
-## 1. The FVM and FDM via is not grid-convergent (fine cells)
+## 1. The FVM and FDM via is not grid-convergent (fine cells) (corrected in the program in 2.4.5: the mean-potential via with a Peaceman well, `fix/point-via`, from `research/point-via-convergence`; audit 2.7.0)
 
 **What.** `fvm.py` adds the barrel conductance `k_Cu A / d` to the one cell that holds the via centre; `fdm.py` to the nearest node. A source or sink in one cell of a five-point stencil acts like a hole of radius `0.198 Δx` (Peaceman 1978). For a 0.3 mm via that radius equals the real one at Δx ≈ 0.76 mm; on finer cells the model adds a constriction `ln(r_v / 0.198 Δx) / (2π S)` per via end that does not exist, and the result drifts by a constant amount at every halving of the cell instead of converging.
 

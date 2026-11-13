@@ -1,5 +1,7 @@
 # Integration: a spot without copper under a source (A12)
 
+**Status (audit 2.7.0).** P1 (the vertical correction) and P2 (laminate nodes next to bare cells) are implemented in 2.4.5 through `research/laminate-nodes` (`fix/laminate-nodes`, `pcbthermal/laminate.py`); P3 (the warning) is implemented in 2.4.5 as the bare-laminate warning of `checks.check_model_limits` (`fix/model-limit-warnings`). The Lumped and Analytic items of section 3 stay open (A2). 'Nothing here is implemented' below is the status when written.
+
 How to bring the results of this folder into the program, what each change costs and what it does to the numbers. Nothing here is implemented: every number was measured on copies in memory (`lib/layered.py`, `lib/treatments.py`) and `pcbthermal/` is untouched. The evidence is in `README.md` (section numbers in brackets); the text for the project documents is in `docs/`.
 
 ## 1. What the study found, in four lines

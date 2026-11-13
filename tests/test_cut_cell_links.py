@@ -257,7 +257,9 @@ def test_matrix_is_symmetric_with_no_positive_off_diagonal_and_the_symmetric_lu_
 def test_sliver_below_the_minimum_cover_is_dropped_and_the_curve_is_continuous(monkeypatch):
     without_edge_band(monkeypatch)
     # The program jumped by +3.6 K at 200 W/m2K (and +9.8 K at 2000) between the cover 0.01 and 0.02 (the film of the sliver sat behind a link of 2c/(1+c))
-    for hs, bound in ((200.0, 0.3), (2000.0, 0.3), (10.0, 0.4)):
+    # Re-baselined in fix/drawn-layers-edge-film-centroid: with the film from the centroid the sliver of cover 0.01 has its node where its copper is, and the step to the cover 0.02
+    # at 2000 W/m2K is 0.41 K (0.7 % of the rise, 0.28 K at 200 W/m2K) instead of under 0.3 K; still continuous, no jump of several kelvin as in the earlier versions
+    for hs, bound in ((200.0, 0.3), (2000.0, 0.5), (10.0, 0.4)):
         t = {c: fvm.solve_steady(study.sliver_board(c, hs), cell_mm=1.0).t_max for c in (0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0)}
         assert abs(t[0.02] - t[0.01]) < bound, (hs, t)
     # the error against the independent reference (the same board as an aligned rectangle) is smooth in the cover: its range over 0.01, 0.02 and 0.1 is under 0.3 K
@@ -327,7 +329,9 @@ def test_spread_over_the_position_of_the_outline_against_the_frame_reference(h_s
     without_edge_band(monkeypatch)
     refs = frame_refs.setdefault(h_side, {})
     new = np.array(list(study.errors("square", 3.5, h_side, 1.0, FRAME_POS, refs).values()))
-    assert np.ptp(new) <= 0.15, new
+    # Re-baselined in fix/drawn-layers-edge-film-centroid: with the centroid film one position (the sliver-cut outlier, -0.44 K against -0.16 to -0.19 K for the others) widens
+    # the range to 0.29 K at 2000 W/m2K (0.15 K bound kept at 10 and 200 W/m2K; the earlier links 1.2 and 3.0 K)
+    assert np.ptp(new) <= (0.30 if h_side >= 2000.0 else 0.15), new
     old_treatment(monkeypatch)
     old = np.array(list(study.errors("square", 3.5, h_side, 1.0, FRAME_POS, refs).values()))
     if h_side >= 200.0:
@@ -472,36 +476,70 @@ def test_a_metal_block_on_a_turned_board_keeps_the_block_links_and_balances():
     assert not np.array_equal(gx[0], ref0)
 
 
-def test_imported_copper_on_a_board_with_an_outline_keeps_the_earlier_treatment_and_says_so():
-    n = 40
-    stripes = np.zeros((n, n), np.uint8)
-    stripes[::6] = 1
-    full = np.ones((n, n), np.uint8)
-    p = Problem.new(10, 10, 2, h_side=200.0)
-    p.add_heater(1, 1.0, rect=(4, 4, 6, 6), name="U")
-    p.set_outline([[0.4, 0.2], [9.8, 0.6], [9.6, 9.7], [0.3, 9.5]])
-    p.imported = copper.imported_from_rasters([stripes, full], 0.25, "faces")
-    net = fvm.Network(p, 20, 20)
-    assert net.aperture is None and net.cut_cells_note
-    assert net.cut_cells_note in copper.model_warnings(p, "fvm")
-    old = fvm.Network(p, 20, 20, cut_cells=False)
-    assert (net.K != old.K).nnz == 0                              # one consistent treatment: exactly the earlier network
+def _imported_turned_board(imported, n_px=240, h_side=200.0):
+    """!
+    @brief A 12 mm board with a turned outline, full copper on both layers either imported (0.05 mm pixels) or drawn as zones, and a 2 mm heater at the centre.
+    @param imported True for imported masks, False for drawn zones.
+    @param n_px Pixels per side of the masks.
+    @param h_side Edge coefficient in W/m2K.
+    @return Problem.
+    """
+    p = Problem.new(12, 12, 2, h_side=h_side)
+    p.add_heater(1, 1.0, rect=(5, 5, 7, 7), name="U")
+    p.set_outline([[0.4, 0.2], [11.8, 0.6], [11.6, 11.7], [0.3, 11.5]])
+    if imported:
+        full = np.full((n_px, n_px), 255, np.uint8)
+        p.imported = copper.imported_from_rasters([full, full], 12.0 / n_px, "faces")
+    else:
+        p.add_zone(1, rect=(0, 0, 12, 12))
+        p.add_zone(2, rect=(0, 0, 12, 12))
+    return p
+
+
+def test_imported_copper_on_a_board_with_an_outline_takes_the_outline_per_pixel():
+    p = _imported_turned_board(True)
+    net = fvm.Network(p, 24, 24)
+    assert net.aperture is not None and not hasattr(net, "cut_cells_note")        # no more 'earlier treatment' note
+    # the old note is gone from the warnings of the run
+    assert not any("earlier" in w or "cell centre" in w for w in copper.model_warnings(p, "fvm"))
+    # No sliver cell is isolated (a cell on the board has a link to a neighbour on the board): every active cell has some face
+    gx, gy = net._lateral_links()
+    for layer in (0, 1):
+        deg = np.zeros((net.ny, net.nx))
+        deg[:, :-1] += gx[layer] > 0
+        deg[:, 1:] += gx[layer] > 0
+        deg[:-1, :] += gy[layer] > 0
+        deg[1:, :] += gy[layer] > 0
+        assert (deg[net.active] > 0).all()
+    # Heat balance and a constant field (no power, h_top = h_bottom = h_side would give T = ambient everywhere)
     assert abs(fvm.solve_steady(p, cell_mm=0.5).balance_error) < 1e-9
-    # A rectangle with imported copper has no cut cell: no note; and the other models have none
+
+
+def test_imported_full_copper_on_an_outline_follows_the_drawn_aperture_links():
+    # With full copper the pixel faces are the drawn board's links to the accuracy of the pixel mask: at 0.5 mm the old cover-scaled treatment was 3.3 % off the
+    # drawn reference (121.24 against 117.32 K), the pixel mask 0.5 %; and the edge sliver cells keep a link (without it the board read 126 K, 7.7 % hot)
+    drawn = fvm.solve_steady(_imported_turned_board(False), cell_mm=0.5).t_max
+    imported = fvm.solve_steady(_imported_turned_board(True), cell_mm=0.5).t_max
+    assert abs(imported / drawn - 1.0) < 0.01, (imported, drawn)
+
+
+def test_a_rectangle_with_imported_copper_has_no_outline_note_and_moves_only_by_the_centroid_film():
+    stripes = np.zeros((40, 40), np.uint8)
+    stripes[::6] = 1
     q = Problem.new(10, 10, 2, h_side=200.0)
     q.add_heater(1, 1.0, rect=(4, 4, 6, 6), name="U")
-    q.imported = copper.imported_from_rasters([stripes, full], 0.25, "faces")
-    assert fvm.Network(q, 20, 20).cut_cells_note is None
-    assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(q, "fvm")
-    assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(p, "fdm")
-    # Review: an imported outline that is the whole box (6 of 17 real Gerber outlines tried) cuts no cell: no note (it fired on every imported outline)
+    q.imported = copper.imported_from_rasters([stripes, np.ones((40, 40), np.uint8)], 0.25, "faces")
+    assert not any("outline" in w for w in copper.model_warnings(q, "fvm"))
+    # an imported outline that is the whole box cuts no cell: the pixel path gives the links of the rectangle (the links are the rectangle's; what differs from the plain rectangle is only the film, now in series on the imported layers from the centroid of the board part of the cell,
+    # 0.5 % of the rise here)
+    t0 = fvm.solve_steady(q, cell_mm=0.5).t_max
     q.set_outline([[0, 0], [10, 0], [10, 10], [0, 10]])
-    assert not copper.outline_cuts_cells(q.board) and copper.outline_cuts_cells(p.board)
-    assert fvm.Network(q, 20, 20).cut_cells_note is None
-    assert copper.CUT_CELLS_IMPORTED_NOTE not in copper.model_warnings(q, "fvm")
-    # the text the user reads names no branch or internal function
-    assert not any(w in copper.CUT_CELLS_IMPORTED_NOTE for w in ("fix/", "research/", "aperture", "earlier", "_"))
+    assert not copper.outline_cuts_cells(q.board)
+    t1 = fvm.solve_steady(q, cell_mm=0.5).t_max
+    assert abs(t1 - t0) < 0.01 * (t0 - 20.0), (t0, t1)
 
+
+# Restored by the review of fix/imported-copper-outline-mask: these three tests of the cut-cell treatment of drawn boards were deleted by that branch by mistake
 
 def test_the_lumped_model_builds_its_network_without_the_series_term(monkeypatch):
     # The Lumped never sees the links: its networks are built with cut_cells=False, so its numbers do not move with this change
@@ -544,3 +582,24 @@ def test_a_dropped_sliver_keeps_the_heat_balance():
     col = netq.active[:, 5]
     assert col.sum() == 20 and (netq.cover[col, 5] == pytest.approx(0.02, abs=1e-9))
     assert (netq.aperture[0][col, 5] > 0.99).all()                    # the face to the neighbour is open over its whole length
+
+
+def test_the_pixel_board_cover_in_bands_equals_one_call_and_bounds_the_memory(monkeypatch):
+    # Review of fix/imported-copper-outline-mask: the exact cover on the pixel grid held about 40 bytes per pixel while it ran (642 MB for 16 million pixels, which
+    # took the face construction of a 200 mm board from 221 to 740 MB, above the 40 bytes per pixel of the memory law); it is now built in bands of rows
+    import tracemalloc
+    rng = np.random.default_rng(3)
+    th = np.sort(rng.uniform(0.0, 2.0 * math.pi, 37))
+    r = 0.04 * (1.0 + 0.3 * rng.uniform(-1.0, 1.0, th.size))
+    poly = np.c_[0.05 + r * np.cos(th), 0.05 + r * np.sin(th)]
+    one = exact_coverage(poly, 901, 777, 0.1 / 901, 0.1 / 777)
+    monkeypatch.setattr(copper, "PIXEL_COVER_BAND", 20_000)                   # 22 rows a band: many bands, some outside the polygon
+    banded = copper._pixel_board_cover(poly, 901, 777, 0.1 / 901, 0.1 / 777)
+    assert banded.dtype == np.float32 and banded.shape == one.shape
+    assert np.abs(banded - one).max() < 1e-6
+    monkeypatch.undo()
+    tracemalloc.start()
+    copper._pixel_board_cover(poly, 2000, 2000, 0.1 / 2000, 0.1 / 2000)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 20.0 * 2000 * 2000, peak     # the float32 result (4 B a pixel) and one band of a million pixels (measured 14 B a pixel here); one call held about 40

@@ -10,6 +10,8 @@
 
 ## 1. What it is
 
+*(audit 2.7.0: the 'insulated edges' of this topic are the program before 2.5.0. Since 2.5.0 a board with `h_side` uses the eigenfunctions of a convective edge (`λ (L/2) tan(λ L/2) = β (L/2)`, `feature/analytic-robin-edge`), since 2.6.0 each layer has its own Robin parameter (`analytic._edge_mismatch_source`, GMRES) and the transient keeps vias and heatsinks local (`analytic_local.LocalSystem`); without `h_side` the cosine basis below is unchanged. See `docs/theory.md` 6.)*
+
 On a **uniform** board with insulated edges the multilayer fin equation (topic 01, equation (1)) is solved exactly by cosines. The model adds, on top of that exact solution, an influence-weighted copper fill and a Green-function (Woodbury) correction for vias and heatsinks, which are local. It is fast (milliseconds), exact for what it assumes, and honest about where it fails.
 
 ## 2. The series
@@ -49,7 +51,7 @@ Each mode obeys `C a' + A_mn a = q(t)`, `C = diag(c_l)`. With `C^(-1/2) A_mn C^(
 
 ## 6. Where it fails
 
-Copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when an edge crosses the footprint), edge convection (the edges are assumed insulated), a one-sided copper pad (down to -63 %). The edges matter even on the default board: on the four uniform scenarios of `docs/validation.md` 2 the Analytic is +0.3 to +1.0 % above the FVM at 1 mm, and this is **not** the mesh error of the FVM (refining to 0.25 mm moves the gap by 0.03 to 0.08 points) but the edge loss (`h_side` 10 W/m2K) that the series leaves out: with insulated edges in the FVM too the gap is -0.04 to -0.29 % (measured in the review of this folder, `scripts/study_fvm_analytic_edges.py`; the -0.1 to -0.3 % left with insulated edges was not traced). The input checks warn. On an outline the model runs on the rectangle of the same area (topic 20).
+Copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when an edge crosses the footprint), edge convection (the edges were assumed insulated before 2.5.0; audit 2.7.0), a one-sided copper pad (down to -63 %). The edges matter even on the default board: on the four uniform scenarios of `docs/validation.md` 2 the Analytic is +0.3 to +1.0 % above the FVM at 1 mm, and this is **not** the mesh error of the FVM (refining to 0.25 mm moves the gap by 0.03 to 0.08 points) but the edge loss (`h_side` 10 W/m2K) that the series leaves out: with insulated edges in the FVM too the gap is -0.04 to -0.29 % (measured in the review of this folder, `scripts/study_fvm_analytic_edges.py`; the -0.1 to -0.3 % left with insulated edges was not traced). The input checks warn. On an outline the model runs on the rectangle of the same area (topic 20).
 
 ## 7. How the program does it
 

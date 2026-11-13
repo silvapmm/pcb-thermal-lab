@@ -25,6 +25,17 @@ _CTX = multiprocessing.get_context("spawn")
 _IDS = itertools.count(1)
 
 
+class _BusySignal(QObject):
+    """!
+    @brief Carries the one signal of the engine for the window: `changed(busy)` when a calculation starts or the last one ends, fails or is cancelled.
+    """
+
+    changed = Signal(bool)
+
+
+BUSY = _BusySignal()
+
+
 class Engine:
     """!
     @brief The worker process and the queue of jobs waiting for it.
@@ -39,6 +50,16 @@ class Engine:
         self.current = None                          # Job being executed
         self.known = {}                              # Job id -> ProcessWorker for every job not finished
         self.timer = None
+        self.busy = False                            # True while a job runs or waits (what the Run / Stop button of the window follows)
+
+    def _notify(self):
+        """!
+        @brief Tell BUSY when the engine went from idle to busy or back (called after every change of the queue, once the state is settled).
+        """
+        now = self.current is not None or bool(self.pending)
+        if now != self.busy:
+            self.busy = now
+            BUSY.changed.emit(now)
 
     def _spawn(self):
         """!
@@ -80,6 +101,7 @@ class Engine:
         if not self.timer.isActive():
             self.timer.start()
         self._feed()
+        self._notify()
 
     def _feed(self):
         """!
@@ -113,6 +135,7 @@ class Engine:
             self._finish(self.current, "failed", "the calculation process stopped unexpectedly")
             self._stop()
             self._feed()
+            self._notify()
         if self.current is None and not self.pending and self.timer is not None:
             self.timer.stop()
 
@@ -130,6 +153,7 @@ class Engine:
         (worker.done if kind == "done" else worker.failed).emit(payload)
         worker.finished.emit()
         self._feed()
+        self._notify()
 
     def cancel(self, worker):
         """!
@@ -148,6 +172,15 @@ class Engine:
         worker.cancelled.emit()
         worker.finished.emit()
         self._feed()
+        self._notify()
+
+    def cancel_all(self):
+        """!
+        @brief Cancel every queued job and then the running one (the waiting ones first, so that none of them starts when the process is freed).
+        """
+        waiting = [w for w in self.known.values() if w is not self.current]
+        for w in waiting + ([self.current] if self.current is not None else []):
+            self.cancel(w)
 
     def shutdown(self):
         """!
@@ -160,6 +193,7 @@ class Engine:
         self._stop()
         if self.timer is not None:
             self.timer.stop()
+        self._notify()
 
 
 ENGINE = Engine()
@@ -215,6 +249,21 @@ def start(worker):
     """
     worker.start()
     return worker
+
+
+def busy():
+    """!
+    @brief Whether any calculation (simulation, animation, profile run, analysis, power calculator) runs or waits.
+    @return bool.
+    """
+    return ENGINE.busy
+
+
+def cancel_all():
+    """!
+    @brief Cancel every calculation, queued or running (the Stop button).
+    """
+    ENGINE.cancel_all()
 
 
 def shutdown():

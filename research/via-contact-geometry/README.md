@@ -2,6 +2,8 @@
 
 What is the right contact between a via barrel and a copper plane that covers only part of its footprint, and what length should the barrel have between two copper nodes? Two open items of `research/ROADMAP.md`: **A20** (a via on a plane with copper over part of its footprint) and **A22** (the barrel counted over the dielectric gap only). Status: written, run and **reviewed** (section 7: go for the merge; the barrel rule checked against a second, independent 3D reference, three claims corrected). Program: `develop` at `40d2fb71` (2.5.2). The program was not edited: every variant is a copy of the via logic installed in memory (`lib/barrel.py`, `lib/contact.py`) and removed on exit; `git diff develop --stat -- pcbthermal tests examples ico` is empty.
 
+**Status (audit 2.7.0).** Adopted in 2.6.0 as recommended (`fix/via-barrel-and-rim-uncoupling`: barrel `d + 0.5 t_bar` in the FVM, FDM, Lumped and Analytic, rim uncoupling and partial-rim scaling of the well; the sheet weights not adopted; `docs/validation.md` 34). The 'program' and 'current' columns below are the program of 2.5.2; on the 2.7.0 tree the program is the variant `contact_geo` with the barrel rule (audit check of section 3.4 below).
+
 Run from the repository root with the main environment: `.venv/bin/python research/via-contact-geometry/scripts/<script>.py`; tests: `.venv/bin/python -m pytest -q research/via-contact-geometry/tests` (8 pass). The numbers below are the ones the scripts print (`out/` is git-ignored; every script rewrites its file).
 
 ## 1. Question, what would answer it, and the situation
@@ -99,6 +101,8 @@ FVM via effect, K (cold spot, K), cells 1 / 0.5 / 0.25 / 0.125 mm; the 3D solid 
 | sheet | 12.85 (0.00) | 12.69 (0.00) | 12.50 (0.00) | 12.35 (0.00) |
 | contact_geo | 5.58 (0.00) | 6.79 (-5.62) | 7.47 (-13.01) | 8.27 (-14.32) |
 | contact | 12.33 (0.00) | 12.40 (0.00) | 12.49 (0.00) | 12.35 (0.00) |
+
+*(audit 2.7.0: re-run on the 2.7.0 tree, the `current` row is now the program of 2.6.0, which uses the rim share of `contact_geo` and the barrel `d + 0.5 t_cu`: FVM 5.55 (0.00) / 6.76 (-5.49) / 7.44 (-12.80) / 8.24 (-14.05) K, FDM 8.58 / 10.61 / 10.99 / 11.25 K at 1 / 0.5 / 0.25 / 0.125 mm, within 0.03 K (0.27 K on the cold spot at 0.125 mm) of `contact_geo`, the difference being the barrel length; the `sheet`, `contact_geo` and `contact` rows reproduce to the digit, they build their own couplings with the barrel over `d`. The 2.5.2 `current` row above is the program before 2.6.0.)*
 
 The cold spot is cured by the **weights** (`sheet`, `contact`) and not by the contact share (`contact_geo` keeps it). Positive off-diagonal entries stay (8 at 1 to 0.25 mm and 292 at 0.125 mm against 10 and 202 for the program): **the maximum principle is not restored by structure**, only measured (a star would; it was rejected).
 

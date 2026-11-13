@@ -1,0 +1,113 @@
+diff --git a/pcbthermal/fdm.py b/pcbthermal/fdm.py
+index dbe97ea9..87027cc6 100644
+--- a/pcbthermal/fdm.py
++++ b/pcbthermal/fdm.py
+@@ -17,13 +17,17 @@
+          answer "what would a correct FDM give?" and is not meant for design work: use the FVM.
+ """
+ 
++import os
+ import numpy as np
+ import scipy.sparse as sp
+ 
+-from .geometry import exact_coverage, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
++from .geometry import face_apertures, signed_distance_to_outline, exact_coverage, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
+ from . import blocks, copper, fvm, laminate, viawell
+ from .results import SteadyResult
+ 
++# Default of the cut-cell treatment of a board with an outline (studies switch it off to compare; the program always runs with it)
++CUT_CELLS = True
++
+ 
+ def _mean(a, b, kind):
+     """!
+@@ -83,7 +87,7 @@ class Network:
+              the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
+     """
+ 
+-    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area", faces=None):
++    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area", faces=None, cut_cells=None):
+         """!
+         @param problem A Problem.
+         @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
+@@ -234,6 +238,31 @@ class Network:
+                 fq[L:] = 0.5 * (sq[0] + sq[1]) * ((sq[0] > 0) & (sq[1] > 0))
+         gxl = fx * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None]
+         gyl = fy * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None]
++        self.aperture = None
++        cut_cells = CUT_CELLS if cut_cells is None else cut_cells
++        if cut_cells and b.has_outline() and sampling == "area" and os.environ.get('MODE','both') in ('both','links'):
++            # Cut-cell links (as the FVM): the sheet S above is scaled by the node cover c, so a link into a cut node is a factor c too weak (the whole face of the control
++            # volume is open to the heat, not c of it). The link is the PHYSICAL sheet (S / c) times the open fraction a of the dual face (the part of the face on the board),
++            # computed on the grid of control volumes (the outline shifted by half a cell, as for the edge length). a is 0.5 on the border of a box (the half-width face)
++            # and 1 between whole control volumes, so a rectangle-like interior is the old link bit for bit.
++            ax, ay = face_apertures(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy)
++            # Between two whole control volumes the face is the plain one (width wy or wx over the spacing): exactly the old link
++            ax = np.where((ncov[:, :-1] >= 1.0) & (ncov[:, 1:] >= 1.0), wy[:, None] / dy, ax)
++            ay = np.where((ncov[:-1, :] >= 1.0) & (ncov[1:, :] >= 1.0), wx[None, :] / dx, ay)
++            self.aperture = (ax, ay)
++            with np.errstate(divide="ignore", invalid="ignore"):
++                sp_ = np.where(ncov[None] > 0, S / ncov[None], 0.0)
++            ox = ax[None] * _mean(sp_[:, :, :-1], sp_[:, :, 1:], mean) * dy / dx
++            oy = ay[None] * _mean(sp_[:, :-1, :], sp_[:, 1:, :], mean) * dx / dy
++            if rule is not None and rule.layers:
++                # An interior laminate node joins its neighbour only where both exist (the comment above: the mean would leak into a node that no cell uses)
++                ox[L:] *= ((sp_[L:, :, :-1] > 0) & (sp_[L:, :, 1:] > 0))
++                oy[L:] *= ((sp_[L:, :-1, :] > 0) & (sp_[L:, 1:, :] > 0))
++            keep = np.ones(Lt, bool)
++            if rule is None:
++                keep[L:] = False                               # Legacy laminate nodes and block layers keep the cover-scaled links
++            gxl[keep] = (ox * (on[:, :-1] & on[:, 1:])[None])[keep]
++            gyl[keep] = (oy * (on[:-1, :] & on[1:, :])[None])[keep]
+         for layer, (fgx, fgy) in faces_xy.items():
+             gxl[layer] = fgx * (on[:, :-1] & on[:, 1:])
+             gyl[layer] = fgy * (on[:-1, :] & on[1:, :])
+@@ -277,6 +306,8 @@ class Network:
+             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
+         if rule is None:
+             self._board_edge(b, self.g_side[:L], slab, wx, wy, dx, dy)
++        if cut_cells and b.h_side and sampling == "area" and os.environ.get('MODE','both') in ('both','film'):
++            self.g_side = self._cut_edge_film(self.g_side, S, ncov, edge_nodes, dx, dy, wx, wy)
+         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
+         # Nodes off the board are pinned to ambient (they carry no heat); the pin is kept apart because it is not a path to the air
+         self.g_pin = np.zeros_like(self.g_amb)
+@@ -315,6 +346,39 @@ class Network:
+         self.Qw_matrix = sp.csc_matrix(np.stack([w.ravel() for w in self.Qw], axis=1)) if self.Qw else sp.csc_matrix((n, 0))
+         self.footprints = [np.flatnonzero(w.ravel() > 0) for w in self.Qw]
+ 
++    def _cut_edge_film(self, g0, S, ncov, edge_nodes, dx, dy, wx, wy):
++        """!
++        @brief Put the conduction from the node to the closest outline point in series with the edge film h_side (the same Robin treatment of a cut cell as `fvm.Network._cut_edge_film`).
++        @details g = H L / max(1 + H d / S_phys, EDGE_FILM_FLOOR), H = g0 / L the film per metre of edge, L the edge length in the control volume, d the signed distance from the
++                 node to the closest outline point (negative for a node outside the board), S_phys the sheet of the node without its cover. On a rectangle the border node is
++                 on the edge (d = 0), so only an outline board is changed. The ambient term is scaled with the conductance (g_amb is rebuilt from it), so a constant field is exact.
++        @param g0 Edge conductance of every node layer before the series term in W/K, shape (nl, ny, nx).
++        @param S Sheet conductance of every node layer (W/K, scaled by the node cover), shape (nl, ny, nx).
++        @param ncov Cover of every control volume by the board, shape (ny, nx).
++        @param edge_nodes Outline length in every control volume in m, shape (ny, nx).
++        @param dx Node spacing along x in m.
++        @param dy Node spacing along y in m.
++        @param wx Control-volume widths along x in m.
++        @param wy Control-volume heights along y in m.
++        @return Array of the same shape as g0.
++        """
++        b = self.problem.board
++        if not b.has_outline():
++            return g0
++        L = edge_nodes
++        H = np.zeros_like(g0)
++        np.divide(g0, L[None], out=H, where=L[None] > 0)
++        d = np.zeros((self.ny, self.nx))
++        cells = np.argwhere(L > 0)
++        if len(cells):
++            d[cells[:, 0], cells[:, 1]] = signed_distance_to_outline(b.outline, cells[:, 1] * dx, cells[:, 0] * dy)
++        sp_ = np.zeros_like(S[:g0.shape[0]])
++        np.divide(S[:g0.shape[0]], ncov[None], out=sp_, where=ncov[None] > 0)
++        with np.errstate(divide="ignore", invalid="ignore"):
++            fac = np.where(sp_ > 0, 1.0 + H * d[None] / sp_, 1.0)
++        fac = np.where(H > 0, np.maximum(fac, fvm.EDGE_FILM_FLOOR), 1.0)
++        return np.where((g0 > 0) & (L[None] > 0), H * L[None] / fac, g0)
++
+     def _board_edge(self, b, g_side, slab, wx, wy, dx, dy):
+         """!
+         @brief Add the edge conductance of the copper nodes (edge coefficient times slab thickness times exposed length) to an array.

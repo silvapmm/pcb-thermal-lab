@@ -1,5 +1,7 @@
 # convection-laws: the natural-convection laws of the horizontal faces of a board
 
+**Status (audit 2.7.0).** The maintainer took the decision this folder asked for (2.5.0: keep the laws and write the limit). In 2.6.0 the **face turned down** was changed to the mean Goldstein-Lau law of option B, `Nu = 0.475 Ra^(1/5)` on `L = A/P` (`convection.DOWN_COEFFICIENT`, `DOWN_EXPONENT`; `fix/face-down-convection` from `research/face-down-convection`; `docs/theory.md` 8, `docs/validation.md` 5): the hottest rise of the computed-h horizontal boards moved -0.26 to -1.36 %. The face up is unchanged (`0.54 Ra^(1/4)`, then `0.15 Ra^(1/3)`) and its change waits for the measurement of board D ('Planned', "Horizontal face up"). Wherever this README says "the program's" face-down law `0.27 Ra^(1/4)`, it is the program before 2.6.0.
+
 Study S4 of the paper case studies, prepared for 2.6.0. The program's laws are `Nu = 0.54 Ra^(1/4)` (face up, then `0.15 Ra^(1/3)` above Ra = 1e7) and `Nu = 0.27 Ra^(1/4)` (face down),
 with `L = A/P`, from textbook memory; what the sources say and what the program does with them is in `research/horizontal-plate-h`, `research/plate-h-level` and
 `research/theory-sources/docs/models-evidence-and-gaps.md` (L1). This folder (1) tabulates the candidate laws over the Ra of the boards, (2) builds a second, independent numerical solver and asks what

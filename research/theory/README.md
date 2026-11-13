@@ -1,5 +1,7 @@
 # Theory: the problem, the models and how we know they are right
 
+**`docs/theory.md` is the reference** for what the program does. The topics of this folder are the explained theory with pictures and sources; several were written before 2.5.0 and describe rules the program has since replaced (each such topic carries an 'audit 2.7.0' note with the section of `docs/theory.md` that holds today's rule); a rewrite pass of the topics is not scheduled.
+
 This folder explains the physics behind PCB Thermal Lab: this page is the overview, one topic file per model, equation or planned method holds the detail (picture, formulation, limits, tests, sources), and the equations themselves are in [`docs/theory.md`](../../docs/theory.md). It changes nothing in the program.
 
 ## 1. The problem
@@ -66,6 +68,10 @@ Around the models are the pieces they share. **Vias** carry a constriction resis
 
 *Figure 8 (`figures/fig_08_heat_transfer.png`): convection and radiation both grow with the temperature, so a constant h overstates the rise at high power and understates it at low power; the loop re-solves until h settles (illustrative values).*
 
+![Gerber sampling](figures/fig_47_gerber_sampling.png)
+
+*Figure 47 (`figures/fig_47_gerber_sampling.png`): left, a line of width 1.5 s against the sample centres at two offsets; middle, the area error of one feature against w/s (worst offset, bound s/w, mean over the offset); right, resident memory against pixels for one and four layers with the 377 MB working set of a tile and the 400 M pixel limit. Computed from the constants of the code, illustrative.*
+
 ![Memory guard](figures/fig_46_memory_guard.png)
 
 *Figure 46 (`figures/fig_46_memory_guard.png`): left, the chain from the cell to the verdict (lower bound, exact count, estimate, limit); right, the law of the estimate against the unknowns for the FVM (`t_eff` 2 and 6), the FDM (4) and the 3D solid (6) with the coefficients of `memory.CONTINUOUS`, safety factor included and base left out, against 60 % of 16 GiB. Illustrative of the shape: the bytes were measured on one machine (`docs/theory.md` 2.7).*
@@ -98,7 +104,7 @@ The limits are known and warned: the Lumped and Analytic models work on rectangl
 
 ## 4. The studies that shaped the program
 
-One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md`; 2.4.5 is in `develop`, not released.
+One row per question that changed the program or confirmed it; a row marked **no change** is a study that led to no change of the program (the question was answered, or the candidate was rejected). The full list is [`../README.md`](../README.md), the review register [`../REVIEW.md`](../REVIEW.md). Versions are those of `CHANGELOG.md` (audit 2.7.0: the rows are brought up to the program of 2.6.0; the line said '2.4.5 is in `develop`, not released', 2.4.5 to 2.6.0 are released).
 
 | Question | What it found | What it changed in the program | Folder |
 | :-- | :-- | :-- | :-- |
@@ -108,21 +114,21 @@ One row per question that changed the program or confirmed it; a row marked **no
 | How is a part with a heatsink on the package modelled? | a bare mould takes about 1 % of the heat, a clip-on heatsink 41 to 51 %; the fixed-point loop stopped 17 to 58 K low on small pads | `theta` and the top path on a component (2.4.0); the split as a root (2.4.2, `fix/top-path-convergence`) | [component-heatsink](../component-heatsink/README.md) |
 | What do a metal block and fins do? | fins within 0.08 % of a 2D fin; the block as one more layer works in the Lumped and Analytic models (an equivalent coefficient did not) | the block in all five models (2.4.0); side walls without the fin ratio (2.4.2) | [block-and-fins](../block-and-fins/README.md) |
 | How much does the air between close fins matter? | the channel effect is real; quantified for fins on a vertical board, not all originals obtained | a warning after the run (2.4.4); the correction is not implemented | [fin-channel](../fin-channel/README.md), [fin-channel-sources](../fin-channel-sources/README.md) |
-| Which natural-convection level for a vertical face? | the laminar Churchill and Chu form is the exact boundary layer plus a leading-edge term; the choice moves a board by at most 2 % | decided: laminar as the default of new projects, for 2.5.0 (not yet in the program) | [plate-h-level](../plate-h-level/README.md) |
-| Which level for a horizontal face? | the upper face lies between the published levels; the lower face has the wrong exponent, but the published forms move a board by -2.7 to +1.3 % | **no change**: a documented limit | [horizontal-plate-h](../horizontal-plate-h/README.md) |
+| Which natural-convection level for a vertical face? | the laminar Churchill and Chu form is the exact boundary layer plus a leading-edge term; the choice moves a board by at most 2 % | laminar as the default of new projects and the low-Rayleigh warning (2.5.0, `fix/natural-convection-low-ra`) | [plate-h-level](../plate-h-level/README.md) |
+| Which level for a horizontal face? | the upper face lies between the published levels; the lower face has the wrong exponent, but the published forms move a board by -2.7 to +1.3 % | the face down on `Nu = 0.475 Ra^(1/5)` on `L = A/P` (2.6.0, `fix/face-down-convection`, `research/face-down-convection`); the face up unchanged, a documented limit | [horizontal-plate-h](../horizontal-plate-h/README.md) |
 | Which rectangle stands for a board with an outline? | the rectangle of equal area is within 0.2 to 3 % away from the edge (the bounding box 6 to 10 % cool) | equal-area rectangle for the Lumped and Analytic models (2.4.0); the outline edge counted in full (2.4.2) | [outline](../outline/README.md) |
-| How does a part across the outline heat the cut cells? | the full-cell power was up to 4 K too hot on a T; the 3D solid is still +1 to +3 K on a turned square at a high edge coefficient | part weights by the board cover (2.4.5); the cut cells of the 3D solid stay in "Planned" | [rotated-square-3d](../rotated-square-3d/README.md) |
+| How does a part across the outline heat the cut cells? | the full-cell power was up to 4 K too hot on a T; the 3D solid is still +1 to +3 K on a turned square at a high edge coefficient | part weights by the board cover (2.4.5); the exact board cover, the cut-cell links and the edge film in the FVM and 3D solid (2.6.0); the FDM cut cells stay in "Planned" | [rotated-square-3d](../rotated-square-3d/README.md) |
 | Which stack-ups are typical? | fabricators' builds; 0.5 oz inner copper is the common default | stack-up templates (2.4.0), 1 oz inner option (2.4.2) | [stackup](../stackup/README.md) |
 | What fills a via, and does the via converge with the cell? | only copper fill matters (a resin plug does not); the point via drifted below 0.5 mm | via fills (2.4.0); the via as mean-potential couplings with a well, via warnings (2.4.5) | [via-fill](../via-fill/README.md), [point-via-convergence](../point-via-convergence/README.md) |
-| Why do the Lumped and Analytic models overstate vias? | the constriction at the barrel was missing (35 to 60 % too much via effect); a double counting in the group term was tested and rejected | the Krogh well and the self-terms (2.4.5); a zonal Lumped model stays in "Planned" | [lumped-analytic-vias](../lumped-analytic-vias/README.md), [lumped-via-groups](../lumped-via-groups/README.md) |
+| Why do the Lumped and Analytic models overstate vias? | the constriction at the barrel was missing (35 to 60 % too much via effect); a double counting in the group term was tested and rejected | the Krogh well and the self-terms (2.4.5); the zonal Lumped model (2.5.0); the barrel length `d + 0.5 t_cu` (2.6.0) | [lumped-analytic-vias](../lumped-analytic-vias/README.md), [lumped-via-groups](../lumped-via-groups/README.md) |
 | Why was the SOR slow, and wrong with vias? | the relaxation factor was the optimum of fixed edges; the via blocks were not seen by the update | Young's omega estimate and a block SOR (2.4.5) | [young-omega-tiles](../young-omega-tiles/README.md), [sor-with-via-couplings](../sor-with-via-couplings/README.md) |
 | What happens where copper is absent next to the laminate? | one node per layer reads cool over bare laminate (FVM -18 % over a 6 mm window on a 1.6 mm board); extra gap nodes change nothing on full copper | laminate nodes where copper is absent, FVM and FDM (2.4.5); the Lumped and Analytic only warn (2.4.5) | [laminate-nodes](../laminate-nodes/README.md), [bare-spot-under-source](../bare-spot-under-source/README.md), [gap-subdivision](../gap-subdivision/README.md) |
 | Can the Analytic model see a copper pad on bare laminate? | its uniform sheet cannot; a candidate correction was measured and not recommended | **no change** to the model; a sharper warning (2.4.5) | [analytic-partial-copper](../analytic-partial-copper/README.md) |
 | How are the zones of a layer combined in a cell? | the larger share lost the copper of the other zone (5 to 15 % too cool on real copper) | the union of the points of the zones (2.4.3) | [zone-union](../zone-union/README.md) |
 | What power does a measured temperature mean? | the board model run backwards reproduces two datasheet cases (-1.7 % and +3 %); the band of numbers alone missed drawing errors | the Power Calculator (2.4.0) and its design-uncertainty band (2.4.2) | [power-calculator](../power-calculator/README.md) |
 | Do the sources of the theory say what we quote? | correlations and published cases reopened and reproduced; some ranges and readings corrected in the folder | **no change** to the program | [theory-sources](../theory-sources/README.md) |
-| Can the copper come from Gerber files? | an independent reader, the mapping to cells and the nets work on real boards | prepared for 2.5.0 (import, with the memory guard); nothing in the program yet | [gerber-import](../gerber-import/README.md), [gerber-models](../gerber-models/README.md), [gerber-nets](../gerber-nets/README.md) |
-| Vias near an edge, boards with 100 or more vias? | the via kernel has no image of the edge (+12 to +15 % at 1 mm); the fill-in and memory of the matrix grow | warnings (2.4.5); the rest prepared for the memory guard (2.5.0) | [via-real-board](../via-real-board/README.md) |
+| Can the copper come from Gerber files? | an independent reader, the mapping to cells and the nets work on real boards | the Gerber import, the imported copper (flow-based faces), the paste parts and the CAD profiles (2.5.0); the nets are not in the program | [gerber-import](../gerber-import/README.md), [gerber-models](../gerber-models/README.md), [gerber-nets](../gerber-nets/README.md) |
+| Vias near an edge, boards with 100 or more vias? | the via kernel has no image of the edge (+12 to +15 % at 1 mm); the fill-in and memory of the matrix grow | warnings (2.4.5); the memory guard and the mirror image of a straight edge in the FVM well (2.5.0) | [via-real-board](../via-real-board/README.md) |
 
 ## 5. The topics of this folder
 
@@ -144,12 +150,12 @@ Each topic file has the same order: picture, what it is, formulation, assumption
 | 12 | [Foster chain](topics/12-foster-chain-planned.md) | **planned** | - | - |
 | 13 | [Heatsink scenarios](topics/13-heatsink-scenarios-planned.md) | **planned** | - | [component-heatsink](../component-heatsink/README.md) |
 | 14 | [Virtual JEDEC test, known-power reference](topics/14-virtual-jedec-and-known-power-planned.md) | partly planned | `inverse.py` | [power-calculator](../power-calculator/README.md) |
-| 15 | [Import and power list](topics/15-import-and-power-list-planned.md) | **planned** | - | [gerber-import](../gerber-import/README.md) |
+| 15 | [Import and power list](topics/15-import-and-power-list-planned.md) | Gerber import in program (2.5.0); KiCad file and power list **planned** | - | [gerber-import](../gerber-import/README.md) |
 | 16 | [Multigrid](topics/16-multigrid-planned.md) | **planned** (optional) | - | [models-comparison](../models-comparison/README.md) |
-| 17 | [Copper to cells, the tensor](topics/17-copper-mapping-and-tensor.md) | researched | - | [gerber-models](../gerber-models/README.md) |
+| 17 | [Copper to cells, the tensor](topics/17-copper-mapping-and-tensor.md) | flow-based faces in program (2.5.0); tensor and diagonal faces researched | `copper.py` | [gerber-models](../gerber-models/README.md) |
 | 18 | [Spreading resistance](topics/18-spreading-resistance.md) | verification | `solid3d.py` | [solid3d-verification](../solid3d-verification/README.md) |
 | 19 | [Nets, current, Joule heat](topics/19-nets-current-and-joule-heat.md) | researched | - | [gerber-nets](../gerber-nets/README.md) |
-| 20 | [Board outline](topics/20-board-outline.md) | in program; Gerber reader researched | `model.py`, `geometry.py` | [outline](../outline/README.md), [gerber-import](../gerber-import/README.md) |
+| 20 | [Board outline](topics/20-board-outline.md) | in program; Gerber outline in program (2.5.0) | `model.py`, `geometry.py`, `gerber/outline.py` | [outline](../outline/README.md), [gerber-import](../gerber-import/README.md) |
 | 21 | [Vias and fills](topics/21-vias-and-fills.md) | in program | `model.py`, `viawell.py`, `viaconstriction.py` | [via-fill](../via-fill/README.md), [point-via-convergence](../point-via-convergence/README.md), [lumped-analytic-vias](../lumped-analytic-vias/README.md) |
 | 22 | [Stack-up](topics/22-stack-up.md) | in program | `model.py`, `data/stackups.json` | [stackup](../stackup/README.md) |
 | 23 | [Power calculator](topics/23-power-calculator.md) | in program | `inverse.py` | [power-calculator](../power-calculator/README.md) |

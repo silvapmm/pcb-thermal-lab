@@ -4,7 +4,7 @@
 @file cli.py
 @brief Command line of the OCR tool: `python -m tools.ocr {transcribe,queue,suspects,verify,providers,check-key,decode}`.
 
-@details Run from the repository root with a Python that has PyMuPDF (for example the markitdown environment).
+@details Run from the repository root with a Python that has pypdfium2 and Pillow.
 Pages go online to Google (Gemini) by the maintainer's decision, except confidential files (refused by name
 unless `--allow-confidential`). The key is never printed; every error text is redacted. See tools/ocr/README.md.
 """
@@ -69,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--max-tokens", type=int, help="output token budget per request (Claude default 8192)")
         p.add_argument("--whole-page", action="store_true",
                        help="one request per page: no half-page crops, no fallback model (a cut page is kept with a note)")
+        p.add_argument("--refusal-retry", action="store_true", default=True,
+                       help="accepted for compatibility: the strips step is on by default")
+        p.add_argument("--no-refusal-retry", dest="refusal_retry", action="store_false",
+                       help="skip the three-strip step of the refusal ladder (full page, halves, strips of 40 %% with "
+                            "10 %% overlap, fallback models)")
         p.add_argument("--prompt-variant", choices=sorted(config.prompt_variants()), default="default",
                        help="phrasing of the prompt (data/prompt_variants.json): the filter that refuses some pages is "
                             "stochastic and sensitive to the wording")
@@ -182,7 +187,8 @@ def make_runner(a, papers: Path) -> Runner:
                   Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi,
                   prompt=config.variant_prompt(getattr(a, "prompt_variant", None)),
-                  max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False))
+                  max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False),
+                  strips=getattr(a, "refusal_retry", True))
 
 
 def report(outcomes) -> int:
@@ -283,9 +289,8 @@ def _page_text(pdf: Path, page: int) -> str:
     @return str The text, or an empty string on failure.
     """
     try:
-        import pymupdf
-        with pymupdf.open(pdf) as doc:
-            return doc[page - 1].get_text()
+        from . import render
+        return render.page_texts(pdf)[page - 1]
     except Exception:
         return ""
 
@@ -360,22 +365,17 @@ def cmd_assemble(a, papers: Path) -> int:
     @param papers Papers folder.
     @return int Exit code.
     """
-    try:
-        import pymupdf as fitz  # PyMuPDF, only needed here (the old module name `fitz` warns as deprecated)
-    except ImportError:
-        import fitz
-    from . import assemble as asm, suspects as su
+    from . import assemble as asm, render, suspects as su
     root = Path(a.root) if a.root else papers.parent
     out = papers / "md-final"
     out.mkdir(exist_ok=True)
     for stem in a.stems:
-        doc = fitz.open(str(resolve_pdf(stem, papers)))
-        texts = [doc[i].get_text() for i in range(len(doc))]
-        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        texts = render.page_texts(resolve_pdf(stem, papers))
+        found = su.printed_numbers({i + 1: t for i, t in enumerate(texts)})
         off = su.page_offset({k: v for k, v in found.items() if v})
-        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        printed = {p: su.printed_page(p, found.get(p), off) for p in range(1, len(texts) + 1)}
         digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
-        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(texts), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
                                         encoding="utf-8")
         print(f"{stem}: {out / (stem + '.md')}")
     return 0

@@ -209,22 +209,19 @@ def page_files(folder: Path, stem: str) -> dict[int, Path]:
 
 def analyse_pdf(path: Path) -> dict:
     """!
-    @brief Page count and per-page text-layer facts of a PDF (PyMuPDF).
+    @brief Page count and per-page text-layer facts of a PDF (pypdfium2).
     @param path PDF file.
     @return dict `pages`, `text` (page to text), `words`, `garbage`, `formula` (score) and `equals` per page.
     """
-    import pymupdf
-    from . import suspects
-    doc = pymupdf.open(str(path))
-    res = {"pages": len(doc), "text": {}, "words": {}, "garbage": {}, "formula": {}, "equals": {}}
-    for i in range(len(doc)):
-        t = doc[i].get_text()
+    from . import render, suspects
+    texts = render.page_texts(path)
+    res = {"pages": len(texts), "text": {}, "words": {}, "garbage": {}, "formula": {}, "equals": {}}
+    for i, t in enumerate(texts):
         p = i + 1
         res["text"][p] = t
         res["words"][p] = len(re.findall(r"\w+", t))
         res["garbage"][p] = suspects.garbage_text_layer(t)
         res["formula"][p], res["equals"][p] = formula_score(t)
-    doc.close()
     return res
 
 
@@ -294,8 +291,8 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
             else analyser(pdf)
         n = info["pages"]
         if confidential:
-            import pymupdf
-            n = len(pymupdf.open(str(pdf)))
+            from . import render
+            n = render.page_count(pdf)
         claude = page_files(papers / "ocr" / "anthropic", stem)
         gemini = page_files(papers / "ocr", stem)
         openrouter = page_files(papers / "ocr" / "openrouter", stem)     # free vision models, below Claude, above Gemini
@@ -454,7 +451,7 @@ def render_markdown(m: dict) -> str:
         L.append(f"| {i} | {t['stem']} | {_fmt_pages(t['pages'])} | {'; '.join(t['why'])} | {t['tokens']:,} | {t['status']} |")
     L += ["", "## PDFs convertible for free from the text layer", "",
           "Born-digital, no garbage or empty page, at most 25 % formula-heavy pages (estimate): extract the text with "
-          "PyMuPDF/markitdown and send only the pages marked `formula` in the table to the model.", "",
+          "a PDF text extractor and send only the pages marked `formula` in the table to the model.", "",
           ", ".join(s["free_text_pdfs"]) or "none", "",
           "## Every PDF", "",
           "Columns: pp = pages; type = born-digital (dig) or scan; arX = arXiv LaTeX text exists; Cl, Ge, loc = pages "

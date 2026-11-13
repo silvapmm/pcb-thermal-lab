@@ -9,6 +9,8 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.5.0/reproduction/`](2.5.0/reproduction/README.md) | Reproduction pass of 2.5.0 (parts A to E). |
 | [`2.6.0/reproduction/`](2.6.0/reproduction/README.md) | Reproduction pass of 2.6.0 (research tests on the combined tree). |
 | [`2.6.0/final-opinion/`](2.6.0/final-opinion/README.md) | The reviewer's final opinion on 2.6.0 (release gate step 5). |
+| [`2.7.0/research-audit/`](2.7.0/research-audit/README.md) | The directed audit 'README against code, folder by folder' of every research folder on the 2.7.0 tree (branch `release/2.6.1-research-audit`, named when the next version was still planned as 2.6.1; it is now 2.7.0, and the branch keeps its name as the record), with the folder renames by topic. |
+| [`2.7.0/doc-review/`](2.7.0/doc-review/README.md) | The documentation review of 2.7.0 (step 6b of the release gate): the checklist of what was checked, changed and left stale on purpose. |
 
 ## Layout rule
 

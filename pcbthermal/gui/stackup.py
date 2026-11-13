@@ -75,7 +75,7 @@ class StackupView(QWidget):
         self.ambient_note, self._rects = "", []
         self.setMinimumSize(360, 300)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setToolTip("Cross-section of the board, top face first. Click a layer to see its dimensions and properties.")
+        self.setToolTip("Board cross-section, top first. Click a layer for its properties.")
 
     def set_theme(self, theme):
         """!
@@ -205,13 +205,13 @@ class StackupEditor(QTableWidget):
 
     # Two-line titles (name, then the unit): a one-line title was cut to "hickness (µm" in a column of 92 px
     COLUMNS = ("Layer", "Material", "Thickness\n(µm)", "k through\n(W/mK)", "k in-plane\n(W/mK)", "ρ\n(kg/m³)", "cp\n(J/kgK)")
-    TIPS = ("Copper layer or dielectric gap between two copper layers, from the top face down.",
-            "Dielectric material. Choosing one fills the four properties with typical values (indicative; edit them for your laminate). Copper is described in the Materials box above.",
-            "Thickness in micrometres (1 oz copper is 35 µm, 0.5 oz 17.5 µm, 2 oz 70 µm; a 0.2 mm prepreg is 200 µm).",
-            "Thermal conductivity across the thickness (between the copper layers), W/mK.",
-            "Thermal conductivity along the plane (spreading inside the dielectric), W/mK.",
-            "Density in kg/m³ (time simulation only).",
-            "Specific heat in J/kgK (time simulation only).")
+    TIPS = ("Copper layer or dielectric gap, from the top down.",
+            "Dielectric: fills the four properties with typical values (editable). Copper: Materials box above.",
+            "Thickness, µm (copper 17.5 / 35 / 70 for 0.5 / 1 / 2 oz; 0.2 mm prepreg 200).",
+            "Conductivity across the thickness, W/mK.",
+            "Conductivity along the plane, W/mK.",
+            "Density, kg/m³ (time simulation only).",
+            "Specific heat, J/kgK (time simulation only).")
 
     def __init__(self, doc, parent=None):
         """!
@@ -224,7 +224,7 @@ class StackupEditor(QTableWidget):
         for i, tip in enumerate(self.TIPS):
             self.horizontalHeaderItem(i).setToolTip(tip)
         self.setSelectionMode(QAbstractItemView.NoSelection)
-        self.setToolTip("Every copper layer and dielectric gap of the advanced stack-up, top face first. Edit the thickness and the material properties of each.")
+        self.setToolTip("Each copper layer and gap of the advanced stack-up, top first; edit thickness and properties.")
         self.verticalHeader().setVisible(False)
         self.horizontalHeader().setStretchLastSection(True)
         self.horizontalHeader().setFixedHeight(2 * self.fontMetrics().height() + 12)       # Room for the two lines of the titles
@@ -275,7 +275,7 @@ class StackupEditor(QTableWidget):
                 i = ly["index"]
                 if copper:
                     self.setCellWidget(r, 1, QLabel("  Copper"))
-                    self.cellWidget(r, 1).setToolTip("Copper properties are set in the Materials box above the table.")
+                    self.cellWidget(r, 1).setToolTip("Copper properties: Materials box above.")
                 else:
                     combo = QComboBox()
                     for name, *_ in DIELECTRICS:
@@ -390,8 +390,7 @@ class StackupPage(QWidget):
         self.mode = QComboBox()
         self.mode.addItem("Simple: equal layers, one FR-4", False)
         self.mode.addItem("Advanced: each layer on its own", True)
-        self.mode.setToolTip("Simple: the boxes on the right set the thickness, the copper and the dielectric of equal gaps. Advanced: every copper layer and every dielectric "
-                             "gap has its own thickness and material (all models use them). Switching keeps the same board.")
+        self.mode.setToolTip("Simple: equal gaps set by the boxes on the right. Advanced: each layer and gap has its own thickness and material. Switching keeps the board.")
         self.unit = QComboBox()
         for label, key in _UNITS:
             self.unit.addItem(label, key)
@@ -399,20 +398,15 @@ class StackupPage(QWidget):
         self.scale = QComboBox()
         self.scale.addItem("Readable (thin layers enlarged)", False)
         self.scale.addItem("True proportions", True)
-        self.scale.setToolTip("True proportions draw each layer with its real thickness ratio (35 µm copper next to 1.5 mm of laminate is a thin line).")
+        self.scale.setToolTip("True proportions: real thickness ratios (copper becomes a thin line).")
         self.typical = QPushButton("Load typical stack-up")
-        self.typical.setToolTip("Replace the stack-up by a typical one for this number of layers (undoable).")
+        self.typical.setToolTip("Replace the stack-up by a typical one for this layer count (undoable).")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
         self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
         self.inner_oz.addItem("1 oz (35 µm)", 1.0)
-        self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the "
-                                 "default; 1 oz = 35 µm is the usual figure for a standard 1 oz inner copper (some builds use about 30 µm). Choosing it reloads "
-                                 "the typical stack-up with 35 µm inner copper and the dielectrics of the template unchanged, so the board is about 0.02 mm thicker per inner layer "
-                                 "(1.586 to 1.626 mm for 4 layers, 2.4 to 2.6 mm for 12): fabricators pick another build for 1 oz, they do not thin the dielectrics. It is derived from "
-                                 "the shipped templates (typical values, check your fabricator's stack-up). With a plane on every inner layer it makes the board about 7 K (10 to 13 % of the rise) cooler "
-                                 "than 0.5 oz; with copper only on the outer layers it changes the result by less than 0.3 K. "
-                                 "Disabled with fewer than 3 layers and in the simple stack-up (where every layer has the outer copper thickness).")
+        self.inner_oz.setToolTip("Inner copper of the typical advanced stack-up: 0.5 oz (15.2 µm, default) or 1 oz (35 µm; reloads it, about 0.02 mm thicker per inner layer). "
+                                 "With inner planes 1 oz is about 7 K cooler. Typical values. Disabled below 3 layers and in the simple stack-up.")
         self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)
         # The bar holds what changes the board; Units and Scale only change the drawing, so they sit above the diagram. In one row the five
         # controls made the page about 1240 px wide, and the tab widget took that width from the side docks of the main window
