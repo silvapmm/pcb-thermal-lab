@@ -117,7 +117,18 @@ def _all_cases():
     @brief Measure every combination of theme, severity and font size.
     @return dict keyed 'theme/severity/points'.
     """
-    return {f"{t}/{'alert' if s else 'note'}/{p}": measure(t, s, p) for t in ("light", "dark") for s in (True, False) for p in FONT_POINTS}
+    from PySide6.QtGui import QFont
+    from PySide6.QtWidgets import QApplication
+    from pcbthermal.gui import theme as th
+    app = QApplication.instance() or QApplication([])
+    font, theme = QFont(app.font()), th.current_name()
+    try:
+        return {f"{t}/{'alert' if s else 'note'}/{p}": measure(t, s, p) for t in ("light", "dark") for s in (True, False) for p in FONT_POINTS}
+    finally:
+        # The measurement sets the application font and theme: put them back, or the later tests of the battery run at 16 pt (review: the dock widths of
+        # test_gui.py failed after this file)
+        th.apply_theme(app, theme)
+        app.setFont(font)
 
 
 def _check(cases):

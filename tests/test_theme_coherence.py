@@ -201,7 +201,7 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
         kind, index = "heater", 0
 
     lst = win.solver_panel.checks
-    lst.set_warnings([Warn("unsafe: one"), Warn("two")])
+    lst.set_warnings([Warn("will not run: one"), Warn("two")])                # a failure word: an alert by the fallback of plain strings
 
     def symbol_colour():
         # The token that colours the badge of the first row (an alert uses the alert token); it is drawn from the current theme at every paint
