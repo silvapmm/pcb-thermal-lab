@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 
 from .. import defaults
 from ..inverse import power_from_theta
+from ..results import DISCLAIMER
 from .compute import ProcessWorker
 from . import theme as th
 from .help import set_themed_page
@@ -328,7 +329,7 @@ class PowerCalculator(QDialog):
                             f"{', linear' if out['linear'] else ', iterated: the heat transfer depends on the temperature'}).<br>"
                             f"At the nominal power the model reads: {reads}.<br>"
                             f"Board resistance at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air)."
-                            + band)
+                            + band + f"<br><i>{DISCLAIMER}</i>")
         self.use.setEnabled(True)
 
     def selected_power(self):

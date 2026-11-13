@@ -18,6 +18,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 - The OCR tool README and the README say that `tools.ocr` is run with `.venv-research/bin/python` (pypdfium2 is not in the project `.venv`).
 - `releases/regression-harness/reference/version_notes.json` has notes for the pairs v2.5.0 to v2.7.0 quoted from the CHANGELOG; the numeric table `docs/version-comparison.md` is regenerated at the next release.
+- **A disclaimer line in every report** (`fix/report-disclaimer`; text only, no number moves): the text report (the saved `report.txt` and the on-screen Results summary), the Markdown report (and so the command-line output), the JSON summary (key `disclaimer`) and the Power Calculator result carry one line, `results.DISCLAIMER`: PCB Thermal Lab is a design aid, its models have not yet been compared with measurements of a real board, validate critical designs by measurement. The note about the computed heat transfer coefficients stays as it was. User guide, chapter 18.
 
 ## [2.7.0] - 2026-11-13
 
