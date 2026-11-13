@@ -620,7 +620,7 @@ def test_a_result_delivered_without_a_run_is_not_outdated(win):
 
 
 def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
-    """A simulation started while an animation and an analysis are computing used to abort the process (SuperLU in two threads)."""
+    """An animation and an analysis computing at once wait for each other (SuperLU in two threads used to abort); a Run asked meanwhile is ignored (the button is Stop), and works afterwards."""
     load(win, example_profile_board())
     win.doc.set_options(models=ALL_MODELS, cell_mm=1.0)
     anim = win.results.animation
@@ -630,9 +630,12 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     anim.tr = None
     anim.compute.click()                                                   # Animation starts...
     win.profile_page.run_analysis()                                        # ...an analysis...
-    win.run_simulation()                                                   # ...and a simulation, all at once
-    qtbot.waitUntil(lambda: anim.tr is not None and win.sim is not None and bool(win.profile_page.decisions), timeout=240000)
-    qtbot.waitUntil(lambda: not win.worker.isRunning() and not win.profile_page.worker.isRunning(), timeout=60000)
+    win.run_simulation()                                                   # ...and a Run while they compute: ignored, the button is Stop
+    assert win.sim is None or not win.worker or not win.worker.isRunning()
+    qtbot.waitUntil(lambda: anim.tr is not None and bool(win.profile_page.decisions), timeout=240000)
+    qtbot.waitUntil(lambda: not win.profile_page.worker.isRunning(), timeout=60000)
+    win.run_simulation()                                                   # Idle again: the simulation runs
+    qtbot.waitUntil(lambda: win.sim is not None and not win.worker.isRunning(), timeout=240000)
 
 
 def test_metal_block_in_the_application(win, qtbot):
