@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.6.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3217%20collected-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.7.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3478%20passed-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -18,6 +18,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 **Tools**
 - **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
+- **Interface of 2.7.0**: the dock panels are **boxes** whose title row is the button (collapsible, remembered between sessions); the live input warnings are a **Warnings (N)** accordion with one closed row and a short title per warning, with a severity icon; the **layer keys** `L` / `Shift+L` and `0` to `9` choose the layer in every context; the hot and the **coldest** point are ringed on the temperature maps; the Profiles tab draws a **cut overlay** (the board with the cut line); component and non-plated **holes** are shown on the editor board.
 - **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
@@ -35,7 +36,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
 
-![The imported RP2040 board in the editor, with the copper drawn and the live warnings under Run](docs/images/editor_warnings.png)
+![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning and the first one opened](docs/images/editor_warnings.png)
 
 ![The imported board in the dark theme](docs/images/editor_imported_dark.png)
 
@@ -58,6 +59,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
 
 ![Temperature tab, View Terrain with contour lines every 5 K](docs/images/results_terrain.png)
+
+![Profiles tab: temperature along a cut with the cut overlay, the board picture and the map with the cut line](docs/images/results_profile_cut.png)
 
 ![Animation tab with View Smooth and Underlay Copper](docs/images/animation_underlay.png)
 
@@ -149,6 +152,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.7.0** (2026-11-13): the GUI redesign (boxes, a collapsible Warnings list, layer keys), the cut overlay of the profile plots, the coldest-point marker, the edge film from the centroid for drawn and imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone via, the hole categories, edge warnings quoting an independent finite-element solution (`research/independent-fem-edge`), and the five small bug fixes; the frozen numbers refrozen once (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.6.0** (2026-11-07): model corrections after the independent reviews (cut cells, laminate edge band, via barrel, Analytic per-layer edge, 3D solid slabs, face-down convection, fast square waves), the project package `.pcbtz`, a single Layer box, the Display views on the board; the frozen numbers refrozen once.
 - **2.5.2** (2026-11-07): fixes: non-finite and absurd lengths refused on load and never written, the Pulsonix placement preamble, the licence header on every file, the re-import of a different board, theory text corrections (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.5.1** (2026-11-06): the Display control and the map card, the Smooth and Terrain views and the underlay of the Results maps, copper drawn at 4096 pixels, the re-import of Gerber files, the checks of project files, the faster outline check, the memory estimate fix, warning texts by context and the toolbar icons; no model changes.
@@ -181,8 +185,8 @@ The results are a design aid and have not been validated against measurements of
 | Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |
-| **PyMuPDF 1.28.2** (developer tool only: `tools/ocr/`, never imported by `pcbthermal`, not in `requirements.txt`) | rendering PDF pages for the OCR tool | **Dual licensed: GNU Affero GPL 3.0 or Artifex Commercial License** (the `License` field of the metadata of the installed package, read on 2026-11-05) |
+| **pypdfium2 5.15.2** (developer tool only: `tools/ocr/`, never imported by `pcbthermal`, not in `requirements.txt`) | rendering PDF pages and reading their text layer for the OCR tool | **BSD-3-Clause or Apache-2.0** (the `License` field of the metadata of the package installed from PyPI in a scratch virtual environment outside the repository reads `BSD-3-Clause, Apache-2.0, dependency licenses`, with the notices in `licenses/` of the wheel; checked on 2026-11-12, version 5.15.2); it bundles the Google PDFium library (Apache-2.0 / BSD-3-Clause) and permissive third-party libraries whose notices ship in the wheel; no Python dependency |
 
-The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`). The developer tool `tools/ocr/` (not part of the program, never imported by `pcbthermal`) uses the standard library for its providers (Gemini, Anthropic and OpenRouter over HTTPS, key in the environment or `.ocr_keys`); its page rendering, `assemble` and `map` commands import PyMuPDF, which is not in `requirements.txt` and not installed in the project environments (the tool is run from a separate environment that has it). PyMuPDF is AGPL-3.0 (or commercial), as the table says: it is acceptable here because it is **installed with `pip` and imported by a local developer tool, never copied or vendored into the repository and never distributed with the program**; the project's rule that copyleft code is not copied holds. Anyone who redistributes the OCR tool together with PyMuPDF, or offers it as a network service, must meet the AGPL conditions or take the commercial licence. This is not legal advice.
+The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`). The developer tool `tools/ocr/` (not part of the program, never imported by `pcbthermal`) uses the standard library for its providers (Gemini, Anthropic and OpenRouter over HTTPS, key in the environment or `.ocr_keys`); its page rendering, text-layer, `assemble` and `map` commands import pypdfium2 (and Pillow, which Matplotlib already brings; Pillow 13.0.0 reads `MIT-CMU` in its metadata, the permissive HPND-style licence), which is not in `requirements.txt` and not installed in the project environments (the tool is run from a separate environment that has it). pypdfium2 is permissive (BSD-3-Clause or Apache-2.0) and is **installed with `pip` and imported, never copied or vendored into the repository**.
 
 The MIT licence of this project and these licences are compatible: the code here only imports the libraries. If you **distribute a bundled application** that contains PySide 6 and Qt (for example a frozen executable), the LGPL conditions of Qt apply to that bundle (include the LGPL text and the notices, allow the Qt libraries to be replaced, and provide or offer the Qt source); this repository does not bundle them. This is not legal advice. The studies in `research/` may also use scikit-fem (BSD) as an offline cross-check; downloaded boards are never committed and keep their own licences.

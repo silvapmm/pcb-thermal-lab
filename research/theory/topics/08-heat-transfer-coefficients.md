@@ -12,7 +12,7 @@ In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperat
 
 * **Air** (dry, 1 atm, Sutherland-type fits, 250 to 450 K): `mu = 1.458e-6 T^(3/2) / (T + 110.4)`, `k = 2.648e-3 T^(3/2) / (T + 245.4 10^(-12/T))`, `rho = p / (R T)`, `nu = mu / rho`, `alpha = k / (rho c_p)`, `Pr = mu c_p / k`, `beta = 1 / T`.
 * **Rayleigh number**: `Ra = g beta |dT| L^3 / (nu alpha)`, with `L = area / perimeter` for a horizontal plate and the height for a vertical one.
-* **Natural convection, horizontal plate**: hot face up `Nu = 0.54 Ra^(1/4)` (`Ra <= 1e7`), `0.15 Ra^(1/3)` above; hot face down `Nu = 0.27 Ra^(1/4)` (the roles swap for a face colder than the air). **Vertical plate** (Churchill and Chu): `Nu = (0.825 + 0.387 Ra^(1/6) / [1 + (0.492 / Pr)^(9/16)]^(8/27))^2`. `h_n = Nu k / L`.
+* **Natural convection, horizontal plate**: hot face up `Nu = 0.54 Ra^(1/4)` (`Ra <= 1e7`), `0.15 Ra^(1/3)` above; hot face down `Nu = 0.27 Ra^(1/4)` (audit 2.7.0: since 2.6.0 `Nu = 0.475 Ra^(1/5)` on `L = A/P`, the Goldstein-Lau mean, `convection.DOWN_COEFFICIENT`, `research/face-down-convection`) (the roles swap for a face colder than the air). **Vertical plate** (Churchill and Chu): `Nu = (0.825 + 0.387 Ra^(1/6) / [1 + (0.492 / Pr)^(9/16)]^(8/27))^2`. `h_n = Nu k / L`.
 * **Forced convection**, flat plate along the flow: `Nu = 0.664 Re^(1/2) Pr^(1/3)` (`Re < 5e5`), `(0.037 Re^(4/5) - 871) Pr^(1/3)` above, `Re = u L / nu`, `h_f = Nu k / L`.
 * **Mixed** (Churchill's rule): `h_c = C_cal (h_n^3 + h_f^3)^(1/3)`, with `C_cal` the calibration multiplier of the convection.
 * **Radiation** to surroundings at the air temperature, linearised: `h_r = eps sigma (T_s^2 + T_a^2)(T_s + T_a)` (absolute temperatures, view factor 1; emissivity 0.9 by default, per face).

@@ -309,8 +309,10 @@ def test_insulated_numbers_are_those_of_the_cosine_code():
     p.add_via_array((26, 16, 34, 24), 4, 4, diameter=0.3)
     p.add_heatsink(4, 200.0, rect=(10, 10, 20, 20))
     r = analytic.solve_steady(p, cell_mm=1.0)
-    assert r.t_max == pytest.approx(71.11675482396726, abs=1e-9)
-    assert r.power_out["heatsinks"] == pytest.approx(0.5136421134196508, abs=1e-12)
+    # 71.11675482396726 before fix/simple-stackup-physical-layers: the four-layer simple board now has the physical slabs (0.278 / 0.522 mm, not 0.4 mm), so the outer copper
+    # nodes hold less laminate (+0.035 K, 0.06 % of the rise)
+    assert r.t_max == pytest.approx(71.15189346002255, abs=1e-9)
+    assert r.power_out["heatsinks"] == pytest.approx(0.5134831826200915, abs=1e-12)     # 0.5136421134196508 before the physical slabs of the simple stack-up
     assert sum(r.power_out.values()) == pytest.approx(r.power_in, rel=1e-6)
 
 

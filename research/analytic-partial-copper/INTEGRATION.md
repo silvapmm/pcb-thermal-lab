@@ -1,5 +1,7 @@
 # Entering the program: the Analytic model on partial copper
 
+**Status (audit 2.7.0).** P1 is implemented in 2.4.5 (`fix/model-limit-warnings`: the copper-spread trigger of `analytic._effective_sheet` is the larger of the spread at `lambda_l` and the spread with the full-copper fin length, as section 9.4 of the README recommends). P2 is not implemented; P3 (the limit stated) is in `docs/validation.md` and `docs/theory.md` 6. The item stays open as A2 of `research/ROADMAP.md`. 'The work is not in the program' below is the status when written.
+
 The work is not in the program. Nothing here edits `pcbthermal/`; the candidate is `lib/defect.py`, measured on copies. Three proposals, in the order of cost; the evidence is in README sections 4 to 6.
 
 ## P1. A better warning: a new trigger and a measured text (no physics; corrected by the review)

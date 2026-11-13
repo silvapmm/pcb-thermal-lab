@@ -164,8 +164,10 @@ def test_boards_without_vias_are_unchanged():
     """
     p = example_board()
     p.vias = []
-    stored = {("lumped", 0.5): (94.69317856820783, 50.41009237427764), ("lumped", 1.0): (96.5103448282088, 50.40227481692728),
-              ("analytic", 0.5): (94.7149725526851, 50.842489306804865), ("analytic", 1.0): (94.55801736064181, 50.8424906244942)}
+    # Re-baselined for 2.7.0 (fix/simple-stackup-physical-layers: the simple stack-up now has the physical layers, so the 4-layer example board moves; Lumped 94.693179 / 96.510345
+    # -> 94.841459 / 96.660887 K at 0.5 / 1.0 mm, Analytic with insulated edges 94.714973 / 94.558017 -> 94.856398 / 94.698697 K); the heatsink rows below did not move
+    stored = {("lumped", 0.5): (94.84145917899876, 50.40807990502485), ("lumped", 1.0): (96.66088737731312, 50.400228636199266),
+              ("analytic", 0.5): (94.85639828629249, 50.84230763456435), ("analytic", 1.0): (94.69869707407254, 50.84230891300549)}
     # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
     insulated = copy.deepcopy(p)
     insulated.board.h_side = None

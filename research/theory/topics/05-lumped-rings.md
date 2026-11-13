@@ -14,6 +14,8 @@ The distance `delta(x, y)` of every cell to the footprint is computed (Euclidean
 
     E_k = rho_1 (rho_max / rho_1)^((k-1)/(R-1))     rho_1 = min(max(1.5 min(dx,dy), 0.04 rho_max), 0.5 rho_max)     rho_max = max delta
 
+*(audit 2.7.0: since 2.6.0 the first edge is capped at `max(1.5 cells, a_eq)`, `a_eq = sqrt(N0 dx dy / pi)` the equivalent radius of the footprint (`lumped.ring_edges(..., a_eq=)`, `fix/lumped-first-ring`), so `rho_1` above is `min(rho_1, max(1.5 min(dx, dy), a_eq))`; a footprint over a dense group of vias is two nodes (zonal Lumped, 2.5.0).)*
+
 Edges closer than one cell, `max(dx, dy)`, are merged (`lumped.RING_MIN_WIDTH = 1`, `lumped.ring_edges`): a ring thinner than the raster holds a count of cells that does not match its width, its contour length came out short and its resistance high, and the result grew with the ring count (+3 to +13 % with 40 rings, `docs/validation.md` 21). Rings with no cell are dropped. Any footprint shape and the real board outline are followed; there is no circular approximation. For layer `l` and ring `k` the real cells are aggregated: the mean sheet conductance `S_{l,k}`, the sums of the ambient conductance by path, of `G_z` (dielectric and vias) and of the capacity `C`, the ring **thickness** `Delta_k` (distance span) and its **contour length** `L_k = N_k dx dy / Delta_k`.
 
 ## 3. The resistances

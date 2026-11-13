@@ -6,7 +6,7 @@
 
 @details The classic finite-difference discretisation of the model of fvm.py: the unknowns are the temperatures at the grid
          nodes (nx + 1 by ny + 1 per layer, nodes on the board edges), the material properties are sampled **at the nodes**, the
-         conductivity between two nodes is the mean of the two nodal values (arithmetic by default, harmonic on request), a
+         conductivity between two nodes is the harmonic mean of the two nodal sheets (arithmetic on request, for studies), a
          heater distributes its power over the nodes inside its footprint, and the edge nodes use half control volumes (the
          standard second-order treatment of a convective boundary with ghost nodes). It solves the same equations with the same
          sheet conductance, dielectric resistance, vias, heatsinks and convection as the FVM, so the difference between the two is the
@@ -24,17 +24,29 @@ from .geometry import exact_coverage, part_weights, coverage_fraction, edge_leng
 from . import blocks, copper, fvm, laminate, viawell
 from .results import SteadyResult
 
+FACE_FILL_TOL = 1e-9        # Copper fill difference (0..1) below which the nodal fill is taken to equal the fill of the face: uniform copper keeps the earlier faces bit for bit
 
-def _mean(a, b, kind):
+
+def _mean(a, b, kind, ca=None, cb=None):
     """!
     @brief Mean of the nodal conductivities on the two sides of a face.
-    @param a Array of the first node values.
-    @param b Array of the second node values.
-    @param kind "arithmetic" or "harmonic".
-    @return Array with the face value (harmonic mean is zero where both are zero).
+    @param a Array of the first node values (W/K).
+    @param b Array of the second node values (W/K).
+    @param kind "arithmetic", "harmonic" or "harmonic_plain" (the harmonic mean of the values as they are, cover included).
+    @param ca Share of the first node's control volume that is board (outline cover, 0..1) or None for 1.
+    @param cb The same for the second node.
+    @return Array with the face value (harmonic mean is zero where both are zero). With "harmonic" the values are first divided by their outline cover (the physical
+            sheets), joined by the harmonic mean, and the result is multiplied by the mean cover, so a node cut by the outline keeps the link `(c1 + c2)/2` of the
+            arithmetic mean (a harmonic mean of the cover-scaled values would make the link to a sliver `2c/(1 + c)`, the defect of the cut cells) and only the
+            jump of the sheet across a copper edge is read as a series.
     """
     if kind == "arithmetic":
         return 0.5 * (a + b)
+    if kind == "harmonic" and ca is not None:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            a = np.where(ca > 0, a / ca, 0.0)
+            b = np.where(cb > 0, b / cb, 0.0)
+        return _mean(a, b, "harmonic_plain") * 0.5 * (ca + cb)
     s = a + b
     out = np.zeros_like(s)
     np.divide(2.0 * a * b, s, out=out, where=s > 0)
@@ -83,16 +95,63 @@ class Network:
              the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
     """
 
-    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area", faces=None):
+    def _copper_face_sheets(self, fx, fy, S, ncov, cell_fill, fill, tc, k_lam, k_copper):
+        """!
+        @brief Replace the in-plane face sheets of the drawn copper layers by the sheet built from the copper fill of the cells the face runs through (in place).
+        @details The cell between two nodes is uniform along the face, so the face needs no mean of two nodal values: `S_face = (A_face + B f_face) c_face`, with
+                 `B = (k_cu - k_lam) t_cu`, `A` the physical sheet of the node without copper (laminate and the sub-gaps the node keeps), `f_face` the mean copper fill of
+                 the cells flanking the face and `c_face` the mean outline cover of the two nodes. With the harmonic mean of the nodal sheets a node whose control volume is
+                 cut by a copper edge reads half copper, the first copper link 0.67 of the copper sheet and the edge is smeared over a cell (docs/theory.md 3, validation 47).
+                 Only faces where a nodal fill differs from the fill of the face are replaced (uniform copper keeps the earlier arithmetic, bit for bit); layers with imported
+                 copper keep their own mappings.
+        @param fx Face sheets in x (layers, ny, nx - 1), W/K, changed in place for the copper layers.
+        @param fy Face sheets in y (layers, ny - 1, nx), W/K, changed in place for the copper layers.
+        @param S Sheet conductance of the nodes after the laminate rule (W/K), (layers, ny, nx).
+        @param ncov Outline cover of the nodes (0..1).
+        @param cell_fill Copper fill of the cells (L, cells_y, cells_x), 0..1.
+        @param fill Copper fill of the nodes (L, ny, nx), 0..1.
+        @param tc Copper thickness of every layer, (L, 1, 1) in m.
+        @param k_lam Laminate conductivity of every layer, (L, 1, 1) in W/(m K).
+        @param k_copper Copper conductivity (W/(m K)).
+        @return None.
+        """
+        L = cell_fill.shape[0]
+        skip = set(self.copper.layers) if self.copper is not None else set()
+        B = (k_copper - k_lam) * tc                                          # Sheet that copper adds to the laminate (W/K)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            A = np.where(ncov[None] > 0, (S[:L] - B * ncov[None] * fill) / ncov[None], 0.0)    # Physical sheet of every node with no copper
+        # Fill of the face: mean of the two cells it runs through (a face on the board edge sees one cell twice)
+        cfx = np.pad(cell_fill, ((0, 0), (1, 1), (0, 0)), mode="edge")
+        ffx = 0.5 * (cfx[:, :-1, :] + cfx[:, 1:, :])
+        cfy = np.pad(cell_fill, ((0, 0), (0, 0), (1, 1)), mode="edge")
+        ffy = 0.5 * (cfy[:, :, :-1] + cfy[:, :, 1:])
+        cvx = 0.5 * (ncov[:, :-1] + ncov[:, 1:])[None]
+        cvy = 0.5 * (ncov[:-1, :] + ncov[1:, :])[None]
+        new_x = np.maximum((0.5 * (A[:, :, :-1] + A[:, :, 1:]) + B * ffx) * cvx, 0.0)
+        new_y = np.maximum((0.5 * (A[:, :-1, :] + A[:, 1:, :]) + B * ffy) * cvy, 0.0)
+        tol = FACE_FILL_TOL                                                  # Uniform copper: the nodal fill equals the fill of the face
+        diff_x = (np.abs(fill[:, :, :-1] - ffx) > tol) | (np.abs(fill[:, :, 1:] - ffx) > tol)
+        diff_y = (np.abs(fill[:, :-1, :] - ffy) > tol) | (np.abs(fill[:, 1:, :] - ffy) > tol)
+        for k in range(L):
+            if k in skip:
+                continue
+            fx[k] = np.where(diff_x[k], new_x[k], fx[k])
+            fy[k] = np.where(diff_y[k], new_y[k], fy[k])
+
+    def __init__(self, problem, cell_mm=2.0, mean="harmonic", sampling="area", faces=None, face_fill=True):
         """!
         @param problem A Problem.
         @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
-        @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+        @param mean "harmonic" (default: the mean of the physical sheets, so that no heat leaks across a copper edge; the link of a node cut by the outline keeps the cover-weighted
+               arithmetic value), "arithmetic" (the classic mean, which lets half of the sheet leak across a copper edge: a bare-pad board at 1 mm reads 13 % low against an independent 3D solver, 7 % with the harmonic mean) or
+               "harmonic_plain" (the harmonic mean of the cover-scaled values, for studies).
         @param sampling "area" (covered fraction of the control volume around each node, removes most of the grid-to-grid scatter)
                or "point" (the classic test of whether the node lies inside a polygon).
         @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks, False ignores it, or a copper.CopperSource. The fill of the imported layers
                comes from the masks (averaged around the nodes); with the "faces" or "lambda" mapping the in-plane couplings of those layers are the face conductances of
                the reduced sheet between node centres (the windows are centred on the nodes), with "fill" the mean of the two nodal values. Only with area sampling.
+        @param face_fill True (default): the in-plane face sheet of a drawn copper layer is built from the copper fill of the cells the face runs through (`_copper_face_sheets`); False: the
+               harmonic mean of the nodal sheets of the earlier versions (studies, tests). Only with the laminate rule, area sampling and the harmonic mean.
         @throws ValueError If the sampling is unknown.
         """
         problem.validate()
@@ -111,7 +170,7 @@ class Network:
         wx = np.full(nx, dx); wx[[0, -1]] = 0.5 * dx
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
-        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
+        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (copper plus half of each adjacent gap)
         use_rule = laminate.uses_rule(problem)                               # The laminate nodes of the rule (laminate.py); a board with a metal block keeps the earlier treatment
         self.ladder, self.drop = None, None
         self.laminate = None if use_rule else laminate.nodes(b)              # Legacy: laminate nodes under the copper of a one-layer board
@@ -189,7 +248,7 @@ class Network:
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
             plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
             rule = laminate.build(b, fill, area, ncov, self.active, edge_nodes if b.h_side else np.zeros((ny, nx)), S, self.C, gz0, g_bottom0, g_side0, plans)
-            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them, as in the FVM)
+            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them: the same convention as the FVM, docs/theory.md 2.6, pinned by tests/test_via_well_sheet_order.py)
             via_S = S
             S = np.concatenate([rule.S, np.stack([ly["S"] for ly in rule.layers])]) if rule.layers else rule.S
             self.C = np.concatenate([rule.C, np.stack([ly["C"] for ly in rule.layers])]) if rule.layers else rule.C
@@ -216,8 +275,10 @@ class Network:
         # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
         # (No heat crosses a face that touches a node off the board, whatever the mean of the two conductivities says)
         on = self.active
-        fx = _mean(S[:, :, :-1], S[:, :, 1:], mean)
-        fy = _mean(S[:, :-1, :], S[:, 1:, :], mean)
+        fx = _mean(S[:, :, :-1], S[:, :, 1:], mean, ncov[None, :, :-1], ncov[None, :, 1:])
+        fy = _mean(S[:, :-1, :], S[:, 1:, :], mean, ncov[None, :-1, :], ncov[None, 1:, :])
+        if face_fill and rule is not None and sampling == "area" and mean == "harmonic":
+            self._copper_face_sheets(fx, fy, S, ncov, cell_fill, fill, tc, k_lam, m.k_copper)
         # Imported copper: the face conductances of the sheet the copper node keeps after the rule (the sheet before the rule is via_S)
         faces_xy = {}
         if self.copper is not None and self.copper.mapping != "fill":
@@ -388,16 +449,19 @@ def unknowns(problem, cell_mm=2.0):
     return layers * nx * ny, layers, nx, ny
 
 
-def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
+def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area", face_fill=True):
     """!
     @brief Steady-state finite-difference solution of a problem.
     @param problem A Problem.
     @param cell_mm Target grid spacing in millimetres (nx = round(width / spacing) intervals).
-    @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+    @param mean "harmonic" (default: the mean of the physical sheets, so that no heat leaks across a copper edge; the link of a node cut by the outline keeps the cover-weighted
+               arithmetic value), "arithmetic" (the classic mean, which lets half of the sheet leak across a copper edge: a bare-pad board at 1 mm reads 13 % low against an independent 3D solver, 7 % with the harmonic mean) or
+               "harmonic_plain" (the harmonic mean of the cover-scaled values, for studies).
     @param sampling "area" (default) or "point" (see Network).
+    @param face_fill True (default) builds the in-plane face sheet of a drawn copper layer from the cells the face runs through; False is the harmonic mean of the nodal sheets (see Network).
     @return SteadyResult with the field at the nodes (layers, ny + 1, nx + 1).
     """
-    net = Network(problem, cell_mm, mean, sampling)
+    net = Network(problem, cell_mm, mean, sampling, face_fill=face_fill)
     b = problem.board
     theta_all, res = net.solve_steady()
     nb = net.n_board
@@ -433,7 +497,7 @@ def _power_out(net, theta):
     """
     out = {"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
            "heatsinks": float((net.g_heatsink * theta).sum()), "sides": float((net.g_side * theta).sum())}
-    if net.extra_links:
+    if net.block_info:                                             # Not extra_links: the laminate rule fills those on boards with no block
         out["blocks"] = float((net.g_block * theta).sum())
     return out
 

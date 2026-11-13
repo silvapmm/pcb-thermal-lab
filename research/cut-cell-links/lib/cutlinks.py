@@ -94,7 +94,11 @@ class CutLinkNetwork(fvm.Network):
             raise ValueError("the prototype does not handle metal blocks")
         if getattr(problem, "imported", None):
             raise ValueError("the prototype does not handle imported copper")
-        super().__init__(problem, nx, ny, assemble=False, with_blocks=with_blocks, ladder=ladder)
+        # 2.6.0 adopted `aperture+film` into the program (`cut_cells=True` by default) and added the laminate edge band; the schemes of this study are built on the
+        # earlier network (cut cells off, no band), which is what `program` meant when the tables were made (audit 2.7.0: without this the links and the film were
+        # counted twice, once by the program and once by the prototype)
+        with _no_edge_band():
+            super().__init__(problem, nx, ny, assemble=False, with_blocks=with_blocks, ladder=ladder, cut_cells=False)
         b = problem.board
         self.geo = None
         self.film_factor = None
@@ -179,6 +183,8 @@ class CutLinkNetwork(fvm.Network):
         @brief Conductances (W/K) of the lateral links of every node layer for the scheme.
         @return Tuple (gx, gy): shapes (nl, ny, nx - 1) and (nl, ny - 1, nx).
         """
+        if self.geo is None or self.mode == "program":
+            return super()._lateral_links()                   # the earlier links (cover-scaled harmonic mean; cut cells are off)
         dx, dy, nx, ny = self.dx, self.dy, self.nx, self.ny
         g = self.geo
         sp_ = self._physical_sheet()
@@ -223,7 +229,8 @@ class CutLinkNetwork(fvm.Network):
         @return scipy.sparse.csr_matrix.
         """
         K = super()._assemble()
-        if self.geo is None or self.mode == "program":
+        if self.geo is None or self.mode == "program" or hasattr(fvm.Network, "_lateral_links"):
+            # 2.6.0: the program's assembly reads its links through `_lateral_links`, which this class overrides, so K already holds the scheme's links
             return K
         L, ny, nx = self.nl, self.ny, self.nx
         idx = np.arange(L * ny * nx).reshape(L, ny, nx)
@@ -250,6 +257,21 @@ class CutLinkNetwork(fvm.Network):
         @throws NotImplementedError Always.
         """
         raise NotImplementedError("the prototype is for the direct solver")
+
+
+@contextlib.contextmanager
+def _no_edge_band():
+    """!
+    @brief Switch off the laminate edge band of 2.6.0 (`laminate.edge_band`) for a block, so that the schemes are studied on the earlier plan of the laminate nodes.
+    @return Context manager.
+    """
+    from pcbthermal import laminate
+    saved = laminate.edge_band
+    laminate.edge_band = lambda edge, d, dx, active: np.zeros(np.shape(active), dtype=bool)
+    try:
+        yield
+    finally:
+        laminate.edge_band = saved
 
 
 @contextlib.contextmanager
@@ -280,11 +302,11 @@ def solve(problem, cell_mm, scheme="program", **kw):
     @brief Full steady result of the layered FVM with a scheme.
     @param problem Problem.
     @param cell_mm Cell in mm.
-    @param scheme One of SCHEMES (`program` runs the unmodified `fvm.solve_steady`).
+    @param scheme One of SCHEMES (`program` is the network before 2.6.0: exact cover, cut cells off, no edge band) or `current` (the program of the tree, `fvm.solve_steady`).
     @param kw Options of `using`.
     @return pcbthermal.results.SteadyResult.
     """
-    if scheme == "program":
+    if scheme == "current":
         return fvm.solve_steady(problem, cell_mm=cell_mm)
     with using(scheme, **kw):
         return fvm.solve_steady(problem, cell_mm=cell_mm)
@@ -317,10 +339,11 @@ def matrix_checks(problem, cell_mm, scheme):
     problem.validate()
     nx = max(int(round(problem.board.width * 1000.0 / cell_mm)), 1)
     ny = max(int(round(problem.board.height * 1000.0 / cell_mm)), 1)
-    cls = CutLinkNetwork if scheme != "program" else fvm.Network
-    if scheme != "program":
+    if scheme == "current":
+        net = fvm.Network(problem, nx, ny)
+    else:
         CutLinkNetwork.mode = scheme
-    net = cls(problem, nx, ny)
+        net = CutLinkNetwork(problem, nx, ny)
     K = net.K.tocsr()
     act = np.repeat(net.active.ravel()[None, :], net.nl, axis=0).ravel() if net.nl else None
     keep = np.nonzero(act)[0]

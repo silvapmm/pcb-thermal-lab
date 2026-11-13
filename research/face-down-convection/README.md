@@ -1,5 +1,7 @@
 # face-down-convection: can the law of the face turned down be corrected?
 
+*Status (audit 2.7.0): adopted in 2.6.0 as decision B, `Nu = 0.475 Ra^(1/5)` (`convection.DOWN_COEFFICIENT`); "the program" below is the 2.5.x law `0.27 Ra^(1/4)`, the baseline of the study. Review in section 8.*
+
 The maintainer asked whether the natural-convection law of the horizontal face turned down can be corrected. The program uses `Nu = 0.27 Ra^(1/4)` (`pcbthermal/convection.py`,
 `h_natural_horizontal`, `L = A/P`; `docs/theory.md` 8), written from memory, and the 2.5.0 decision was to keep it and write the limit, then revisit with the measurement of board D
 (`research/convection-laws/docs/measurement-plan.md`). This folder collects what the sources say about that one face, compares the candidates over the Ra of the boards, measures what a change
@@ -96,7 +98,7 @@ Boards (convection only, 25 degC ambient, h of the face down in W/m2K; the scrip
 The strip in a closed cold box, face down alone, from `research/convection-laws` section 5 (`lib/mac2d.py`, validated on the de Vahl Davis cavity to 0.0 to 0.5 %): Nu of the lower face 2.248 at Ra 1e3 and 3.376 at 1e4
 (balance 1.025 and 1.141: the cold walls of a 4 to 6 half-width box add some heat transfer, so the numbers are an upper estimate, +3 to +14 % by the balance). Against the laws at `L = A/P` of the strip: program 1.518 / 2.70 (-33 % and -20 % of the solver),
 0.52 law 2.070 / 3.281 (-8 % and -3 %), 0.475 law 1.891 / 2.997, VDI 1.933 / 3.064, Goldstein-Lau strip 2.086 / 3.306. This was **not re-run in this folder** (the run takes an hour); the numbers are the earlier folder's and the earlier review read them.
-The agreement within the solver's box is the best a two-dimensional solver can say; it does not choose between the 1/5 levels and it is not a measurement (section 8).
+The agreement within the solver's box is the best a two-dimensional solver can say; it does not choose between the 1/5 levels and it is not a measurement (section 9).
 
 ## 5. What changes in the program
 
@@ -143,7 +145,17 @@ and of 95 in `test_model_limit_warnings`, `test_solid3d`, `test_memory` and `tes
 
 `research/convection-laws/docs/measurement-plan.md`: a plate with one bright face distinguishes the levels (the ratio of the rise face up to face down is 0.62 for the program, 0.69 for 0.475 with Raithby-Hollands, 0.52 for Jaffer's) and, with the bottom face free versus under a wall, would give the size of the edge effect of section 6, which none of the sources gives for a copper board. This folder does not change the plan; it only shows that the lower face is the one for which the existing laws differ most from the program at the Ra of the boards.
 
-## 8. What was read and what was not verified
+## 8. Review
+
+Independent review in the research audit of 2.7.0 (`releases/2.7.0/research-audit/`), on the program of the audit branch (`develop` 6bdef422 merged: 2.6.0 plus the 2.7.0 interface fixes). Status: **reviewed, closed; go**. The folder was written against the program of 2.5.x, whose face-down law was `0.27 Ra^(1/4)`; where the text above says "the program" it means that law (`lib/down_laws.program_down`, kept as the study's baseline).
+
+* **Adopted as decision B.** 2.6.0 implements `Nu = 0.475 Ra^(1/5)` on `L = A/P` (`convection.DOWN_COEFFICIENT`, `DOWN_EXPONENT`, `pcbthermal/convection.py` lines 48, 49 and 80; `fix/face-down-convection`), not the preferred decision A (`0.52`, status M, never confirmed from an open source: INTEGRATION 1). The review evaluated the program's `h_natural_horizontal` face down against `lib/down_laws.gl_mean` at 9 points (`A/P` 5, 22.2, 100 mm; 5, 20, 80 K): identical to the last digit. The recommendation of summary item 6 and INTEGRATION 1 ("0.52 if the book is confirmed") is history: the constant in the program is 0.475, and a change to 0.52 would need the page of Incropera first.
+* **Re-run.** `scripts/study_down_laws.py` (under 1 s) reprints the tables of section 3 to the digit. `scripts/study_down_board_effect.py` (34 s) reprints every percentage of section 5 to the digit (part 1: 0 calls on all 17 frozen boards; part 2: -0.5 to -2.2 % with 0.52, -0.3 to -1.4 % with 0.475, -0.3 to -1.5 % with VDI; part 3: -1.04 / -0.84 / -0.69 % with 0.52 at power x0.5 / x1 / x2, bottom h 9.26, 10.13, 11.34 W/m2K unchanged). **The baseline rises moved** by the other 2.6.0 model items (the cut-cell links and edge film, the via barrel length, the laminate edge band): example board 60.06 -> 60.19 K, `example_cut_to_T` 67.19 -> 67.32, `plate_vias` 104.65 -> 104.73, `t_outline` 140.15 -> 140.32, `round_outline` 131.80 -> 131.81 K; the others unchanged; the face-down law is not the cause (it is the baseline of both columns). The example board with the adopted law is therefore 60.19 -> 59.99 K (-0.34 %) on this tree; the 60.06 -> 59.86 K of `docs/theory.md` 8, `docs/validation.md` 5 and the 2.6.0 changelog is the same change measured before the other items entered (left as written there: a record of the change, not a wrong number). The folder tests pass (5).
+* **Independent reference.** The 1/5 laws are read from Lienhard (R) and the Goldstein-Lau page of Yovanovich and Jafarpur (R); the strip solver of `research/convection-laws` (Nu 2.25 and 3.38 at Ra 1e3 and 1e4) supports them and was not re-run (an hour; reviewed there). The adopted 0.475 sits 16 % and 11 % below that solver at Ra 1e3 and 1e4 (a closed box, an upper estimate by 3 to 14 %), so the face down is still on the hot side at the boards' Ra, and the program's remaining limit is the one the Results-summary line states: no measured copper board.
+* **Limits that stay** (section 6): edge circulation (a wall or parts under the board lower h below every law), shape (Jaffer square to strip, +-17 %), the range below 1e4, and no published worked example of the face down.
+* **Corrections made by the review**: this chapter (the status of the recommendation and the moved baselines); no number of sections 3 to 5 was wrong.
+
+## 9. What was read and what was not verified
 
 * **Read in full (R)**: Lienhard 2024 pp 436 and 437 (page images, eq. 8.37 to 8.39 and the stable-case remark); page 8 of Yovanovich and Jafarpur 1993 and the Schulenberg and Jaffer forms through the earlier folders (not re-read here).
 * **From a summary (S)**: the McAdams 0.27 law, the VDI form and the Rohsenow form, through the documentation of the library `ht` (a fetch of its source page; the docstring gives formula, range and reference). Not checked against the books.

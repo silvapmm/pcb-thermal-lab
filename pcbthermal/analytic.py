@@ -329,7 +329,7 @@ def _effective_sheet(problem, cell_mm):
     b = problem.board
     m = b.materials
     W, H, L = b.width, b.height, b.layers
-    slab = b.slab_thicknesses()                       # Per layer node (equal in the simple stack-up)
+    slab = b.slab_thicknesses()                       # Per layer node (copper plus half of each adjacent gap)
     k_lam, rho_cp_lam = b.layer_laminate()
     nx = max(int(round(W * 1000.0 / cell_mm)), 2)
     ny = max(int(round(H * 1000.0 / cell_mm)), 2)
@@ -410,7 +410,7 @@ def _effective_sheet(problem, cell_mm):
                 "the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
                 "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
         else:
-            # Per-layer edge (research/analytic-2-6 README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
+            # Per-layer edge (research/analytic-edge-and-transient README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
             # idealisation, which the per-layer edge solves exactly (within 0.5 % of an FVM with one link): the FVM with its sub-gaps and the 3D solid both read hotter.
             # Review: on the 24 study boards with h_side 50 and 200 the Analytic is -0.5 to -5.8 % of the 3D solid; on small boards outside the study (30 x 20 mm, a 6 mm
             # corner part, the edge 73 % of the loss) -7 to -10 %.
@@ -508,7 +508,7 @@ def _edge_mismatch_source(bx, by, a, S, dbeta):
              Green's identity the weak form of the layer in that basis gets the term S_l (beta_l - beta) closed-integral(theta_l phi_m phi_n). The integral needs only the
              rise on the four sides, and the orthogonality of the eigenfunctions along each side reduces it to two small matrix products:
              qc_l,mn = -S_l (beta_l - beta) [ sum_e phi_m(x_e) / N_m (sum_m' phi_m'(x_e) a_l,m'n) + sum_e phi_n(y_e) / N_n (sum_n' phi_n'(y_e) a_l,mn') ]
-             (e the two ends of a direction, N the squared norms; docs/theory.md 6, research/analytic-2-6 README 2.1).
+             (e the two ends of a direction, N the squared norms; docs/theory.md 6, research/analytic-edge-and-transient README 2.1).
     @param bx Basis along x.
     @param by Basis along y.
     @param a Modal coefficients (M, N, L) in K.
@@ -531,7 +531,7 @@ def _per_layer_edge(respond, q, bx, by, S, dbeta, warnings):
     @brief Modal coefficients of the board with the true edge of every layer: the fixed point a = respond(q + qc(a)) solved with GMRES.
     @details respond is the whole linear solve of the board (uniform modal solve, and the Green-function step of the vias and heatsinks), so the loop wraps it and the local
              elements are inside it. The operator (I - respond qc) is a small perturbation of the identity (|beta_l - beta| S_l against S_l lambda^2 and the face and gap
-             terms): 4 to 9 products measured on 54 boards (research/analytic-2-6 README 2.3, 2.4). At the end one more pass at the converged source gives the
+             terms): 4 to 9 products measured on 54 boards (research/analytic-edge-and-transient README 2.3, 2.4). At the end one more pass at the converged source gives the
              coefficients and the tile temperatures that belong together.
     @param respond Function (q) -> (a, y): the linear response to a modal source (see solve_steady).
     @param q Modal source of the heaters (M, N, L).
@@ -1104,7 +1104,7 @@ class _AnalyticAdapter:
         scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
         if problem.heatsinks:
             # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
-            # 0.5 mm, converged), research/analytic-2-6 README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
+            # 0.5 mm, converged), research/analytic-edge-and-transient README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
             # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
             # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))

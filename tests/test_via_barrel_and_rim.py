@@ -176,7 +176,9 @@ def test_frozen_example_board_shift_of_the_barrel_rule(monkeypatch):
     monkeypatch.setattr(viawell, "BARREL_COPPER_FRACTION", 0.0)
     old = {k: run(k) for k in ("fvm", "fdm")}
     assert abs((new["fvm"] - old["fvm"]) - 0.125) < 0.005
-    assert abs((new["fdm"] - old["fdm"]) - 0.146) < 0.005
+    # the FDM shift was +0.146 K (research/via-contact-geometry README 4); since 2.7.0 the simple stack-up takes the physical layer slabs (docs/validation.md 43), which moves the
+    # example board's FDM shift between the two barrel rules to +0.136 K
+    assert abs((new["fdm"] - old["fdm"]) - 0.136) < 0.005
 
 
 def test_a_board_without_vias_does_not_depend_on_the_barrel_constant(monkeypatch):
@@ -293,7 +295,7 @@ def test_the_partial_copper_warning_names_the_corner_case():
     assert msgs, "the corner board must warn"
     text = str(msgs[0])
     assert "corner of a copper region" in text and "not solved" in text
-    assert "15 to 85 %" in text and "up to 11 %" in text and "safe side" in text
+    assert "22 to 85 %" in text and "up to 11 %" in text and "safe side" in text
     assert "research/" not in text and "fix/" not in text and "feature/" not in text
 
 
@@ -393,4 +395,5 @@ def test_a_via_on_bare_laminate_on_every_layer_runs_in_every_model(solver):
         r = api.simulate(p, o)
         t[with_via] = {m: r.results[m].t_max for m in o.models}
     for m in ("fvm", "fdm"):
-        assert t[True][m] == pytest.approx(t[False][m], abs=1e-9)
+        # SOR stops on a residual of 1e-9: since the physical slabs of the simple stack-up (docs/validation.md 43) its answer differs by about 1e-9 K between the two boards (1.1e-9 measured)
+        assert t[True][m] == pytest.approx(t[False][m], abs=1e-7 if solver == "sor" else 1e-9)

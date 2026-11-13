@@ -1,5 +1,7 @@
 # horizontal-plate-h: how it would enter the program
 
+**Status (audit 2.7.0).** A is done (documents); the lower face was changed in 2.6.0 to `Nu = 0.475 Ra^(1/5)` on `L = A/P` (`convection.DOWN_COEFFICIENT`, `DOWN_EXPONENT`; `fix/face-down-convection` from `research/face-down-convection`; `docs/theory.md` 8, `docs/validation.md` 5), which is neither proposal B (Jaffer's shape-dependent forms) nor a change of the upper face; B and C stay not adopted.
+
 Nothing of `pcbthermal/` was edited. Everything below was measured on copies in memory (`lib/correlations.py`, `scripts/study_board_effect.py`). The numbers are in `README.md`; this file gives the proposals, their measured impact and what is left to the maintainer.
 
 ## 1. What was found, in terms of decisions

@@ -9,9 +9,10 @@ import copy
 import dataclasses
 import json
 import os
+import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
@@ -36,11 +37,12 @@ from . import compute
 from .compute import ProcessWorker
 from . import package_actions
 from .document import Document
-from .panels import BoardPanel, ElementList, Inspector, SolverPanel, WarningList
+from . import boxes
+from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
-from .results_view import ResultsView
+from .results_view import ResultsView, redraw_when_shown
 import shiboken6
 from .display import OPEN_TIP, DisplayButton, DisplayPopover, DisplayState
 from . import layerchoice
@@ -82,8 +84,7 @@ class NewBoardDialog(QDialog):
         f.addRow(bb)
 
 
-BACKGROUND_IMPORTED_TIP = ("A background image is for tracing a board by hand; this project comes from Gerber files, "
-                           "which already give the exact copper.")
+BACKGROUND_IMPORTED_TIP = ("A background image is for tracing by hand; this project comes from Gerber files, which give the exact copper.")
 
 
 class BackgroundDialog(QDialog):
@@ -177,32 +178,6 @@ class BackgroundDialog(QDialog):
         return out
 
 
-class _FooterLimiter(QObject):
-    """!
-    @brief Keeps the footer of a dock (Run button, progress, warnings) from taking a low dock: the warning list gets a quarter of the height.
-    """
-
-    def __init__(self, host, footer):
-        """!
-        @param host Widget that holds the scroll area and the footer.
-        @param footer The footer widget; its WarningList children are limited.
-        """
-        super().__init__(host)
-        self.footer = footer
-
-    def eventFilter(self, obj, event):
-        """!
-        @brief On a resize of the dock content, set the maximum height of its warning lists.
-        @param obj Watched widget.
-        @param event Qt event.
-        @return False always (the event continues).
-        """
-        if event.type() == QEvent.Resize:
-            for w in self.footer.findChildren(WarningList):
-                w.set_max_height(obj.height() // 4)
-        return False
-
-
 class MainWindow(QMainWindow):
     """!
     @brief The application window.
@@ -216,6 +191,7 @@ class MainWindow(QMainWindow):
         th.fix_number_locale()                                  # Decimal point everywhere, before any spin box exists
         super().__init__()
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
+        boxes.set_store(self.settings)                         # The open or collapsed state of every box is kept in the settings, by key
         self.theme_name = self.settings.value("theme", "dark")
         self.doc = doc or Document()
         self.sim, self.worker, self._stale, self._guide = None, None, False, None
@@ -250,7 +226,7 @@ class MainWindow(QMainWindow):
         self.version_label = QLabel(f"v{__version__}")
         self.version_label.setToolTip("PCB Thermal Lab version")
         self.defaults_label = QLabel("")
-        self.defaults_label.setToolTip("The program is using your own defaults and libraries (Preferences).")
+        self.defaults_label.setToolTip("Your own defaults and libraries are in use (Preferences).")
         self.statusBar().addPermanentWidget(self.defaults_label)
         self.statusBar().addPermanentWidget(self.coord_label)
         self.statusBar().addPermanentWidget(self.version_label)
@@ -294,7 +270,7 @@ class MainWindow(QMainWindow):
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
-        self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
+        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (off = free).")
         tips.apply(self)
         self.canvas.set_tool("select")
 
@@ -319,7 +295,7 @@ class MainWindow(QMainWindow):
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
-        @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
+        @param footer Optional widget kept above the scroll area, always visible (the Run button of the Simulation panel).
         @param label Title shown in the title bar and the View menu (default: title).
         @return The QDockWidget.
         """
@@ -338,10 +314,9 @@ class MainWindow(QMainWindow):
                 hl = QVBoxLayout(host)
                 hl.setContentsMargins(0, 0, 0, 0)
                 hl.setSpacing(0)
+                hl.addWidget(footer)                        # The Run button, the progress and the status stay above the boxes (they scroll below)
                 hl.addWidget(area_widget, 1)
-                hl.addWidget(footer)
-                area_widget.setMinimumHeight(120)           # The settings keep a usable strip (they scroll); the footer never takes the whole dock
-                host.installEventFilter(_FooterLimiter(host, footer))
+                area_widget.setMinimumHeight(120)           # The boxes keep a usable strip (they scroll); the footer never takes the whole dock
                 area_widget = host
             d.setWidget(area_widget)
         else:
@@ -511,8 +486,21 @@ class MainWindow(QMainWindow):
         # The keyboard route to the model menu of the card of the map (the card itself answers the mouse only)
         self.a_model = self._act("Model of the map…", self._key_model_menu, "M",
                                  tip="Choose the model shown by the map (M)")
+        # The layer keys: L next, Shift+L previous, 1 to 9 a layer, 0 all layers (Temperature); they drive the toolbar Layer box
+        self.a_layer_next = self._act("Next layer", lambda: self._step_layer(1), "L", tip="Next layer (L)")
+        self.a_layer_prev = self._act("Previous layer", lambda: self._step_layer(-1), "Shift+L", tip="Previous layer (Shift+L)")
+        for n in range(10):
+            self.addAction(self._act("Show all layers" if n == 0 else f"Show layer {n}", lambda _=False, k=n: self._show_layer_key(k), str(n),
+                                     tip="Show all layers (0)" if n == 0 else f"Show layer {n} ({n})"))     # Active without a menu entry
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the imported copper under the elements")
+        # View - Holes: the three kinds of hole of an import; the choice is a machine preference (QSettings "holes/<kind>"), all on by default (the context is drawn light)
+        self.a_holes = {}
+        for kind, text in (("via", "Holes: vias"), ("component", "Holes: component"), ("nonplated", "Holes: non-plated")):
+            on = str(self.settings.value(f"holes/{kind}", "true")).lower() != "false"
+            self.canvas.show_holes[kind] = on
+            self.a_holes[kind] = self._act(text, lambda checked, k=kind: self._set_show_holes(k, checked), None, True, on)
+        self._update_hole_tips()
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
                                   "Write the element names on the board")
         self.a_bg = self._act("Background image…", self.set_background,
@@ -525,6 +513,8 @@ class MainWindow(QMainWindow):
         self.a_import = self._act("Import Gerber board…", self.show_import,
                                   tip="New project from Gerber, drill and placement files")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
+        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Cancel calculation, F5 to Run)
+        self.a_stop = self._act("Stop", self.cancel_simulation, tip="Stop the calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
                                  tip="Edit the libraries and the defaults")
@@ -550,7 +540,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_imported, self.a_labels, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, *self.a_holes.values(), self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -576,7 +566,7 @@ class MainWindow(QMainWindow):
         which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
         tool bar tooltips and the keyboard help still name them.
         """
-        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model):
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev):
             keys = a.shortcuts()
             a.setShortcuts([])
             hidden = QAction(a.text(), self)
@@ -584,7 +574,7 @@ class MainWindow(QMainWindow):
             if a is self.a_overlay:
                 hidden.triggered.connect(self._key_overlay)
                 self._hidden_overlay_key = hidden
-            elif a in (self.a_display, self.a_model):
+            elif a in (self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev):
                 hidden.triggered.connect(a.trigger)          # Same route as the menu entry: the popover takes the keyboard
             else:
                 hidden.triggered.connect(a.toggle)
@@ -634,6 +624,9 @@ class MainWindow(QMainWindow):
         self.display_popover = DisplayPopover(self.display, self)
         self.display_popover.addAction(self._hidden_overlay_key)    # The key T keeps working while the popover is the active window
         self.display.changed.connect(self._on_display_changed)
+        # The cut picture of the Profiles tab shows the heat map while the Map button is on
+        self.results.profile.map_on = self.a_overlay.isChecked
+        self.a_overlay.toggled.connect(lambda _on: redraw_when_shown(self.results.profile, self.results.profile.redraw))
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.results.tabs.currentChanged.connect(self._on_tab_changed)
         self._popover_filter_on = False                             # The application-level filter of the popover is installed only while it is open
@@ -658,6 +651,8 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(self.a_run)
         self.toolbar = tb
+        compute.BUSY.changed.connect(self._on_busy)              # Run becomes Stop while any calculation runs, and back when it ends, fails or is cancelled
+        self._on_busy(compute.busy())
 
     def _refresh_icons(self):
         """!
@@ -670,6 +665,7 @@ class MainWindow(QMainWindow):
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
         self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
+        self.a_stop.setIcon(th.tool_icon("stop", self.theme_name))
         self.a_overlay.setIcon(th.tool_icon("map", self.theme_name))
         self.display_button.set_theme(self.theme_name)
         self.display_button.set_dot(self.display.active())
@@ -849,7 +845,9 @@ class MainWindow(QMainWindow):
         vmin, vmax = results_limits(field, self.doc.problem, res.dx, res.dy, vmin is None or vmax is None, vmin, vmax)
         self.canvas.set_overlay(field, res.dx, res.dy, cmap=self.display.cmap, vmin=vmin, vmax=vmax,
                                 opacity=self.display.value(), nodes=nodes, mask=mask, smooth=self.display.view == "smooth")
-        ext = extreme_points(field, mask, res.dx, res.dy, nodes)
+        loc = res.t_max_location       # The hot ring stays where the model reports its Tmax; only the cold one comes from the drawn field
+        hot = (res.t_max, (loc[1] * 1000.0, loc[2] * 1000.0)) if loc is not None and int(loc[0]) == layer else None
+        ext = extreme_points(field, mask, res.dx, res.dy, nodes, hot)
         if ext is not None:
             self.canvas.set_overlay_card(short, ext["tmax"], ext["pmax"], ext["tmin"], ext["pmin"])
         else:
@@ -893,7 +891,30 @@ class MainWindow(QMainWindow):
                 return "gradient"
             if w is self.results.animation:
                 return "animation"
+            if w is self.results.profile:
+                return "profile"
         return "other"
+
+    def _set_show_holes(self, kind, on):
+        """!
+        @brief View - Holes: show or hide one kind of hole on the board and remember the choice.
+        @param kind "via", "component" or "nonplated".
+        @param on True to show.
+        """
+        self.canvas.set_show_holes(kind, on)
+        self.settings.setValue(f"holes/{kind}", "true" if on else "false")
+
+    def _update_hole_tips(self):
+        """!
+        @brief Put the number of holes of each kind in the tooltip of its View entry.
+        """
+        n = self.canvas.hole_counts()
+        what = {"via": "vias (modelled; they are the via elements)", "component": "plated holes above the via limit (not modelled)",
+                "nonplated": "non-plated holes and slots (not modelled)"}
+        for kind, a in self.a_holes.items():
+            tip = f"Draw the {what[kind]} of the import: {n[kind]} on this board"
+            a.setToolTip(tip)
+            a.setStatusTip(tip)
 
     def _refresh_display_context(self, *_):
         """!
@@ -1109,6 +1130,41 @@ class MainWindow(QMainWindow):
             self.layer_choice.pick(data)
             self._apply_layer()
 
+    def _step_layer(self, delta):
+        """!
+        @brief Key L (next) and Shift+L (previous): move the toolbar Layer box to the next copper layer, round the end (All layers and the blocks are skipped).
+        @param delta +1 or -1.
+        """
+        combo = self.layer_combo
+        singles = [i for i in range(combo.count()) if layerchoice.is_single(combo.itemData(i))]
+        if not singles:
+            return
+        cur = combo.currentIndex()
+        j = (singles.index(cur) + delta) % len(singles) if cur in singles else (0 if delta > 0 else len(singles) - 1)
+        self._pick_combo_entry(singles[j])
+
+    def _show_layer_key(self, n):
+        """!
+        @brief Keys 1 to 9 show that layer, 0 shows All layers (offered by Temperature only); a key with no such entry says why in the status bar.
+        @param n The digit pressed.
+        """
+        combo, want = self.layer_combo, (layerchoice.ALL_LAYERS if n == 0 else n - 1)
+        i = combo.findData(want)
+        if i < 0:
+            self.statusBar().showMessage("All layers is offered by the Temperature tab only." if n == 0 else f"The board has no layer {n}.", 5000)
+            return
+        self._pick_combo_entry(i)
+
+    def _pick_combo_entry(self, i):
+        """!
+        @brief Choose an entry of the Layer box as if the user had clicked it (a pick of the entry already shown counts too: it replaces a fallback layer).
+        @param i Combo index.
+        """
+        if self.layer_combo.currentIndex() == i:
+            self._on_layer_changed(i)
+        else:
+            self.layer_combo.setCurrentIndex(i)
+
     def _set_layer(self, layer):
         """!
         @brief Choose a copper layer by code (a selection on another layer, a clicked warning).
@@ -1119,11 +1175,12 @@ class MainWindow(QMainWindow):
 
     def _select_all(self):
         """!
-        @brief Select every element of the active layer.
+        @brief Select every element of the active layer (the vias only while View - Holes: vias shows them: a hidden via is never selected, edited or deleted by it).
         """
         pr, L = self.doc.problem, self.canvas.layer
+        vias = range(len(pr.vias)) if self.canvas.show_holes["via"] else ()
         items = [(k, i) for k, lst in (("zone", pr.zones), ("heater", pr.heaters), ("heatsink", pr.heatsinks))
-                 for i, e in enumerate(lst) if e.layer == L] + [("via", i) for i in range(len(pr.vias))]
+                 for i, e in enumerate(lst) if e.layer == L] + [("via", i) for i in vias]
         self.canvas.set_selection(items)
         self._on_canvas_selection(items)
 
@@ -1202,6 +1259,7 @@ class MainWindow(QMainWindow):
         """
         self._edits += 1
         self._update_background_action()
+        self._update_hole_tips()
         self._sync_underlay()
         self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
@@ -1328,14 +1386,15 @@ class MainWindow(QMainWindow):
 
     def export_results(self):
         """!
-        @brief Save report, summary, CSV fields and figures to a folder.
+        @brief Save report, summary, CSV fields and figures to a folder; the temperature maps follow the Display choice (View, underlay, colour map).
         """
         if self.sim is None:
             QMessageBox.information(self, "Export", "Run a simulation first.")
             return
         d = QFileDialog.getExistingDirectory(self, "Export results to folder")
         if d:
-            files = self.sim.save(d, plots=True)
+            # The maps are written as the Display panel draws them: the same View, underlay (copper or image), opacity and colour map
+            files = self.sim.save(d, plots=True, view=self.display.map_view("temperature", self.theme_name), cmap=self.display.cmap)
             self.statusBar().showMessage(f"{len(files)} files written to {d}")
 
     def export_report(self):
@@ -1402,11 +1461,42 @@ class MainWindow(QMainWindow):
         self.a_bg.setStatusTip(tip)
 
     # ------------------------------------------------------------------ simulation
+    def _on_busy(self, busy):
+        """!
+        @brief Follow the calculation engine: the Run button of the toolbar and of the dock is the Stop button while a calculation runs or waits.
+        @param busy True while any calculation runs or waits.
+        """
+        self.solver_panel.set_busy(busy)
+        # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
+        # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
+        hold = (not busy) and time.monotonic() < getattr(self, "_run_hold_until", 0.0)
+        self.solver_panel.set_hold(hold)
+        self.a_run.setEnabled(not busy and not hold)            # F5 does nothing while a calculation runs (a disabled action ignores its key)
+        if hold:
+            QTimer.singleShot(max(1, int(1000 * (self._run_hold_until - time.monotonic())) + 1), self._release_run_hold)
+        actions = self.toolbar.actions()
+        if busy and self.a_run in actions:
+            self.toolbar.removeAction(self.a_run)
+            self.toolbar.addAction(self.a_stop)
+        elif not busy and self.a_stop in actions:
+            self.toolbar.removeAction(self.a_stop)
+            self.toolbar.addAction(self.a_run)
+
+    def _release_run_hold(self):
+        """!
+        @brief End the short hold of the Run button after a Stop (unless a calculation started meanwhile, which keeps the Stop state).
+        """
+        if not shiboken6.isValid(self):
+            return
+        busy = compute.busy()
+        self.solver_panel.set_hold(False)
+        self.a_run.setEnabled(not busy)
+
     def run_simulation(self):
         """!
-        @brief Validate the problem and start the simulation in the background.
+        @brief Validate the problem and start the simulation in the background (ignored while any calculation runs).
         """
-        if self.worker is not None and self.worker.isRunning():
+        if compute.busy() or (self.worker is not None and self.worker.isRunning()):
             return
         try:
             self.doc.problem.validate()
@@ -1436,11 +1526,11 @@ class MainWindow(QMainWindow):
 
     def cancel_simulation(self):
         """!
-        @brief Cancel the simulation (and the animation or analysis computing) without waiting: the calculation process is stopped.
+        @brief Cancel every calculation (simulation, animation, profile run, analysis, power calculator) without waiting: the calculation process is stopped.
         """
-        for w in (self.worker, getattr(self, "_anim_worker", None), self.profile_page.worker):
-            if w is not None and w.isRunning():
-                w.cancel()
+        # Set before the cancel, which turns the button back into Run at once (see _on_busy)
+        self._run_hold_until = time.monotonic() + QApplication.doubleClickInterval() / 1000.0
+        compute.cancel_all()
 
     def _on_cancelled(self, panel):
         """!
@@ -1458,12 +1548,12 @@ class MainWindow(QMainWindow):
         text = defaults.diff_text()
         if defaults.has_user_file() and text:
             self.defaults_label.setText("Custom defaults")
-            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nPreferences to change or reset it.")
+            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nChange or reset it in Preferences.")
             if startup:
                 self.statusBar().showMessage(f"Custom defaults in use ({text}): {defaults.user_file()}", 8000)
         else:
             self.defaults_label.setText("")
-            self.defaults_label.setToolTip("The program is using the shipped defaults (Preferences).")
+            self.defaults_label.setToolTip("The shipped defaults are in use (Preferences).")
 
     def show_preferences(self):
         """!
@@ -1624,10 +1714,11 @@ class MainWindow(QMainWindow):
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature map on the board (T; the Display button of the tool bar says how it is drawn)</td></tr>
+<tr><td><b>L, Shift+L, 1 to 9, 0</b></td><td>Next layer, previous layer, that layer (1 to 9), all layers (0, Temperature tab); the same as the Layer box of the tool bar</td></tr>
 <tr><td><b>D</b></td><td>Display settings: opens the Display panel with the keyboard in its controls</td></tr>
 <tr><td><b>M</b></td><td>Model of the map: the list of the models of the result (the same as a click on the model name of the card on the board)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
-<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
+<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / stop the calculation (the Run button is Stop while one runs)</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr>

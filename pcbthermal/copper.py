@@ -30,7 +30,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import uicontext
-from .geometry import zone_fill
+from .geometry import exact_coverage, face_apertures, zone_fill
 from .numfmt import num
 
 log = logging.getLogger(__name__)
@@ -433,7 +433,7 @@ class CopperSource:
         r = 0.5 * (dx + dy) / self.pix
         return int(min(max(2 * math.ceil(r / 2.0 - 1e-9), 2), MAX_PIXELS_PER_CELL))
 
-    def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False):
+    def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False, outline=None):
         """!
         @brief The in-plane face conductances of one imported layer on the reduced sheet.
         @details The pixel sheet is b + coverage (a - b) (the program's two-phase formula per pixel), minus `reduction` (the sheet conductance per area that the laminate rule took
@@ -451,6 +451,10 @@ class CopperSource:
         @param width Board width in m.
         @param height Board height in m.
         @param nodes True for the FDM node grid.
+        @param outline Board outline polygon (n, 2) in m, or None. With an outline (and not `nodes`) the board is applied PER PIXEL: every pixel sheet is multiplied by the exact
+               share of the pixel on the board (`geometry.exact_coverage` on the pixel grid) instead of the cover of its cell, so a face window that the outline cuts carries only
+               the sheet that is on the board: the open fraction of the shared face (the aperture) and the copper edge held inside the outline come out of the pixels. If the
+               pixel grid is too fine for the exact cover (`OUTLINE_MAX_CROSSINGS`) the cell cover is used, as without `outline`.
         @return Tuple (gx, gy) of W/K for square cells: shapes (rows, cols - 1) and (rows - 1, cols).
         """
         dx, dy = width / nx, height / ny
@@ -469,6 +473,14 @@ class CopperSource:
         if self.reduce_sheet:
             s4 -= reduction.astype(np.float32)[:, None, :, None]                  # the laminate the copper node no longer carries
         np.maximum(s, 0.0, out=s)
+        masked = None
+        if outline is not None and not nodes:
+            try:
+                masked = self._outline_faces(s, n, outline, cover, ny, nx, dx, dy)
+            except ValueError:
+                masked = None                                                       # too many edge crossings on the pixel grid: the cell cover below
+        if masked is not None:
+            return masked
         s4 *= cover.astype(np.float32)[:, None, :, None]
         gx, gy = face_conductances(s, n, self.mapping)
         gx *= dy / dx                                                               # the pixel problems are for square pixels; the cell may not be
@@ -479,6 +491,67 @@ class CopperSource:
             gy[:, 0] *= 0.5
             gy[:, -1] *= 0.5
         return gx, gy
+
+    def _outline_faces(self, s, n, outline, cover, ny, nx, dx, dy):
+        """!
+        @brief The faces of an imported layer on a board with an outline: the outline at the pixel level where both cell centres are on the board, the aperture elsewhere.
+        @details (1) Pixel mask: every pixel sheet times the exact share of the pixel on the board, so a face window that the outline cuts carries only the sheet that is on the
+                 board (the open fraction of the shared face) and a copper edge held inside the outline is seen by the same pixels. (2) A window whose end cell has its centre
+                 OFF the board (a sliver cell: the centre lies outside the outline) has a zero electrode in the pixel problem and would get no link, isolating the cell and its
+                 edge film; there the face is the one of the UNMASKED pixels times the open fraction of the shared face (`geometry.face_apertures`), as the drawn layers have it.
+        @param s Pixel sheet conductance (ny n, nx n) in W/K, float32, rows from the bottom, the laminate reduction already taken off; NOT modified.
+        @param n Pixels per cell side.
+        @param outline Outline polygon (m).
+        @param cover Cell cover (ny, nx).
+        @param ny Cell rows.
+        @param nx Cell columns.
+        @param dx Cell width in m.
+        @param dy Cell height in m.
+        @return Tuple (gx, gy) in W/K, shapes (ny, nx - 1) and (ny - 1, nx).
+        @throws ValueError If the outline crosses too many grid lines for the exact cover.
+        """
+        pixel_cover = _pixel_board_cover(outline, nx * n, ny * n, dx / n, dy / n)
+        gx_u, gy_u = face_conductances(s, n, self.mapping)                          # the unmasked pixels (the sheet is physical: the cover is not applied)
+        gx_m, gy_m = face_conductances(s * pixel_cover, n, self.mapping)
+        ax, ay = face_apertures(outline, nx, ny, dx, dy, cover=cover)
+        gx_u *= ax * dy / dx
+        gy_u *= ay * dx / dy
+        gx_m *= dy / dx
+        gy_m *= dx / dy
+        # Cell centres on the board (the pixel at the centre of the cell has a board share above one half)
+        h = n // 2
+        inside = pixel_cover[h::n, h::n] >= 0.5
+        keep_x = inside[:, :-1] & inside[:, 1:]
+        keep_y = inside[:-1, :] & inside[1:, :]
+        return np.where(keep_x, gx_m, gx_u), np.where(keep_y, gy_m, gy_u)
+
+
+PIXEL_COVER_BAND = 1_000_000           # pixels of one band of the exact board cover on the pixel grid (the exact cover holds about 40 bytes per pixel while it runs)
+
+
+def _pixel_board_cover(outline, cols, rows, px, py):
+    """!
+    @brief The exact share of every pixel on the board, built in bands of rows so that its working set stays small.
+    @details `geometry.exact_coverage` integrates every column of the grid and holds about five float64 arrays of the whole grid while it runs (about 40 bytes per
+             pixel, 640 MB for 16 million pixels: more than the face construction itself, which the memory law counts at 40 bytes per pixel). The integral of a band
+             of rows is the same integral with the outline shifted down by the height of the rows below it, so the bands give the same numbers as one call to round-off
+             (at most 6e-11 of a pixel on outlines of 4 to 1675 vertices; the shift rounds the coordinates); the result is float32, as the pixel sheet it multiplies.
+    @param outline Outline polygon (n, 2) in m.
+    @param cols Pixel columns.
+    @param rows Pixel rows.
+    @param px Pixel width in m.
+    @param py Pixel height in m.
+    @return float32 array (rows, cols), rows from the bottom.
+    @throws ValueError If the outline crosses too many grid lines for the exact cover.
+    """
+    p = np.asarray(outline, dtype=float)
+    out = np.empty((rows, cols), np.float32)
+    band = max(1, PIXEL_COVER_BAND // max(cols, 1))
+    for r0 in range(0, rows, band):
+        r1 = min(rows, r0 + band)
+        # (the outline shifted down so that row r0 starts at y = 0; parts of the outline outside the band are integrated as they are, column by column)
+        out[r0:r1] = exact_coverage(p - np.array([0.0, r0 * py]), cols, r1 - r0, px, py)
+    return out
 
 
 def resolve(faces, problem):
@@ -645,6 +718,40 @@ def _inside_mask(polygons, window, pixel_mm, rows, cols):
     return out
 
 
+def copper_numbering(layers):
+    """!
+    @brief The first and the last copper layer number of a set, as the files number them, for the layer span of the drill files.
+    @details CAD programs do not all number the copper 1..n: Proteus writes a two-layer board as `Copper,L1,Top` and `Copper,L16,Bot` with the drill span 1,16, and a
+             one-layer board with the span 0,1. When every copper file carries an X2 number (`Copper,L<k>,...`) the ends are the smallest and the largest of them;
+             otherwise the plain count 1..n is used.
+    @param layers List of gerber.Layer (the copper layers in use, top first).
+    @return (first, last) layer numbers.
+    """
+    nums = []
+    for lay in layers:
+        ff = list(getattr(lay, "file_function", []) or [])
+        if len(ff) >= 2 and ff[0] == "Copper" and ff[1][:1] == "L" and ff[1][1:].isdigit():
+            nums.append(int(ff[1][1:]))
+    if len(nums) == len(layers) and nums:
+        return min(nums), max(nums)
+    return 1, len(layers)
+
+
+def span_is_whole_board(span, stack):
+    """!
+    @brief True when a drill file's layer span reaches both ends of the copper stack (a through via), or says nothing.
+    @details One copper layer has no blind or buried via (a hole there joins nothing), so any span is whole. A span counts as whole when it COVERS the stack (first at or
+             above the span's start, last at or below its end), so the Proteus spans 1,16 on L1/L16 and 0,1 on a one-layer board are through holes.
+    @param span (a, b) from `DrillFile.span`, or None when the file does not say.
+    @param stack (first, last) from `copper_numbering`.
+    @return bool
+    """
+    if span is None or stack[0] == stack[1]:
+        return True
+    lo, hi = sorted(span)
+    return lo <= stack[0] and hi >= stack[1]
+
+
 def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, supersample=4, mapping=DEFAULT_MAPPING, names=None, thickness_um=35.0,
                   fraction=None, ram=None, base=None):
     """!
@@ -655,7 +762,7 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
              the copper outside it is cleared. Panels (several boards in the outline) are refused: import one board.
     @param layers List of gerber.Layer, the copper layers from the top layer down.
     @param outline gerber.Outline of the board, or None to use the box of the copper.
-    @param drills Iterable of gerber.DrillFile; plated, round holes become vias (a slot, an unplated or unknown-plating hole is left out and said in the warnings).
+    @param drills Iterable of gerber.DrillFile; plated, round holes become vias (a slot, an unplated or unknown-plating hole is not a via and is said in the warnings; the import session keeps those in the record).
     @param pixel_mm Pixel of the masks in mm (None: a quarter of the thinnest feature times the supersampling, and at most a tenth of the cell).
     @param cell_mm Cell of the thermal grid the board is meant for, in mm (only to choose the pixel and to size the memory estimate).
     @param supersample Sub-pixels per pixel side of the coverage.
@@ -722,7 +829,11 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
     copper_rec = ImportedCopper(float(pixel_mm), True, entries, mapping)
     holes = []
     skipped = {"slot": 0, "unplated": 0}
+    partial = 0                                    # Vias whose drill file says they do not span the whole stack (blind, buried, micro)
+    stack = copper_numbering(layers)
     for df in drills:
+        # The model has no layer range on a via: every hole joins ALL the layers, so a file whose span does not reach both ends of the stack is counted for the warning below
+        short = not span_is_whole_board(df.span, stack)
         for h in df.holes:
             plated = h.plated if h.plated is not None else df.plated
             if h.is_slot:
@@ -731,10 +842,14 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
                 skipped["unplated"] += 1
             elif x0 <= h.x <= x1 and y0 <= h.y <= y1:
                 holes.append({"x_mm": float(h.x - x0), "y_mm": float(h.y - y0), "d_mm": float(max(h.diameter, 0.1)), "kind": "via"})
+                partial += 1 if short else 0
+    if partial:
+        warnings.append(f"{partial} of the {len(holes)} vias have a layer span that is not the whole board (blind, buried or micro vias, from the drill file function): "
+                        "they are treated as through vias that join all the layers, so the board reads too cool (the unsafe side)")
     if skipped["slot"]:
-        warnings.append(f"{skipped['slot']} routed slots are not modelled")
+        warnings.append(f"{skipped['slot']} routed slots are not modelled (the import keeps them in the record and the editor draws them)")
     if skipped["unplated"]:
-        warnings.append(f"{skipped['unplated']} holes are not plated (or their plating is unknown) and are left out")
+        warnings.append(f"{skipped['unplated']} holes are not plated (or their plating is unknown) and are not vias (the import keeps them in the record and the editor draws them)")
     outline_mm = None
     if inside is not None:
         outline_mm = np.asarray(outline.polygons[0].outer, float) - np.array([x0, y0])
@@ -771,15 +886,9 @@ SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result a
 REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models read the copper only as its average over a cell of 0.5 to 1 mm (the fill of the cell), so the pad of "
                          "a part and the narrow tracks that feed it, smaller than the cell, are invisible to them, and they set most of the temperature rise of a small part; on 42 parts "
                          "of three imported boards, with 1 W in one part at a time, the Lumped model read 25 to 82 % and the Analytic 17 to 77 % too cool against the finite-volume "
-                         "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and the finite-volume "
-                         "model itself reads the smallest parts hotter still at a finer cell; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
+                         "model at a 0.5 mm cell, the most on the smallest parts (39 to 81 % for passives of 0402 size); these figures are a sample, not a bound, and their reference is "
+                         "not converged: the finite-volume model itself reads a small part 15 to 30 % hotter from 0.5 to 0.25 mm (an 0402), so the true deficit is larger; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
                          "use the finite-volume model for the result")
-CUT_CELLS_IMPORTED_NOTE = ("the board has an outline and imported copper: in the finite-volume model a cell that the outline cuts is joined to its neighbours by its sheet scaled "
-                           "by the share of the cell on the board, and the edge film acts on the cell centre (with drawn copper the program joins such a cell through the open part "
-                           "of its sides and puts the film in series with the conduction to the edge, which the imported copper cannot use yet). Near a slanted or curved edge the "
-                           "peak then depends on where the edge falls on the grid, by up to a few tenths of a kelvin at an edge coefficient of 10 W/m2K and by more for a cooled edge")
-
-
 def outline_cuts_cells(board):
     """!
     @brief True when the board has an outline that is not its whole box, so that some cells can be cut by it (an imported outline is often the plain rectangle of the box).
@@ -816,8 +925,6 @@ def model_warnings(problem, model, cell_mm=None):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
-        if model == "fvm" and outline_cuts_cells(problem.board):
-            out.append(CUT_CELLS_IMPORTED_NOTE)
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
             out.append(coarse_cell_warning())
             if cell_mm > SCREENING_CELL_MM + 1e-9:

@@ -1,5 +1,7 @@
 # Integration: fast-wave-oscillation
 
+**Status (audit 2.7.0): A, B, D and W2 are implemented in 2.6.0** (`fix/fast-wave-ripple`, reviewed: the criterion of B is the shortest stretch, the heater's copper a slab of the column, repeating power tables get the floor too; `docs/validation.md` 37); C and W are not (W was the alternative to A and B). What is left is in 'Planned', "Fast waves, what is left". The text below is the recommendation as written.
+
 Recommendation, for the maintainer to decide. Nothing of the program was edited; the prototypes are in `lib/` and were measured on copies (README 5 and 8). The review (README 8) changed the recommendation: the floor in the decision (A) is not to be adopted alone.
 
 ## What is wrong (program, measured)

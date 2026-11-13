@@ -3,10 +3,10 @@
 PDF pages to Markdown (equations in LaTeX, tables, page markers) through pluggable providers. It is a developer tool,
 not part of the `pcbthermal` package (the program never imports it). MIT, like the rest of the repository.
 
-Run from the repository root with a Python that has PyMuPDF (the markitdown environment has it; the project `.venv` does not):
+Run from the repository root with a Python that has pypdfium2 and Pillow (`pip install pypdfium2`; the project `.venv` has Pillow through Matplotlib but not pypdfium2, which is not in `requirements.txt`):
 
 ```sh
-PY=python   # any Python that has PyMuPDF; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
+PY=python   # any Python that has pypdfium2; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
 $PY -W ignore -m tools.ocr providers                       # providers, models, key variables
 $PY -W ignore -m tools.ocr check-key --pdf ArXiv2307.08354 # one tiny request, no retry, 60 s timeout; prints OK or FAIL, model, time
 $PY -W ignore -m tools.ocr transcribe ShenWang2019Vias --pages 1   # a stem in papers/pdf or a path; --pages '3,5-6', '10-', 'all'
@@ -24,6 +24,7 @@ $PY -W ignore -m tools.ocr firstline [--stem S] [--pages 1-5]   # offline: first
 $PY -W ignore -m tools.ocr eqcheck [--stem S]           # offline: $ spans and \tag numbers against the text layer and the Gemini page -> notes/EQCHECK_REPORT.md
 $PY -W ignore -m tools.ocr audit                        # offline: integrity of the assembled library -> notes/AUDIT_REPORT.md (exit 1 on an error)
 $PY -W ignore -m tools.ocr transcribe STEM --pages 3 --prompt-variant NAME   # another phrasing of the prompt (data/prompt_variants.json; `default` is data/prompt.txt): the refusal filter is stochastic and sensitive to the wording
+$PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic [--no-refusal-retry]   # on by default (`--refusal-retry` still accepted): a page refused whole and as two halves is tried as three strips (40 % tall, 10 % overlap) and joined at the overlap; worked for Lienhard2024 p17 and CulhamFourier2000 p1 where halves, all prompt variants and fallback models failed; a page that still fails goes to `--provider local` (no filter)
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
@@ -60,7 +61,9 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 * **Providers** (`providers/`): `transcribe(image_bytes, prompt, options) -> Result`. `gemini` (online; default model
   `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `anthropic` (online; Claude through the Messages API, default model `claude-sonnet-5-5`, fallback `claude-opus-5-5`, `--model claude-haiku-5-5` for bulk pages; use `--provider anthropic` on `transcribe`, `queue` and `check-key`; outputs in `ocr/anthropic/`), `local` (offline; the maintainer's `extractpdf`
   MLX converter with the model `ovis`, a stub that was not run by the tests: set `PCBT_EXTRACTPDF` and
-  `PCBT_EXTRACTPDF_PYTHON`). A new provider is a class in `providers/` registered in `providers/__init__.py`.
+  `PCBT_EXTRACTPDF_PYTHON`; an output guard (`check_output`) refuses a page with the same line repeated more than 8 times
+  in a row or longer than 1.6 times the expected length (`expected_chars`, default 7500 characters) and the page is
+  converted again with the fallback model `unlimited` of `data/models.json`; a page cut short is not detected). A new provider is a class in `providers/` registered in `providers/__init__.py`.
 * **Retry and quota**: HTTP 429 (per minute), 500 and 503 and network errors are retried (4 attempts) with the pause the
   server asks for (`RetryInfo.retryDelay`, at most 120 s) or else a pause that doubles (20, 40, 80 s); every retry is logged
   with its status. The error body is parsed as JSON in full: a 429 whose `QuotaFailure` has a `quotaId` with `PerDay` stops
@@ -105,7 +108,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 * **Suspect pages**: low word count, undecoded equations, base-36 cipher, broken-font tokens, a garbage PDF text layer; each
   page is reported as `PDF N / printed M` and the file's usual offset (a paper quoted at "page 418" is a different PDF page).
   The printed number is read from a line that is only a number (or "Page N") at the top or bottom of the page, or from a
-  journal line such as `JUNE 2003, Vol. 125 / 179`; when the file has an offset (the most common pdf - printed, at least two
+  journal line such as `JUNE 2003, Vol. 125 / 179`, or from a header that the pdfium text layer joined to the number on one line (`86 Chapter 2: Heat conduction`, `Problems 87`, `5.3. Moduli 77`; only the first and last two lines, and `suspects.printed_numbers` keeps such a reading only when it agrees with the file's offset, which is the mode of pdf - number over both kinds of reading; ligatures are expanded first, `suspects.normalise_layer`); when the file has an offset (the most common pdf - printed, at least two
   pages), every page's printed number is `pdf - offset`, because a single reading can be a table entry or a contents line
   (Lienhard2024: offset 14 on 753 of 765 readings, PDF 323 to 325 are printed 309 to 311; Muzychka2003: offset -177).
 * **Verify**: one HTML file, page image left and transcription right. A transcription counts as read only after a reviewer
@@ -147,7 +150,7 @@ metadata or first three pages say "confidential", unless `--allow-confidential` 
 A PDF that cannot be read for the check is not sent either. `check-key --pdf` passes the same guard. On the 110 PDFs of the
 library the guard refuses only the ODB++ specification. The local provider sends nothing anywhere and is not subject to the guard.
 
-PDFs are hostile input for PyMuPDF (MuPDF, C code): pages are rendered one at a time and an oversized page is rendered at a
+PDFs are hostile input for pypdfium2 (PDFium, C++ code): pages are rendered one at a time and an oversized page is rendered at a
 lower resolution (at most 40 million pixels); there is no time limit on a page, so open only files from known sources.
 
 ## Tests

@@ -1,0 +1,20 @@
+# Documentation review of 2.7.0 (step 6b of the release gate)
+
+Status: **done** on `develop` after the merge of `fix/gui-warning-icons-270`, before the merge into `main`. The `maintainer` agent did it; the numbers of the theory and the validation were reviewed by the `reviewer` in the final opinion (`../final-opinion/README.md`) and the finite-element reference review, and are not re-derived here. For every row: what was checked, what was changed, what is stale and left on purpose.
+
+| # | Document | Checked | Changed | Stale on purpose |
+| --: | :-- | :-- | :-- | :-- |
+| 1 | `README.md` | features, usage, badges, the versions list, every screenshot link and caption | version and tests badges (2.7.0, 3478 passed); the 2.7.0 line of the versions list; a new feature bullet 'Interface of 2.7.0' (boxes, Warnings accordion, layer keys, coldest point, cut overlay, holes) | none |
+| 2 | `pcbthermal/help/index.html` | layer keys, boxes, Warnings accordion, cut overlay, markers, holes (View - Holes), the limits table with the finite-element numbers, the picture links | none needed: the guide already describes these (`fix/gui-warning-icons-270` updated the Warnings text and picture) | none |
+| 3 | `pcbthermal/help/calculator.html` | the 'How good is it?' table against `docs/calculators.md` 2.1 | CSD17308Q3 46.8 to 46.7 K/W and -1.7 to -1.4 %; the JEDEC row 31.6 to 31.4 K/W and +3.0 to +3.4 %; 'within 2 to 3 %' to 'within 1 to 4 %' | none |
+| 4 | `docs/images/` and `pcbthermal/help/` pictures | all screens of `examples/make_screenshots.py` in its three modes (default, `--import`, `--views` with the RP2040 set of the local library) re-rendered into a scratch folder, neutral paths asserted by the script, compared pixel by pixel with the tracked ones; looked at the changed ones (results_temperature_imported, results_gradient, results_summary, results_profile_cut, editor_warnings) | 26 pictures replaced (status bar said v2.6.0, new warning icons, moved temperature numbers of the imported board), the byte-identical copies in `pcbthermal/help/` too (11 files) | the dark variants that exist only in scratch (editor_warnings_dark, import_step1_dark, import_step3_dark, results_summary_imported_dark) are not referenced and were not added; pictures that are not screens (theory figures, `lumped_zones_*`, `heater_shape_margin`) are unchanged |
+| 5 | `docs/versions.md` | the summary, the 2.7.0 chapter, 'How 2.7.0 was tested', 'Planned: 2.8.0' | test counts (3478 passed, 9 skipped, 2 xfailed, 1 warning in 41 min 34 s); item 7 of 'Planned: 2.8.0' (version-comparison notes for v2.5.0 to v2.7.0) | the 'Planned: 2.7.0' chapter keeps the items that are done as the record of the plan |
+| 6 | `docs/models.md` | the sections of the changed models against the final opinion | none | none found |
+| 7 | `docs/theory.md` | the sections of the changed models: the physical slabs (1.2), the edge band (1.4), the via well sheet order (2.6), the finite-element numbers | none beyond the earlier numbers pass | none |
+| 8 | `docs/validation.md` | sections 38 to 47 numbered once each, the finite-element numbers of 43 to 46, section 2 and 2.1 tables | none beyond the earlier numbers pass | the prose under the section 12 tables and the 3D solid (FV) column of the section 3 model table are older numbers (stated in those sections) |
+| 9 | `docs/calculators.md` | 2.1 against the program (`calculator_validation.py`) | none | none |
+| 10 | the tooltips table (`pcbthermal/gui/tips.py`) | `tests/test_tooltips.py` passes; the hints were shortened in 2.7.0 | none | none |
+| 11 | the keyboard list (`SHORTCUTS_HTML`) | `tests/test_shortcuts.py` checks it against the real shortcuts (L, Shift+L, digits, D, T, M) | none | none |
+| 12 | the About box (`pcbthermal/gui/help.py`) | it prints `__version__` (2.7.0), the author and the project link | none | none |
+| 13 | `CHANGELOG.md` | the `[2.7.0] - 2026-11-13` section against the code and the documents | none | none |
+| 14 | `research/README.md` | the index and 'Which folder is current' (written in the register work of this release) | none | none |

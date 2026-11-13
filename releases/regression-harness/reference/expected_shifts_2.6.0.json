@@ -8,14 +8,14 @@
    "id": "K1",
    "title": "Analytic per-layer edge",
    "branch": "feature/analytic-edge-and-local-transient",
-   "evidence": "research/analytic-2-6; docs/theory.md 6",
+   "evidence": "research/analytic-edge-and-transient; docs/theory.md 6",
    "moves": "Analytic on boards with an edge coefficient"
   },
   {
    "id": "K2",
    "title": "Analytic local modal transient",
    "branch": "feature/analytic-edge-and-local-transient",
-   "evidence": "research/analytic-2-6",
+   "evidence": "research/analytic-edge-and-transient",
    "moves": "time to 63 % of the Analytic on boards with vias"
   },
   {
@@ -43,14 +43,14 @@
    "id": "K5",
    "title": "3D solid slabs by thickness and the face term",
    "branch": "feature/solid3d-slabs-by-thickness",
-   "evidence": "research/laminate-2-6 README 5",
+   "evidence": "research/laminate-slabs-and-local-rule README 5",
    "moves": "3D solid on every board (more unknowns, hence two 0.5 mm records over the harness cap)"
   },
   {
    "id": "K6",
    "title": "Laminate edge band",
    "branch": "fix/laminate-edge-band",
-   "evidence": "research/laminate-2-6",
+   "evidence": "research/laminate-slabs-and-local-rule",
    "moves": "FVM and FDM on boards with an edge coefficient"
   },
   {

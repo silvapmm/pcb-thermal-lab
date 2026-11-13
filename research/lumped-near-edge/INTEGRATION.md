@@ -1,6 +1,6 @@
 # Integration: the Lumped model near a side or a corner
 
-Status: a proposal, measured on a copy (`lib/variants.py`); nothing in `pcbthermal/` was changed. Reviewed (README 10): go for the merge of the folder; per decision below.
+Status (audit 2.7.0): proposals 1 (the warning) and 2 (the raster for a small part, with its memory bound) are **implemented in 2.6.0** (`fix/lumped-near-edge-warning`: `checks.check_lumped_near_edge`, `checks.heater_side_gap`, `lumped.small_part_cell`, `lumped.small_part_refused`; `docs/validation.md` 35); proposal 3 (image and potential links) is not adopted and stays A23 ('Planned', "Lumped near a side or a corner: a correction"). Originally: a proposal, measured on a copy (`lib/variants.py`); nothing in `pcbthermal/` was changed. Reviewed (README 10): go for the merge of the folder; per decision below.
 
 ## 1. What was found
 

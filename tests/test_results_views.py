@@ -26,13 +26,15 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # Regenerated for 2.6.0 (branch feature/refreeze-260, from the integration tree feature/integration-260): the 2.6.0 items that move the example board's field
 # move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 degC at 2 mm): the via barrel length and rim uncoupling, the laminate edge
 # band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
-# 2.6.1 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
+# 2.7.0 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
 # coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
+# 2.7.0 (fix/simple-stackup-physical-layers, merge 35f242aa): the 'field' hash (489e1bd3 -> a32414ed) and the 'fields' hash (324047ee -> 07e40550, All layers draws the same field) moved, because the 4-layer example board's FVM field moved exactly
+# there (hottest 85.203 -> 85.294 K at 2 mm); not the markers, the hot mark or the display code and the 'gradient' hash (f1046ff0 -> f3c6d4e3) is the gradient of that same field; the drawing code is unchanged.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
-    "field": "489e1bd374f122f91948e79e61b6cd90968dae6b9b146bbf7d39ecabb67f37bf",
-    "fields": "324047eef5590cc0773753e30e9b6c5debdc30046bfc758d93c7a8a5016370bd",
-    "gradient": "f1046ff0c00f471af1e2223dd60cf4c5a8c46650475f1aa604bfc0be63def206",
+    "field": "a32414ed17a349d01fa6453f2f972c4aef94036b0a670ca270eefdbc1e3cadf4",
+    "fields": "07e405503f2f7d094e122246b6e4a18c5c9d6d308badf72700926bc8152b201e",
+    "gradient": "f3c6d4e35e58d695307747a726722348e4bfec6c31bbdb84816d5e55a38a55ec",
 }
 
 
@@ -478,3 +480,20 @@ def test_smooth_and_terrain_reach_the_outline_and_the_bar_is_opaque():
         cbar = fig.axes[-1]
         assert all(getattr(c, "get_alpha", lambda: None)() in (None, 1.0) for c in cbar.collections + cbar.images)
         _rgba(fig)
+
+
+def test_single_layer_title_quotes_the_ringed_values_of_that_layer(tab):
+    """!
+    @brief The title of a one-layer map quotes the max and min the rings mark on that layer (review: it quoted the board Tmax and Tmin, which on the inner layers of
+           the example board differ from the blue ring by 0.4 to 0.5 K and from the red ring by several kelvin).
+    @param tab PlotTab fixture.
+    """
+    r = tab._result()
+    for layer in range(r.T.shape[0]):
+        tab.set_layer(layer)
+        tab.redraw()
+        ax = tab.fig.axes[0]
+        f = r.T[layer]
+        assert f"min {np.nanmin(f):.1f} °C" in ax.get_title()
+        hot = r.t_max if int(r.t_max_location[0]) == layer else np.nanmax(f)
+        assert f"max {hot:.1f} °C" in ax.get_title() and f"mean {r.layer_mean[layer]:.1f} °C" in ax.get_title()

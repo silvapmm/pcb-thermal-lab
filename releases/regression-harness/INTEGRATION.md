@@ -2,7 +2,7 @@
 
 **Adopted** on `feature/frozen-numbers-test`: the test is `tests/regression/test_frozen_numbers.py`, the harness files are byte-identical copies in `tests/regression/` (checked by `test_harness_copy.py`; the source of truth stays `lib/` here), the frozen file is `tests/regression/data/v2.4.5.json` (the same bytes as `reference/v2.4.5.json`), the single tolerance policy of the review (README 7.5) is in `lib/regress_frozen.py` (`PCBT_FROZEN_EXACT=1` for exact equality; the classes `bit` and `moved` are information only), the 2 mm set with the times to 63 % runs in the battery (about 20 s) and `PCBT_FROZEN_CELLS=2,1,0.5` in the release procedure. The expected-shift table of 2.4.5 is kept as `reference/expected_shifts_2.4.5.json`. The text below is the original proposal; where it differs (tolerance for the `bit` class, `PCBT_FROZEN_BIT_TOL`), this paragraph holds. The refreeze procedure is also in CLAUDE.md ("Branches and Versions").
 
-Original proposal; nothing here touches the program. It is implemented, after the maintainer decides, on a `feature/` or `fix/` branch off `develop` (CLAUDE.md, "Adoption").
+Original proposal; nothing here touches the program. It is implemented, after the maintainer decides, on a `feature/` or `fix/` branch off `development` (CLAUDE.md, "Adoption").
 
 ## 1. What changes and what does not
 

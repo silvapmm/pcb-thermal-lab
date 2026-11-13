@@ -260,7 +260,7 @@ def test_recitation_everywhere_ends_as_failed_with_a_note(tmp_path):
 
 def test_fallback_model_after_refused_crops(tmp_path):
     rec = Result("", "RECITATION", recitation=True)
-    p = FakeProvider([rec, rec, rec, Result("from fallback")])
+    p = FakeProvider([rec] * 6 + [Result("from fallback")])      # full, two halves, three strips
     p.name = "gemini"                                              # take the fallbacks of data/models.json
     o = runner(tmp_path, p).run_page(PDF, 2)
     assert o.status == "ok" and o.text == "from fallback" and p.calls[-1][1] == config.models()["gemini"]["fallbacks"][0]
@@ -609,14 +609,16 @@ def test_verify_page_forbids_scripts_and_remote_content(tmp_path):
 
 
 def test_an_oversized_page_is_rendered_at_a_lower_resolution(tmp_path):
-    mu = pytest.importorskip("pymupdf")
+    pdfium = pytest.importorskip("pypdfium2")
+    pil = pytest.importorskip("PIL.Image")
+    import io
     from tools.ocr import render
-    doc = mu.open()
-    doc.new_page(width=14400, height=14400)                       # 200 x 200 inch: 1.6e9 pixels at 200 dpi
+    doc = pdfium.PdfDocument.new()
+    doc.new_page(14400, 14400)                                    # 200 x 200 inch: 1.6e9 pixels at 200 dpi
     doc.save(str(tmp_path / "big.pdf"))
     png = render.render_page(tmp_path / "big.pdf", 1)
-    pix = mu.Pixmap(png)
-    assert pix.width * pix.height <= render.MAX_PIXELS
+    width, height = pil.open(io.BytesIO(png)).size
+    assert width * height <= render.MAX_PIXELS
 
 
 def test_ocr_folder_is_ocr_and_an_old_gemini_folder_is_still_found(tmp_path):
@@ -1209,23 +1211,42 @@ def test_firstline_command_writes_a_report_and_lists_the_flagged_page(tmp_path, 
     assert main(["--papers", str(tmp_path), "firstline", "--sources", "nope"]) == 1
 
 
-def test_firstline_on_a_real_pdf_when_pymupdf_is_available(tmp_path):
+def _text_pdf(path, pages):
+    """!
+    @brief Write a born-digital PDF made on the fly with pypdfium2 (Helvetica, A4, no third-party content).
+    @param path  Output file.
+    @param pages List of pages; each is a list of (x, y_from_top, text, font size) in points (an empty list is a page without text).
+    @return None
+    """
+    import ctypes
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+    doc = pdfium.PdfDocument.new()
+    font = raw.FPDFText_LoadStandardFont(doc, b"Helvetica")
+    for items in pages:
+        page = doc.new_page(595, 842)
+        for x, y, text, size in items:
+            obj = raw.FPDFPageObj_CreateTextObj(doc, font, size)
+            raw_text = (text + "\0").encode("utf-16-le")
+            arr = (ctypes.c_ushort * (len(raw_text) // 2)).from_buffer_copy(raw_text)
+            raw.FPDFText_SetText(obj, ctypes.cast(arr, ctypes.POINTER(ctypes.c_ushort)))
+            raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, 842 - y)
+            raw.FPDFPage_InsertObject(page, obj)
+        page.gen_content()
+    doc.save(str(path))
+
+
+def test_firstline_on_a_real_pdf_when_pdfium_is_available(tmp_path):
     """!
     @brief A born-digital PDF made on the fly: an invented first line is flagged; a page without text is not checkable.
     @param tmp_path pytest temporary folder.
     @return None
     """
-    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("pypdfium2")
     from tools.ocr import checks
-    doc = pymupdf.open()
-    page = doc.new_page()
-    y = 72
-    for line in LAYER.splitlines():
-        page.insert_text((50, y), line[:95], fontsize=9)
-        y += 14
-    doc.new_page()                                    # no text: a scan as far as the check can tell
+    items = [(50, 72 + 14 * i, line[:95], 9) for i, line in enumerate(LAYER.splitlines())]
     (tmp_path / "pdf").mkdir()
-    doc.save(str(tmp_path / "pdf" / "R.pdf"))
+    _text_pdf(tmp_path / "pdf" / "R.pdf", [items, []])      # the second page has no text: a scan as far as the check can tell
     (tmp_path / "ocr" / "anthropic").mkdir(parents=True)
     (tmp_path / "ocr" / "anthropic" / "R_p1.md").write_text("<!-- page 1 -->\nA sentence that is not on the page at all, invented by the model\n\nThermal spreading resistance", encoding="utf-8")
     (tmp_path / "ocr" / "anthropic" / "R_p2.md").write_text("<!-- page 2 -->\nSome text for a page that is a picture\n", encoding="utf-8")
@@ -1366,13 +1387,10 @@ def test_assemble_and_map_are_reproducible(tmp_path):
     @param tmp_path pytest temporary folder.
     @return None
     """
-    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("pypdfium2")
     from tools.ocr.cli import main
     papers = _audit_library(tmp_path)
-    doc = pymupdf.open()
-    for _ in range(3):
-        doc.new_page().insert_text((50, 72), "page text " * 20, fontsize=9)
-    doc.save(str(papers / "pdf" / "X.pdf"))
+    _text_pdf(papers / "pdf" / "X.pdf", [[(50, 72, "page text " * 20, 9)] for _ in range(3)])
     outs = []
     for _ in range(2):
         assert main(["--papers", str(papers), "assemble", "X", "--root", str(tmp_path)]) == 0
@@ -1419,3 +1437,171 @@ def test_prompt_variants_are_named_and_reach_the_runner(tmp_path):
         config.variant_prompt("nope")
     a = build_parser().parse_args(["transcribe", "X", "--provider", "local", "--prompt-variant", "latex"])
     assert make_runner(a, tmp_path).prompt == config.variant_prompt("latex")
+
+
+# ---------------------------------------------------------------- printed page numbers in a pdfium text layer
+def test_headers_joined_to_the_page_number_are_read_and_ligatures_expanded():
+    assert suspects.joined_page_number("86 Chapter 2: Heat conduction\nbody text\nmore") == 86
+    assert suspects.joined_page_number("Problems 87\nbody text\nmore") == 87
+    assert suspects.joined_page_number("5.3. Moduli of a composite\u2020 77\nbody\nmore") == 77
+    assert suspects.joined_page_number("76 5. Microstructure-independent exact relations\nbody") == 76
+    assert suspects.joined_page_number("The sample has 3 holes\nin the plate\nof copper") is None   # not at an end
+    assert suspects.joined_page_number("\n".join(["a b c"] * 5)) is None
+    assert suspects.normalise_layer("e\ufb03cient \ufb01lm  x\u00ad") == "efficient film x"
+
+
+def test_printed_numbers_keep_the_offset_and_use_a_joined_number_only_when_it_agrees():
+    texts = {1: "Intro\nbody text of the page\n7\n"}                                  # own line: offset 1 - 7 = -6
+    texts[2] = "8 Chapter 2: Heat conduction\nplain body of the page\nmore body text\n"   # joined, agrees
+    texts[3] = "Figure 3 has 40 points\nplain body of the page\nand 12\n"             # joined candidate 12: disagrees
+    texts[4] = "Problems 10\nplain body of the page\nmore body text\n"                  # joined, agrees
+    texts[5] = "Other\nplain body\n11\n"
+    found = suspects.printed_numbers(texts)
+    assert suspects.page_offset(found) == -6
+    assert found[2] == 8 and found[4] == 10 and found[1] == 7
+    assert found.get(3) is None
+    # a file whose own-line numbers alone are too few to decide still gets its offset from the joined ones
+    only_joined = {p: f"{p + 20} Chapter 1: Intro\nplain body of the page\nmore body\n" for p in range(1, 6)}
+    assert suspects.page_offset(suspects.printed_numbers(only_joined)) == -20
+    # one page that agrees with itself is not an offset
+    assert suspects.printed_numbers({1: "5\nbody of the page here\nmore\n"}) == {1: 5}
+
+
+def test_a_generated_pdf_text_layer_gives_the_joined_number(tmp_path):
+    pdfium = pytest.importorskip("pypdfium2")
+    from tools.ocr import render
+    pages = []
+    for k in range(1, 4):
+        pages.append(f"BT /F1 12 Tf 72 740 Td (Chapter 2: Heat conduction {k + 40}) Tj ET\n"
+                     f"BT /F1 12 Tf 72 700 Td (Some ordinary body text of page {k}.) Tj ET")
+    objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [%s] /Count 3 >>" %
+            " ".join(f"{4 + 2 * i} 0 R" for i in range(3)), "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    for i, c in enumerate(pages):
+        objs.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {5 + 2 * i} 0 R "
+                    f"/Resources << /Font << /F1 3 0 R >> >> >>")
+        objs.append(f"<< /Length {len(c)} >>\nstream\n{c}\nendstream")
+    out, offs = b"%PDF-1.4\n", []
+    for n, o in enumerate(objs, 1):
+        offs.append(len(out))
+        out += f"{n} 0 obj\n{o}\nendobj\n".encode()
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    out += "".join(f"{o:010d} 00000 n \n" for o in offs).encode()
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    pdf = tmp_path / "gen.pdf"
+    pdf.write_bytes(out)
+    texts = dict(enumerate(render.page_texts(pdf), 1))
+    assert suspects.printed_numbers(texts) == {1: 41, 2: 42, 3: 43}
+    assert suspects.page_offset(suspects.printed_numbers(texts)) == -40
+
+
+def test_local_output_guard_flags_a_runaway_and_a_too_long_page():
+    from tools.ocr.providers.local import check_output
+    good = "\n\n".join(f"Line {i} of an ordinary page with some words." for i in range(60))
+    assert check_output(good) is None
+    # The ovis loop: hundreds of identical lines separated by blank lines.
+    assert "repeated" in check_output(good + "\n\n" + "\n\n".join(["1"] * 200))
+    # A few repeated lines (a table rule) stay below the limit.
+    assert check_output("\n".join(["---"] * 8)) is None
+    # Far too long for the expected length, without any repetition.
+    long = " ".join(f"w{i}" for i in range(4000))
+    assert "expected" in check_output(long)
+    assert check_output(long, expected_chars=len(long)) is None
+    assert check_output(long, expected_chars=len(long) // 2) is not None
+
+
+def test_local_provider_falls_back_when_the_first_output_fails_the_guard(monkeypatch):
+    from tools.ocr import config
+    assert config.models()["local"]["fallbacks"] == ["unlimited"]
+    p = LocalProvider(folder="/x")
+    calls = []
+
+    def fake(image, model):
+        calls.append(model)
+        return Result(text="\n\n".join(["1"] * 50) if model == "ovis" else "Fine page text.", model=model, seconds=0.0)
+    monkeypatch.setattr(p, "_convert", fake)
+    res = p.transcribe(b"", "", {})
+    assert calls == ["ovis", "unlimited"] and res.text == "Fine page text."
+    # A forced model is tried alone and its refusal is raised, retryable.
+    calls.clear()
+    with pytest.raises(ProviderError) as e:
+        p.transcribe(b"", "", {"model": "ovis"})
+    assert calls == ["ovis"] and e.value.retryable
+    # Every model failing the guard raises too.
+    monkeypatch.setattr(p, "_convert", lambda image, model: Result(text="\n".join(["x"] * 30), model=model, seconds=0.0))
+    with pytest.raises(ProviderError):
+        p.transcribe(b"", "", {})
+
+
+# ---------------------------------------------------------------- refusal retry: three strips joined at the overlap
+def test_merge_strips_drops_the_overlap_and_keeps_every_line():
+    """!
+    @brief Three strips whose neighbours repeat the lines of the overlap (one cut line partial) join into the page once.
+    @return None
+    """
+    from tools.ocr.pipeline import merge_strips
+    lines = [f"line {i} of the page has these words in it number {i * 7}" for i in range(12)]
+    a = "\n".join(lines[0:5] + ["line 5 of the page has"])            # cut line, partial
+    b = "\n".join(lines[4:9])
+    c = "\n".join(lines[7:12])
+    out = merge_strips([a, b, c])
+    for ln in lines:
+        assert out.count(ln) == 1, ln
+    assert "strip seam" not in out
+
+
+def test_merge_strips_marks_a_seam_without_overlap():
+    """!
+    @brief Two strips with no common lines are joined with a visible comment, nothing is dropped.
+    @return None
+    """
+    from tools.ocr.pipeline import merge_strips
+    out = merge_strips(["alpha beta gamma delta epsilon zeta", "one two three four five six seven"])
+    assert "strip seam" in out and "alpha" in out and "seven" in out
+
+
+def test_refusal_retry_tries_three_strips_after_the_halves(tmp_path):
+    """!
+    @brief With `strips`, a page refused whole and as halves is read as three strips; without it the page stays refused.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    refused = lambda: Result("", "RECITATION", recitation=True)       # noqa: E731
+    answers = [refused(), refused(), refused(),
+               Result("one two three four five six seven"), Result("three four five six seven eight nine ten eleven"),
+               Result("seven eight nine ten eleven twelve thirteen")]
+    p = FakeProvider(answers)
+    o = runner(tmp_path, p).run_page(PDF, 2)
+    assert o.status == "ok" and o.note == "strips" and len(p.calls) == 6
+    assert "one two three four five six seven eight nine ten eleven twelve thirteen" in " ".join(o.text.split())
+    clips = [c[0].decode() for c in p.calls[3:]]
+    assert "0.4" in clips[0] and "0.3" in clips[1] and "0.7" in clips[1] and "0.6" in clips[2]
+    p2 = FakeProvider([refused(), refused(), refused()])
+    assert runner(tmp_path / "off", p2, strips=False).run_page(PDF, 2).status == "failed" and len(p2.calls) == 3
+
+
+def test_ladder_order_is_full_halves_strips_then_fallback_model(tmp_path):
+    """!
+    @brief The default ladder tries the full page, two halves, three strips and only then the fallback model.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    ref = lambda: Result("", "RECITATION", recitation=True)       # noqa: E731
+    p = FakeProvider([ref()] * 6 + [Result("fallback text")])
+    r = runner(tmp_path, p)
+    r.fallbacks = ["alt-model"]
+    o = r.run_page(PDF, 4)
+    assert o.status == "ok" and len(p.calls) == 7 and p.calls[6][1] == "alt-model" and all(c[1] != "alt-model" for c in p.calls[:6])
+
+
+def test_cli_refusal_retry_flags():
+    """!
+    @brief The strips step is on by default; `--no-refusal-retry` turns it off and `--refusal-retry` is still accepted.
+    @return None
+    """
+    from tools.ocr import cli
+    ps = cli.build_parser()
+    base = ["transcribe", "X"]
+    assert ps.parse_args(base).refusal_retry is True
+    assert ps.parse_args(base + ["--no-refusal-retry"]).refusal_retry is False
+    assert ps.parse_args(base + ["--refusal-retry"]).refusal_retry is True

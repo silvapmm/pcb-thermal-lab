@@ -133,6 +133,8 @@ class _CommaToPoint(QObject):
         return True
 
 
+# Colour token of each kind of hole, shared by the import preview and the editor: a via, a component hole (plated above the via limit) and a non-plated hole or slot
+HOLE_TONE = {"via": "via", "component": "warn", "nonplated": "muted"}
 _COMMA_FILTER = None    # The single event filter installed by fix_number_locale
 
 
@@ -427,7 +429,7 @@ def _display_icons(p, s, kind, c):
 def tool_icon(kind, theme="dark", size=22):
     """!
     @brief Painted icon of a tool or action.
-    @param kind select, zone, heater, heatsink, via, outline, run, fit, grid, solver_grid, overlay, polygon, map (thermometer over a grid), display (layers with a heat
+    @param kind select, zone, heater, heatsink, via, outline, run, stop, fit, grid, solver_grid, overlay, polygon, map (thermometer over a grid), display (layers with a heat
            gradient) or display_dot (the same with the dot of an active underlay).
     @param theme "dark" or "light" (stroke colour follows it).
     @param size Edge in pixels.
@@ -483,6 +485,10 @@ def tool_icon(kind, theme="dark", size=22):
             p.setBrush(QColor(c["run"]))
             p.setPen(Qt.NoPen)
             p.drawPolygon(QPolygonF([QPointF(s * .30, s * .2), QPointF(s * .30, s * .8), QPointF(s * .80, s * .5)]))
+        elif kind == "stop":
+            p.setBrush(QColor(c["bad"]))
+            p.setPen(Qt.NoPen)
+            p.drawRoundedRect(QRectF(s * .27, s * .27, s * .46, s * .46), s * .06, s * .06)
         elif kind == "fit":
             for sx, sy in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
                 cx, cy = s / 2 + sx * s * .3, s / 2 + sy * s * .3

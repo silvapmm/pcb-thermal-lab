@@ -46,6 +46,7 @@ class CheckWarning(str):
     kind = None
     index = None
     short = None                                   # One-line form of the text for the live list; None when the text is already one line
+    severity = None                                # "alert" or "note", set where the warning is created (see warn); None for a plain string
 
 
 def line(w):
@@ -57,7 +58,85 @@ def line(w):
     return getattr(w, "short", None) or str(w)
 
 
-def _add(out, kind, index, text, short=None):
+ALERT = "alert"                                  # Severity: the run is refused or wrong, a part heats nothing, a loop fails, the input is wrong
+NOTE = "note"                                    # Severity: everything else (a limit of a model, a coarse cell, a measured error)
+TITLE_MAX = 64                                   # Characters of a warning title (the accordion row of the interface)
+TITLE_COLON_WORDS = 7                            # A colon ends the title only after a first clause of this many words ("Analytic model:", "Via 3 and 1 more vias:" are prefixes)
+# The fallback for a plain string (the warnings of the models and of the runs, which have no field): only the words of a failure, as in the definition of ALERT.
+# Words of a measured error ("too hot", "unsafe", "unreliable", "wrong") are not in it: a note that quotes "9 % too hot" against a reference is still a note.
+_SEVERE_WORDS = ("will not run", "cannot", "refus", "not run", "did not converge", "did not settle", "did not reach", "heats nothing", "runaway")
+
+
+def warning_title(w):
+    """!
+    @brief A short clean title for a warning (the closed row of the accordion): its first clause, at most TITLE_MAX characters, with a capital first letter.
+    @details The checks return plain sentences, so this is a classifier on the text and not a stored field: the first clause ends at the first semicolon, at
+             the first full stop, at a parenthesis after the first 20 characters, or at a colon that closes a first clause of at least TITLE_COLON_WORDS
+             words (four words for a clause that follows a prefix), whichever comes first. A shorter text before a colon is a prefix (a part name "U1:", a model "Analytic model:", "lumped:", "Via 3 and 1 more
+             vias:") and stays in the title with the clause that follows it (the review found titles that were only "Analytic model" or "Lumped and Analytic").
+    @param w A warning (CheckWarning or plain string).
+    @return str The title, without a final full stop.
+    """
+    text = " ".join(line(w).split())
+    cuts = [len(text)]
+    for token, minimum in ((";", 0), (". ", 0), (" (", 20)):
+        at = text.find(token, minimum)
+        if at > 0:
+            cuts.append(at)
+    at, start = text.find(": "), 0
+    while 0 < at < min(cuts):                    # The first colon that closes a whole clause (not a prefix) ends the title
+        # A first clause needs TITLE_COLON_WORDS words; a clause after a prefix ("lumped: the board has an outline:") needs four
+        if len(text[start:at].split()) >= (TITLE_COLON_WORDS if start == 0 else 4):
+            cuts.append(at)
+            break
+        start, at = at + 2, text.find(": ", at + 2)
+    title = text[:min(cuts)].rstrip(" .,;:")
+    if len(title) > TITLE_MAX:
+        title = title[:TITLE_MAX].rsplit(" ", 1)[0].rstrip(" .,;:") + "…"
+    title = title or text[:TITLE_MAX]
+    return title[:1].upper() + title[1:]
+
+
+def warning_severity(w):
+    """!
+    @brief The severity of a warning for the interface: "alert" when the model will not run or cannot, a part is outside the board or heats nothing, a loop does
+           not converge, the power runs away or the input is wrong; otherwise "note".
+    @details The severity is a field set where the warning is created (warn, _add). Only a plain string, which has none, falls back on a search for the words
+             of _SEVERE_WORDS in its text (the words of a failure only: a run not done or refused, a loop that did not converge, settle or reach its
+             tolerance, a runaway; the review removed the words of a measured error, which turned model notes such as the Analytic copper-spread note,
+             quoting '9 % too hot', and the coarse-cell notes of imported copper into alerts).
+    @param w A warning (CheckWarning or plain string).
+    @return str "alert" or "note".
+    """
+    explicit = getattr(w, "severity", None)
+    if explicit in (ALERT, NOTE):
+        return explicit
+    text = str(w).lower()
+    return ALERT if any(word in text for word in _SEVERE_WORDS) else NOTE
+
+
+def warn(text, severity=NOTE, kind=None, index=None, short=None):
+    """!
+    @brief Make a warning with its severity (the one place where a warning gets it).
+    @param text Full warning text.
+    @param severity ALERT or NOTE.
+    @param kind Element kind ("zone", "heater", "heatsink" or "via"), or None for a warning about the whole design.
+    @param index 0-based index of the element in its list, or None.
+    @param short One-line form for the live list (None: the full text is already short).
+    @return CheckWarning (a str that carries kind, index, short and severity).
+    @throws ValueError If the severity is neither ALERT nor NOTE.
+    """
+    if severity not in (ALERT, NOTE):
+        raise ValueError(f"unknown warning severity {severity!r}")
+    w = CheckWarning(text)
+    w.severity = severity
+    w.kind = kind
+    w.index = index
+    w.short = short
+    return w
+
+
+def _add(out, kind, index, text, short=None, severity=NOTE):
     """!
     @brief Append a warning to a list, tagged with the element it is about.
     @param out List of warnings being built.
@@ -65,12 +144,9 @@ def _add(out, kind, index, text, short=None):
     @param index 0-based index of the element in its list, or None.
     @param text Full warning text (what the Results summary shows and the tooltip of the live list).
     @param short One-line form for the live list under Run (None: the full text is already short).
+    @param severity ALERT or NOTE (default NOTE).
     """
-    w = CheckWarning(text)
-    w.short = short
-    w.kind = kind
-    w.index = index
-    out.append(w)
+    out.append(warn(text, severity, kind, index, short))
 
 
 def check_problem(problem, cell_mm=1.0, models=None):
@@ -95,7 +171,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         imported_layers = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
     except ValueError as exc:
         # Damaged or mismatched imported copper: every run would refuse it, so say why here and check the rest on the drawn zones
-        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).")
+        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).", ALERT)
         fill = copper.problem_fill(problem, nx, ny, dx, dy, 4, source=False)
         imported_layers = set()
 
@@ -111,7 +187,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
                  f"{name}: a heat source ignores {', '.join(ignored)}.")
         area = polygon_area(h.polygon)
         if area <= 0:
-            _add(out, "heater", k, f"{name}: the footprint has zero area.")
+            _add(out, "heater", k, f"{name}: the footprint has zero area.", severity=ALERT)
             heater_poly.append(None)
             continue
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
@@ -122,7 +198,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         if inside <= 0.0:
             # Nothing of the part is on the board: there is no "part that is inside" to take the power
             _add(out, "heater", k, f"{name}: the whole footprint is outside the board, so the part heats nothing; move it onto the board.",
-                 f"{name}: the footprint is entirely outside the board.")
+                 f"{name}: the footprint is entirely outside the board.", ALERT)
         elif inside < 0.98:
             _add(out, "heater", k, f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
                        "is applied to the part that is inside.", f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board.")
@@ -264,7 +340,7 @@ def _outline_warning(text):
     @return CheckWarning tagged with no element.
     """
     out = []
-    _add(out, None, None, text, "The board outline is too complex for this cell (see the details).")
+    _add(out, None, None, text, "The board outline is too complex for this cell (see the details).", ALERT)
     return out[0]
 
 
@@ -404,8 +480,8 @@ def _lumped_via_cases(polygon, vx, vy, inside, groups, d_nn):
     @param d_nn Nearest-neighbour distance of every via in m, from _board_via_groups.
     @return Tuple (across, off_centre, elongated) of bool; all False when no group qualifies.
     @note The reach of the "across" case: a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of the
-          group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone joins any via to its
-          nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group that "crossed" the edge.
+          group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage of the program used to join any via to its
+          nearest neighbour, however far (it now needs each via inside the reach of the other), so a few vias scattered over a board chained every centred thermal array into a group that "crossed" the edge; the reach test is kept.
     """
     poly = np.asarray(polygon, dtype=float)
     side_x, side_y = np.ptp(poly[:, 0]), np.ptp(poly[:, 1])
@@ -452,8 +528,8 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     @return str or None.
     @note The sides are those of the bounding box of the footprint; the thresholds are the zone model's and were not optimised for the program.
           The reach of (i): a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of
-          the group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone
-          joins any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
+          the group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage of the program
+          (before 2.7.0) joined any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
           that "crossed" the edge, and the warning fired on nearly every part of a board with scattered vias (review of fix/lumped-via-warning-limits).
     """
     if not any(_lumped_via_cases(polygon, vx, vy, inside, groups, d_nn)):
@@ -618,7 +694,7 @@ def check_lumped_near_edge(problem, models):
     """!
     @brief Warning, for the Lumped model only, about heat sources close to a side or a corner of the board (one aggregated line).
     @details The ring network of a part sees neither the mirror image of an insulated side nor the radial flux that the side pushes away, so the hottest temperature of a part near
-             a side or a corner reads too cool: -6.6 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
+             a side or a corner reads too cool: -7.4 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
              40 x 40 and 100 x 80 mm) against the FVM at 0.5 mm, -8.2 % on average over the 120 of them that the rule flags (-3.3 % over the other 60), and -8.3 % over the 59
              flagged of 120 random boards (-3.6 % over the other 61). These were measured with the capped first ring of the 2.6.0 integration; on develop at 2.5.2
              (without it) the same cases read -9.4 % (sweep, flagged) and -8.5 % (random, flagged), and the rule catches 68 of the 86 sweep cases beyond -8 % (16 of the 18 missed
@@ -980,13 +1056,13 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
     @brief Warnings for a small part over a thick insulating layer: the layered FVM/FDM laminate rule reads it too cool and the 3D solid, with its slabs of at most 0.2 mm, still a little too hot (text only).
     @details Measured against an extrapolated 3D reference and, on bare laminate, the closed form of Muzychka, Yovanovich and Culham (research/paper-case-studies 11.3, 16.3, 16.4;
              FVM at 0.25 mm). Layered rule, error against the ratio of the sub-gap s = d / n to the side of the part (always too cool, only where the gap is cut under the part):
-             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad; the review measured the part's rise in air
+             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad (FVM; the FDM at 0.25 mm, harmonic mean, -7 to -10 % and -14 to -20 % at 0.15 to 0.2, -19 % and -26 % at 0.4); the review measured the part's rise in air
              (20 mm two-layer board, h 10 / 15 W/m2K, against the FVM extrapolated in its sub-gaps): bare -3.4 % at 0.14, -4.1 to -4.3 % at 0.16, pad -4.3 to -4.8 % at 0.08 to 0.09,
              -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14, so the limit over copper is 0.10. A pad larger than the part counts by its own size; a plane under the part is silent.
              With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
              A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
              The 3D solid cuts every gap into ceil(d / 0.2 mm) slabs, 4 to 16 (before: a fixed four, which read a 2 mm part +20 % bare and +27 % pad hot on 3.2 mm and +5.5 and +14.7 % on 1.6 mm);
-             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-2-6 5.1),
+             with them the same 2 mm part reads +3.9 % bare and +7.9 % pad hot on 3.2 mm (16 slabs) and +4.1 and +9.0 % on 1.6 mm (8 slabs), at a 0.25 mm cell (research/laminate-slabs-and-local-rule 5.1),
              of which about +2 to +2.6 % are the slabs and the rest the plan cell (+7 to +16 % in all at 0.5 mm, +17 to +30 % at 1 mm; review). The test is d / n against 0.15 of the side
              (the slabs alone +3 to +4 % there), so it fires only for parts under about 1.3 mm; the cell is the warning of check_problem (a part under three cells). No result depends on it.
     @param problem A Problem (structurally valid).
@@ -1006,9 +1082,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
         limit = min(f[5] for f in group)
         if model == "layered":
             s_max, n_max = laminate.parameters()
-            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller {laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) "
+            what = (f"the layered FVM reads them too cool (4 to 24 % of the thermal resistance, more over a pad) and the FDM more (7 to 26 %); a smaller {laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) "
                     f"or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
-            short_what = f"the FVM and FDM read them too cool (4 to 24 %); reduce {laminate_where('sub-gap')}"
+            short_what = f"the FVM reads them too cool (4 to 24 %), the FDM 7 to 26 %; reduce {laminate_where('sub-gap')}"
         else:
             what = ("the 3D solid, with slabs of at most 0.2 mm per insulating layer, reads them too hot: its slabs alone add about +3 to +4 % at a ratio of 0.15 and +5 to +6 % at 0.2 "
                     "(a 1 mm part), and a part only a few cells wide adds the error of the plan cell")
@@ -1024,11 +1100,11 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
             s_max, n_max = laminate.parameters()
             over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
             _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
-                       f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
-                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller "
+                       f"above {limit:.2f}); the layered FVM reads it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1); the FDM reads more (-7 to -10 % bare, -14 to -20 % over a pad at 0.15 to 0.2, 0.25 mm cell, more at a coarser one). A smaller "
                        f"{laminate_where('sub-gap')} (now {num(s_max * 1e3, 2)} mm) or a larger {laminate_where('sub-gaps')} (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
                        "The 3D solid, with its slabs of at most 0.2 mm per insulating layer, reads such a part a few per cent too hot instead (a 2 mm part about +4 % bare and +8 to +9 % over a pad at a 0.25 mm cell, more at a coarser cell).",
-                 f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
+                 f"{name}: small part over a thick laminate; the FVM reads it too cool (ratio {ratio:.2f}, about 4 to 24 %), the FDM 7 to 26 %; "
                  f"reduce {laminate_where('sub-gap')}.")
         else:
             _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
@@ -1049,8 +1125,13 @@ def check_edge_laminate(problem, models):
     @details Along the edge the gap is cut into sub-gaps in a band (laminate.edge_band), so the edge film acts on the laminate nodes. What remains is the 1 / n error of the sub-gaps, which
              grows with the edge coefficient (research/laminate-edge-band 11.2, 11.5, against a converged 3D reference, 2-layer 30 x 20 mm boards, 3.2 mm, cell 0.25 mm): with four sub-gaps
              about -2.4 % at 200 W/m2K, -5.5 % at 500 and -16 % at 2000, with eight -2 % at 500 and with sixteen -2.8 % at 2000 W/m2K. On a thin board (0.8 mm) at 2000 W/m2K with a cell larger than the
-             gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). It needs two or more copper layers, an edge coefficient above
-             EDGE_LAMINATE_H, the layered FVM or FDM and a gap that the rule cuts.
+             gap and eight sub-gaps the FVM reads 7 % too hot instead (the half cell of the edge film is larger than the gap). On a 1.6 mm four-layer board (gaps of 0.49 mm, two sub-gaps by
+             default; research/strong-edge-laminate 8, cell 0.25 mm, against an independent hexahedral finite-element solution, a different METHOD from the program, which agrees with the
+             cell-centred 3D references of those studies only to 0.3 to 1.7 % (they read hot, first order in the cell)) with the physical slabs: -0.4 / -1.4 / -3.4 / -6.2 % at 200 / 500 / 1000 / 2000 W/m2K;
+             eight sub-gaps read HOT at a 0.25 mm cell, +0.6 / +1.6 / +2.2 / +2.6 % (the half-cell film of a cell wider than the sub-gap; at 0.5 mm up to +6 %), so the default
+             and eight sub-gaps at a finer cell bracket the truth; the effect of a via 0.16 mm from the edge -2.9 % at 200 and -12.3 % at 1000 (-0.7 / +0.5 % with eight), a via 3 mm from the edge
+             -2.3 / -8.3 % (-0.3 / +2.4 % with eight). The simple stack-up takes the same physical slabs as the advanced one, so the text has no clause for it. It needs two or more copper layers, an edge coefficient above EDGE_LAMINATE_H, the layered FVM or
+             FDM and a gap that the rule cuts; with no gap cut (all under the longest sub-gap) the text is the thin-laminate one (_edge_laminate_uncut).
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @return List with at most one warning (CheckWarning, about the whole design).
@@ -1060,15 +1141,51 @@ def check_edge_laminate(problem, models):
         return []
     s_max, n_max = laminate.parameters()
     if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
-        return []                                               # no gap is cut: nothing to resolve
+        # No gap is cut (every gap is under the longest sub-gap, as on 6 layers in 1.6 mm): the laminate along the edge is one node per gap, which is the coarsest case
+        return _edge_laminate_uncut(b, s_max)
     out = []
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
-         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
-         "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen). A larger "
-         f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce it; on a board of 1 mm or less with a cell larger than the gap, many sub-gaps can over-correct "
-         "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps). A board in air has an edge coefficient of 5 to 50 W/m2K, where the error is within 3 %.",
-         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-5.5 % at 500, -16 % at 2000 W/m2K); raise {laminate_where('sub-gaps')} and refine the cell.")
+         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
+         "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps, against an independent finite-element solution "
+         "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.4 % at 1000 and -6.2 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
+         "and reads lower still, so the via helps more than shown: on that board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, a via 3 mm from the edge -2 % at 200 and "
+         "-8 % at 1000. More sub-gaps do not simply improve it: with eight the plate reads HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, up to +6 % at 0.5 mm, because the half-cell film of "
+         "a cell wider than the sub-gap over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth. A larger "
+         f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce the cool error; with a cell larger than the gap many sub-gaps over-correct "
+         "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
+         "coefficient of 5 to 50 W/m2K, where the error is within 3 %.",
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-1 to -6 % at 200 to 2000 W/m2K on a 1.6 mm four-layer board, up to -16 % on 3.2 mm; the effect of a via "
+         f"near the edge more); refine the {cell_where()}, and take care: more {laminate_where('sub-gaps')} read hot at a coarse cell.")
+    return out
+
+
+# Edge laminate of a board whose gaps are all under the longest sub-gap (research/strong-edge-laminate, scripts/study_thin_laminate.py; docs/validation.md 44)
+def _edge_laminate_uncut(b, s_max):
+    """!
+    @brief The edge-laminate warning for a board whose laminate gaps are all thinner than the longest sub-gap, so that no gap is cut into sub-gaps.
+    @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
+             stack-up), at a 0.25 mm cell, against an independent hexahedral finite-element solution (a different METHOD from the program; the cell-centred 3D reference first used for
+             this text reads 1 to 9.5 % hot at that cell, so the old figures of -1 to -16 % were about twice the real error; a sample, not a bound): the shipped rule reads the hottest rise
+             -0.1 to -1.1 % at 200 W/m2K, -0.9 to -3.2 % at 500, -2.2 to -6.0 % at 1000 and -4.1 to -9.7 % at 2000 (pads on the outer layers up to -1.3 / -2.4 / -3.8 / -5.2 %), and eight
+             sub-gaps at the same cell read HOT, +0.7 to +1.1 / +2.0 to +2.8 / +3.5 to +5.0 / +4.9 to +7.3 % (at a 0.5 mm cell +2 to +14 %; at 0.125 mm +0.2 to +2.7 %): the default at
+             0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
+    @param b The Board.
+    @param s_max Longest sub-gap in m (laminate.parameters()).
+    @return List with the warning (CheckWarning, about the whole design).
+    """
+    out = []
+    _add(out, None, None,
+         f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K and every laminate gap of this board is under the longest sub-gap ({num(s_max * 1e3, 2)} mm), "
+         "so no gap is cut and the laminate along the board edge is one node per gap: the layered FVM and FDM may read the board too cool. Measured on 10 x 10 mm boards of 4 to 8 layers "
+         "and 1.0 to 1.6 mm, at a 0.25 mm cell, against an independent finite-element solution: about -0.1 to -1 % of the rise at 200 W/m2K, -1 to -3 % at 500, -2 to -6 % at 1000 and "
+         "-4 to -10 % at 2000 (a sample, not a bound). The finite-element solution is a different method from the program; "
+         "the cell-centred 3D solver used before reads 1 to 9.5 % hot at that cell, which is why earlier texts quoted about twice these errors. "
+         "Eight sub-gaps are not better at this cell: they read HOT, +1 % at 200 to +7 % at 2000 W/m2K at a 0.25 mm cell (the half-cell film of a cell wider than the sub-gap), so the default at 0.25 mm and eight sub-gaps at 0.125 mm "
+         "bracket the truth; a gap of d mm gets eight from a "
+         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still.",
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K and no laminate gap cut (all under {num(s_max * 1e3, 2)} mm): the FVM and FDM may read too cool (about -1 to -3 % at 500, "
+         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so refine the {cell_where()} first.")
     return out
 
 
@@ -1191,9 +1308,9 @@ def check_thick_plates(problem, rows, result=None):
         for what, t, k, q, note in plates:
             drop = thick_plate_bound(q, 1.0, t, k)
             if drop > THICK_PLATE_LIMIT * rise:
-                out.append(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
+                out.append(warn(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K){note}; the models "
-                           "keep one temperature through the thickness. The value is a bound, not added to the results.")
+                           "keep one temperature through the thickness. The value is a bound, not added to the results."))
     return out
 
 
@@ -1299,10 +1416,10 @@ def check_fin_channels(problem, result=None):
                          "the effect is not otherwise quantified.")
             else:
                 where = "Fins down on a horizontal board: the effect is not quantified (no measurement was found)."
-            out.append(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
+            out.append(warn(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
                        f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {loss_text} than a plate of the same height "
                        f"({phi:.2f} of its coefficient), and the model does not slow it. Use a larger pitch, shorter channels, or the datasheet theta_SA. "
-                       + where)
+                       + where))
     return out
 
 
@@ -1334,10 +1451,10 @@ def check_low_rayleigh(board, info):
     ras = [info[f]["rayleigh"] for f in ("top", "bottom") if info[f]["natural"] > info[f]["forced"]]
     if not ras or min(ras) >= LOW_RAYLEIGH_LIMIT:
         return []
-    return [f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
+    return [warn(f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
             "the face is too small or too little heated for a thin boundary layer, and the natural-convection coefficient is not checked there "
             "(the plate correlation does not count the air drawn in at the sides; the general and laminar forms differ by 4 to 6 %); treat the "
-            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients"]
+            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients")]
 
 
 # Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
@@ -1429,8 +1546,8 @@ def partial_copper_vias(problem, cell_mm):
              (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
              further; this check keeps the plain footprint.
              Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
-             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 15 to 85 % low at a copper corner or a track end (FVM and FDM, cells of 1 to 0.25 mm)
-             (31 to 68 % before the rim rule of viawell.build), and for a via just outside a copper edge lost (drawn copper) or, on imported copper, 3 to 4 times high at 0.5 mm or coarser.
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 22 to 85 % low (FVM) or 0 to 76 % (FDM) at a copper corner or a track end (cells of 1 to 0.25 mm)
+             (31 to 68 % before the rim rule of viawell.build), and for a via just outside a copper edge lost (drawn copper, and imported copper since the mask ray test of viawell).
     @param problem The Problem.
     @param cell_mm Cell size in mm.
     @return Tuple (partial, n_checked): partial is a list of (via index, layer index, ratio of the smallest to the largest sheet conductance), one entry per via
@@ -1510,9 +1627,10 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
     @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
-             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 15 to 85 % low (FVM and FDM, cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
+             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 22 to 85 % low in the FVM and 0 to 76 % in the FDM (cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
              up to 11 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
-             1.2 K or 1.4 % of the rise too hot; on imported copper the rim is not tested and the old 3 to 4 times high at 0.5 mm or coarser remains), and the cold spot below the
+             1.2 K or 1.4 % of the rise too hot; on imported copper the rim is read by the mask ray test, so a pad island just outside an imported copper edge is uncoupled too: its effect, 0.5 to 2.6 K in an independent 3D reference
+             for islands 0.75 to 0.15 mm from the plane, is lost, at most 0.5 % of the rise too hot; the full contact before the ray test read it 1.5 to 5 times high, FVM and FDM, 1 to 0.25 mm), and the cold spot below the
              barrel is a numerical artefact of the fixed footprint weights.
     @param problem The Problem.
     @param models Model keys that will run (the warning applies to "fvm" and "fdm").
@@ -1538,29 +1656,32 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
          f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower. A via at the corner of a copper region or at the end of a track "
-         "is not solved: its effect reads 15 to 85 % low and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
-         "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper that contact is not tested, and there the effect can read "
-         "3 to 4 times high at a cell of 0.5 mm or coarser. The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
+         "is not solved: its effect reads 22 to 85 % low in the FVM, 0 to 76 % in the FDM, and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
+         "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper the contact is read from the masks (a ray test), so a via whose pad is an island just outside an edge of imported copper is not connected "
+         "either and loses its effect (at most 2.6 K, 0.5 % of the rise, too hot on the board measured, where the old full contact read it 1.5 to 5 times high). The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
          "(higher or lower); use a finer cell (" + cell_where() + ") or the 3D solid.")
     return out
 
 
-def uncoupled_vias(problem):
+def uncoupled_vias(problem, drawn_only=False):
     """!
     @brief The vias whose drill rim touches no copper and no part on a layer (the rim rule of viawell), with those layers.
-    @param problem The Problem (imported copper counts as full contact, as in viawell).
+    @param problem The Problem (imported layers are read from their masks by the ray test of viawell, as the models do).
+    @param drawn_only True: leave out the layers with an imported mask (a via in a clearance of the Gerber copper is a signal via through a plane, not a pad the user forgot).
     @return List of (via index, list of 0-based layer indices), only the vias with at least one such layer and board under the drill disc.
     """
     b = problem.board
     if not problem.vias or b.layers < 2:
         return []                                               # A one-layer board has no gap: its vias join nothing
-    zone_index = viawell._zone_index(problem, b.layers)
+    masks = viawell.rim_masks(problem)                          # imported copper: the same ray test on the masks as the models
+    zone_index = viawell._zone_index(problem, b.layers, masks)
     out = []
     for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
         if share <= 0.0:
             continue                                            # Ignored by every model
-        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index)) if f <= 0.0]
+        layers = [l for l, f in enumerate(viawell.rim_copper_shares(problem, v, b.layers, zone_index, masks)) if f <= 0.0
+                  and not (drawn_only and masks is not None and l in masks.rasters)]
         if layers:
             out.append((k, layers))
     return out
@@ -1581,7 +1702,9 @@ def _layers_text(layers):
 def check_via_uncoupled(problem, models):
     """!
     @brief Warning for the vias that touch no copper on a layer and are therefore not connected to it (FVM and FDM): one aggregated message naming up to three.
-    @details The safe-side explanation (the effect is lost, the part reads too hot) is in the partial-copper warning, not repeated here.
+    @details The safe-side explanation (the effect is lost, the part reads too hot) is in the partial-copper warning, not repeated here. Only drawn layers are named:
+             on an imported layer a via without contact sits in a clearance of the Gerber copper (a signal via through a plane, 925 of 1000 vias of a real four-layer board
+             on some layer), which is the board as designed and not something to draw, so the advice 'draw its pad or plane' would be wrong there.
     @param problem The Problem.
     @param models Model keys that will run (the warning applies to "fvm" and "fdm").
     @return List of warning strings (empty or one message).
@@ -1589,7 +1712,7 @@ def check_via_uncoupled(problem, models):
     out = []
     if not any(m in ("fvm", "fdm") for m in models):
         return out
-    found = uncoupled_vias(problem)
+    found = uncoupled_vias(problem, drawn_only=True)            # imported layers: the clearance is the design, nothing to draw
     if not found:
         return out
     names = [(problem.vias[k].name or f"Via {k + 1}", layers) for k, layers in found]

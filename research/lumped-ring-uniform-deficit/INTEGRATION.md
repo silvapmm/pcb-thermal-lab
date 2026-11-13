@@ -1,6 +1,6 @@
 # Integration: a first ring that does not grow with the board
 
-Status: a proposal for 2.6.0 (`fix/lumped-first-ring`), measured on a copy (`lib/lumped_log.py`, and the change exactly as written below in `lib/patch_program.py`); nothing of `pcbthermal/` was edited. **Reviewed (README 11): go**, with the limits of section 5 stated in the documents.
+Status (audit 2.7.0): **implemented in 2.6.0** as written here (`fix/lumped-first-ring`: `lumped.ring_edges(..., a_eq=)`, `lumped._equivalent_radius`; `docs/theory.md` 5, `docs/validation.md` 31; the near-edge item went to `research/lumped-near-edge`, whose warning and small-part raster are also in 2.6.0). Originally: a proposal for 2.6.0 (`fix/lumped-first-ring`), measured on a copy (`lib/lumped_log.py`, and the change exactly as written below in `lib/patch_program.py`); nothing of `pcbthermal/` was edited. **Reviewed (README 11): go**, with the limits of section 5 stated in the documents.
 
 ## 1. The change
 

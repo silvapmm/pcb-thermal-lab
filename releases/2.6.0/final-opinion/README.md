@@ -41,16 +41,16 @@ The Lumped model near a side or corner; a small part in the Lumped that is not r
 
 ## 2. Does the research need code? Verdict per investigation
 
-Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed in 2.6.1 or beyond (reason, evidence); **none** no code needed (the program as it is answers it); **dropped**; **earlier** implemented before 2.6.0, nothing new.
+Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed in 2.7.0 or beyond (reason, evidence); **none** no code needed (the program as it is answers it); **dropped**; **earlier** implemented before 2.6.0, nothing new.
 
 | Folder | Verdict | Where / why |
 | :-- | :-- | :-- |
-| `cut-cell-links/` | impl | `fvm.py` `_cut_edge_film`, `_lateral_links`, `geometry.face_apertures`; `tests/test_cut_cell_*`. Later: FDM cut cells (2.6.1 item 1), pixel mask for imported copper (item 2). |
-| `rotated-square-3d/` | impl + later | exact cover (`geometry.exact_coverage`), 3D sliver cells (`solid3d.py`, `tests/test_solid3d_sliver_cells.py`); the 1.7 K aligned-edge residual of the 3D solid and the copper edge inside the outline (2.6.1 item 3) are open. |
+| `cut-cell-links/` | impl | `fvm.py` `_cut_edge_film`, `_lateral_links`, `geometry.face_apertures`; `tests/test_cut_cell_*`. Later: FDM cut cells (2.7.0 item 1), pixel mask for imported copper (item 2). |
+| `rotated-square-3d/` | impl + later | exact cover (`geometry.exact_coverage`), 3D sliver cells (`solid3d.py`, `tests/test_solid3d_sliver_cells.py`); the 1.7 K aligned-edge residual of the 3D solid and the copper edge inside the outline (2.7.0 item 3) are open. |
 | `bochkov-robin-check/` | none | confirms the adopted film (floor 0.25 is a safety net, `fvm.EDGE_FILM_FLOOR`). |
 | `laminate-edge-band/` | impl | `laminate.edge_band`, `plan_gaps(edge=)`; `docs/validation.md` 36; tests of the band. Lumped/Analytic edge laminate: later, only warned (A29). |
-| `laminate-2-6/` | impl (C), later (A local rule) | 3D slabs by thickness (`solid3d.py`); the source-aware local rule needs the three changes of its README 7 (A18). |
-| `analytic-2-6/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `releases/2.6.0/reproduction`. |
+| `laminate-2-6 (now laminate-slabs-and-local-rule)/` | impl (C), later (A local rule) | 3D slabs by thickness (`solid3d.py`); the source-aware local rule needs the three changes of its README 7 (A18). |
+| `analytic-2-6 (now analytic-edge-and-transient)/` | impl | `analytic.py` per-layer edge, `analytic_local.py`; `tests/test_analytic_local.py`. The research tests were repaired in `releases/2.6.0/reproduction`. |
 | `analytic-edge-spatial/` | earlier (2.5.0 Robin basis) | superseded in part by the per-layer edge; test restated in `releases/2.6.0/reproduction`. |
 | `via-contact-geometry/` | impl + later | `viawell.barrel_length`, `rim_copper_shares`; `tests/test_via_barrel_and_rim.py`. Later: the sector well at a copper corner (A30). |
 | `via-partial-copper/` | impl (warning, rim rule) / dropped (star coupling) | the star coupling (C) was not adopted (maintainer); what is left is A30. |
@@ -72,7 +72,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | `bare-spot-under-source/` | later | P1 to P3 wait for the maintainer. |
 | `fin-channel/`, `fin-channel-sources/` | earlier (warning) / later | the channel correction (proposal B) waits. |
 | `horizontal-plate-h/`, `plate-h-level/`, `theory-sources/` | none / decisions | answered by the program as it is; decisions in their INTEGRATION files. |
-| `gap-subdivision/`, `laminate-nodes/`, `point-via-convergence/`, `sor-with-via-couplings/`, `young-omega-tiles/`, `zone-union/`, `via-edge-image/`, `lumped-analytic-vias/`, `lumped-via-groups/`, `lumped-zones-adoption/`, `via-real-board/`, `via-fill/`, `effective-conductivity/`, `outline/`, `stackup/`, `block-and-fins/`, `component-heatsink/`, `power-calculator/`, `solid3d-verification/`, `models-comparison/` | earlier | implemented in 2.4.x / 2.5.0; their open points are in `REVIEW.md`; `solid3d-verification` needs its tables refreshed with the slabs (2.6.1 item 5, documents only). |
+| `gap-subdivision/`, `laminate-nodes/`, `point-via-convergence/`, `sor-with-via-couplings/`, `young-omega-tiles/`, `zone-union/`, `via-edge-image/`, `lumped-analytic-vias/`, `lumped-via-groups/`, `lumped-zones-adoption/`, `via-real-board/`, `via-fill/`, `effective-conductivity/`, `outline/`, `stackup/`, `block-and-fins/`, `component-heatsink/`, `power-calculator/`, `solid3d-verification/`, `models-comparison/` | earlier | implemented in 2.4.x / 2.5.0; their open points are in `REVIEW.md`; `solid3d-verification` needs its tables refreshed with the slabs (2.7.0 item 5, documents only). |
 | `theory/` | none | documents. |
 | `releases/regression-harness/`, `releases/2.4.5/reproduction/`, `releases/2.5.0/reproduction/` | none | harness and passes; the 2.6.0 refreeze is done. |
 
@@ -81,11 +81,11 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | Decision | Measured impact | Recommendation |
 | :-- | :-- | :-- |
 | Face-down constant: 0.475 (implemented), 0.52 (Incropera, not confirmed from an open source), or wait for board D | 0.52 against 0.475 is +9.5 % on the face-down convection term only; the whole change was -0.3 to -1.4 % of the rise | **Keep 0.475** until the Incropera page is read (status M) or board D is measured; add one computed-h board to `tests/regression` so that the next change of a law moves a frozen record. |
-| Imported copper on an outline board: old links and film on the node | stated in a run note; no number measured on a real imported outline board | **Accept as a stated limit** until the pixel mask (2.6.1 item 2). |
+| Imported copper on an outline board: old links and film on the node | stated in a run note; no number measured on a real imported outline board | **Accept as a stated limit** until the pixel mask (2.7.0 item 2). |
 | Film floor 0.25 as the program's own rule; film on rectangles | the floor acts only for a node outside the board by more than S/H; rectangles moved at most 0.008 K | **Accept** (the Bochkov condition is met; it is a safety net, written as the program's rule in `docs/theory.md` 2, the cut-cell film). |
 | Analytic per-layer edge reads 5 to 10 % cool on small boards | the warning quotes the cool side | **Accept with the warning**; the common beta read 0 to +10 % on the same boards by two cancelling errors. |
 | Default mapping of imported copper (faces on the reduced sheet, open since 2.5.0) | the faces were better on every comparison with the laminate rule on | **Confirm** the default. |
-| Cost of the fine step-response cell for small parts | a 0.5 mm part on a 4-layer 100 x 80 mm board asks for 0.25 mm: guard estimate 6.9 GB, accepted ('ok' below 60 % of 16 GB); 22 s and 1.1 GB for a 2 mm part | **Cap it**: accept the finer cell only while the estimate stays under a fixed budget (for example 2 GB or 10 % of the memory) and otherwise keep the coarser cell with a line in the summary; with copper under the part the closed-form floor already covers the fast waves. A `fix/` for 2.6.1. |
+| Cost of the fine step-response cell for small parts | a 0.5 mm part on a 4-layer 100 x 80 mm board asks for 0.25 mm: guard estimate 6.9 GB, accepted ('ok' below 60 % of 16 GB); 22 s and 1.1 GB for a 2 mm part | **Cap it**: accept the finer cell only while the estimate stays under a fixed budget (for example 2 GB or 10 % of the memory) and otherwise keep the coarser cell with a line in the summary; with copper under the part the closed-form floor already covers the fast waves. A `fix/` for 2.7.0. |
 | Add the neighbours' waves to the ripple | not measured; the ripple is local to the heater | **Later** (2.6.1 or 2.7.0) with a study; state it as a limit now (it is). |
 | A via term in the column of the closed form | not measured | **Later**, after a study with an independent 3D solution. |
 | Closed form for partial copper under the part | the floor applies only "on a part with copper under it" | **Later**; bare laminate already warns. |
@@ -93,7 +93,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 | Markdown licence header on 288 `.md` files | none on numbers | **Do not add** to research and project Markdown (it clutters the rendered pages; the 'Author and license' statement covers them); decide once and write it in `CLAUDE.md` rule 4. |
 | shapely/GEOS dependency and hybrid vector Gerber features | none in 2.6.0 | **Not in 2.6.x**; the own reader is enough; revisit with the E items (BSD-3 licence is compatible). |
 | Get Papac, Gibou and Ratsch (2010) | the scheme is checked through the thesis (status N for the paper) | **Ask for the paper** (paywalled); not blocking. |
-| 3D solid residual of 1.7 K, aligned against cut edge | a comparison model; documented in validation 33 | **Accept as a limit** of the comparison model; revisit with the copper-edge item (2.6.1 item 3). |
+| 3D solid residual of 1.7 K, aligned against cut edge | a comparison model; documented in validation 33 | **Accept as a limit** of the comparison model; revisit with the copper-edge item (2.7.0 item 3). |
 | Copper-corner via (sector well) | the via effect reads 15 to 85 % low, on the safe side; warned | **Later** (A30), after a study. |
 | GitHub release for 2.6.0 (rule now in `CLAUDE.md`) | none | **Yes**, from the CHANGELOG section, after the tag is pushed. |
 
@@ -108,7 +108,7 @@ Legend: **impl** code implemented in 2.6.0 (where, test); **later** code needed 
 * Fast-wave ripple + profile runner + memory guard: the response cell is enlarged until the guard says 'ok' for a transient; the ripple is added at the heater only. The cost question is section 3.
 * Package + before-close hooks + display state: read, not exercised beyond the tests (`tests/test_package.py`, the hook tests).
 * **Random boards with every feature together** (95 boards: outlines, `h_side` 0 to 600, 1 to 4 layers, vias anywhere, small parts, blocks, square waves, computed h; five models): two crashes (section 5), fixed. The Analytic heat balance is off on outline boards with a strong edge (8 of 100 boards above 0.1 % of the power, worst -120 %), **the same numbers in 2.5.2** (an older defect of the equivalent rectangle with the edge loss, recorded in section 6, not of 2.6.0); new in 2.6.0, the per-layer edge leaves a balance error of up to 4e-4 of the power on rectangles at `h_side` 600 (none above 1e-5 in 2.5.2): the GMRES tolerance, harmless.
-* **Live check cost** (all checks, five models, `live=True`): 500 parts and 8000 vias on 4 layers 1.04 s (2.5.2: 0.62 s; the new `check_via_uncoupled` costs 0.45 s and has no time cap), with a round outline 3.2 s (2.5.2: 2.8 s); RP2040 0.07 s and CO60 (191 parts powered, 359 vias) 0.6 s at 1 and 0.5 mm. Acceptable; recommended: give the uncoupled-via pass the same time cap as the partial-copper pass (2.6.1).
+* **Live check cost** (all checks, five models, `live=True`): 500 parts and 8000 vias on 4 layers 1.04 s (2.5.2: 0.62 s; the new `check_via_uncoupled` costs 0.45 s and has no time cap), with a round outline 3.2 s (2.5.2: 2.8 s); RP2040 0.07 s and CO60 (191 parts powered, 359 vias) 0.6 s at 1 and 0.5 mm. Acceptable; recommended: give the uncoupled-via pass the same time cap as the partial-copper pass (2.7.0).
 
 **Program**: `python -m pcbthermal run` on the three example boards: the example board shows only the 2.5.2 Lumped via warning (not noisy); the reference board none; the profile board gives the ripple warning of U1 (2.01 K) once per model (three identical lines, mildly repetitive) and the Analytic heatsink transient warning. `--model compare --computed-h --cell-mm 2` gives four sensible warnings. The live list on the example boards has one line. Offscreen views (board with the map and the Display popover, every Results tab, the Power profile page with `average + ripple`, the three steps of the import window on the RP2040): no defect of 2.6.0 seen; the Power profile page scrolls sideways at 1600 x 950 with both docks open, the same in 2.5.2.
 
