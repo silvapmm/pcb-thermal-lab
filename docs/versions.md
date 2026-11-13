@@ -396,6 +396,9 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 | A32 and A40: node-centred cut cells and the box-edge against outline-edge difference of the FDM | I | M to L | yes if adopted: FDM on outline boards | FEM extensions; may end as a stated limit (the FDM is a comparison model) |
 | A30: sector well for a via at a copper corner or a track end | I then X | M to L | yes if adopted: FVM, FDM via boards | FEM extensions |
 | Memory law at 8 to 16 slabs, end-to-end check of a real imported four-layer board, refresh of validation 3 and 3.1 | V | S to M, heavy | no | quiet machine |
+| Metal block warning re-measured: the Lumped and Analytic note that the block is 'within about 5 % of the FVM in the tests' must be re-measured on a plate joined to the board through several pads (a synthetic case of ours); a first check shows differences of tens of percent, so the sentence is corrected (text only, after the measurement) | I then X (text) | S | no (warning text) | - |
+| Lumped dense via group: a part over a dense group of vias reads about 45 % low in a first synthetic check; isolate the cause (the two-node footprint, the cluster well or the first ring) | I | M | yes if fixed: Lumped boards with via groups | FEM extensions help |
+| Part over a thermal-via cluster with a copper tab block: the program reads about 8 to 13 % below an independent 3D reference for the tab-to-plate resistance, and the plate point 2 to 6 % colder; build the synthetic case in `research/independent-fem-edge` (the finite-element tool is the reference) and find which model term is missing | I | M | yes if fixed: FVM, FDM boards with blocks and via clusters | FEM extensions |
 
 **Wave 3: adopted fixes, then features** (only what the studies of wave 2 gave a GO)
 
@@ -406,6 +409,9 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 | Element-tree filter box (Ctrl+F or typing in the tree, never stealing the window letters) | F | S to M | no | - |
 | Paint and erase of the imported copper mask | F | M | no (the mask is an input) | - |
 | Heater modes for the user and the part's openings kept for the re-import | F | M | no | - |
+| Metal blocks: an adiabatic (covered) face option and an emissivity per block. Today a bare-metal block inherits the solder mask emissivity, so its free face coefficient is about twice too high; a covered face of a block still exchanges heat at the board-face coefficient; a negative `h_extra` is refused | F | S to M | yes only for boards with blocks: one pending file | - |
+| Component role: a 'top of the case' read-out (today only Tj, the hot point, is shown) and a Preferences package family for thick-film power resistors in TO-263 (theta element-to-tab about 2.5 to 6.5 K/W; the shipped 'D2PAK / TO-263' entry has the theta of a silicon MOSFET, 0.75 K/W) | F | S | no | - |
+| Heat source inside a block, and an intermediate piece between a pad and a plate as a layer | F | M, after its investigation | yes only for boards that use it | block warning re-measured |
 
 Release gate after wave 3: the review of `docs/theory.md` against the code, the reproduction pass, the refreeze (`expected_shifts_2.8.0.json`, 0 alarms, 317 at 2, 1 and 0.5 mm, the map hashes of `tests/test_results_views.py` rebaselined if the example board moves), the reviewer's final opinion, the whole battery with `PCBT_COMPAT_V245=1` and `PCBT_SCAN_KEY_VALUES=1`, then the release steps of 'Agents and workflow'.
 
