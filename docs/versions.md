@@ -341,7 +341,58 @@ There is no separate 2.6.1 release (maintainer's decision): everything below, th
 21. **The via effect near a cooled edge at `h_side` 1000 against a 3D solver** (answered by `research/strong-edge-laminate`, reviewed: not a via defect; `validation.md` 28): the deficit was the default two sub-gaps of the 0.49 mm gaps plus the equal slabs T / L of the simple stack-up of three or more layers (the outer nodes carried too much edge film; the slabs are physical now); with the physical slabs and eight sub-gaps the plate was read within 0.5 % and a via 0.5 to 3 mm from the edge within 0.6 % at 1000 W/m2K, a via inside the first cell -7 %; **against an independent finite-element solution (`validation.md` 46) the reference was hot: eight sub-gaps are +2 % hot on the plate at 0.25 mm (+6 % at 0.5 mm) and the via inside the first cell is +0.5 %, not -7 %**. The warning text of `checks.check_edge_laminate` quotes the numbers (`fix/edge-laminate-warning-text`). **Fixed in 2.7.0** (`fix/simple-stackup-physical-layers`, maintainer's decision): the simple stack-up takes the physical slabs, plate -0.8 / -2.5 / -5.1 / -8.9 % at 200 / 500 / 1000 / 2000 W/m2K with the default sub-gaps against the cell-centred reference, -0.4 / -1.4 / -3.4 / -6.2 % against an independent finite-element solution (`validation.md` 43 and 46); what is left is the number of sub-gaps.
 22. (done: the centroid edge film for the drawn layers, `fix/drawn-layers-edge-film-centroid`, see 'What was implemented' and `validation.md` 40)
 
-### Planned: 2.8.0 (investigations that may become features; NOT for 2.7.0)
+### Planned: 2.8.0 (a version of confidence, not of features)
+
+**The aim of 2.8.0 is confidence**: settle the model questions with independent references, correct or bound the known large errors, and fix the small interface defects. It is NOT a feature release; the numbering rule allows any `feature/` branch to give a minor number, but the goal is stability. There is **no 2.7.1**: the Profiles-tab narrow-window fix (merged into `development`) is released with 2.8.0. Dropped items stay dropped (vector copper, the BOM role). The electro-thermal coupling is a wish list item, not planned (Ideas, item 1).
+
+**The measured board (G1) will happen, but it does not block the version**: when the data exists (the colleague's board; request list in `research/ROADMAP.md` section 5) the comparison study runs on its own branch `research/measured-board-colleague`; if the data is late, 2.8.0 ships without it and the Results-summary line 'never compared with a measured copper board' stays.
+
+Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `viawell.py`, `lumped.py`, `checks.py` or `docs/theory.md` are merged one after another; each branch goes executor, reviewer, maintainer with the whole battery before the merge; a number-moving fix writes its pending frozen-number file and the refreeze happens once, after the version bump. Type: F feature, X fix, I investigation, V validation, D documents or tools. Size: S under a day of agents, M a few days, L a week or more. Frozen: whether the frozen numbers move.
+
+**Wave 1: cheap and safe (no number moves)**
+
+| Item | Type | Size | Frozen | Depends on |
+| :-- | :-- | :-- | :-- | :-- |
+| Profiles tab in a narrow window (merged) | X | S | no | - |
+| First Enter in Properties after a layer change goes to the tab bar ('Planned: 2.7.0' item 20) | X | S | no | - |
+| Shorter hints pass ('Planned: 2.7.0' item 13) | X (text) | S | no | - |
+| Guard against third-party text in git (`tests/test_third_party_text.py`: no `papers/`, no OCR markers; optional licence and URL columns in the bibliography; converted papers stay local only) | D + test | S | no | first of the wave |
+| pypdfium2 line of `tools/ocr/README.md` (install in `.venv-research`, run the tool with that Python) | D | S | no | - |
+| Version-comparison notes v2.5.0 to v2.7.0 | D | S | no | - |
+| Stale READMEs of the research folders `point-via-convergence`, `effective-conductivity`, `solid3d-verification`, `gap-subdivision`, `block-and-fins`, `via-edge-image` (one branch per folder, research only) | D | M | no | - |
+| Disclaimer in every report (a design aid, to be validated by measurement) | F (text) | S | no | - |
+| Edge-laminate warning: re-measure the first clause against the finite-element solution and fix the wording of `_edge_laminate_uncut` | X (text) | S | no | the finite-element tool |
+| `tests/test_calculator_dialog.py` (the dialog is not held by the battery) | V | S | no | - |
+| Real-screen checklist (import window, Preferences, docks, popover; the maintainer's hands, about 1 hour) | V | S | no | maintainer |
+| Housekeeping: unused screenshots, the unused `active` argument of `viawell.build`, the `factor_reuse` docstring, node indices in `component-heatsink/scripts/package_prototype.py` | H | S | no | - |
+
+**Wave 2: investigations before any number moves** (research branches only; the program is untouched; each closed by the reviewer with its register rows)
+
+| Item | Type | Size | Frozen | Depends on |
+| :-- | :-- | :-- | :-- | :-- |
+| FEM extensions (A43): hollow plated barrel against `d + 0.5 t_cu` and the rim rule, stripes and imported masks, the L outline, the FDM via effect 4 to 16 % low | V | M | no | - (enables E13, 5a, A30 and B5) |
+| Transient reference (V2): implicit time stepping in `independent-fem-edge`, step response and time to 63 % of 4 to 6 boards (the simple-stack-up case that moved 16 % included) and one square wave | V | M | no | - |
+| E13: converged reference of small imported parts, then re-measure the reduced-model warning numbers | I then X (text) | M, memory-heavy, alone on the machine | no (warning text) | FEM extensions help |
+| 5a: drawn copper, exact zone fill and flow-based faces as for imported copper | I then X | M + M | yes, wide: FVM, FDM on drawn boards with partial copper | FEM extensions |
+| A18: local laminate rule for small parts on thick boards (gate of 4 cells, conservative transition, cost) | I then X | M + M | yes: FVM, FDM with small parts on bare laminate | - |
+| A27: Lumped first link alone near an edge | I then X | M | yes: Lumped | - |
+| A32 and A40: node-centred cut cells and the box-edge against outline-edge difference of the FDM | I | M to L | yes if adopted: FDM on outline boards | FEM extensions; may end as a stated limit (the FDM is a comparison model) |
+| A30: sector well for a via at a copper corner or a track end | I then X | M to L | yes if adopted: FVM, FDM via boards | FEM extensions |
+| Memory law at 8 to 16 slabs, end-to-end check of a real imported four-layer board, refresh of validation 3 and 3.1 | V | S to M, heavy | no | quiet machine |
+
+**Wave 3: adopted fixes, then features** (only what the studies of wave 2 gave a GO)
+
+| Item | Type | Size | Frozen | Depends on |
+| :-- | :-- | :-- | :-- | :-- |
+| Fixes in series: 5a, A18, A30, A32/A40 (all touch the FVM/FDM network), A27 beside them, the warning text of E13 | X | M each | yes: one pending file per fix | wave 2 |
+| B5: plated component holes as vias (import option, default off) and vias with a layer span (blind, buried, micro) | F | study M + code M | span: no record expected to move (to check on the 17 harness boards); option off: none | FEM extensions |
+| Element-tree filter box (Ctrl+F or typing in the tree, never stealing the window letters) | F | S to M | no | - |
+| Paint and erase of the imported copper mask | F | M | no (the mask is an input) | - |
+| Heater modes for the user and the part's openings kept for the re-import | F | M | no | - |
+
+Release gate after wave 3: the review of `docs/theory.md` against the code, the reproduction pass, the refreeze (`expected_shifts_2.8.0.json`, 0 alarms, 317 at 2, 1 and 0.5 mm, the map hashes of `tests/test_results_views.py` rebaselined if the example board moves), the reviewer's final opinion, the whole battery with `PCBT_COMPAT_V245=1` and `PCBT_SCAN_KEY_VALUES=1`, then the release steps of 'Agents and workflow'.
+
+**Detail of the earlier 2.8.0 items** (kept; the ids are those of `research/ROADMAP.md`):
 
 7. **Version-comparison notes for v2.5.0 to v2.7.0**: `releases/regression-harness/reference/version_notes.json` has hand-written notes for the pairs v2.0.0 to v2.5.0 only; the pairs v2.5.0 to v2.5.1, to v2.5.2, to v2.6.0 and to v2.7.0 in `docs/version-comparison.md` have no 'implemented' and 'reading' text (they need the CHANGELOG items and the numbers the result sets print, written by hand).
 
@@ -441,7 +492,7 @@ The maintainer decided that these investigations are not part of 2.7.0, because 
 
 Read as web summaries (KiCad plug-ins such as KiCad_Thermal_Sim, pcb-sim-toolkit, kicad-electrothermal-sim, KiPIDA; commercial tools; FYPA, padne and altium_monkey, which are AGPL-3.0: ideas and public formats only, no code copied).
 
-1. Electro-thermal coupling: Joule heating of the copper (`Problem.electrical`), IPC-2152 trace-rise check, copper resistivity with temperature, by the existing fixed-point loop.
+1. Electro-thermal coupling (**wish list, no version**: very complex, to be thought through carefully before any plan; maintainer, 2.8.0 planning): Joule heating of the copper (`Problem.electrical`), IPC-2152 trace-rise check, copper resistivity with temperature, by the existing fixed-point loop.
 2. Thermal via tools: an array generator, the resistance of an array against the 4 / 16 via figures of the fabricator guides, a via-count sweep.
 3. Parameter sweeps and comparison of two designs with plots and an A/B table.
 4. Pass/fail checks with an exit code (`--fail-on fail`), an HTML or PDF report, a result cache.
