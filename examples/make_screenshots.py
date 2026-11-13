@@ -14,6 +14,8 @@ import sys
 import tempfile
 import time
 
+import numpy as np
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
 # Neutral configuration folder: Preferences shows the path of user_defaults.json, which must never be a personal path in a committed picture
@@ -127,7 +129,8 @@ def main(out_dir):
     # A board with an outline: the L-shaped board and its temperature map
     win._load_problem(example_board(), "example-outline")
     win.doc.set_outline([[0, 0], [100, 0], [100, 30], [60, 30], [60, 80], [0, 80]])
-    win.doc.set_props("heater", 1, power=0.0, merge=False)
+    # U2 moves from the cut-away corner into the other arm of the L (x 75 to 81 mm, y 10 to 16 mm) so that it stands on the board; 0.5 W is a small real power
+    win.doc.set_props("heater", 1, power=0.5, polygon=np.array([[0.075, 0.010], [0.081, 0.010], [0.081, 0.016], [0.075, 0.016]]), merge=False)
     win.tabs.setCurrentIndex(0)
     win.canvas.fit()
     shot("outline.png")
@@ -285,8 +288,8 @@ def main_import(out_dir, board_dir):
         win.canvas.set_selection([("heater", 0)])
         win._on_canvas_selection([("heater", 0)])
         save(win, f"editor_imported{suffix}.png")
-        # Live warnings under Run: a second source that is half off the board, drawn on the top layer
-        win.doc.problem.add_heater(1, 0.5, rect=(46, 40, 58, 46), name="X1")
+        # Live warnings under Run: a second source fully on the board, over the copper pour left of the chip, close to the left side
+        win.doc.problem.add_heater(1, 0.5, rect=(7, 27, 13, 31), name="X1")
         win.doc.changed.emit()
         win.canvas.fit()
         t0 = time.time()
@@ -308,6 +311,8 @@ def main_import(out_dir, board_dir):
         save(win, f"editor_warnings{suffix}.png")
         # The run on the imported board: the summary with its notes, and the temperature map
         win.doc.problem.heaters = [h for h in win.doc.problem.heaters if h.name != "X1"]
+        # A junction limit of 100 degC on the chip: the run reads 108 degC, so the summary shows a genuine alert (a limit exceeded) beside the notes
+        win.doc.problem.heaters[0].tj_max = 100.0
         win.doc.changed.emit()
         win._on_done(simulate(win.doc.problem, SolverOptions(cell_mm=1.0)))
         win.results.tabs.setCurrentIndex(0)
