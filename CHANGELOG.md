@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Docs
+
+- **The warnings picture no longer shows a part hanging off the board** (`docs/screenshots-warnings-placement`; pictures only): `examples/make_screenshots.py` places the second source X1 fully on the RP2040 board over copper, and the Results summary picture of the imported board gets a genuine alert (the chip's junction limit exceeded) instead; `editor_warnings.png` and `results_summary_imported.png` regenerated.
+
 ### Fixed
 
 - **The Results page no longer scrolls sideways in a narrow window, so the Profiles tab and its cut picture stay in view** (`fix/results-map-markers-and-cut-locator`; display only, no number moves): the Results tabs took the minimum width of their widest page (the Animation and Power profile controls, about 530 px), so at 900 x 700 with both docks open the Profiles tab scrolled sideways and its cut picture was out of view. Now only the page shown sets that width (the Animation and Power profile tabs still scroll to reach their controls), the Cut overlay box of the Profiles tab goes to a line of its own when the first line cannot hold it, and the cut picture is drawn again when the canvas crosses the width at which it moves between the inset over the curves and the strip above them. *(tests in `tests/test_map_markers_and_cut_locator.py`)*

@@ -285,8 +285,8 @@ def main_import(out_dir, board_dir):
         win.canvas.set_selection([("heater", 0)])
         win._on_canvas_selection([("heater", 0)])
         save(win, f"editor_imported{suffix}.png")
-        # Live warnings under Run: a second source that is half off the board, drawn on the top layer
-        win.doc.problem.add_heater(1, 0.5, rect=(46, 40, 58, 46), name="X1")
+        # Live warnings under Run: a second source fully on the board, over the copper pour left of the chip, close to the left side
+        win.doc.problem.add_heater(1, 0.5, rect=(7, 27, 13, 31), name="X1")
         win.doc.changed.emit()
         win.canvas.fit()
         t0 = time.time()
@@ -308,6 +308,8 @@ def main_import(out_dir, board_dir):
         save(win, f"editor_warnings{suffix}.png")
         # The run on the imported board: the summary with its notes, and the temperature map
         win.doc.problem.heaters = [h for h in win.doc.problem.heaters if h.name != "X1"]
+        # A junction limit of 100 degC on the chip: the run reads 108 degC, so the summary shows a genuine alert (a limit exceeded) beside the notes
+        win.doc.problem.heaters[0].tj_max = 100.0
         win.doc.changed.emit()
         win._on_done(simulate(win.doc.problem, SolverOptions(cell_mm=1.0)))
         win.results.tabs.setCurrentIndex(0)
