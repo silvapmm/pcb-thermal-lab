@@ -255,6 +255,8 @@ On this full-copper board the floor is not reached up to `h_side` 1e4 (a film be
 
 The reviewer re-ran the studies' key numbers and checked them against references that share no code with the schemes or with the program's treatment of an edge. Script `scripts/study_review.py` (subcommands `sliver`, `frame`, `tee`, `geometry`), library `lib/indep_sheet.py` (an independent two-sheet solver on an aligned rectangle: its own assembly, the edge film in series with half a cell, nothing imported from `pcbthermal`; within 0.03 to 0.11 K of the program on a 30 mm rectangle at 1 to 0.25 mm, the difference being the film placement) and `lib/vecaperture.py`; tests `tests/test_review.py`.
 
+Note (2.7.0 test restatement): on the program of the tree the jump of its hottest point between covers 0.01 and 0.02 is 0.591 K since the centroid edge film (`fix/drawn-layers-edge-film-centroid`), so the bound of `test_sliver_anomaly_against_independent_reference` is 0.6 K (0.5 K before); the defect itself stays absent (the program before 2.6.0 jumps by more than 3 K).
+
 ### 10.1 The sliver defect, against the independent reference
 
 The board of section 4 at 1 mm; reference: the same board as an aligned rectangle in `indep_sheet` at 1/4, 1/8, 1/16 mm, extrapolated (the three values differ by at most 0.05 K). Error of the hottest point (K):
