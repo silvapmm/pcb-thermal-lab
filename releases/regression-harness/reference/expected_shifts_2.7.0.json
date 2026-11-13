@@ -1,0 +1,1181 @@
+{
+ "format": 1,
+ "baseline": "v2.6.0",
+ "target": "2.7.0",
+ "how_to_read": "Same reading as expected_shifts_2.6.0.json. Items and rules come from the four pending files of 2.7.0 (one per item; each record is in one file only). The numeric limits are 1.25 times the shifts of this run: the table does not predict the sizes, it holds the next version to them.",
+ "items": [
+  {
+   "id": "L1",
+   "title": "Simple stack-up slabs are the physical layers",
+   "branch": "fix/simple-stackup-physical-layers",
+   "evidence": "docs/validation.md 43; research/strong-edge-laminate 8",
+   "moves": "FVM, Lumped and Analytic of boards with three or more simple layers (example_board, profile_board, example_cut_to_T up +0.063 to +0.091 K; times to 63 % U1 -1.6 to -2.4 %, U2 -10.6 to -17.0 %)"
+  },
+  {
+   "id": "L2",
+   "title": "Centroid edge film for the drawn layers (FVM)",
+   "branch": "fix/drawn-layers-edge-film-centroid",
+   "evidence": "docs/validation.md 40",
+   "moves": "FVM of part_across_outline and round_outline (+0.0024 to +0.0091 K, times +0.01 to +0.03 %)"
+  },
+  {
+   "id": "L3",
+   "title": "FDM face between nodes is the harmonic mean of the physical sheets",
+   "branch": "fix/fdm-harmonic-face-mean",
+   "evidence": "docs/validation.md 41",
+   "moves": "FDM of seven boards (0 to +0.0026 K)"
+  },
+  {
+   "id": "L4",
+   "title": "FDM in-plane face sheet of a drawn copper layer from the copper fill of the cells",
+   "branch": "fix/fdm-copper-edge-faces",
+   "evidence": "docs/validation.md 47; research/fdm-inset-edge",
+   "moves": "FDM of boards with a copper edge inside the board (plate_pad +45.0 / +27.3 / +15.3 K, one_layer_pad +8.5 / +5.4 / +3.1, part_top_path +1.35 / +0.98 / +0.59, two_layer_partial +1.71 / +1.52 / +0.87 K at 2 / 1 / 0.5 mm; example boards +0.107 to +0.136 K, U2 time -9 to -14.5 %); the 3D solid moves nowhere"
+  },
+  {
+   "id": "L0",
+   "title": "Items with no frozen record",
+   "branch": "imported via rim mask; imported copper edge film and outline mask; Lumped lone-via grouping; hole kinds; text and GUI items",
+   "evidence": "docs/versions.md 2.7.0",
+   "moves": "none: a shift attributed to them would be a defect"
+  },
+  {
+   "id": "L8",
+   "title": "Round-off",
+   "branch": "last bits of the sums (order of the operations)",
+   "evidence": "CLAUDE.md Decisions Log (symmetric LU)",
+   "moves": "at most 1e-8 K"
+  }
+ ],
+ "rules": [
+  {
+   "id": "R1",
+   "item": "L1",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "profile_board"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.117852
+     ]
+    },
+    "example_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.117852
+     ]
+    },
+    "example_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.119515
+     ]
+    },
+    "profile_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.117852
+     ]
+    },
+    "profile_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.117852
+     ]
+    },
+    "profile_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.119515
+     ]
+    },
+    "example_cut_to_T|analytic|2": {
+     "abs_k": [
+      0,
+      0.115768
+     ]
+    },
+    "example_cut_to_T|analytic|1": {
+     "abs_k": [
+      0,
+      0.115768
+     ]
+    },
+    "example_cut_to_T|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.115601
+     ]
+    }
+   }
+  },
+  {
+   "id": "R2",
+   "item": "L1",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "profile_board"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|fvm|2": {
+     "abs_k": [
+      0,
+      0.125753
+     ]
+    },
+    "example_board|fvm|1": {
+     "abs_k": [
+      0,
+      0.133176
+     ]
+    },
+    "example_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.133116
+     ]
+    },
+    "profile_board|fvm|2": {
+     "abs_k": [
+      0,
+      0.125753
+     ]
+    },
+    "profile_board|fvm|1": {
+     "abs_k": [
+      0,
+      0.133176
+     ]
+    },
+    "profile_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.133116
+     ]
+    },
+    "example_cut_to_T|fvm|2": {
+     "abs_k": [
+      0,
+      0.127259
+     ]
+    },
+    "example_cut_to_T|fvm|1": {
+     "abs_k": [
+      0,
+      0.135845
+     ]
+    },
+    "example_cut_to_T|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.134984
+     ]
+    }
+   }
+  },
+  {
+   "id": "R3",
+   "item": "L1",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "profile_board"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|lumped|2": {
+     "abs_k": [
+      0,
+      0.09981
+     ]
+    },
+    "example_board|lumped|1": {
+     "abs_k": [
+      0,
+      0.09981
+     ]
+    },
+    "example_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.100595
+     ]
+    },
+    "profile_board|lumped|2": {
+     "abs_k": [
+      0,
+      0.09981
+     ]
+    },
+    "profile_board|lumped|1": {
+     "abs_k": [
+      0,
+      0.09981
+     ]
+    },
+    "profile_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.100595
+     ]
+    },
+    "example_cut_to_T|lumped|2": {
+     "abs_k": [
+      0,
+      0.094166
+     ]
+    },
+    "example_cut_to_T|lumped|1": {
+     "abs_k": [
+      0,
+      0.094166
+     ]
+    },
+    "example_cut_to_T|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.096491
+     ]
+    }
+   }
+  },
+  {
+   "id": "R4",
+   "item": "L2",
+   "boards": [
+    "part_across_outline",
+    "round_outline"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "round_outline|fvm|2": {
+     "abs_k": [
+      0,
+      0.01367
+     ]
+    },
+    "round_outline|fvm|1": {
+     "abs_k": [
+      0,
+      0.007362
+     ]
+    },
+    "round_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.003678
+     ]
+    },
+    "part_across_outline|fvm|2": {
+     "abs_k": [
+      0,
+      0.010725
+     ]
+    },
+    "part_across_outline|fvm|1": {
+     "abs_k": [
+      0,
+      0.010329
+     ]
+    },
+    "part_across_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.002966
+     ]
+    }
+   }
+  },
+  {
+   "id": "R5",
+   "item": "L3",
+   "boards": [
+    "finned_block",
+    "part_across_outline",
+    "plate_lone_via",
+    "plate_vias",
+    "reference_board",
+    "round_outline",
+    "t_outline"
+   ],
+   "models": [
+    "fdm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "reference_board|fdm|2": {
+     "abs_k": [
+      0,
+      2.8e-05
+     ]
+    },
+    "reference_board|fdm|1": {
+     "abs_k": [
+      0,
+      1e-05
+     ]
+    },
+    "reference_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      4e-06
+     ]
+    },
+    "plate_vias|fdm|2": {
+     "abs_k": [
+      0,
+      0.0001
+     ]
+    },
+    "plate_vias|fdm|1": {
+     "abs_k": [
+      0,
+      3.8e-05
+     ]
+    },
+    "plate_vias|fdm|0.5": {
+     "abs_k": [
+      0,
+      1.6e-05
+     ]
+    },
+    "plate_lone_via|fdm|2": {
+     "abs_k": [
+      0,
+      9.9e-05
+     ]
+    },
+    "plate_lone_via|fdm|1": {
+     "abs_k": [
+      0,
+      3.8e-05
+     ]
+    },
+    "plate_lone_via|fdm|0.5": {
+     "abs_k": [
+      0,
+      1.6e-05
+     ]
+    },
+    "round_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.000128
+     ]
+    },
+    "round_outline|fdm|1": {
+     "abs_k": [
+      0,
+      8.4e-05
+     ]
+    },
+    "round_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      3.8e-05
+     ]
+    },
+    "t_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.001302
+     ]
+    },
+    "t_outline|fdm|1": {
+     "abs_k": [
+      0,
+      0.000521
+     ]
+    },
+    "t_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.000177
+     ]
+    },
+    "finned_block|fdm|2": {
+     "abs_k": [
+      0,
+      0.000366
+     ],
+     "abs_w": [
+      0,
+      6.870057825403286e-06
+     ]
+    },
+    "finned_block|fdm|1": {
+     "abs_k": [
+      0,
+      0.000117
+     ],
+     "abs_w": [
+      0,
+      1.0382254983509753e-06
+     ]
+    },
+    "finned_block|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.000118
+     ],
+     "abs_w": [
+      0,
+      4.166666444094247e-06
+     ]
+    },
+    "part_across_outline|fdm|2": {
+     "abs_k": [
+      0,
+      0.003233
+     ]
+    },
+    "part_across_outline|fdm|1": {
+     "abs_k": [
+      0,
+      0.001514
+     ]
+    },
+    "part_across_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.000591
+     ]
+    }
+   }
+  },
+  {
+   "id": "R6",
+   "item": "L4",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "one_layer_pad",
+    "part_top_path",
+    "plate_pad",
+    "profile_board",
+    "two_layer_partial"
+   ],
+   "models": [
+    "fdm"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|fdm|2": {
+     "abs_k": [
+      0,
+      0.15438
+     ]
+    },
+    "example_board|fdm|1": {
+     "abs_k": [
+      0,
+      0.189171
+     ]
+    },
+    "example_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.166543
+     ]
+    },
+    "profile_board|fdm|2": {
+     "abs_k": [
+      0,
+      0.15438
+     ]
+    },
+    "profile_board|fdm|1": {
+     "abs_k": [
+      0,
+      0.189171
+     ]
+    },
+    "profile_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.166543
+     ]
+    },
+    "example_cut_to_T|fdm|2": {
+     "abs_k": [
+      0,
+      0.160239
+     ]
+    },
+    "example_cut_to_T|fdm|1": {
+     "abs_k": [
+      0,
+      0.193402
+     ]
+    },
+    "example_cut_to_T|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.168162
+     ]
+    },
+    "plate_pad|fdm|2": {
+     "abs_k": [
+      0,
+      56.495374
+     ]
+    },
+    "plate_pad|fdm|1": {
+     "abs_k": [
+      0,
+      34.228061
+     ]
+    },
+    "plate_pad|fdm|0.5": {
+     "abs_k": [
+      0,
+      19.208996
+     ]
+    },
+    "two_layer_partial|fdm|2": {
+     "abs_k": [
+      0,
+      2.191582
+     ]
+    },
+    "two_layer_partial|fdm|1": {
+     "abs_k": [
+      0,
+      1.956225
+     ]
+    },
+    "two_layer_partial|fdm|0.5": {
+     "abs_k": [
+      0,
+      1.116006
+     ]
+    },
+    "one_layer_pad|fdm|2": {
+     "abs_k": [
+      0,
+      10.669257
+     ]
+    },
+    "one_layer_pad|fdm|1": {
+     "abs_k": [
+      0,
+      6.761551
+     ]
+    },
+    "one_layer_pad|fdm|0.5": {
+     "abs_k": [
+      0,
+      3.870345
+     ]
+    },
+    "part_top_path|fdm|2": {
+     "abs_k": [
+      0,
+      1.873871
+     ],
+     "abs_w": [
+      0,
+      0.059389168071893594
+     ]
+    },
+    "part_top_path|fdm|1": {
+     "abs_k": [
+      0,
+      1.383683
+     ],
+     "abs_w": [
+      0,
+      0.04293354538155825
+     ]
+    },
+    "part_top_path|fdm|0.5": {
+     "abs_k": [
+      0,
+      0.831664
+     ],
+     "abs_w": [
+      0,
+      0.02589957161690165
+     ]
+    }
+   }
+  },
+  {
+   "id": "S6",
+   "item": "L1",
+   "boards": [
+    "example_board"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.125753
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "R0",
+   "item": "L8",
+   "boards": "*",
+   "models": "*",
+   "cells": "*",
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    1e-08
+   ],
+   "abs_w": [
+    0,
+    1e-08
+   ],
+   "rel": [
+    0,
+    0
+   ],
+   "status": "derived",
+   "note": "round-off of the order of the sums"
+  }
+ ],
+ "must_not_move": [],
+ "transients": {
+  "must_not_move": [],
+  "may_move": [
+   {
+    "id": "T1",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2128
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T2",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1814
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T3",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2043
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T4",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1948
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T5",
+    "boards": [
+     "example_cut_to_T"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1144
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T6",
+    "boards": [
+     "example_cut_to_T"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1328
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T7",
+    "boards": [
+     "finned_block"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T8",
+    "boards": [
+     "one_layer_pad"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0562
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T9",
+    "boards": [
+     "part_across_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T10",
+    "boards": [
+     "part_across_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T11",
+    "boards": [
+     "part_top_path"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1302
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T12",
+    "boards": [
+     "plate_lone_via"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T13",
+    "boards": [
+     "plate_pad"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0511
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T14",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T15",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2128
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T16",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1814
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T17",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2043
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T18",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1948
+    ],
+    "item": "L1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T19",
+    "boards": [
+     "reference_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T20",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T21",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T22",
+    "boards": [
+     "t_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "L3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T23",
+    "boards": [
+     "two_layer_partial"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0201
+    ],
+    "item": "L4",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T0",
+    "boards": "*",
+    "models": "*",
+    "direction": "any",
+    "rel_change": [
+     0,
+     1e-06
+    ],
+    "note": "round-off of the time to 63 %"
+   }
+  ]
+ },
+ "board_matrix": {}
+}
