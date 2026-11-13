@@ -9,6 +9,7 @@ What was implemented in every version (with the module where it lives and how it
 * **Interface**: the GUI redesign (boxes, the Warnings (N) accordion, layer keys L / Shift+L and 0..9, export of the maps over the copper), the cut overlay of the profile plots, the coldest-point marker, shorter hints, the hole categories on the editor canvas, five small bug fixes of the window and the import.
 * **Models**: the edge film from the centroid of the cut cell for drawn and imported copper, the outline mask of imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone far via; edge-laminate warnings that quote an independent finite-element solution (`research/independent-fem-edge`).
 * **Release state**: 2.7.0 is released (`main`, tag `v2.7.0`); the numbers moved on purpose are held to the new frozen reference `tests/regression/data/v2.7.0.json`.
+* **Done for 2.8.0 (branch `fix/report-disclaimer`)**: one disclaimer line (`results.DISCLAIMER`, a design aid never compared with a measured board) in the text and Markdown reports, the on-screen summary, the command-line output, the JSON summary and the Power Calculator result; tests `tests/test_report_disclaimer.py`; no number moves.
 * **Next**: 2.8.0 (investigations that may become features), see 'Planned: 2.8.0' below; every version is listed newest first after this summary.
 
 ---

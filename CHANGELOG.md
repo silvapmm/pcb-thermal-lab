@@ -3,6 +3,12 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Changed
+
+- **A disclaimer line in every report** (`fix/report-disclaimer`; text only, no number moves): the text report (the saved `report.txt` and the on-screen Results summary), the Markdown report (and so the command-line output), the JSON summary (key `disclaimer`) and the Power Calculator result carry one line, `results.DISCLAIMER`: PCB Thermal Lab is a design aid, its models have not yet been compared with measurements of a real board, validate critical designs by measurement. The note about the computed heat transfer coefficients stays as it was. User guide, chapter 18.
+
 ## [2.7.0] - 2026-11-13
 
 ### Added
