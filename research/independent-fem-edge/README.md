@@ -30,7 +30,7 @@ Robin film as a natural boundary integral on the real wall, conforming cylinders
 
 ![Boards](figures/fig_04_boards_against_fem.png)
 
-*Figure 4 (fig_04_boards_against_fem.png): via effect and the squares, disc and T of the program against the finite elements (sections 3b to 3d).*
+*Figure 4 (fig_04_boards_against_fem.png): via effect and the squares, disc and T of the program (`develop` e39de188, the FDM with the cell-fill faces of validation 47) against the finite elements (sections 3b to 3d).*
 
 ## Layout and how to run (from the repository root)
 
@@ -150,8 +150,14 @@ conjugate gradients with a pyamg smoothed-aggregation preconditioner (`.venv-res
 ## 3. Comparison studies
 
 All numbers below are printed by `scripts/study_report.py` (`out/report.md`, `out/report.json`) from the caches of `study_fem_cases.py` (FEM),
-`study_program.py` (the program of this tree, `develop` at 48ad0380: FVM, and FDM at its harmonic default) and `study_fv_refs.py` (`ref3d.py` at
-1/4 and 1/8 mm with 8 slabs per gap; the stored truths of the drawn boards). **On this tree the simple and the advanced stack-up are bit-identical**
+`study_program.py` (the program: FVM, and the FDM at its default) and `study_fv_refs.py` (`ref3d.py` at
+1/4 and 1/8 mm with 8 slabs per gap; the stored truths of the drawn boards). **Program version of the columns** (review, section 7): every program number of sections 3, 4 and 6
+is the program of `develop` at e39de188 (2.7.0 candidate, version string 2.6.0), re-run by the review. The FVM columns are bit-identical (to 1e-9, all 160 records of
+`study_program.py` and the 208 FVM records of section 6) to the first run; the FDM columns moved where a drawn copper edge or an outline cuts the nodes, because
+the FDM faces of drawn copper layers are built from the copper fill of the cells since `fix/fdm-copper-edge-faces` (`docs/validation.md` 47); the first run's FDM
+value (the harmonic faces of validation 41) is kept in brackets where it moved. The first run was labelled `develop` at 48ad0380: that label was wrong (at 48ad0380 the
+simple stack-up still gave every node T / L, while the first run's simple and physical records are identical), so the first run was made on a later tree with the
+physical slabs and without the FDM cell-fill faces. **On this tree the simple and the advanced stack-up are bit-identical**
 (`fix/simple-stackup-physical-layers`, validation 43; asserted in `study_report.py` on every strong-edge record), so the program columns are
 "default (2 sub-gaps) / 8 sub-gaps" only. "FEM ext" is the Richardson limit of three plan meshes (6 graded elements per gap) plus a through-thickness
 correction from a 3 / 6 / 12 / 24 elements-per-gap sequence on the middle plan mesh (+0.013 K at 200 W/m2K, +0.045 K at 1000: the sequence
@@ -164,9 +170,9 @@ correction from a 3 / 6 / 12 / 24 elements-per-gap sequence on the middle plan m
 | 10 | to the wall | 51.6904 / 51.6801 / 51.6866 | - | 51.687 (0.01 %) | +0.02 % | +0.01 % | -0.02 / -0.01 | -0.03 / -0.01 | -0.05 / -0.10 |
 | 200 | to the wall | 36.9037 / 36.9317 / 36.9475 | 0.83 | 36.981 (0.07 %) | +0.78 % | +0.27 % | -0.57 / +0.46 | -0.03 / +1.53 | -1.10 / -1.44 |
 | 1000 | to the wall | 24.1242 / 24.2432 / 24.2751 | 1.90 | 24.332 (0.06 %) | +3.97 % | +1.65 % | **-3.52 / +2.01** | -1.97 / +6.12 | **-5.13 / -6.35** |
-| 10 | inset 0.5 mm | 53.2646 / 53.3670 / 53.3955 | 1.85 | 53.406 (0.03 %) | +0.58 % | +0.28 % | -0.11 / +0.30 | +0.35 / +0.89 | -0.97 / -1.26 |
-| 200 | inset 0.5 mm | 41.5794 / 41.7514 / 41.7971 | 1.91 | 41.826 (0.05 %) | +1.69 % | +0.82 % | -0.45 / +0.99 | +0.53 / +2.63 | -3.47 / -5.10 |
-| 1000 | inset 0.5 mm | 33.5260 / 33.7723 / 33.8373 | 1.92 | 33.906 (0.09 %) | +3.30 % | +1.57 % | -1.09 / +1.91 | +0.69 / +5.13 | **-7.64 / -12.21** |
+| 10 | inset 0.5 mm | 53.2646 / 53.3670 / 53.3955 | 1.85 | 53.406 (0.03 %) | +0.58 % | +0.28 % | -0.11 / +0.30 | +0.35 / +0.89 | -0.56 / -0.95 [-0.97 / -1.26] |
+| 200 | inset 0.5 mm | 41.5794 / 41.7514 / 41.7971 | 1.91 | 41.826 (0.05 %) | +1.69 % | +0.82 % | -0.45 / +0.99 | +0.53 / +2.63 | -1.48 / -2.28 [-3.47 / -5.10] |
+| 1000 | inset 0.5 mm | 33.5260 / 33.7723 / 33.8373 | 1.92 | 33.906 (0.09 %) | +3.30 % | +1.57 % | -1.09 / +1.91 | +0.69 / +5.13 | **-2.96 / -4.44** [-7.64 / -12.21] |
 
 Readings. (1) The first hexahedral study (a first hand-written hexahedral solver of this folder, 8 uniform bricks per gap, kept in git history at commit 5e28646f) extrapolated
 51.684 / 36.969 / 24.351 K: this solver gives 51.687 / 36.981 / 24.332, within 0.08 %. (2) The cell-centred reference `ref3d` converges from above at first
@@ -174,10 +180,11 @@ order where the film is strong: +1.65 % at 1/8 mm and 1000 W/m2K (copper to the 
 "3D reference" of validation 43 and 28 is therefore 1.6 % hot at 1000 W/m2K. (3) Against the FEM the FVM at 0.25 mm with the default two sub-gaps reads
 -3.5 % at 1000 W/m2K (validation 43.2 says -5.09 % against ref3d at 1/8 mm: the 1.6 points are the reference), -0.6 % at 200 (43.2: -0.83 %); with eight
 sub-gaps +2.0 % (43.2: +0.35 %): with the hot reference the eight-sub-gap program looked right and is in fact 2 % hot at 0.25 mm (the half-cell film of a
-cell wider than the sub-gap, which also gives +6.1 % at 0.5 mm). (4) The FDM at its harmonic default is cooler than the FVM everywhere: -5.1 % at 0.25 mm
-and 1000 W/m2K with copper to the wall, and **-7.6 % at 0.25 mm (-12.2 % at 0.5 mm) with the copper 0.5 mm inside the wall, where it already reads
--1.0 % at 10 W/m2K** (the FVM -0.1 %): the FDM's copper edge inside the board is a defect of its own, not of the edge film (the film is weak at 10 W/m2K).
-This FDM number is new; the repository has no FDM row for the inset board.
+cell wider than the sub-gap, which also gives +6.1 % at 0.5 mm). (4) The FDM at its default is cooler than the FVM everywhere: -5.1 % at 0.25 mm
+and 1000 W/m2K with copper to the wall (unchanged by the cell-fill faces: uniform copper), and with the copper 0.5 mm inside the wall -0.6 / -1.5 / -3.0 % at
+0.25 mm (10 / 200 / 1000 W/m2K; -1.0 / -2.3 / -4.4 % at 0.5 mm) on `develop` e39de188, where the first run with the harmonic faces read -1.0 / -3.5 / **-7.6 %**
+(-1.3 / -5.1 / -12.2 % at 0.5 mm). The cell-fill faces of validation 47 removed about 60 % of that deficit; the rest (2 to 3 points at 1000 W/m2K) is still
+a copper-edge error of the FDM (the FVM reads -0.1 / -0.5 / -1.1 %).
 
 ### 3(b) Via effect E = hottest rise without the via minus with it (K); via a solid copper cylinder of radius 0.15 mm at 0.16 and 3 mm from the wall
 
@@ -195,44 +202,49 @@ Readings. (1) The disc-share via (reference and earlier study) overstates E by 1
 the 1/4 mm one by 6 to 17 %. (2) The program's via with eight sub-gaps is within 2.4 % of the conforming FEM at 0.25 mm (validation 28 and 43.2 quote -7.3 %
 at 1000 W/m2K and 0.16 mm against ref3d 1/8 mm: that was the reference's +8.5 %; against the FEM it is **+0.5 %**); with the default two sub-gaps the via
 effect is 8 to 12 % low at 1000 W/m2K (43.2: -19.2 %, again half of it the reference), 2 to 3 % low at 200. (3) The FDM reads the via effect 4 to 16 % low
-at 0.25 mm with the defaults (no repository number to compare).
+at 0.25 mm with the defaults (no repository number to compare; unchanged on `develop` e39de188). (4) Review: the 1/4 and 1/8 mm references converge towards
+the FEM: their error ratio is 2.1 to 2.9 on the plate and 2.05 to 3.1 on the via 0.16 mm from the wall, and a first-order extrapolation of the two (2 v(1/8) - v(1/4))
+lands -0.05 to -0.67 % (plate) and -0.4 / -2.2 % (via, 1000 / 200) from the FEM: the two methods share their limit. The via 3 mm from the wall is not in the
+asymptotic range of the reference (+8.4 % at 1/4 mm, -0.9 % at 1/8 mm, ratio of the errors negative), so its "-0.9 %" agreement at 1/8 mm is partly a crossing.
 ### 3(c) The 20 mm squares and the disc, heater mean rise, K (FEM: 12 graded elements per gap, three plan meshes, plus a 6 / 12 / 24 thickness correction, observed order 2.6 to 2.95)
 
 The program columns are the mean error of the ten turned (0 .. 45 degrees) and shifted (0, 0.3 cell) boards of validation 40, with the worst in brackets
-and, where a stored finite-volume truth exists, the mean error against that truth in square brackets. The disc is the program's 180-gon outline at shifts
+and, where a stored finite-volume truth exists, the mean error against that truth in square brackets; in braces, the FDM of the first run (harmonic faces, before the cell-fill faces of validation 47). The disc is the program's 180-gon outline at shifts
 0 and 0.3 cell (two boards, the FEM disc is one conforming O-grid with the heater as its inner square).
 
 | board | h_side | FEM 0.4 / 0.2 / 0.1 mm (disc: n 8 / 16 / 32) | FEM ext (GCI) | stored FV truth | FVM 1 mm | FVM 0.5 mm | FDM 1 mm | FDM 0.5 mm |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| square, copper 1.2 mm in | 10 | 124.375 / 124.473 / 124.516 | 124.551 (0.03 %) | 124.571 (+0.02 %) | -0.57 (0.78) [-0.58] | -0.51 (0.55) [-0.52] | -0.99 (1.25) | -0.78 (0.87) |
-| same | 200 | 56.852 / 57.045 / 57.126 | 57.201 (0.13 %) | 57.247 (+0.08 %) | -3.07 (4.54) [-3.15] | -2.68 (2.94) [-2.76] | -6.97 (8.60) | -4.89 (5.70) |
-| same | 1000 | 38.572 / 38.792 / 38.884 | 38.972 (0.21 %) | 39.026 (+0.14 %) | -5.53 (8.26) [-5.66] | -4.68 (5.37) [-4.82] | **-14.23 (17.57)** | -9.12 (10.86) |
-| square, copper to the wall | 200 | 50.459 / 50.567 / 50.604 | 50.635 (0.05 %) | 50.619 (-0.03 %) | +0.22 (0.87) [+0.25] | -0.37 (0.55) [-0.34] | -1.62 (2.19) | -0.97 (1.31) |
-| same | 1000 | 29.880 / 30.024 / 30.072 | 30.114 (0.10 %) | 30.105 (-0.03 %) | -0.96 (1.89) [-0.93] | -2.15 (2.61) [-2.12] | -4.36 (5.36) | -3.31 (3.92) |
-| disc, copper to the rim | 200 | 58.999 / 59.053 / 59.075 | 59.104 (0.03 %) | - | +0.60 (1.22) | -0.25 (0.33) | -1.72 (1.78) | -0.93 (0.96) |
-| same | 1000 | 32.484 / 32.670 / 32.725 | 32.773 (0.09 %) | - | -0.52 (1.60) | -2.24 (2.32) | -5.02 (5.16) | -3.64 (3.71) |
-| disc, copper 1.2 mm in | 200 | 66.110 / 66.468 / 66.589 | 66.670 (0.12 %) | - | -3.25 (3.31) | -2.74 (2.88) | -7.42 (7.52) | -5.03 (5.08) |
-| same | 1000 | 42.637 / 43.179 / 43.354 | 43.462 (0.24 %) | - | -6.56 (6.96) | -5.23 (5.42) | **-16.38 (16.53)** | -10.13 (10.30) |
+| square, copper 1.2 mm in | 10 | 124.375 / 124.473 / 124.516 | 124.551 (0.03 %) | 124.571 (+0.02 %) | -0.57 (0.78) [-0.58] | -0.51 (0.55) [-0.52] | -0.95 (1.25) {-0.99} | -0.69 (0.82) {-0.78} |
+| same | 200 | 56.852 / 57.045 / 57.126 | 57.201 (0.13 %) | 57.247 (+0.08 %) | -3.07 (4.54) [-3.15] | -2.68 (2.94) [-2.76] | -5.77 (8.10) {-6.97} | -3.77 (4.88) {-4.89} |
+| same | 1000 | 38.572 / 38.792 / 38.884 | 38.972 (0.21 %) | 39.026 (+0.14 %) | -5.53 (8.26) [-5.66] | -4.68 (5.37) [-4.82] | **-11.99 (16.75)** {-14.23} | -6.86 (9.19) {-9.12} |
+| square, copper to the wall | 200 | 50.459 / 50.567 / 50.604 | 50.635 (0.05 %) | 50.619 (-0.03 %) | +0.22 (0.87) [+0.25] | -0.37 (0.55) [-0.34] | -1.78 (2.33) {-1.62} | -1.02 (1.35) {-0.97} |
+| same | 1000 | 29.880 / 30.024 / 30.072 | 30.114 (0.10 %) | 30.105 (-0.03 %) | -0.96 (1.89) [-0.93] | -2.15 (2.61) [-2.12] | -4.76 (5.70) {-4.36} | -3.44 (4.03) {-3.31} |
+| disc, copper to the rim | 200 | 58.999 / 59.053 / 59.075 | 59.104 (0.03 %) | - | +0.60 (1.22) | -0.25 (0.33) | -1.87 (1.92) {-1.72} | -0.97 (1.00) {-0.93} |
+| same | 1000 | 32.484 / 32.670 / 32.725 | 32.773 (0.09 %) | - | -0.52 (1.60) | -2.24 (2.32) | -5.45 (5.58) {-5.02} | -3.78 (3.85) {-3.64} |
+| disc, copper 1.2 mm in | 200 | 66.110 / 66.468 / 66.589 | 66.670 (0.12 %) | - | -3.25 (3.31) | -2.74 (2.88) | -6.15 (6.35) {-7.42} | -3.80 (3.90) {-5.03} |
+| same | 1000 | 42.637 / 43.179 / 43.354 | 43.462 (0.24 %) | - | -6.56 (6.96) | -5.23 (5.42) | **-14.14 (14.49)** {-16.38} | -7.52 (7.76) {-10.13} |
 
 Hottest rise of the disc (program `t_max` against the FEM node maximum; shifts 0 / 0.3): copper to the rim 200: FVM 1 mm -0.05 / +0.14 %, 0.5 mm -0.53 / -0.33,
-FDM 1 mm -1.18 / -2.27, 0.5 mm -0.81 / -1.11; 1000: FVM -1.62 / -1.22 and -2.64 / -2.19, FDM -3.82 / -5.78 and -3.23 / -3.79; copper 1.2 mm in, 200: FVM -4.27 / -2.93
-and -2.82 / -2.79, FDM -6.87 / -7.56 and -4.74 / -5.07; 1000: FVM -8.18 / -5.58 and -5.23 / -5.13, FDM -15.01 / -16.06 and -9.31 / -9.96.
+FDM 1 mm -1.33 / -2.41, 0.5 mm -0.85 / -1.15; 1000: FVM -1.62 / -1.22 and -2.64 / -2.19, FDM -4.22 / -6.16 and -3.36 / -3.91; copper 1.2 mm in, 200: FVM -4.27 / -2.93
+and -2.82 / -2.79, FDM -5.75 / -6.25 and -3.53 / -3.93; 1000: FVM -8.18 / -5.58 and -5.23 / -5.13, FDM -13.09 / -13.79 and -6.79 / -7.58 (`develop` e39de188; the first
+run's harmonic FDM read -1.18 / -2.27, -0.81 / -1.11, -3.82 / -5.78, -3.23 / -3.79, -6.87 / -7.56, -4.74 / -5.07, -15.01 / -16.06, -9.31 / -9.96 in the same order).
 
 Readings. (1) The stored finite-volume truths of the squares agree with the conforming finite elements within 0.14 % (the +0.39 % the first hexahedral study
 found at 1000 W/m2K came from its 8 uniform bricks per gap: with the thickness resolved the two families agree), so every "before -> after" number of
 validation 40.2 for the squares holds to 0.2 point against the FEM: copper 1.2 mm inside -3.1 / -5.5 % (1 mm, 200 / 1000), copper to the wall +0.2 / -1.0 %.
 (2) The disc, a case not in the repository, behaves like the square: copper to the rim within 0.6 % at 1 mm and 200 W/m2K (the cut cells of a 180-gon are
 no worse than those of a turned square), copper 1.2 mm inside -3.3 / -6.6 % at 1 mm (200 / 1000), -2.7 / -5.2 % at 0.5 mm: the drawn copper edge inside
-the board still reads cool, as validation 40 says of the square. (3) **The FDM at its harmonic default is 2 to 3 times worse than the FVM on every drawn
-board with the copper inside the outline**: -7.0 / -14.2 % at 1 mm (square, 200 / 1000; worst 17.6 %), -7.4 / -16.4 % on the disc; it is also 1 to 3 points
-below the FVM with the copper to the wall. The repository quotes no FDM numbers for these boards.
+the board still reads cool, as validation 40 says of the square. (3) **The FDM is about twice as far from the FEM as the FVM on every drawn board with the copper inside the outline**: with the cell-fill faces of `develop`
+e39de188 -5.8 / -12.0 % at 1 mm (square, 200 / 1000; worst 16.8 %), -6.2 / -14.1 % on the disc (the first run, harmonic faces: -7.0 / -14.2 %, worst 17.6 %, and
+-7.4 / -16.4 %, 2 to 3 times the FVM); with the copper to the wall it is 0.6 to 5 points below the FVM, and the cell-fill faces move it 0.05 to 0.5 point further
+away there (validation 47 says the same). Validation 47 quotes these FDM numbers.
 
 ### 3(d) The T outline with copper to the wall, 200 W/m2K, heater mean rise
 
 FEM 67.113 / 67.249 / 67.291 K at 0.4 / 0.2 / 0.1 mm (12 per gap), p 1.70, extrapolated 67.325 K (GCI 0.03 %); the whole T solved without the symmetry plane
 gives 67.1124 against 67.1132 K of the half domain at 0.4 mm (the symmetry cut is right). Stored finite-volume truth 67.2415 K (-0.12 % from the FEM; the
 earlier hex study said -0.05 %). Program, ten turned boards: FVM 1 mm **+1.06 % (worst 1.35)** against the FEM, +1.19 (1.48) against the truth; 0.5 mm +0.12 (0.49)
-and +0.24 (0.42); FDM 1 mm -0.73 (3.10), 0.5 mm -0.44 (1.47). The +1.19 % hot excess of validation 40.2 is real (+1.06 % against the FEM) and falls with the cell.
+and +0.24 (0.42); FDM 1 mm -1.20 (3.29), 0.5 mm -0.61 (1.52) on `develop` e39de188 (first run, harmonic faces: -0.73 (3.10), -0.44 (1.47)). The +1.19 % hot excess of validation 40.2 is real (+1.06 % against the FEM) and falls with the cell.
 
 ## 4. Disagreements and proposed corrections to `docs/validation.md` (text for the project documents in `docs/validation-text.md`; the documents are not edited on this branch)
 
@@ -250,10 +262,13 @@ and +0.24 (0.42); FDM 1 mm -0.73 (3.10), 0.5 mm -0.44 (1.47). The +1.19 % hot ex
 4. **Validation 44, "not reconciled" (-1.3 / -3.9 / -7.2 / -11.7 against -0.8 / -2.5 / -5.1 / -8.9 %)**: not resolved here (that study's boards were not run); but
    the reference of section 36 / 43 being 1.6 % hot at 1000 W/m2K narrows the gap of the 1000 column from 2.1 to about 0.5 point if section 44's reference is
    closer to converged; worth a check with this solver (its boards are 10 x 10 mm with thin gaps, two minutes each).
-5. **New, not in the documents**: (a) the FDM at its harmonic default reads a drawn copper edge inside the outline 2 to 3 times cooler than the FVM
+5. **FDM findings** (the first run, harmonic faces): (a) the FDM read a drawn copper edge inside the outline 2 to 3 times cooler than the FVM
    (square and disc with copper 1.2 mm in: -7 / -14 % at 1 mm and 200 / 1000 W/m2K; -5 / -9 % at 0.5 mm) and the strong-edge plate with a 0.5 mm inset
-   -1.0 % already at 10 W/m2K (-7.6 % at 1000, 0.25 mm), where the FVM reads -0.1 / -1.1 %; (b) the FDM via effect is 4 to 16 % low at 0.25 mm. These are
-   candidates for an FDM warning or a fix (the FDM is the comparison model); the maintainer decides whether a validation row is wanted.
+   -1.0 % already at 10 W/m2K (-7.6 % at 1000, 0.25 mm), where the FVM reads -0.1 / -1.1 %; (b) the FDM via effect is 4 to 16 % low at 0.25 mm. Item (a) was
+   taken up by `research/fdm-inset-edge` and `fix/fdm-copper-edge-faces` (`docs/validation.md` 47, now in `develop`): on `develop` e39de188 the same boards read
+   -5.8 / -12.0 % (square, 1 mm), -3.8 / -6.9 % (0.5 mm), and the inset plate -0.6 / -1.5 / -3.0 % at 0.25 mm (10 / 200 / 1000 W/m2K): about twice the FVM's
+   error, no longer two to three times; the residual and the box-against-outline difference are A40 of `research/ROADMAP.md`. Item (b) is unchanged and is
+   not in any project document (a candidate for an FDM limit sentence).
 6. **The first hexahedral study (this folder before the present solver, commit 5e28646f)**: its plate extrapolations agree with this solver within 0.08 %, its square truths
    differ by up to 0.3 % through its 8 uniform bricks per gap (the thickness was not extrapolated there), and its via effect carries the disc-share bias
    (+1.5 to +2.3 %). Its numbers are superseded by the conforming values above.
@@ -268,8 +283,9 @@ the read-out convention of the hottest rise: the FEM gives the point maximum, th
   invariance, the published cases through the repository's values (the papers were not reopened: the published numbers are quoted from
   `research/effective-conductivity`, status S), the half-domain cuts (T whole = half), the energy balance on every solve.
 * **Not verified**: the representation of the via by a solid cylinder is the references' and the program's `fill_k = 385` convention, not a real plated
-  barrel (`r_in`, `k_fill` exist in `board.py` but no hollow via was run); the via sits on the symmetry line (half domain), as in `ref3d`; the FDM findings
-  of section 4.5 were not traced to a cause in `fdm.py` (a `fix/` investigation); the section 44 boards were not run; the
+  barrel (`r_in`, `k_fill` exist in `board.py` but no hollow via was run); the via sits on the symmetry line (half domain), as in `ref3d`; the FDM finding
+  4.5(a) was traced elsewhere (`research/fdm-inset-edge`: the half-copper node at a copper edge, fixed in part by `fix/fdm-copper-edge-faces`), the residual and
+  4.5(b) were not traced here; the section 44 boards are section 6; the
   L outline and the four-layer / pad / stripe boards of validation 40 were not run; no time domain, no metal blocks, no imported masks.
 * **Mesh limits reached**: plan 0.05 mm on the strong-edge board (138 000 to 158 000 unknowns, CG + AMG, 1.6 GB), 0.1 mm on the squares and T, n_side 32 on
   the disc, 24 elements per gap in the thickness sequences; the whole study peaked at 2.73 GB of resident memory (one direct solve of 59 000 unknowns);
@@ -277,7 +293,7 @@ the read-out convention of the hottest rise: the FEM gives the point maximum, th
   stopped: section 2).
 * **Observed orders below 2** on some plan sequences (0.83 at 200 W/m2K on the plate, 1.2 to 1.6 on the squares): the hottest point under a source and the
   re-entrant corners are singular, and the plan sequence has a graded mesh whose coarse part does not refine by exactly 2; the GCI (0.01 to 0.24 %) is
-  the honest band, and the through-thickness sequences (order 2.6 to 2.95) are clean.
+  the band of the graded sequences (with `hmax` held fixed the far field is not refined: a uniform sequence moves the plate at 200 W/m2K by 0.04 %, inside its GCI, but the Lee plate by 0.09 %, outside it; section 7.2; no conclusion moves), and the through-thickness sequences (order 2.6 to 2.95) are clean.
 * **Machine**: shared, one run at a time; the solves took 0 to 22 s each; the program runs under 1 GB.
 
 ## 6. Thin-laminate boards of validation 44
@@ -298,7 +314,7 @@ program, not by the FEM**: the 6-layer boards at 0.125 mm with 8 sub-gaps (294 0
 
 ### 6.1 Table (errors in % against the FEM; the FEM column "hottest 0.25 mm cell" is the like-for-like read-out of the program and of the reference at 0.25 mm; the 0.5 and 0.125 mm columns are measured against the FEM hottest cell of their own size; the FEM point extrapolation carries the 6 / 12 elements-per-gap correction measured at 1000 W/m2K, at most +0.03 K)
 
-| board | h_side | FEM point ext (GCI) | FEM hottest 0.25 mm cell | ref 0.25/8 | ref 0.125/8 | FVM 0.25: default / 8 | FVM 0.5: default / 8 | FVM 0.125/8 | FDM 0.25 default / 8 |
+| board | h_side | FEM point ext (GCI) | FEM hottest 0.25 mm cell | ref 0.25/8 | ref 0.125/8 | FVM 0.25: default / 8 | FVM 0.5: default / 8 | FVM 0.125/8 | FDM 0.25 default / 8 (pads: [first run, harmonic faces]) |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | full 2L 1.0 mm | 200 | 36.918 (-0.08 %) | 36.868 | +0.7 | +0.4 | -0.3 / +0.3 | +0.5 / +1.3 | +0.1 | -0.6 / -0.1 |
 | full 2L 1.0 mm | 500 | 31.188 (0.02 %) | 31.143 | +1.8 | +0.9 | -1.5 / +0.6 | -0.2 / +2.5 | -0.0 | -2.3 / -0.8 |
@@ -332,18 +348,18 @@ program, not by the FEM**: the 6-layer boards at 0.125 mm with 8 sub-gaps (294 0
 | full 8L 1.6 mm | 500 | 26.282 (0.10 %) | 26.239 | +3.5 | - | -2.1 / +2.8 | -1.5 / +6.7 | - | -2.1 / -1.1 |
 | full 8L 1.6 mm | 1000 | 21.276 (0.21 %) | 21.229 | +6.1 | - | -3.9 / +4.6 | -3.2 / +10.5 | - | -3.9 / -2.0 |
 | full 8L 1.6 mm | 2000 | 17.669 (0.37 %) | 17.616 | +8.8 | - | -6.2 / +6.2 | -5.4 / +13.2 | - | -6.2 / -3.1 |
-| pad 4L 1.6 mm | 200 | 61.073 (0.11 %) | 61.029 | +2.9 | +1.4 | -0.6 / +1.9 | +1.9 / +4.8 | +0.5 | -5.4 / -3.4 |
-| pad 4L 1.6 mm | 500 | 54.337 (0.14 %) | 54.295 | +3.8 | +1.8 | -1.0 / +2.5 | +2.0 / +6.3 | +0.7 | -6.9 / -4.1 |
-| pad 4L 1.6 mm | 1000 | 50.299 (0.17 %) | 50.257 | +4.6 | +2.1 | -1.7 / +2.9 | +1.6 / +7.4 | +0.8 | -8.3 / -4.8 |
-| pad 4L 1.6 mm | 2000 | 47.383 (0.20 %) | 47.342 | +5.5 | +2.6 | -2.7 / +3.1 | +0.7 / +8.1 | +0.9 | -9.7 / -5.4 |
-| pad 6L 1.6 mm | 200 | 50.150 (0.11 %) | 50.106 | +2.5 | +1.1 | -1.3 / +1.9 | +0.5 / +4.4 | +0.6 | -4.9 / -2.6 |
-| pad 6L 1.6 mm | 500 | 42.671 (0.16 %) | 42.628 | +3.8 | +1.7 | -2.4 / +3.0 | -0.2 / +6.9 | +1.0 | -6.8 / -3.4 |
-| pad 6L 1.6 mm | 1000 | 38.159 (0.21 %) | 38.117 | +5.1 | +2.2 | -3.7 / +3.8 | -1.3 / +8.8 | +1.3 | -8.8 / -4.2 |
-| pad 6L 1.6 mm | 2000 | 34.985 (0.26 %) | 34.943 | +6.2 | +2.8 | -5.1 / +4.5 | -2.5 / +10.0 | +1.6 | -10.6 / -5.0 |
-| pad 8L 1.0 mm | 200 | 37.130 (0.15 %) | 37.094 | +1.8 | - | +0.3 / +1.3 | +1.2 / +2.8 | - | -1.8 / -1.4 |
-| pad 8L 1.0 mm | 500 | 30.676 (0.26 %) | 30.642 | +3.8 | - | +0.3 / +3.2 | +1.6 / +6.5 | - | -2.5 / -2.0 |
-| pad 8L 1.0 mm | 1000 | 25.890 (0.39 %) | 25.857 | +6.5 | - | -0.0 / +5.5 | +1.7 / +10.6 | - | -3.5 / -2.7 |
-| pad 8L 1.0 mm | 2000 | 22.131 (0.54 %) | 22.100 | +9.3 | - | -0.7 / +7.7 | +1.2 / +14.0 | - | -4.8 / -3.6 |
+| pad 4L 1.6 mm | 200 | 61.073 (0.11 %) | 61.029 | +2.9 | +1.4 | -0.6 / +1.9 | +1.9 / +4.8 | +0.5 | -3.1 / -2.0 [-5.4 / -3.4] |
+| pad 4L 1.6 mm | 500 | 54.337 (0.14 %) | 54.295 | +3.8 | +1.8 | -1.0 / +2.5 | +2.0 / +6.3 | +0.7 | -4.1 / -2.5 [-6.9 / -4.1] |
+| pad 4L 1.6 mm | 1000 | 50.299 (0.17 %) | 50.257 | +4.6 | +2.1 | -1.7 / +2.9 | +1.6 / +7.4 | +0.8 | -5.2 / -3.0 [-8.3 / -4.8] |
+| pad 4L 1.6 mm | 2000 | 47.383 (0.20 %) | 47.342 | +5.5 | +2.6 | -2.7 / +3.1 | +0.7 / +8.1 | +0.9 | -6.4 / -3.5 [-9.7 / -5.4] |
+| pad 6L 1.6 mm | 200 | 50.150 (0.11 %) | 50.106 | +2.5 | +1.1 | -1.3 / +1.9 | +0.5 / +4.4 | +0.6 | -3.2 / -1.8 [-4.9 / -2.6] |
+| pad 6L 1.6 mm | 500 | 42.671 (0.16 %) | 42.628 | +3.8 | +1.7 | -2.4 / +3.0 | -0.2 / +6.9 | +1.0 | -4.8 / -2.5 [-6.8 / -3.4] |
+| pad 6L 1.6 mm | 1000 | 38.159 (0.21 %) | 38.117 | +5.1 | +2.2 | -3.7 / +3.8 | -1.3 / +8.8 | +1.3 | -6.5 / -3.2 [-8.8 / -4.2] |
+| pad 6L 1.6 mm | 2000 | 34.985 (0.26 %) | 34.943 | +6.2 | +2.8 | -5.1 / +4.5 | -2.5 / +10.0 | +1.6 | -8.1 / -3.8 [-10.6 / -5.0] |
+| pad 8L 1.0 mm | 200 | 37.130 (0.15 %) | 37.094 | +1.8 | - | +0.3 / +1.3 | +1.2 / +2.8 | - | -1.4 / -1.2 [-1.8 / -1.4] |
+| pad 8L 1.0 mm | 500 | 30.676 (0.26 %) | 30.642 | +3.8 | - | +0.3 / +3.2 | +1.6 / +6.5 | - | -2.0 / -1.7 [-2.5 / -2.0] |
+| pad 8L 1.0 mm | 1000 | 25.890 (0.39 %) | 25.857 | +6.5 | - | -0.0 / +5.5 | +1.7 / +10.6 | - | -3.0 / -2.4 [-3.5 / -2.7] |
+| pad 8L 1.0 mm | 2000 | 22.131 (0.54 %) | 22.100 | +9.3 | - | -0.7 / +7.7 | +1.2 / +14.0 | - | -4.2 / -3.3 [-4.8 / -3.6] |
 
 The FEM plan sequences of the 8-layer boards at 1000 and 2000 W/m2K are the least converged (observed order 0.6 to 0.9, GCI 0.4 to 1.3 %): the gaps are 0.10 to
 0.19 mm and the 0.05 mm plan size is not yet asymptotic for the field at the wall; the 0.25 mm cell mean, which is what every comparison uses, is less
@@ -367,9 +383,10 @@ sensitive than the point maximum. Elsewhere the GCI is 0.01 to 0.27 %.
    `check_edge_laminate` already says of the 0.5 mm cell). Against the hot reference at 0.25 mm they looked right (-0.2 .. -2.6 %). The program at 0.125 mm
    with eight sub-gaps is +0.2 .. +2.7 % (thin), +0.5 .. +1.6 % (pads), -1.0 .. +0.7 % (cut gaps): the layered idealisation converges to the FEM from above
    with the cell and from below with the sub-gap count; the default at 0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
-4. **FDM** (harmonic default, 0.25 mm): on the full-copper boards the same as the FVM to 0.1 point (-0.2 .. -1.1 / -0.9 .. -3.3 / -2.2 .. -5.9 / -4.0 .. -9.6 %);
-   on the **pad boards 2 to 5 points cooler than the FVM** (-1.8 .. -5.4 % already at 200 W/m2K, -3.5 .. -8.8 at 1000, -4.8 .. -10.6 at 2000): the copper edge
-   inside the outline again (section 4, item 5a), now on a four- to eight-layer board with inner planes.
+4. **FDM** (default, 0.25 mm): on the full-copper boards the same as the FVM to 0.1 point (-0.2 .. -1.1 / -0.9 .. -3.3 / -2.2 .. -5.9 / -4.0 .. -9.6 %;
+   unchanged by the cell-fill faces); on the **pad boards 1.7 to 3.7 points cooler than the FVM** on `develop` e39de188 (-1.4 .. -3.2 % at 200 W/m2K, -3.0 .. -6.5
+   at 1000, -4.2 .. -8.1 at 2000), where the first run with the harmonic faces read 2 to 5 points (-1.8 .. -5.4 / -3.5 .. -8.8 / -4.8 .. -10.6 %): the copper edge
+   inside the outline again (section 4, item 5a), on a four- to eight-layer board with inner planes; the faces of validation 47 cut the FDM error of the pads by a fifth to two fifths.
 
 #### 6.3 Proposed corrections (not edited)
 
@@ -390,14 +407,68 @@ sensitive than the point maximum. Elsewhere the GCI is 0.01 to 0.27 %.
 
 ## 7. Review
 
-Scope: `lib/`, `tests/`, `scripts/` and sections 1 to 6. Everything here was re-run. The checks are reproduced by `tests/test_review.py` or quoted with their output.
+Two reviews by the project reviewer: the review of the folder as it is in the repository (7.0 to 7.0.4, the closing review, run on `develop` e39de188) and the
+first review of the tool before it entered the repository (7.1 to 7.8, its checks re-confirmed by the closing review where said).
 
-### 7.0 Verdict
+### 7.0 Verdict of the closing review
 
-**GO** as the independent reference for the **steady** validation numbers of layered boards: copper sheets, orthotropic laminate, films on the faces and
-on every wall slice, axis-aligned, turned and disc outlines, and a solid copper via cylinder. Two conditions apply: (a) the Lee values are the corrected
-ones below, and (b) any `docs/validation.md` sentence that compares a **hottest rise** of the program with the FEM states the read-out convention
-(point against cell mean, below). It is **not** a reference for transients, metal blocks, imported masks or a hollow plated barrel. None of these was run.
+**GO** for the merge of the folder and as the independent reference for the **steady** validation numbers of layered boards (copper sheets, orthotropic
+laminate, films on the faces and on every wall slice, axis-aligned, turned and disc outlines, a solid copper via cylinder), with the conditions of the first
+review kept: (a) the corrected Lee values, (b) a `docs/validation.md` sentence that compares a program **hottest rise** with the FEM states whether the FEM value
+is the point maximum or the hottest cell mean (section 7.0.3 finds that validation 46 does not). It is **not** a reference for transients, metal blocks,
+imported masks or a hollow plated barrel (none was run). The project documents need the corrections of `docs/validation-text.md` (stale FDM numbers, the
+read-out sentence of validation 46, the places that call the reference "outside the repository"); they are not edited on this branch.
+
+#### 7.0.1 What was re-run (`develop` e39de188 merged into the branch; `.venv` for the program, `.venv-research` with scikit-fem 12.0.2 and pyamg 5.4.1)
+
+* Tests: `.venv` 11 passed, 1 skipped (the scikit-fem cross-check); `.venv-research` 12 passed.
+* `study_program.py` (all 160 records, 19 s, 0.26 GB) and `study_thin_laminate.py prog` (every FVM record at 0.5 and 0.25 mm, the 0.125 mm records of the
+  2- and 4-layer boards, every FDM record; 92 s, 2.6 GB peak); `study_report.py` and `study_thin_laminate.py report` print the tables of sections 3 and 6.
+  **FVM: all 160 + 208 records bit-identical (1e-9) to the first run. FDM: 32 of 160 and 36 of 132 records moved** (every board with a drawn copper edge or an
+  outline cutting the nodes; full-copper plates and the vias did not move), by the cell-fill faces of `fix/fdm-copper-edge-faces`. The tables now carry the
+  numbers of `develop` e39de188 with the first run's FDM in brackets; the new FDM numbers reproduce `docs/validation.md` 47 to the digit (inset plate
+  -0.56 / -1.48 / -2.96 % at 0.25 mm against 47.1's -0.56 / -1.48 / -2.97, a rounding of the last digit; square, disc, T as in 47.1's review table).
+* FEM: nine cached solves re-solved from scratch (plate 1000 W/m2K at 0.1 and at 0.05 mm, the latter 138 000 unknowns by CG + AMG, 0.93 GB; plate inset 200 at 0.2;
+  via 0.16 mm at 0.1; square inset 1000, disc inset 1000, T at the middle meshes; two thin boards at 0.1 mm, one of 100 640 unknowns): equal to the cache to
+  1.6e-12 K, balance 1 to 2e-12. The thin 4-layer 1.6 mm board at 1000 W/m2K equals the strong-edge plate to the last digit (same board, two builders).
+* The program-version label of the first run (`develop` 48ad0380) was **wrong**: at 48ad0380 the simple stack-up still gave every node T / L, while the first
+  run's simple and physical records are identical and `study_report.py` asserts it; the first run was on a later tree (physical slabs, no FDM cell-fill faces).
+  Corrected in section 3, section 8 and `INTEGRATION.md`.
+
+#### 7.0.2 Independent checks of the conclusions
+
+* **The explanation "the cell-centred reference is hot because its half-cell film is first order" was tested directly**: the errors of `ref3d` at 1/4 and
+  1/8 mm against the FEM fall by a ratio 2.1 to 2.9 (plate, four cases) and 2.05 / 3.1 (via 0.16 mm), and the first-order extrapolation 2 v(1/8) - v(1/4) of the
+  reference lands -0.05 to -0.67 % (plate) and -0.4 % (via, 1000 W/m2K) from the FEM: a cell-centred finite-volume solver and the conforming finite elements
+  converge to the same limit, so the agreement of the FEM with the stored truths is not two errors cancelling. The via 3 mm from the wall is not in the
+  asymptotic range of the reference (errors +8.4 % then -0.9 %), so its "-0.9 % at 1/8 mm" is a crossing, not a convergence (said in 3(b)).
+* Closed forms (`tests/test_closed_forms.py`, `test_review.py`, run): 1D series stack 1e-9, Robin fin 1e-5, two-wall Robin sheet order 2, manufactured box and
+  disc order 2, the Lee plate against an own cosine series (1e-4) and a two-layer board against an own layered series (1e-5), a patch test 7e-15.
+* The element code was read again against the Q1 formulation (`lib/fem.py`: `B = dN J^-1`, `sum B diag(k) B^T |det J|`, 2 x 2 x 2 Gauss, face mass on the real
+  face); no defect.
+* Numbers of the readings checked against the printed tables: 3(a) to 3(d), 6.1 and the items of 6.2 (thin-gap ranges -0.1 .. -1.1 / ... / -4.0 .. -9.6 %,
+  eight sub-gaps +0.7 .. +1.1 / ... / +5.0 .. +7.3 %, the 4-layer 1.6 mm board -0.4 / -1.4 / -3.2 / -6.0 %): all reproduce. Corrected: the FDM readings (3(a)
+  item 4, 3(c) item 3, 3(d), 4 item 5, 6.2 item 4: the FDM is now about twice the FVM's error at a copper edge inside the outline, no longer two to three
+  times), the "not verified" list of section 5 (section 44 boards are run in section 6; the FDM finding 4.5(a) was traced by `research/fdm-inset-edge`).
+
+#### 7.0.3 Findings in the project documents (for the maintainer; text in `docs/validation-text.md`)
+
+1. **Wrong document, validation 46**: the paragraph says the FEM hottest value "is read as the hottest cell mean like the program's", but the plate rows of
+   its table (-0.57 / -3.52 %, +0.46 / +2.01 %, FDM -1.10 / -5.13 %, 0.5 mm -0.03 / -1.97, +1.53 / +6.12) are against the **point** extrapolation (section 3(a)).
+   Against the hottest 0.25 mm cell (point -0.13 % / -0.20 %, section 7.3) they are -0.44 / -3.32 %, +0.59 / +2.21 %, FDM -0.97 / -4.94 %. The thin-laminate
+   numbers (44, 46, the warnings) ARE cell means and stand. Either the rows or the sentence must change; no conclusion moves (0.1 to 0.2 point).
+2. **Stale document, validation 46**: "The FDM at its harmonic default reads a drawn copper edge inside the outline 2 to 3 times cooler than the FVM (-7.0 /
+   -14.2 %)" and "on thin-gap boards with pads, 2 to 5 points colder": since validation 47 the default FDM reads -5.8 / -12.0 % and 1.7 to 3.7 points.
+3. **Stale location**: validation 46, `CLAUDE.md` (open decision 1, gate item 1, the Decisions Log entry on the edge warnings) and the 2.7.0 final opinion
+   (`README.md` 2, 5, 6; `fdm-copper-edge-faces.md`) say the reference is outside the repository or cite its git-ignored location; once this folder is
+   merged it is `research/independent-fem-edge`. The list is in `docs/validation-text.md`.
+
+#### 7.0.4 Not verified by the closing review
+
+The FEM sequences were not re-run in full (nine solves were, all equal to the cache; the rest is read from `out/fem_cache.json` and `out/thin_fem.json`,
+which the scripts regenerate); the `ref3d` references (`study_fv_refs.py`) and the reference of section 6 were not re-run (the program does not enter them);
+the FVM 0.125 mm records of the 6- and 8-layer boards were not re-run (above the memory budget; the FVM did not move anywhere else); the published cases
+(`study_published.py`) were not re-run; the papers were not reopened (status S).
 
 ### 7.1. Element formulation (read against Zienkiewicz-Taylor / Hughes, Q1 isoparametric heat conduction)
 
@@ -506,8 +577,8 @@ for this tool.
 ### 7.8. Not verified
 
 * The Culham coupon was not re-derived independently.
-* The finest FEM runs (CG + AMG, 0.05 mm) were not repeated. The disc and T sequences were not re-run, only read from the cache.
-* The cause of the FDM defect was not found.
+* The finest FEM runs (CG + AMG, 0.05 mm) were not repeated (the closing review re-solved one, plate 1000 W/m2K at 0.05 mm: equal to 1.6e-12 K). The disc and T sequences were not re-run, only read from the cache (the closing review re-solved their middle meshes: equal).
+* The cause of the FDM defect was not found here (later: `research/fdm-inset-edge`, `docs/validation.md` 47).
 * The papers were not reopened (status S).
 
 
@@ -519,9 +590,10 @@ for this tool.
   the energy balance on every solve, Lee's plate against an own cosine series (1e-4), a layered board against an own layered series (1e-5), and a patch test on a distorted mesh. The
   published cases are reproduced only through the repository's finite-volume values and the same distances from the papers (the papers are not reopened).
 * **Not verified**: a hollow plated barrel (every via number is the solid `fill_k = 385` convention); stripes and imported masks; the L outline and the four-layer, pad and stripe
-  boards of validation 40; transients and metal blocks; the Culham coupon was not re-derived independently; the finest runs were not repeated; the cause of the FDM finding (section 4,
-  item 5) was not traced in `fdm.py`; the 8-layer pad board at 0.05 mm (460 000 unknowns) was not solved.
-* The program numbers in the tables were printed by the program of the integration tip at the time of the runs (`develop` at 48ad0380 for sections 3 and 4); they are a snapshot, and
-  the project reviewer's earlier review of this tool (section 7) is to be re-checked by the next review of the folder (`research/REVIEW.md`).
+  boards of validation 40; transients and metal blocks; the Culham coupon was not re-derived independently; of the finest runs one was repeated (section 7.0.1); the FDM finding 4.5(a) was traced by `research/fdm-inset-edge`, its residual and 4.5(b) were not
+  traced; the 8-layer pad board at 0.05 mm (460 000 unknowns) was not solved.
+* The program numbers in the tables were printed by the program of `develop` at e39de188 (the closing review's re-run, section 7.0.1); the FDM numbers of the first run, on an earlier
+  tree without the FDM cell-fill faces (wrongly labelled 48ad0380 before), are kept in brackets where they moved. A later model change moves the program columns, not the
+  finite-element ones: `study_program.py`, `study_thin_laminate.py prog` and the two report scripts regenerate them (under 2 minutes and 2.6 GB).
 * The first, hand-written hexahedral solver that this folder held before (a different implementation of the same idea; its extrapolations agree with the present one within 0.08 %
   on the plate) is not kept in the tree; it is in git history at commit 5e28646f.
