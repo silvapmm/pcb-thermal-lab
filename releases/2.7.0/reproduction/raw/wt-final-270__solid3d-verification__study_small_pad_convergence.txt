@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<scratch>/wt-final-270/research/solid3d-verification/scripts/study_small_pad_convergence.py", line 29, in <module>
+    import fem3d_validation as f3                                          # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<scratch>/wt-final-270/research/solid3d-verification/scripts/fem3d_validation.py", line 25, in <module>
+    from skfem import Basis, BilinearForm, ElementHex1, FacetBasis, LinearForm, MeshHex, asm   # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'skfem'
+rc=1 time=0s

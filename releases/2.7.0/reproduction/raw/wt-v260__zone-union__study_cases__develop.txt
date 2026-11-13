@@ -1,0 +1,24 @@
+done one zone
+done 40 abutting strips of 0.5 mm
+done one zone of fill 0.5
+done two overlapping zones of fill 0.5
+done fills 0.8 and 0.4 overlapping partly
+done two zones meeting at x = 10.0 mm
+done two zones meeting at x = 10.25 mm
+done two zones meeting at x = 10.37 mm
+done two zones meeting along a line at 0 degrees
+done two zones meeting along a line at 15 degrees
+done two zones meeting along a line at 30 degrees
+done two zones meeting along a line at 45 degrees
+done three zones meeting at a T
+done four zones meeting at a corner
+done two solid zones overlapping by 4.4 mm
+done frame with a hole and an island 0.3 mm inside it
+done two layers, abutting strips on each (top vertical, bottom horizontal)
+done two layers, one zone on each
+done hatch: one zone of vertical stripes (fill 0.5)
+done hatch: two identical hatched zones
+done hatch: two complementary hatched zones (stripes shifted by half a pitch)
+done hatch: crossed hatched zones (vertical and horizontal stripes)
+done hatch: a hatched zone over a solid zone (union is solid)
+rc=0 time=7s

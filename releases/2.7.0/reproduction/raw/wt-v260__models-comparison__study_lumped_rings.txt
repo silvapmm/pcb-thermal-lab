@@ -1,0 +1,14 @@
+Coupon (50 mm, sources of 26 to 44 mm): error of the Lumped maximum against the FVM
+| rings | before: range over the sources | largest step between 1 mm sizes | now: range | largest step |
+| --: | --: | --: | --: | --: |
+| 10 | +0.3 to +2.5 % | 0.9 % | +0.3 to +0.5 % | 0.1 % |
+| 20 | +0.4 to +4.4 % | 2.1 % | +0.3 to +0.4 % | 0.1 % |
+| 40 | +0.5 to +7.2 % | 2.7 % | +0.3 to +0.4 % | 0.1 % |
+
+Example board: error of the Lumped maximum rise against the FVM
+| rings | before | now |
+| --: | --: | --: |
+| 10 | +2.3 % | +2.3 % |
+| 20 | +4.9 % | +1.7 % |
+| 40 | +9.2 % | +1.8 % |
+rc=0 time=4s

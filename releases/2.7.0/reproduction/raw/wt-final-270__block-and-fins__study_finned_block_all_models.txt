@@ -1,0 +1,20 @@
+Rise of the hottest point (K), 1 mm cells
+| Block | Fin ratio at 10 W/m²K | FVM | FDM | 3D solid | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: | --: |
+| plain plate 3 mm | 1.0 | 88.3 | 88.3 | 88.9 | 89.8 | 88.5 |
+|   (against the FVM) | | | -0.1 % | +0.6 % | +1.6 % | +0.2 % |
+| fins 15 × 1.5 mm, pitch 8 mm | 4.7 | 65.0 | 65.0 | 65.5 | 66.5 | 65.2 |
+|   (against the FVM) | | | -0.0 % | +0.7 % | +2.2 % | +0.3 % |
+| fins 15 × 1.5 mm, pitch 12 mm | 3.5 | 70.0 | 69.9 | 70.4 | 71.4 | 70.2 |
+|   (against the FVM) | | | -0.0 % | +0.7 % | +2.1 % | +0.3 % |
+| fins 30 × 1.5 mm, pitch 8 mm | 8.3 | 56.6 | 56.5 | 57.0 | 58.0 | 56.7 |
+|   (against the FVM) | | | -0.0 % | +0.8 % | +2.5 % | +0.3 % |
+
+FVM with the sides of the base plate at h_face + h_extra (no fin ratio on the sides)
+| Block | sides x fin ratio (program) | sides without fins | difference |
+| :-- | --: | --: | --: |
+| plain plate 3 mm | 88.3 | 88.3 | +0.0 % |
+| fins 15 × 1.5 mm, pitch 8 mm | 65.0 | 65.0 | +0.0 % |
+| fins 15 × 1.5 mm, pitch 12 mm | 70.0 | 70.0 | +0.0 % |
+| fins 30 × 1.5 mm, pitch 8 mm | 56.6 | 56.6 | +0.0 % |
+rc=0 time=4s

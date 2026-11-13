@@ -1,0 +1,47 @@
+== A. Harness boards: Lumped and Analytic hottest temperature, program vs min_inf (K); only the boards that move are listed ==
+0 of 25 (board, cell) runs move
+
+== B. Random boards: change of T_max when the elsewhere vias are added to a part with a cluster under it (cell 0.5 mm) ==
+(the FVM change is the reference; the model's error is Lumped change minus FVM change, in K)
+ 0 | layers 2 | 3 elsewhere | FVM change -0.006 | Lumped error program +0.002 | candidate +0.002
+ 1 | layers 2 | 3 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+ 2 | layers 4 | 3 elsewhere | FVM change -0.002 | Lumped error program +0.000 | candidate +0.000
+ 3 | layers 2 | 1 elsewhere | FVM change -0.001 | Lumped error program +0.000 | candidate +0.000
+ 4 | layers 2 | 6 elsewhere | FVM change -0.001 | Lumped error program -0.001 | candidate -0.001
+ 5 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+ 6 | layers 2 | 6 elsewhere | FVM change -0.004 | Lumped error program -0.002 | candidate -0.002
+ 7 | layers 2 | 6 elsewhere | FVM change -0.005 | Lumped error program -0.002 | candidate -0.002
+ 8 | layers 4 | 1 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+ 9 | layers 4 | 4 elsewhere | FVM change -0.003 | Lumped error program +0.000 | candidate +0.000
+10 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+11 | layers 2 | 3 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+12 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+13 | layers 4 | 2 elsewhere | FVM change -0.004 | Lumped error program -0.004 | candidate -0.004
+14 | layers 4 | 6 elsewhere | FVM change -0.002 | Lumped error program -0.002 | candidate -0.002
+15 | layers 4 | 6 elsewhere | FVM change -0.006 | Lumped error program -0.005 | candidate -0.005
+16 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+17 | layers 2 | 6 elsewhere | FVM change -0.007 | Lumped error program -0.003 | candidate -0.003
+18 | layers 2 | 6 elsewhere | FVM change -0.002 | Lumped error program -0.001 | candidate -0.001
+19 | layers 4 | 6 elsewhere | FVM change -0.001 | Lumped error program -0.000 | candidate -0.000
+20 | layers 2 | 4 elsewhere | FVM change -0.005 | Lumped error program -0.001 | candidate -0.001
+21 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+22 | layers 4 | 1 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+23 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+24 | layers 4 | 2 elsewhere | FVM change -0.007 | Lumped error program -0.002 | candidate -0.002
+25 | layers 2 | 1 elsewhere | FVM change -0.001 | Lumped error program +0.000 | candidate +0.000
+26 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+27 | layers 2 | 4 elsewhere | FVM change -0.006 | Lumped error program -0.003 | candidate -0.003
+28 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+29 | layers 2 | 2 elsewhere | FVM change -0.003 | Lumped error program +0.001 | candidate +0.001
+30 | layers 4 | 3 elsewhere | FVM change -0.008 | Lumped error program +0.000 | candidate +0.000
+31 | layers 4 | 2 elsewhere | FVM change -0.003 | Lumped error program -0.003 | candidate -0.003
+32 | layers 2 | 1 elsewhere | FVM change -0.001 | Lumped error program +0.000 | candidate +0.000
+33 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+34 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+35 | layers 2 | 1 elsewhere | FVM change -0.001 | Lumped error program -0.000 | candidate -0.000
+36 | layers 4 | 6 elsewhere | FVM change -0.001 | Lumped error program -0.001 | candidate -0.001
+37 | layers 2 | 1 elsewhere | FVM change -0.000 | Lumped error program +0.000 | candidate +0.000
+38 | layers 4 | 2 elsewhere | FVM change -0.001 | Lumped error program -0.000 | candidate -0.000
+39 | layers 2 | 2 elsewhere | FVM change -0.000 | Lumped error program -0.000 | candidate -0.000
+40 boards; mean |error| program 0.001 K, candidate 0.001 K; max program 0.005, candidate 0.005; boards where the candidate is worse by more than 0.05 K: 0
+rc=0 time=68s

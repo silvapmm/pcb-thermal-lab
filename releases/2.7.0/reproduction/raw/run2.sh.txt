@@ -1,0 +1,19 @@
+#!/bin/bash
+S=<scratch>
+export QT_QPA_PLATFORM=offscreen MPLBACKEND=Agg
+TO=${TO:-300}
+# lines: folder/script.py [args]
+while read -r spec args; do
+ [ -z "$spec" ] && continue
+ d=$(dirname $spec); b=$(basename $spec .py)
+ for tree in wt-v260 wt-final-270; do
+  o=$S/repro2/${tree}__${d}__${b}${args:+__$(echo $args|tr ' ' _)}.txt
+  cd $S/$tree
+  [ -f research/$d/scripts/$b.py ] || { echo MISSING > $o; continue; }
+  t0=$(date +%s)
+  timeout $TO .venv/bin/python research/$d/scripts/$b.py $args > $o 2>&1; rc=$?
+  echo "rc=$rc time=$(( $(date +%s)-t0 ))s" >> $o
+  echo "$tree $spec $args rc=$rc $(( $(date +%s)-t0 ))s" >> $S/repro2/progress.log
+ done
+done < ${1}
+echo ALLDONE >> $S/repro2/progress.log

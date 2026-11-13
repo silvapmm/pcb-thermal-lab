@@ -1,0 +1,52 @@
+memory guard: the estimate of 7.3 GB is above the 5.5 GB available now, the machine may swap
+memory guard: the estimate of 7.3 GB is above the 5.6 GB available now, the machine may swap
+memory guard: the estimate of 7.3 GB is above the 5.6 GB available now, the machine may swap
+memory guard: the estimate of 7.3 GB is above the 5.8 GB available now, the machine may swap
+memory guard: the estimate of 7.4 GB is above the 5.8 GB available now, the machine may swap
+memory guard: the estimate of 7.4 GB is above the 5.8 GB available now, the machine may swap
+memory guard: the estimate of 7.8 GB is above the 5.8 GB available now, the machine may swap
+memory guard: the estimate of 7.8 GB is above the 5.5 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 5.5 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 5.8 GB available now, the machine may swap
+## 3 x 3 via-array board, FVM of the program
+
+References (open rise, copper-fill gain, K):
+
+* fine-grid layered solver, 0.0625 mm: open 40.48, gain -4.51
+* fine-grid layered solver, 0.0312 mm: open 40.48, gain -4.51
+* 3D solver, barrels drawn, 0.1000 mm: open 40.46, gain -4.52
+* 3D solver, barrels drawn, 0.0833 mm: open 40.51, gain -4.47
+
+| treatment | 1.0 mm | 0.5 mm | 0.25 mm | 0.125 mm | 0.0625 mm |
+| :-- | --: | --: | --: | --: | --: |
+| program | 40.69 / -4.55 | 40.67 / -4.52 | 40.65 / -4.54 | 40.65 / -4.54 | 40.65 / -4.54 |
+memory guard: the estimate of 7.8 GB is above the 7.4 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.2 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.2 GB available now, the machine may swap
+| peaceman | 40.57 / -4.58 | 39.78 / -5.30 | 40.23 / -4.79 | 40.51 / -4.50 | 40.48 / -4.51 |
+memory guard: the estimate of 10.1 GB is above the 8.9 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.9 GB available now, the machine may swap
+| area | 39.67 / -5.52 | 39.78 / -5.30 | 40.23 / -4.79 | 40.51 / -4.50 | 40.48 / -4.51 |
+memory guard: the estimate of 10.1 GB is above the 9.9 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.9 GB available now, the machine may swap
+| tuned | 40.57 / -4.58 | 40.45 / -4.76 | 40.36 / -4.71 | 40.34 / -4.69 | 40.34 / -4.67 |
+memory guard: the estimate of 10.1 GB is above the 9.9 GB available now, the machine may swap
+| mw_point | 40.57 / -4.58 | 40.77 / -4.38 | 41.06 / -3.98 | 41.37 / -3.64 | 41.67 / -3.34 |
+memory guard: the estimate of 10.1 GB is above the 9.7 GB available now, the machine may swap
+| mw_ring | 40.38 / -4.67 | 40.36 / -4.63 | 40.35 / -4.66 | 40.34 / -4.66 | 40.34 / -4.66 |
+memory guard: the estimate of 10.1 GB is above the 9.6 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.9 GB available now, the machine may swap
+| mw_area | 40.38 / -4.67 | 40.36 / -4.63 | 40.35 / -4.66 | 40.51 / -4.47 | 40.49 / -4.50 |
+memory guard: the estimate of 10.1 GB is above the 9.8 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.5 GB available now, the machine may swap
+| mw_tuned | 40.57 / -4.58 | 40.49 / -4.63 | 40.38 / -4.66 | 40.34 / -4.66 | 40.34 / -4.66 |
+memory guard: the estimate of 10.1 GB is above the 8.9 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 9.4 GB available now, the machine may swap
+| mw_area@eta | 40.53 / -4.50 | 40.51 / -4.46 | 40.50 / -4.49 | 40.51 / -4.47 | 40.49 / -4.49 |
+memory guard: the estimate of 10.1 GB is above the 8.6 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 8.2 GB available now, the machine may swap
+| mw_tuned@eta | 40.72 / -4.41 | 40.66 / -4.47 | 40.55 / -4.49 | 40.49 / -4.49 | 40.49 / -4.49 |
+memory guard: the estimate of 10.1 GB is above the 8.1 GB available now, the machine may swap
+memory guard: the estimate of 10.1 GB is above the 8.0 GB available now, the machine may swap
+| mw_disc@eta | 40.53 / -4.50 | 40.51 / -4.46 | 40.50 / -4.49 | 40.49 / -4.49 | 40.49 / -4.49 |
+rc=0 time=295s
