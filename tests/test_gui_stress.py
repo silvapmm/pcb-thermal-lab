@@ -1677,6 +1677,29 @@ def test_a_double_click_on_stop_does_not_start_a_new_run(win, qtbot):
         assert win.solver_panel.run.isEnabled()
 
 
+def test_the_power_calculator_job_shows_stop_and_is_cancelled(win, qtbot):
+    """The Power Calculator is modal, so the window's Stop cannot be clicked while it computes: the window shows Stop (its job is a calculation), the
+    cancel path stops it ('Cancelled.' in the calculator, Compute usable again), and closing the calculator also stops its job (review)."""
+    from pcbthermal.gui import calculator as calc, compute
+    load(win, example_board())
+    win.doc.set_options(models=("fvm",), cell_mm=0.5)
+    for how in ("stop", "close"):
+        dlg = calc.PowerCalculator(win.doc, win)
+        qtbot.addWidget(dlg)
+        dlg.band.setChecked(True)                                             # the band runs several solves: long enough to stop
+        dlg.measured.setValue(90.0)
+        dlg.compute.click()
+        qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
+        if how == "stop":
+            win.cancel_simulation()                                          # the same path as the Stop button and Ctrl+.
+            assert dlg.result.text() == "Cancelled." and dlg.compute.isEnabled()
+        else:
+            dlg.reject()                                                     # closing the calculator cancels its job
+        assert not compute.busy() and not compute.ENGINE.known
+        qtbot.waitUntil(lambda: _is_run(win), timeout=5000)
+        dlg.close()
+
+
 def test_stop_cancels_an_animation_and_a_profile_run(win, qtbot):
     """An animation and a power-profile run are calculations too: the button is Stop, a click cancels them, and Run returns."""
     load(win, example_board())
