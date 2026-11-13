@@ -512,6 +512,8 @@ class MainWindow(QMainWindow):
         self.a_import = self._act("Import Gerber board…", self.show_import,
                                   tip="New project from Gerber, drill and placement files")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
+        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Cancel calculation, F5 to Run)
+        self.a_stop = self._act("Stop", self.cancel_simulation, tip="Stop the calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
                                  tip="Edit the libraries and the defaults")
@@ -648,6 +650,8 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(self.a_run)
         self.toolbar = tb
+        compute.BUSY.changed.connect(self._on_busy)              # Run becomes Stop while any calculation runs, and back when it ends, fails or is cancelled
+        self._on_busy(compute.busy())
 
     def _refresh_icons(self):
         """!
@@ -660,6 +664,7 @@ class MainWindow(QMainWindow):
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
         self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
+        self.a_stop.setIcon(th.tool_icon("stop", self.theme_name))
         self.a_overlay.setIcon(th.tool_icon("map", self.theme_name))
         self.display_button.set_theme(self.theme_name)
         self.display_button.set_dot(self.display.active())
@@ -1455,11 +1460,26 @@ class MainWindow(QMainWindow):
         self.a_bg.setStatusTip(tip)
 
     # ------------------------------------------------------------------ simulation
+    def _on_busy(self, busy):
+        """!
+        @brief Follow the calculation engine: the Run button of the toolbar and of the dock is the Stop button while a calculation runs or waits.
+        @param busy True while any calculation runs or waits.
+        """
+        self.solver_panel.set_busy(busy)
+        self.a_run.setEnabled(not busy)                         # F5 does nothing while a calculation runs (a disabled action ignores its key)
+        actions = self.toolbar.actions()
+        if busy and self.a_run in actions:
+            self.toolbar.removeAction(self.a_run)
+            self.toolbar.addAction(self.a_stop)
+        elif not busy and self.a_stop in actions:
+            self.toolbar.removeAction(self.a_stop)
+            self.toolbar.addAction(self.a_run)
+
     def run_simulation(self):
         """!
-        @brief Validate the problem and start the simulation in the background.
+        @brief Validate the problem and start the simulation in the background (ignored while any calculation runs).
         """
-        if self.worker is not None and self.worker.isRunning():
+        if compute.busy() or (self.worker is not None and self.worker.isRunning()):
             return
         try:
             self.doc.problem.validate()
@@ -1489,11 +1509,9 @@ class MainWindow(QMainWindow):
 
     def cancel_simulation(self):
         """!
-        @brief Cancel the simulation (and the animation or analysis computing) without waiting: the calculation process is stopped.
+        @brief Cancel every calculation (simulation, animation, profile run, analysis, power calculator) without waiting: the calculation process is stopped.
         """
-        for w in (self.worker, getattr(self, "_anim_worker", None), self.profile_page.worker):
-            if w is not None and w.isRunning():
-                w.cancel()
+        compute.cancel_all()
 
     def _on_cancelled(self, panel):
         """!
@@ -1681,7 +1699,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>D</b></td><td>Display settings: opens the Display panel with the keyboard in its controls</td></tr>
 <tr><td><b>M</b></td><td>Model of the map: the list of the models of the result (the same as a click on the model name of the card on the board)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
-<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
+<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / stop the calculation (the Run button is Stop while one runs)</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr>
