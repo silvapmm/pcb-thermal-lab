@@ -2503,9 +2503,11 @@ Text only; no number of the program moves. The figures are those of the independ
 
 | Model | Via effect against the finite elements | Where it is said |
 | :-- | :-- | :-- |
-| FDM | 1 to 3 points low at 200 W/m2K, 4 to 9 % low at 1000 W/m2K at a 0.25 mm cell, 2 to 20 % low at 1 mm (safe side); the cause (the node-centred well) was not separated | the strong-edge warning of the FVM and FDM (`checks.check_edge_laminate`), when the FDM runs and the board has a via |
+| FDM | with eight sub-gaps (its own part): 1 to 3 % low at 200 W/m2K, 4 to 9 % low at 1000 W/m2K at a 0.25 mm cell, 2 to 20 % low at 1 mm (safe side: the part reads hotter); with the default two sub-gaps the laminate at the edge adds to it (9 to 16 % low at 0.25 mm and 1000 W/m2K, the FVM itself -7 to -13 %); the cause (node-centred well, footprint or edge) was not separated | the strong-edge warning of the FVM and FDM (`checks.check_edge_laminate`), when the FDM runs and the board has a via |
 | 3D solid | too large: +9.7 / +25.8 % at 0.5 mm and +3.2 / +9.6 % at 0.25 mm for a via 0.16 mm from the wall (200 / 1000 W/m2K), +6.7 to +13.8 % for a via 3 mm away at 1000 W/m2K (unsafe side, about halves with each halving of the cell) | the same warning, when the 3D solid runs with the FVM or FDM and the board has a via; the edge-via warning of `checks.check_via_limits` |
 | Analytic | 17 to 20 % too small next to an edge of 1000 W/m2K (one via 0.16 or 3 mm away, or the 3 x 3 array), within 5 % at 200 W/m2K; the cause is the laminate at the edge | `checks.check_reduced_edge_laminate` (with a via) and the one-or-two-vias warning |
+
+Re-run by the review of the branch: the program side of the comparison (FDM with eight sub-gaps at 1 and 0.25 mm, Analytic at 0.5 mm, 3D solid at 0.5 and 0.25 mm; open barrel) on this tree, against the finest finite-element values of `research/independent-fem-extensions` 8.1 (read, not re-run: its scratch environment is not installed), gives every error of the table above to the printed digit (the Analytic for the via 3 mm away at 200 W/m2K -4.4 against -4.5 %, a rounding of the reference).
 
 ### 49.2 Limits, stated
 
