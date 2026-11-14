@@ -800,10 +800,11 @@ def orientation(path):
     a = axs[1]
     Ra = np.logspace(3, 10, 200)
     Pr = 0.71
-    up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.15 * Ra ** (1 / 3))
+    # Face turned up: 0.54 Ra^(1/4) to 1e7, then Lienhard 2024 eq. 8.35 (the law of convection.py since fix/horizontal-face-laws)
+    up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.14 * Ra ** (1 / 3) * (1 + 0.0107 * Pr) / (1 + 0.01 * Pr))
     down = 0.475 * Ra ** 0.2                                                  # Face turned down: the 1/5 law of convection.py (Goldstein-Lau average)
     vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
-    a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
+    a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up, 0.54 Ra^(1/4); Lienhard eq. 8.35 above Ra 1e7")
     a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down, 0.475 Ra^(1/5) (0.62 of face up at Ra 1e3, 0.49 at 1e5)")
     a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu, general form; laminar form optional), Pr = 0.71")
     a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
