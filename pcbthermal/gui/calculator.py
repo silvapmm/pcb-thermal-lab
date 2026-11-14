@@ -21,6 +21,7 @@ from .. import defaults
 from ..inverse import power_from_theta
 from ..results import DISCLAIMER
 from .compute import ProcessWorker
+from .spinfit import fit_range
 from . import theme as th
 from .help import set_themed_page
 
@@ -57,6 +58,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     s = QDoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
+    fit_range(s, value)                                   # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setSuffix(" " + suffix)
     s.setToolTip(tip)
