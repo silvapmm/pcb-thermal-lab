@@ -938,7 +938,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @param rings Number of rings outside each footprint (more rings = finer radial resolution).
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @note A metal block is one more layer of the ring network: the block layer of the FVM network (conductance k t, contact to the board layer over the copper, exposed surface
-          with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within 2 % on average and 5 % at most (docs/validation.md section 17).
+          with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within about 5 % with one pad and up to about 7 % (cool side) with several pads or a block much smaller than the board (docs/validation.md section 17).
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
@@ -985,6 +985,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     T = theta_field + b.ambient
     # --- Peaks: own footprint peak plus the rise caused by the other heaters at its centroid
     t_peak, where = float(T.max()), None
+    part_peak = np.full(len(problem.heaters), np.nan)           # Own peak of every powered part (degC), read by analysis.heater_stats
     for j, (hj, rj) in enumerate(nets):
         theta_j = rj["theta"][hj.layer, 0] + rj["peak_extra"]
         cj = rj["centroid"]
@@ -992,6 +993,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         for i, (hi, ri) in enumerate(nets):
             if i != j:
                 theta_j += _radial(ri, ri["dist"][ij], ri["theta"][hj.layer])
+        part_peak[next(k for k, h in enumerate(problem.heaters) if h is hj)] = theta_j + b.ambient
         if theta_j + b.ambient > t_peak or where is None:
             t_peak = max(t_peak, float(theta_j + b.ambient))
             where = (hj.layer, cj[0], cj[1])
@@ -1006,7 +1008,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         extras={"heater_networks": float(len(nets)), "rings": float(rings),
                 "peak_correction_k": float(max((r["peak_extra"] for _, r in nets), default=0.0)),
                 **({"bottom_face_mean": bottom_face} if bottom_face is not None else {})},
-        arrays={"zoned_heaters": np.array(zone_rows, dtype=float).reshape(-1, 2)},
+        arrays={"zoned_heaters": np.array(zone_rows, dtype=float).reshape(-1, 2), "heater_peak": part_peak},
     )
 
 

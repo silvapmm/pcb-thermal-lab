@@ -218,7 +218,7 @@ def heater_stats(result, problem, powers=None):
              with psi_jb the second estimate is Tj = mean board temperature in the 0.5 to 1.5 mm ring around the outline + psi_jb P. The device temperature
              used for the limit is Tj (or the hottest point under a part without theta). The power limit is the dissipation that brings the device to tj_max
              with the board's response of this run (linear in the power for constant coefficients).
-    @param result A SteadyResult with a field.
+    @param result A SteadyResult with a field (a Lumped result also carries arrays["heater_peak"], the own peak of each powered part, which t_max then reads).
     @param problem The Problem that owns the heaters.
     @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
     @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
@@ -230,6 +230,11 @@ def heater_stats(result, problem, powers=None):
     for k, h in enumerate(problem.heaters):
         power = h.power if powers is None else float(powers[k])
         mean, mx, _ = _footprint_stats(result, h.polygon, h.layer, problem.board.outline, face=True)
+        peak = result.arrays.get("heater_peak")
+        if peak is not None and k < len(peak) and np.isfinite(peak[k]):
+            # The Lumped paints the footprint with its node; the part's own peak (node + peak term + the other parts at its centre) is what its board maximum uses,
+            # so the part rows read it too (never below the drawn field)
+            mx = max(mx, float(peak[k]))
         tj, p_top = part_split(h, mx, power, amb)
         device = tj if tj is not None else mx
         ring = _ring_mean(result, h.polygon, h.layer, problem.board.outline)

@@ -65,6 +65,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | A38 | the via rim test on imported copper (every via joined to every layer, also through an antipad) | answered (`research/imported-via-rim`, reviewed: go): today 0 to 4.4 % cool on five real boards (upper bound, against the ray rule), +46 / +12 % on the via effect of a synthetic antipad at 1 / 0.5 mm; the ray test from the masks is the proposal | `imported-via-rim/INTEGRATION.md` | L | h | implementation on `fix/imported-via-rim-mask` (reviewed separately); the reach (0.5 mm) is the maintainer's |
 | A39 | the strong-edge residual with no via: at `h_side` 200 the FVM and the FDM converge 1.3 to 1.8 % cooler than the resolved 3D solid (the reference of the via-well-sheet-order study), and the FVM looks close to the solid at 1 mm only by a cancellation | ready | `via-well-sheet-order` README; `strong-edge-laminate` README 8 | L to M | d | an independent 3D reference with the cooled side wall |
 | A44 | `research/point-via-convergence/tests/test_program_patch.py` fails 3 tests on the current tree (35.623 K against the 35.611 K frozen in the test, probably the 2.6.0 barrel length): re-baseline or repeat the folder | ready | `point-via-convergence`, `via-contact-geometry` | L | d | the reviewer repeats the folder |
+| A45 | the part rows of a Lumped run read the footprint node, not the Lumped's own peak (about 11 % of the rise, unsafe, when the Lumped is the only model or the model of the Power Calculator or of a top-path split); check which research folders compared Lumped parts through `heater_stats` and whether their numbers move | ready | `block-warning-remeasure` README 7.2, `INTEGRATION.md` 3 | M | d | the fix itself is a program item (`fix/` branch) once the maintainer decides |
 
 ### B. Boards, vias and stack-up
 
@@ -91,6 +92,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | C8 | the plate level: the face up (the face down is done in 2.6.0) | blocked | `plate-h-level`, `face-down-convection` | M | - | the measurement G1, board D |
 | C9 | radiation between fins, fins down | blocked | `fin-channel` | L | d | no measurement |
 | C10 | local h on a poor conductor | ready | `paper-case-studies` 13.3 | L | d | safe side |
+| C11 | the metal block in the Lumped and Analytic beyond one board family: other metals and thicknesses, fins, vias under the pads, other board sizes and layer counts, an independent 3D reference with a plate (none exists in the repository) | partly | `block-warning-remeasure` README 5 and 7.3 | L to M | d | the warning text (`INTEGRATION.md` 1) is a decision of the maintainer |
 
 ### D. Calculators
 
