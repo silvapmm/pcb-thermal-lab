@@ -211,10 +211,11 @@ class Network:
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
-        if faces is None and self.copper is None and ladder and cut_cells:
-            # Drawn copper is read as an import: the exact cell fill and the flow-based faces of its layers that have a cell cut by a zone edge (copper.drawn_source). Not for the
-            # network that the Lumped builds (ladder=False, cut_cells=False) nor for the time-constant helper: their numbers stay as they were
-            self.copper = copper.drawn_source(problem, nx, ny)
+        if faces is None and ladder and cut_cells:
+            # Drawn copper is read as an import: the exact cell fill and the flow-based faces of its layers that have a cell cut by a zone edge (copper.drawn_source), also on a board
+            # that has imported copper on other layers (one rule on every layer). Not for the network that the Lumped builds (ladder=False, cut_cells=False) nor for the
+            # time-constant helper: their numbers stay as they were
+            self.copper = copper.drawn_source(problem, nx, ny) or self.copper
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f

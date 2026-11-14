@@ -302,3 +302,64 @@ def test_the_cell_that_fits_is_not_refused_again(model):
         if v.verdict == "refuse" and v.cell_fit:
             again = memory.check(p, (model,), v.cell_fit, fraction=1.0, ram=int(ram_mb * 1e6), base=80e6, refuse="return", quiet=True)[0]
             assert again.verdict != "refuse", (ram_mb, v.cell_fit, again.estimate)
+
+
+def _mixed_boards(name="drawn_stripes_pad"):
+    """!
+    @brief The same drawn board in two forms: the bottom layer imported and the top drawn (mixed), and both layers imported.
+    @param name Harness board with drawn copper on both layers.
+    @return Tuple (mixed Problem, both-imported Problem, DrawnCopper used to make the masks).
+    """
+    import copy
+    p = B.build(name)
+    src = copper.drawn_source(p, 20, 20)
+    ras = {l: np.round(src.raster(l)).astype(np.uint8) for l in sorted(src.layers)}
+    both = copy.deepcopy(p)
+    both.zones = []
+    both.imported = copper.imported_from_rasters([ras[l] for l in sorted(ras)], src.pix * 1e3, "faces", indices=sorted(ras))
+    mixed = copy.deepcopy(p)
+    mixed.zones = [z for z in p.zones if z.layer != 1]                       # the bottom layer comes from its mask, the top stays drawn
+    mixed.imported = copper.imported_from_rasters([ras[1]], src.pix * 1e3, "faces", indices=[1])
+    return mixed, both, src
+
+
+@pytest.mark.parametrize("name", ["drawn_stripes_pad", "drawn_ell"])
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_a_mixed_board_reads_one_rule_on_every_layer(name, model):
+    """!
+    @brief Imported bottom layer plus drawn top layer reads like the same board with both layers imported (decision 7 of the audit), and unlike the earlier path of the drawn layer.
+    @param name Harness board.
+    @param model "fvm" or "fdm".
+    @return None.
+    """
+    mixed, both, _ = _mixed_boards(name)
+    a, b = heater_mean(mixed, model, 1.0), heater_mean(both, model, 1.0)
+    assert abs(a - b) < 0.01                                                 # measured 0.0 to 0.005 K on a 55 to 73 K rise (the earlier path was 0.5 to 7 K cool)
+    src = copper.drawn_source(mixed, 20, 20)
+    assert isinstance(src, copper.MixedCopper) and src.layers == [0, 1]
+    assert 1 in src.entries and "mask" in src.entries[1] and "mask" not in src.entries[0]
+
+
+def test_a_mixed_board_differs_from_the_earlier_path_and_conserves_heat(monkeypatch):
+    """!
+    @brief The mixed source moves the drawn layer of a mixed board (stripes, FVM) from the earlier path, and the balance holds.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    mixed, _, _ = _mixed_boards("drawn_stripes_pad")
+    new = heater_mean(mixed, "fvm", 1.0)
+    monkeypatch.setattr(copper, "_mixed_source", lambda *a, **k: None)
+    old = heater_mean(mixed, "fvm", 1.0)
+    assert new - old > 0.5                                                   # the earlier path reads the stripes cool (research README 2: -8 % at 1 mm)
+
+
+def test_the_drawn_layers_of_a_mixed_board_are_counted_by_the_memory_law():
+    """!
+    @brief `memory.drawn_run_bytes` counts only the drawn layers of a mixed board, at the pixel grid of the import.
+    @return None.
+    """
+    mixed, both, _ = _mixed_boards("drawn_stripes_pad")
+    assert memory.drawn_run_bytes(both, 1.0) == 0.0
+    assert memory.drawn_run_bytes(mixed, 1.0) > 0.0
+    layers = copper.drawn_layer_cuts(mixed, 20, 20)
+    assert list(layers) == [0]

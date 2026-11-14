@@ -708,22 +708,25 @@ def drawn_layer_cuts(problem, nx, ny):
     """!
     @brief The drawn layers that have at least one cell cut by a zone edge, with the exact copper fill of their cells.
     @details A layer whose every cell is full or empty (copper edges on cell lines, or no zone) is not listed: the face of a window half copper and half bare is the harmonic
-             mean of the two cells in both rules. A problem with imported copper, no zone, a zone that crosses itself or an outline too fine for the exact area gives {}.
+             mean of the two cells in both rules. The layers that are imported are never listed (their masks replace their zones). No zone, a zone that crosses itself or an
+             outline too fine for the exact area gives {}.
     @param problem Problem.
     @param nx Cells along x.
     @param ny Cells along y.
     @return dict layer index (0 = top) -> fill array (ny, nx) float32, rows from the bottom (copper fill of the cell, 0 to 1).
     """
     from .geometry import polygon_is_simple
-    if not problem.zones or CopperSource.of(problem) is not None:
+    if not problem.zones:
         return {}
+    src = CopperSource.of(problem)
+    imported = set(src.layers) if src is not None else set()                    # a mixed board: the drawn layers are read by the drawn rule, the imported ones by their masks
     b = problem.board
     dx, dy = b.width / nx, b.height / ny
     out = {}
     try:
         for layer in range(b.layers):
             mine = [z for z in problem.zones if z.layer == layer]
-            if not mine:
+            if not mine or layer in imported:
                 continue
             if not all(polygon_is_simple(z.polygon) for z in mine):
                 return {}                                                          # the area of a self-crossing polygon is not the one that the rule reads: the program's path
@@ -739,7 +742,8 @@ def drawn_source(problem, nx, ny):
     """!
     @brief The CopperSource that makes the FVM and FDM read the zones of a drawn board as they read an import, or None.
     @details Built for the layers that have a cut cell (`drawn_layer_cuts`): a float32 coverage raster of `DRAWN_PIXELS_PER_CELL` pixels per cell side, the exact area of the
-             union of the zones in each pixel. Imported layers win (a problem with imported copper returns None: the earlier path for its drawn layers, a stated limit).
+             union of the zones in each pixel. Imported layers win: on a board with imported copper the drawn layers that have a cut cell are rasterised on the
+             pixel grid of the import and the result is a `MixedCopper` (one rule on every layer, the imported masks untouched).
              Square cells get square pixels of dx / n read as an import's raster; cells that are not square get the raster on the grid itself (dx / n by dy / n pixels,
              `DrawnCopper(grid=)`), so that the face problems use n pixels per cell and the fill is exact there too.
     @param problem Problem.
@@ -751,6 +755,9 @@ def drawn_source(problem, nx, ny):
     if not layers:
         return None
     b = problem.board
+    imported = CopperSource.of(problem)
+    if imported is not None:
+        return _mixed_source(problem, imported, layers, nx, ny)
     n = DRAWN_PIXELS_PER_CELL
     dx, dy = b.width / nx, b.height / ny
     square = abs(dx - dy) <= 1e-9 * max(dx, dy)
@@ -775,6 +782,79 @@ def drawn_source(problem, nx, ny):
             return None
         rasters[layer] = np.ascontiguousarray((255.0 * _snap(fill))[::-1])       # rows from the top
     return DrawnCopper(rasters, px, grid)
+
+
+class MixedCopper(CopperSource):
+    """!
+    @brief The imported masks of a board plus the drawn layers that have a cut cell, read by one rule.
+    @details The drawn layers are float rasters on the pixel grid of the import (same pixel, same rows and columns), so every face problem and every cell fill reads imported
+             and drawn layers alike. The exact cell fill of a drawn layer is kept for the grid of the run (a box average of the raster would differ by the pixel size).
+    """
+
+    def __init__(self, base, rasters, fills):
+        """!
+        @param base CopperSource of the import (its entries and settings are shared, not changed).
+        @param rasters dict copper layer index (0 = top) -> float32 array (rows from the top), coverage times 255, on the pixel grid of the import.
+        @param fills dict copper layer index -> exact cell fill (ny, nx) float32, rows from the bottom, for the grid of the run.
+        """
+        self.mapping = base.mapping
+        self.reduce_sheet = base.reduce_sheet
+        self.pix = base.pix
+        self.entries = dict(base.entries)
+        for layer in rasters:
+            self.entries[layer] = {"index": layer}
+        self._rasters = rasters
+        self._fills = fills
+
+    def raster(self, layer):
+        """!
+        @brief The coverage of a layer: the float raster of a drawn layer, the unpacked mask of an imported one.
+        @param layer Copper layer index (0 = top).
+        @return array (rows from the top, columns), 0..255.
+        """
+        if layer in self._rasters:
+            return self._rasters[layer]
+        return super().raster(layer)
+
+    def fill(self, layer, ny, nx, width, height):
+        """!
+        @brief The copper fraction of every cell of a layer (exact for a drawn layer on the grid of the run).
+        @param layer Copper layer index (0 = top).
+        @param ny Cell rows.
+        @param nx Cell columns.
+        @param width Board width in m.
+        @param height Board height in m.
+        @return float32 array (ny, nx), rows from the bottom, 0..1.
+        """
+        f = self._fills.get(layer)
+        if f is not None and f.shape == (ny, nx):
+            return f.copy()
+        return super().fill(layer, ny, nx, width, height)
+
+
+def _mixed_source(problem, imported, layers, nx, ny):
+    """!
+    @brief The source of a board that has imported copper and drawn layers with a cut cell.
+    @param problem Problem.
+    @param imported CopperSource of its import.
+    @param layers dict drawn layer index -> exact cell fill (`drawn_layer_cuts`).
+    @param nx Cells along x of the network that will read it.
+    @param ny Cells along y.
+    @return MixedCopper, or None when the zones cannot be read exactly on the pixel grid.
+    """
+    b = problem.board
+    first = next(iter(imported.entries.values()))
+    rows, cols = (int(v) for v in first["mask"]["shape"])                       # (the masks of one import share one shape: CopperSource checked the extent of each)
+    y0 = b.height - rows * imported.pix                                         # row 0 of the raster is the top edge of the board box (resample_coverage)
+    rasters = {}
+    for layer in layers:
+        mine = [z for z in problem.zones if z.layer == layer]
+        try:
+            _, fill = _zone_union(mine, cols, rows, imported.pix, imported.pix, y0)
+        except ValueError:
+            return None
+        rasters[layer] = np.ascontiguousarray((255.0 * _snap(fill))[::-1])
+    return MixedCopper(imported, rasters, layers)
 
 
 def resolve(faces, problem):

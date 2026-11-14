@@ -195,8 +195,8 @@ class Network:
         self.area = area
 
         self.copper = copper.resolve(faces, problem) if sampling == "area" else None
-        if faces is None and self.copper is None and sampling == "area":
-            self.copper = copper.drawn_source(problem, cells_x, cells_y)          # Drawn copper read as an import (copper.drawn_source); the FDM has no variant that must keep the old path
+        if faces is None and sampling == "area":
+            self.copper = copper.drawn_source(problem, cells_x, cells_y) or self.copper          # Drawn copper read as an import (copper.drawn_source); the FDM has no variant that must keep the old path
         # Copper fill at the nodes
         if sampling == "area":
             # The union of the zones per sample point on the cells, then averaged over the cells around every node

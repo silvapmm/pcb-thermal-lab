@@ -578,7 +578,7 @@ DRAWN_FIXED_BYTES = 50.0e6            # run, drawn copper: the local conduction 
 def drawn_run_bytes(problem, cell_mm: float) -> float:
     """!
     @brief Memory that the drawn copper adds to a FVM or FDM run: the float32 rasters of its layers that have a cell cut by a zone edge and the face construction of one layer.
-    @details The raster has `copper.DRAWN_PIXELS_PER_CELL` ^ 2 pixels per cell. Zero for a board whose drawn layers have no cut cell (the earlier path), for imported copper and for a
+    @details The raster has `copper.DRAWN_PIXELS_PER_CELL` ^ 2 pixels per cell. Zero for a board whose drawn layers have no cut cell (the earlier path), for imported copper alone and for a
              problem with no zone. It is the same model as the import's (`copper_run_bytes`) with the measured per-pixel terms of the drawn raster.
     @param problem A Problem.
     @param cell_mm Cell size of the run in mm.
@@ -590,12 +590,18 @@ def drawn_run_bytes(problem, cell_mm: float) -> float:
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     if nx * ny > DRAWN_EXACT_CELLS:
         # Too many cells to find the cut layers (the exact areas of a 0.5 m board at 0.05 mm took 3 GB, before anything is refused): take every layer with a zone as cut, the bound
-        layers = {z.layer for z in problem.zones if getattr(problem, "imported", None) is None}
+        src = copper.CopperSource.of(problem)
+        imported = set(src.layers) if src is not None else set()               # (a mixed board: only the drawn layers carry the drawn raster)
+        layers = {z.layer for z in problem.zones if z.layer not in imported}
     else:
         layers = copper.drawn_layer_cuts(problem, nx, ny)
     if not layers:
         return 0.0
     px = float(nx * ny) * copper.DRAWN_PIXELS_PER_CELL ** 2
+    src = copper.CopperSource.of(problem)
+    if src is not None:                                                        # a mixed board: the drawn rasters have the pixel grid of the import
+        r, c = (int(v) for v in next(iter(src.entries.values()))["mask"]["shape"])
+        px = float(r * c)
     return float(DRAWN_RASTER_BYTES_PER_PIXEL * px * len(layers) + DRAWN_FACES_BYTES_PER_PIXEL * px + DRAWN_FIXED_BYTES)
 
 
