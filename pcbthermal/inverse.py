@@ -98,8 +98,11 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
     @param max_iter Largest number of secant iterations (with constant coefficients none is needed).
     @param psi_jt Datasheet junction-to-top parameter psi_JT in K/W, for point "top" (the temperature measured is that of the top of the case).
     @return Dict: power_w, temperature_c (of the check run), rise_k (measured minus ambient), runs (number of model runs), linear (True if the affine estimate already matched),
-            at_power (point_temperatures at the power found) and resistance_k_per_w (rise per watt at the measured point: what the copper, vias, stack-up and heat transfer give).
-    @throws ValueError If the heater index, the point or the ambient is wrong, the measured temperature is not above the ambient, or the model has no such point.
+            at_power (point_temperatures at the power found), resistance_k_per_w (the part's own resistance at the measured point, (T(P) - T(0)) / P: what the copper,
+            vias, stack-up and heat transfer give, WITHOUT the heating by the other parts) and other_parts_rise_k (T(0) - ambient at the point: the rise that the other heaters
+            give alone, 0 with one heater).
+    @throws ValueError If the heater index, the point or the ambient is wrong, the measured temperature is not above the ambient, the model has no such point, or the point is "top"
+            for a part that has a top path (theta_sa > 0): the datasheet psi_JT is defined without a heatsink, so no power split makes that route valid.
     """
     if not 0 <= index < len(problem.heaters):
         raise ValueError("heater index out of range")
@@ -107,6 +110,9 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
         raise ValueError(f"point must be one of {POINTS}")
     if point == "top" and psi_jt < 0:
         raise ValueError("psi_JT cannot be negative")
+    if point == "top" and problem.heaters[index].theta_sa > 0:
+        # psi_JT of a datasheet is defined for a package with no heatsink; with a top path the junction carries the split while psi_JT x P would take the whole power
+        raise ValueError("the top of the package cannot be used for a part with a heatsink on top (theta SA set): psi_JT is defined without a heatsink; measure the board or the junction instead")
     pr = copy.deepcopy(problem)
     if ambient_c is not None:
         pr.board.ambient = float(ambient_c)
@@ -144,7 +150,8 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
             runs += 1
         state = point_temperatures(pr, model, options, index, pb, psi_jt)
         return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
-                "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
+                "resistance_k_per_w": (tb - t_zero) / pb if pb > 0 else float("inf"),
+                "other_parts_rise_k": t_zero - amb}
 
 
 DESIGN_LEVELS = ("none", "cad", "hand", "estimated")           # How the board was described: see power_band ("cad" = drawn from the real fabrication files; the key is kept stable)

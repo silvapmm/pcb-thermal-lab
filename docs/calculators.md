@@ -37,7 +37,7 @@ Times at manual h (example board, one call and the band at design level *hand*):
 * **ψJT** (K/W): the datasheet's junction-to-top characterisation parameter, `Tj − Ttop = ψJT·P`. It is not a resistance (only part of the heat flows through the top) and belongs to the datasheet's test board.
 * **Ambient**: the air temperature at the time of the measurement.
 
-The result window gives the power, the temperatures the model reads at that power (hottest board point, ring, junction, top), and the board resistance `R` at the measured point. *Use as the power of this part* writes the power into the heater.
+The result window gives the power, the temperatures the model reads at that power (hottest board point, ring, junction, top), and the board resistance `R` at the measured point, the part's own `(T(P) − T(0))/P`, which does not include the heating by the other parts; when the other parts alone raise that point, the window also shows that rise `T(0) − Tamb`. *Use as the power of this part* writes the power into the heater.
 
 ### 1.1b The uncertainty band and the case selector
 
@@ -128,7 +128,7 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 
   The backside plane is worth 5 K/W, the third layer's connection 1 K/W with the plane and 4 K/W without it. **So the +2.9 % of the JEDEC row is not a validation**: the datasheet's 32.5 K/W lies between the readings (27.6 to 36.1 K/W, −10 to +22 % of power), and on the board as its cited source prints it the model reads 15 % below the datasheet's RθJA (a board that cools better than the datasheet's, the unsafe side for a junction temperature). Which board JESD51-7 and JESD51-5 prescribe (the backside 'trace' layer, the layers the vias join) cannot be settled without the standards, which are not in the library; the TPS7A47's own test board is not described in its datasheet. The JEDEC rows are an **indication of order**, not a check of the calculator; the CSD17308Q3 row, whose board the datasheet states, is the check. The earlier 26.4 K/W of this bullet (and 26.2 in the research README 4.5) was the plane with every layer joined on older programs; now 26.7 K/W.
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
-* Tests: the three rows above with tolerances of 4 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
+* Tests: the CSD17308Q3 row within 0.04 W (4 %), the factor of about two for the missing vias, the JEDEC board as drawn held to the program's own value (a **regression of the program, not a validation**: the board differs from ROHM 64AN113E) and `test_jedec_board_readings_keep_their_order` (at 1 mm the model RθJA of the four readings is ordered B < C < A < D).
 
 ### 2.2 Sensitivity to the board and to the data (`docs/validation.md` section 19)
 
@@ -178,7 +178,7 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 
 * It is only as good as the drawn board (copper, vias, stack-up, air) and the measurement: a thermocouple that touches the board cools it a little and an infrared spot is too large for a small part; the emissivity of a package top is about 0.9 and of bare copper 0.05 to 0.1.
 * The board is solved in steady state with constant power; a time-varying part is not covered.
-* The top of the package is taken as `Tj − ψJT·P`; the program has no top path model in this calculator (the heat is assumed to go into the board), so with a heatsink on the package use the part's θSA fields and the simulation, not this route.
+* The top of the package is taken as `Tj − ψJT·P`; the program has no top path model in this calculator (the heat is assumed to go into the board), so with a heatsink on the package use the part's θSA fields and the simulation, not this route: the calculator refuses the point (greyed in the list, `ValueError` in `inverse.power_from_temperature`) for a part whose θSA is set, because the datasheet ψJT is defined without a heatsink and no split of the power makes the route valid.
 * ψJT, ψJB and θ come from the datasheet's board and are estimates on yours (ψJB within about 15 % of θJB, from the Renesas white paper read as a web page, status S; TI SPRA953 says only that ψJB is close to RθJB because the board takes 75 to 95 % of the heat). The ring of the program is a mean over a band on all four sides; a thermocouple on the trace of the centre pin, the reference of ψJB in SPRA953, is hotter than that mean on a part whose heat leaves through its pins, so the ring route reads a little more power than a pin reading would give (not measured).
 
 ## 4. Reproduce
