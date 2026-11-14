@@ -2,7 +2,7 @@
 
 ![Orientation](../figures/fig_23_orientation.png)
 
-*Figure 23 (`figures/fig_23_orientation.png`): the two orientations of the Board panel (horizontal with layer 1 facing up, and vertical) and the three natural-convection laws against the Rayleigh number; at the same Rayleigh number the facing-down coefficient is half the facing-up one up to Ra 1e7 (above it the facing-up law turns to `0.15 Ra^(1/3)` and the ratio falls: 0.32 at 1e9). Constant air properties (Prandtl 0.71) for the vertical law. The vertical curve is the general form; the laminar form is an option (`Board.natural_form`).*
+*Figure 23 (`figures/fig_23_orientation.png`): the two orientations of the Board panel (horizontal with layer 1 facing up, and vertical) and the three natural-convection laws against the Rayleigh number; at the same Rayleigh number the facing-down coefficient (`0.475 Ra^(1/5)`) is 0.62 of the facing-up one at Ra 1e3 and 0.49 at 1e5 (above 1e7 the facing-up law turns to Lienhard eq. 8.35, `0.14 Ra^(1/3)(1 + 0.0107 Pr)/(1 + 0.01 Pr)`, and the ratio falls). Constant air properties (Prandtl 0.71) for the vertical law. The vertical curve is the general form; the laminar form is an option (`Board.natural_form`).*
 
 **Status: in program** (`docs/models.md` section 18, `tests/test_orientation.py`).
 
@@ -12,7 +12,7 @@ The mounting follows from the layer numbering: **layer 1 is the top face and loo
 
 ## 2. The laws (topic 08 has the full set)
 
-* Horizontal plate, hot surface **facing up**: `Nu = 0.54 Ra^(1/4)` (Ra from 1e4 or 1e5 to 1e7), `0.15 Ra^(1/3)` above.
+* Horizontal plate, hot surface **facing up**: `Nu = 0.54 Ra^(1/4)` (Ra from 1e4 or 1e5 to 1e7), Lienhard eq. 8.35 above (`0.15 Ra^(1/3)` until `fix/horizontal-face-laws`).
 * Hot surface **facing down**: `Nu = 0.27 Ra^(1/4)` (Ra 1e5 to 1e10). *(audit 2.7.0: the program of 2.6.0 uses `Nu = 0.475 Ra^(1/5)` on `L = A/P` and warns outside Ra 1e2 to 1e9; `research/face-down-convection`, `docs/theory.md` 8.)*
 * Characteristic length `L = A / P` (area over perimeter), which collapses circular, square, rectangular and triangular plates.
 * A surface **colder** than the air swaps up and down.

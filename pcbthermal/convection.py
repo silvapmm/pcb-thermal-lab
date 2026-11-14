@@ -50,11 +50,18 @@ def rayleigh(delta_t, length, props):
 DOWN_COEFFICIENT = 0.475
 DOWN_EXPONENT = 0.2
 
+# Face turned up: Nu = 0.54 Ra^(1/4) up to UP_LIMIT (Lloyd and Moran, as reprinted by Yovanovich and Jafarpur 1993, p 7), then the turbulent branch of Raithby and Hollands
+# printed by Lienhard 2024 as eq. 8.35 (printed p 435, PDF p 449, read on the page image): Nu = 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr), 0.024 <= Pr <= 2000
+UP_COEFFICIENT = 0.54
+UP_LIMIT = 1e7
+TURBULENT_UP_COEFFICIENT = 0.14
+TURBULENT_UP_PR = (0.0107, 0.01)
+
 
 def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
     """!
     @brief Natural convection coefficient of a horizontal plate.
-    @details Hot surface facing up: Nu = 0.54 Ra^(1/4) up to Ra = 1e7, then 0.15 Ra^(1/3); facing down: Nu = 0.475 Ra^(1/5).
+    @details Hot surface facing up: Nu = 0.54 Ra^(1/4) up to Ra = 1e7, then Nu = 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr) (Lienhard eq. 8.35); facing down: Nu = 0.475 Ra^(1/5).
              The characteristic length is area over perimeter. A cold surface swaps up and down.
              The face-down law (DOWN_COEFFICIENT, DOWN_EXPONENT) is the average of the Pr 0.71 integral-method results (disk, square, infinite strip) that Goldstein and Lau
              summarised (all their constants, heat and mass transfer, 0.44 to 0.527), read in
@@ -66,8 +73,8 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
              The 0.54 law is that of Lloyd and Moran (1974, not obtained; a mass-transfer correlation) via the textbooks; its published range on A/P is 2.2e4 to 8e6
              (quoted by Yovanovich and Jafarpur 1993, p 7). Boards up to about 100 x 80 mm at a 20 K rise are below that range, and from 60 mm up the coefficient exceeds the
              upper bound of Yovanovich and Jafarpur (1993, eq. 25, p 11) by 4 to 24 %; the board maximum moves by about 1 % (research/theory-sources 9.1). Documented limit, law unchanged.
-             Above Ra 1e7 the constant 0.15 of the turbulent branch is from memory: Lienhard eq. 8.35 prints 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr), so the branch is about 7 % above
-             the printed form and steps by +6.4 % at Ra 1e7 (30.37 to 32.32); a PCB face reaches 1e7 only above A/P of about 0.15 m at a 30 K rise, so no board is affected.
+             Above Ra 1e7 the branch is Lienhard (2024) eq. 8.35 (R, page image, printed p 435), 0.1401 Ra^(1/3) at Pr 0.71; it replaces the constant 0.15 that was from memory
+             (7 % higher, a step of +6.4 % at Ra 1e7); the step is now -0.6 % (30.37 to 30.18). A PCB face reaches 1e7 only above A/P of about 0.15 m at a 30 K rise, so no board is affected.
              api._solve_computed_h warns on the top face outside 1e2 to 1e7: the range where this law and the Raithby-Hollands form printed by Lienhard (eq. 8.37) agree within about
              15 to 22 % (the program is the lower one below about Ra 2e3, the board reads hot there, and the higher one above it, +9 % at Ra 1e4 and +22 % at 1e7).
     @param t_surface Mean surface temperature in degC.
@@ -81,7 +88,12 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
     ra = rayleigh(max(abs(dt), 1e-3), length, props)
     up = facing_up if dt >= 0 else not facing_up               # Buoyancy reverses for a surface colder than the air
     if up:
-        nu = 0.54 * ra ** 0.25 if ra <= 1e7 else 0.15 * ra ** (1.0 / 3.0)
+        if ra <= UP_LIMIT:
+            nu = UP_COEFFICIENT * ra ** 0.25
+        else:
+            # Pr correction of the printed form; props["pr"] is the film Prandtl number
+            nu = (TURBULENT_UP_COEFFICIENT * ra ** (1.0 / 3.0)
+                  * (1.0 + TURBULENT_UP_PR[0] * props["pr"]) / (1.0 + TURBULENT_UP_PR[1] * props["pr"]))
     else:
         nu = DOWN_COEFFICIENT * ra ** DOWN_EXPONENT                  # Stable layer under the plate: exponent 1/5, not the McAdams 1/4
     return nu * props["k"] / length, ra

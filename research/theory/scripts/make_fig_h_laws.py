@@ -5,7 +5,7 @@
 @brief Picture for `docs/theory.md` 8: the horizontal-face laws of the program against the laws printed in the sources, over the Rayleigh numbers of a PCB.
 
 @details fig_48, left: the face turned up, area-mean Nu on L = A/P against Ra (Pr 0.71): the program (`convection.h_natural_horizontal`, 0.54 Ra^(1/4) up to 1e7,
-         0.15 Ra^(1/3) above), Raithby-Hollands (Lienhard 2024 eq. 8.37a/b with the thick-layer correction, and eq. 8.35 above 1e7), Goldstein, Sparrow and Jones
+         Lienhard 2024 eq. 8.35 above, as coded since fix/horizontal-face-laws), Raithby-Hollands (Lienhard 2024 eq. 8.37a/b with the thick-layer correction, and eq. 8.35 above 1e7), Goldstein, Sparrow and Jones
          (Sc 2.5, 0.96 Ra^(1/6) below 200, 0.59 Ra^(1/4) above), the Goldstein-Lau numerical strip 0.621 Ra^(1/5) and Lewandowski's air data 0.766 Ra^(1/5)
          (all three printed by Yovanovich and Jafarpur 1993, pp 7 and 8), with the band of Ra of a 20 to 300 mm board at a 5 to 80 K rise.
          Middle: the same laws as the ratio program / law. Right: the face turned down: the program (0.475 Ra^(1/5)) against Fujii-Imura (Lienhard eq. 8.38, 0.58 on the
@@ -35,7 +35,8 @@ def program_up(ra):
     @param ra Rayleigh number on A/P (scalar).
     @return Area-mean Nusselt number on A/P.
     """
-    return 0.54 * ra ** 0.25 if ra <= 1e7 else 0.15 * ra ** (1.0 / 3.0)
+    # Above 1e7 the program uses Lienhard eq. 8.35 (fix/horizontal-face-laws), so the curve joins the Raithby-Hollands one there
+    return 0.54 * ra ** 0.25 if ra <= 1e7 else 0.14 * ra ** (1.0 / 3.0) * (1.0 + 0.0107 * PR) / (1.0 + 0.01 * PR)
 
 
 def raithby_hollands(ra):
@@ -65,7 +66,7 @@ def main():
     @return None.
     """
     ra = np.logspace(1.5, 7.5, 300)
-    up = {"program 0.54 Ra^1/4 (0.15 Ra^1/3 > 1e7)": [program_up(r) for r in ra],
+    up = {"program 0.54 Ra^1/4 (Lienhard 8.35 > 1e7)": [program_up(r) for r in ra],
           "Raithby-Hollands, Lienhard 8.37 (8.35 > 1e7)": [raithby_hollands(r) for r in ra],
           "Goldstein-Sparrow-Jones, Sc 2.5 (YJ eq. 15, 16)": [gsj(r) for r in ra],
           "Goldstein-Lau strip 0.621 Ra^1/5 (YJ p 7)": list(0.621 * ra ** 0.2),
@@ -82,7 +83,7 @@ def main():
     ax.set_title("Face turned up (grey: boards 20 to 300 mm, 5 to 80 K)")
     ax.legend(fontsize=7, loc="upper left")
     ax = axes[1]
-    prog = np.array(up["program 0.54 Ra^1/4 (0.15 Ra^1/3 > 1e7)"])
+    prog = np.array(up["program 0.54 Ra^1/4 (Lienhard 8.35 > 1e7)"])
     for (name, nu), st in list(zip(up.items(), styles))[1:]:
         ax.semilogx(ra, 100.0 * (prog / np.array(nu) - 1.0), st, label=name)
     ax.axhline(0.0, color="k", lw=0.8)
