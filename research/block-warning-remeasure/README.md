@@ -26,7 +26,7 @@ CONTROL rows run the same board WITHOUT the block, so that an error of the model
 
 **The temperature of a part** is the hottest value under its footprint: the hottest cell of the FVM field and of the Analytic field, and for the Lumped **its own peak**
 (ring-0 node plus its peak term plus the other heaters read at the centroid, the formula of `lumped.solve_steady` that gives its `t_max`). The Lumped paints its footprint with
-the ring-0 node, a footprint mean without the peak term, so reading its FIELD (as `analysis.heater_stats` does) gives another quantity; that column (`lumped_part_max`, "field")
+the ring-0 node, a footprint mean without the peak term, so reading its FIELD (as `analysis.heater_stats` did before `fix/lumped-part-readout`; it now reads the own peak, `docs/validation.md` 48, and the script holds that array aside for this column) gives another quantity; that column (`lumped_part_max`, "field")
 is kept only as the record of the first pass (section 7.2, figure 3).
 
 ## 3. Results at a 0.5 mm cell (numbers as printed by `--cell-mm 0.5 --set all`)

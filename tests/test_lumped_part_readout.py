@@ -39,11 +39,13 @@ def test_the_part_row_reads_the_peak_not_the_node(kind):
     amb = res.ambient
     rows = heater_stats(res, p)
     peak = res.arrays["heater_peak"]
-    # The row is at least the drawn node and equals the part's own peak
+    # The row is the larger of the drawn field (the reading without the array) and the part's own peak
     assert peak.shape == (len(p.heaters),)
-    for row, pk in zip(rows, peak):
-        assert row["t_max"] == pytest.approx(max(row["t_max"], pk))
-        assert row["t_max"] >= pk - 1e-12
+    held = res.arrays.pop("heater_peak")
+    field_rows = heater_stats(res, p)
+    res.arrays["heater_peak"] = held
+    for row, f_row, pk in zip(rows, field_rows, peak):
+        assert row["t_max"] == pytest.approx(max(f_row["t_max"], pk), abs=1e-12)
     # The hottest part's reading is the board maximum the model reports (same quantity)
     assert max(r["t_max"] for r in rows) == pytest.approx(res.t_max, abs=1e-9)
     # Against the FVM: the node read-out was 10 % of the rise too cool; the peak is within 8 %
@@ -77,3 +79,38 @@ def test_the_board_maximum_of_the_lumped_is_unchanged_by_the_array():
     res = lumped.solve_steady(p, cell_mm=1.0)
     own = np.nanmax(res.arrays["heater_peak"])
     assert own <= res.t_max + 1e-9
+
+
+def test_a_neighbour_hotter_than_the_peak_keeps_the_field():
+    # Two parts 2 mm apart: under the first footprint the painted field (its node plus the neighbour's profile near the neighbour) is above the own peak, which reads the
+    # neighbour at the centroid only; the larger value is kept, so the row never falls below what the map shows
+    p = Problem.new(100.0, 80.0, 2).add_zone(1, rect=(0, 0, 100, 80))
+    p.add_heater(1, 2.0, rect=(40, 37, 46, 43))
+    p.add_heater(1, 2.0, rect=(48, 37, 54, 43))
+    res = lumped.solve_steady(p, cell_mm=0.5)
+    rows = heater_stats(res, p)
+    assert rows[0]["t_max"] > res.arrays["heater_peak"][0]
+    assert rows[0]["t_max"] <= res.t_max + 1e-9
+
+
+def test_an_outline_board_reads_the_peak_of_the_equivalent_rectangle():
+    # simulate() solves the Lumped on the rectangle of the same area and stretches the field back; the own peak is a temperature per part (no frame), so the
+    # single part reads the Lumped board maximum
+    from pcbthermal import SolverOptions, simulate
+    p = Problem.new(100.0, 80.0, 2).add_zone(1, rect=(0, 0, 100, 80)).add_zone(2, rect=(0, 0, 100, 80))
+    p.set_outline([[0, 0], [100, 0], [100, 40], [50, 40], [50, 80], [0, 80]])
+    p.add_heater(1, 2.0, rect=(22, 37, 28, 43))
+    sim = simulate(p, SolverOptions(models=("lumped",), cell_mm=1.0))
+    assert sim.heater_rows()[0]["t_max"] == pytest.approx(sim.results["lumped"].t_max, abs=1e-9)
+
+
+def test_the_top_path_split_of_a_lumped_run_converges_on_the_peak():
+    # The split reads the part through heater_stats: with the peak the part is hotter, more heat leaves by the top, and the root is still found
+    from pcbthermal import SolverOptions, simulate
+    p = Problem.new(100.0, 80.0, 2).add_zone(1, rect=(30, 20, 70, 60))
+    p.add_heater(1, 3.0, rect=(47, 37, 53, 43), theta=2.0, theta_jc_top=5.0, theta_sa=10.0)
+    sim = simulate(p, SolverOptions(models=("lumped",), cell_mm=1.0))
+    row = sim.heater_rows()[0]
+    assert not any("did not converge" in w for w in sim.results["lumped"].warnings)
+    assert row["t_max"] == pytest.approx(sim.results["lumped"].t_max, abs=1e-9)
+    assert 0.0 < row["power_top_w"] < 3.0

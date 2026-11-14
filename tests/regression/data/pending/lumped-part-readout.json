@@ -1,7 +1,7 @@
 {
  "base_version": "2.7.0",
  "branch": "fix/lumped-part-readout",
- "evidence": "docs/validation.md 17.4; research/block-warning-remeasure README 7.2",
+ "evidence": "docs/validation.md 48; research/block-warning-remeasure README 7.2",
  "format": 1,
  "item": "Lumped part rows read the part's own peak",
  "records": {

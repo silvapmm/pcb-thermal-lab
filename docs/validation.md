@@ -2462,8 +2462,35 @@ The metal-block boards of `research/block-warning-remeasure` (seven cases) read 
 
 ### 48.2 What moves
 
-* Lumped-only runs: the part temperature, `Tj`, the margin, the limit and the Power Calculator point read higher by the peak term (up to 13 K in the 51 frozen records: `lumped-part-readout.json`, 17 boards at 2, 1 and 0.5 mm); the Lumped board maximum, the footprint mean and the maps are unchanged.
-* A part with a top path in a Lumped run sends more heat to its top (it is hotter), so the board of that run is a little cooler (`part_top_path`: hottest 74.4 to 72.9 K at 1 mm).
+* Lumped-only runs: the part temperature, `Tj`, the margin, the limit, the Power Calculator point and the convection multiplier fitted to a measured part temperature (`api._calibrate_convection` with the Lumped first) read higher by the peak term (up to 13.4 K in the 51 frozen records: `lumped-part-readout.json`, every Lumped record of the 17 boards at 2, 1 and 0.5 mm); the Lumped board maximum, the footprint mean and the maps are unchanged except with a top path (next item).
+* A part with a top path in a Lumped run sends more heat to its top (it is hotter), so the board of that run is a little cooler (`part_top_path` at 1 mm: heat to the top 1.865 to 1.899 W against 1.941 W in the FVM; hottest 74.40 to 72.91 °C against 74.10 °C in the FVM, so the board maximum moves from +0.3 to -1.2 K of the FVM: the old reading had hidden part of the Lumped's cool board error by sending too little heat to the top; on the review's own top-path board, 48.3, it moves from +1.26 to -0.39 K).
 * Runs that include the FVM or another model read the reference result for the part rows and do not move.
 * Not changed: the zoned footprint (the larger of its peak and the drawn field is read, so no double count); the time simulations.
-* Not verified: the research folders that read Lumped parts through `heater_stats` were not re-run (the pass of the release does it); a Lumped part on a near-edge or small-part case keeps its own errors (`validation.md` 35).
+* Research folders whose studies read a Lumped part's `t_max` or `t_junction` through `heater_stats` and whose printed numbers therefore move (not re-run here; the reproduction pass of the release does it): `research/component-heatsink` (`top_path_study.py`, the Lumped row), `research/lumped-near-edge` (`study_seri_lee.py`), `research/published-cases-followup` (`study_near_edge.py`, the Lumped maximum column), `research/paper-case-studies` (`study_vertical_plate.py`, when run with the Lumped). The studies that read `t_mean` (`gerber-models`, `lumped-zones-adoption`, the strip and coupon studies) do not move. The research tests of these folders and of `block-warning-remeasure` pass; `block-warning-remeasure/scripts/study_block_pads.py` holds the array aside for its first-pass 'field' column, which stays the painted node.
+* A Lumped part on a near-edge, small-part or elongated footprint keeps its own errors (`validation.md` 35; 48.3).
+
+### 48.3 Review (independent re-run)
+
+Re-run by the reviewer on the branch: `tests/regression` at 2, 1 and 0.5 mm gives 317 passed with the pending file and exactly its 51 Lumped records failing without it (nothing else); `heater_peak` equals the study's own re-derivation of the peak (`study_block_pads.lumped_part_peaks`) to 1e-14 K on five boards with and without the block; on every board below the hottest part row equals the Lumped board maximum (difference 0).
+
+Hottest (or listed) part, Lumped-only run against the FVM at 0.5 mm, % of the FVM part rise (100 x 80 mm, two layers, default materials and convection, the program's edge loss):
+
+| Board | FVM rise K | before | now |
+| :-- | --: | --: | --: |
+| 12 mm pad and aluminium plate, 5 W | 115.4 | -11.7 | -1.0 |
+| 6 mm part on two full planes, 3 W | 75.2 | -10.6 | -0.6 |
+| two parts 2 W (theta 5 K/W) / 1 W, top plane | 62.9 / 36.8 | -9.1 / -2.4 | -1.3 / +2.5 |
+| two 2 W parts 2 mm apart | 90.7 / 90.6 | -3.4 / -0.6 | -3.4 / -0.6 (the painted field is the larger reading) |
+| one via under the part, 30 mm top pad, bottom plane | 53.3 | -7.9 | +1.1 |
+| 4 x 4 via group under an 8 mm part (zoned footprint) | 62.8 | -7.1 | -3.0 |
+| L-shaped outline (equivalent rectangle) | 54.3 | -13.6 | -4.1 |
+| 12 x 2 mm part | 54.6 | -14.3 | -5.8 |
+| 4 layers of full planes, 4 W | 83.4 | -11.3 | -0.2 |
+| four 1 W parts in a row, two planes | 39.2 / 41.6 | -4.3 / -2.4 | -0.2 / +2.9 |
+| top path (theta 2, theta_JC 5, theta_SA 10 K/W), 40 mm pad | 30.3 | -4.1 | -1.3 |
+| 3 x 6 mm part touching the board edge | 57.1 | -14.8 | -10.4 |
+| 6 mm part, 1 W, half off the board edge (rectangular board) | 48.6 | -16.4 | -11.5 |
+| the same with an outline equal to the box (equivalent-rectangle path) | 48.6 | -32.5 | -27.5 |
+| 2 mm part on bare laminate over a bottom plane, 0.5 W | 218.3 | -47.3 | -39.4 |
+
+Against the independent 3D conduction solver (`tests/helpers/layered3d.py`, 1 mm cells, isotropic laminate 0.3 W/mK, insulated sides, the film under the source; the program run with the same materials and `h_side` off; hottest top-surface cell of each part): the FVM is within -0.2 to +0.5 %, the Lumped part moves from -10.3 to -0.6 % (6 mm part on two planes), from -8.3 / -1.4 to -1.0 / +3.0 % (two parts on a top plane), from -3.9 / -1.9 to -0.3 / +2.9 % (four parts in a row) and from -6.8 to -1.3 % (a 2 mm part on two planes). The parts beside a hotter neighbour now read 2.5 to 3 % hot: the own peak adds the neighbour's rise at the centroid to a peak that is already the part's hottest point, a small over-estimate on the safe side that the map does not show. The rows of a part at or across the edge and of the small part on bare laminate are the known near-edge and small-part limits of the Lumped (sections 31 and 35), reduced by the fix but not removed; a part across an outline in the equivalent-rectangle path stays about 28 % cool (a limit of that path, not of this read-out, which moves it by the same 5 points). Two top-path parts and a third with its top heat clipped converge in the coupled split (no warning) and move toward the FVM (heat to the top 2.039 to 2.091 W against 2.150 W). The Lumped profile curves already read the peak (`lumped._own_point`), so the steady part rows and the time curves now agree.
