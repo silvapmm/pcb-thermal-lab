@@ -370,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Convection warnings (top-face Rayleigh 1e2 to 1e7, Reynolds note, edge-laminate text with the converged errors, transient key -9 % to +3 %) and the published-case tests (Lienhard 8.1 and 6.5, Table A.6, Seri Lee, Muzychka cases) merged after review; no number moved.** Theory 8 aligned with the audit (`releases/2.8.0/audit/REVIEW_L1L5.md`).
+
 - **The numerics and shipped-data audit (L12) merged**: the via-coupling counts of theory 2.2 re-measured on 2.7.1, every shipped default constant has its basis or is marked typical-without-source (copper kept at 385 W/mK, marked typical; FR-4 in-plane 0.9 W/mK and emissivity 0.9 have no source and are sensitive); items queued in DECISIONS_2.md (fix/typical-values-marks).
 
 - **The audit documents A2, A4, A5, S1 and the second decisions file merged**: the fine-comb re-review of convection, cut cells, edge/laminate, Lumped/Analytic/transient, calculator, JEDEC board redrawn (calculator row is an indication, not a verification) and numerics is in `releases/2.8.0/audit/`; fixes are queued in `DECISIONS_2.md`.
