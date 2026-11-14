@@ -21,12 +21,23 @@ from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
+from .spinfit import fit_range
 from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 from ..numfmt import num
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
+
+
+def _put(spin, value):
+    """!
+    @brief Show a stored value in a spin box, widening the box if the value is outside its range (never clamped).
+    @param spin The spin box.
+    @param value The stored value, in the unit of the box.
+    """
+    fit_range(spin, value)
+    spin.setValue(value)
 
 
 class ProfilePage(QWidget):
@@ -301,7 +312,7 @@ class ProfilePage(QWidget):
         if ok:
             h = pr.heaters[self.current]
             self.kind.setCurrentIndex(0 if h.profile is None else (2 if h.profile.kind == "table" else 1))
-            self.const_power.setValue(h.power)
+            _put(self.const_power, h.power)
             w = h.profile
             self.repeat.setChecked(True if w is None else bool(w.repeat))
             if w is not None and w.kind == "table":
@@ -312,25 +323,25 @@ class ProfilePage(QWidget):
                     unit = "µs" if w.period < 1e-3 else "ms" if w.period < 1 else "s" if w.period < 600 else "min"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(w.period / _PERIOD_UNITS[unit])
+                    _put(self.value, w.period / _PERIOD_UNITS[unit])
                 else:
                     f = 1.0 / w.period
                     unit = "Hz" if f < 1e3 else "kHz" if f < 1e6 else "MHz"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(f / _FREQUENCY_UNITS[unit])
-                self.duty.setValue(w.duty * 100.0)
-                self.p_on.setValue(w.p_on)
-                self.p_off.setValue(w.p_off)
-                self.avg.setValue(w.average())
+                    _put(self.value, f / _FREQUENCY_UNITS[unit])
+                _put(self.duty, w.duty * 100.0)
+                _put(self.p_on, w.p_on)
+                _put(self.p_off, w.p_off)
+                _put(self.avg, w.average())
             else:
                 self._fill_units()
                 self.unit.setCurrentText("s")
-                self.value.setValue(10.0)
-                self.duty.setValue(50.0)
-                self.p_on.setValue(h.power)
-                self.p_off.setValue(0.0)
-                self.avg.setValue(h.power / 2.0)
+                _put(self.value, 10.0)
+                _put(self.duty, 50.0)
+                _put(self.p_on, h.power)
+                _put(self.p_off, 0.0)
+                _put(self.avg, h.power / 2.0)
         self._show_kind()
         self._updating = False
         self._derived()
@@ -542,13 +553,13 @@ class ProfilePage(QWidget):
         o = self.doc.options
         po = o.profile
         self._updating = True
-        self.threshold.setValue(po.threshold_c)
+        _put(self.threshold, po.threshold_c)
         self.start.setCurrentIndex(max(self.start.findData(po.initial), 0))
-        self.start_c.setValue(self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
+        _put(self.start_c, self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
         self.duration.setCurrentIndex(max(self.duration.findData(po.duration), 0))
-        self.cycles.setValue(po.cycles)
-        self.time_s.setValue(po.time_s)
-        self.max_steps.setValue(po.max_steps)
+        _put(self.cycles, po.cycles)
+        _put(self.time_s, po.time_s)
+        _put(self.max_steps, po.max_steps)
         self.steady_mode.setCurrentIndex(max(self.steady_mode.findData(o.steady_power), 0))
         self._updating = False
         self._enable_options()
