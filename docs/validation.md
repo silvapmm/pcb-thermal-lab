@@ -2508,7 +2508,7 @@ Source: `research/lumped-zone-placement` (reviewed, GO; README 10). Nothing in t
 ### 50.2 Decision
 
 No model change in 2.8.0: rule R1, the 0.25 mm raster and the removal of the zones were measured and not adopted. The limits above are stated in `theory.md` 5.2; the warning of up to 16 % too cool for an off-centre array stands. The numbers are those printed by the studies of the research folder (README 10), not re-run here.
-=======
+
 ## 49. Via effect next to a strongly cooled edge: the texts of the warnings
 
 Text only; no number of the program moves. The figures are those of the independent finite-element comparison of `research/independent-fem-extensions` 8.1 (a 10 x 10 mm four-layer board with every wall cooled, bottom 200 W/m2K, a via 0.16 mm and 3 mm from the wall, a 3 x 3 array; the same eight laminate sub-gaps in the layered models; a sample, not a bound).
@@ -2526,4 +2526,3 @@ Re-run by the review of the branch: the program side of the comparison (FDM with
 ### 49.2 Limits, stated
 
 The FDM and 3D solid defects are not corrected (the cause is not separated; a fix belongs to an investigation of the node-centred stencil at a wall, 'Planned: 2.8.0'). The Analytic via warning still fires only for one or two vias; the 3 x 3 array gets the edge warning instead. The texts quote the comparison, not a measured board.
->>>>>>> fix/via-and-edge-warning-texts
