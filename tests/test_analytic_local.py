@@ -142,12 +142,12 @@ def test_time_to_63_percent_against_the_fvm(name, build, limit):
 
 def test_four_layers_with_a_strong_heatsink():
     """!
-    @brief The worst board found (4 layers, vias, 300 W/m2K heatsink under the part): -8.1 % of the FVM at 0.5 mm before the readout moved to the hot point of the steady solve, -10.6 % after it; inside 12 %.
+    @brief The worst board found (4 layers, vias, 300 W/m2K heatsink under the part): -8.1 % of the FVM at 0.5 mm (-8.3 % at 0.5 mm and 0.25 mm in the review of fix/analytic-transient-hot-point; its flat top keeps the readout point of the board without vias); inside 10 %.
     @return None.
     """
     p = _sink(_vias(_plain(4)), 300.0)
     ref = _step(p, 0.5, "fvm")[3]
-    assert abs(_step(p, 0.5)[3] / ref - 1.0) < 0.12
+    assert abs(_step(p, 0.5)[3] / ref - 1.0) < 0.10
 
 
 def test_factor_on_the_vias_only():

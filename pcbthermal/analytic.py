@@ -65,6 +65,11 @@ EDGE_MISMATCH_MIN = 1e-9      # Relative spread of the per-layer edge parameters
 EDGE_GMRES_RTOL = 1e-6        # Relative residual of the per-layer edge loop (GMRES on the modal coefficients; 4 to 9 products measured)
 LOCAL_MODES = 16              # Modes per direction of the coupled block of the transient with vias and heatsinks (24 changes the time to 63 % by under 1.5 points)
 LOCAL_MAX_UNKNOWNS = 3000     # K x K x L of the block is lowered to stay under this (a dense eigenproblem: 42 MB and about 4 s at 1024)
+# Share of the steady rise within which the point of the board without vias and heatsinks is taken as hot as the maximum of the steady field with them when the transient
+# readout point is chosen (_readout_point): the tile correction resolves the field near vias to about a tile, and on the 4-layer test boards with vias and a heatsink 18 to 36
+# cells lay within 0.1 % of the maximum (that point 0.03 to 0.12 % below it) while the FVM put the cell the argmax chose 0.4 to 3 % below its own hottest node; a via cluster
+# or a heatsink beside the part that moves the hot point leaves that point 0.5 to 0.6 % below the maximum.
+READOUT_TOLERANCE = 2.5e-3
 EDGE_GMRES_RESTART = 30       # GMRES restart length and maximum number of restarts of the per-layer edge loop
 
 
@@ -917,10 +922,11 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
     PX, PY = lc["PX"][:K] / tw, lc["PY"][:K] / th                         # Average of the first K eigenfunctions over each active tile
     A = _modal_matrix(problem, d, n_terms, 0.0, 0.0)[:K, :K]
     ls = LocalSystem(A, d["c_l"], bx.weight[:K], by.weight[:K], PX, PY, lc["Cv"], lc["cs"], W, H)
-    # The readout point is the hottest cell of the steady field WITH the vias and heatsinks (what the steady result reports), not the hottest cell of the board without
+    # The readout point is a hottest cell of the steady field WITH the vias and heatsinks (what the steady result reports), not the hottest cell of the board without
     # them that _modal_dynamics found: with a via cluster the two differ by millimetres and the transient read 22 % low at 0.3 s (research transient-reference-boards 4.3).
-    # The problem handed here has only the served heater powered, so the argmax of the field is its own hot point.
-    lay, iy, ix = np.unravel_index(int(np.argmax(steady.T)), steady.T.shape)
+    # The problem handed here has only the served heater powered, so the field is its own; the point of the board without them is kept while it is within
+    # READOUT_TOLERANCE of the maximum (_readout_point), so that a flat top does not make the point jump with a tiny change of the board.
+    lay, iy, ix = _readout_point(steady.T - ambient, d["points"][served], d["dx"], d["dy"])
     d["points"] = list(d["points"])
     d["points"][served] = (int(lay), int(iy), int(ix))
     wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
@@ -953,6 +959,31 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
         d["local_note"] = (f"the coupling of the vias in the coupled block of the Analytic transient could not reach the steady value of the board with the factor limited "
                            f"to {num(FACTOR_BRACKET[0], 3)} .. {num(FACTOR_BRACKET[1], 3)} (it took {num(s, 3)}): the time behaviour near the vias is approximate")
     return d
+
+
+def _readout_point(rise, start, dx, dy):
+    """!
+    @brief Transient readout point of a heater: the start point while it is as hot as the maximum of the steady field within READOUT_TOLERANCE, else the hottest cell.
+    @details The start point is the hottest cell of the board without vias and heatsinks (where the early response peaks). When the steady field with them is no hotter
+             than that point by more than READOUT_TOLERANCE of the rise, the top is flat to within what the tile correction resolves and the point is kept: the plain
+             argmax of such a top jumped between cells 1 to 2 mm apart when the part moved by 0.05 mm (time to 63 % 1.3 % apart) and chose cells that the FVM puts 0.4 to
+             3 % below its hottest node (review of fix/analytic-transient-hot-point). Otherwise (a via cluster that moves the hot point, 0.5 to 0.6 % hotter) the
+             hottest cell is read, nearest to the start point among equal maxima.
+    @param rise Steady rise (layers, ny, nx) in kelvin of the board with only this heater powered.
+    @param start Tuple (layer, iy, ix) of the start point.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Tuple (layer, iy, ix) of ints.
+    """
+    lay0, iy0, ix0 = (int(v) for v in start)
+    top = float(rise.max())
+    if rise[lay0, iy0, ix0] >= (1.0 - READOUT_TOLERANCE) * top:
+        return lay0, iy0, ix0
+    cand = np.argwhere(rise >= top)                                      # the maximum (several cells when the field is symmetric)
+    # Squared distance in the plane, with another layer counted as farther than any cell of the start layer
+    dist = ((cand[:, 1] - iy0) * dy) ** 2 + ((cand[:, 2] - ix0) * dx) ** 2 + (cand[:, 0] != lay0) * 1e6
+    lay, iy, ix = cand[int(np.argmin(dist))]
+    return int(lay), int(iy), int(ix)
 
 
 def _point_vector(d, point):
@@ -1112,7 +1143,7 @@ class _AnalyticAdapter:
         if problem.heatsinks:
             # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
             # 0.5 mm, converged), research/analytic-edge-and-transient README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
-            # -0.1 % with a heatsink; measured again with the readout at the hot point of the steady solve, branch fix/analytic-transient-hot-point: -10.6 % to +2.2 %, validation 4.2; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
+            # -0.1 % with a heatsink; measured again with the readout point of fix/analytic-transient-hot-point, validation 51: -8.3 % to +2.1 % with a heatsink, the +2.1 % a heatsink beside the part with vias, +0.3 % against the FVM at its fixed hottest node; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
             # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
@@ -1185,7 +1216,7 @@ class _AnalyticAdapter:
         return None
 
 
-HEATSINK_TRANSIENT_KEY = "-11 % to +2 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+HEATSINK_TRANSIENT_KEY = "-8 % to +2 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
 
 
 def heatsink_transient_warning(scales=""):
@@ -1195,7 +1226,7 @@ def heatsink_transient_warning(scales=""):
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
-            "of test boards, from about -11 % to +2 % off the converged finite-volume result (the worst, -11 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
+            "of test boards, from about -8 % to +2 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
             "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"

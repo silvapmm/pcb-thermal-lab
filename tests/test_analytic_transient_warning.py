@@ -9,7 +9,7 @@ from pcbthermal.api import SolverOptions, simulate
 from pcbthermal.examples import example_board
 from pcbthermal import SquareWave
 
-KEY = "-11 % to +2 %"
+KEY = "-8 % to +2 %"
 
 
 def _profile_board(heatsink):
