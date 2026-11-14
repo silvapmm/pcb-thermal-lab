@@ -2,7 +2,7 @@
 
 A user reported that the Analytic model gives centroid temperatures 3 to 5.5 degC below the published case 2 (a 10 mm baseplate, four 10 x 10 mm sources) and below the independent 3D solver, that the error seems to grow for lower heat transfer coefficients, and that the window does not show the numbers of the study script. This folder reproduces the numbers, separates the causes and runs the case through the real main window. Nothing of the program is edited; the fixes are proposals (`INTEGRATION.md`).
 
-Scripts, from the repository root: `study_case2_reproduce.py`, `study_case2_h_sweep.py`, `study_case2_gui.py` (offscreen), `make_figures.py`; shared code `lib/case2.py`; tests `tests/test_case2.py` (6 passed, 8 s). Outputs go to the git-ignored `out/`.
+Scripts, from the repository root: `study_case2_reproduce.py` (peak about 7.5 GB: its finest 3D reference, 0.25 mm and 8 sub-slabs, stays resident, which is also why the memory guard of the later runs in the same process prints estimates of 7.5 GB for a 1250-unknown board; `--quick` skips it), `study_case2_h_sweep.py` (1.3 GB), `study_case2_gui.py` (offscreen), `study_case2_review.py` (the checks of the review, section 8), `make_figures.py`; shared code `lib/case2.py`; tests `tests/test_case2.py` (8 passed, about 10 s, 1.3 GB). Outputs go to the git-ignored `out/`.
 
 ## 1. The case and the quantities
 
@@ -82,16 +82,78 @@ The script maps the plate as one copper layer of 10 mm with k 150, `h_top` 1e-6,
 | item | class |
 | :-- | :-- |
 | 2.9 to 5.5 K low in the FVM, FDM, Analytic (Lumped 2.7 to 6.4) | the idealisation, two terms: through-thickness (documented, 56 to 62 % of its bound) and film `t/(2k)` (neglected, documented only for thin copper) |
-| "grows for a lower h" | not reproduced: constant in K, the percentage grows with a higher h |
+| "grows for a lower h" | not reproduced (confirmed by the review, 8.1): constant in K, the percentage grows with a higher h |
 | window differs from the script | inputs: new-board defaults (3.0 K), peak against centroid (0.1 K), the 210 um limit and the dock write-back (hundreds of K, no warning) |
 | the earlier text "67 to 89 % of the bound, confirms the effect" | misleading, to correct |
 | Analytic itself | no defect found: equals the FVM to 0.05 K, modes and cell do not matter |
 
 ## 7. Limits of this study
 
-One geometry (a single flat plate with adiabatic top and sides), one conductivity (k 50 would need its own sweep: the through-thickness term scales with 1/k and the film term with `t/k` too); the film-term fix was tested only by changing the input coefficient, not by editing the solvers (so the edge film, vias and the block faces, which already have their own treatment in `blocks.py`, were not examined); the 8 sub-slab 3D means are 0.1 K above the paper (the 16 sub-slab ones 0.03 to 0.09 K); case 1 (a) and the cross were not re-run (their film term is 0.2 to 0.5 % of `1/h`, so it is small there, but the check was not made); the GUI part is offscreen, the user's figure was not seen, so which default produced his difference is a hypothesis (section 5 lists the three candidates); no measured board is involved.
+One geometry (a single flat plate with adiabatic top and sides), one conductivity (k 50 would need its own sweep: the through-thickness term scales with 1/k and the film term with `t/k` too); the film-term fix was tested only by changing the input coefficient, not by editing the solvers (so the edge film, vias and the block faces were not examined; **corrected by the review**: the block faces have no treatment of their own, `blocks.extra_layers` puts the exposed film `h_tot A` on the block node and the board link without half the block, the same simplification as the copper node, section 8.3); the 8 sub-slab 3D means are 0.1 K above the paper (the 16 sub-slab ones 0.03 to 0.09 K); case 1 (a) and the cross were not re-run (their film term is 0.2 to 0.5 % of `1/h`, so it is small there, but the check was not made); the GUI part is offscreen, the user's figure was not seen, so which default produced his difference is a hypothesis (section 5 lists the three candidates).
 
-## 8. What was read and what was not verified
+## 8. Review
+
+Independent review of the folder (program on `development` 5fc91430 merged into the branch; nothing of the program edited). Verdict: **GO** for the merge of the research branch, with the corrections below written into this README and `INTEGRATION.md`.
+
+### 8.1 What was re-run, and what it printed
+
+* `study_case2_reproduce.py` (full, 55 s): every number of sections 2 and 3 reproduced to the printed digit (3D surface centroids 97.41 / 103.85 / 101.31 / 99.95 at 8 sub-slabs and 97.39 / 103.81 / 101.27 / 99.93 at 16; FVM, FDM, Analytic, Lumped and 3D solid rows at 2, 1, 0.5 and 0.25 mm; the decomposition 2.06 / 4.70 / 3.82 / 2.94 K through the thickness and 0.84 to 0.85 K of film; the film-corrected input 394.74 W/m2K putting FVM, FDM and Analytic +0.07 to +0.10 K from the 3D column mean; the Analytic unchanged at 60 and 120 modes; the warnings S1, S2, S3 of the program, which are S2, S3, S4 of this README).
+* `study_case2_h_sweep.py` (18 s, 1.3 GB): section 4 reproduced (FVM S2 -5.54 K at h 10 to -5.62 K at 2000; -0.2 / -1.9 / -7.0 / -15.2 / -24.8 % of the rise at 10 / 100 / 400 / 1000 / 2000; the layer-mean error -0.84 to -0.89 K at every h). **The user's "the error grows for a lower h" is not reproduced**: the error in K does not depend on h, its share of the rise grows with a higher h.
+* `study_case2_gui.py` (real main window, offscreen): routes A, B, A2 and C reproduced (A: 94.59 / 98.31 / 96.64 / 96.17 C in the Results rows; B2 and A2 991.48 to 1137.89 C with no warning; C 3.01 K for both defaults).
+* The tests of the folder: 8 passed (two added by the review, below).
+
+### 8.2 The 'up to' of the thick-plate warning is not an upper bound (new, `study_case2_review.py` part 1)
+
+`checks.check_thick_plates` and `docs/theory.md` 1.2 say that the surface under a source "can be hotter than the model shows by up to `q'' t / (2 k)`". That bounds the through-thickness term only. The film term of section 3 comes on top, and in the one-dimensional limit it is as large: a source of 70 W over the whole top face of the case 2 plate (a column) reads 96.87 C on the 3D surface and 95.09 C in the FVM, a gap of **1.77 K against the stated bound of 0.93 K** (the exact one-dimensional gap is `q'' t / k` = 1.87 K: half below the node, half above); a central 30 x 30 mm source, 2.88 K against 2.59 K. Neither run shows the warning (1.3 and 3.6 % of the rise). In case 2 itself the bound happens to hold for every source (gaps 2.90 / 5.55 / 4.66 / 3.79 K against 3.33 / 8.33 / 6.67 / 5.00 K) because the 10 mm sources spread. A valid bound with the program as it is: `q'' t / (2 k) + q_face t / (2 k) <= q'' t / k`, with `q_face` the flux through the film of that layer; once the film term is in the models (proposal 2), `q'' t / (2 k)` is a bound again. Test `test_warning_bound_is_exceeded_by_a_column`.
+
+### 8.3 The film term in the program elsewhere
+
+* **The 3D solid** puts the face film in series with half of its top and bottom slab (`solid3d.face_g`), and its straight edges with half a cell (`solid3d.py`, the edge loop); this is why it reads the column mean (section 2).
+* **The FVM edge film** is put in series with the conduction from the node to the closest outline point (`fvm.Network._cut_edge_film`, `docs/theory.md` 2.1.1, after Barrett and others): the edge already has its half-cell term.
+* **Metal blocks** (`blocks.extra_layers`): the exposed film `h_tot A c` acts on the block node and the link to the board is the interface plus half the laminate slab, without half the block. A block is the program's own way to model thick metal, so the block has the same film term as the copper node of case 2 (for a 5 mm aluminium block under a fan, `h t/(2k)` of order 1e-3 to 1e-2 of `1/h`). Not measured here.
+* **The face of a part over bare laminate** already adds the half layer (`laminate.face_terms`, theory 1.4).
+
+So the program is not consistent: the resolved 3D model and the newer edge treatments include the half slab, the face films of the layered models do not. The size of `t / (2 k)` against `1/h` decides whether it matters: 5e-7 for 35 um copper at 10 W/m2K, 1.3e-2 for the case 2 plate.
+
+### 8.4 Which ratio, `t/(2k)` or `t/(3k)`
+
+The measured film term is 0.84 K; the closed form with the mean flux of the plate is 0.93 K for `t/(2k)` (heat entering through the opposite face, a linear profile) and 0.62 K for `t/(3k)` (heat arriving sideways and leaving through one face, a parabolic profile). Case 2 sits between, nearer `t/(2k)`. `t/(2k)` is the choice of the 3D solid and of the face term, and the hot side; it is the one to use.
+
+### 8.5 The S1 source and the warning limit
+
+S1 (10 W) is silent at 4.8 % of its rise with a 5 % limit. Its real gap is 2.90 K, 4.0 % of its 72.4 K rise on the 3D surface, so the silence is consistent with the 5 % rule itself; lowering the limit to 4 % (the study's suggestion) would tune the limit to this one case and is **not recommended**. What is wrong is the bound (8.2), not the limit: with `q'' t / (2 k) + q_face t / (2 k)` the S1 bound is about 4.3 K (6 %) and the warning fires.
+
+### 8.6 The Board dock writes back every field, not only three (wider than section 5)
+
+`panels.BoardPanel._apply` (`pcbthermal/gui/panels.py` lines 323 to 349) runs on the change of any box and writes ALL the board fields from the boxes, so every value the boxes cannot hold is replaced by the box value at the first edit of any field (`study_case2_review.py` part 2, real main window):
+
+| field | box (`panels.py` 108 to 221) | stored | after one unrelated edit |
+| :-- | :-- | :-- | :-- |
+| copper per layer | 5 to 210 um, 1 decimal | 10 000 um | 210 um |
+| thickness | 0.2 to 10 mm, 3 decimals | 10.001 mm | 10.0 mm |
+| `h_top`, `h_bottom`, `h_side` | 0 to 500 W/m2K, 1 decimal | 600 | 500 (also 1e-6 to 0.0) |
+| width, height | 5 to 1000 mm, **1 decimal** | 50.04 mm (63.47 mm) | 50.0 mm (63.5 mm), also on an imported board whose size boxes are greyed |
+| ambient | 1 decimal | 25.37 C | 25.4 C |
+| copper k | 1 to 1000, **0 decimals** | 150.4 | 150 |
+| laminate k through, in-plane | 0.05 to 20, 2 decimals | 0.345 | 0.34 |
+| via plating | 1 to 200 um, 0 decimals | 18.5 um | 19 um |
+| copper of a simple stack-up with unequal layers | one box for all layers | 70 / 17.5 / 17.5 / 70 um | 70 / 70 / 70 / 70 um |
+
+The edit is one undo step ("Board parameters"), but nothing tells the user that a field he did not touch changed. The case 2 consequence (991 to 1138 C instead of 94 to 98 C) is the worst of these, the roundings are small; all are silent. A project from a file, the command line, a script or another program (and every project of the research studies that model a plate as a 10 mm copper layer) is exposed. The unequal simple stack-up can only come from a file or the API (the program's own simple stack-up has equal copper). On an imported board the rounded width stays inside the extent tolerance of the masks (`copper.EXTENT_TOLERANCE`, 0.2 % of the side plus 1.5 pixels) for sides above about 25 mm; smaller boards with a fine pixel could be refused at the run (not reproduced). Test `test_one_dock_edit_rewrites_fields_it_did_not_touch` (it documents the defect and will fail when the program is fixed: then turn the assertion around).
+
+### 8.7 What the review corrected in this folder
+
+* Section 7: the block faces do not "already have their own treatment" (8.3).
+* Section 3 and `INTEGRATION.md` 3: the S1 silence is not a reason to lower the 5 % limit (8.5); the warning's number is not a bound (8.2).
+* Section 5: the write-back is wider than copper, thickness and h (8.6).
+* The script header: the peak memory of `study_case2_reproduce.py`.
+* `research/theory-sources/README.md` 3.7 and `INTEGRATION.md` 2.3 carry a correction line pointing here ("67 to 89 % of the bound ... confirms": the bound covers only one of the two terms, which are 56 to 62 % and 0.84 K).
+
+### 8.8 Not verified by the review
+
+The Lumped residual (0.2 to 0.8 K from the column mean with the film corrected, 1.7 K at S2 without) is measured, not explained; the film term of a metal block was not measured; the user's own project and figure were not seen (the three candidates of section 5 stay hypotheses, of which the write-back is the only one that produces a large, silent difference); a heat-sink baseplate modelled as a metal block under a thin board (the route the program intends for thick metal) was not run.
+
+## 9. What was read and what was not verified
 
 * **Read (R):** the text layer of Muzychka, Culham and Yovanovich (2003) in the local papers library (`md/Muzychka2003.md`): case 2 description (page of Case 2), Tables 3 and 4 (the centroid and mean values 97.40 / 96.85, 103.82 / 102.33, ...), and that the temperature is the surface of the baseplate. Nothing of the paper is stored here.
 * **Reproduced:** Table 4 centroids by the independent 3D solver within 0.03 K (16 sub-slabs); the means within 0.06 to 0.2 K (sub-slab count, as `research/theory-sources` 3.7 explains).

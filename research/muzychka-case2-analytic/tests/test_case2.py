@@ -99,3 +99,34 @@ def test_the_board_dock_cannot_hold_the_plate():
     p = BoardPanel(Document())
     assert p.copper.maximum() == 210.0 and p.copper.maximum() < C.T_MM * 1e3
     assert app is not None
+
+
+def test_warning_bound_is_exceeded_by_a_column():
+    """!
+    @brief Review 8.2: with one source over the whole top face (a column), the gap between the 3D surface and the FVM (1.77 K) exceeds the 'up to' q'' t / (2 k) of the
+           thick-plate warning (0.93 K) and is close to q'' t / k (1.87 K): the stated number bounds the through-thickness term only, not the film term.
+    @return None.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    import study_case2_review as R
+    col = [r for r in R.bound_check() if r["side"] == 50.0][0]
+    assert col["gap"] > 1.5 * col["bound_half"]
+    assert abs(col["gap"] - col["bound_full"]) < 0.15
+    assert not col["warned"]
+
+
+def test_one_dock_edit_rewrites_fields_it_did_not_touch():
+    """!
+    @brief Review 8.6: one edit of h_bottom in the Board dock of the real main window rewrites the copper (10 000 to 210 um), h_top (600 to 500), the width (50.04 to 50.0 mm)
+           and the copper conductivity (150.4 to 150); one edit of the emissivity flattens the unequal copper of a simple stack-up. This documents the program defect;
+           when the program is fixed the assertions must be turned around.
+    @return None.
+    """
+    pytest.importorskip("PySide6")
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    import study_case2_review as R
+    (_, a, z), (_, a2, z2) = R.dock_check()
+    assert a["copper um"] == [10000.0] and z["copper um"] == [210.0]
+    assert a["h_top"] == 600.0 and z["h_top"] == 500.0
+    assert abs(z["width mm"] - 50.0) < 1e-9 and abs(z["k_copper"] - 150.0) < 1e-9
+    assert a2["copper um"] == [70.0, 17.5, 17.5, 70.0] and z2["copper um"] == [70.0, 70.0, 70.0, 70.0]
