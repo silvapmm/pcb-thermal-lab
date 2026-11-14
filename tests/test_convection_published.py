@@ -130,3 +130,58 @@ def test_t6_radiation_linearisation_limit():
     h = cv.h_radiation(300.0 - 273.15 + 1e-3, 300.0 - 273.15 - 1e-3, 1.0)
     assert h == pytest.approx(4.0 * cv.SIGMA * 300.0 ** 3, rel=1e-3)
     assert h == pytest.approx(6.12, rel=2e-3)
+
+
+def _up_nu(ra_target, t_s=60.0, t_a=30.0):
+    """!
+    @brief Nusselt number of the face turned up at a chosen Rayleigh number.
+    @param ra_target Rayleigh number wanted (dimensionless).
+    @param t_s Surface temperature in degC.
+    @param t_a Air temperature in degC.
+    @return Tuple (Nu, Ra, film Pr).
+    """
+    props = cv.air_properties(0.5 * (t_s + t_a))
+    # Ra scales with L^3, so the length that gives the target follows from one evaluation
+    ra1 = cv.rayleigh(t_s - t_a, 1.0, props)
+    length = (ra_target / ra1) ** (1.0 / 3.0)
+    h, ra = cv.h_natural_horizontal(t_s, t_a, length, True)
+    return h * length / props["k"], ra, props["pr"]
+
+
+@pytest.mark.parametrize("ra_target", [2e7, 1e9])
+def test_t7_face_up_turbulent_branch_is_lienhard_eq_8_35(ra_target):
+    """!
+    @brief Above Ra 1e7 the face turned up equals eq. 8.35 of Lienhard (2024, printed p 435) at the film Prandtl number.
+    @param ra_target Rayleigh number tested (dimensionless).
+    @return None.
+    """
+    nu, ra, pr = _up_nu(ra_target)
+    printed = 0.14 * ra ** (1.0 / 3.0) * (1.0 + 0.0107 * pr) / (1.0 + 0.01 * pr)
+    assert nu == pytest.approx(printed, rel=1e-12)
+
+
+def test_t8_face_up_step_at_1e7_is_below_one_percent():
+    """!
+    @brief The jump of the face-up Nusselt number across Ra 1e7 is small (-0.6 %), not the +6.4 % of the constant 0.15.
+    @return None.
+    """
+    lo, _, _ = _up_nu(1e7 * (1 - 1e-9))
+    hi, _, _ = _up_nu(1e7 * (1 + 1e-9))
+    assert abs(hi / lo - 1.0) < 0.01
+    assert hi / lo - 1.0 == pytest.approx(-0.006, abs=0.002)
+
+
+def test_t9_face_up_below_1e7_and_face_down_are_unchanged_bit_for_bit():
+    """!
+    @brief Every other range is the previous function: 0.54 Ra^(1/4) up to 1e7 (20 points from 1e2) and the face-down law at every Ra.
+    @return None.
+    """
+    for ra_target in [10 ** (2 + 4.999 * i / 19) for i in range(20)]:
+        t_s, t_a = 60.0, 30.0
+        props = cv.air_properties(0.5 * (t_s + t_a))
+        ra1 = cv.rayleigh(t_s - t_a, 1.0, props)
+        length = (ra_target / ra1) ** (1.0 / 3.0)
+        h, ra = cv.h_natural_horizontal(t_s, t_a, length, True)
+        assert h == (0.54 * ra ** 0.25) * props["k"] / length
+        hd, rad = cv.h_natural_horizontal(t_s, t_a, length, False)
+        assert hd == (0.475 * rad ** 0.2) * props["k"] / length
