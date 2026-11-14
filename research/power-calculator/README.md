@@ -149,6 +149,8 @@ The rows of 4.1 are computed at 0.5 mm. Model RθJA in K/W, computed convection 
 
 ### 4.6 The board resistance against an independent solver (`scripts/study_independent_datasheet_board.py`, in the review)
 
+**Stale (2.8.0 audit, `releases/2.8.0/audit/REVIEW_A2.md`).** The table below is the program of 2.4.4. Re-run on 2.7.1 the script prints: converged films 16.04 / 12.03 W/m2K at 1 W; independent solver 48.00 K/W; FVM two layers 47.65 (-0.7 %), FVM one layer 47.65 (-0.7 %), 3D solid 48.00 (+0.0 %); with the program's FR-4 FVM 42.60 and 3D solid 42.90 K/W (RθJA 47.1 / 47.4). The laminate rule of 2.4.5 removed most of the -2.4 % and the difference between the two drawings; the affine check (part 2) is unchanged in kind (+1.35 / -5.67 / -13.73 K with computed films).
+
 The calculator returns P = rise / (R + θ): its error on the datasheet board is the error of the board resistance R. The CSD17308Q3 board with the face coefficients fixed at the values the computed convection converges to at 1 W (16.14 top, 11.05 bottom W/m²K), cell 0.3 mm, FR-4 isotropic at 0.3 W/mK so that the independent solver (`research/solid3d-verification/lib/layered3d.py`, which shares no code with the program) represents the same board:
 
 | Solver | R board (K/W) | RθJA = R + 4.5 (K/W) | against the independent solver |
