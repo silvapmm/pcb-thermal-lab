@@ -111,3 +111,14 @@ def test_guide_states_the_background_image_rule():
     """
     html = GUIDE.read_text(encoding="utf-8")
     assert "View - Background image" in html and "only remove the image" in html
+
+
+def test_guide_says_drawn_copper_is_read_like_imported_copper():
+    """!
+    @brief The copper zone row of the guide says that a layer whose edges cut the cells is read like imported copper, and what it costs.
+
+    @return None
+    """
+    html = GUIDE.read_text(encoding="utf-8")
+    for word in ("read like imported copper", "exact area of the zones", "flow-based faces"):
+        assert word in html, word

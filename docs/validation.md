@@ -2141,7 +2141,7 @@ Over the turned boards of 40.1 (also the T, L, four-layer, striped and mixed one
 
 ### 40.4 Limits, stated
 
-* **Drawn copper still reads cooler than the same copper imported**: 20 mm square, copper 1.2 mm inside, 200 W/m2K, 1 mm: -3.15 % drawn, -0.93 % imported (a mixed board, -1.73 %). The gap is not the edge film. It comes from how a zone sets the copper fill of a cell (4 x 4 samples, `geometry.zone_fill`) and the in-plane faces (the fill-weighted harmonic mean, not the flow-based faces of the imported copper); striped and padded tops stay 5 to 12 % cool for the same reason. Planned for 2.8.0 (`docs/versions.md`, 5a).
+* **Drawn copper read cooler than the same copper imported** (20 mm square, copper 1.2 mm inside, 200 W/m2K, 1 mm: -3.15 % drawn, -0.93 % imported): the cause was the in-plane faces (the fill-weighted harmonic mean, not the flow-based faces of the imported copper), not the fill and not the edge film. Repaired in the FVM and FDM by section 51 (a layer with a cut cell reads as imported copper); the numbers of this paragraph are those before the repair.
 * The idealisation of four laminate sub-gaps (about -2 % below the resolved laminate) is not an edge-film effect and is not changed.
 * Truths of the T, L, four-layer, pad and stripe boards come from an extrapolation of a 0.4 / 0.2 mm series (about 0.2 % uncertain); no truth for rotated T and L outlines other than by the invariance of the physics (the same truth for every turn); the FDM, 3D solid, Lumped and Analytic are unchanged.
 * **Copper reaching the outline reads hot** (40.5): +1 to +2 % of the rise against the program's own converged answer at 1 mm, about half at 0.5 mm, on T, L and square outlines alike; on the square it is hidden against the truth by the cool idealisation of the layered model.
@@ -2508,3 +2508,36 @@ Source: `research/lumped-zone-placement` (reviewed, GO; README 10). Nothing in t
 ### 50.2 Decision
 
 No model change in 2.8.0: rule R1, the 0.25 mm raster and the removal of the zones were measured and not adopted. The limits above are stated in `theory.md` 5.2; the warning of up to 16 % too cool for an off-centre array stands. The numbers are those printed by the studies of the research folder (README 10), not re-run here.
+
+
+## 51. Drawn copper read as imported copper (FVM and FDM)
+
+Item 5a of 'Planned: 2.8.0', from `research/drawn-copper-faces` (README sections 1 to 11, reviewed). A drawn layer (zones, hatching) that has at least one cell cut by a zone edge is read like an import: the cell fill is the exact area share of the union of the zones (`geometry.exact_coverage` on the pixel grid of the layer) and the in-plane faces are the flow-based faces on the reduced sheet (`copper.drawn_source`, `copper.DrawnCopper`; the faces and the order of construction are those of section 27 and `docs/theory.md` 1.7). The raster has ten pixels per cell side, is float (a hatch fill of 0.7 stays 0.7), is built at the start of the run and is not stored. A layer whose every cell is full or empty keeps the earlier path (same faces; no float rounding), and so does every board the hook does not apply to: the network that the Lumped builds (`ladder=False, cut_cells=False`), the time-constant helper, the Analytic, the 3D solid, a board with imported copper (its drawn layers keep the earlier path: a stated limit), a zone that crosses itself and an outline too fine for the exact area.
+
+### 51.1 Against an independent finite-element solution
+
+Heater-mean rise of three 20 mm boards (two layers, 1 W on a 4 mm part, `h_top = h_bottom = 10`, `h_side` 200 W/m2K; references extrapolated to zero size, `research/drawn-copper-faces` README 2.1: 57.157, 73.872 and 64.563 K), run on this tree (`tests/test_drawn_copper_faces.py`; the same boards are `drawn_inset_square`, `drawn_stripes_pad`, `drawn_ell` of the harness):
+
+| board | FVM 1 mm before -> now | FVM 0.5 mm before -> now | FDM 1 mm now | FDM 0.5 mm now |
+| :-- | :-- | :-- | :-- | :-- |
+| copper 1.2 mm inside the wall | -1.2 -> +0.1 % | -2.8 -> -1.4 % | -1.0 % | -1.2 % |
+| stripes and a 7.2 mm pad | -8.0 -> -0.6 % | -4.1 -> -1.9 % | -1.8 % | -1.9 % |
+| an L | -1.4 -> -0.0 % | -4.1 -> -2.5 % | -4.0 % | -3.1 % |
+
+(The FDM before, from the study: -5.2 / -4.0 % and -12.9 / -6.1 % for the first two.) What is left at 0.5 mm is the laminate rule (with eight sub-gaps the same boards read -0.2 to -1.3 %, research README 3.3), not the faces. Not repaired: the laminate at the inset edge, a small pad on bare laminate (4 to 5 % cool), the FDM with copper to the wall, the first-order hot error of the cut cell at 1 mm.
+
+### 51.2 What moves, what does not
+
+* **Frozen numbers** (harness, 17 boards, cells 2, 1 and 0.5 mm, `PCBT_FROZEN_CELLS=2,1,0.5`): 8 FVM and FDM records and 8 times to 63 % move, all at 2 mm, of four boards (`example_board`, `profile_board`, `example_cut_to_T`, `two_layer_partial`; the other boards have their copper edges on cell lines); no record at 1 and 0.5 mm moves, no Lumped, Analytic or 3D solid record moves (the Lumped record of `example_cut_to_T` that a hook inside `fvm.Network` would move, -0.006 K, is left to `lumped-part-readout`). Pending file `tests/regression/data/pending/drawn-copper-faces.json`.
+* **Heat balance** 1e-13 W on every board; the drawn board and the same copper imported (uint8 raster) agree within 5e-3 K at 1 mm.
+* **New harness boards**: the three boards above are in `regress_boards.py`; a board that is absent from the frozen file cannot be a pending record, so their numbers at 1 and 0.5 mm (FVM and FDM) are held in `tests/test_drawn_copper_faces.py` until the next refreeze.
+* **Cost** (100 x 75 mm, 0.5 mm, steady): +0.15 to +0.18 GB of peak and 1.6 to 1.8 times the time on a four-layer board; 200 x 150 mm with stripes, 600 000 unknowns: +0.6 GB (FVM) and +1.0 GB (FDM), 9.3 to 11 s against 12.4 to 12.8 s.
+
+### 51.3 Memory law
+
+The estimate adds `memory.drawn_run_bytes` to the base: 4 bytes per pixel for the float32 raster of every layer with a cut cell, 80 bytes per pixel for the construction of the raster and the faces of the largest one and 50 MB for a batch of windows (the imported copper's own term is 40 bytes per source pixel; the FDM growth measured here is 84 bytes per pixel in all). Measured peaks (fresh process, `ru_maxrss`; estimate / peak): 100 x 75 mm four layers 0.5 mm FVM 687 MB (1.51), FDM 662 MB (1.53); 100 x 75 mm two layers with stripes FVM 586 MB (2.07), FDM 789 MB (1.52); 200 x 150 mm with stripes FVM 3464 MB (estimate 5.8 GB, 1.7), FDM 3538 MB (6.3 GB, 1.8). One machine; the term is a floor of the measured growth, not a fit of its shape, and the search for the cell that fits (`memory.cell_that_fits`) does not include the term, since it depends on the cell (the cell it names is optimistic by that term; the verdict of the cell asked for includes it, and above 4 million plan cells every layer with a zone counts as cut, so the lower bound stays cheap).
+
+### 51.4 Limits
+
+The scatter of boards with an outline and turned or shifted copper rises on 15 of 30 rows in the study (0.64 -> 1.25 % at the inset square 200 W/m2K 0.5 mm; the worst board falls on 24 and rises on 2); the study traced it to one placement, which the imported outline treatment reads 0.7 to 6.2 points warmer. A zone over a zone with another fill is read by the largest fill first (the program's rule per sample point is the largest fill). Memory and time were measured to 200 x 150 mm and 600 000 unknowns. Vias on a partly drawn plane are not changed (A30 comes after this fix). The finite-element references are extrapolated (0.1 to 0.35 % from the finest solve).
+

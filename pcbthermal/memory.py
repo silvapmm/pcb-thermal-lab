@@ -565,6 +565,36 @@ FACES_BYTES_PER_PIXEL = 40.0          # run: the face construction of the larges
 FACES_FIXED_BYTES = 50.0e6            # run: the local conduction problems of one batch of windows (WINDOW_BATCH_PIXELS pixels)
 
 
+DRAWN_RASTER_BYTES_PER_PIXEL = 4.0    # run, drawn copper: the float32 coverage raster of a layer with a cut cell, kept for the run (copper.DRAWN_RASTER_BYTES_PER_PIXEL)
+DRAWN_FACES_BYTES_PER_PIXEL = 80.0    # run, drawn copper: the construction of the raster and of the faces of the largest such layer, per pixel (measured: the FDM growth is 84 B per pixel in all, theory 2.7)
+DRAWN_EXACT_CELLS = 4_000_000        # most plan cells for which `drawn_run_bytes` finds the layers with a cut cell exactly; above, every layer with a zone counts
+DRAWN_FIXED_BYTES = 50.0e6            # run, drawn copper: the local conduction problems of one batch of windows
+
+
+def drawn_run_bytes(problem, cell_mm: float) -> float:
+    """!
+    @brief Memory that the drawn copper adds to a FVM or FDM run: the float32 rasters of its layers that have a cell cut by a zone edge and the face construction of one layer.
+    @details The raster has `copper.DRAWN_PIXELS_PER_CELL` ^ 2 pixels per cell. Zero for a board whose drawn layers have no cut cell (the earlier path), for imported copper and for a
+             problem with no zone. It is the same model as the import's (`copper_run_bytes`) with the measured per-pixel terms of the drawn raster.
+    @param problem A Problem.
+    @param cell_mm Cell size of the run in mm.
+    @return Bytes.
+    """
+    from . import copper
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    if nx * ny > DRAWN_EXACT_CELLS:
+        # Too many cells to find the cut layers (the exact areas of a 0.5 m board at 0.05 mm took 3 GB, before anything is refused): take every layer with a zone as cut, the bound
+        layers = {z.layer for z in problem.zones if getattr(problem, "imported", None) is None}
+    else:
+        layers = copper.drawn_layer_cuts(problem, nx, ny)
+    if not layers:
+        return 0.0
+    px = float(nx * ny) * copper.DRAWN_PIXELS_PER_CELL ** 2
+    return float(DRAWN_RASTER_BYTES_PER_PIXEL * px * len(layers) + DRAWN_FACES_BYTES_PER_PIXEL * px + DRAWN_FIXED_BYTES)
+
+
 def copper_run_bytes(problem) -> float:
     """!
     @brief Memory that the imported copper of a problem adds to a run, besides the unknowns of the network: the unpacked masks held and the working set of the face construction.
@@ -783,7 +813,10 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
         vc = via_cells(problem, cell_mm) if model != "solid3d" and exact else 0.0         # The via term goes with the exact count; the bound stays a lower bound
-        est = estimate_bytes(model, n, cells, base, mult, vc)
+        # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only: it depends on the cell, so it is not in the base that the search for
+        # the cell that fits uses, which therefore errs on the optimistic side by this term)
+        drawn = drawn_run_bytes(problem, cell_mm) if model != "solid3d" and exact else 0.0
+        est = estimate_bytes(model, n, cells, base + drawn, mult, vc)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
             v, why = "refuse", "ceiling"
