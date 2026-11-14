@@ -370,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Transient reference** (`research/transient-reference-boards`, reviewed GO, merged): the independent finite-element transient tool confirmed the 2.7.0 slab rule; the first seconds are a stated limit; the Analytic transient with vias reads the wrong hot point (a defect, A48, its own fix branch); the texts follow.
+
 - **OCR verification finished**: every essential page with a Claude transcription compared with its image by two reviewers (the extra OCR reviewer rule), 10 corrections, none touching a formula the program uses; bibliography statuses moved ([LiSuperLU2005] and [Xu1992] N to R, [Ibragimov2023edge] S to R, [ShenWang2019Vias] whole paper R, and the scope of eight more entries), the stale statuses of `docs/theory.md` aligned, and the printed errors of the papers listed (`docs/bibliography-ocr-statuses`).
 
 - **Lumped zone placement** (`research/lumped-zone-placement`, reviewed GO, merged): no model change; the zones carry a 1 to 3 point position noise and read -1.7 to -2.4 % against a converged 3D (the 0.5 mm zone raster is part of the calibration); documented as limits (`docs/theory.md` 5.2, `docs/validation.md` 50, branch `docs/lumped-zone-placement-limits`); A27 goes alone.
