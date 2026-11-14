@@ -1,18 +1,78 @@
 # Review A5: imported copper, the Power Calculator and fast waves (with L10 and L8)
 
-Assignment A5 of the 2.8.0 fine-comb audit (`releases/2.8.0/audit/ASSIGNMENTS.md` on `docs/audit-claims-register`: the 23 claims of risk 3), joined with the literature-to-code groups L10 (package and calculator: F-086 to F-094) and L8 (transient, profiles and the stack impedance: F-079 to F-085). Program: `development` 5fc91430. Branch `docs/audit-a5`; nothing in `pcbthermal/` or `tests/` is edited: program and test items are listed in section 5. This file is written as the work goes (a cut-off loses nothing); sections marked *(pending)* are not done yet.
+Assignment A5 of the 2.8.0 fine-comb audit (`releases/2.8.0/audit/ASSIGNMENTS.md` on `docs/audit-claims-register`: the 23 claims of risk 3), joined with the literature-to-code groups L10 (package and calculator: F-086 to F-094) and L8 (transient, profiles and the stack impedance: F-079 to F-085). Program: `development` 5fc91430. Branch `docs/audit-a5`; nothing in `pcbthermal/` or `tests/` is edited: program and test items are listed in section 5. One python at a time under the shared lock; peak resident memory of every run below 2.2 GB.
 
 ## 1. What was re-run and what it printed
 
-*(filled as the runs finish)*
+| run | where | printed (what this review quotes) |
+| :-- | :-- | :-- |
+| the JEDEC 2s2p board read four ways (new study) | `research/power-calculator/scripts/study_jedec_board_readings.py` (4.6 min, 2.1 GB) | 0.5 mm, model RθJA at 1 W / at the pad mean / calculator for 32.5 K/W: A as drawn 31.62 / 30.95 / 1.029 W (+2.9 %); B backside plane 26.74 / 26.10 / 1.222 W (+22.2 %); C **as ROHM 64AN113E prints it** (plane, vias to layers 1, 2, 4) 27.64 / 26.99 / 1.181 W (+18.1 %); D no plane, vias to 1, 2, 4 36.06 / 35.34 / 0.899 W (−10.1 %). Rim shares of the centre via printed (layer 3 at 0 in C and D: the anti-pad uncouples it). 1 mm, pad / body / body with leads: A 32.2 / 42.4 / 48.5, B 27.6 / 38.6 / 44.7, C 28.4 / 39.0 / 45.1, D 36.4 / 44.9 / 50.7 K/W |
+| calculator datasheet rows | `calculator_validation.py` row A of the study above; `study_cell_size.py --case csd --cell 0.25` | CSD17308Q3 47.02 K/W at 0.25 mm, −2.2 % (46.7 K/W, −1.4 % at 0.5 mm: `docs/calculators.md` 2.1, unchanged) |
+| the CSD17308Q3 board against the independent solver | `study_independent_datasheet_board.py` | independent 48.00 K/W, FVM 47.65 (−0.7 %), one-layer FVM 47.65, 3D solid 48.00; program FR-4: FVM 47.1, 3D solid 47.4 K/W of RθJA; affine check 0.00 K (manual h), +1.35 / −5.67 / −13.73 K (computed h): the A2 numbers |
+| sensitivity table | `power_from_top_study.py` (7 s) | −15.8 / −24.0 / −35.7 / −47.8 / −11.6 %; h +6.3 / −9.2; θ −6.4 / +7.3; ψJT −5.4 / +6.0; ±8.5; shortcut +50.1 / −25.0 %; θJA of the board 19.7 K/W |
+| the band and its coverage | `study_power_band.py none`, `hand`; `study_design_term_coverage.py` | example band unchanged (ring 2.00 / 1.62 / 2.31 W none, 1.56 / 2.34 hand, 1.37 / 2.41 estimated); four drawn boards: nominals 1.683 / 1.521 / 1.768 / 1.286 W, the missing vias now inside at `none` (1.494–2.001) |
+| reduced models on imported copper, six parts | `research/reduced-models-imported-passives/scripts/study_error_decomposition.py rp2040 0.5 U1,U3,C3,R5,C13,C1` (2 min, 0.70 GB) | FVM / Lumped / Analytic error: C3 198.6 K, −69 / −67 %; R5 261.0, −74 / −75; C13 230.1, −61 / −70; C1 89.6, −39 / −32; U1 79.5, −43 / −34; U3 61.0, −34 / −27 % |
+| imported copper at the program's cells, 24 mm windows | `research/gerber-real-boards/scripts/study_program_cells.py --part mapping --side 24 --boards rp2040`, `vstcm`, `co60` (3 s each) | every number of validation 27.3 to the digit (faces +1.70 / +4.30 / +7.73, +0.35 / +1.87 / +7.20, −0.05 / +1.72 / +9.56 %) |
+| fast waves | `research/fast-wave-oscillation/scripts/study_ripple_review.py table371 models cross envelope` (0.37 GB) | table 37.1: one- and two-layer rows to the digit, **four-layer rows moved** (4, 2 mm 0.93 / 0.94 / 0.67 / 0.28 / 0.22; 4, 10 mm 0.92 / 0.84 / 0.35 / 0.26 / 0.21, against 0.92 / 0.87 / 0.55 / 0.20 / 0.16 and 0.90 / 0.66 / 0.25 / 0.19 / 0.15); models table, the ripple runs (6.355 K, peaks 126.895 / 126.895 / 129.197 / 127.733 °C), the cross terms and the envelope ratios to the digit |
+
+Not re-run (cost or data): the 3D references of the fast-wave folder (`saved` needs `out/review_*.json`, git-ignored and absent; `fresh`, `tables`, `vias`, `partial`, `conv` are new 3D runs of 15 to 20 minutes and 2.2 to 2.5 GB each, above what this review allowed itself on a machine with the swap near full); the JEDEC rows at 0.25 mm (5.1 GB); a converged reference for the small imported parts (the whole RP2040 at 0.125 mm, about 7 GB); the transient of an imported window (RD-032).
 
 ## 2. Findings, ranked
 
-*(pending)*
+### 2.1 Defect in a study and in the documents: the JEDEC 2s2p row is not a check of the calculator (high)
+
+The board of `calculator_validation.py` (and of validation 29.2) has no backside copper and its nine vias join every layer. The cited source, ROHM 64AN113E (page image, PDF page 3: table 2, row 2s2p, 'Backside trace' 74.2 × 74.2 mm, 70 µm; NOTE1 'connected to 1, 2 and 4 layers of copper foil'; figure 4 draws the via through plane 2 without a joint), prints a different board. Drawn as printed, the model reads 27.64 K/W (calculator +18.1 %), the exposed pad of validation 29.2 28.4 K/W at 1 mm; the four readings span 27.6 to 36.1 K/W (0.5 mm), −10 to +22 % of power. The datasheet's 32.5 K/W lies inside the span, so the +2.9 % (and the 'with the heater on the pad the program reproduces the datasheet' of 29.2) was an agreement of one reading among several, not a validation. On the board as its source prints it the model is on the unsafe side (15 % below the datasheet RθJA). The quantity compared is not the cause: the hottest point and the pad mean differ by 0.65 to 0.72 K/W (2 %). Which board JESD51-7 and JESD51-5 prescribe cannot be settled here (not in the library). Corrected: `docs/calculators.md` 2.1 (new row, the bullet rewritten with the four readings, the 'Reading it' line), `docs/validation.md` 19 and 29.2 (new table, the claim withdrawn), `docs/theory.md` 1.8 and `docs/models.md` 19.2 (a note), `research/power-calculator/README.md` (findings, 4.1 note, new 4.8), `research/gerber-real-boards/docs/heater-shape-opinion.md` (note). **The help (`pcbthermal/help/calculator.html` line 92, `help/index.html` line 449) and the test keep the old reading: items P1 to P3.**
+
+### 2.2 Stale and contradictory numbers in the calculator documents (medium; fixed)
+
+Three different sets of the sensitivity table lived in `docs/calculators.md` 2.2, 1.1c and `docs/validation.md` 19 (and a fourth in the help); all now carry the numbers `power_from_top_study.py` prints. The cell paragraph (0.25 mm at −2.3 / +1.3 %, pre-2.4.5) and the model-error paragraph (FVM 2.4 % below the independent solver; 'about 0.96 W with the 3D solid', never printed) were of programs before 2.6.0: now 47.02 K/W at 0.25 mm and −0.7 % against the independent solver (as A2 printed), so the CSD17308Q3 agreement is not a model error cancelling. The history bullet of the 2.4.5 move is marked as history. The 1.1c coverage table moved by 0.001 to 0.012 W and one verdict flipped (the missing vias are now just inside at the level None, as the text had warned verdicts at the edge would).
+
+### 2.3 The four-layer node of the fast-wave tables moved with 2.7.0 (medium; documents fixed)
+
+Validation 37.1 and theory 10.5 quoted the node error on four layers as 5 to 7 times from 50 Hz to 1 kHz; the program of 2.7.0 and later reads 0.28 / 0.22 and 0.26 / 0.21 (3.6 to 5 times), and 0.94 / 0.84 at 1 Hz instead of 0.87 / 0.66. The cause is attributed to the physical slabs of the simple stack-up (2.7.0, validation 43), not separated by a run. The floor of the decision takes the larger of the node and the closed form, so no decision moved to the unsafe side; the 2 s threshold for three or more layers, measured on the old node, is now more conservative than needed. The closed form, the ripple runs of the four models, the envelope and the cross terms reproduce to the digit; the 3D references were not re-run.
+
+### 2.4 The ψJB reference point rests on a second-hand definition (low; documents fixed, program text item)
+
+TI SPRA953 (page image, PDF page 11, section 5) defines ψJB with the temperature of the centre package pin (measured per JESD51-6); the documents said the program's ring (mean of a band 0.5 to 1.5 mm outside the footprint box, four sides) is 'the point where the datasheet's ψJB takes the board temperature' (1 mm from the package edge: vendor summaries, S). `docs/calculators.md` now says what the read page prints and that the ring is the program's own approximation; on a part whose heat leaves through its pins the pin is hotter than the band mean, so the ring route reads somewhat more power (the safe side for margins; not measured). The help and the tooltip: item P4.
+
+### 2.5 Smaller items
+
+* Theory 10.5 wrote the Lanczos factor as `sinc(k/N)`; the code uses `sinc(2k/N)` (the standard factor over the `N/2` harmonics). Text corrected.
+* `inverse.power_from_temperature` reports `resistance_k_per_w = (T_meas − T_amb)/P`, while calculators.md 1.1 defines `R = (T(P_run) − T(0))/P_run`; they differ when other heaters are on (item P6).
+* The calculator's top point with a part that has a top path: `t_junction` carries the split while `ψJT × P` takes the whole power (calculators.md 3 already says not to use the route with a heatsink; item P5).
+* The heatsink library's 'BGA 40×40×18, natural' is the catalogue value at a 75 K rise (7.68 K/W); at 1 W the same note gives 10.8 K/W (item P7).
+* `tests/test_calculator_validation.py` docstring and the research README say a 3 % tolerance for the CSD17308Q3; the test asserts 0.04 W (item P8).
+* Research documents with stale quotes (gerber-models CONCLUSIONS solver row and the union row of the program before 2.4.3; gerber-real-boards INTEGRATION '1 to 16 %' and '16 and 26 %', README Part B; zone-union 8.2 headline): corrected or marked.
 
 ## 3. Claims: verdict and action
 
-*(pending)*
+The 23 claims of risk 3 of A5 (`claims.csv`, column `assignment`).
+
+| id | claim (short) | verdict | action (on this branch, or item) |
+| :-- | :-- | :-- | :-- |
+| VA-116 | validation 19: CSD17308Q3 47.5 vs 46, JEDEC 31.3 vs 32.5 at 0.5, 32.1 at 0.25 mm | **stale**, and the JEDEC part is not a check (2.1) | line rewritten with the current rows (46.7 K/W; 47.0 at 0.25 mm; JEDEC 31.6 as drawn, 27.6 as printed) |
+| VB-053 | validation 27.7: 42 parts, Lumped 25 to 82 %, Analytic 17 to 77 % cool; 0402 C3 84.6 / 195.6 / 201.2 K | **holds on the sample re-run** (six parts −27 to −75 %, inside the ranges); reference unconverged for 0402 (a lower bound of the deficit) | note added in 27.7 and in the study README 6.1; converged reference = E13 (open); the warning already says 'a sample, not a bound' and 'the true deficit is larger' |
+| H-044 | help calculator.html: wrong board −13 / −24 / −34 / −11 %, h +6 / −9, θ ±7, ψJT ±6, 3 K ±8.5 % | **stale** (the script prints −16 / −24 / −36 / −12 %) | item P3 (program text) |
+| C-003 | calculators.md 1.1c sensitivities −13 / −24 / −34 / −11 % | **stale** | now −16 / −24 / −36 / −12 % |
+| C-010 | calculators.md 2.1 history bullet (0.983 to 0.968 W, 31.6 to 31.3 K/W) | **stale history beside the current row** | marked '*History (program of 2.4.5, superseded)*' |
+| C-011 | calculators.md 2.1: at 0.25 mm −2.3 % (47.1) and +1.3 % (32.1) | **stale** | re-run: CSD17308Q3 47.02 K/W, −2.2 %; JEDEC 0.25 mm not run (5.1 GB), said so |
+| C-012 | calculators.md 2.1: FVM 2.4 % below the independent solver, about 0.96 W with the 3D solid (not printed) | **wrong now** (−0.7 %, 3D solid +0.0 %) | paragraph rewritten from the printed run; the estimate withdrawn |
+| C-014 | calculators.md 2.2 table −15.7 / −23.9 / −35.1 / −47.1 / −11.7 %, 19.6 K/W | **stale** (and differed from validation 19) | both tables now the printed −15.8 / −24.0 / −35.7 / −47.8 / −11.6 %, 19.7 K/W |
+| RA-320 | power-calculator README: CSD 46.8 / −1.7 %; test tolerance 3 % | **stale**; tolerance text wrong (the test asserts 4 %) | findings rewritten, 4.1 note; item P8 for the test docstring |
+| RA-323 | power-calculator README: finer cells −2.3 / +1.3 % | **stale** | findings rewritten (−2.2 % at 0.25 mm; JEDEC not a check) |
+| RD-001 | gerber-models: fill 10 to 11 % cool (one sheet) next to 24 to 26 % | **stated, ambiguous** | qualified as the mapping error inside the one-sheet model |
+| RD-012 | gerber-models 4.48 diagonal gate withdrawn by 4.50 | **OK**: CONCLUSIONS 5 and REPORT 6.1 already say it did not hold up | none |
+| RD-025 | gerber-models CONCLUSIONS: the program unions zones by maximum | **stale** (fixed in 2.4.3; the old test was inverted) | row rewritten as 'the program before 2.4.3', new test name |
+| RD-026 | gerber-models CONCLUSIONS: FVM agrees with the research solver to 3e-12 | **stale** (held only before the laminate nodes) | row rewritten (1e-6 K plumbing check, up to 0.21 relative) |
+| RD-028 | gerber-real-boards 4.1 Part B (rule on vs off columns) | **superseded** by section 10 | marked superseded in 4.1 (the 7.6 points not reproduced, 10.3: at most 3.3) |
+| RD-032 | gerber-real-boards 4.3: step response +18 / +6 / +3 % at 1 / 0.5 / 0.25 mm | **not re-run** (needs a 0.025 mm reference and dt/2) | left as a stated limit; the transient of imported copper at the program's cells is listed unverified in validation 27.6 |
+| RD-033 | gerber-real-boards INTEGRATION: Lumped and Analytic 1 to 16 % cool (the warning text) | **superseded** (17 to 82 % on whole boards and small parts) | INTEGRATION row and bullet corrected |
+| RD-039 | heater-shape opinion: exposed pad 31.9 vs 32.5 K/W on JESD51-7 | **not a check** (2.1): 32.2 as drawn on today's program, 28.4 on the board as printed | note in the opinion; validation 29.2 rewritten |
+| RD-041 | gerber-real-boards: Lumped and Analytic 16 % and 26 % below the FVM on the rectangle board | **stale** (−20.0 % and −30.1 % with the laminate rule, gerber-models 4.35, 4.37) | README and INTEGRATION corrected |
+| RD-063 | reduced-models: 25 to 82 % and 17 to 77 % on 42 parts (the warning) | as VB-053 | as VB-053 |
+| RD-064 | reduced-models: 0402 C3 84.6 / 195.6 / 201.2 K, reference uncertain 15 to 30 % | **stated, not converged** (0.125 mm whole board about 7 GB: not run) | E13; the warning's example (`SMALL_PART_CELL_NOTE_TEXT`) already says 'one part, a sample, not a bound'; item P9 (say 'at least') |
+| RD-086 | zone-union: models 10 to 35 % too cool | **mixed causes**, qualified by the folder's own review (8.3) | pointer added to the headline: the deficit against a converged reference would be larger |
+| RD-101 | fast-wave: the window rule `T_w` on the period was wrong | **OK**: no document quotes it as valid (`profiles.py` comment and INTEGRATION say the shortest stretch) | none |
 
 ## 4. Formulas L10 and L8: printed against coded
 
@@ -37,14 +97,29 @@ Pages read on the image in this review (papers library, read only, rendered with
 | F-093 | package θ library (QFN 5, Power QFN 3, DFN 10, D2PAK 0.75, TO-220 1.5, SOT-223 15, SMA 20, 0603 1000 K/W) | `defaults.json` `package_theta`, with notes | MATCHES its notes (S: web summaries; θJC(top) assumed except the 27 K/W of the TPS7A47, which S1 read in its datasheet; SMA 20 to 28 K/W from two datasheets; 0603 derived from a rating) | already labelled 'indicative, not from a datasheet' in the note of the first entry only; decision 5 of `DECISIONS.md` (mark every unsourced entry 'typical, no source') applies; no number to correct |
 | F-094 | heatsink θSA library (11 catalogue entries) | `defaults.json` `heatsinks` | MATCHES its notes (catalogue and distributor listings, S) | **limit with a sign**: 'BGA 40×40×18, natural' carries 7.68 K/W, the catalogue value at a 75 K rise; the same note gives 10.8 K/W at 1 W. For a part with a small rise the library value reads the heatsink 40 % better than the catalogue (the unsafe side). Item P7: take 10.8 K/W or add the rise to the name; the program has no scaling of θSA with the rise or the flow (stated) |
 
-## 5. Program and test items (not edited here)
+## 5. Program and test items (not edited here; for a `fix/` branch and A6)
 
-*(pending)*
+| item | what | frozen-number risk | regression test proposed |
+| :-- | :-- | :-- | :-- |
+| P1 | `tests/test_calculator_validation.py`: the JEDEC test holds the reading 'as drawn' within 5 % (it passes at +2.9 %). Either keep it as a regression of the program with the docstring saying it is not a validation, or replace it by two tests: the board as ROHM prints it (27.6 K/W today) with a one-sided bound, and the order of the readings (B < C < A < D). Decision M1 | none (the harness has no calculator board) | `test_jedec_board_readings_keep_their_order`: C between B and A, D the highest, at 1 mm (about 1 minute) |
+| P2 | `research/power-calculator/scripts/calculator_validation.py` and `tests/test_calculator_validation.py`: once JESD51-7 / JESD51-5 are obtained, redraw the board (backside, via joints, the lead traces) | none | as P1 |
+| P3 | `pcbthermal/help/calculator.html` lines 92 to 94 (the JEDEC row '+2.9 %' with no caveat; the sensitivities −13 / −24 / −34 / −11 %, which the script prints as −16 / −24 / −36 / −12 %) and `help/index.html` line 449 ('31.9 against 32.5 K/W') | none (text) | `tests/test_help.py` words |
+| P4 | help and tooltip of the ring point: 'the board 1 mm from the package' → 'a band 0.5 to 1.5 mm around the package, an approximation of the board point of ψJB (the centre pin in TI SPRA953)' | none | - |
+| P5 | `inverse._temperature` with a part that has a top path (θSA): refuse the 'top' point or use the board power in `ψJT × P` | none | a calculator test with θSA set |
+| P6 | `inverse.power_from_temperature` `resistance_k_per_w`: `(T_meas − T_amb)/P` vs the documented `(T(P) − T(0))/P` with other heaters on | none | a test with two heaters |
+| P7 | `defaults.json` heatsink 'BGA 40×40×18, natural' 7.68 K/W (at a 75 K rise; 10.8 K/W at 1 W in the same note): take the conservative value or name the rise | moves the Tj of a project that uses that entry | library test of the value |
+| P8 | `tests/test_calculator_validation.py` docstring says 3 % for the CSD17308Q3; the assertion is 0.04 W | none | - |
+| P9 | `copper.SMALL_PART_CELL_NOTE_TEXT`: '201 K at 0.25 mm' is not converged (C3 at 0.25 mm is a lower estimate of the rise) | none (text) | `tests/test_reduced_warning_text.py` |
+| P10 | `defaults.json` package θ library: decision 5 of `DECISIONS.md` (mark every entry 'typical, no source' except the TPS7A47 θJC(top) and the SMA range) | none | - |
 
 ## 6. Trust verdict per chapter
 
-*(pending)*
+* **Power Calculator (`docs/calculators.md`, validation 19): GO with the corrections of this branch.** The method (the board run backwards, affine for fixed h, secant for computed h) is checked exactly (affine to 0.00 K; self-consistency tests); the one datasheet case whose board the datasheet states (CSD17308Q3) holds to −1.4 % (−2.2 % at 0.25 mm) without a model error cancelling (−0.7 % against the independent solver). The JEDEC rows are downgraded to an indication; the band and its coverage are re-run. NO-GO for the help as it stands (items P3, P4) until A6.
+* **Imported copper (validation 27, 29, theory 1.6 to 1.8): GO** for what is measured against the program's own pixel network (27.1, 27.3 to the digit) and the independent 3D solver on 12 mm windows (27.2, not re-run here); the reduced-model warning numbers hold on the six parts re-run; **the converged reference of small imported parts (E13) remains the open weakness**: every number on 0402-size parts is a lower bound of the error.
+* **Fast waves (validation 37, theory 10.5): GO.** The closed form is re-derived (quadrupole, disc on a leaking sheet) and reproduces to the digit on the program side; the node error moved on four layers (documents fixed) without moving any decision to the unsafe side. The 3D references were not re-run here (cost); no published fast-wave case or measurement exists, as the chapter says.
 
-## 7. What was not verified, sources to obtain
+## 7. What was not verified, sources to obtain, open decisions
 
-*(pending)*
+* Not re-run: the 3D references of `research/fast-wave-oscillation` (15 to 20 minutes and 2.2 to 2.5 GB each; `saved` needs outputs that are no longer on disk); the JEDEC board at 0.25 mm (5.1 GB); the whole RP2040 at 0.125 mm (7 GB); oswlight and CO60 parts of the 42; the transient of an imported window (RD-032); validation 27.2 against `ref3d` (2 to 3 GB). Validation 29.1 and 29.4 (the eleven parts and the margins, re-run in 2.7.0) were not repeated.
+* Sources to obtain: **JEDEC JESD51-7 and JESD51-5** (the 2s2p board and the thermal-via pattern; free registration at jedec.org), **JESD51-6** (ψJB measurement point), **JESD51-8** (θJB), the TPS7A47 test board description (TI may give it in an application report), Renesas white paper and Richtek AN061 as PDFs (ψJB within 15 % of θJB, read as web pages, S), Carslaw and Jaeger (the slab and disc forms of 10.5, status M).
+* Open decisions for the maintainer: **M1** the JEDEC test (keep as a regression of the 'as drawn' board with the docstring saying so, or replace by the order of the readings, P1); **M2** whether the documents present the JEDEC rows at all before JESD51-7 is read (this branch keeps them, labelled 'indication'); **M3** the heatsink library value of P7 (frozen-number free, but it moves user projects that use the entry).
