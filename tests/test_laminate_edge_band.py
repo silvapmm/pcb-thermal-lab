@@ -194,6 +194,8 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
         text = checks.check_edge_laminate(hot, ("fvm",))[0]
     assert "Laminate sub-gaps" in text and "--" not in text.replace("--laminate", "")
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    # audit A2 W1 and W2: the 3.2 mm figures are not too pessimistic, and a finer cell alone does not reduce the cool error of the default rule
+    assert "too pessimistic" not in text and "reduce the cool error" not in text and "hottest point" in text
     # it is part of the model-limit warnings of a run
     assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
 

@@ -723,16 +723,16 @@ def check_lumped_near_edge(problem, models):
     gap, k, name = flagged[0]
     why = ("the Lumped model reads a part near a side or a corner of the board too cool, because its rings around the part do not see the side that sends the heat back: "
            "on test boards the hottest temperature of a part this close to a side read 8 to 9.5 % of the rise too cool on average (120 cases of a sweep and 59 parts of "
-           "120 random boards) and up to 22 % at a corner; a sample, not a bound; use the FVM or the FDM.")
+           "120 random boards) and up to 22 % at a corner against the FVM, up to 26 % against an independent 3D solver at 200 W/m2K; a sample, not a bound; use the FVM or the FDM.")
     if len(flagged) == 1:
         out = []
         _add(out, "heater", k, f"{name}: the part is {gap * 1e3:.1f} mm from a side of the board; {why}",
-             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner); use the FVM.")
+             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
         return out
     names = ", ".join(n for _, _, n in flagged[:3]) + (f" and {len(flagged) - 3} more" if len(flagged) > 3 else "")
     out = []
     _add(out, "heater", k, f"{len(flagged)} parts ({names}) are within one side of the part (and at least 5 mm) of a side of the board (the nearest, {name}, {gap * 1e3:.1f} mm); {why}",
-         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner); use the FVM.")
+         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
     return out
 
 
@@ -864,9 +864,10 @@ def check_model_limits(problem, models, cell_mm=1.0):
                 if zoned:
                     # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
-                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): its via effect was "
-                               "measured 4.0 to 4.6 % off on average (up to 21 %) and the hottest temperature 1.6 to 2.6 % of the rise off on average (up to 7.6 %) "
-                               "over 62 boards; "
+                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): the hottest temperature was "
+                               "measured 1.6 to 2.6 % of the rise off on average (up to 7.6 %) over 62 boards, against a fine-grid layered solver of the same idealisation (not "
+                               "independent); against one resolved 3D cluster it read -2.4 and +1.0 %, and where the vias fall on the 0.5 mm raster moves it by 1 to 3 points; "
+                               "its via effect was 4.0 to 4.6 % off on average (up to 21 %); "
                                "use the FVM for via design.",
                          f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
                          "(via effect up to 21 % off); use the FVM.")
@@ -1172,17 +1173,20 @@ def check_edge_laminate(problem, models):
     via_l, via_s = _edge_via_clause(problem, models)
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
-         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
-         "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps, against an independent finite-element solution "
-         "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.4 % at 1000 and -6.2 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
-         "and reads lower still, so the via helps more than shown: on that board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, a via 3 mm from the edge -2 % at 200 and "
-         "-8 % at 1000. More sub-gaps do not simply improve it: with eight the plate reads HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, up to +6 % at 0.5 mm, because the half-cell film of "
-         "a cell wider than the sub-gap over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth. A larger "
-         f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce the cool error; with a cell larger than the gap many sub-gaps over-correct "
-         "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
+         "read the board too cool. The numbers quote the hottest point of the board against an independent finite-element solution (a different method from the program). On a 1.6 mm "
+         "four-layer board, whose 0.49 mm gaps get two sub-gaps, the error is about -1 / -2 / -4 / -7 % of the rise at 200 / 500 / 1000 / 2000 W/m2K as the cell is refined (the limit); at a "
+         "0.25 mm cell it reads -0.6 / -1.7 / -3.5 / -6.5 %, and at the default 1 mm cell +1.0 / +1.7 / +0.4 / -3.1 %, because the half-cell film of a coarse cell on the laminate nodes of "
+         "the band over-corrects and hides part of the error. On 3.2 mm two-layer boards (a converged graded 3D reference, confirmed by the finite elements to 0.06 %) the "
+         "four sub-gaps read about -2.4 % at 200 W/m2K, -5.5 % at 500 and -16 % at 2000, -2 % at 500 with eight, -2.8 % at 2000 even with sixteen. The effect of a via near such an edge is a small "
+         "difference of two temperatures and reads lower still, so the via helps more than shown: on the four-layer board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, "
+         "a via 3 mm from the edge -2 % at 200 and -8 % at 1000. At the default sub-gaps a finer "
+         f"{cell_where()} alone makes the reading cooler (the hidden part appears: -4.1 % at 0.125 mm at 1000 W/m2K); more {laminate_where('sub-gaps')} (now {n_max}) help only with a cell no "
+         "wider than about two sub-gaps (eight sub-gaps at 0.125 mm: within 0.3 %), and with a cell wider than the sub-gap they read HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, "
+         "up to +6 % at 0.5 mm; +7 % at 2000 W/m2K on a 0.8 mm board at a 1 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
          "coefficient of 5 to 50 W/m2K, where the error is within 3 %." + via_l,
-         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-1 to -6 % at 200 to 2000 W/m2K on a 1.6 mm four-layer board, up to -16 % on 3.2 mm; the effect of a via "
-         f"near the edge more); refine the {cell_where()}, and take care: more {laminate_where('sub-gaps')} read hot at a coarse cell" + via_s + ".")
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read the hottest point too cool (about -1 to -7 % at 200 to 2000 W/m2K on a "
+         "1.6 mm four-layer board, as the cell is refined; +1 to -3 % at a 1 mm cell; up to -16 % on 3.2 mm; the effect of a via near the edge more); "
+         f"a finer {cell_where()} alone makes it cooler, so cut the gaps (a sub-gap of about half the cell, {laminate_where('sub-gaps')}) and refine the cell together" + via_s + ".")
     return out
 
 
@@ -1213,7 +1217,7 @@ def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
          "bracket the truth; a gap of d mm gets eight from a "
          f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still." + via_l,
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K and no laminate gap cut (all under {num(s_max * 1e3, 2)} mm): the FVM and FDM may read too cool (about -1 to -3 % at 500, "
-         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so refine the {cell_where()} first" + via_s + ".")
+         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so cut the gaps and refine the {cell_where()} together" + via_s + ".")
     return out
 
 
@@ -1542,7 +1546,7 @@ def check_low_rayleigh(board, info):
              the coefficient (research/plate-h-level: the numerical plate starts at 1e4), the layer is not thin compared with the face, and the plate
              correlation does not count the air drawn in at the sides; the two forms of Churchill and Chu agree to 4 to 6 % there, so the warning is about
              the correlation itself, not about the choice of form. A face where forced convection is at least the natural one is not counted (the natural
-             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e4 to 1e11 on the top
+             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e2 to 1e7 on the top
              face, is in api._solve_computed_h; research/plate-h-level did not study them) and neither are boards with typed coefficients.
              Called once per simulation, from the reference model (api._part_warnings), so that five models do not give five copies.
     @param board Board with orientation, h_mode and height (m).
