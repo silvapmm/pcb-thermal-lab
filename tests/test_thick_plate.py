@@ -80,7 +80,7 @@ def test_a_thick_poorly_conducting_block_fires_with_a_bound_above_the_3d_effect(
     p = block_board(side, power, t, k, same)
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
     w = thick(sim)
-    assert len(w) == 1 and "U1" in w[0] and "B (" in w[0] and "not added to the results" in w[0] and "footprint" not in w[0]
+    assert len(w) == 1 and "U1" in w[0] and "B is thick" in w[0] and "not added to the results" in w[0] and "footprint" not in w[0]
     effect = gradient_effect_3d(p)
     assert 0.0 < effect < bound_in(w[0])                                      # A bound, and an honest one: the 3D solid sees part of it
     # The temperatures are those of the model: the warning does not change them
@@ -240,3 +240,43 @@ def test_the_number_in_the_text_is_the_closed_form(t_mm, k, power):
         assert ("from the face film" in w[0]) == (qf > 0)
     else:
         assert w == []
+
+
+@pytest.mark.parametrize("side, power, measured", [(20.0, 50.0, 17.9), (40.0, 100.0, 14.9)])
+def test_two_thick_plates_quote_the_face_towards_the_laminate(side, power, measured):
+    # Review of the bound: two 3 mm plates of k 20 joined by 0.05 mm of k 3, a 20 x 20 mm source of 50 W on top, h 400 below. The heat leaves the copper of the
+    # part through its face towards the laminate, and the vertical links of the layered models start at the node, so the half plate on that side is missing as
+    # well, and the second plate (one node too) loses its whole drop. An independent 3D solver (tests/helpers/layered3d.py, 4 sub-slabs per layer, 0.5 mm cells)
+    # reads the surface 17.9 K (20 mm source, 50 W) and 14.9 K (40 mm, 100 W) above the FVM; the first version of this bound quoted 9.4 and 4.7 K (through the
+    # thickness only) and called it a bound, and the 40 mm source did not warn at all
+    from pcbthermal.model import Materials
+    m = Materials(k_copper=20.0, k_fr4_through=3.0, k_fr4_inplane=3.0)
+    p = Problem.new(50, 50, layers=2, thickness_mm=6.05, copper_um=3000.0, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=m)
+    p.add_full_copper(layers=None)
+    p.add_heater(1, power, rect=(25 - side / 2, 25 - side / 2, 25 + side / 2, 25 + side / 2), name="S")
+    w = thick(simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)))
+    assert len(w) == 1 and "where the heat leaves the copper" in w[0] and "across the other copper layers" in w[0]
+    assert bound_in(w[0]) >= measured
+
+
+def test_computed_coefficients_enter_the_film_term():
+    # A 10 mm plate of k 20 with computed coefficients (natural convection and radiation, about 10 W/m2K a face): h t / (2 k) is above the ratio, so the film
+    # term is applied with the coefficients of the solve (the first version left it out for every board with computed coefficients)
+    p = plate(10.0, 20.0, 5.0)
+    p.board.h_mode = "computed"
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    ex = sim.reference.extras
+    rise = sim.heater_rows()[0]["t_max"] - p.board.ambient
+    q = 5.0 / 1e-4
+    h = ex["h_top"] + ex["h_bottom"]
+    assert h * 10e-3 / (2 * 20.0) > 1e-3
+    w = thick(sim)
+    assert len(w) == 1 and "from the face film" in w[0]
+    assert bound_in(w[0]) == pytest.approx(0.5 * (q + min(h * rise, q)) * 10e-3 / 20.0, abs=0.051)
+
+
+def test_the_short_title_of_the_warning_says_what_it_is():
+    # The closed row of the warning box shows the first clause: it must carry 'thick and poorly conducting', not stop at the parenthesis of the dimensions
+    from pcbthermal.checks import warning_title
+    w = thick(simulate(plate(10.0, 20.0, 5.0), SolverOptions(models=("fvm",), cell_mm=2.0)))
+    assert len(w) == 1 and "thick and poorly conducting" in warning_title(w[0])

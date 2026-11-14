@@ -675,7 +675,10 @@ def _part_warnings(sim):
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
     out += check_lumped_zones(sim.problem, sim.results.get("lumped"))
     flux_result = _block_flux_result(sim)
-    out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
+    # With computed coefficients the film term of the bound uses those of the reference solve (its last Picard step), not the typed starting guess
+    ex = sim.reference.extras
+    h_faces = (ex["h_top"], ex["h_bottom"]) if sim.problem.board.h_mode == "computed" and "h_top" in ex and "h_bottom" in ex else None
+    out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result, h_faces)
     # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
     out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
     if sim.problem.board.h_mode == "computed":
