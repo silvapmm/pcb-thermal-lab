@@ -2,7 +2,14 @@
 
 Nothing here is implemented in the program. Everything was measured on a copy (`lib/placement.py`, monkeypatches inside a context manager); `pcbthermal/`, `tests/`, `examples/` and the project documents are untouched.
 
-## 1. Recommended rule R1 (a `fix/` branch, the Lumped branch of A46 then A27)
+## 0. Recommendation of the review (README 10)
+
+* **No model change in 2.8.0.** R1 (section 1) is not adopted: end to end it moves no frozen number, keeps the mean absolute error (2.6 to 2.7 points at the shifted placements) and halves the largest placement spread (10.7 to 6.0 points), but it makes the worst cool (unsafe) case cooler (-7.2 to -8.8 %) and makes a new decision flip at a core share of 0.77, near its own threshold. The 0.25 mm zone raster is not adopted: it removes most of the noise but moves the level 1.3 to 2 points cooler, away from a converged independent 3D, and `plate_vias` 2.68 K cooler. The zones are not dropped for dense groups: as shipped they are the closest of the three readings to the converged 3D on the boards measured (-0.8 to +0.8 %), and one node, on the safe side, is +2.5 to +3.1 %.
+* **Next step: documents only**, a branch `docs/lumped-zone-placement-limits` off `development`, small (a paragraph in each of `docs/theory.md` 5.2 'Limits' and `docs/validation.md` 48 or a new section, and a line in `docs/versions.md`): (1) the zoned reading of a dense group depends on where the part and the array fall on the 0.5 mm raster, 1 to 3 points of the part peak (up to 10.7 points on one case through a decision flip); (2) with its own raster converged the zone construction reads the peak 1.7 to 2.4 % cool against an independent 3D converged at 0.0625 mm, and the 0.5 mm raster adds +1.6 to +2.4 points, so the raster is part of the calibration and must not be refined alone; (3) one node reads +2.5 to +3.1 %. No code, no test, no warning text change (the cases measured here are covered by the existing Lumped via warnings; README 10.2), no pending file: `lumped-part-readout.json` (51 records) is untouched.
+* **A27** goes ahead on its own Lumped `fix/` branch, measured on the program as it ships (boards without vias, or the aligned placement with the 1 to 3 point noise stated); if a later change of the zones is ever wanted, it goes in that same branch, after A27, and its moved records leave `lumped-part-readout.json` for the branch's own pending file (one record in one file).
+* For the maintainer: whether to state the converged cool level of the zones as a limit only (recommended) or to reopen the zone construction (fractional node weights, untested) in a later version.
+
+## 1. Rule R1 as proposed by the study (not adopted, see section 0)
 
 In `lumped.py`:
 
@@ -21,12 +28,12 @@ In `lumped.py`:
 
 | option | noise (range over the 22 placements) | level against the independent 3D | cost and frozen risk |
 | :-- | :-- | :-- | :-- |
-| R1 at 0.5 mm (above) | 1.1 to 2.9 points | -1.3 to -1.7 % (luck) | none; no record moves |
+| R1 at 0.5 mm (above) | 1.1 to 2.9 points | +0.5 to -1.6 % against the 3D at 0.25 mm (raster bias) | none; no record moves; a new decision flip at share 0.77 (README 10.3) |
 | R1 with zone raster 0.25 mm | 0.8 to 1.1 points (3D shifts 0.26 to 0.37) | -1.3 to -2.5 % | 4 times the cells (Lumped is light); moves `plate_vias|lumped` at 2, 1, 0.5 mm by 2.68 K and its time to 63 % (30.94 to 33.10 s); `lumped-part-readout.json` must give those 3 records and 1 time to the new file |
-| fractional node weights | expected to approach the 0.125 mm column (0.4 to 0.9) | -2.0 to -2.8 % | rewrite of `_zone_network` sums and `viaconstriction.ring_couplings`; not built |
-| drop the zones, keep one node | 0.3 to 0.6 points | +2.1 to +2.9 % (safe side) | moves every zoned record (not measured here) and contradicts the earlier decision to adopt the zones |
+| fractional node weights | expected to approach the 0.125 mm column (0.4 to 0.9) | -2.0 to -2.8 % (against the converged 3D: -1.5 to -2.4 %, README 10.2) | rewrite of `_zone_network` sums and `viaconstriction.ring_couplings`; not built |
+| drop the zones, keep one node | 0.3 to 0.6 points | +2.1 to +2.9 % (converged 3D: +2.5 to +3.1 %; safe side) | moves every zoned record (not measured here) and contradicts the earlier decision to adopt the zones |
 
-**Finding to weigh**: against the raster-free reference the converged zones read -2.0 to -2.8 %, one node +2.1 to +2.9 %: the zones are not closer than one node once the raster is converged, and they are on the unsafe side. The earlier conclusion that the zones read the peak 'closer' rests on the 0.5 mm raster's positive bias (README 5). The recommendation is R1 (no number moves, removes the decision flips) and the statement of the noise as a limit; whether to go further (raster 0.25 or one node) is a decision for the reviewer and the maintainer.
+**Finding to weigh**: against the raster-free reference the converged zones read -2.0 to -2.8 %, one node +2.1 to +2.9 %: the zones are not closer than one node once the raster is converged, and they are on the unsafe side. The earlier conclusion that the zones read the peak 'closer' rests on the 0.5 mm raster's positive bias (README 5). The study first recommended R1; the review (section 0, README 10) recommends no model change and the statement of the noise and of the converged level as limits.
 
 ## 3. The single Lumped branch (A46 + A27)
 

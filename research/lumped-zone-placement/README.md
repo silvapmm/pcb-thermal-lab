@@ -8,8 +8,8 @@ Branch `research/lumped-zone-placement`. Every board is a synthetic board of our
 * **Mechanism (section 2, figure 1).** Four things depend on where the part and the vias fall on the raster: (a) the core mask moves each via to the centre of the cell that holds it, so the core is a lattice with holes and a lean (85 cells where the vias' own discs cover 100); (b) the core is a set of whole cells, so the area of C and the thickness of A change by a few cells with every sub-cell shift; (c) a via on the closed edge of the part is a member of the group or not depending on the last bit of a coordinate (the cell test), and the group then has 16 or 25 vias; (d) the gate that keeps a handful of cells in A counts every cell the part touches as a whole footprint cell. The fine 0.1 mm count that the program already uses for the decision is sound except for (c).
 * **Noise (section 3).** On a sweep of 22 sub-cell placements (0 to 7/8 of a cell along x, y and the diagonal) the zoned part-peak error moves by 3.2, 2.1 and 1.3 points (3 x 3, 5 x 5, 8 x 8), while the FVM rise moves by 0.1 to 0.3 K of 50 to 66 K and the one-node reading by 0.3 to 0.6 points. The raster is the cause: at 0.125 mm the same sweep moves 0.8, 0.7, 0.9 points, at 0.25 mm 1.5, 1.1, 1.5.
 * **Position-robust masks do not remove it (section 4).** Cell centre against via positions, a 0.1 mm area vote against the positions, with a membership tolerance and a coverage-weighted gate: the range is 2.4 to 2.9, 1.1, 2.3 to 2.9 points at 0.5 mm, i.e. a different but not a smaller noise. What they fix is the decision: vias on the part edge (5 x 5 at 2.0 mm under 8 mm) read zoned +4 to +10 % HOT or one node depending on the placement, range 13.1 points; with the rule R1 below it is one node at all 22 placements, range 3.6 points (the one-node range of that board).
-* **The level is raster luck (section 5).** Against the independent 3D solver (which does not depend on the raster) the zoned Lumped reads -1.7 to +0.3 % at 0.5 mm but converges to -2.0 to -2.8 % at 0.125 mm; one node reads +2.1 to +2.9 %. Once the raster is converged the zones are no closer to the 3D than one node (|2.0 to 2.8| against |2.1 to 2.9| points), and on the cool (unsafe) side. The 0.5 mm raster's positive bias partly cancels that.
-* **Recommended rule R1 (section 6, `INTEGRATION.md`)**: membership of a via on the closed footprint edge by a 1 micrometre tolerance, the core from the via positions (0.1 mm sub-grid area vote), the gate and the fine share weighted by the coverage, `MAX_CORE` 0.8 on the exact share. Measured: no frozen Lumped record moves (4 boards with vias, 12 records and 3 times), 66 cases at four placements: mean absolute peak error 1.52 against 1.51, largest placement spread 6.0 against 10.7 points. It does NOT reduce the 2 to 3 point noise of the dense groups; that needs a finer raster (0.25 mm moves `plate_vias` by 2.7 K and the level by 1.5 to 2 points down) or fractional weights (not tested).
+* **The level is a raster bias (section 5, corrected by the review, section 10.2).** Against the independent 3D solver (which does not depend on the raster) converged at 0.0625 mm, the zoned Lumped reads -0.8 to +0.8 % at the 0.5 mm raster (with a placement range of 1.0 to 1.8 points) and converges to -1.7 to -2.4 % on the peak (-2.1 % on the mean) as its own raster is refined; one node reads +2.5 to +3.1 % on the peak and +1.0 to +1.5 % on the mean. With a converged raster the zones are about as far from the 3D as one node on the peak and farther on the mean, and on the cool (unsafe) side; the 0.5 mm raster that ships reads 1 to 2 points hotter, which is why the shipping model is the closest of the three on these boards. (The study's first text used the 3D at 0.25 mm, which is 0.3 to 0.5 % of the rise hot; the conclusion holds with the converged reference, the numbers are those of section 10.2.)
+* **Rule R1 (section 6, `INTEGRATION.md`), not recommended by the review (section 10.3)**: membership of a via on the closed footprint edge by a 1 micrometre tolerance, the core from the via positions (0.1 mm sub-grid area vote), the gate and the fine share weighted by the coverage, `MAX_CORE` 0.8. Measured end to end (review): no frozen Lumped record moves (2, 1 and 0.5 mm and the times, an independent implementation in a copy of the program), 66 cases at four placements: mean absolute peak error 1.52 / 2.64 / 2.69 / 2.67 against 1.61 / 2.59 / 2.81 / 2.60, largest placement spread 6.0 against 10.7 points; but it changes single cases by -7.1 to +7.6 points, makes the worst cool case cooler (an off-centre array, -7.2 to -8.8 %) and makes a new decision flip at a core share of 0.77 (one node at one placement of four). It does NOT reduce the 2 to 3 point noise of the dense groups; a finer raster (0.25 mm) removes most of the noise but moves the level 1.3 to 2 points cooler, away from the 3D, and `plate_vias` by 2.7 K.
 * **A27 (the first link near an edge)** is additive and separable (section 7): the zoned minus one-node offset is -6.0 to -9.8 points at every gap to the side (3 to 25 mm), and the placement noise does not grow near the edge. The two can be one Lumped branch in either order; one pending-file rule (section 8).
 
 ## 1. Definitions
@@ -90,18 +90,18 @@ Candidates are `lib/placement.py patched(...)`: `centre` (cell centre against vi
 * **Position-robust masks trade noise for noise at 0.5 mm** (3x3: 3.2 to 2.4 to 2.8; 5x5: 2.1 to 1.1; 8x8: 1.3 to 2.3 to 2.9) and shift the level by +1 to -1 points: the mask is not what sets the 0.5 mm noise. The area vote is a little better than the cell centre only on the 5 x 5. Conclusion: no rule on a binary 0.5 mm core removes the quantisation; the answer is either a finer raster (spread 0.4 to 1.1 at 0.25 and 0.125 with the vote) or fractional node weights (the core a share per cell, not tested: it needs a rewrite of `_zone_network`'s sums and of `viaconstriction.ring_couplings`, which take one node index per cell).
 * **What the rules do fix is the decision**, which the 66 cases show (peak error against the FVM at 0.5 mm, mean / mean absolute / largest absolute, percent of the rise):
 
-| placement (part and array shifted along the diagonal) | program (zoned cases) | R1 rule (exact share <= 0.8) |
-| --: | :-- | :-- |
-| 0.0 | -0.83 / 1.61 / 7.3 (46) | -0.94 / 1.52 / 6.0 (43) |
-| 0.125 | -2.47 / 2.59 / 6.9 (43) | -2.51 / 2.64 / 7.8 |
-| 0.25 | -2.65 / 2.81 / 7.0 (43) | -2.33 / 2.61 / 8.4 |
-| 0.375 | -2.50 / 2.60 / 7.2 (43) | -2.56 / 2.67 / 8.8 |
+| placement (part and array shifted along the diagonal) | program (zoned cases) | R1 proxy (exact share <= 0.8) | R1 end to end (review; zoned cases) |
+| --: | :-- | :-- | :-- |
+| 0.0 | -0.83 / 1.61 / 7.3 (46) | -0.94 / 1.52 / 6.0 (43) | -0.94 / 1.52 / 6.0 (43) |
+| 0.125 | -2.47 / 2.59 / 6.9 (43) | -2.51 / 2.64 / 7.8 | -2.51 / 2.64 / 7.8 (43) |
+| 0.25 | -2.65 / 2.81 / 7.0 (43) | -2.33 / 2.61 / 8.4 | **-2.24 / 2.69 / 8.4 (40)** |
+| 0.375 | -2.50 / 2.60 / 7.2 (43) | -2.56 / 2.67 / 8.8 | -2.56 / 2.67 / 8.8 (43) |
 
-*Table 4.2 (`out/cases_report.txt`; the R1 column is the forced-zoned reading with the vote rule, selected by the threshold 0.8 on the exact share, so it is the rule without a flip from the program's own gate).*
+*Table 4.2 (`out/cases_report.txt`; the proxy column is the forced-zoned reading with the vote rule, selected by the threshold 0.8 on the exact 0.025 mm share, as first written; the last column, added by the review, is the rule as `INTEGRATION.md` 1 writes it, run end to end: the gate and the decision read the 0.1 mm vote share weighted by the coverage, which differs from the proxy at the 0.25 mm placement, section 10.3).*
 
-| over the 66 cases | program | one node | R1 |
-| :-- | --: | --: | --: |
-| spread of one case over the four placements, mean / largest (points) | 1.99 / 10.7 | 1.03 / 6.0 | 1.90 / 6.0 (1.92 / 6.0 at T = 0.8) |
+| over the 66 cases | program | one node | R1 proxy | R1 end to end (review) |
+| :-- | --: | --: | --: | --: |
+| spread of one case over the four placements, mean / largest (points) | 1.99 / 10.7 | 1.03 / 6.0 | 1.90 / 6.0 (1.92 / 6.0 at T = 0.8) | 2.00 / 6.0 |
 
 * The mean of the zoned level is placement-dependent for every rule (-0.9 at the aligned placement, -2.3 to -2.6 elsewhere): the mean absolute error at the aligned placement (1.51 to 1.61) is not the figure to quote; **-2.6 % mean, 2.6 to 2.8 mean absolute, 7 to 9 largest** is the honest one for the program at a non-aligned placement.
 * Threshold T of the exact share is flat from 0.6 to 0.92 (mean absolute 2.61 to 2.73 at the shifted placements; largest 8.4 to 8.8, the 0.95 row jumps to 11.6 points of case spread): any T between 0.6 and 0.85 is equivalent on these 66 cases; 0.8 is chosen because it separates the thin-A regime (exact share 0.83 to 0.91 of the vias-on-the-edge boards, hot +4 to +10 %) from the dense groups (0.44 to 0.67). The 66 cases contain few points between 0.7 and 0.9: T is a choice on a small set of cases, not a fit.
@@ -120,8 +120,9 @@ The 3D solver (`research/lumped-dense-via-group/lib/ref3d.py`, `tests/helpers/la
 
 * Against the raster-free reference the zones converge to -2.0 to -2.8 % and one node reads +2.1 to +2.9 %: **equally far, opposite sides**. The 0.5 mm raster makes the zones look 1 to 2 points better (-1.7 to +0.3 %) through the same positive bias that makes the noise.
 * The candidate mask at 0.25 mm halves the range again (0.26 to 0.37) and the level is converged (-1.3 to -2.5).
+* **Review (section 10.2)**: the 3D at 0.25 mm is not converged (0.25 / 0.125 / 0.0625 mm: 131.23 / 130.58 / 130.65 K and 120.51 / 120.12 / 120.18 K, not monotone, 0.3 to 0.5 % of the rise hot at 0.25 mm); against the 0.0625 mm reference every column of table 5.1 moves 0.3 to 0.4 points up. The conclusion stands with the corrected numbers: zones at a converged raster -1.7 / -2.4 %, one node +2.5 / +3.1 % (3 x 3, 5 x 5).
 
-## 6. The rule R1 and what it moves (study 5: `scripts/study_frozen.py`)
+## 6. The rule R1 and what it moves (study 5: `scripts/study_frozen.py`; not recommended by the review, 10.3)
 
 R1: (i) a via on the closed boundary of the touched cells (1 micrometre) is a member of its group; (ii) the core mask: a cell is core when at least half of its 0.1 mm sub-grid is within `CORE_R d_nn` of a via position (area vote, no seed cell); (iii) the grid gate and the decision count weighted by the coverage (a sliver counts by its area); (iv) `MAX_CORE` 0.8 on that exact (raster-free) share instead of 0.92 on the replicated cells. Effects: table 4.2 (66 cases), table 4.1 (vias on the edge: range 13.1 to 3.6, no zoned placement), table 2.1 (the exact share, not the cells, is what is compared with 0.8).
 
@@ -150,7 +151,7 @@ R1: (i) a via on the closed boundary of the touched cells (1 micrometre) is a me
 *Table 7.1 (`out/edge_report.txt`, mean peak error % over the four placements; the board centre is 46 to 48 mm from the side: program -2.7 / -5.3, one node +5.1 / +4.6).*
 
 * From a gap of 25 mm to 3 mm the zoned reading falls by 5.6 to 6.7 points and the one-node reading by 7.5 to 9.0 points: the near-edge deficit (A27) is a property of the first link and the rings, present in both, and **adds** to the position noise; the difference zoned minus one node is -6 to -10 points at every gap and changes by 2 points between 3 and 25 mm. The placement range at a given gap is 0.8 to 2.8 points at 0.5 mm (program 0.6 to 1.9, R1 1.3 to 2.8), not larger than in the centre; at 0.25 mm it is 0.3 to 0.8 points.
-* So A27 can be measured on boards with vias and zones if the zone raster is fixed first (0.25 mm: range 0.3 to 0.8, the noise no longer blurs a 2 to 5 point A27 effect); at 0.5 mm the noise (up to 2.8 points) is about the size of the A27 gain on a small part. The two fixes both end in `lumped.py` (`_core_mask`, `_heater_network` for A46; the first link and ring 1 for A27) and touch different functions: one branch, A46 first.
+* So A27 can be measured on boards with vias and zones if the zone raster is fixed first (0.25 mm: range 0.3 to 0.8, the noise no longer blurs a 2 to 5 point A27 effect); at 0.5 mm the noise (up to 2.8 points) is about the size of the A27 gain on a small part. The two fixes both end in `lumped.py` (`_core_mask`, `_heater_network` for A46; the first link and ring 1 for A27) and touch different functions: one branch, A46 first. (Review, 10.4: no A46 model change is recommended, so A27 goes ahead alone.)
 
 ## 8. Frozen numbers and the pending-file rule
 
@@ -165,6 +166,55 @@ R1: (i) a via on the closed boundary of the touched cells (1 micrometre) is a me
 * The threshold 0.8 is chosen on 66 cases and the three board families of section 3; the 66 cases hold few shares between 0.7 and 0.9. A decision for the reviewer.
 * Not read in full by this study: `docs/theory.md` 5.2, `docs/validation.md` 31, 42, 48 (the numbers quoted from them come from the dense-group folder, which cites them); the code of `lumped.py` (`_core_mask`, `_fine_core_share`, `_heater_network`, `_zone_network`, `will_be_zoned`, `cell_for`) was read in full.
 * The program was not edited; every number comes from monkeypatched copies of module names inside a context manager. `tests/test_zone_placement.py` (4 tests) checks that the patches restore the program, the exact share's invariance under translation, the symmetry of the candidate mask and the tolerance.
+
+## 10. Review
+
+Independent review on the branch (tip f9a58679), with the program's environment, one process at a time; the scratch scripts and the patched copy of the program were kept outside the repository.
+
+### 10.1 Re-runs
+
+* **Lumped, sub-cell placements**: 12 of the 264 rows of `out/cases.json` (every 22nd row: 12 cases, the four placements, two and four layers, `h` 100, a second part) re-run: program, one node and the forced vote rule equal the stored numbers to the fourth decimal of the percent (all 36 readings).
+* **FVM at 0.5 mm**: four placements re-run (`base` at 0 and 0.125 mm, a four-layer filled 8 x 8, a four-layer 6 mm part): the rises 56.1527, 56.2412, 37.3585, 42.0591 K equal the stored ones to the printed digit.
+* **Table 5.1** (3x3 and 5x5): every number of the program, of the 0.25 and 0.125 mm zone rasters and of one node reproduced to the printed digit against the 3D at 0.25 mm (131.2251 / 120.5065 K).
+* **Frozen numbers under R1**: R1 written as code into a copy of `pcbthermal/lumped.py` (an implementation of `INTEGRATION.md` 1 independent of `lib/placement.py`; it equals the monkeypatch to the last bit on all 264 rows). `PCBT_FROZEN_CELLS=2 pytest tests/regression` on the copy: 153 passed; the Lumped records and times at 2, 1 and 0.5 mm: 63 passed. A control (`CORE_R` 0.60 in the copy) fails exactly `plate_vias` at three cells and its time, so the test sees the zones: **R1 moves no frozen number**, as the study says.
+
+### 10.2 The key finding against a converged 3D
+
+The independent solver (`tests/helpers/layered3d.py` through `research/lumped-dense-via-group/lib/ref3d.py`; isotropic FR-4 at the through-plane conductivity, four sub-slabs per gap, barrels drawn, quadrant, insulated sides) was run at 0.25, 0.125 and 0.0625 mm (614 000 unknowns, 43 s and 6 GB each) and with eight sub-slabs at 0.25 mm:
+
+| group | 3D peak rise K at 0.25 / 0.125 / 0.0625 mm (4 sub-slabs) | 0.25 mm, 8 sub-slabs | 3D mean rise at 0.0625 mm | FVM 0.25 mm peak / mean against the 3D at 0.0625 mm |
+| :-- | --: | --: | --: | --: |
+| 3x3 @1.5, 6 mm | 131.225 / 130.584 / 130.654 | 131.212 | 126.202 | -0.65 / -0.62 % |
+| 5x5 @1.0, 8 mm | 120.507 / 120.124 / 120.183 | 120.492 | 117.444 | -0.51 / -0.51 % |
+
+*Table 10.1: the plan cell, not the sub-slabs, is what the 0.25 mm reference lacks; it is not monotone (the drawn barrel shares), so 0.0625 mm is taken as converged to about 0.05 % of the rise (the 0.125 and 0.0625 mm values differ by 0.05 %).*
+
+Lumped against the 3D at 0.0625 mm, mean over the eight diagonal shifts (range in points), percent of the 3D rise:
+
+| group | zone raster 0.5 (ships) | 0.25 | 0.125 | 0.0625 | one node |
+| :-- | --: | --: | --: | --: | --: |
+| 3x3 peak / mean | +0.78 (1.79) / +0.62 | -1.19 (0.62) / -1.51 | -1.52 (0.33) / -1.93 | -1.67 (0.06) / -2.13 | +2.51 (0.26) / +1.48 |
+| 5x5 peak / mean | -0.75 (1.04) / -0.57 | -2.09 (0.51) / -1.75 | -2.35 (0.24) / -2.00 | -2.41 (0.03) / -2.06 | +3.12 (0.05) / +1.03 |
+
+*Table 10.2: the zone raster is converged at 0.125 mm (0.0625 mm moves the reading by 0.06 to 0.15 point).*
+
+* **The finding holds.** With its own raster converged, the zoned footprint reads the part peak 1.7 to 2.4 % cool and its mean 2.1 % cool; one node reads the peak 2.5 to 3.1 % hot and the mean 1.0 to 1.5 % hot. On the peak the two are about equally far (the zones a little closer), on the mean one node is closer, and the zones are on the unsafe side. The 0.5 mm raster that ships adds +1.6 to +2.4 points, so the program as shipped is the closest of the three (-0.8 to +0.8 %) on these two boards, with a placement range of 1.0 to 1.8 points.
+* **Is it two errors cancelling?** Yes, in the sense of the dense-group folder's claim: "the zones beat one node on average" (`lumped-dense-via-group` 3 and 9.2) is true of the program as it ships (zones at 0.5 mm), and it rests on the coarse raster's positive bias, not on the zone construction; the construction alone, converged, is cool by about 2 %. The positive bias is systematic (the core drawn in whole 0.5 mm cells), not random luck, so it is the same on every board of this kind; it is not shown to hold for other arrays, other boards or the transient.
+* **References are consistent.** The FVM (0.25 mm) is 0.5 to 0.65 % below the converged 3D (the dense-group folder's 0.0 to 0.6 % was against a 3D at 0.125 mm); FVM and 3D therefore agree to better than 1 % and are not two different boards (same copper conductivity, same film under the source, no edge loss in either; the 3D laminate is isotropic at 0.3 W/mK, the FVM's in-plane 0.9 W/mK, a difference the dense-group folder measured as negligible beside the copper planes). The 100 x 80 mm comparisons against the FVM (sections 3 and 4) are therefore about 0.5 point too pessimistic for the zones and 0.5 point too kind to one node.
+* **What it means for the program as it ships** (`docs/theory.md` 5.2, `docs/validation.md` 31, 42, 48): the zoned Lumped is not wrong, but its level for a centred dense group is set by the 0.5 mm raster, and it carries a placement noise of 1 to 3 points of the part peak (up to 10.7 points between placements of one case, through a decision flip); an array 3 mm off the centre of the footprint (case `offset 3,3`) reads -4.6 % aligned and -6.9 to -7.2 % at the shifted placements against the FVM; that part gets the warning of an array that continues past the edge of the footprint ('up to 16 %', `checks.check_lumped_zones`, checked on the board at two placements), so the warnings cover it. The centred dense groups get only the note that the core is coarse on the raster ('via effect up to 20 % too small, the part too hot'), which is the direction of the raster bias found here. The theory sentence that the zone constants were fitted against the FVM at fine cells holds; what is missing is the statement that the 0.5 mm raster is part of the calibration: **the zone raster must not be refined alone** (0.25 mm moves the level 1.3 to 2 points cooler, away from the 3D, and `plate_vias` 2.68 K cooler).
+
+### 10.3 Rule R1
+
+* End to end the rule is not the proxy of table 4.2: at the 0.25 mm placement the 0.1 mm vote share weighted by the coverage of three 6 mm parts over a 5 x 5 array at 1.0 mm (exact share 0.770 to 0.773) passes 0.8 and they are one node at that placement only (+2.56 to +4.61 % instead of -0.3 to -1.1 %): **R1 makes a new decision flip** near its own threshold, where the program at 0.92 had none. 
+* Single cases move by -7.1 to +7.6 points (27 cooler and 32 hotter by more than one point); the worst cool case gets worse: `offset 3,3` -6.0 / -7.8 / -8.5 / -8.8 % against -4.6 / -6.9 / -7.0 / -7.2 % (unsafe side). The gains are the vias-on-the-edge board (+7.3 % hot zoned to +0.2 % one node at the aligned placement), a hot (safe-side) error.
+* Net: the same mean absolute error (2.6 to 2.7 at the shifted placements), a smaller largest spread (6.0 against 10.7), a larger largest error on the unsafe side (8.8 against 7.2), and a flip moved, not removed. **R1 is not recommended for 2.8.0.** Its parts may be reused later: the membership tolerance (c) is a plain defect of the cell test (a via on the closed edge of the part counted by the last bit of a coordinate) and costs nothing, but alone it was not measured.
+
+### 10.4 Recommendation and what was not verified
+
+* **Change nothing in the model in 2.8.0**: no R1, no 0.25 mm zone raster, no change to the zone decision. Do not drop the zones for dense groups either: one node is on the safe side (+2.5 to +3.1 % against the 3D, up to +9.4 % against the FVM), the zones as shipped are closer on average, and dropping them moves `plate_vias` and every zoned result for no gain in accuracy on these boards.
+* **Documents only** (a `docs/` branch, no code, no frozen number moves; the warnings already cover the cases measured here): the limits in `docs/theory.md` 5.2 and `docs/validation.md` (the placement noise of 1 to 3 points, the converged zone level -1.7 to -2.4 % against an independent 3D with the 0.5 mm raster reading +1.6 to +2.4 points hotter, the instruction that the zone raster is part of the calibration). `INTEGRATION.md` 1 gives the branch.
+* **A27** is unchanged by this: it may be measured with the program as it ships, on boards without vias or at the aligned placement, and the 1 to 3 point noise stated beside it.
+* Not verified by the review: the 8 x 8 group against the 3D at 0.0625 mm (only 3 x 3 and 5 x 5), the edge study of section 7 (FVM runs not repeated), table 3.1 beyond the 12 rows and the four FVM placements re-run, the four-layer boards against the 3D, the transient, fractional node weights.
 
 ## What was read and what was not verified
 
