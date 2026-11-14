@@ -8,6 +8,13 @@
          re-baselined on purpose. The independent solver is NOT run here: the references are the printed numbers of the papers and the exact thin-plate
          series (research/published-cases-followup 7). The heavier cases (T6 to T8: Yovanovich-Muzychka-Culham Table 2, Lemczyk Table 4, the coupon
          base stack) run only with PCBT_PUBLISHED_FULL=1, as part of the release gate. Every case takes under a few seconds.
+         The printed numbers of Muzychka, Culham and Yovanovich (2003) were compared with the page images of the paper (Tables 1 to 4 and the text of cases 1 to 3,
+         printed pp 182 to 184). Seri Lee (1998) is a web article that is not in the local library: its numbers are those read through a page converter
+         (research/theory/BIBLIOGRAPHY.md [EC1998Spreading], status S, numbers R), not checked on an image.
+         Not written here (audit items left open, with the reason): REVIEW_L4L9 T2, the disc against a radial solver (the review's radial solver is not committed;
+         it has to be moved under tests/helpers first); REVIEW_A2 T2, equation 50 of Muzychka, Yovanovich and Culham (2004) for one row of the small-part table (the
+         closed form exists in research/paper-case-studies/lib/flux_channel.py, but the quantity to compare, source mean against the program's peak with the face
+         term, is the open point 4 of that review and must be decided first); T6 to T8 below.
 """
 
 import os
@@ -214,14 +221,15 @@ CASE1_SOURCES = [(_sq(90, 90, 25), 10.0), (_sq(210, 210, 25), 15.0)]
 def test_t4_muzychka_case_1a_thick_plate():
     """!
     @brief Muzychka, Culham and Yovanovich (2003), case 1 (a): a 300 x 300 x 10 mm plate, k 10 W/mK, h 10 W/m2K on the bottom, two 25 x 25 mm sources of 10 W and 15 W.
-    @details Printed centroids 84.97 and 108.43 degC. The FVM at 2.5 mm reads them 8 to 10 % of the paper's rise low (measured 8.4 % and 9.0 %), never above; the
-             thick-plate warning fires on both sources (bounds 15 and 16 % of the rise). A failure means the thick-plate behaviour of the single node moved.
+    @details Printed centroids 84.97 and 108.43 degC (Table 1). The FVM at 2.5 mm reads them 8.4 % and 9.0 % of the paper's rise low, never above; bounds 7.9 to 8.9 %
+             and 8.5 to 9.5 % (half a point around the measured values: a 1 % change of the plate model is seen); the thick-plate warning fires on both sources (bounds
+             15 and 16 % of the rise). A failure means the thick-plate behaviour of the single node moved.
     @return None.
     """
     sim, cen, _ = _plate(300.0, 10.0, 10.0, 10.0, CASE1_SOURCES, 2.5)
-    for c, paper in zip(cen, (84.97, 108.43)):
+    for c, paper, lo, hi in zip(cen, (84.97, 108.43), (0.079, 0.085), (0.089, 0.095)):
         short = (paper - c) / (paper - AMB)
-        assert 0.08 <= short <= 0.10
+        assert lo <= short <= hi
     assert len(_thick_warnings(sim)) == 2
 
 
@@ -268,12 +276,16 @@ def test_a2_t1_strong_edge_plate_against_the_stored_finite_element_limit():
     """!
     @brief The four-layer 1.6 mm plate with a cooled edge against the stored finite-element limit (audit REVIEW_A2 T1).
     @details Reference: research/independent-fem-edge README 3(a): the hottest rise 36.981 K at h_side 200 and 24.332 K at 1000 W/m2K (Richardson limit of three plan meshes plus
-             the through-thickness correction, 0.07 and 0.06 % band). The FVM at 0.25 mm with the default laminate sub-gaps reads 36.77 K (-0.57 %) and 23.48 K (-3.52 %),
-             on the cool side; bounds: -1.5 to 0 % at 200 and -5 to -2 % at 1000 W/m2K, both sides so that an improvement or a worsening is seen. A failure means the edge
-             treatment of the laminate moved; re-baseline only with the reason and update the edge warning texts that quote these numbers.
+             the through-thickness correction, 0.07 and 0.06 % band). The same README gives 36.975 / 24.338 K for the same board in section 6 (its corrected
+             thickness term) and about 36.967 K from a uniform plan pair (section 7): the limits are known to about 0.05 %, far inside the bounds below. The FE value is
+             the point maximum of the top face, the program's the hottest 0.25 mm cell mean (-0.13 / -0.20 % on the FE field, README 7); the bounds are on the
+             stored numbers as the edge warnings quote them. The FVM at 0.25 mm with the default laminate sub-gaps reads 36.77 K (-0.57 %) and 23.48 K (-3.52 %), on
+             the cool side; bounds: -1.0 to -0.2 % at 200 and -4.0 to -3.0 % at 1000 W/m2K (half a point around the measured values, both sides, so that an improvement
+             or a worsening of about 1 % is seen; dropping the laminate edge band or the cut-cell film fails). A failure means the edge treatment of the laminate
+             moved; re-baseline only with the reason and update the edge warning texts that quote these numbers.
     @return None.
     """
-    for h_side, fe, lo, hi in ((200.0, FE_LIMIT_200, -0.015, 0.0), (1000.0, FE_LIMIT_1000, -0.05, -0.02)):
+    for h_side, fe, lo, hi in ((200.0, FE_LIMIT_200, -0.010, -0.002), (1000.0, FE_LIMIT_1000, -0.040, -0.030)):
         rise = fvm.solve_steady(_strong_edge_plate(h_side), cell_mm=0.25).t_max - 25.0
         assert lo <= rise / fe - 1.0 <= hi
 

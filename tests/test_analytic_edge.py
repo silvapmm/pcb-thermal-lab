@@ -501,8 +501,9 @@ def test_thin_sheet_series_against_equation_21_low_conductivity(he):
     """!
     @brief The same thin-sheet check as test_thin_sheet_series_against_equation_21 at k 20 W/mK and t 1 mm (tau = t / source side 10 mm = 0.1), the row that holds the stated range (audit of 2.8.0, REVIEW_L4L9 T3).
     @details Source: Muzychka, Culham and Yovanovich (2003, Part II), equation 21 (printed). The sheet of the program's basis reads -1.6 % of it (measured -1.60 to -1.66 % at edge
-             coefficients 50 to 1000 W/m2K): the channel keeps the through-thickness variation that no layered model has, and the gap grows as k falls. Bound: -2.0 to -1.0 %, so a
-             change in either direction is seen. A failure means the thin-sheet limit of the edge basis moved.
+             coefficients 50 to 1000 W/m2K): the channel keeps the through-thickness variation that no layered model has, and the gap grows as k falls. Bound: -1.85 to -1.40 %, so a
+             change in either direction is seen (the first bound, -2.0 to -1.0 %, let an insulated basis through at 50 W/m2K, -1.07 %; with this band the insulated basis
+             fails at every coefficient and a 10 % error of the edge parameter fails at 1000 W/m2K). A failure means the thin-sheet limit of the edge basis moved.
     @param he Edge coefficient in W/m2K.
     @return None.
     """
@@ -513,4 +514,4 @@ def test_thin_sheet_series_against_equation_21_low_conductivity(he):
     px = bx.project(c - a, c + a)
     amp = np.outer(px / bx.norm, px / bx.norm) / (4 * a * a) / (k * t * (bx.eig2[:, None] + bx.eig2[None, :]) + h)
     sheet = float((amp * np.outer(px, px)).sum() / (4 * a * a))
-    assert -0.02 <= sheet / r21 - 1.0 <= -0.01
+    assert -0.0185 <= sheet / r21 - 1.0 <= -0.0140
