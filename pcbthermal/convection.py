@@ -69,7 +69,7 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
              Above Ra 1e7 the constant 0.15 of the turbulent branch is from memory: Lienhard eq. 8.35 prints 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr), so the branch is about 7 % above
              the printed form and steps by +6.4 % at Ra 1e7 (30.37 to 32.32); a PCB face reaches 1e7 only above A/P of about 0.15 m at a 30 K rise, so no board is affected.
              api._solve_computed_h warns on the top face outside 1e2 to 1e7: the range where this law and the Raithby-Hollands form printed by Lienhard (eq. 8.37) agree within about
-             15 to 22 % (the program is the lower one below about Ra 2e3, the board reads hot there, and the higher one above it, 9 to 22 % up to 1e7).
+             15 to 22 % (the program is the lower one below about Ra 2e3, the board reads hot there, and the higher one above it, +9 % at Ra 1e4 and +22 % at 1e7).
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param length Characteristic length A/P in metres.

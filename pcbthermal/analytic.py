@@ -1228,7 +1228,7 @@ def heatsink_transient_warning(scales=""):
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
-            "of test boards, from about -9 % to +3 % off the converged finite-volume result (the worst, -9 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K; the +3 % a 2-layer board with vias and a heatsink beside the part; the independent finite elements give +1 to +4 % at 0.5 mm); "
+            "of test boards, from about -9 % to +3 % off the converged finite-volume result (the worst, -9 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K; the +3 % a 2-layer board with vias and a heatsink beside the part; on five other boards the independent finite elements give +1 to +4 % at 0.5 mm); "
             "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"

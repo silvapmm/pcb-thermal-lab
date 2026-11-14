@@ -800,7 +800,7 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
     @brief Fit the convection multiplier (Board.h_calibration) so that the model reproduces a measured temperature.
     @details The board is put in computed mode and the multiplier is found by bisection on its logarithm (the temperature falls
              as the multiplier grows). The measured quantity is the hottest point of the board, or the hottest point under a
-             named heater. The correlations are for isothermal plates and uncertain by 20 to 30 % on a board with hot spots;
+             named heater. The correlations are for isothermal plates; the published plate results differ by about +-20 % (vertical) and +-50 % (horizontal, face up) (audit L1L5 finding 3);
              this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
              and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
     @param problem A Problem (it is not modified).
