@@ -73,7 +73,7 @@ The two texts are a small `fix/` branch (text, `tests/test_warning_texts_plain.p
 | Local laminate rule (A18) | investigation with a second round pending (4-cell gate, transition); moves numbers | No. The `check_small_part_laminate` warning covers it. |
 | Lumped first link near the edge (A27/A23) | investigation; the candidate was rejected because of error compensation | No. The warning already exists. |
 | Drawn copper colder than imported (5a) | investigation; moves numbers | No. |
-| Physical measurement (G1) | external data (the colleague's board) | No, it does not depend on us. |
+| Physical measurement (G1) | external data (a purpose-built board) | No, it does not depend on us. |
 | FDM cut cells (A32/A40) | investigation; the prototype made it worse | No; limit written. |
 | Electrothermal (Joule) | large new feature | No. |
 

@@ -10,17 +10,17 @@ Scope: three questions on `development` e02ba367 and the branch `fix/housekeepin
 | 2. `fix/housekeeping-280` | **GO** for a `--no-ff` merge after the whole battery; no defect found; a small test of the ignored keyword is advised, not required |
 | 3. Wave 2 order | **Changed slightly**: light items first while the machine is shared; first two: the metal-block warning re-measure and the finite-element extensions (A43) |
 
-## 1. The measured board (G1)
+## 1. The physical measurement (G1)
 
-**Finding.** The two lines are not a generic idea. Line 363 says 'the third party's board' and names a branch a named research branch for that board; line 429 says the first dataset 'may come from a third party's board' and that the maintainer has none of his own. Both point to a specific board that exists outside the project. The same reference is in four other tracked files:
+**Finding.** The two lines are not a generic idea. Line 363 says 'a purpose-built board' and names a branch a named research branch for that board; line 429 says the first dataset 'may come from a purpose-built board' and that no measured board exists yet. Both point to a specific board that exists outside the project. The same reference is in four other tracked files:
 
 | File | Line | Text to neutralise |
 | :-- | :-- | :-- |
-| `docs/versions.md` | 363, 429 | 'the third party's board', a named research branch for that board, 'third party's board (the maintainer has no measured board of his own)' |
-| `research/ROADMAP.md` | 19, 133, 179, 180 | 'a third party built one and his data may be the first dataset', row 'The third party's board', row 'Request list for the third party' |
-| `research/REVIEW.md` | 86 | '(a third party's board, ...)', 'ask the third party for the data' |
-| `CLAUDE.md` | 411 | heading 'and the third party's board for G1' and the sentence 'The maintainer has no measured board yet but a third party built one ...' |
-| `releases/2.7.0/final-opinion/fem-reference-opinion.md` | 76 | 'external data (the third party's board)' |
+| `docs/versions.md` | 363, 429 | 'a purpose-built board', a named research branch for that board, 'purpose-built board (no measured board exists yet)' |
+| `research/ROADMAP.md` | 19, 133, 179, 180 | 'a purpose-built board is planned and his data may be the first dataset', row 'The purpose-built board', row 'Request list for external data' |
+| `research/REVIEW.md` | 86 | '(a purpose-built board, ...)', 'ask an outside source for the data' |
+| `CLAUDE.md` | 411 | heading 'and a purpose-built board for G1' and the sentence 'The maintainer has no measured board yet but a purpose-built board is planned ...' |
+| `releases/2.7.0/final-opinion/fem-reference-opinion.md` | 76 | 'external data (a purpose-built board)' |
 
 The disclaimer and the Results-summary line ('never compared with a measured copper board') are generic and stay.
 
@@ -30,9 +30,9 @@ The disclaimer and the Results-summary line ('never compared with a measured cop
   > **The physical measurement (G1) does not block the version**: a physical measurement of a purpose-built board (the plan in `research/ROADMAP.md` section 5) runs on its own research branch when the data exists; until then 2.8.0 ships without it and the Results-summary line 'never compared with a measured copper board' stays.
 * `docs/versions.md` item 5 (line 429), replace by:
   > 5. **The physical measurement (G1)**: no model has been compared with a measured board. G1 is a physical measurement of a purpose-built board (the plan and the list of data a measurement must record are in `research/ROADMAP.md` section 5: the stack-up, the copper layout, the power per part, the ambient temperature, the orientation, enclosure and mounting, the position of every reading, the measured temperatures, the uncertainties and a photograph); the lead time of the boards is the long pole. It decides the face-up law (board D) and removes the line 'never compared with a measured copper board' of the Results summary.
-* `research/ROADMAP.md` line 19, first cell: 'G1: the first measurement dataset: a physical measurement of a purpose-built board (the plan of section 5)'; line 133: 'a measurement on a physical board built for the purpose (section 5)'; row 179 removed; row 180 renamed 'Data a measurement must record' with the same nine points, 'the third party' removed ('how the power was measured' etc. stay).
+* `research/ROADMAP.md` line 19, first cell: 'G1: the first measurement dataset: a physical measurement of a purpose-built board (the plan of section 5)'; line 133: 'a measurement on a physical board built for the purpose (section 5)'; row 179 removed; row 180 renamed 'Data a measurement must record' with the same nine points, 'an outside source' removed ('how the power was measured' etc. stay).
 * `research/REVIEW.md` line 86: 'the first measurement dataset (a purpose-built board, `ROADMAP.md` section 5)' and 'build the boards of the plan'.
-* `CLAUDE.md` line 411: heading '... between 2.7.0 and 2.8.0' (drop 'and the third party's board for G1'); replace the sentence by 'G1 is a physical measurement of a purpose-built board; the plan and the data it must record are in `research/ROADMAP.md` section 5.'
+* `CLAUDE.md` line 411: heading '... between 2.7.0 and 2.8.0' (drop 'and a purpose-built board for G1'); replace the sentence by 'G1 is a physical measurement of a purpose-built board; the plan and the data it must record are in `research/ROADMAP.md` section 5.'
 * `releases/2.7.0/final-opinion/fem-reference-opinion.md` line 76: 'external data (a measured board)'. It is a signed release record; editing it is acceptable because the change removes a reference and does not change a verdict, but the maintainer may prefer to leave release records untouched: his choice.
 
 These are document edits on a `docs/<topic>` branch (for example `docs/g1-neutral-wording`), maintainer agent, quick tests (`test_docs`, `test_license_header`, `test_third_party_text`). **Git history keeps the old text** (published history is never rewritten); only the tree going forward is neutral. Say so to the maintainer.
