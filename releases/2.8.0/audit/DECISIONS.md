@@ -102,6 +102,8 @@ So the choice moves the total coefficient 5 to 9 % (the rise of a board cooled m
 
 **Who acts.** Reviewer of L5 (one sentence in theory 8 and in the docstring, on the branch of L5); nothing for the executor. Planned item, not for 2.8.0: the composite on `sqrt(A)` after the measured board (G1).
 
+**Correction (`REVIEW_L1L5.md` finding 1; `DECISIONS_2.md` 30).** The derivation above is wrong in two points: 0.742 is the coefficient of the linearised analytical model of Yovanovich and Teertstra with an assumed `C_T` = 2.31 (only their blending exponent is fitted to the CFD), an approximation of the same flat-plate boundary layer 11.7 % above the exact 0.664, not a coefficient on another length scale (the boundary-layer term is the same on `L` and on `sqrt(A)`); and the uniform-flux mean is 0.688 (Lienhard eq. 6.72), 3.6 % above 0.664, not 'about 0.68, within 2.4 %'. The effect +5 to +9 % holds (+9.0 % on the face down). The decision, keep 0.664, holds for the reasons of L1L5: exact for the modelled plate, the board between isothermal and uniform flux, and the safe side.
+
 **Risk.** Low. If a future measurement shows forced-air boards running 5 to 9 % cooler than the program, the composite is the first candidate.
 
 ## 7. Imported copper and drawn layers on one board
