@@ -369,6 +369,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Lumped zone placement** (`research/lumped-zone-placement`, reviewed GO, merged): no model change; the zones carry a 1 to 3 point position noise and read -1.7 to -2.4 % against a converged 3D (the 0.5 mm zone raster is part of the calibration); documented as limits (`docs/theory.md` 5.2, `docs/validation.md` 50, branch `docs/lumped-zone-placement-limits`); A27 goes alone.
+
 - **Extra reviewer for OCR** (maintainer): one additional reviewer agent may run beside the two, only for the verification of the OCR transcriptions of the papers library.
 
 - **Market FEM comparison** (`research/market-fem-comparison`, desk study, reviewed GO, merged, deferred as A47 of `research/ROADMAP.md`): for now only scikit-fem is our independent reference; later DOLFINx, then CalculiX, Gmsh as an executable; only free solvers in committed numbers (commercial EULAs forbid benchmarking or publication); no SimScale.
