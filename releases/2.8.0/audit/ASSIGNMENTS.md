@@ -1,4 +1,6 @@
-# The re-review split into six reviewer assignments (2.8.0 audit, step 2 plan)
+# The re-review split into reviewer assignments (2.8.0 audit, step 2 plan)
+
+Two tracks: the **document track** (A1 to A6: the claims of the documents against the numbers) and the **literature-to-code track** (L1 to L12: each formula, constant and correlation of the program against the printed page of its source). The order of the two together is in the last section.
 
 Input: [`CLAIMS_REGISTER.md`](CLAIMS_REGISTER.md) and [`claims.csv`](claims.csv), whose last column `assignment` gives each of the 1482 rows to one assignment below (filter on it for the full list). The risk 3 ids of each assignment are listed here; the numbers in brackets are the items of the top 40 (register section 2).
 
@@ -58,9 +60,140 @@ Input: [`CLAIMS_REGISTER.md`](CLAIMS_REGISTER.md) and [`claims.csv`](claims.csv)
 - **Work**: give every number one home in `docs/validation.md` and make every warning, the guide and models.md cite it with the numbers that A1 to A5 settled; remove the numbers that no document holds (or find their study); refresh validation 24 and 25 (or reduce 25 to pointers); rewrite the three tests as one-sided bounds with the reason in the docstring. Text changes in `pcbthermal/` and `tests/` go on a `fix/` branch with the whole battery (tooltips, `tests/test_help.py`, `tests/test_warning_texts_plain.py`).
 - **Cost**: light in computation (the warning rates are re-derived from the outputs of A1 to A5), heavy in reading; one to two reviewer-days, then the maintainer's whole battery.
 
+## The literature-to-code track (L1 to L12)
+
+**Why a second track.** The image verification of the transcriptions found no error in a formula that the program uses. That checks the page, not the program: it does not show that the code implements the printed formula (symbols, exponents, constants, units: the 0.742 of eq. 18 against the 0.664 of eq. 12 of Yovanovich and Teertstra 2001 is the example), that the program applies it inside the range the paper states, or that the quantity the paper reports (surface, centroid, mean over the source, average Nusselt number over the plate) is the one the program compares (the thick-plate case 2 of Muzychka et al. 2003 is the example: the paper reports the surface, the program a node that is the mean through the thickness with the film acting on it).
+
+**Inventory**: [`formulas.csv`](formulas.csv), 100 rows, one per formula, constant or correlation of `convection.py`, `laminate.py`, `viawell.py`, `viaconstriction.py`, `lumped.py`, `analytic.py`, `analytic_local.py`, `blocks.py`, `stackimpedance.py`, `profiles.py`, `memory.py`, `checks.py`, `inverse.py`, `fvm.py`, `fdm.py`, `solid3d.py`, `geometry.py`, `api.py` and the libraries of `data/defaults.json`. Columns: `fid`, `group`, `formula`, `code` (file:function, line), `models_using`, `source_key`, `status_theory` (status in the sources table of `theory.md`), `status_bib` (`research/theory/BIBLIOGRAPHY.md`), `eq_page`, `page_verified` (Y all cited pages verified against the image in `papers/ocr/reading_status.json`, read with `python -m tools.ocr status show <stem>`; P partly; N machine only or not in the file; NA no source), `validity_paper`, `range_program`, `warning_outside`, `published_case`, `case_in_battery`, `quantity_paper`, `quantity_program`, `known_issue`, `risk`, `risk_reason`. The scores are those of the inventory pass; the reviewer of each group confirms them.
+
+**Counts.** 100 formulas in 12 groups; risk 3: 20, risk 2: 16, risk 1: 47, risk 0: 17. About 45 are the program's own derivations, fits or rules (the laminate sub-gap rule and edge band, the face term, the barrel extra length, the target radius `e^(-1/4)`, the rim ray, the Krogh closed form, the Lumped well, groups, zones, rings and first-ring cap, the Analytic tile self-term, per-layer edge, influence fill and local factor, the 0.25 floor of the cut-cell film, the 3D slab rule, the memory via gain, the fast-wave thresholds, the profile decision, the power band, the equal-area rectangle, the warning thresholds); for those the check is the derivation and an independent case, not a page. From memory with no recorded source: the 0.447 self-distance of a square, the emissivity 0.9, the FR-4 properties (0.3 / 0.9 W/mK, 1850 kg/m3, 900 J/kgK), the air-property fits.
+
+**Sources whose cited pages are not verified** (or not in the status file): `Muzychka2004Orthotropic` (p 6 machine only, with an uncorrected error), `YovanovichJafarpur1993Bounds` (PDF pages 13, 14, 18 verified; their match with the printed pages 7, 8, 11 cited is not confirmed), `Yovanovich2003` (the Table 3 page not listed), `Ostrach1953` (Table I pages corrected; report page 77 not identified), `Lie2019Reservoir`, `Koch2019Well`; not in the file at all: `EC1998Spreading` (Seri Lee), `JohansenColella1998`, `BochkovGibou2019`, `BarrettEtAl2022`, `JESD15-3`, `George1973`, `Peaceman1978`, `GoldsteinLau1983`, `LloydMoran1974`, `IncroperaDeWitt`, `CarslawJaeger`, `ChurchillChu1975`, `ChurchillBlend`; the page of Lienhard Table A.1 (copper) is not identified.
+
+**Published cases of a formula held by the battery**: Yovanovich 2003 Table 3 (`tests/test_solid3d_verification.py`), the Celik GCI procedure, the CSD17308Q3 and JEDEC 2s2p calculator cases (`tests/test_calculator_validation.py`), the Culham-Yovanovich coupon geometry against the independent solver (`tests/test_layered_vs_3d.py`), equation 21 of Muzychka Part II on the series basis (`tests/test_analytic_edge.py`), and the laminar natural-convection form against the similarity solution of Ostrach with LeFevre's Prandtl fit (`tests/test_natural_form.py`, a closed form, not the published table). Not held: Lienhard Examples 6.5 (forced, 21.39 against 21.4) and 8.1 (vertical plate, 4.233 against 4.22), the TI barrel example (261 C/W), Table 2 of Yovanovich-Muzychka-Culham 1999, Seri Lee, the Muzychka 2003 cases, Fish 2017, Shen 2020.
+
+**The procedure, the same for every assignment** (one reviewer per group, 7 to 13 formulas): for each formula (1) open the verified page image (`papers/`, local, never committed) and write the formula as printed, with the equation number, the symbols and the units; a source not obtained or read from a summary is said so and the formula is checked as an assumption; (2) read the code at the line of the inventory and write the formula as coded; (a) compare them term by term (constants, exponents, the length or temperature they are taken at, units, which variant when the paper prints several); (b) compare the validity range the paper states with the range the program applies it in, and check that a warning exists outside it; (c) find the published numerical case, reproduce it with an independent script if it is not reproduced, run the program on it, and say whether a test of the battery holds it (propose the test when not); (d) compare the definition of the quantity the paper reports with the one the program reports or compares. Findings in the program are measured on a copy and written up for a `fix/` branch; findings in the documents are corrected on the branch of the assignment and fed to A6.
+
+**Ranking** (the order below): first the formulas used by several models with a source of status S, M or N or pages not verified, no reproduced published case, or a quantity mismatch; then the own derivations used by every model; then data and numerics.
+
+| # | Group (formulas) | Risk 3 | Main sources | Cost |
+| :-- | :-- | :-- | :-- | :-- |
+| L1 | natural convection (F-001 to F-008) | F-001, F-003, F-004, F-007 | Lienhard 2024, Yovanovich-Jafarpur 1993, Lloyd-Moran (not obtained), Goldstein-Lau (second hand), Churchill-Chu (not obtained), Ostrach 1953 | light (closed forms; Lienhard Example 8.1 as a test) |
+| L2 | thick plate, blocks, fins (F-017 to F-024) | F-017, F-019 | Seri Lee (EC1998), Yovanovich-Culham-Teertstra 1998, Bar-Cohen-Rohsenow through Teertstra, Yovanovich 2003, Celik | light to moderate (the Muzychka cases with A1) |
+| L3 | via barrel and well (F-025 to F-033) | F-027, F-029 | TI AN-2020, Shen-Wang 2019, Peaceman 1978 (abstract), Durlofsky 2005, Ibraguimov 2022, Yovanovich 1995 image method, Dorfler-Bullo | moderate (a resolved via box) |
+| L4 | cut cells and geometry (F-066 to F-071) | F-066, F-067 | Johansen-Colella 1998, Bochkov-Gibou 2019, Barrett et al. 2022, Greiner-Hormann | light (the 2D Robin solver of `bochkov-robin-check`) |
+| L5 | forced convection, radiation, air (F-009 to F-016) | F-009, F-011 | Lienhard 2024 (Example 6.5), Yovanovich-Teertstra 2001 (eq. 12 against 17 and 18), Churchill 1977 (not obtained), air tables | light |
+| L6 | via constriction (F-034 to F-040) | F-034 | Krogh 1919 (memory), Dietz (summary), Fish 2017, Carslaw-Jaeger (memory) | light to moderate |
+| L7 | laminate and layered stack (F-041 to F-049) | F-041 | Muzychka 2004 orthotropic (p 6 machine only), Patankar, own rules | moderate (the gap sweeps of `gap-subdivision`) |
+| L8 | transient, profiles, stack impedance (F-079 to F-085) | F-081, F-082 | Carslaw-Jaeger (memory), Lienhard eq. 5.62, own | light (closed forms against the folder's reference) |
+| L9 | Analytic series and edge (F-050 to F-057) | none (four at 2) | Yovanovich-Muzychka-Culham 1999 (Table 2), Culham Fourier 2000, Muzychka 2003 Part II, Muzychka 2006, Carslaw-Jaeger | light (series sums) |
+| L10 | package and calculator (F-086 to F-094) | F-087, F-093, F-094 | JESD15-3, JESD51 (not obtained), ROHM 65AN114E, TI SPRA953B, vendor notes from summaries, catalogues | light (calculator cases) |
+| L11 | Lumped network (F-058 to F-065) | none (one at 2) | Carslaw-Jaeger (memory), own | light |
+| L12 | numerics, memory, materials data (F-072 to F-078, F-095 to F-100) | F-096 | Patankar, Saad 2003, SuperLU guide, Lipton-Rose-Tarjan, George 1973, Lienhard Table A.1, catalogues | light |
+
+### Briefs (5 lines each)
+
+**L1, natural convection** (first; 8 formulas, about one reviewer-day).
+1. Write the face-up `0.54 Ra^(1/4)` / `0.15 Ra^(1/3)`, the face-down `0.475 Ra^(1/5)`, the Churchill-Chu general and laminar forms and `L = A/P` as printed in the pages the bibliography marks R, and as coded in `convection.py`.
+2. The face-up law and Lloyd-Moran are not obtained: find an open copy or restate the law as an assumption; confirm the printed-page mapping of Yovanovich-Jafarpur 1993 for 0.475.
+3. Compare each published range (face up 2.2e4 to 8e6, face down, Churchill-Chu) with the ranges of the warnings (1e4 to 1e11 top, 1e2 to 1e9 bottom), and `L = A/P` on concave outlines.
+4. Turn Lienhard Example 8.1 into a battery test; check that the paper reports the average Nusselt number over an isothermal plate while the program applies it to the mean face temperature of a board with hot spots.
+5. Output: a row per formula in the folder of the assignment, corrected theory 8, the warning ranges for A6, the proposed tests.
+
+**L2, thick plate, blocks and fins** (second; 8 formulas, one day, with A1).
+1. Write the bound `q'' t/(2k)` and its derivation, the fin efficiency `tanh(mH)/(mH)` and fin ratio, the close-fin channel `Ra_b` and the kept fraction, the block Schur complement, as coded in `checks.py`, `blocks.py`, `analytic.py`, `lumped.py`.
+2. Compare with the spreading closed forms of Yovanovich-Culham-Teertstra 1998 and Seri Lee (EC1998, not in the status file: verify the page) and with Bar-Cohen-Rohsenow as printed in the Teertstra review.
+3. Separate on the Muzychka 2003 cases the through-thickness gradient from the film acting on the node; check whether the 5 % threshold of the warning has any basis in the sources.
+4. Run the program's `blocks.py` on Seri Lee's plate; propose Seri Lee and the Muzychka cases as battery tests.
+5. Quantity: the papers report a centroid or a source-mean surface temperature; the program a node mean through the thickness; write which one each comparison uses.
+
+**L3, via barrel and well** (third; 9 formulas, one to two days).
+1. Write the barrel conductance with its length `d + 0.5 t_bar`, the Peaceman well `2 pi S / (ln(r_eff/r_t) + c)`, the lattice radius 0.1985 cells, the target `e^(-1/4) r_v`, the mirror image `c`, the Kron reduction, as coded in `viawell.py`.
+2. TI AN-2020 (the 261 C/W example) covers only the pure-length barrel; Peaceman 1978 was seen as an abstract: open it or rest the well on Durlofsky 2005 eq. 34 (verified) and say so.
+3. Check the ranges: the image only for straight sides at least six cells long, the well for a via within the footprint rule; warnings outside.
+4. Reproduce the published cases (TI example, Shen-Wang 2019, the image method of Yovanovich 1995) and propose the TI example as a battery test; the target radius is an own derivation: check it against a resolved barrel.
+5. Quantity: the barrel resistance of the sources is wall to wall; the program's well is reached through the mean temperature of a footprint: say what each comparison reads.
+
+**L4, cut cells and geometry** (fourth; 6 formulas, half a day).
+1. Write the aperture link `a S dy/dx` and the film in series `g0 / max(1 + g0 d/(S L), 0.25)` from Johansen-Colella 1998, Bochkov-Gibou 2019 eqs. 1.13 and 1.14 and Barrett et al. eqs. 12 to 14, and as coded in `fvm.py` and `solid3d.py`.
+2. None of these three sources is in the OCR status file: verify the pages against the images first.
+3. The floor 0.25 is the program's own: state where it binds (from about 1000 W/m2K with copper inset) and whether the papers have any bound.
+4. Reproduce Johansen-Colella problem 1 (done in `rotated-square-3d` tests) and the Bochkov-Gibou order of accuracy with the 2D solver of `bochkov-robin-check`; propose one as a battery test.
+5. Quantity: the papers measure the error of the field in a norm; the program reports the hottest cell: say which the validation sections compare.
+
+**L5, forced convection, radiation and air** (fifth; 8 formulas, half a day).
+1. Write `0.664 Re^(1/2) Pr^(1/3)`, the mixed laminar-turbulent form, the Churchill blend `(h_n^3 + h_f^3)^(1/3)`, the linearised radiation, the air-property fits, as printed and as coded in `convection.py`.
+2. Settle the 0.742 (Yovanovich-Teertstra eq. 17 and 18) against 0.664 (their eq. 12): which one the program uses, which one applies to a heated board, and the 11 to 14 % between them.
+3. Churchill 1977 is not obtained: restate the blend exponent 3 as an assumption, or find the paper; check the transition at Re 5e5 against the board sizes.
+4. Turn Lienhard Example 6.5 (21.39 against 21.4) into a battery test; check the air properties against Lienhard's tables (verified pages) at three temperatures.
+5. Quantity: the correlations give an average over an isothermal plate at the film temperature; the program applies them at the mean face temperature: write the consequence.
+
+**L6, via constriction** (sixth; 7 formulas, one day).
+1. Write the Krogh cell `R_K`, the ring well, the via groups, the Analytic tile self-term, the annulus link and the micro peak, as coded in `viaconstriction.py` and `lumped.py`.
+2. Krogh 1919 is from memory and Dietz from a summary: derive `R_K` again from the log potential and compare term by term (the `- 1/4`).
+3. The macro factor, the 0.75 fin-length cap, the core radius `0.7071 d_nn` and the group rule are own fits: state the range of the boards they were fitted on.
+4. Reproduce Fish 2017 (1215.2 against 1240 K/W) in the program, not only in the study, and propose a closed-form test of `R_K`.
+5. Quantity: the Krogh resistance is from the wall to the cell's outer mean; the Lumped ring is a ring mean: say what is compared.
+
+**L7, laminate and the layered stack** (seventh; 9 formulas, one day).
+1. Write the layer sheet `S = f k_cu t_cu + k_ip (slab - f t_cu)`, the gap conductance, the sub-gap rule, the edge band, the face term `Q t_cu/(2 k_z A)`, the harmonic face of the FDM and the 3D slab rule, as coded.
+2. Muzychka 2004 orthotropic p 6 is machine-only with an uncorrected error: verify the page and the equations 39 and 40 before relying on them.
+3. The sub-gap rule (0.4 mm, at most 4), the band margin and the slab rule are own: their error against the finite elements is A2's; here check the derivation and the ranges.
+4. Reproduce eq. 50 of Muzychka-Yovanovich-Culham 2004 in the program (done in a research folder) and propose it as a battery test.
+5. Quantity: the closed forms give a source-mean or centroid temperature on the surface; the program a node with the face term added: write which one each table uses.
+
+**L8, transient, profiles and the stack impedance** (eighth; 7 formulas, half a day).
+1. Write the slab quadrupole admittance, the disc-on-sheet `K1` term, the Lanczos harmonic sum, the superposition of delayed steps and the decision thresholds, as coded in `stackimpedance.py` and `profiles.py`.
+2. Carslaw-Jaeger is from memory: derive the quadrupole and the disc term again (or open a verified transmission-line or Carslaw-Jaeger page) and compare term by term.
+3. The 4 s / 2 s thresholds and the fill 0.9 are measured rules: state their range.
+4. No published fast-wave case exists: check against the semi-infinite limit of Lienhard eq. 5.62 and the reference of `fast-wave-oscillation`.
+5. Quantity: the swing of the closed form is at the heater face; the program's profile curves are node values plus the face term: say which.
+
+**L9, the Analytic series and edge** (ninth; 8 formulas, half a day).
+1. Write the compound-channel modal system, the Robin eigenfunctions `lambda tan = beta`, the per-layer edge mismatch, the influence fill with `K0`, the Woodbury correction, the propagator, as coded in `analytic.py` and `analytic_local.py`.
+2. Compare with Yovanovich-Muzychka-Culham 1999 (Table 2, 33 of 36 cells reproduced; theory says 'to four digits'), Culham Fourier 2000 and Muzychka 2003 Part II eq. 12 to 21 (verified pages).
+3. Range: the thin-sheet statement holds for `t/L <= 0.1`; check that a warning covers thicker cases.
+4. Turn Table 2 of 1999 into a battery test; keep the equation 21 test.
+5. Quantity: the papers give the resistance from the source mean; the program its hottest point: write the conversion.
+
+**L10, package and calculator** (tenth; 9 formulas, half a day).
+1. Write the two-resistor junction, the psi_JB ring (0.5 to 1.5 mm), the top of package with psi_JT, the power from temperature, the power band, the top-path split, as coded in `analysis.py`, `inverse.py`, `api.py`.
+2. JESD15-3 and JESD51 were not obtained: say which definitions rest on vendor notes (ROHM 65AN114E, TI SPRA953B, verified) and which on memory.
+3. The package theta and heatsink libraries rest on web summaries and catalogues: record the source of each entry or mark it 'typical, unsourced'.
+4. Keep the CSD17308Q3 and JEDEC tests; add the psi_JB ring definition check against the vendor notes.
+5. Quantity: psi_JB is defined at the board 1 mm from the package; the program's ring is a mean over 0.5 to 1.5 mm: state it.
+
+**L11, the Lumped network** (eleventh; 8 formulas, half a day).
+1. Write the ring edges and the first-ring cap, the lateral ring resistance, the footprint log potentials with the 0.447 self-distance, the Bessel factors, the peak, as coded in `lumped.py`.
+2. The disc solutions are Carslaw-Jaeger from memory and the 0.447 has no recorded source: derive them again and check the Bessel factors against the closed form of a disc on a leaking sheet (Shen eq. 19, verified).
+3. The rules (raster, near-edge gap, via-cool warning) are own: state their fitted range.
+4. Propose a closed-form test of the disc factors.
+5. Quantity: the ring is a mean, the part reading is the peak (validation 48): say which every Lumped comparison uses.
+
+**L12, numerics, memory and the materials data** (last; 13 formulas, half a day).
+1. Write the theta method, the Young optimum with the Rayleigh quotient, the SuperLU symmetric mode, the memory law and its via gain, as coded in `fvm.py` and `memory.py`.
+2. Check Saad 2003 p 147 (not listed) and George 1973 (not in the status file) for the statements that rest on them.
+3. Check every material constant of `data/defaults.json` against a verified page (Lienhard Table A.1 for copper: identify the page) or mark it 'typical, unsourced' (FR-4, emissivity 0.9).
+4. No published case is needed for the numerics; the tests of the battery already hold the solver equivalence.
+5. Quantity: none to compare; the output is the source of every constant.
+
+## The order of the two tracks
+
+At most two reviewers at once, one heavy job at a time. The literature groups that feed a document assignment go with it, so that the same reviewer reads the page and the claims that rest on it.
+
+| Step | Reviewer 1 | Reviewer 2 |
+| --: | :-- | :-- |
+| 1 | A1 with L2 (thick plates, published cases) | L1 then L5 (convection) |
+| 2 | A3 with L3 and L6 (vias) | L4 (cut cells), L9 (Analytic series) |
+| 3 | A2 with L7 (edge, laminate; finite elements, heavy) | A4 with L11 (Lumped, Analytic, transient) |
+| 4 | A5 with L10 and L8 (imported copper, calculator, fast waves) | L12 (numerics, data) |
+| 5 | A6 (the program's texts and the tests), last | - |
+
 ## Open decisions for the maintainer
 
 1. The thick-plate threshold: keep the bound `q'' t/(2k)` against 5 % of the rise, lower it, or warn on the film-and-gradient estimate measured in A1 (the 10 W source of Muzychka case 2 is silent today while the program reads it about 4 % low).
 2. Published cases as regression tests in the battery (A1 proposes the list; each costs seconds to a minute at the cells of the documents).
 3. Whether the Lumped and Analytic accuracy quoted to the user should be the number against the FVM (what the models were fitted to) or against an independent reference (A4 gives both).
 4. Whether tables measured against a reference later found hot are rewritten or kept marked 'superseded' (A2).
+5. Which constants without a recorded source stay as 'typical, unsourced' (the FR-4 properties, the emissivity 0.9, the package and heatsink libraries) and which need a source before 2.8.0 (L10, L12).
+6. Whether the forced-convection constant stays 0.664 or follows eq. 18 of Yovanovich-Teertstra (0.742, 11 to 14 % more h, L5).

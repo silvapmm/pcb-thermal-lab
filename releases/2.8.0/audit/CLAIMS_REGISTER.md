@@ -4,6 +4,8 @@
 
 **Why.** The re-review was asked after a run of findings of the same family: a validation text that said a published case 'confirms the effect' while part of the gap came from a term the model does not have (the film acting on the node of a thick plate, case 2 of Muzychka, Culham and Yovanovich 2003); a thick-plate warning that did not fire on a case where the program reads low; earlier mix-ups of the compared quantity (peak, mean, node, face, layer mean); a 3D reference taken as converged when it was not; and a test floor that asserted an old defect.
 
+**Companion inventory**: [`formulas.csv`](formulas.csv), the 100 formulas, constants and correlations of the program with their sources and page status (the literature-to-code track of `ASSIGNMENTS.md`).
+
 **Machine-readable file**: [`claims.csv`](claims.csv), one row per claim, 15 columns:
 
 | Column | Meaning |
