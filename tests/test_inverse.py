@@ -123,5 +123,15 @@ def test_the_board_resistance_is_the_parts_own_and_the_other_parts_rise_is_repor
     out_alone = power_from_temperature(alone, 0, 90.0, point="mean", cell_mm=2.0)
     assert out_both["other_parts_rise_k"] > 0.05 and out_alone["other_parts_rise_k"] == pytest.approx(0.0, abs=1e-9)
     assert out_both["resistance_k_per_w"] == pytest.approx(out_alone["resistance_k_per_w"], rel=1e-6)
+    # With no other heat the value is the earlier rise / P to the bit (T(0) is the ambient exactly)
+    assert out_alone["resistance_k_per_w"] == out_alone["rise_k"] / out_alone["power_w"]
+    # With two heaters it is the difference of two independent solves at the power found, over that power
+    from pcbthermal.api import SolverOptions
+    from pcbthermal.inverse import _temperature
+    opt = SolverOptions(models=("fvm",), cell_mm=2.0)
+    t_p = _temperature(both, "fvm", opt, 0, "mean", out_both["power_w"], 0.0)
+    t_0 = _temperature(both, "fvm", opt, 0, "mean", 0.0, 0.0)
+    assert out_both["resistance_k_per_w"] == pytest.approx((t_p - t_0) / out_both["power_w"], rel=1e-6)
+    assert out_both["other_parts_rise_k"] == pytest.approx(t_0 - both.board.ambient, abs=1e-9)
     # The old definition (measured rise over the power) included the other part's heating and read higher
     assert out_both["resistance_k_per_w"] < (90.0 - both.board.ambient) / out_both["power_w"]

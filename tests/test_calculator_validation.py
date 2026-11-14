@@ -2,7 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_calculator_validation.py
-@brief The power calculator against datasheets: on the datasheet's own board the model must return the datasheet's thermal resistance.
+@brief The power calculator against datasheets: on the datasheet's own board (TI CSD17308Q3) the model must return the datasheet's thermal resistance; the JEDEC
+       2s2p board is held only as a regression of the program's own value and of the order of its four readings (an indication, not a validation:
+       docs/calculators.md 2.1). The order test takes about 30 s and runs only with PCBT_PUBLISHED_FULL=1 (release gate, DECISIONS_2 25).
 """
 
 import os
@@ -13,6 +15,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "research", "power-calculator", "scripts"))
 
 import calculator_validation as cv                                          # noqa: E402
+
+FULL = os.environ.get("PCBT_PUBLISHED_FULL") == "1"                       # The release-gate tests (decision 25 of releases/2.8.0/audit/DECISIONS_2.md)
 
 
 def test_csd17308q3_datasheet_board_gives_its_typical_rtheta_ja():
@@ -32,6 +36,7 @@ def test_jedec_2s2p_board_as_drawn_keeps_the_programs_own_value():
         assert 32.5 / out["power_w"] == pytest.approx(32.23, abs=0.3), point
 
 
+@pytest.mark.skipif(not FULL, reason="release gate (about 30 s): set PCBT_PUBLISHED_FULL=1")
 def test_jedec_board_readings_keep_their_order():
     """The order of the four readings of the JEDEC board at 1 mm (light version of study_jedec_board_readings.py): the backside plane cools (B lowest), a layer 3 that
     the vias do not join warms (C above B), the board as drawn is above both, and no backside plane with the layer cut is the hottest (D). Model RθJA in K/W: B 27.5,

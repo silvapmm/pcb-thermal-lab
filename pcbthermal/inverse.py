@@ -150,7 +150,9 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
             runs += 1
         state = point_temperatures(pr, model, options, index, pb, psi_jt)
         return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
-                "resistance_k_per_w": (tb - t_zero) / pb if pb > 0 else float("inf"),
+                # (T(P) - T(0)) / P with T(P) taken as the measured temperature, which the check run meets within the tolerance: with one heater T(0) is the
+                # ambient exactly, so the value is bit-identical to the earlier rise / P; with other heaters their rise T(0) - ambient is left out
+                "resistance_k_per_w": (amb + rise - t_zero) / pb if pb > 0 else float("inf"),
                 "other_parts_rise_k": t_zero - amb}
 
 
