@@ -346,3 +346,47 @@ def test_the_h_boxes_say_why_they_are_hidden_or_greyed(win, tmp_path):
     assert "shown only with 'Typed by me'" in bp.h_mode.toolTip()
     bp.side_on.setChecked(True)                                       # Ticking the box enables the coefficient and drops the reason
     assert bp.h_side.isEnabled() and "Greyed" not in bp.h_side.toolTip()
+
+
+def test_undo_keeps_the_solver_options_chosen_after_the_edit(win):
+    """!
+    @brief Edit the board, then change the cell, the models and a laminate option, then undo: the board goes back and the options stay (`Document.set_options` is not undoable).
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "undo")
+    win.board_panel.ambient.setValue(30.0)
+    win.solver_panel.cell.setValue(0.75)
+    win.doc.set_options(models=("fvm", "fdm"), laminate_n_max=7)
+    win.doc.stack.undo()
+    assert win.doc.problem.board.ambient == 25.0
+    o = win.doc.options
+    assert o.cell_mm == 0.75 and o.models == ("fvm", "fdm") and o.laminate_n_max == 7
+    assert win.solver_panel.cell.value() == 0.75
+    win.doc.stack.redo()
+    assert win.doc.problem.board.ambient == 30.0 and win.doc.options.cell_mm == 0.75
+
+
+def test_preferences_boxes_hold_a_stored_value_outside_their_range(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief A stored memory fraction of 0.99 (box range 0.10 to 0.95) and a Gerber file limit of 8192 MB (range 16 to 4096) are shown as stored and Save keeps them.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder for the configuration.
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal import defaults
+    from pcbthermal.gui.preferences import PreferencesDialog
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    real = defaults.load
+
+    def load(*a, **k):
+        d = real(*a, **k)
+        d["solver"]["memory_fraction"] = 0.99
+        d["gerber"]["max_file_mb"] = 8192
+        return d
+
+    monkeypatch.setattr(defaults, "load", load)
+    dlg = PreferencesDialog()
+    qtbot.addWidget(dlg)
+    mem, gb = dlg.widgets[("solver", "memory_fraction")], dlg.widgets[("gerber", "max_file_mb")]
+    assert mem.value() == 0.99 and gb.value() == 8192
+    assert dlg.data["solver"]["memory_fraction"] == 0.99 and dlg.data["gerber"]["max_file_mb"] == 8192
