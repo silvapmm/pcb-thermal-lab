@@ -371,6 +371,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Turbulent top-face natural convection above Ra 1e7 now follows Lienhard eq. 8.35** (0.14 Ra^(1/3) with the Prandtl factor; the jump at 1e7 falls from +6.4 % to -0.6 %); no frozen number moves; figures 23 and 48 redrawn; the Clausing-Berton reference temperature (eq. 8.36) is documented as not modelled (safe side, 2 to 7 % lower h).
+
 - **Theory 8 (convection) rewritten law by law with source, range, deviation and direction of error, defaults of a new board documented (10/15/10 W/m2K, no source, kept), theory 1.2 states the film term t/(2k); decisions 34 to 39 in `releases/2.8.0/audit/DECISIONS_3.md`: every h law is as printed in its source; only the turbulent top branch will move to Lienhard 8.35 (`fix/horizontal-face-laws`, no frozen number moves).**
 
 - **Calculator audit items merged**: the JEDEC test is a regression of the program for the board as drawn plus an order test of four readings (an indication, not a verification); the top point is refused for a part with a heatsink; the result carries the heating by other parts.
