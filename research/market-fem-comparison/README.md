@@ -58,9 +58,6 @@ Licence column: SPDX-like, `C` marks copyleft. 'How a case is described' decides
 | OnScale Solve | free private account, 500 core hours a year in 2019 to 2021 coverage (S); today's terms not obtained (N) | cloud | Python scripting (M) | not obtained (N) | Not worth a try before SimScale |
 | Open PCB thermal tools | `KiCad_Thermal_Sim` (MIT, a 2.5D layout estimator, S), Circuit Nova (a browser tool, S), `fcad_pcb` and Salome-Elmer pipelines (S) | - | - | - | Estimators and pipelines, not references; none is a solver independent enough to add value |
 
-![-](figures/fig_01_workflow.png)
-*(the same workflow as Figure 1: the commercial rows enter only as a hand case.)*
-
 ### 2.3 What installs here (script `scripts/check_candidates.py`, nothing installed)
 
 `pip index versions` on this machine printed: gmsh 4.15.2, meshio 1.2.0, scikit-fem 0.2.0, pygmsh 2.7.0, mfem (PyMFEM) up to 4.3.0.1, fenics-basix 0.11.0, pyvista 4.0, pyfreefem 1.1.5 and **no distribution of `fenics-dolfinx`** (it is a conda package; PyPI has only beta wheels: R, README of the repository, and this Python's pip finds none), `femm` none (a Windows tool). Platform tags: the Gmsh 4.15.2 release has a
