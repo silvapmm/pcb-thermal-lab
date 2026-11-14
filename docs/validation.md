@@ -788,20 +788,22 @@ Both metrics must be quoted: the via effect of the zones is on its own about 13 
 | What differs between the drawn board and the real one | recovered power (W) | error |
 | :-- | --: | --: |
 | nothing | 2.000 | 0.0 % |
-| top copper half filled (hatched) | 1.735 | −13.2 % |
-| copper 17.5 µm instead of 35 µm on every layer | 1.519 | −24.1 % |
-| no inner planes (only the top copper) | 1.312 | −34.4 % |
-| no top copper pad (inner planes only) | 1.100 | −45.0 % |
-| no vias under the part | 1.780 | −11.0 % |
-| heat transfer coefficients +30 % / −30 % | 2.126 / 1.818 | +6.3 % / −9.1 % |
-| θ +20 % / −20 % | 1.873 / 2.145 | −6.3 % / +7.3 % |
-| ψJT 1 / 3 K/W instead of 2 | 1.893 / 2.119 | −5.3 % / +6.0 % |
-| measured top temperature 3 K low / high | 1.831 / 2.169 | −8.5 % / +8.5 % |
-| datasheet shortcut `P = (T_top − T_amb)/(θJA − ψJT)` with θJA 30 % below / above the board's (19.7 K/W) | 3.002 / 1.499 | +50.1 % / −25.0 % |
+| top copper half filled (hatched) | 1.683 | −15.8 % |
+| copper 17.5 µm instead of 35 µm on every layer | 1.521 | −24.0 % |
+| no inner planes (only the top copper) | 1.286 | −35.7 % |
+| no top copper pad (inner planes only) | 1.044 | −47.8 % |
+| no vias under the part | 1.768 | −11.6 % |
+| heat transfer coefficients +30 % / −30 % | 2.127 / 1.817 | +6.3 % / −9.2 % |
+| θ +20 % / −20 % | 1.873 / 2.146 | −6.4 % / +7.3 % |
+| ψJT 1 / 3 K/W instead of 2 | 1.893 / 2.120 | −5.4 % / +6.0 % |
+| measured top temperature 3 K low / high | 1.830 / 2.170 | −8.5 % / +8.5 % |
+| datasheet shortcut `P = (T_top − T_amb)/(θJA − ψJT)` with θJA 30 % below / above the board's (19.7 K/W) | 3.003 / 1.499 | +50.1 % / −25.0 % |
 
-* **The copper dominates**: a board with less copper than the model has is worse per watt, so fewer watts explain the same top temperature (−11 to −45 %). Heat transfer, θ, ψJT and a 3 K measurement error each move the result 5 to 9 %.
+*(Audit 2.8.0 A5: the table re-run on `development` 5fc91430 with `power_from_top_study.py`, 7 s; the earlier values, from the program before the laminate nodes, were −13.2 / −24.1 / −34.4 / −45.0 / −11.0 %; `docs/calculators.md` 2.2 had a third set, −15.7 / −23.9 / −35.1 / −47.1 / −11.7 %. The three are now one.)*
+
+* **The copper dominates**: a board with less copper than the model has is worse per watt, so fewer watts explain the same top temperature (−12 to −48 %). Heat transfer, θ, ψJT and a 3 K measurement error each move the result 5 to 9 %.
 * The datasheet shortcut follows from the definitions (`Tj − Ta = θJA P`, `Tj − Tt = ψJT P`, so `Tt − Ta = (θJA − ψJT) P`) but its denominator is a difference of two similar numbers on a board that is not yours: it was not stated in any datasheet read, and is the worst of the routes. ψJT and θJA are measured on the JEDEC board in the same environment (Renesas, Richtek, ROHM, TI notes); ψJT is meant to give Tj from a measured case temperature when the power is known, not the power.
-* The full description of the calculator, its validation against datasheets (CSD17308Q3 47.5 against 46 K/W, a JEDEC 2s2p board 31.3 against 32.5 K/W at 0.5 mm, 32.1 at 0.25 mm) and the sources are in `docs/calculators.md`.
+* The full description of the calculator, its validation against datasheets and the sources are in `docs/calculators.md` 2.1 (re-run in the audit 2.8.0 A5 on `development` 5fc91430: CSD17308Q3 46.7 against 46 K/W at 0.5 mm, 0.986 W for 1 W, and 47.0 K/W at 0.25 mm; the JEDEC 2s2p board 31.6 against 32.5 K/W as drawn, **27.6 K/W on the board as ROHM 64AN113E prints it** (backside plane, vias to layers 1, 2 and 4), so the JEDEC row is an indication of order, not a check; the 47.5, 31.3 and 32.1 K/W quoted here before were of the programs of 2.4.5 and earlier).
 * What would improve it (not implemented): a reading at a known power to calibrate the board (within ±5 % with ±1 K readings); a second board point is badly conditioned (±17 %); see `docs/calculators.md` 2.4. The power calculator already works with the board you draw.
 * Sources read: Renesas, *Thermal Characterization of Packaged Semiconductor Devices*; Richtek AN061; ROHM, *θJA and ψJT* application note (65AN114E), https://fscdn.rohm.com/en/products/databook/applinote/common/theta_ja_and_psi_jt_an-e.pdf; TI SLRR012 one-page thermal reference, http://www.ti.com/lit/pdf/SLRR012; Microchip, https://support.microchip.com/s/article/Thermal-parameters-of-an-IC.
 
@@ -1453,7 +1455,16 @@ For parts without an exposed pad the hull, the box, the envelope and the opening
 
 ### 29.2 A published case: the JEDEC 2s2p board
 
-The JESD51-7 2s2p board of `docs/calculators.md` 2.1 (TPS7A47, RθJA 32.5 K/W, θJC(bot) 1.7 K/W, 3 x 3 vias assumed), cell 1 mm, computed h, 1 W: the heater on the 3.15 mm exposed pad gives **31.9 K/W** (-1.8 %), on the 5 mm body 40.0 K/W (+23 %; 37.7 without the face term), on the body with the leads (5.8 mm) 45.1 K/W (+39 %; 42.0). The lead traces of the JEDEC board are not drawn, so the body rows overstate what a real board does under the leads; with the heater on the pad the program reproduces the datasheet.
+The JESD51-7 2s2p board of `docs/calculators.md` 2.1 (TPS7A47, RθJA 32.5 K/W, θJC(bot) 1.7 K/W, 3 x 3 vias assumed), cell 1 mm, computed h, 1 W, RθJA at the hottest point under the heater (in brackets the node value without the face term). Re-run in the audit 2.8.0 A5 (`research/power-calculator/scripts/study_jedec_board_readings.py`, `development` 5fc91430) for the board as drawn and for the board as ROHM 64AN113E prints it (PDF page 3, read on the page image: a 74.2 mm plane of 70 µm on the backside, thermal vias joined to layers 1, 2 and 4 only):
+
+| board | exposed pad 3.15 mm | body 5 mm | body with leads 5.8 mm |
+| :-- | --: | --: | --: |
+| as drawn (no backside copper, vias to every layer) | 32.2 (32.2) | 42.4 (40.1) | 48.5 (45.4) |
+| backside plane, vias to every layer | 27.6 (27.6) | 38.6 (36.3) | 44.7 (41.7) |
+| **as ROHM prints it** (backside plane, vias to 1, 2, 4) | **28.4** (28.4) | 39.0 (36.7) | 45.1 (42.1) |
+| no backside copper, vias to 1, 2, 4 | 36.4 (36.4) | 44.9 (42.5) | 50.7 (47.6) |
+
+The earlier text of this section (31.9, 40.0 (37.7), 45.1 (42.0) K/W, 'with the heater on the pad the program reproduces the datasheet') was of the program before 2.7.0 and of the board as drawn. **Corrected claim**: the order of the shapes holds on every reading (the pad 10 to 16 K/W below the body with the leads, the body 6 to 11 K/W above the pad), but the agreement of the pad row with the datasheet's 32.5 K/W is not a check: on the board as its cited source prints it the pad reads 28.4 K/W (−13 %), and the four readings span 27.6 to 36.4 K/W. JESD51-7 and JESD51-5 are not in the library, so which reading the TPS7A47 test followed is not known. The lead traces of the JEDEC board are not drawn, so the body rows overstate what a real board does under the leads.
 
 ### 29.3 The rule on eight boards
 
@@ -1891,10 +1902,12 @@ Full copper, 60 x 40 mm, 1.6 mm, 35 um, equal gaps, h = 10 W/m²K on both faces,
 | 2, 2 mm | 0.94 | 0.73 | 0.34 | 0.10 | 0.08 |
 | 2, 10 mm | 0.92 | 0.38 | 0.13 | 0.10 | 0.07 |
 | 1, 10 mm | 0.91 | 0.37 | 0.13 | 0.09 | 0.07 |
-| 4, 2 mm | 0.92 | 0.87 | 0.55 | 0.20 | 0.16 |
-| 4, 10 mm | 0.90 | 0.66 | 0.25 | 0.19 | 0.15 |
+| 4, 2 mm | 0.93 | 0.94 | 0.67 | 0.28 | 0.22 |
+| 4, 10 mm | 0.92 | 0.84 | 0.35 | 0.26 | 0.21 |
 
-The program understates the swing by 10 % at 0.1 to 0.3 Hz, 2 to 3 times at 1 to 3 Hz and 8 to 12 times from 50 Hz to 1 kHz (5 to 7 on four layers). Cause: the capacity of the laminate (about 0.77 mm of FR-4 per node) sits on the copper node, 1394 J/m²K against 120 J/m²K of the copper itself. The error is set by the shortest stretch of the wave, not by its period: within 7.5 % for a shortest stretch of 4 s or more, 0.89 to 0.94 for 2 to 4 s, down to 0.64 for 1 to 2 s (one and two layers; four layers 0.95 to 0.97 and 0.87).
+*(Audit 2.8.0 A5: the table re-run on `development` 5fc91430, `study_ripple_review.py table371`; the one- and two-layer rows print the digits above unchanged, the four-layer rows moved from 0.92 / 0.87 / 0.55 / 0.20 / 0.16 and 0.90 / 0.66 / 0.25 / 0.19 / 0.15 (the research numbers, before 2.7.0). The move is attributed to the physical slabs of the simple stack-up of 2.7.0 (section 43: the outer copper node of a four-layer board now carries half of its own gap, less laminate than the equal share T / L), not separated by a run. The floor (10.6) is the larger of the node and the closed form, so the decisions stay on the safe side; only the size of the error of the node moved.)*
+
+The program understates the swing by 10 % at 0.1 to 0.3 Hz, 2 to 3 times at 1 to 3 Hz and 8 to 12 times from 50 Hz to 1 kHz on one and two layers (3.6 to 5 times on four layers since 2.7.0; 5 to 7 before). Cause: the capacity of the laminate (about 0.77 mm of FR-4 per node) sits on the copper node, 1394 J/m²K against 120 J/m²K of the copper itself. The error is set by the shortest stretch of the wave, not by its period: within 7.5 % for a shortest stretch of 4 s or more, 0.89 to 0.94 for 2 to 4 s, down to 0.64 for 1 to 2 s (one and two layers; four layers 0.95 to 0.97 and 0.87).
 
 ![Wrong decisions](images/fast_wave_wrong_decisions.png)
 
