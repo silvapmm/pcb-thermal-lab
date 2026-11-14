@@ -370,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **The audit documents A2, A4, A5, S1 and the second decisions file merged**: the fine-comb re-review of convection, cut cells, edge/laminate, Lumped/Analytic/transient, calculator, JEDEC board redrawn (calculator row is an indication, not a verification) and numerics is in `releases/2.8.0/audit/`; fixes are queued in `DECISIONS_2.md`.
+
 - **Fix branches merged after review and the whole battery (3606 passed)**: profiles-tab flake fixture (tests use a private settings store), OCR map reads the status file, Analytic transient reads the steady hot point, thick-plate warning corrected bound with the film term, board dock writes only edited fields (ranges widened, undo keeps the solver options, Preferences boxes widen). The fine-comb audit documents merged (register, A1+L2, A3+L3+L6, L1+L5, L4+L9, A2+L7, decisions): validation/theory numbers corrected: see `releases/2.8.0/audit/`.
 
 - **Lumped near an edge** (`research/lumped-edge-link`, reviewed GO, merged): the first footprint-to-ring link ignores the side image; the fix is adopted for 2.8.0 in its own branch (`fix/lumped-edge-first-link`) with a new pending file replacing `lumped-part-readout.json`; interior parts read a few points hotter (safe side).
