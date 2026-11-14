@@ -347,7 +347,14 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         page_rows = []
         for pg in sorted(ess):
             from_notes = pg in v["verified"] and pg not in v["error"]
-            from_status = status_mod.effective(papers, stem, pg, status_data)["state"] in ("verified", "corrected")
+            state_now = status_mod.effective(papers, stem, pg, status_data)["state"]
+            from_status = state_now in ("verified", "corrected")
+            if from_status and state_now == "verified" and pg in v["error"]:
+                # OCR_TO_VERIFY.md judged the Gemini page: its ERROR is stale only when another page is in use now
+                # (Claude, OpenRouter) or the text was corrected; a `verified` mark on the same Gemini page cannot be
+                # ordered against the note, so the page stays to verify (the safe side)
+                src = status_mod._src(papers, stem, pg)
+                from_status = src is not None and src[0] != "gemini"
             ok_verified = from_notes or from_status
             needs_model = (not born) or cls.get(pg) != "clean" or any(
                 r.startswith(("Table", "eq.", "listed")) for r in ess[pg])
@@ -394,8 +401,9 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         "essential_pages": sum(len(r["essential_pages"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
         "e1_run_pages": run_pages, "e1_verify_only_pages": sum(len(r["e1_verify_only"]) for r in rows),
         "e1_text_only_pages": sum(len(r["e1_text_only"]) for r in rows),
-        "e2_pages": sum(len(r["e2_pages"]) for r in rows),
-        "e2_from_status_pages": sum(len(r["e2_from_status"]) for r in rows),
+        # E2 counted over the same files as `essential_pages` (arXiv and confidential files left out), so E1 + E2 = essential
+        "e2_pages": sum(len(r["e2_pages"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
+        "e2_from_status_pages": sum(len(r["e2_from_status"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
         "tokens_e1": run_pages * RATE_TOKENS_PER_PAGE,
         "optional_pages": total_pages - sum(len(r["essential_pages"]) for r in rows),
         "free_text_pdfs": [r["stem"] for r in rows if r["free_text_ok"]],
