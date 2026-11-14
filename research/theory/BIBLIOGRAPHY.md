@@ -1207,7 +1207,7 @@ Y. Saad, *Numerical Methods for Large Eigenvalue Problems*, revised edition, SIA
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm.
+Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm. Audit L12 of 2.8.0, by image: eq. 4.47 on printed page 127 (PDF 147), Theorem 4.16 on page 126 (PDF 146, 'Let A be a consistently ordered matrix such that a_ii != 0'), Theorem 4.10 (SOR converges for 0 < omega < 2 if and only if A is positive definite, A symmetric with positive diagonal) on page 122 (PDF 142).
 
 ### Sources of S4
 The constriction (Krogh cell, `(ln(R/r_t) - 3/4) / (2 pi S)`), the tile self-term and the references are those of section 17 and of `research/lumped-analytic-vias/README.md` (status as recorded there: the closed forms are derived and checked, no published numerical case of a via-array constriction was found); nothing new was opened for S4.
@@ -1834,7 +1834,7 @@ Bittele, standard multilayer stack-up, 2 pages, **R**: 2 layers 1 oz copper (0.0
 
 **Licence:** not checked. **Source URL:** https://arxiv.org/abs/2204.05554.
 
-Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password.
+Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password. **Audit L12 of 2.8.0**: Table A.1 is on book page 739 (PDF 753), checked by image: pure copper at 20 C 8954 kg/m3, 384 J/kgK, 398 W/mK (401 at 0 C, 391 at 100 C, 389 at 200 C). The program's copper (385 W/mK, 8960, 385) is **not** this row and has no recorded source: `docs/theory.md` 0 marks it 'typical, no source'. Text layer of PDF 753 to 754 (not imaged): aluminium pure 237, 6061-T6 167, brass (30 % Zn) 109, AISI 1010 64, AISI 304 13.8 W/mK.
 
 ### Citations and identities corrected in this pass
 * [Kron2022]: the authors are S. Chevalier and M. R. Almassalkhi (*Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554); status S (abstract).
