@@ -76,28 +76,37 @@ def test_error_in_kelvin_does_not_depend_on_h():
     assert abs(e[0] - e[1]) < 0.1
 
 
-def test_thick_plate_warning_is_shown_for_the_three_large_sources_only():
+def test_thick_plate_warning_is_shown_for_all_four_sources_with_the_film_term():
     """!
-    @brief The warning of checks.check_thick_plates names S1, S2 and S3 (bound 8.3, 6.7 and 5.0 K) and not S0 (3.3 K, 4.8 % of its rise, under the 5 % limit).
+    @brief The warning of checks.check_thick_plates names all four sources: S0 (4.3 K, 6 % of its rise) now exceeds the 5 % limit because the film term was added; S1, S2 and S3 read 9.3, 7.6 and 5.9 K.
+    @details Guards the fix of the thick-plate bound (branch fix/thick-plate-film-term and its documents, docs/validation.md 22.1): before it the text held only the through-thickness
+             term (8.3, 6.7, 5.0 and 3.3 K) and S0 stayed silent; the text also says 'upper estimate', not 'bound'.
     @return None.
     """
     _, sim = C.run("fvm", 1.0)
     text = " ".join(w for w in sim.warnings if "thick and poorly" in w)
-    assert all(f"S{i}:" in text for i in (1, 2, 3)) and "S0:" not in text
+    assert all(f"S{i}:" in text for i in (0, 1, 2, 3))
+    assert text.count("from the face film") == 4 and "upper estimate" in text
+    for i, total in ((0, 4.3), (1, 9.3), (2, 7.6), (3, 5.9)):
+        assert f"S{i}:" in text and f"up to {total} K" in text
 
 
-def test_the_board_dock_cannot_hold_the_plate():
+def test_the_board_dock_holds_the_plate():
     """!
-    @brief The copper box of the Board dock stops at 210 um: a 10 mm plate cannot be typed there (it can be loaded from a project file).
+    @brief The copper box of the Board dock reaches the 10 mm (10 000 um) plate (it stopped at 210 um) and the loaded plate stays 10 000 um in the project (spinfit.fit_range).
+    @details Guards the fix of the dock write-back (branch fix/dock-writeback): before it the box clamped the stored value to 210 um.
     @return None.
     """
     pytest.importorskip("PySide6")
+    from pcbthermal.gui.panels import BoardPanel
+    from pcbthermal.gui.document import Document
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
-    from pcbthermal.gui.document import Document
-    from pcbthermal.gui.panels import BoardPanel
-    p = BoardPanel(Document())
-    assert p.copper.maximum() == 210.0 and p.copper.maximum() < C.T_MM * 1e3
+    assert BoardPanel(Document()).copper.maximum() >= C.T_MM * 1e3     # The box now reaches the 10 mm plate
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    import study_case2_review as R
+    (_, a, z), _ = R.dock_check()
+    assert a["copper um"] == [10000.0] and z["copper um"] == [10000.0]
     assert app is not None
 
 
@@ -115,18 +124,19 @@ def test_warning_bound_is_exceeded_by_a_column():
     assert not col["warned"]
 
 
-def test_one_dock_edit_rewrites_fields_it_did_not_touch():
+def test_one_dock_edit_leaves_the_fields_it_did_not_touch():
     """!
-    @brief Review 8.6: one edit of h_bottom in the Board dock of the real main window rewrites the copper (10 000 to 210 um), h_top (600 to 500), the width (50.04 to 50.0 mm)
-           and the copper conductivity (150.4 to 150); one edit of the emissivity flattens the unequal copper of a simple stack-up. This documents the program defect;
-           when the program is fixed the assertions must be turned around.
+    @brief One edit of h_bottom in the Board dock of the real main window leaves the copper (10 000 um), h_top (600), the width (50.04 mm) and the copper conductivity (150.4) as loaded;
+           one edit of the emissivity keeps the unequal copper of a simple stack-up.
+    @details Guards the fix of the dock write-back (the dock writes only the boxes the user changed, and a box widens to hold a loaded value). Before it the same edit rewrote
+             the copper to 210 um, h_top to 500, the width to 50.0 mm, the conductivity to 150 and flattened the unequal copper (Review 8.6).
     @return None.
     """
     pytest.importorskip("PySide6")
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
     import study_case2_review as R
     (_, a, z), (_, a2, z2) = R.dock_check()
-    assert a["copper um"] == [10000.0] and z["copper um"] == [210.0]
-    assert a["h_top"] == 600.0 and z["h_top"] == 500.0
-    assert abs(z["width mm"] - 50.0) < 1e-9 and abs(z["k_copper"] - 150.0) < 1e-9
-    assert a2["copper um"] == [70.0, 17.5, 17.5, 70.0] and z2["copper um"] == [70.0, 70.0, 70.0, 70.0]
+    assert z == a
+    assert z["copper um"] == [10000.0] and z["h_top"] == 600.0
+    assert abs(z["width mm"] - 50.04) < 1e-9 and abs(z["k_copper"] - 150.4) < 1e-9
+    assert z2["copper um"] == [70.0, 17.5, 17.5, 70.0] and z2 == a2
