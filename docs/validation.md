@@ -371,14 +371,14 @@ Example board, FVM at 1 mm, Tmax [°C], typed `h` (10 top / 15 bottom) against c
 
 | Power [W] | Typed | Computed | Difference | Computed h top / bottom [W/m²K] | Vertical | 2 m/s air | Convection ×0.8 |
 | --: | --: | --: | --: | :-: | --: | --: | --: |
-| 0.55 | 31.1 | 31.9 | +0.8 | 10.4 / 7.9 | 32.0 | 29.9 | 32.1 |
-| 1.4 | 40.2 | 41.4 | +1.2 | 11.6 / 8.6 | 41.7 | 37.2 | 42.0 |
-| 5.5 | 85.8 | 85.8 | 0.0 | 14.2 / 10.1 | 86.7 | 73.5 | 88.1 |
-| 11 | 146.6 | 141.2 | −5.4 | 16.1 / 11.3 | 142.7 | 121.4 | 145.2 |
-| 22 | 268.3 | 245.3 | −23.0 | 18.6 / 13.1 | 247.8 | 215.6 | 252.0 |
+| 0.55 | 31.0 | 31.8 | +0.7 | 10.4 / 8.3 | 31.9 | 29.9 | 32.0 |
+| 1.38 | 40.1 | 41.2 | +1.1 | 11.6 / 9.0 | 41.6 | 37.1 | 41.8 |
+| 5.5 | 85.5 | 85.3 | −0.2 | 14.2 / 10.4 | 86.4 | 73.2 | 87.5 |
+| 11 | 145.9 | 140.2 | −5.7 | 16.1 / 11.5 | 142.0 | 120.7 | 144.3 |
+| 22 | 266.9 | 243.6 | −23.3 | 18.6 / 13.2 | 246.4 | 214.1 | 250.3 |
 
-A constant `h` is right near one operating point and over-estimates the rise by 10 % at 22 W (the typed pair happens to be right near 5.5 W). Radiation is 43 % of the computed top coefficient and 60 % of the bottom one; the bottom face (facing down) cools worse than the top. Since `fix/face-down-convection` the bottom face uses `Nu = 0.475 Ra^(1/5)` instead of the McAdams `0.27 Ra^(1/4)`: Nu is +25 % at Ra 1e3, +11 % at 1e4, -1 % at 1e5, -12 % at 1e6, and the hottest rise of the 17 harness boards at computed `h`, horizontal, FVM 2 mm moves by -0.26 to -1.36 % (mean -0.70 %; example board 60.06 to 59.86 K, bottom coefficient 10.13 to 10.38 W/m²K); vertical boards and boards with typed coefficients (all the frozen records) are unchanged.
-Air properties agree with textbook values within 1 to 3 %; the three models agree on the coefficients within 0.1 W/m²K.
+The table is the output of the script on the program of 2.7.1 (re-run in the literature-to-code audit, `releases/2.8.0/audit/REVIEW_L1L5.md`); the earlier table (5.5 W: 85.8 / 85.8 °C, bottom coefficient 10.1 W/m²K) was printed before the 2.6.0 and 2.7.0 model items and the face-down law, and had gone stale by 0.1 to 1.7 °C. A constant `h` is right near one operating point and over-estimates the rise by 11 % at 22 W (241.9 against 218.6 K; the typed pair happens to be right near 5.5 W). Radiation is 43 % of the computed top coefficient and 59 % of the bottom one at 5.5 W; the bottom face (facing down) cools worse than the top. Since `fix/face-down-convection` the bottom face uses `Nu = 0.475 Ra^(1/5)` instead of the McAdams `0.27 Ra^(1/4)`: Nu is +25 % at Ra 1e3, +11 % at 1e4, -1 % at 1e5, -12 % at 1e6, and the hottest rise of the 17 harness boards at computed `h`, horizontal, FVM 2 mm moves by -0.26 to -1.36 % (mean -0.70 %; example board 60.06 to 59.86 K, bottom coefficient 10.13 to 10.38 W/m²K); vertical boards and boards with typed coefficients (all the frozen records) are unchanged.
+Air properties agree with Table A.6 of [Lienhard2024] (printed p 755, PDF 769, page image read) within 2.2 % from 250 to 400 K (ν −0.2 to −0.9 %, k −1.4 to +0.5 %, α −1.4 to +1.3 %, Pr +1.1 to −2.2 %); at 450 K, the upper end of the range the fits are said to cover, Pr is −3.5 % and α +2.4 % (the specific heat is held at 1007 J/kgK, the table has 1021). The Lumped and Analytic coefficients differ from the FVM ones by at most 0.05 W/m²K (0.55, 5.5 and 22 W).
 
 ## 9. Parts: the junction temperature
 
