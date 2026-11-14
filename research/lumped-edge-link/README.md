@@ -21,6 +21,10 @@ Branch `research/lumped-edge-link`. Nothing in `pcbthermal/`, `tests/`, `example
   in a corner 0.5 to 1 mm from both sides): the image is that of an insulated side (3.4); the mean over the footprint stays 4 to 8 % cool at a corner gap of 1 to 5 mm.
 * **Frozen numbers move**: 51 of 51 Lumped records (17 boards, three cells) by -0.47 to +3.13 % of the rise (mean +0.67 %, mostly hot), the largest `part_across_outline` (equivalent-rectangle path) +3.1 %, and 14 times to 63 % by
   -19.9 to +1.1 % (3.6). All 51 records are already in `tests/regression/data/pending/lumped-part-readout.json`: the combined pending file is described in `INTEGRATION.md`.
+* **Review (section 4, GO for the adoption)**: every number re-run reproduced to the printed digit; three statements of this summary were incomplete and are corrected there: (a) most of the gain at a gap and in the interior is the
+  change of the chain of the first link (strip replaced by the potential difference from the boundary cells to the ring-1 mean), not the images, which matter only for a part touching a side or a corner (a part 29 mm from every side:
+  -4.8 to +1.4 % with the images, +1.2 % without); (b) on the 17 frozen boards the correction does NOT make the Lumped closer to the FVM on average (mean absolute error of the part peaks 5.04 to 5.17 % at 1 mm), because an interior
+  part of the example board read right only by a cancellation; (c) the times to 63 % against a converged FVM step response are fixed near an edge (+20 to -5 %, corner +43 to +2 %) and become 5 to 9 % short in the interior.
 
 ### 1.1 Drawings
 
@@ -175,7 +179,90 @@ step responses and profiles use the same network and move with it. The earlier c
 * The residual 3 to 7 % at a gap of 1 to 5 mm and at a corner 2 to 5 mm: the ring-to-ring links with the image would need a ring potential on every cell (the earlier `pot`: 0.2 to 5 s per part, moves the 17 boards by up to -3.9 K and some by +8 % hot).
 * Profiles and step responses use the same rings: the time response of the corrected network was measured only at the 14 times of 3.6, not against a transient reference.
 
-## 4. What was read and what was not verified
+## 4. Review
+
+Independent review of the folder (code of `lib/variants.py` and `pcbthermal/lumped.py` `_one_node_network`, `_zone_network`, `ring_edges`, `_footprint_potentials` read against `docs/theory.md` 5; studies re-run on this branch, one process at a time;
+the review scripts were kept outside the repository). Verdict: **GO for merging the investigation; GO for adopting `first:zone` as a `fix/` of 2.8.0**, with the corrections and conditions below.
+
+### 4.1 Reproduced
+
+* 13 of the 432 cases (60 x 40 and 100 x 80 mm, 3 / 6 / 10 mm, 2 and 4 layers, side and corner, gap 0 to 25 mm, `h_side` 0 to 200), variants `program`, `first`, `first:zone`: hottest point and mean equal to `out/remeasure_first.json` to the fourth decimal; 4 FVM 0.5 mm part read-outs
+  recomputed without the cache equal to the stored ones to 1e-6 K; the part row equals the board maximum of the Lumped run on all 13 (difference 0).
+* The independent 3D (`tests/helpers/layered3d.py`): side gap 0 at 0.5 / 0.25 mm 55.1444 / 55.1532 K, side gap 2 at 0.25 mm 49.0543 K, centred at 0.5 / 0.25 mm 42.0058 / 42.0164 K, all equal to `out/reference3d.json`; FVM -0.16 / -0.14 / -0.19 %; Lumped program / `first`
+  -9.85 / -3.09 %, -4.88 / -4.16 %, +2.34 / +0.83 % of the converged peak (table 3.2). Peak resident 2.8 GB (the centred case at 0.25 mm, whole board).
+* `tests/test_edge_link.py`: 9 passed (the INTEGRATION file said 8).
+
+### 4.2 Independent checks that the study had not made
+
+**At the 1 mm cell** (the Lumped raster is clamped to 0.5 to 1 mm; the study ran only 0.5 mm), the 432 cases against the same FVM at 0.5 mm, hottest point, % of the rise, mean [worst cool, worst hot]:
+
+| group | n | program 0.5 mm | `first:zone` 0.5 mm | program 1 mm | `first:zone` 1 mm |
+| :-- | --: | --: | --: | --: | --: |
+| all | 432 | -9.4 [-22.4, +1.6] | -2.5 [-8.6, +9.4] | -7.3 [-20.9, +10.6] | -1.5 [-8.5, +7.0] |
+| flagged by `check_lumped_near_edge` (gap at most max(side, 5 mm)) | 336 | -11.0 [-22.4, -3.3] | -3.0 [-8.6, +9.4] | -9.2 [-20.9, +5.2] | -2.2 [-8.5, +6.6] |
+| not flagged | 96 | -3.9 [-9.7, +1.6] | -0.7 [-5.7, +1.9] | -0.6 [-8.8, +10.6] | +1.0 [-3.6, +7.0] |
+
+Beyond -8 %: 209 of 432 at 1 mm with the program, 2 with the correction; hot beyond +3 %: 31 and 24 (at 1 mm the hot ones are mostly the 3 mm part on the 1 mm raster, which the program already reads up to +10.6 % hot). The gain holds at both cells.
+
+**On the 17 frozen boards against the FVM at the same cell** (part peaks of `tests/regression/data/v2.7.0.json` and of the pending `lumped-part-readout.json`, plus the shifts of `out/frozen_effect.json`; 18 parts per cell, `profile_board` left out as a copy of `example_board`):
+
+| cell | mean absolute error, program -> `first:zone` | mean signed error | parts closer to the FVM |
+| --: | --: | --: | --: |
+| 0.5 mm | 5.14 -> 5.02 % | -4.54 -> -3.83 % | 12 of 18 |
+| 1 mm | 5.04 -> 5.17 % | -3.43 -> -2.48 % | 8 of 18 |
+| 2 mm | 5.38 -> 5.60 % | -3.70 -> -2.74 % | 7 of 18 |
+
+So on these boards the correction gives no net gain in accuracy. The largest errors are other limits that it does not touch (`t_outline` -32 %, `plate_pad` -14 to -16 %, `one_layer_pad` -10 to -12 %); the parts near a side improve (`part_across_outline` -13.3 to -10.6 % at 1 mm,
+`example_cut_to_T` U1 -2.0 to -0.5 %), the interior parts move hot by 0.1 to 1 point, and `example_board` U2 moves from +0.07 to +4.23 % at 1 mm. **U2 is an interior part** (6 mm, 29 mm from the nearest side, 14 mm inside the top copper): run alone it reads
+-4.82 % with the program and +1.41 % with the correction (without the heatsink -4.48 / +1.70 %, without the vias the same); the program's near-zero reading on the full board was its own deficit cancelled by the superposed tail of U1's network (about +5 points
+at U2). The correction removes the first of the two errors and shows the second. The same run without the images (`first:0zone`, reflection 0): U2 alone +1.19 %, so the interior gain is the chain of the first link, not the images.
+
+**Time to 63 % against a converged FVM step response** (`profiles.step_response_fvm` at 0.5 mm; the frozen FVM times are at 2 mm, where a centred 6 mm part reads 5.61 s against 4.99 s, so the comparison with them would not be a reference), Lumped at 1 mm,
+error of t63 and of the step resistance R:
+
+| case | FVM 0.5 mm t63 s / R K/W | program t63 / R | `first:zone` t63 / R |
+| :-- | --: | --: | --: |
+| 100 x 80, 6 mm, side gap 0 | 6.415 / 40.08 | +19.9 / -10.6 % | -5.2 / +0.7 % |
+| 100 x 80, 6 mm, corner gap 0 | 7.321 / 65.43 | +43.4 / -19.0 % | +1.7 / -0.8 % |
+| 100 x 80, 6 mm, centred | 4.989 / 25.06 | +3.0 / -0.1 % | -6.4 / +4.0 % |
+| `plate_uniform` | 19.039 / 26.93 | -1.5 / +0.6 % | -4.5 / +1.5 % |
+| `example_board` U1 | 10.409 / 13.64 | -14.9 / +0.9 % | -15.2 / +0.9 % |
+| `example_board` U2 | 2.174 / 21.25 | +12.7 / -5.0 % | -9.2 / +1.3 % |
+
+Near a side the step response is now right; in the interior the time gets 5 to 9 % shorter, because the first link carries more resistance next to the small capacity of the footprint. A shorter time is a faster rise and a larger swing of a
+square wave: the safe side of the average-or-resolve decision. At 0.5 mm the same pattern (side gap 0 -5.8 %, centred -6.7 %).
+
+### 4.3 The physics of the copy, read against the program
+
+* **What is replaced.** `image_source("first")` replaces `_footprint_potentials` by the version with the eight images in all its uses: the interior term `f_r (phi_bnd - phi_mean)` of the first link and the micro peak `f_p (phi_mean - phi_min)` change value as well.
+  `INTEGRATION.md` said "the peak term is unchanged": its formula is, its value is not (corrected there).
+* **The chain.** `phi_bnd` is the potential at the centres of the boundary cells of the footprint, half a cell inside its edge; the program then added half of ring 1 as a strip that starts at the footprint edge, so the half cell between the boundary
+  centres and the edge was not counted and the strip is an approximation of the log potential of a thick ring (ring 1 is at least the equivalent radius wide since the first-ring cap). The new term `(U1 - phi_bnd) / (2 pi S_1)` goes from the boundary centres to
+  the ring-1 area mean, which is what the ring-1 node stands for; the next link still adds the outer half of ring 1 as a strip with the clipped length. No stretch is counted twice. On an unbounded sheet with a thin ring 1 the two forms are equal.
+* **The images.** For a part on an insulated side the image doubles both potential terms, which is the open-fraction argument of `expo` (ω = 1/2), and the clipped ring lengths of the later links are the board's: consistent. The images sit at x = 0, W and y = 0, H of the Lumped raster,
+  which is the board box (`dx = W / nx`). One reflection per side is the first term of the image series; at a gap the images change the first link by little (0.2 point for U2 above).
+* **Outline boards.** The Lumped runs them on the equivalent rectangle, so the images are those of its sides, not of the real outline: consistent with how the Lumped places everything on that rectangle, not a model of the real edge. Measured: `part_across_outline`
+  -13.3 to -10.6 % (1 mm), `round_outline` +2.8 to +3.6 %, `t_outline` -32.3 to -31.6 %. The existing equivalent-rectangle and near-edge warnings already apply; no extra rule is needed.
+* **A cooled side.** The hot cases (up to +9.4 % at 0.5 mm, +6.6 % at 1 mm, a 6 or 10 mm part 0.5 to 1 mm from both sides of a corner at 200 W/m2K) are on the safe side. A reflection factor below 1 only pulls them back towards cool and makes the average worse
+  (0.8: -4.5 % mean against -2.5 %, 3.4); a derived Robin reflection is not needed to adopt the correction and is left as a limit.
+* **The calibration.** The interior factor and the first-ring cap were fitted with the old link, yet the parts away from every side read better with the new one (-3.9 to -0.7 % at 0.5 mm; against the 3D the centred part +2.3 to +0.8 %); at 1 mm they move
+  from -0.6 to +1.0 % on average with a spread to +7 % that is the 1 mm raster of a 3 mm part (the program reads it +10.6 %). A refit would chase the raster; not recommended.
+* **Shared paths.** The step response and the power profiles use the same network (4.2); a metal block's layers use the same link (the `finned_block` record moves +0.6 to +0.9 K, its part error -0.9 to 0.0 % at 0.5 mm, +2.1 to +2.7 % at 1 mm); the via wells are not touched.
+  The far-part shift is not "less than 3 %" as test (c) of `INTEGRATION.md` 3 proposed: on the 80 cases far from every side it is +0.1 to +5.3 points at 0.5 mm (mean +3.4) and -5.7 to +6.3 at 1 mm (corrected there).
+
+### 4.4 Not verified by the review
+
+The zoned footprint (3.5) was not re-run (its FVM references were not recomputed); the cost figures of 3.7 were not timed again (the 13 cases took 0.0 to 0.1 s per Lumped run); several parts near the same side, partial copper near a side and a metal block near a side were not run;
+no published case of a part near an insulated or cooled side was found or reproduced; the 0.125 mm 3D runs were not repeated.
+
+### 4.5 Decisions (delegated by the maintainer; the reviewer's recommendation)
+
+* **Adopt now**, in 2.8.0, as `fix/lumped-edge-first-link`, in the one-node network and in the zone model, with the insulated images and **no Robin restriction** (the cooled-corner excess is hot, the safe side). Reason: it turns an unsafe error of up to -22 % of the rise
+  (209 of 432 cases beyond -8 % at 1 mm) into at most -8.5 % cool and +7 to +9 % hot, removes a cancellation instead of creating one, and fixes the near-edge step response. Not 'only a warning': the warning would keep -22 %; not `expo_peak` alone: it does nothing at a gap.
+* **Conditions on the fix branch**: the tests of `INTEGRATION.md` 3 at 0.5 and 1 mm; the warning numbers re-measured with the program on the branch at both cells; the changelog says that interior parts move by up to a few points hot, that on a board with several
+  parts a near-zero reading of an interior part can become +4 % (the superposition of the other part's network), and that the times to 63 % of interior parts get 5 to 9 % shorter; the pending files as in `INTEGRATION.md` 5 (b).
+
+## 5. What was read and what was not verified
 
 * **Read in full**: `pcbthermal/lumped.py` (`ring_edges`, `_one_node_network`, `_zone_network`, `_footprint_potentials`, `_heater_network`), `docs/validation.md` 35 and 48, `research/lumped-near-edge` README sections 3, 5, 6, 10 and `INTEGRATION.md`,
   `lib/variants.py` and `lib/boards.py` of that folder, `tests/helpers/layered3d.py`, the harness files of `tests/regression` that this study calls (`regress_harness.run_one`, `t63`, `regress_boards`).

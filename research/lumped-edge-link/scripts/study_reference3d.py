@@ -6,7 +6,7 @@
 @details Two layers of full copper, a 6 mm part, insulated sides (h_side 0, the 3D solver has no edge film), FR-4 isotropic 0.3 W/mK in the program too. Edge cases use the symmetry plane
          (half board), corner cases the whole board, both at 0.5 and 0.25 mm. The converged value is the Richardson extrapolation of the two cells (first order: the part's surface node
          sits half a cell below the film). A run at 0.125 mm of the edge cases (307 200 unknowns) peaked at 4.9 GB resident, above the 3 GB kept here: it was done for gap 0, 1, 2 and
-         5 mm and moved the peak by at most 0.003 K (README 4.1), so 0.25 mm is converged to 0.01 % on the peak. Heavy (hundreds of thousands of unknowns): run one at a time, under 3 GB resident.
+         5 mm and moved the peak by at most 0.003 K (README 3.2), so 0.25 mm is converged to 0.01 % on the peak. Heavy (hundreds of thousands of unknowns): run one at a time, under 3 GB resident.
          Writes out/reference3d.json. Run from the repository root: QT_QPA_PLATFORM=offscreen .venv/bin/python research/lumped-edge-link/scripts/study_reference3d.py
 """
 
