@@ -917,8 +917,15 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
     PX, PY = lc["PX"][:K] / tw, lc["PY"][:K] / th                         # Average of the first K eigenfunctions over each active tile
     A = _modal_matrix(problem, d, n_terms, 0.0, 0.0)[:K, :K]
     ls = LocalSystem(A, d["c_l"], bx.weight[:K], by.weight[:K], PX, PY, lc["Cv"], lc["cs"], W, H)
-    lay, iy, ix = d["points"][served]
+    # The readout point is the hottest cell of the steady field WITH the vias and heatsinks (what the steady result reports), not the hottest cell of the board without
+    # them that _modal_dynamics found: with a via cluster the two differ by millimetres and the transient read 22 % low at 0.3 s (research transient-reference-boards 4.3).
+    # The problem handed here has only the served heater powered, so the argmax of the field is its own hot point.
+    lay, iy, ix = np.unravel_index(int(np.argmax(steady.T)), steady.T.shape)
+    d["points"] = list(d["points"])
+    d["points"][served] = (int(lay), int(iy), int(ix))
     wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
+    d["U"] = d["U"].copy()
+    d["U"][served] = wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]    # uniform-mode output row at the new point
     q_all = _heater_unit_sources(problem, bx, by)                          # 1 W of every heater
     del lc["Cv"], lc["cs"]                                                 # (now held as projections inside the LocalSystem)
     # Target: the steady rise per watt of the corrected steady model at the own point of the served heater, less what the modes outside the block carry
@@ -1105,7 +1112,7 @@ class _AnalyticAdapter:
         if problem.heatsinks:
             # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
             # 0.5 mm, converged), research/analytic-edge-and-transient README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
-            # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
+            # -0.1 % with a heatsink; measured again with the readout at the hot point of the steady solve, branch fix/analytic-transient-hot-point: -10.6 % to +2.2 %, validation 4.2; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
             # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
@@ -1178,7 +1185,7 @@ class _AnalyticAdapter:
         return None
 
 
-HEATSINK_TRANSIENT_KEY = "-8 % to +1 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+HEATSINK_TRANSIENT_KEY = "-11 % to +2 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
 
 
 def heatsink_transient_warning(scales=""):
@@ -1188,7 +1195,7 @@ def heatsink_transient_warning(scales=""):
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
-            "of test boards, from about -8 % to +1 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
+            "of test boards, from about -11 % to +2 % off the converged finite-volume result (the worst, -11 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
             "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"
