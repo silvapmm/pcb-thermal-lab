@@ -4,10 +4,14 @@
 @file study_block_pads.py
 @brief Where does 'the Lumped and Analytic metal block is within about 5 % of the FVM' hold? A plate joined to the board through one or several pads, swept.
 
-@details Synthetic boards of ours (100 x 80 mm, two layers, 1.5 mm aluminium plate on the bottom face, a part on the top face over each pad, 5 W per part in total split
-         equally). The FVM at the given cell is the reference; the Lumped and the Analytic (block as a ring layer and as a tile graph) are compared with it on
+@details Synthetic boards of ours (100 x 80 mm, two layers, full top copper, 1.5 mm aluminium plate (204 W/mK) on the bottom face, a bottom copper pad and a 6 mm part
+         on the top face over each pad, 5 W in total, 3 : 1 : 1 : 1 by default). The FVM at the given cell is the reference; the Lumped and the Analytic (block as a ring layer and as a tile graph) are compared with it on
          (a) the block temperature (mean and maximum), (b) the temperature of each part, (c) the heat that enters the block (FVM and the models that report it).
          Error = (model - FVM) / FVM rise above ambient, in percent.
+         The temperature of a part is the hottest value under its footprint. For the FVM and the Analytic that is the hottest value of their field; the Lumped paints its
+         footprint with the ring-0 node (no peak term), so its part is ALSO read with its own peak (node + peak_extra + the other heaters at the centroid, the formula of
+         lumped.solve_steady, columns `lumped_part_own` and `lumped_spread_own`); the field reading (`lumped_part_max`, `lumped_spread`) is kept for the record of the first
+         pass, whose -8 to -17 % compared two different quantities (README 7).
          Sweeps (one factor at a time around a base case, plus the full grid of pad count x interface): pad count 1, 2, 4; pad side (area per pad);
          interface resistance; block size relative to the board; h on the block free face (h_extra).
          Usage (from the repository root, light: one process, coarse cell):
@@ -25,8 +29,49 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 from pcbthermal import Problem, analytic, fvm, lumped                       # noqa: E402
 from pcbthermal.analysis import heater_stats                                 # noqa: E402
+from pcbthermal.geometry import polygon_centroid                             # noqa: E402
 
 W, H, AMB = 100.0, 80.0, 25.0
+
+# The networks the Lumped builds during one solve, captured by a wrapper of the module attribute in this process only (the program is not edited)
+_CAPTURED = []
+_ORIGINAL = lumped._heater_network
+
+
+def _capture(*args, **kwargs):
+    """!
+    @brief Wrapper of lumped._heater_network that keeps every heater network of the current solve.
+    @param args Positional arguments of lumped._heater_network.
+    @param kwargs Keyword arguments of lumped._heater_network.
+    @return The network dict of lumped._heater_network.
+    """
+    rn = _ORIGINAL(*args, **kwargs)
+    _CAPTURED.append(rn)
+    return rn
+
+
+lumped._heater_network = _capture
+
+
+def lumped_part_peaks(p, r):
+    """!
+    @brief The Lumped's own peak of every part, with the formula of lumped.solve_steady (own node + peak_extra + the other heaters read at the centroid).
+    @param p Problem (every heater powered: one network per heater, in order).
+    @param r SteadyResult of lumped.solve_steady for p, solved right after _CAPTURED was cleared.
+    @return List of rises in K, one per heater.
+    """
+    ny, nx = r.T.shape[1:]
+    nets = list(zip(p.heaters, _CAPTURED))
+    out = []
+    for hj, rj in nets:
+        th = rj["theta"][hj.layer, 0] + rj["peak_extra"]
+        cx, cy = polygon_centroid(hj.polygon)
+        ij = (min(max(int(cy // r.dy), 0), ny - 1), min(max(int(cx // r.dx), 0), nx - 1))
+        for hi, ri in nets:
+            if ri is not rj:
+                th += lumped._radial(ri, ri["dist"][ij], ri["theta"][hj.layer])
+        out.append(float(th))
+    return out
 
 
 def pad_centres(n):
@@ -75,15 +120,19 @@ def metrics(model, p, cell):
     @param model 'fvm', 'lumped' or 'analytic'.
     @param p Problem.
     @param cell Cell in mm.
-    @return dict: block_mean, block_max (K above ambient, nan if the model does not report), parts (list of part t_max rises), t_max rise, w_block (nan if not reported).
+    @return dict: block_mean, block_max (K above ambient, nan if the model does not report), parts (list of part rises, hottest field value under the footprint),
+            parts_own (the Lumped's own part peaks; the same as parts for the other models), t_max rise, w_block (nan if not reported).
     """
     mod = {"fvm": fvm, "lumped": lumped, "analytic": analytic}[model]
+    _CAPTURED.clear()
     r = mod.solve_steady(p, cell_mm=cell)
     rows = heater_stats(r, p)
     ex = r.extras
     nan = float("nan")
+    parts = [row["t_max"] - AMB for row in rows]
+    own = lumped_part_peaks(p, r) if model == "lumped" else parts
     return {"block_mean": ex.get("block_bottom_mean", nan) - AMB, "block_max": ex.get("block_bottom_max", nan) - AMB,
-            "parts": [row["t_max"] - AMB for row in rows], "rise": r.t_max - AMB, "w_block": ex.get("block_bottom_w_to_block", nan)}
+            "parts": parts, "parts_own": own, "rise": r.t_max - AMB, "w_block": ex.get("block_bottom_w_to_block", nan)}
 
 
 def compare(label, p, cell):
@@ -104,6 +153,10 @@ def compare(label, p, cell):
         out[f"{m}_part_max"] = max(errs, key=abs)
         # The spread between the hottest and the coolest part says how the heat is shared between the pads
         out[f"{m}_spread"] = ((max(v["parts"]) - min(v["parts"])) - (max(ref["parts"]) - min(ref["parts"]))) / ref["rise"] * 100.0
+        if m == "lumped":
+            errs_own = [(a - b) / ref["rise"] * 100.0 for a, b in zip(v["parts_own"], ref["parts"])]
+            out["lumped_part_own"] = max(errs_own, key=abs)
+            out["lumped_spread_own"] = ((max(v["parts_own"]) - min(v["parts_own"])) - (max(ref["parts"]) - min(ref["parts"]))) / ref["rise"] * 100.0
         out[f"{m}_w_block"] = (v["w_block"] - ref["w_block"]) / max(ref["w_block"], 1e-9) * 100.0 if np.isfinite(v["w_block"]) else float("nan")
     return out
 
@@ -147,10 +200,11 @@ def main():
     ap.add_argument("--csv", default="")
     a = ap.parse_args()
     rows = []
-    keys = ["lumped_hot", "analytic_hot", "lumped_block_mean", "analytic_block_mean", "lumped_part_max", "analytic_part_max", "lumped_spread", "analytic_spread"]
+    keys = ["lumped_hot", "analytic_hot", "lumped_block_mean", "analytic_block_mean", "lumped_part_max", "lumped_part_own", "analytic_part_max",
+            "lumped_spread", "lumped_spread_own", "analytic_spread"]
     print(f"cell {a.cell_mm:g} mm; errors in % of the FVM rise (model - FVM)")
-    print("| Case | FVM rise K | block K | L hot | A hot | L block | A block | L part | A part | L spread | A spread |")
-    print("| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |")
+    print("| Case | FVM rise K | block K | L hot | A hot | L block | A block | L part (field) | L part (own peak) | A part | L spread (field) | L spread (own peak) | A spread |")
+    print("| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |")
     for label, p in case_list(a.set):
         o = compare(label, p, a.cell_mm)
         rows.append(o)

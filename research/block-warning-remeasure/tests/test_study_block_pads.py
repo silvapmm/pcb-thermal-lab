@@ -21,3 +21,18 @@ def test_builder_counts_and_power():
     assert len(p.heaters) == 4 and len(p.heatsinks) == 1
     assert abs(sum(h.power for h in p.heaters) - 5.0) < 1e-12
     assert len(s.make(n_pads=2, with_block=False).heatsinks) == 0
+
+
+def test_lumped_part_is_read_with_its_own_peak():
+    """!
+    @brief The review's definition check: on a one-part board the Lumped own peak of the part equals its t_max, while the field under the footprint reads lower (the node).
+    @return None.
+    """
+    from pcbthermal import lumped
+    p = s.make(n_pads=1)
+    s._CAPTURED.clear()
+    r = lumped.solve_steady(p, cell_mm=2.0)
+    own = s.lumped_part_peaks(p, r)
+    assert abs(own[0] - (r.t_max - s.AMB)) < 1e-9
+    field = s.metrics("lumped", p, 2.0)
+    assert field["parts"][0] < field["parts_own"][0] - 1.0         # the painted footprint node lacks the peak term (several kelvin here)

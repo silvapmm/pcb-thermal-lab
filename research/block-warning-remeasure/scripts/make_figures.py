@@ -21,14 +21,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     """!
-    @brief Bar chart of hottest-point and worst-part error of both models for every case of the CSV; the 5 % line is the claim under test.
+    @brief Bar chart of hottest-point and worst-part error of both models for every case of the CSV (the Lumped part with its own peak, the field reading of the first pass as an outline); the 5 % band is the claim under test.
     @return None.
     """
     rows = list(csv.DictReader(open(ROOT / "out" / (sys.argv[1] if len(sys.argv) > 1 else "cell05.csv"))))
     fig, axs = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
     x = range(len(rows))
-    for ax, (k, t) in zip(axs, (("hot", "hottest point of the board"), ("part_max", "worst part"))):
-        ax.bar([i - 0.2 for i in x], [float(r[f"lumped_{k}"]) for r in rows], 0.4, label="Lumped", color="#1f77b4")
+    for ax, (k, lk, t) in zip(axs, (("hot", "hot", "hottest point of the board"), ("part_max", "part_own", "worst part"))):
+        if k == "part_max":
+            # The first pass read the Lumped part from its painted field (the footprint node, no peak term): a different quantity from the FVM peak, kept as an outline
+            ax.bar([i - 0.2 for i in x], [float(r["lumped_part_max"]) for r in rows], 0.4, fill=False, edgecolor="#1f77b4", linestyle="--",
+                   label="Lumped, footprint node read from its field (first pass, not comparable)")
+        ax.bar([i - 0.2 for i in x], [float(r[f"lumped_{lk}"]) for r in rows], 0.4, label="Lumped (its own peak)", color="#1f77b4")
         ax.bar([i + 0.2 for i in x], [float(r[f"analytic_{k}"]) for r in rows], 0.4, label="Analytic", color="#e0a458")
         ax.axhspan(-5, 5, color="#cccccc", alpha=0.4, label="within 5 % (the claim)")
         ax.set_ylabel(f"error vs FVM, % of rise\n{t}")
