@@ -16,6 +16,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "independent-fem-edge", "lib"))
 import board                                                            # noqa: E402
 import cases                                                            # noqa: E402
 import mesh2d                                                           # noqa: E402
@@ -53,7 +54,7 @@ def plan_mesh(hf, tab_mm=6.0, hmax=0.5, growth=1.3, n_side=8, half_win=0.4, radi
     return plan
 
 
-def build(variant="A", tab_mm=6.0, hf=0.2, rim=False, k_solder=50.0, power=1.0, h=10.0, plate=True, n_wall=3, n_gap=6, plan=None, solder_mm=0.1, tab_mm_thick=0.2, **kw):
+def build(variant="A", tab_mm=6.0, hf=0.2, rim=False, k_solder=50.0, power=1.0, h=10.0, plate=True, n_wall=3, n_gap=6, plan=None, no_via=False, solder_mm=0.1, tab_mm_thick=0.2, **kw):
     """!
     @brief The finite-element stack of study 2.
     @param variant 'A' (the program's problem) or 'B' (tab and solder resolved).
@@ -69,6 +70,7 @@ def build(variant="A", tab_mm=6.0, hf=0.2, rim=False, k_solder=50.0, power=1.0, 
     @param plan Prebuilt plan mesh (default `plan_mesh(hf, tab_mm)`).
     @param solder_mm Solder thickness in mm.
     @param tab_mm_thick Tab thickness in mm.
+    @param no_via True: the same mesh with the via copper and the resin cores replaced by laminate (the baseline of the via effect).
     @param kw Unused.
     @return Tuple (Stack, dict of handles: footprint mask function, slab indices).
     """
@@ -84,6 +86,9 @@ def build(variant="A", tab_mm=6.0, hf=0.2, rim=False, k_solder=50.0, power=1.0, 
         r = np.hypot(cc[:, 0] - cx * MM, cc[:, 1] - cy * MM)
         in_wall |= (r >= r_in) & (r < r_d)
         in_core |= r < r_in
+    if no_via:
+        in_wall[:] = False
+        in_core[:] = False
 
     def board_k(copper_mask):
         """!
@@ -127,7 +132,7 @@ def build(variant="A", tab_mm=6.0, hf=0.2, rim=False, k_solder=50.0, power=1.0, 
         cm = (lambda c: c[:, 0] > 1.2 * MM) if (rim and lay == 1) else (lambda c: np.ones(c.shape[0], bool))
         s = stack_ext.slab(f"cu{lay + 1}", [35e-6], board_k(cm), h_up=h if lay == 0 else 0.0, h_down=(0.0 if plate else h) if lay == 3 else 0.0, h_wall=h, rho_c=RC_CU)
         if lay == 0 and variant == "A":
-            s["power"], s["source_region"] = q_part, inside
+            s["power"], s["source_region"] = q_part, (lambda c: inside(c) & ~in_core)    # no heat in the resin plug: the program spreads the power over the copper of the footprint
         slabs.append(s)
         if lay < 3:
             slabs.append(stack_ext.slab(f"gap{lay + 1}", gaps, gap_k, h_wall=h, rho_c=RC_FR4))
