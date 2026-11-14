@@ -25,6 +25,7 @@ from .. import package
 from ..gerber import limits
 from ..numfmt import eng, num
 from . import theme as th
+from .spinfit import fit_range
 from . import tips
 
 
@@ -404,6 +405,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(val, int):
                 wdg = QSpinBox()
                 wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (package.MIN_TOTAL_MB, package.MAX_TOTAL_MB) if key == "max_mb" else (0, 100000)))
+                fit_range(wdg, val)                         # A stored value outside the usual range is shown as stored, not clamped
                 wdg.setValue(val)
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, int(v)))
             else:
@@ -418,6 +420,7 @@ class PreferencesDialog(QDialog):
                 while places < 6 and round(float(val), places) != float(val):
                     places += 1
                 wdg.setDecimals(places)
+                fit_range(wdg, val)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
             tip = f"{TIPS.get(key, key)}\nJSON key: {key}"
@@ -561,6 +564,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(wdg, QCheckBox):
                 wdg.setChecked(bool(val))
             else:
+                fit_range(wdg, val)
                 wdg.setValue(val)
 
     def _after_change(self):

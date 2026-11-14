@@ -207,7 +207,7 @@ class ProfilePage(QWidget):
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addWidget(split)
         doc.changed.connect(self.refresh)
-        # An undo or a redo restores the options too and emits only `changed`: the run settings are reloaded then as well (only edited boxes are written back)
+        # An undo or a redo keeps the current options (they are not undoable); the run settings are reloaded on `changed` anyway (only edited boxes are written back)
         doc.changed.connect(self._load_options)
         doc.state_changed.connect(self._load_options)
         compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
