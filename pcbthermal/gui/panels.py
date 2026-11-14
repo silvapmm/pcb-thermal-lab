@@ -27,7 +27,7 @@ from .document import KINDS
 from . import theme as th
 from ..checks import line
 from .boxes import CollapsibleBox
-from .spinfit import fit_range
+from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
 from ..numfmt import num
 
@@ -176,11 +176,14 @@ class BoardPanel(QWidget):
         self.h_mode = QComboBox()
         self.h_mode.addItem("Typed by me", "manual")
         self.h_mode.addItem("Computed (convection + radiation)", "computed")
-        self.h_mode.setToolTip("Typed h, or computed per face from the board temperature (natural or forced convection plus radiation, iterated).")
+        self.h_mode.setToolTip("Typed h, or computed per face from the board temperature (natural or forced convection plus radiation, iterated). "
+                               "The h top and h bottom boxes are shown only with 'Typed by me'; with 'Computed' the emissivities, air speed and multiplier are shown instead.")
         self.h_top = _spin(0, 1e5, 10, 1, 1, "W/m²K")
         self.h_bottom = _spin(0, 1e5, 15, 1, 1, "W/m²K")
         self.side_on = QCheckBox("Edges lose heat")
         self.h_side = _spin(0, 1e5, 10, 1, 1, "W/m²K")
+        # Its own tooltip before the first refresh: `_side_enabled` adds the greyed reason to it (the table of tips is applied later, only to empty tooltips)
+        self.h_side.setToolTip("Heat transfer coefficient of the edges, W/m²K (convection plus radiation).")
         self.orientation = QComboBox()
         self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
         self.orientation.addItem("Vertical (on its edge)", "vertical")
@@ -297,7 +300,7 @@ class BoardPanel(QWidget):
         self._show_modes(b.h_mode)
         self.side_on.setChecked(b.h_side is not None)
         self._put(self.h_side, b.h_side or 10.0)
-        self.h_side.setEnabled(b.h_side is not None)
+        self._side_enabled(b.h_side is not None)
         self._put(self.k_cu, m.k_copper)
         self._put(self.k_th, m.k_fr4_through)
         self._put(self.k_ip, m.k_fr4_inplane)
@@ -311,8 +314,7 @@ class BoardPanel(QWidget):
         @param widget The spin box.
         @param value The stored value, in the unit of the box.
         """
-        fit_range(widget, value)
-        widget.setValue(value)
+        show_value(widget, value)
         self._shown[widget] = widget.value()
 
     def _edited(self, widget):
@@ -322,6 +324,17 @@ class BoardPanel(QWidget):
         @return bool True when its value differs from what it showed after the load.
         """
         return widget.isEnabled() and widget.value() != self._shown.get(widget)
+
+    def _side_enabled(self, on):
+        """!
+        @brief Enable the edge coefficient with the 'Edges lose heat' box, and say in its tooltip why it is greyed.
+        @param on True when the edges lose heat.
+        """
+        self.h_side.setEnabled(on)
+        if self.h_side.property("base_tip") is None:                   # First time: remember the tooltip of the table of tips
+            self.h_side.setProperty("base_tip", self.h_side.toolTip())
+        base = self.h_side.property("base_tip")
+        self.h_side.setToolTip(base if on else base + "\n\nGreyed: the edges are insulated; tick 'Edges lose heat' to use this coefficient.")
 
     def _show_modes(self, mode):
         """!
@@ -347,7 +360,7 @@ class BoardPanel(QWidget):
         if self._updating:
             return
         b = self.doc.problem.board
-        self.h_side.setEnabled(self.side_on.isChecked())
+        self._side_enabled(self.side_on.isChecked())
         self._show_modes(self.h_mode.currentData())
 
         # Only the boxes the user changed are written: a stored value that a box shows rounded (or could not hold) is never written back by an edit of another box
@@ -1633,8 +1646,9 @@ class SolverPanel(QWidget):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
-        doc.changed.connect(self._update_cells)
-        doc.changed.connect(self._update_availability)
+        # An undo or a redo restores the whole project, the options included, and emits only `changed`: the boxes are reloaded then too (refresh also updates the cell
+        # counts and the greyed settings), or a box would show an option the document no longer has and, since only edited boxes are written, never correct it
+        doc.changed.connect(self.refresh)
         doc.state_changed.connect(self.refresh)
         self._base_tips = {k: c.toolTip() for k, c in self.cb.items()}
         compact_combos(self)
@@ -1686,8 +1700,7 @@ class SolverPanel(QWidget):
         @param widget The spin box.
         @param value The stored value, in the unit of the box.
         """
-        fit_range(widget, value)
-        widget.setValue(value)
+        show_value(widget, value)
         self._shown[widget] = widget.value()
 
     def verdicts(self):

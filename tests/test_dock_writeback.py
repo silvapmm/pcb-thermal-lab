@@ -224,3 +224,125 @@ def test_every_field_with_a_value_the_box_cannot_show_exactly_survives(win):
         assert getattr(b, k) == pytest.approx(v, rel=1e-12), k
     assert (b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane) == pytest.approx((387.654, 0.3123, 0.9456), rel=1e-12)
     assert b.copper_thickness[0] == pytest.approx(35.7e-6, rel=1e-12) and b.ambient == 31.0
+
+
+def test_an_undo_reloads_the_simulation_dock(win):
+    """!
+    @brief An undo restores the options of the project too; the Simulation dock must show them, or the next edit of another box leaves the cell the user sees unwritten.
+    @details Review: the dock reloaded only on `state_changed`, which an undo that does not change the clean flag never emits, so after the undo the box showed 0.7 mm
+             while the project held 1 mm; with only edited boxes written, nothing corrected it.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "undo")
+    doc, sp = win.doc, win.solver_panel
+    win.board_panel.h_top.setValue(5.0)
+    doc.add_via(10.0, 10.0)
+    doc.add_via(20.0, 20.0)
+    sp.cell.setValue(0.7)
+    assert doc.options.cell_mm == pytest.approx(0.7)
+    doc.stack.undo()                                                  # The last via goes: the snapshot restores the cell of before
+    assert sp.cell.value() == pytest.approx(doc.options.cell_mm)
+    sp.hot.setValue(sp.hot.value() + 1.0)
+    assert sp.cell.value() == pytest.approx(doc.options.cell_mm)
+
+
+def test_the_power_profile_page_does_not_round_the_wave(win):
+    """!
+    @brief A square wave with a period of 1/3 s, a duty of 12.3456 % and powers with more decimals than the boxes keeps every field through an edit of the power while off.
+    @param win MainWindow fixture.
+    """
+    from pcbthermal.model import SquareWave
+    p = plate()
+    p.heaters[0].set_profile(SquareWave(p_on=3.333333333, period=1.0 / 3.0, duty=0.123456, p_off=0.0))
+    win._load_problem(p, "wave")
+    page = win.profile_page
+    page.current = 0
+    page._load_heater()
+    page.p_off.setValue(0.5)
+    w = win.doc.problem.heaters[0].profile
+    assert w.period == pytest.approx(1.0 / 3.0, rel=1e-12) and w.duty == pytest.approx(0.123456, rel=1e-12)
+    assert w.p_on == pytest.approx(3.333333333, rel=1e-12) and w.p_off == 0.5
+    page.duty.setValue(50.0)                                          # An edited box is written
+    assert win.doc.problem.heaters[0].profile.duty == 0.5
+    assert win.doc.problem.heaters[0].profile.period == pytest.approx(1.0 / 3.0, rel=1e-12)
+
+
+def test_the_profile_run_settings_are_not_rewritten(win):
+    """!
+    @brief A stored time with more decimals than its box and a step limit above the box range survive the edit of the threshold, and an undo reloads them.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "runs")
+    po = win.doc.options.profile
+    po.time_s, po.max_steps = 1.23456789, 50_000_000
+    win.doc.state_changed.emit()
+    page = win.profile_page
+    assert page.max_steps.value() == 50_000_000
+    page.threshold.setValue(page.threshold.value() + 0.5)
+    po = win.doc.options.profile
+    assert po.time_s == pytest.approx(1.23456789, rel=1e-12) and po.max_steps == 50_000_000
+
+
+def test_an_integer_option_beyond_a_c_int_does_not_break_the_dock(win):
+    """!
+    @brief A project with a ring count beyond a C int (a hand-edited file) loads into the dock without an exception and is not rewritten by another edit.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "huge")
+    o = win.doc.options
+    o.lumped_rings = 10 ** 12
+    win.solver_panel.refresh()                                        # Raised OverflowError before the review
+    win.solver_panel.hot.setValue(win.solver_panel.hot.value() + 1.0)
+    assert win.doc.options.lumped_rings == 10 ** 12
+
+
+def test_fit_range_ignores_values_no_box_can_hold(qtbot):
+    """!
+    @brief NaN and infinity leave the range alone, and an integer box stops at the C int.
+    @param qtbot pytest-qt fixture.
+    """
+    from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
+    from pcbthermal.gui.spinfit import INT_MAX, show_value
+    d = QDoubleSpinBox()
+    d.setRange(1.0, 10.0)
+    qtbot.addWidget(d)
+    for v in (float("nan"), float("inf"), -float("inf"), None, "x"):
+        fit_range(d, v)
+    assert (d.minimum(), d.maximum()) == (1.0, 10.0)
+    i = QSpinBox()
+    i.setRange(1, 12)
+    qtbot.addWidget(i)
+    for v in (float("inf"), 1e300, 10 ** 12):
+        fit_range(i, v)
+    assert i.maximum() == INT_MAX
+    show_value(i, 10 ** 12)
+    assert i.value() == INT_MAX
+
+
+def test_the_h_boxes_say_why_they_are_hidden_or_greyed(win, tmp_path):
+    """!
+    @brief A project opened from a file shows h top, h bottom and h edges in the typed mode; the computed mode hides the first two (the mode's tooltip says so) and
+           insulated edges grey the third (its tooltip says why); the models chosen change nothing.
+    @details A user could not find the three coefficients at first: they are hidden when the project uses computed coefficients and the edge one is greyed when the
+             edges are insulated, which no tooltip explained.
+    @param win MainWindow fixture.
+    @param tmp_path Temporary folder.
+    """
+    from pcbthermal.project import Project, save_project
+    bp = win.board_panel
+    for mode, h_side in (("manual", 12.0), ("computed", None)):
+        p = Problem.new(60.0, 40.0, layers=2, h_side=h_side)
+        p.board.h_mode = mode
+        path = str(tmp_path / f"{mode}.pcbt.json")
+        save_project(path, Project(problem=p))
+        win.doc.open(path)
+        for k in ("solid3d", "lumped", "analytic", "fdm"):
+            win.solver_panel.cb[k].setChecked(True)
+        typed = mode == "manual"
+        assert bp.h_top.isVisibleTo(bp) == typed and bp.h_bottom.isVisibleTo(bp) == typed
+        assert bp.h_top.isEnabled() and bp.h_bottom.isEnabled()
+        assert bp.h_side.isVisibleTo(bp) and bp.h_side.isEnabled() == (h_side is not None)
+        assert ("Greyed" in bp.h_side.toolTip()) == (h_side is None) and bp.h_side.toolTip().startswith("Heat transfer coefficient of the edges")
+    assert "shown only with 'Typed by me'" in bp.h_mode.toolTip()
+    bp.side_on.setChecked(True)                                       # Ticking the box enables the coefficient and drops the reason
+    assert bp.h_side.isEnabled() and "Greyed" not in bp.h_side.toolTip()

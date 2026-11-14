@@ -30,6 +30,7 @@ from .elided import ElidedLabel, clamp_to_screen
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
+from .spinfit import fit_range
 
 log = logging.getLogger(__name__)
 
@@ -879,6 +880,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     s = QDoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
+    fit_range(s, value)                                   # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setSuffix(" " + suffix)
     s.setToolTip(tip)

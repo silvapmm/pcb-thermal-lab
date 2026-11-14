@@ -378,7 +378,7 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 | Version-comparison notes v2.5.0 to v2.7.0 | D | S | no | - |
 | Stale READMEs of the research folders `point-via-convergence`, `effective-conductivity`, `solid3d-verification`, `gap-subdivision`, `block-and-fins`, `via-edge-image` (one branch per folder, research only) | D | M | no | - |
 | Disclaimer in every report (a design aid, to be validated by measurement) | F (text) | S | no | - |
-| DONE on `fix/dock-writeback-clamp`: the Board and Simulation docks wrote every box back on any edit, so a loaded copper of 10 000 um became 210 um (box maximum) and h above 500 or a thickness above 10 mm were clamped; boxes now widen to hold a loaded value (`gui/spinfit.py`) and only edited boxes are written (`tests/test_dock_writeback.py`) | X | S | no | - |
+| DONE on `fix/board-dock-write-back`: the Board and Simulation docks (and the Power profile page) wrote every box back on any edit, so a loaded copper of 10 000 um became 210 um (box maximum), h above 500 or a thickness above 10 mm were clamped and a period or a duty was rounded to the box decimals; boxes now widen to hold a loaded value (`gui/spinfit.py`), only edited boxes are written, and the Simulation dock and the profile run settings reload after an undo (`tests/test_dock_writeback.py`) | X | S | no | - |
 | Edge-laminate warning: re-measure the first clause against the finite-element solution and fix the wording of `_edge_laminate_uncut` | X (text) | S | no | the finite-element tool |
 | `tests/test_calculator_dialog.py` (the dialog is not held by the battery) | V | S | no | - |
 | Real-screen checklist (import window, Preferences, docks, popover; the maintainer's hands, about 1 hour) | V | S | no | maintainer |

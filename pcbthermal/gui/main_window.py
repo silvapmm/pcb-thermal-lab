@@ -26,6 +26,7 @@ from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .spinfit import fit_range
 from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
@@ -70,6 +71,7 @@ class NewBoardDialog(QDialog):
         nb = defaults.load()["new_board"]
         for s, v in ((self.w, nb["width_mm"]), (self.h, nb["height_mm"])):
             s.setRange(5, 1000)
+            fit_range(s, v)                               # A saved default outside the usual range is shown as it is, not clamped
             s.setValue(v)
             s.setSuffix(" mm")
         self.layers = QSpinBox()
@@ -129,6 +131,7 @@ class BackgroundDialog(QDialog):
             s.setRange(-2000, 4000)
             s.setDecimals(2)
             s.setSuffix(" mm")
+            fit_range(s, cfg.get(k, d))                   # A stored placement outside the usual range is not clamped when the dialog is accepted
             s.setValue(cfg.get(k, d))
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
