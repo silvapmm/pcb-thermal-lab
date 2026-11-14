@@ -502,6 +502,15 @@ class ElementList(QWidget):
         self.doc, self._updating = doc, False
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
+        # The filter is a view setting only: it is never saved in the project and never changes the document
+        self.filter = QLineEdit()
+        self.filter.setPlaceholderText("Filter elements")
+        self.filter.setClearButtonEnabled(True)
+        self.filter.setToolTip("Show only the elements whose name, type, layer or value contains the text (Ctrl+F; Esc clears; Down goes to the first match).")
+        self.filter.setAccessibleName("Filter elements")
+        self.filter.textChanged.connect(self.apply_filter)
+        self.filter.installEventFilter(self)
+        lay.addWidget(self.filter)
         self.tree = QTreeWidget()
         self.tree.setToolTip("Every zone, heater, heatsink and via. Click to select on the board; right-click for actions.")
         self.tree.setHeaderLabels(["Element", "Layer", "Value"])
@@ -513,6 +522,68 @@ class ElementList(QWidget):
         lay.addWidget(self.tree)
         doc.changed.connect(self.refresh)
         self.refresh()
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Keys of the filter field: Esc clears it, Down goes to the first match (letters stay in the field).
+        @param obj Watched object.
+        @param event The event.
+        @return True when the key was handled here.
+        """
+        if obj is self.filter and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Escape and self.filter.text():
+                self.filter.clear()
+                return True
+            if event.key() == Qt.Key_Down:
+                first = self._first_match()
+                if first is not None:
+                    self.tree.setFocus()
+                    self.tree.setCurrentItem(first)
+                return True
+        return super().eventFilter(obj, event)
+
+    def focus_filter(self):
+        """!
+        @brief Put the keyboard in the filter field with its text selected (Ctrl+F).
+        """
+        self.filter.setFocus()
+        self.filter.selectAll()
+
+    def _first_match(self):
+        """!
+        @brief First visible element row.
+        @return QTreeWidgetItem or None.
+        """
+        for t in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(t)
+            for c in range(top.childCount()):
+                if not top.child(c).isHidden():
+                    return top.child(c)
+        return None
+
+    def apply_filter(self, text=None):
+        """!
+        @brief Hide the element rows that do not match the filter (a group stays while a child matches); the selection is kept.
+        @param text Filter text; None reads the field. Words are separated by blanks and all must be found in the row
+               (name, type, layer, value), case-insensitive.
+        """
+        words = (self.filter.text() if text is None else text).lower().split()
+        self.tree.setUpdatesEnabled(False)
+        for t in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(t)
+            kind = (top.data(0, Qt.UserRole + 1) or "")
+            shown = 0
+            for c in range(top.childCount()):
+                ch = top.child(c)
+                hay = " ".join([kind] + [ch.text(i) for i in range(3)]).lower()
+                ok = all(w in hay for w in words)
+                ch.setHidden(not ok)
+                shown += ok
+            # A group with no match is hidden; with a filter on, a group with a match is opened to show it
+            top.setHidden(bool(words) and shown == 0)
+            if words and shown:
+                top.setExpanded(True)
+        self.tree.setUpdatesEnabled(True)
 
     def refresh(self):
         """!
@@ -526,6 +597,7 @@ class ElementList(QWidget):
             lst = getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[kind])
             top = QTreeWidgetItem([f"{_TITLES[kind]} ({len(lst)})"])
             top.setFlags(top.flags() & ~Qt.ItemIsSelectable)
+            top.setData(0, Qt.UserRole + 1, f"{kind} {_TITLES[kind]}")      # The type words searched by the filter
             self.tree.addTopLevelItem(top)
             for i, el in enumerate(lst):
                 if kind == "via":
@@ -548,6 +620,9 @@ class ElementList(QWidget):
         for c in range(3):
             self.tree.resizeColumnToContents(c)
         self._updating = False
+        # A new element made while the filter is on is shown only if it matches (the filter is re-applied after every edit)
+        if self.filter.text():
+            self.apply_filter()
 
     def selected(self):
         """!
