@@ -317,11 +317,11 @@ class BoardPanel(QWidget):
 
     def _edited(self, widget):
         """!
-        @brief Whether the user changed a box since the last load from the document.
+        @brief Whether the user changed a box since the last load from the document (a greyed or hidden box never counts: it cannot be edited).
         @param widget The spin box.
         @return bool True when its value differs from what it showed after the load.
         """
-        return widget.value() != self._shown.get(widget)
+        return widget.isEnabled() and widget.value() != self._shown.get(widget)
 
     def _show_modes(self, mode):
         """!

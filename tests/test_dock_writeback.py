@@ -182,3 +182,45 @@ def test_fit_range_widens_and_never_clamps(qtbot):
     fit_range(i, 40.0)
     i.setValue(40)
     assert i.value() == 40
+
+
+def test_unequal_copper_and_greyed_boxes_are_not_written(win):
+    """!
+    @brief The copper per layer of a simple stack-up (70/17.5/17.5/70 um) is not levelled to layer 1 by an edit of another box, and a greyed box (the size of an imported board) never writes.
+    @param win MainWindow fixture.
+    """
+    p = Problem.new(60.0, 40.0, layers=4, thickness_mm=1.6, copper_um=35.0)
+    p.board.copper_thickness = [70e-6, 17.5e-6, 17.5e-6, 70e-6]
+    p.board.width = 0.0600123
+    win._load_problem(p, "unequal")
+    bp = win.board_panel
+    bp.width.setEnabled(False)                                        # What an imported board does
+    bp.ambient.setValue(30.0)
+    bd = win.doc.problem.board
+    assert list(bd.copper_thickness) == pytest.approx([70e-6, 17.5e-6, 17.5e-6, 70e-6]) and bd.ambient == 30.0
+    assert bd.width == pytest.approx(0.0600123, rel=1e-12)
+    bp.width.setEnabled(True)
+    bp.copper.setValue(35.0)                                          # Editing the copper box does level the layers: the user asked for it
+    assert list(win.doc.problem.board.copper_thickness) == pytest.approx([35e-6] * 4)
+
+
+def test_every_field_with_a_value_the_box_cannot_show_exactly_survives(win):
+    """!
+    @brief Loop over the board fields: each stored value has more decimals than its box (or lies outside its range) and survives the edit of the ambient.
+    @param win MainWindow fixture.
+    """
+    exact = dict(width=0.0600123, height=0.0400456, thickness=0.00160049, h_top=12.3456, h_bottom=15.6789, h_side=11.1111, h_calibration=1.23456,
+                 air_speed=0.4567, emissivity_top=0.8765, emissivity_bottom=0.7654, via_plating=24.6e-6)
+    win._load_problem(plate(), "decimals")
+    b = win.doc.problem.board
+    for k, v in exact.items():
+        setattr(b, k, v)
+    b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane = 387.654, 0.3123, 0.9456
+    b.copper_thickness = [35.7e-6]
+    win.doc.changed.emit()
+    win.board_panel.ambient.setValue(31.0)
+    b = win.doc.problem.board
+    for k, v in exact.items():
+        assert getattr(b, k) == pytest.approx(v, rel=1e-12), k
+    assert (b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane) == pytest.approx((387.654, 0.3123, 0.9456), rel=1e-12)
+    assert b.copper_thickness[0] == pytest.approx(35.7e-6, rel=1e-12) and b.ambient == 31.0
