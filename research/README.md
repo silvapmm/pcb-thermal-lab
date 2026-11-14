@@ -44,7 +44,7 @@ A first guide for a new reader: for each topic, the folder that holds today's an
 | [`models-comparison/`](models-comparison/README.md) | implemented, repeated at each change | The five models against the FVM on 19 scenarios, grids, solvers and time. |
 | [`solid3d-verification/`](solid3d-verification/README.md) | implemented | Does the 3D solid reproduce an exact solution; how far are the layered models from it. |
 | [`block-and-fins/`](block-and-fins/README.md) | implemented | Metal block and fins: the fin formula, the block in the Lumped and Analytic models. |
-| [`block-warning-remeasure/`](block-warning-remeasure/README.md) | reviewed, closed for now; the warning text and the Lumped part rows are proposals (`INTEGRATION.md`) | Does 'the Lumped and Analytic block within about 5 % of the FVM' hold with several pads, small blocks and parts of unequal power? |
+| [`block-warning-remeasure/`](block-warning-remeasure/README.md) | reviewed, closed for now; the warning text and the Lumped part rows were adopted in `fix/lumped-part-readout` | Does 'the Lumped and Analytic block within about 5 % of the FVM' hold with several pads, small blocks and parts of unequal power? |
 | [`outline/`](outline/README.md) | implemented | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | [`stackup/`](stackup/README.md) | implemented | The advanced stack-up in the five models, its sensitivity, the typical templates against fabricators. |
 | [`via-fill/`](via-fill/README.md) | implemented | What fills a via barrel and how much it matters. |
