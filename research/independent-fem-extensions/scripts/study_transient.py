@@ -345,7 +345,7 @@ def report():
     res = load()
     print("plate 20 Hz, 30 %, 1 W (K swing per W): FEM footprint mean / centre node")
     for hf in (0.4, 0.2, 0.1):
-        r = res.get(f"fast|{hf}")
+        r = res.get(f"fast|{hf}|24")
         if r:
             print(f"  hf {hf}: mean {r['mean']:.5f} (prev cycle {r['mean_prev']:.5f}), centre {r['centre']:.5f}, energy residual {r['energy_residual']:.1e}, {r['n']} unknowns, {r['seconds']:.0f} s")
     p = res.get("prog_fast")

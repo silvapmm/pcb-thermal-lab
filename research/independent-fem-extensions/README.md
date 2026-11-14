@@ -1,8 +1,8 @@
 # Extensions of the independent finite-element comparison tool (plan)
 
-**Status: planned and reviewed (section 7: GO for the plan as corrected here), nothing solved.** This folder reopens `research/independent-fem-edge`
+**Status: planned and reviewed (section 7: GO for the plan as corrected here); the cleared studies were run (section 8, the worklog); NOT yet reviewed again (the results of section 8 wait for the reviewer).** This folder reopens `research/independent-fem-edge`
 (its `lib/` is imported, never copied or edited here) for `research/ROADMAP.md` A43 and the item 'FEM extensions (A43)' of `docs/versions.md`
-'Planned: 2.8.0'. Every cost below is an ESTIMATE printed by `scripts/study_plan_costs.py` (unknowns counted on plan meshes built by the tool's own
+'Planned: 2.8.0'. Every cost in sections 1 to 7 is an ESTIMATE printed by `scripts/study_plan_costs.py` (unknowns counted on plan meshes built by the tool's own
 mesh functions; memory from the peaks the tool measured, section 3); the first run of each study replaces it by a measured number. No number of the
 program is quoted that a script of this folder has not printed.
 
@@ -256,3 +256,199 @@ and in the mesh: the independence is in the spatial method.
 Nothing was run: no mesh was assembled or solved; the cost table counts plan axes (the O-grid patch and the tab region are added by rule, not
 built). `axisym_stack` and `review_rect3d` were read by their headers, not re-run. The pyamg environment (`independent-fem-edge/.venv-research`) was
 not checked on this machine.
+
+## 8. Worklog: the cleared studies, run (numbers printed by the scripts of `scripts/`, caches in the git-ignored `out/`)
+
+Order of the review (7.4), one job at a time, each under 2 GB (the largest resident peak of any run: 1.03 GB), the guard of the scripts printing the unknowns and the
+estimate first. Program: `development` a917a51f (this worktree), `.venv/bin/python` of the main checkout. Every value below is printed by the script named; a number that
+a script did not print is not here. Tool additions (all in `lib/`, importing `independent-fem-edge/lib` without editing it): `hollow.py` (hollow barrels), `stack_ext.py`
+(partial slabs, free faces), `cluster.py` (study 2 board), `sheets.py` (stripes), `transient.py` (capacity, Crank-Nicolson, harmonic solve). Tests
+(`tests/`, 7 passed with the scratch environment): the 1D column of the new stack against `exact.series_stack` to 1e-9 (source in the tab and in the top copper), the energy
+balance of a tab on a plate, the solder at copper conductivity equal to a thicker tab, parallel and series stripes against their closed forms (1e-5), one lumped node
+against the exact exponential, a 1D slab against its eigenseries (5e-3) with plateau and energy, the second order of Crank-Nicolson (error ratio above 3.4 per halving).
+
+### 8.1 Study 1: the hollow plated barrel (`study_hollow_barrel.py`; figure 5)
+
+![Study 1](figures/fig_05_hollow_barrel_results.png)
+
+*Figure 5 (fig_05_hollow_barrel_results.png): left, the finite-element via effect E by core and mesh (solid lines d 0.16 mm, dashed d 3 mm; the lower group is 1000 W/m2K); middle and right, the error of the program's E for the open barrel against the finest finite-element value.*
+
+Checks (`study_hollow_barrel.py checks`): (i) a copper core with the wall rings against the solid cylinder of 3(b) on the same board: the hottest rise differs by
++0.0008 K (d 0.16) and +0.0023 K (d 3.0): NOT round-off as the plan said, because the two meshes differ by the ring levels (not the same matrix); (ii) the wall
+is an inscribed 4 n-gon: its area is 0.99284 of the annulus at n_side 8 and 0.99680 at 12 (inscribed-polygon ratio 0.99359 and 0.99715), and a column solve gives
+G(FEM)/G(closed form `k pi (ro^2 - ri^2) / L`) = 0.99284: the conforming wall carries 0.7 % less copper than the true annulus (a real limit of the O-grid, and it moves E by
+under 1 %); (iii) E of the open barrel with 2 / 3 / 4 elements across the wall: 0.98395 / 0.98382 / 0.98377 K (0.02 %).
+
+Finite-element via effect E (K; plan sizes 0.2 / 0.1 / 0.05 mm; 1b has 0.2 / 0.1 only; 'band' is the non-monotone spread, not an error bar):
+
+| h_side | via | open core | resin core (0.3) | copper core |
+| :-- | :-- | :-- | :-- | :-- |
+| 200 | 0.16 mm from the wall | 0.9838 / 0.9894 / 0.9852 | 0.9893 / 0.9948 / 0.9906 | 1.5749 / 1.5788 / 1.5759 |
+| 200 | 3.0 mm | 1.4295 / 1.4354 / 1.4340 | 1.4354 / 1.4413 / 1.4399 | 2.5215 / 2.5263 / 2.5288 |
+| 1000 | 0.16 mm | 0.4215 / 0.4291 / 0.4309 (order 2.11) | 0.4226 / 0.4302 / 0.4320 | 0.6708 / 0.6824 / 0.6821 |
+| 1000 | 3.0 mm | 0.6804 / 0.6957 / 0.6942 | 0.6819 / 0.6972 / 0.6957 | 1.2046 / 1.2311 / 1.2249 |
+| 200 | 3 x 3 array | 5.0900 / 5.0909 | 5.1359 / 5.1370 | 6.2842 / 6.2833 |
+| 1000 | 3 x 3 array | 2.5944 / 2.6317 | 2.6043 / 2.6418 | 3.2543 / 3.2928 |
+
+The solid copper column of 3(b) is reproduced (1.5749 / 1.5788 / 1.5759 against its 1.5777 / 1.5816 / 1.5788: 0.2 %, the difference of the base mesh). A resin core adds 0.005 K
+(0.5 %) to the open barrel, a copper core 60 % (1.58 against 0.99 K at 200 W/m2K, 0.16 mm): the plating alone is a poor conductor and the fill is what matters, as the program's
+`thermal_area` says.
+
+Error of the program's E (open barrel) against the finest finite-element value, % (FVM at 1 / 0.5 / 0.25 mm; 'FVM 8' is the FVM with 8 laminate sub-gaps; FDM at the defaults):
+
+| case | FVM | FVM 8 | FDM | Lumped 0.5 | Analytic 0.5 | 3D solid 0.5 / 0.25 |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 200, 0.16 mm | +3.6 / +0.1 / -1.5 | +9.2 / +3.5 / +0.8 | -6.5 / -7.6 / -3.6 | +31.1 | +3.9 | +9.7 / +3.2 |
+| 200, 3.0 mm | +2.9 / -0.5 / -2.1 | +7.8 / +2.4 / -0.1 | -4.1 / -3.8 / -3.4 | +11.1 | -4.5 | +1.9 / +1.2 |
+| 1000, 0.16 mm | -1.8 / -9.0 / -12.7 | +28.1 / +9.9 / +0.2 | -23.0 / -22.2 / -15.5 | +7.5 | -20.1 | +25.8 / +9.6 |
+| 1000, 3.0 mm | +1.5 / -5.2 / -8.7 | +26.0 / +10.4 / +2.0 | -15.2 / -13.7 / -10.1 | -3.6 | -20.2 | +13.8 / +6.7 |
+| 200, 3 x 3 array | +2.7 / +0.5 / -0.7 | +7.0 / +3.2 / +1.1 | -2.6 / -2.3 / -1.8 | +31.1 | -2.8 | +0.6 / +1.3 |
+| 1000, 3 x 3 array | +3.3 / -3.3 / -6.6 | +25.4 / +10.8 / +3.1 | -13.0 / -11.5 / -9.0 | +23.7 | -17.0 | +11.1 / +6.1 |
+
+Readings. (1) The barrel rule `d + 0.5 t_cu` with the Peaceman well holds for a HOLLOW barrel: the open, resin and copper cores differ by under 1.5 points in the program's error, and at
+200 W/m2K the FVM is within 1.5 % (0.25 mm) and the 3 x 3 array within 0.7 %. (2) The error at 1000 W/m2K is the laminate at the edge, not the barrel: the same FVM with 8 sub-gaps is
++0.2 % (single via) and +3.1 % (array) at 0.25 mm. (3) The FDM via effect reads 2 to 8 % low at 200 and 9 to 23 % low at 1000 W/m2K, with every core: the A43 finding is confirmed for the
+hollow barrel and the array (FDM at 0.25 mm: -3.6 / -3.4 / -1.8 % at 200, -15.5 / -10.1 / -9.0 % at 1000). (4) The Lumped via effect is 31 % high at 200 W/m2K near the wall and for the
+array (the 3 mm via +11 %), and the Analytic 17 to 20 % low at 1000: the numbers are not compared here with the texts of their warnings (not checked). (5) The 3D solid is
++1 to +10 % high at 0.5 mm and falls with the cell (its slab rule). (6) Limits of the reference: the finest value is itself within a 0.5 % band at 200 W/m2K (non-monotone), so errors
+under 1 % are not resolved; 1b at 0.05 mm was not run (waits for a quiet machine).
+
+### 8.2 Study 2: part on a tab over a 4 x 4 via cluster with a plate (`study_cluster.py`; figure 6)
+
+![Study 2](figures/fig_06_cluster_results.png)
+
+*Figure 6 (fig_06_cluster_results.png): left, the finite-element part mean rise by plan size (variants A and B); middle, the program's error against variant A; right, the error of the via effect E.*
+
+Variant A is the problem the program receives; B resolves the tab and solder; the partial edge ends the copper of layer 2 on the line through one column of vias; the 4 mm part is
+the second row. **Correction found on the way**: the first run put the heat of variant A into the resin plugs of the top copper (k 0.3), which made a hot spot of 10 K above the mean
+(115 K at the part maximum); the source now excludes the plugs (the program spreads the power over the copper of the footprint); the first run is kept as
+`out/s2_A_with_source_in_plug.json` and was not used. All solves converge in plan size with observed order 1.5 to 2.4 over 0.4 / 0.2 / 0.1 mm, so none is flagged unconverged.
+
+Rise of the part mean (K) at plan sizes 0.4 / 0.2 / 0.1 mm and the part hottest node:
+
+| part, copper | A mean | B mean | B - A mean | B - A hottest | A hottest | plate mean A |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 6 x 6, full | 103.8310 / 103.8470 / 103.8512 (order 1.92) | 102.8379 / 102.8595 / 102.8654 | -0.986 K (-0.95 %) | -1.372 K (-1.32 %) | 104.3007 | 98.2807 |
+| 6 x 6, partial edge | 103.9164 / 103.9324 / 103.9366 | 102.9237 / 102.9462 / 102.9523 | -0.984 K (-0.95 %) | -1.370 K (-1.31 %) | 104.3912 | 98.3033 |
+| 4 x 4, full | 104.5937 / 104.6089 / 104.6133 | 104.1085 / 104.1283 / 104.1352 | -0.478 K (-0.46 %) | -0.931 K (-0.89 %) | 105.1493 | 98.6489 |
+
+**The program against variant A** (error of the part mean / hottest cell / plate mean, %; the program's `heater_stats` t_mean and t_max, `block_T`), 6 x 6 mm, full copper:
+
+| model | cell 1 mm | 0.5 mm | 0.25 mm |
+| :-- | :-- | :-- | :-- |
+| FVM | -0.07 / -0.26 / +0.09 | +0.06 / +0.02 / -0.02 | +0.04 / +0.01 / -0.03 |
+| FDM | -0.16 / -0.00 / -0.55 | -0.13 / -0.13 / -0.25 | -0.06 / -0.10 / -0.13 |
+| 3D solid | | +0.05 / +0.02 / -0.00 | -0.06 / -0.09 / -0.12 |
+| Lumped | | +0.36 / +0.12 | +0.36 / +0.12 |
+| Analytic | | +0.01 / -0.09 | +0.01 / -0.09 |
+
+The 4 x 4 mm part and the partial edge read within 0.6 % in every model (FVM 4 x 4: +0.31 / +0.18 / +0.11 % of the mean at 1 / 0.5 / 0.25 mm; rim: FVM +0.02 % at 0.25 mm, FDM -0.09 %,
+Lumped +0.33 %, Analytic -0.04 %). **The board is dominated by convection (h 10 on the plate and the top: a rise of 104 K per watt), so the totals agree to 0.5 % whatever the
+cluster does**; the discriminating number is the via effect E (no via minus via on the same mesh; the vias remove 5.87 K of 109.7 K, 5.4 %):
+
+| part | FEM E (0.2 / 0.1 mm) | FVM 1 / 0.5 / 0.25 | FDM | 3D solid 0.5 / 0.25 | Lumped | Analytic |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 6 x 6 | 5.8676 / 5.8658 K | +4.3 / -0.9 / -1.2 % | -7.0 / -2.3 / -1.3 % | -0.0 / -0.4 % | -2.4 % | -0.6 % |
+| 4 x 4 | 8.9589 / 8.9590 K | +2.0 / -1.1 / -1.5 % | -5.8 / -2.9 / -1.9 % | -0.1 / -0.5 % | +1.0 % | -2.3 % |
+
+**B minus A is the program's idealisation of the part**: the resolved tab (0.2 mm of copper over 0.1 mm of solder, no film under it) is 0.99 K (0.95 %) cooler at the part mean and 1.37 K
+at the hottest point for the 6 mm part (0.48 K and 0.93 K for 4 mm), because the tab is nearly isothermal and spreads the heat through the solder; the program's uniform flux plus a series
+offset overstates the part temperature by that much, on the safe side, and it does not depend on the cluster. This is a proposal input only (feature for a tab or spreading term under a
+part: the maintainer decides, README 7.4). Limits: the resolved tab uses the synthetic solder and interface of 7.4 and a film of 10 W/m2K on the tab; a 20 x 20 mm board with a 1 mm
+plate hides the cluster behind the convective resistance (a board with a cooler plate would show the cluster more: not run); the Lumped reads identical numbers at 0.5 and 0.25 mm because
+the program clamps its cell.
+
+### 8.3 Study 5: the transient reference (`study_transient.py`, `transient.py`; figure 7)
+
+![Study 5](figures/fig_07_transient_results.png)
+
+*Figure 7 (fig_07_transient_results.png): left, the new integrator against the axisymmetric modal reference on the disc board (step response of the footprint mean); right, the 20 Hz wave on the 60 x 40 mm plate by plan size, against the program's closed form and node swing.*
+
+Design as 7.3: capacity and an implicit step added on top of `fem.Model`; consistent mass (the lumped mass is 2 to 3 points lower in the step response at 0.01 s, see below); Crank-Nicolson
+with two implicit-Euler half steps after every change of power; the frequency-domain solve for the periodic state on small meshes (complex SuperLU only up to 25 000 unknowns).
+
+Checks on the disc board (radius 10 mm, insulated rim, a source on the disc of the area of a 4 mm square, two layers, h 10; `study_transient.py disc`):
+(iv) energy: stored + lost - input over the step response 2.6e-12 of the input (and 1e-9 at most in the plate runs); (iii) plateau: the end of the run equals the steady solve (174.35599 against 174.35726 K/W);
+(v) the second order in the step: the tests; (vii) periodic state at 20 Hz, 30 %, 10 cycles from the steady state of the mean: swing 2.79841 K/W by time stepping and 2.79627 by the frequency domain
+(+0.076 %, same mesh), periodicity 1.8e-4; (vi) against `axisym_stack.Reference` (mesh of 21 411 unknowns, 12 elements per gap, then 38 907):
+
+| t (s) | 0.01 | 0.1 | 1 | 10 | 100 | 500 |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| FEM / axisym - 1, 21 411 unknowns (%) | -2.76 | -1.85 | -1.27 | -0.54 | +0.06 | +0.19 |
+| same, 38 907 unknowns (plan 12 -> 18) | -2.86 | -1.88 | -1.28 | -0.61 | -0.08 | +0.02 |
+
+The 20 Hz swing is 2.79841 K/W (21 411 unknowns) and 2.79553 (38 907) against 2.86858 of the axisymmetric reference: **-2.45 % and -2.55 %**. The residual is NOT removed by the plan (12 -> 18),
+by the gap elements (`zconv`: 12 / 24 / 36 / 48 elements per gap give -5.03 / -3.46 / -3.37 / -3.35 % on a coarse plan, converged at -3.35 %), nor by the time step ((a) and (b) agree to 0.08 %); the
+lumped mass is worse (-4.7 % at the same mesh). The axisymmetric reference itself moves by 0.3 % under refinement (its swing 2.8686 -> 2.8580 with the cells doubled). **The cause of the
+remaining -2.5 % is not found**: a candidate is the representation of the disc source (an inscribed 48-gon of quads against a true disc in the axisymmetric cells), not tested. On the 10 mm part of the plate the centre reading agrees
+to +0.10 % (below), so the integrator is trusted to 0.5 % on slow responses and to about 3 % on the fast swing of a 4 mm part until the discrepancy is explained.
+
+The 20 Hz, 30 %, 1 W wave on the 60 x 40 mm two-layer plate, 10 mm part (quarter domain, 20 elements per gap at 0.8 mm, 24 at 0.4 to 0.1 mm; 7 periods from the steady state of the mean, 0.25 ms steps,
+the footprint mean and the centre node of the top face), swing in K per watt of the on-power:
+
+| plan size | unknowns | FEM centre | FEM footprint mean | time |
+| :-- | :-- | :-- | :-- | :-- |
+| 0.8 mm, 20 / 30 elements per gap | 16 192 / 23 232 | 0.63609 / 0.63818 | 0.55136 / 0.55288 | 7 / 12 s |
+| 0.4 mm | 32 400 | 0.63780 | 0.55545 | 198 s |
+| 0.2 mm | 69 552 | 0.63787 | 0.55625 | 429 s |
+| 0.1 mm | 167 832 | 0.63788 | 0.55644 | 1040 s |
+
+The centre converges to 0.63788 (0.01 % between 0.2 and 0.1 mm; the last two periods differ by 0.15 %: the state is periodic to that, so +-0.15 %; the gap elements 20 -> 30 move it 0.33 %).
+Independent references: `axisym_stack` 0.63722 (centre) and 0.56930 (mean over a disc of the same area; the FEM mean is over the square part): the FEM centre is **+0.10 %** from it.
+**The program** (`profiles.decide`, 10 mm part, one watt): the node swing is 0.0769 / 0.0770 K per watt at the 2 / 1 mm cell (**8.3 times too small** against the FEM centre 0.63788), and the decision
+with the closed-form floor of 2.6.0 (`stackimpedance`, eq. 10.5) is 0.63545 K per watt: **-0.38 % against the FEM**. The program's earlier headline 6.355 K for the 10 W wave stands.
+
+Step response of the study-2 plate (variant A, 6 mm part, cluster, plate; 68 672 unknowns; consistent mass; steps doubling every six; energy residual 8.5e-12): steady 103.847 K/W, time to 63 % **201.39 s**.
+The program, steady resistance K/W / time to 63 % s:
+
+| model | 2 mm (the API default) | 1 mm | 0.5 mm |
+| :-- | :-- | :-- | :-- |
+| FVM | 103.649 / 200.89 | 104.028 / 200.70 | 104.323 / 199.92 |
+| FDM | 102.750 / 200.58 | 104.296 / 198.17 | 104.169 / 199.34 |
+
+so the times are 0.2 to 0.7 % (FVM) and 0.4 to 1.6 % (FDM) below the reference, the steady resistance within -1.1 to +0.4 %. The Lumped and Analytic refuse a block in the transient (as the plan said). Not run: the
+step of this plate at 0.1 mm (waits for variant A to pass its checks; it did, but the cost was not cleared), the waves of the cluster, the periodic frequency-domain solve above 25 000 unknowns.
+
+### 8.4 Study 3: stripes (`study_stripes.py`; figure 8)
+
+![Studies 3 and 4](figures/fig_08_stripes_and_l_results.png)
+
+*Figure 8 (fig_08_stripes_and_l_results.png): the program's heater-mean error against the finest finite-element value on the stripes board and the control (left) and on the two L boards (right), FVM solid and FDM dashed.*
+
+The `sq_stripes` board of validation 40 (20 mm, stripes of 1.2 mm every 2.4 mm plus a 7.2 mm pad on the top layer, copper 1.2 mm inside, 200 W/m2K, heater 4 mm, 1 W), aligned with the grid, the copper
+RESOLVED (every edge a mesh line, plan 0.4 and 0.2 mm everywhere; not volume-mixed), 12 elements per gap; control: the same board with plain copper. Closed forms of the stripes (tests): parallel and
+series stripes to 1e-5. Heater mean rise, K:
+
+| board | FEM 0.4 / 0.2 mm | FVM 1 / 0.5 / 0.25 mm | FDM 1 / 0.5 / 0.25 mm |
+| :-- | :-- | :-- | :-- |
+| plain copper (control) | 56.9358 / 57.1020 | 56.457 (-1.13 %) / 55.545 (-2.73) / 55.297 (-3.16) | 55.804 (-2.27) / 55.618 (-2.60) / 55.469 (-2.86) |
+| stripes and pad | 73.3435 / 73.7400 | 67.946 (-7.86 %) / 70.817 (-3.96) / 70.638 (-4.21) | 66.122 (-10.33) / 70.137 (-4.89) / 70.537 (-4.34) |
+
+Errors against the 0.2 mm value; with two meshes only the reference is not extrapolated: it moves +0.29 % (plain) and +0.54 % (stripes) from 0.4 to 0.2 mm, so the converged value is probably 0.3 to 0.6 % higher
+and the errors that much larger. The program reads 4 to 8 % cool on the stripes board and 3 % cool on the plain board, which is the drawn-copper idealisation of validation 40.4 (stated limit, planned 5a)
+confirmed against a resolved reference; the stripes cost about 1 point more than the plain board at 0.25 mm. **The checkerboard against sqrt(S1 S2) did NOT work**: the ratio S_eff / sqrt(S1 S2) is
+4.52 / 4.78 / 4.91 for N = 4 / 8 / 16 squares, not 1. The cause is the conforming mesh: two copper squares that touch at a corner share a NODE, a coupling of finite conductance, while the
+continuum point contact has none; this is a limit of the test, not a finding about Dykhne's result (which was not opened). The masks at 45 degrees were not run.
+
+### 8.5 Study 4: the L outline (`study_lshape.py`; figure 8, right)
+
+The L outline of validation 40 (20 mm arms 8 mm wide, two layers, 200 W/m2K, heater 2.4 mm in the lower arm, 1 W), aligned, finite elements at 0.4 / 0.2 / 0.1 mm (fine zones at the walls, the corner and the heater);
+mirror check: the board mirrored about its diagonal gives the same heater mean to 1.0e-10 K. Heater mean rise, K:
+
+| copper | FEM 0.4 / 0.2 / 0.1 mm | order, extrapolated | FVM 1 / 0.5 / 0.25 mm | FDM 1 / 0.5 / 0.25 mm |
+| :-- | :-- | :-- | :-- | :-- |
+| to the wall | 65.2843 / 65.4321 / 65.4831 | 1.53, 65.510 | +0.01 / -0.87 / -0.73 % | -2.98 / -0.79 / +0.17 % |
+| 1.2 mm inside | 79.4140 / 79.7127 / 79.8177 | 1.51, 79.875 | -1.82 / -3.07 / -3.54 % | -4.50 / -3.16 / -2.86 % |
+
+(errors against the 0.1 mm value; the extrapolated one would add 0.05 and 0.07 point). The FVM with the copper to the wall is within 1 % at every cell (the centroid film), the FDM within 3 % at 1 mm and 0.2 % at
+0.25 mm; with the copper 1.2 mm inside both read 3 to 3.5 % cool at 0.25 mm, the error that validation 40.2 quotes (-3.12 / -2.86 % at 1 / 0.5 mm) and that does not fall with the cell (the laminate idealisation, 8 sub-gaps would
+change it: not run here).
+
+### 8.6 What was run, what was not, and the decisions that remain
+
+Run: study 1a (0.2, 0.1, 0.05 mm) and 1b (0.2, 0.1 mm); study 2 (A, B, partial edge, and the 4 mm part; 0.4, 0.2, 0.1 mm); study 5 (the checks, the plate at 0.4 / 0.2 / 0.1 mm, the step of the study-2 plate at 0.2 mm, the
+program's decision and step responses); study 3 (aligned stripes, 0.4 and 0.2 mm); study 4 (0.4, 0.2, 0.1 mm). Not run, by instruction: 1b at 0.05 mm, study 2 at 0.05 mm, the masks at 45 degrees. Not run by choice
+or time: the periodic frequency-domain solve of the plate, the study-2 step at 0.1 mm, stripes at 0.1 mm (a 600 000-unknown mesh), the 8 sub-gap FVM on the L boards.
+Contradictions with the plan: the tool had no transient (known, corrected in section 1); the Dykhne check fails for a reason of the mesh (8.4); the 'round-off' equality of the copper core and the solid cylinder is 0.001 to 0.002 K
+(8.1); the O-grid wall carries 0.7 % less copper than the annulus; the integrator against the axisymmetric reference leaves a -2.5 % residual on the 4 mm disc that is not explained (8.3). For the maintainer: whether the
+resolved part (B minus A, about 1 % of the part rise here) justifies a feature; nothing of the program was edited (`git diff development --stat -- pcbthermal tests examples ico` is empty).
