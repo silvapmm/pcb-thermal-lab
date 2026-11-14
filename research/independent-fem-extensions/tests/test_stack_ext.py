@@ -106,3 +106,23 @@ def test_solder_at_copper_equals_a_thicker_tab():
     ra = stack_ext.Stack(plan, a, symmetry=[("x", 0.0), ("y", 0.0)]).solve(direct_max=30000)
     rb = stack_ext.Stack(plan, b, symmetry=[("x", 0.0), ("y", 0.0)]).solve(direct_max=30000)
     assert np.nanmax(np.abs(ra["T"] - rb["T"])) < 1e-9
+
+
+def test_stripes_against_the_parallel_and_series_closed_forms():
+    """!
+    @brief A sheet of copper and laminate stripes along the flow adds the sheet conductances (parallel); stripes across the flow add the sheet resistances (series). Both exact.
+    @return None.
+    """
+    import sheets
+    k1, k2, t = 385.0, 0.9, 35e-6
+    L, W = 8e-3, 4e-3
+    xn = np.linspace(0, L, 17)
+    yn = np.linspace(0, W, 17)
+    # parallel: stripes along x, copper where y is in [0, 1] and [2, 3] mm
+    par = sheets.conductance(xn, yn, lambda c: ((c[:, 1] < 1e-3) | ((c[:, 1] > 2e-3) & (c[:, 1] < 3e-3))))
+    exact_par = ((k1 + k2) * 2e-3 * t) / L
+    assert abs(par - exact_par) / exact_par < 1e-5
+    # series: stripes across the flow, copper where x is in [0, 2] and [4, 6] mm
+    ser = sheets.conductance(xn, yn, lambda c: ((c[:, 0] < 2e-3) | ((c[:, 0] > 4e-3) & (c[:, 0] < 6e-3))))
+    exact_ser = W * t / (4e-3 / k1 + 4e-3 / k2)
+    assert abs(ser - exact_ser) / exact_ser < 1e-5

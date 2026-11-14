@@ -154,6 +154,35 @@ def disc_checks(n_side=12, n_gap=24, consistent=True):
     save(res)
 
 
+def zconv():
+    """!
+    @brief Convergence of the disc check in the number of elements across the laminate gap (coarse plan, consistent mass, direct solves): the 20 Hz swing and the step response
+           at 0.01 s and 1 s against the axisymmetric reference.
+    @return None.
+    """
+    import axisym_stack as A
+    import transient
+    res = load()
+    ref = A.Reference(A.Stack(layers=2), A.part_radius(4e-3), 10e-3, 10.0, 10.0)
+    mx, mn = ref.square_wave(0.05, 0.3, "mean")
+    out = []
+    for n_gap, ratio in ((12, 1.3), (24, 1.3), (36, 1.3), (48, 1.3), (24, 1.15)):
+        b = disc_source_board(8, n_gap, ratio, n_rad=6)
+        m, info = b.build()
+        tr = transient.Transient(m, board_rho_c(m), consistent=True)
+        w = tr.reduce_weights(transient.face_weights(m, np.vstack(info["heater_faces"])))
+        segs = transient.square_segments(0.05, 0.3, 60, 140, 8)
+        run = tr.march(tr.steady(0.3), segs, transient.square_power(0.05, 0.3), {"m": w})
+        s, t = run["series"]["m"], run["t"]
+        sw = s[t > 7 * 0.05].max() - s[t > 7 * 0.05].min()
+        st = tr.step_response({"m": w}, 2.0, dt0=1e-3, per_level=6, factor=2.0)
+        e = [100 * (float(np.interp(tt, st["t"], st["series"]["m"])) / float(ref.step(np.array([tt]), "mean")[0]) - 1) for tt in (0.01, 1.0)]
+        out.append((n_gap, ratio, tr.n, sw, e[0], e[1]))
+        print(f"n_gap {n_gap} ratio {ratio}: {tr.n} unknowns, swing {sw:.5f} ({100 * (sw / (mx - mn) - 1):+.2f} % of axisym {mx - mn:.5f}), step error at 0.01 s {e[0]:+.2f} %, at 1 s {e[1]:+.2f} %", flush=True)
+    res["zconv"] = out
+    save(res)
+
+
 def plate_board(hf, n_gap=20, ratio=1.35):
     """!
     @brief The 60 x 40 mm two-layer plate of `research/fast-wave-oscillation` (1.6 mm, 35 um, k 0.9 / 0.3, h 10), quarter domain, 10 mm square part in the centre, 1 W in total.
@@ -247,9 +276,7 @@ def plate(hf):
     qs = np.nonzero(hd["inside"](info["c"]))[0]
     w = tr.reduce_weights(transient.face_weights(m, st.level_nodes(info, 0, qs)))
     r = tr.step_response({"mean": w}, 2500.0, dt0=0.05, per_level=6, factor=2.0)
-    z = r["series"]["mean"] * 4.0                                          # the quarter carries a quarter of 1 W: K per W of the whole board
-    steady = 4.0 * float(w @ tr.steady())
-    # steady uses the quarter's unit load: the model's source is 0.25 W, so K/W of the whole board = value / 1 W * ... the source in the model is power / 4 with power = 1 W
+    # the model's source is the quarter of 1 W (`cluster.build(power=1.0)`), so the field is already the rise per watt of the whole board
     e_in, e_store, e_lost = r["energy"]
     out = {"n": tr.n, "solver": tr.how, "t": r["t"].tolist(), "z": (r["series"]["mean"]).tolist(), "steady": float(w @ tr.steady()),
            "energy_residual": abs(e_in - e_store - e_lost) / e_in, "seconds": time.time() - t0}
@@ -332,7 +359,7 @@ def report():
     for k in ("plate|0.2", "plate|0.1"):
         r = res.get(k)
         if r:
-            print(f"study-2 plate step {k}: steady {r['steady'] * 4:.4f} K/W (whole-board unit power), t63 {r['t63']:.1f} s, energy residual {r['energy_residual']:.1e}")
+            print(f"study-2 plate step {k}: steady {r['steady']:.4f} K/W, t63 {r['t63']:.1f} s, energy residual {r['energy_residual']:.1e}")
     ps = res.get("prog_step")
     if ps:
         for k, v in ps.items():
@@ -343,6 +370,8 @@ if __name__ == "__main__":
     mode = sys.argv[1]
     if mode == "disc":
         disc_checks(int(sys.argv[2]) if len(sys.argv) > 2 else 12, int(sys.argv[3]) if len(sys.argv) > 3 else 24, (sys.argv[4] != "lump") if len(sys.argv) > 4 else True)
+    elif mode == "zconv":
+        zconv()
     elif mode == "fast":
         fast(float(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 24)
     elif mode == "plate":
