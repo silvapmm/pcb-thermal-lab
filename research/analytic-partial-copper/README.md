@@ -260,7 +260,7 @@ The program's warning (section 4.5) is the right trigger on these boards; what i
 
 * Boards: square, 24 to 80 mm, a centred or off-centre rectangular pad on the top layer, one or two copper layers (the rows of 5.6 go to 8), one heater (two pads and one heater in 5.5); heaters on the first layer only. No via, heatsink, block, outline or edge loss: the candidate was not combined with them (the program's Woodbury system already carries vias and blocks; adding the lateral defect to it is an extension, not measured).
 * **Steady state only.** The Analytic's transient uses the same fill; the candidate does not touch it.
-* The references: 0.25 mm quadrant (0.4 to 0.7 % above the converged value at 10 and 20 mm pads) and 0.5 mm whole board (1 to 1.5 % high); the nodes' error of the candidate itself is a layered-model limit (n = 8 on a 6 mm pad is still -3.6 % at a converged tile).
+* The references: 0.25 mm quadrant (0.3 to 0.7 % above the converged value, as review R9 corrected at 10 and 20 mm pads) and 0.5 mm whole board (1 to 1.5 % high); the nodes' error of the candidate itself is a layered-model limit (n = 8 on a 6 mm pad is still -3.6 % at a converged tile).
 * The candidate with a coarse tile can be right for the wrong reason (the +0.4 % of pad 6 at 1 mm and n = 4); only converged tiles are claimed.
 * No real board (a window of the Stormduino) was run through the candidate; the window case of 5.5 is a designed one.
 
