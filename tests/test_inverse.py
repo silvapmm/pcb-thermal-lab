@@ -103,3 +103,35 @@ def test_power_band_orders_best_nominal_worst_and_the_sources_add_in_quadrature(
     # More copper means a lower board resistance: more watts for the same reading
     copper = next(c for c in ring["contributions"] if c["factor"] == "copper")
     assert copper["high_w"] > ring["power_w"] > copper["low_w"]
+
+
+def test_the_top_point_is_refused_for_a_part_with_a_heatsink_on_top():
+    """psi_JT of a datasheet is defined without a heatsink: with theta_SA set the top of the package is refused (audit A5 P5); the junction point still works."""
+    p = part(power=1.0)
+    p.heaters[0].theta_sa = 5.0
+    with pytest.raises(ValueError, match="heatsink"):
+        power_from_temperature(p, 0, 80.0, point="top", cell_mm=2.0, psi_jt=0.5)
+    assert power_from_temperature(p, 0, 80.0, point="junction", cell_mm=2.0)["power_w"] > 0
+
+
+def test_the_board_resistance_is_the_parts_own_and_the_other_parts_rise_is_reported():
+    """R = (T(P) - T(0)) / P excludes the heating by the other heaters (audit A5 P6): the same part with and without a second heater gives the same R."""
+    both = part(power=1.0)
+    alone = part(power=1.0)
+    alone.heaters[1].power = 0.0
+    out_both = power_from_temperature(both, 0, 90.0, point="mean", cell_mm=2.0)
+    out_alone = power_from_temperature(alone, 0, 90.0, point="mean", cell_mm=2.0)
+    assert out_both["other_parts_rise_k"] > 0.05 and out_alone["other_parts_rise_k"] == pytest.approx(0.0, abs=1e-9)
+    assert out_both["resistance_k_per_w"] == pytest.approx(out_alone["resistance_k_per_w"], rel=1e-6)
+    # With no other heat the value is the earlier rise / P to the bit (T(0) is the ambient exactly)
+    assert out_alone["resistance_k_per_w"] == out_alone["rise_k"] / out_alone["power_w"]
+    # With two heaters it is the difference of two independent solves at the power found, over that power
+    from pcbthermal.api import SolverOptions
+    from pcbthermal.inverse import _temperature
+    opt = SolverOptions(models=("fvm",), cell_mm=2.0)
+    t_p = _temperature(both, "fvm", opt, 0, "mean", out_both["power_w"], 0.0)
+    t_0 = _temperature(both, "fvm", opt, 0, "mean", 0.0, 0.0)
+    assert out_both["resistance_k_per_w"] == pytest.approx((t_p - t_0) / out_both["power_w"], rel=1e-6)
+    assert out_both["other_parts_rise_k"] == pytest.approx(t_0 - both.board.ambient, abs=1e-9)
+    # The old definition (measured rise over the power) included the other part's heating and read higher
+    assert out_both["resistance_k_per_w"] < (90.0 - both.board.ambient) / out_both["power_w"]
