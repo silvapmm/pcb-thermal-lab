@@ -1,0 +1,184 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file test_dock_writeback.py
+@brief Editing one field of the Board settings or Simulation settings dock never rewrites another field, and a value loaded from a project is never clamped by a box.
+@details The defect: after opening a project with a copper layer of 10 000 um (a 10 mm plate), any edit of any field of the Board dock wrote the clamped box (210 um) back into the
+         project, and h above 500 W/m2K and a thickness above 10 mm were clamped the same way, so the next run read hundreds of degrees too hot with no warning. Now a box widens
+         to hold a loaded value (`spinfit.fit_range`) and the dock writes only the boxes the user changed.
+"""
+
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+
+pytest.importorskip("pytestqt")
+
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QAbstractSpinBox, QMessageBox
+
+from pcbthermal import Problem, SolverOptions, simulate
+from pcbthermal.gui.document import Document
+from pcbthermal.gui.main_window import MainWindow
+from pcbthermal.gui.spinfit import fit_range
+from pcbthermal.model import Materials
+
+
+@pytest.fixture
+def win(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief A main window with its message boxes replaced (a real box would block the test).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder for the settings file.
+    @param monkeypatch pytest fixture.
+    @return MainWindow
+    """
+    for kind in ("warning", "critical", "information"):
+        monkeypatch.setattr(f"pcbthermal.gui.main_window.QMessageBox.{kind}", lambda *a, **k: None)
+    monkeypatch.setattr("pcbthermal.gui.main_window.QMessageBox.question", lambda *a, **k: QMessageBox.Discard)
+    w = MainWindow(Document(), QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
+    qtbot.addWidget(w)
+    w.resize(1500, 900)
+    w.show()
+    return w
+
+
+def plate(h_bottom=400.0):
+    """!
+    @brief A 50 x 50 x 10 mm copper plate (k 150 W/mK) with four 10 x 10 mm sources, as in the published case 2 of Muzychka and others (2003).
+    @param h_bottom Bottom coefficient in W/m2K.
+    @return Problem
+    """
+    p = Problem.new(50.0, 50.0, layers=1, thickness_mm=10.001, copper_um=10000.0, ambient=25.0, h_top=1e-6, h_bottom=h_bottom, h_side=None,
+                    materials=Materials(k_copper=150.0))
+    p.add_full_copper(layers=None)
+    for i, (cx, cy, w) in enumerate(((12.5, 12.5, 10.0), (37.5, 12.5, 25.0), (12.5, 37.5, 20.0), (37.5, 37.5, 15.0))):
+        p.add_heater(1, w, rect=(cx - 5, cy - 5, cx + 5, cy + 5), name=f"S{i}")
+    return p
+
+
+def hottest(problem):
+    """!
+    @brief The FVM hottest temperature of a problem at a 2.5 mm cell, in degrees Celsius.
+    @param problem Problem.
+    @return float
+    """
+    res = simulate(problem, SolverOptions(models=("fvm",), cell_mm=2.5))
+    return float(res.results["fvm"].t_max)
+
+
+def test_editing_another_field_keeps_a_10_mm_plate(win):
+    """!
+    @brief Open the plate, edit h_bottom and the ambient, and the copper thickness, the other coefficients and the result stay as loaded.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "plate")
+    bd = win.doc.problem.board
+    before = hottest(win.doc.problem)
+    assert bd.copper_thickness[0] == pytest.approx(10000e-6)
+    bp = win.board_panel
+    assert bp.copper.value() == pytest.approx(10000.0)               # The box shows the stored value, not 210
+    bp.h_bottom.setValue(401.0)
+    bp.h_bottom.setValue(400.0)
+    bp.ambient.setValue(25.5)
+    bp.ambient.setValue(25.0)
+    bd = win.doc.problem.board
+    assert bd.copper_thickness[0] == pytest.approx(10000e-6) and bd.thickness == pytest.approx(10.001e-3)
+    assert bd.h_bottom == pytest.approx(400.0) and bd.h_top == pytest.approx(1e-6) and bd.h_side is None
+    assert hottest(win.doc.problem) == pytest.approx(before, abs=1e-9)
+
+
+def test_stored_values_above_the_usual_ranges_are_held(win):
+    """!
+    @brief h above 500 W/m2K, a thickness above 10 mm, a width above 1 m and a big conductivity are shown and kept through an edit of another field.
+    @param win MainWindow fixture.
+    """
+    p = plate(h_bottom=5000.0)
+    p.board.h_top = 2000.0
+    p.board.h_side = 800.0
+    win._load_problem(p, "strong")
+    bp = win.board_panel
+    bp.ambient.setValue(26.0)
+    bd = win.doc.problem.board
+    assert (bd.h_bottom, bd.h_top, bd.h_side) == pytest.approx((5000.0, 2000.0, 800.0))
+    assert bd.thickness == pytest.approx(10.001e-3) and bd.copper_thickness[0] == pytest.approx(10000e-6) and bd.ambient == 26.0
+
+
+def test_every_dock_box_round_trips_a_value_at_its_limit(win):
+    """!
+    @brief A project whose numeric board fields are far outside the usual ranges passes through an edit of one box without any other field changing.
+    @details Generic: every spin box of the Board dock is set, through the document, to a value above its original maximum, and one box is then edited.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "limits")
+    bp = win.board_panel
+    p = win.doc.problem
+    b = p.board
+    values = dict(width=3.0, height=2.5, thickness=0.09, h_top=9e4, h_bottom=9e4, h_side=9e4, ambient=900.0, air_speed=300.0, h_calibration=50.0)
+    for k, v in values.items():
+        setattr(b, k, v)
+    b.copper_thickness = [15000e-6]
+    b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane = 5000.0, 500.0, 600.0
+    b.via_plating = 500e-6
+    win.doc.changed.emit()
+    snapshot = (b.width, b.height, b.thickness, b.h_top, b.h_bottom, b.h_side, b.ambient, b.air_speed, b.h_calibration, b.copper_thickness[0],
+                b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane, b.via_plating)
+    for spin in bp.findChildren(QAbstractSpinBox):
+        assert spin.minimum() <= spin.value() <= spin.maximum()
+    bp.emis_top.setValue(0.8)                                         # An unrelated edit
+    b = win.doc.problem.board
+    after = (b.width, b.height, b.thickness, b.h_top, b.h_bottom, b.h_side, b.ambient, b.air_speed, b.h_calibration, b.copper_thickness[0],
+             b.materials.k_copper, b.materials.k_fr4_through, b.materials.k_fr4_inplane, b.via_plating)
+    assert after == pytest.approx(snapshot, rel=1e-12) and b.emissivity_top == 0.8
+
+
+def test_a_box_shows_a_rounded_value_without_writing_it_back(win):
+    """!
+    @brief A stored width of 100.123456 mm is shown with one decimal; an edit of the height does not round the width.
+    @param win MainWindow fixture.
+    """
+    p = plate()
+    p.board.width = 0.100123456
+    win._load_problem(p, "round")
+    win.board_panel.height.setValue(51.0)
+    assert win.doc.problem.board.width == pytest.approx(0.100123456, rel=1e-12)
+
+
+def test_the_simulation_dock_does_not_rewrite_unedited_options(win):
+    """!
+    @brief The cell stored with more decimals than its box shows, and a laminate sub-gap outside the box range, survive the edit of another option.
+    @param win MainWindow fixture.
+    """
+    win._load_problem(plate(), "options")
+    o = win.doc.options
+    o.cell_mm, o.laminate_s_max_mm, o.hotspot_c = 0.123456, 9.0, 2500.0
+    win.doc.state_changed.emit()
+    sp = win.solver_panel
+    sp.rings.setValue(sp.rings.value() + 1)
+    assert o.cell_mm == pytest.approx(0.123456) and o.laminate_s_max_mm == 9.0 and o.hotspot_c == 2500.0
+    assert sp.hot.value() == 2500.0 and sp.lam_s.value() == 9.0
+
+
+def test_fit_range_widens_and_never_clamps(qtbot):
+    """!
+    @brief fit_range holds a value above the maximum and below the minimum, for a double and an integer box, and leaves a value inside the range alone.
+    @param qtbot pytest-qt fixture.
+    """
+    from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
+    d = QDoubleSpinBox()
+    d.setRange(1.0, 10.0)
+    qtbot.addWidget(d)
+    fit_range(d, 5.0)
+    assert (d.minimum(), d.maximum()) == (1.0, 10.0)
+    fit_range(d, 1234.5)
+    fit_range(d, -7.0)
+    d.setValue(1234.5)
+    assert d.value() == 1234.5 and d.minimum() == -7.0
+    i = QSpinBox()
+    i.setRange(1, 12)
+    qtbot.addWidget(i)
+    fit_range(i, 40.0)
+    i.setValue(40)
+    assert i.value() == 40
