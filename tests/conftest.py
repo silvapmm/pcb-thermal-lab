@@ -58,15 +58,22 @@ def _private_window_settings(monkeypatch, tmp_path):
     """!
     @brief Give every MainWindow built without its own settings a private, empty settings file.
     The default `QSettings("PMS Labs", "PCB Thermal Lab")` is the user's real preference store: a window closed by one test saved its geometry and dock state there and the next
-    test restored them (docks closed or narrow), so a layout test passed alone and failed after other tests (the Profiles cut-overlay test, 2 of 3 batteries).
+    test restored them (docks closed or narrow), so a layout test passed alone and failed after other tests (the Profiles cut-overlay test, 2 of 3 batteries; reproduced
+    by the review with a scratch store holding a closed dock: `-1 >= 0` every time), and the battery wrote the theme and the box states into the user's own preferences.
+    Only the module `main_window` is patched (the one place of the program that builds the default store); a window given its own settings is untouched, and two
+    windows of the same test share the private file, so persistence between windows is still tested.
     @param monkeypatch pytest fixture.
     @param tmp_path pytest fixture (one folder per test).
     """
     try:
         from PySide6.QtCore import QSettings
-        from pcbthermal.gui import main_window
+        from pcbthermal.gui import boxes, main_window
     except ImportError:                                   # Physics-only environment
         return
+    # The open or collapsed state of the boxes is a module-level store bound by the last MainWindow: without this a panel built alone in a later test read the
+    # box states of the window of an earlier test (before the redirect, the user's real store)
+    monkeypatch.setattr(boxes, "_settings", None)
+    monkeypatch.setattr(boxes, "_memory", {})
     ini = str(tmp_path / "window_default.ini")
 
     def private(*args):
