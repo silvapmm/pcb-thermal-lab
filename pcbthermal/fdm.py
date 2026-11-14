@@ -305,7 +305,7 @@ class Network:
             d = b.gap_thicknesses()
             gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy() if rule is None else rule.gz
             # The barrel is a mean-potential coupling of a footprint of nodes (viawell.py), appended to the matrix entries
-            via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx, self.active)
+            via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx)
             vr, vc, vv = viawell.matrix_entries(via_blocks, idx)
             rows.extend(vr)
             cols.extend(vc)
