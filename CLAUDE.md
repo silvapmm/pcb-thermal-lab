@@ -370,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **The numerics and shipped-data audit (L12) merged**: the via-coupling counts of theory 2.2 re-measured on 2.7.1, every shipped default constant has its basis or is marked typical-without-source (copper kept at 385 W/mK, marked typical; FR-4 in-plane 0.9 W/mK and emissivity 0.9 have no source and are sensitive); items queued in DECISIONS_2.md (fix/typical-values-marks).
+
 - **The audit documents A2, A4, A5, S1 and the second decisions file merged**: the fine-comb re-review of convection, cut cells, edge/laminate, Lumped/Analytic/transient, calculator, JEDEC board redrawn (calculator row is an indication, not a verification) and numerics is in `releases/2.8.0/audit/`; fixes are queued in `DECISIONS_2.md`.
 
 - **Fix branches merged after review and the whole battery (3606 passed)**: profiles-tab flake fixture (tests use a private settings store), OCR map reads the status file, Analytic transient reads the steady hot point, thick-plate warning corrected bound with the film term, board dock writes only edited fields (ranges widened, undo keeps the solver options, Preferences boxes widen). The fine-comb audit documents merged (register, A1+L2, A3+L3+L6, L1+L5, L4+L9, A2+L7, decisions): validation/theory numbers corrected: see `releases/2.8.0/audit/`.
