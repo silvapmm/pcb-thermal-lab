@@ -164,7 +164,8 @@ def checks():
 
 def prog(kind):
     """!
-    @brief The program on the same boards: FVM and FDM at 1, 0.5 and 0.25 mm (default laminate and 8 sub-gaps for the FVM), the 3D solid, the Lumped and the Analytic.
+    @brief The program on the same boards: FVM and FDM at 1, 0.5 and 0.25 mm (default laminate and 8 sub-gaps for both; the FDM with 8 sub-gaps was added by the review, README 9.2,
+           to separate the FDM's own via deficit from the laminate at the edge that the FVM shares), the 3D solid, the Lumped and the Analytic.
     @param kind '1a' or '1b'.
     @return None.
     """
@@ -194,7 +195,7 @@ def prog(kind):
     for d in ((0.16, 3.0) if kind == "1a" else (None,)):
         for h in (200.0, 1000.0):
             for cell in (1.0, 0.5, 0.25):
-                for model, n in (("fvm", None), ("fvm", 8), ("fdm", None)):
+                for model, n in (("fvm", None), ("fvm", 8), ("fdm", None), ("fdm", 8)):
                     base_key = f"P{kind}|{d}|{h}|{cell}|{model}|{n}|base"
                     if base_key not in res:
                         res[base_key] = sp.run(make(h, d, None), cell, n, model=model)
@@ -245,7 +246,7 @@ def report():
                         continue
                     row = []
                     for cell in (1.0, 0.5, 0.25):
-                        for model, n in (("fvm", None), ("fvm", 8), ("fdm", None)):
+                        for model, n in (("fvm", None), ("fvm", 8), ("fdm", None), ("fdm", 8)):
                             b, v = res.get(f"P{kind}|{d}|{h}|{cell}|{model}|{n}|base"), res.get(f"P{kind}|{d}|{h}|{cell}|{model}|{n}|{core}")
                             if b is not None and v is not None:
                                 row.append(f"{model}{'' if n is None else n}@{cell}: {(b - v - ref) / ref * 100:+.1f}%")
