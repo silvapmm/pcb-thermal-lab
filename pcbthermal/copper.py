@@ -554,6 +554,149 @@ def _pixel_board_cover(outline, cols, rows, px, py):
     return out
 
 
+# ------------------------------------------------------------------------------------------------ drawn copper read as an import
+DRAWN_PIXELS_PER_CELL = 10                       # Pixels per cell side of the raster built from the zones (even; 16 differ by 0.1 to 0.5 point and cost twice, 4 keep half the gain)
+DRAWN_RASTER_BYTES_PER_PIXEL = 4.0               # The float32 coverage of a drawn layer kept for the run (memory.copper_run_bytes counts it)
+
+
+class DrawnCopper(CopperSource):
+    """!
+    @brief The zones of a drawn board as the models read an import: a float coverage raster per layer that has a cell cut by a zone edge.
+    @details Same object as the source of an import for the faces and the fill (`lateral`, `fill`, `layers`), but the raster is the exact area share of the zones in every
+             pixel (not stored in the project, not quantised to a byte: a hatch fill of 0.7 stays 0.7). The layers whose cells are all full or empty are not in it: they keep
+             the program's own path, whose faces are the same, and their numbers stay bit for bit.
+    """
+
+    def __init__(self, rasters, pix):
+        """!
+        @param rasters dict copper layer index (0 = top) -> float32 array (rows from the top), coverage times 255.
+        @param pix Pixel in m.
+        """
+        self.mapping = DEFAULT_MAPPING
+        self.reduce_sheet = True
+        self.pix = pix
+        self.entries = {layer: {"index": layer} for layer in rasters}
+        self._rasters = rasters
+
+    def raster(self, layer):
+        """!
+        @brief The float coverage of a layer.
+        @param layer Copper layer index (0 = top).
+        @return float32 array (rows from the top), 0..255.
+        """
+        return self._rasters[layer]
+
+
+def _zone_union(zones, nx, ny, dx, dy, y0=0.0):
+    """!
+    @brief The share of every cell that the union of the zones of one layer covers, and the copper fill of the cell (the fill of the zones times that share).
+    @details Exact area of every zone in every cell (`geometry.exact_coverage`, evaluated only in the window of the zone's box). Zones of the same fill touch or overlap: their
+             shares add and are clipped to one. Zones of different fills are taken from the largest fill down, each over the share not yet taken by a larger one (the program's
+             rule per sample point is the largest fill; this is that rule for a cell cut by both).
+    @param zones Zones of ONE layer (polygon in m, fill 0 to 1).
+    @param nx Cells along x.
+    @param ny Cells along y.
+    @param dx Cell width in m.
+    @param dy Cell height in m.
+    @param y0 y of the bottom edge of the grid in m (the grid of a raster may start a fraction of a pixel below the board).
+    @return Tuple (share (ny, nx) float32, fill (ny, nx) float32), rows from the bottom.
+    @throws ValueError If the edges cross too many grid lines for the exact area (`geometry.OUTLINE_MAX_CROSSINGS`).
+    """
+    groups = {}
+    for z in zones:
+        poly = np.asarray(z.polygon, dtype=float)
+        if len(poly) < 3:
+            continue
+        j0 = max(int(math.floor(poly[:, 0].min() / dx)), 0)
+        j1 = min(int(math.ceil(poly[:, 0].max() / dx)) + 1, nx)
+        i0 = max(int(math.floor((poly[:, 1].min() - y0) / dy)), 0)
+        i1 = min(int(math.ceil((poly[:, 1].max() - y0) / dy)) + 1, ny)
+        if j1 <= j0 or i1 <= i0:
+            continue
+        shifted = poly - np.array([j0 * dx, y0 + i0 * dy])
+        e = exact_coverage(shifted, j1 - j0, i1 - i0, dx, dy)
+        g = groups.setdefault(float(z.fill), np.zeros((ny, nx), dtype=np.float32))
+        g[i0:i1, j0:j1] += e.astype(np.float32)
+    share = np.zeros((ny, nx), dtype=np.float32)
+    fill = np.zeros((ny, nx), dtype=np.float32)
+    for f in sorted(groups, reverse=True):
+        take = np.minimum(np.minimum(groups[f], 1.0), 1.0 - share)
+        share += take
+        fill += np.float32(f) * take
+    return share, fill
+
+
+def _snap(a):
+    """!
+    @brief Snap float32 shares within 1e-6 of 0 or 1 to them (the area of a polygon edge that lies on a pixel line carries rounding of that size).
+    @param a Array of shares.
+    @return The same array, changed in place.
+    """
+    a[a < 1e-6] = 0.0
+    a[a > 1.0 - 1e-6] = 1.0
+    return a
+
+
+def drawn_layer_cuts(problem, nx, ny):
+    """!
+    @brief The drawn layers that have at least one cell cut by a zone edge, with the exact copper fill of their cells.
+    @details A layer whose every cell is full or empty (copper edges on cell lines, or no zone) is not listed: the face of a window half copper and half bare is the harmonic
+             mean of the two cells in both rules. A problem with imported copper, no zone, a zone that crosses itself or an outline too fine for the exact area gives {}.
+    @param problem Problem.
+    @param nx Cells along x.
+    @param ny Cells along y.
+    @return dict layer index (0 = top) -> fill array (ny, nx) float32, rows from the bottom (copper fill of the cell, 0 to 1).
+    """
+    from .geometry import polygon_is_simple
+    if not problem.zones or CopperSource.of(problem) is not None:
+        return {}
+    b = problem.board
+    dx, dy = b.width / nx, b.height / ny
+    out = {}
+    try:
+        for layer in range(b.layers):
+            mine = [z for z in problem.zones if z.layer == layer]
+            if not mine:
+                continue
+            if not all(polygon_is_simple(z.polygon) for z in mine):
+                return {}                                                          # the area of a self-crossing polygon is not the one that the rule reads: the program's path
+            share, fill = _zone_union(mine, nx, ny, dx, dy)
+            if np.any((share > 1e-6) & (share < 1.0 - 1e-6)):
+                out[layer] = fill
+    except ValueError:
+        return {}
+    return out
+
+
+def drawn_source(problem, nx, ny):
+    """!
+    @brief The CopperSource that makes the FVM and FDM read the zones of a drawn board as they read an import, or None.
+    @details Built for the layers that have a cut cell (`drawn_layer_cuts`): a float32 coverage raster of `DRAWN_PIXELS_PER_CELL` pixels per cell side, the exact area of the
+             union of the zones in each pixel. Imported layers win (a problem with imported copper returns None: the earlier path for its drawn layers, a stated limit).
+    @param problem Problem.
+    @param nx Cells along x of the network that will read it.
+    @param ny Cells along y.
+    @return DrawnCopper or None.
+    """
+    layers = drawn_layer_cuts(problem, nx, ny)
+    if not layers:
+        return None
+    b = problem.board
+    pix = b.width / (nx * DRAWN_PIXELS_PER_CELL)
+    cols = nx * DRAWN_PIXELS_PER_CELL
+    rows = int(math.ceil(b.height / pix - 1e-9))
+    y0 = b.height - rows * pix                                                 # row 0 of the raster is the top edge of the board box (copper.resample_coverage)
+    rasters = {}
+    for layer in layers:
+        mine = [z for z in problem.zones if z.layer == layer]
+        try:
+            _, fill = _zone_union(mine, cols, rows, pix, pix, y0)
+        except ValueError:
+            return None
+        rasters[layer] = np.ascontiguousarray((255.0 * _snap(fill))[::-1])       # rows from the top
+    return DrawnCopper(rasters, pix)
+
+
 def resolve(faces, problem):
     """!
     @brief The source a network builder uses: the argument, or the problem's own imported copper.

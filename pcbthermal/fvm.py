@@ -209,6 +209,10 @@ class Network:
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
+        if faces is None and self.copper is None and ladder and cut_cells:
+            # Drawn copper is read as an import: the exact cell fill and the flow-based faces of its layers that have a cell cut by a zone edge (copper.drawn_source). Not for the
+            # network that the Lumped builds (ladder=False, cut_cells=False) nor for the time-constant helper: their numbers stay as they were
+            self.copper = copper.drawn_source(problem, nx, ny)
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
@@ -993,6 +997,8 @@ def unknowns(problem, cell_mm=2.0):
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
         copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
+        for layer, cell_fill in copper.drawn_layer_cuts(problem, nx, ny).items():      # (the exact fill of the drawn layers with a cut cell, as the network reads it)
+            fill[layer] = cell_fill
         # The band along the edge is counted too (it exists only with an edge coefficient)
         edge = laminate.edge_lengths(b, nx, ny, dx, dy, active) if b.h_side else None
         return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active, edge=edge), nx * ny), nx, ny)
