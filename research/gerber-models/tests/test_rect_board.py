@@ -32,7 +32,9 @@ def test_fvm_converges_and_the_fill_error_depends_on_the_cell_edges():
     @brief The FVM converges (0.25 mm against 0.1 mm within 1.5 %); at 1 mm the error is small with the edges on the cells and larger with the copper between them; the FDM reaches the same limit (within 4.5 %).
     @return None.
     """
-    for shift, lo, hi in ((0.0, 0.0, 3.0), (0.4, 4.0, 9.0)):
+    # (0.4, 4.0, 9.0) before fix/drawn-copper-faces: with copper between the cell edges the 1 mm cell read the fill and the faces wrong; the exact fill and the flow-based faces of the
+    # drawn layer bring it to 0.63 % of the 0.1 mm value (measured), so the cell-edge dependence of the 1 mm error is now small on both placements
+    for shift, lo, hi in ((0.0, 0.0, 3.0), (0.4, 0.0, 3.0)):
         p = sc.problem(shift)
         fine, mid, coarse = rise(p, "fvm", 0.1), rise(p, "fvm", 0.25), rise(p, "fvm", 1.0)
         # limit moved from 1.5 % to 1.75 % (measured): the program changed in release 2.4.3 (fix/zone-union, the zones of this board are now
