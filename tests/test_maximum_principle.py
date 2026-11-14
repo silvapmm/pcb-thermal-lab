@@ -28,6 +28,9 @@ from pcbthermal import Problem, fdm, fvm
 from pcbthermal.project import load_project
 
 EXAMPLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "example_board.pcbt.json")
+# Counts of positive off-diagonal entries of K measured on the current program (2.7.1; docs/theory.md 2.2), (FVM, FDM); the largest entry stays under 0.025 of its diagonal
+POSITIVE_COUNTS = {("example", "fvm"): 16, ("example", "fdm"): 64, ("dense", "fvm"): 432, ("dense", "fdm"): 432, ("dense fine", "fvm"): 1872, ("dense fine", "fdm"): 2448}
+MAX_RATIO_TO_DIAGONAL = 0.025
 TOLERANCE = 1e-9                                         # Fraction of the maximum rise allowed as a cold spot (round-off of the direct solve)
 
 
@@ -136,6 +139,8 @@ def test_positive_couplings_and_no_cold_spot_on_copper(case, model):
     spot = cold_spot(problem, net, theta)
     print(f"\n{case} {model} {cell} mm: unknowns {net.K.shape[0]}, positive off-diagonal entries {count}, largest / diagonal {rel_diag:.4f}, "
           f"largest / row negative sum {rel_neg:.4f}, min rise {theta[keep].min():.3e} K, max rise {top:.3f} K, deepest cold spot {spot:+.3e} K")
+    assert count == POSITIVE_COUNTS[(case, model)]        # pinned: a change of the via coupling shows here and must update theory 2.2
+    assert rel_diag < MAX_RATIO_TO_DIAGONAL               # the positive entries are small against the diagonal (at most 0.023 measured)
     assert count > 0                                      # the vias are there (16 for the FVM on the example at 1 mm, theory.md 2.2)
     assert theta[keep].min() >= -TOLERANCE * top           # no node below the ambient
     assert spot >= -TOLERANCE * top                        # and no cold spot around the vias
