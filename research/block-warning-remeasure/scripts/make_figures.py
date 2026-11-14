@@ -3,11 +3,12 @@
 """!
 @file make_figures.py
 @brief Plot the error of the Lumped and Analytic against the FVM from the CSV written by study_block_pads.py (figures/fig_02_block_errors.png).
-@details Run: .venv/bin/python research/block-warning-remeasure/scripts/study_block_pads.py --set all --csv research/block-warning-remeasure/out/cell1.csv
+@details Run: .venv/bin/python research/block-warning-remeasure/scripts/study_block_pads.py --set all --cell-mm 0.5 --csv research/block-warning-remeasure/out/cell05.csv
          then .venv/bin/python research/block-warning-remeasure/scripts/make_figures.py (from the repository root).
 """
 
 import csv
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -23,7 +24,7 @@ def main():
     @brief Bar chart of hottest-point and worst-part error of both models for every case of the CSV; the 5 % line is the claim under test.
     @return None.
     """
-    rows = list(csv.DictReader(open(ROOT / "out" / "cell1.csv")))
+    rows = list(csv.DictReader(open(ROOT / "out" / (sys.argv[1] if len(sys.argv) > 1 else "cell05.csv"))))
     fig, axs = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
     x = range(len(rows))
     for ax, (k, t) in zip(axs, (("hot", "hottest point of the board"), ("part_max", "worst part"))):
