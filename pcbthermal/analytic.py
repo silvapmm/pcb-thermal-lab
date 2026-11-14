@@ -1141,10 +1141,12 @@ class _AnalyticAdapter:
         self.warnings = []
         scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
         if problem.heatsinks:
-            # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
-            # 0.5 mm, converged), research/analytic-edge-and-transient README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
-            # -0.1 % with a heatsink; measured again with the readout point of fix/analytic-transient-hot-point, validation 51: -8.3 % to +2.1 % with a heatsink, the +2.1 % a heatsink beside the part with vias, +0.3 % against the FVM at its fixed hottest node; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
-            # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
+            # Measured on the ten boards of validation 4.1 (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves)
+            # against the FVM at 0.5 mm (converged: 11.21 and 11.22 s at 0.5 and 0.25 mm on the 4-layer board), with the Analytic at its default 1 mm cell and the readout point of
+            # fix/analytic-transient-hot-point (audit 2.8.0, DECISIONS_2 24): the time to 63 % is -9.1 % (4 layers, vias, 300 W/m2K heatsink) to +3.2 % (2 layers, vias, heatsink
+            # beside the part); the research and the fix's review measured -8.1 to +0.5 % and -8.3 to +2.1 % with the Analytic at 0.5 mm. Added two parts, overlapping parts,
+            # partial copper and profile runs (validation 4.1): up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the
+            # heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
             self.warnings.append(
@@ -1216,7 +1218,7 @@ class _AnalyticAdapter:
         return None
 
 
-HEATSINK_TRANSIENT_KEY = "-8 % to +2 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+HEATSINK_TRANSIENT_KEY = "-9 % to +3 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
 
 
 def heatsink_transient_warning(scales=""):
@@ -1226,7 +1228,7 @@ def heatsink_transient_warning(scales=""):
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
-            "of test boards, from about -8 % to +2 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
+            "of test boards, from about -9 % to +3 % off the converged finite-volume result (the worst, -9 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K; the +3 % a 2-layer board with vias and a heatsink beside the part; on five other boards the independent finite elements give +1 to +4 % at 0.5 mm); "
             "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"

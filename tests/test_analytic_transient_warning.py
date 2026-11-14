@@ -9,7 +9,7 @@ from pcbthermal.api import SolverOptions, simulate
 from pcbthermal.examples import example_board
 from pcbthermal import SquareWave
 
-KEY = "-8 % to +2 %"
+KEY = "-9 % to +3 %"
 
 
 def _profile_board(heatsink):
@@ -113,3 +113,32 @@ def test_animation_status_shows_the_warning(qtbot):
     q.heatsinks = []
     tab.set_result(analytic.solve_transient(q, t_end=30.0, n_out=4, cell_mm=2.0, n_terms=40), q)
     assert KEY not in tab.status.text() and KEY not in tab.status.toolTip()
+
+
+def test_the_worst_board_of_the_quoted_range_stays_inside_it():
+    # Audit 2.8.0 (A4 T4, DECISIONS_2 24): the 4-layer board with a 4 x 4 via array and a 300 W/m2K heatsink under the part is the -9 % end of the key; its time to 63 %
+    # (Analytic at the default 1 mm cell against the FVM at 0.5 mm, converged: 11.21 / 11.22 s at 0.5 / 0.25 mm) must stay between -10 % and 0 % (measured -9.08 %)
+    import os
+    import sys
+    import numpy as np
+    import pytest
+    from pcbthermal import fvm
+    lib = os.path.join(os.path.dirname(__file__), "..", "research", "analytic-edge-and-transient", "lib")
+    if not os.path.isfile(os.path.join(lib, "boards26.py")):
+        pytest.skip("the boards of validation 4.1 (research/analytic-edge-and-transient/lib) are not present")
+    sys.path.insert(0, os.path.abspath(lib))
+    try:
+        import boards26 as boards
+    finally:
+        sys.path.remove(os.path.abspath(lib))
+
+    def t63(t, z, r):
+        # Log-time interpolation of z / r = 0.632, as the audit script study_a4_local_transient.py
+        f = z / r
+        i = int(np.argmax(f >= 0.632))
+        return float(np.exp(np.interp(0.632, f[i - 1:i + 1], np.log(t[i - 1:i + 1]))))
+    p = boards.with_sink(boards.with_vias(boards.plain(4)), 300.0)
+    tf, zf, rf = fvm.step_responses(p, cell_mm=0.5)
+    ta, za, ra = analytic.step_responses(p, cell_mm=1.0)
+    err = t63(ta, za[0], ra[0]) / t63(tf, zf[0], rf[0]) - 1.0
+    assert -0.10 < err < 0.0, err

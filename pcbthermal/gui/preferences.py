@@ -136,7 +136,7 @@ TIPS = {
     "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK.", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK.",
     "rho_fr4": "Simple-stack-up dielectric density, kg/m³.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK.",
     "copper_uncertainty_pct": "Uncertainty of the copper thickness of every layer, % (at most 99).",
-    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (correlations: 20 to 30).",
+    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (published plate laws: about 20 vertical, 50 horizontal face up).",
     "theta_uncertainty_pct": "Uncertainty of θ junction-pad, %.",
     "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT, % (it varies with board and air flow).",
     "reading_uncertainty_k": "Error of the temperature reading, K (thermocouple contact, IR emissivity; typically 1 to 3).",

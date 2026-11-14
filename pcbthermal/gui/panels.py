@@ -200,7 +200,7 @@ class BoardPanel(QWidget):
         self.air_speed = _spin(0, 1000, 0, 2, 0.5, "m/s")
         self.air_speed.setToolTip("Air speed along the board, m/s; 0 = still air (natural convection).")
         self.calibration = _spin(0.01, 100, 1.0, 2, 0.05, "× (factor)")
-        self.calibration.setToolTip("Multiplier of the computed convection (not radiation), to fit a measurement. Correlations are good to 20 to 30 %.")
+        self.calibration.setToolTip("Multiplier of the computed convection (not radiation), to fit a measurement. The published plate laws differ by about 20 % (vertical) to 50 % (horizontal, face up).")
         self.computed_rows = []
         f.addRow("Ambient", self.ambient)
         f.addRow("Heat transfer", self.h_mode)

@@ -51,7 +51,9 @@ log = logging.getLogger(__name__)
 # up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
 
 # Smallest value of the film denominator 1 + H d / S of the edge of a cut cell (see Network._cut_edge_film): the film in series with the conduction from the node to the
-# outline can be made at most 1 / EDGE_FILM_FLOOR = 4 times stiffer than the film alone (a safety net for a node outside the board and a very stiff edge)
+# outline can be made at most 1 / EDGE_FILM_FLOOR = 4 times stiffer than the film alone. With the centroid distance (never negative) of the copper and laminate nodes the
+# denominator is at least 1, so the floor is a safety net that only a node with a negative distance (the layers of a metal block, which keep the cell centre) can reach;
+# the peak of the FVM does not depend on it (audit L4L9)
 EDGE_FILM_FLOOR = 0.25
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
@@ -427,8 +429,8 @@ class Network:
                  physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
                  which stiffens the film); **for every copper layer and laminate node of a board with an outline, drawn or imported,** d is the distance from the CENTROID of the board part of the cell
                  to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film, validation 39 and 40), only the layers of a metal block keeping the cell centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
-                 floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
-                 nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
+                 floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is a safety net: with the centroid distance d >= 0 the denominator is at least 1 and the floor is never reached
+                 by the copper and laminate nodes; only a node whose cell centre lies outside the board by more than S / H (the layers of a metal block) can reach it. Nodes with no sheet keep their film unchanged.
                  The ambient term is scaled with the same factor as the conductance (the change goes into g_amb), so a constant field is reproduced to round-off; the unfloored
                  form fails for a node outside the board with a large cell Biot number, which is why the floor is kept (condition 1.21 of Bochkov and Gibou: mu - alpha d > 0).
         @param g0 Edge conductance of every node layer before the series term, W/K, shape (nl, ny, nx).

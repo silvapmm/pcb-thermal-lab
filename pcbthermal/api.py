@@ -19,6 +19,7 @@ plot them:
 
 import csv
 import json
+import math
 
 import numpy as np
 import os
@@ -766,9 +767,20 @@ def _solve_computed_h(problem, name, o):
     res.extras.update({"h_top": ht, "h_bottom": hb, "h_iterations": float(it),
                        "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
                        "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
-    if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
-        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 10.00E3 to 100.00E9, "
-                            "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if problem.board.orientation == "horizontal" and not 1e2 <= info["top"]["rayleigh"] <= 1e7:
+        # The face-up law (0.54 Ra^(1/4), Lloyd and Moran) is compared with the Raithby-Hollands form printed by Lienhard: they agree within about 15 to 22 % from 1e2 to 1e7
+        # (the program is lower below about 2e3, higher above); typical boards have a top-face Ra of 1e2 to 1e5, so the old band 1e4 to 1e11 warned where the law reads hot
+        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 100.00 to 10.00E6, "
+                            "the range where the face-up law and the law printed by Lienhard (Raithby-Hollands) agree within about 15 to 22 %; "
+                            "the face-up coefficient is uncertain by more than that")
+    # The two faces differ only by the film temperature; the one farthest from the laminar range is quoted
+    res_out = [r for r in (info["top"].get("reynolds", 0.0), info["bottom"].get("reynolds", 0.0)) if not 1e2 <= r <= 1e5]
+    if problem.board.air_speed > 0.0 and res_out:
+        re_max = max(res_out, key=lambda r: abs(math.log10(max(r, 1e-9) / 1e3)))
+        # Laminar flat-plate law (Lienhard p 309; Yovanovich and Teertstra eq. 12): below about 100 the conduction term it omits raises h, above about 1e5 a board with parts is
+        # likely turbulent; both make the result hot, so this is a note on the safe side
+        res.warnings.append(f"the Reynolds number {num(re_max, 2)} of the forced air is outside 100.00 to 100.00E3, the laminar flat-plate range of the forced-air law: "
+                            "the coefficient is on the low side and the result is on the hot side")
     if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
         # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
         # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
@@ -788,7 +800,7 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
     @brief Fit the convection multiplier (Board.h_calibration) so that the model reproduces a measured temperature.
     @details The board is put in computed mode and the multiplier is found by bisection on its logarithm (the temperature falls
              as the multiplier grows). The measured quantity is the hottest point of the board, or the hottest point under a
-             named heater. The correlations are for isothermal plates and uncertain by 20 to 30 % on a board with hot spots;
+             named heater. The correlations are for isothermal plates; the published plate results differ by about +-20 % (vertical) and +-50 % (horizontal, face up) (audit L1L5 finding 3);
              this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
              and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
     @param problem A Problem (it is not modified).
