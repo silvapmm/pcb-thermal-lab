@@ -51,3 +51,28 @@ def _private_config_folder(monkeypatch, tmp_path_factory):
         model.reload_libraries()
     except ImportError:
         return
+
+
+@pytest.fixture(autouse=True)
+def _private_window_settings(monkeypatch, tmp_path):
+    """!
+    @brief Give every MainWindow built without its own settings a private, empty settings file.
+    The default `QSettings("PMS Labs", "PCB Thermal Lab")` is the user's real preference store: a window closed by one test saved its geometry and dock state there and the next
+    test restored them (docks closed or narrow), so a layout test passed alone and failed after other tests (the Profiles cut-overlay test, 2 of 3 batteries).
+    @param monkeypatch pytest fixture.
+    @param tmp_path pytest fixture (one folder per test).
+    """
+    try:
+        from PySide6.QtCore import QSettings
+        from pcbthermal.gui import main_window
+    except ImportError:                                   # Physics-only environment
+        return
+    ini = str(tmp_path / "window_default.ini")
+
+    def private(*args):
+        # Only the organisation/application form is redirected; a path or an explicit format keeps its meaning
+        if len(args) == 2 and all(isinstance(a, str) for a in args):
+            return QSettings(ini, QSettings.IniFormat)
+        return QSettings(*args)
+
+    monkeypatch.setattr(main_window, "QSettings", private)

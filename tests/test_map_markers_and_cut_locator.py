@@ -362,3 +362,17 @@ def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, si
     assert plots.profile_has_strip(tab.fig) != strip
     assert tab._thumb_strip == plots.profile_has_strip(tab.fig)
     assert len(_cut_picture_axes(tab.fig)) == 1
+
+
+def test_a_window_without_settings_never_uses_the_real_preference_store(qtbot):
+    """!
+    @brief A MainWindow built with no settings argument keeps its geometry and dock state in a private file, so one test never restores the layout another one saved.
+    @param qtbot pytest-qt fixture.
+    """
+    import os
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    win = MainWindow(Document())
+    qtbot.addWidget(win)
+    assert os.path.dirname(win.settings.fileName()) != os.path.expanduser("~/Library/Preferences")
+    assert win.settings.fileName().endswith("window_default.ini")
