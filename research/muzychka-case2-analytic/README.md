@@ -153,6 +153,8 @@ The edit is one undo step ("Board parameters"), but nothing tells the user that 
 
 The Lumped residual (0.2 to 0.8 K from the column mean with the film corrected, 1.7 K at S2 without) is measured, not explained; the film term of a metal block was not measured; the user's own project and figure were not seen (the three candidates of section 5 stay hypotheses, of which the write-back is the only one that produces a large, silent difference); a heat-sink baseplate modelled as a metal block under a thin board (the route the program intends for thick metal) was not run.
 
+*Note: after the fixes of the thick-plate estimate and of the Board dock write-back were merged, `tests/test_case2.py` was updated: the three tests that had frozen the old behaviour (warning for three sources, copper box at 210 um, dock rewriting fields) now guard the corrected behaviour (warning for all four sources with the film term, a 10 mm plate held, other fields left unchanged).*
+
 ## 9. Follow-up from the reporter: the 3D solid in the window
 
 The reporter found the coefficient boxes of the Board dock (`h_top`, `h_bottom`, the edge box) and sent a project in which the 3D solid reads closer to the paper than the 3D solid of `research/theory-sources/scripts/study_muzychka_more_cases.py` (95.39, 99.23, 97.56, 97.07 C). His file was opened read-only from a copy (`package.load_any`); the numbers below are printed by `study_case2_followup.py`.
