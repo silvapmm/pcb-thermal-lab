@@ -55,7 +55,7 @@ log = logging.getLogger(__name__)
 EDGE_FILM_FLOOR = 0.25
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
-# several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
+# several times with other powers). One entry per thread, released before a new factorisation, so at most one LU is alive (the peak is that LU plus the matrices of the solve under way).
 _REUSE = threading.local()
 
 
@@ -102,7 +102,8 @@ def factor_reuse():
              other powers, which solve the same board with other part powers: with fixed face coefficients every board solve has the same matrix (6 factorisations
              become 1 for one part with a top path, 4 become 1 for the Power Calculator; with computed coefficients the matrix changes at every Picard step and
              nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
-             released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
+             released when the outermost block ends. The peak is therefore one LU plus the matrices of the solve being made (the board matrix and its
+             CSC copy, and the assembly of the next one), as in a plain solve, and not several factors; the kept LU stays in memory between the solves of the block. SuperLU's splu + solve gives the same numbers as spsolve
              with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
     @return Context manager (yields nothing).
     """
@@ -233,7 +234,7 @@ class Network:
             self.gz[:] = k_gap[:, None, None] * cell[None] / d[:, None, None]    # Dielectric alone
             # The barrel is not added to gz: every via is a mean-potential coupling of a footprint of cells (viawell.py), appended to the matrix in
             # _assemble. gz_via keeps the point conductance in the cell of the via centre, which the Lumped model reads ring by ring (gz + gz_via)
-            self.via_blocks, self.gz_via = viawell.build(problem, d, self.S, self.cover, dx, dy, nx, ny, 0.0, self.active)
+            self.via_blocks, self.gz_via = viawell.build(problem, d, self.S, self.cover, dx, dy, nx, ny, 0.0)
 
         # --- Conductance to ambient (W/K): top, bottom, heatsinks and edges are kept separate
         self.g_top = np.zeros((L, ny, nx))

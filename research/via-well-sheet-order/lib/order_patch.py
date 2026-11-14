@@ -27,7 +27,7 @@ def after():
     PENDING.clear()
     LAST.clear()
 
-    def via_build(problem, d, S, cover, dx, dy, nx, ny, origin, active, *a, **k):
+    def via_build(problem, d, S, cover, dx, dy, nx, ny, origin, active=None, *a, **k):
         if LAST:                                    # FDM order: the rule has run already, the wells take its reduced sheet at once
             S = LAST.pop()
             return real_via(problem, d, S, cover, dx, dy, nx, ny, origin, active, *a, **k)
