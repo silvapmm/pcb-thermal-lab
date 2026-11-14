@@ -217,6 +217,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 .venv/bin/python research/models-comparison/scripts/solver_equivalence.py                      # direct vs CG vs SOR on five boards
 PCBT_FROZEN_CELLS=2,1,0.5 .venv/bin/python -m pytest -q tests/regression                          # release procedure: the frozen numbers at the three cells (about 1 to 2 minutes)
 PCBT_COMPAT_V245=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_format_compat_245.py   # release gate: the v2.4.5 tag (git archive, subprocess) refuses a format 2 file untouched and opens format 1; this tree opens 2.4.5 files (a few seconds; skipped without the variable)
+PCBT_PUBLISHED_FULL=1 .venv/bin/python -m pytest -q tests/test_published_cases.py tests/test_calculator_validation.py   # release gate: the heavy published-case checks (xfail-strict ones and the JEDEC reading-order test, about a minute)
 ```
 
 ## Branches and Versions
@@ -369,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 **2.8.0 is in progress** (maintainer, 2026-11-13): the next release is named 2.8.0 and wave 1 of the plan is released first as the patch **2.7.1** (released; the reviewer's final opinion is `releases/2.7.1/final-opinion/README.md`). The aim is a version of CONFIDENCE, not of features: any `feature/` branch is allowed by the numbering rule, but the goal is stability. The plan is in `docs/versions.md` 'Planned: 2.8.0' in three waves: wave 1 (cheap and safe, no number moves) is done and released as 2.7.1; wave 2 (investigations before any number moves: FEM extensions A43, the transient reference, E13, 5a, A18, A27, A32/A40, A30); wave 3 (adopted fixes, then B5, the element-tree filter box, paint and erase of the imported mask, heater modes). The physical measurement (G1) will happen but does not block the version; the electro-thermal coupling is a wish list item without a version; vector copper and the BOM role stay dropped. Housekeeping: the old `docs/final-opinion-260` branch name, which the maintainer deletes by hand. The local, git-ignored library of papers is in `papers/` (see `papers/README.md`).
 
 ## Decisions Log
+
+- **Calculator audit items merged**: the JEDEC test is a regression of the program for the board as drawn plus an order test of four readings (an indication, not a verification); the top point is refused for a part with a heatsink; the result carries the heating by other parts.
 
 - **Convection warnings (top-face Rayleigh 1e2 to 1e7, Reynolds note, edge-laminate text with the converged errors, transient key -9 % to +3 %) and the published-case tests (Lienhard 8.1 and 6.5, Table A.6, Seri Lee, Muzychka cases) merged after review; no number moved.** Theory 8 aligned with the audit (`releases/2.8.0/audit/REVIEW_L1L5.md`).
 

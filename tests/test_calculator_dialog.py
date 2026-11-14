@@ -73,7 +73,8 @@ def test_the_dialog_gives_the_csd17308q3_numbers_of_the_validation_table(qtbot):
 
 
 def test_the_dialog_gives_the_jedec_2s2p_numbers_of_the_validation_table(qtbot):
-    """JEDEC 2s2p exposed-pad QFN (RθJA 32.5 K/W): 31.6 K/W and +2.9 % at the 0.5 mm cell of the dialog (docs/calculators.md 2.1; `calculator_validation.py` prints the same) (the top point with ψJT is held through the API by tests/test_calculator_validation.py)."""
+    """JEDEC 2s2p exposed-pad QFN (RθJA 32.5 K/W), the board as drawn: 31.6 K/W and +2.9 % at the 0.5 mm cell of the dialog, a regression of the program's own
+    value through the window, not a validation (the four readings of the board span 27.6 to 36.1 K/W) (docs/calculators.md 2.1; `calculator_validation.py` prints the same) (the top point with ψJT is held through the API by tests/test_calculator_validation.py)."""
     _doc, dlg = _dialog(qtbot, cv.jedec_2s2p_board(), 32.5)
     dlg.compute.click()
     _wait(qtbot, dlg)
