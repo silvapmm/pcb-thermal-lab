@@ -914,10 +914,10 @@ class Inspector(QWidget):
                             lay.addRow("", note)
                 else:
                     lay = box("Metal block")
-                    only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (within about 5 % of the FVM); their time simulation does not.")
+                    only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (Analytic within about 5 % of the FVM; Lumped up to about 7 % too cool with several pads or a small block); their time simulation does not.")
                     only.setWordWrap(True)
                     th.hint(only)
-                    only.setToolTip("Lumped: one more ring-network layer; Analytic: a tile graph. Both within 5 % of the FVM in 74 cases; no time simulation.")
+                    only.setToolTip("Lumped: one more ring-network layer, within about 5 % of the FVM with one pad, up to about 7 % too cool with several pads or a block much smaller than the board. Analytic: a tile graph, within about 5 %. No time simulation.")
                     lay.addRow(only)
                     block_t = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
                     block_t.setToolTip("Thickness of the metal block, mm. Heat enters only where it overlaps copper of this layer.")

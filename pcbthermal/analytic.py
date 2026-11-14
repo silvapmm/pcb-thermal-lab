@@ -632,7 +632,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
           needs a dense system of (active tiles x layers)^2 entries, kept to 4800 unknowns.
     @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
-          within 1 % on average and 4.5 % at most (docs/validation.md section 17).
+          within 1 % on average and 4.5 % at most with one to four pads (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area

@@ -938,7 +938,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @param rings Number of rings outside each footprint (more rings = finer radial resolution).
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @note A metal block is one more layer of the ring network: the block layer of the FVM network (conductance k t, contact to the board layer over the copper, exposed surface
-          with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within 2 % on average and 5 % at most (docs/validation.md section 17).
+          with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within about 5 % with one pad and up to about 7 % (cool side) with several pads or a block much smaller than the board (docs/validation.md section 17).
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area

@@ -43,7 +43,8 @@ def test_the_block_changes_the_answer_in_the_right_direction():
 def test_simulate_runs_every_model_with_a_block_and_says_how():
     sim = simulate(study.make_case((20, 10, 80, 70), (35, 25, 65, 55), 3.0, 204.0, 5e-4), SolverOptions(models=("fvm", "lumped", "analytic"), cell_mm=2.0))
     assert set(sim.results) == {"fvm", "lumped", "analytic"}
-    assert any("ring network" in w for w in sim.results["lumped"].warnings) and any("tiles" in w for w in sim.results["analytic"].warnings)
+    assert any("ring network" in w and "several pads" in w and "7 %" in w for w in sim.results["lumped"].warnings)
+    assert any("tiles" in w and "5 %" in w for w in sim.results["analytic"].warnings)
     from pcbthermal import SquareWave
     p = study.make_case((20, 10, 80, 70), (35, 25, 65, 55), 3.0, 204.0, 5e-4)
     p.heaters[0].set_profile(SquareWave(10.0, 20.0, 0.5))
