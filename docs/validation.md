@@ -1453,7 +1453,7 @@ For parts without an exposed pad the hull, the box, the envelope and the opening
 
 ### 29.2 A published case: the JEDEC 2s2p board
 
-The JESD51-7 2s2p board of `docs/calculators.md` 2.1 (TPS7A47, RθJA 32.5 K/W, θJC(bot) 1.7 K/W, 3 x 3 vias assumed), cell 1 mm, computed h, 1 W: the heater on the 3.15 mm exposed pad gives **31.9 K/W** (-1.8 %), on the 5 mm body 40.0 K/W (+23 %; 37.7 without the face term), on the body with the leads (5.8 mm) 45.1 K/W (+39 %; 42.0). The lead traces of the JEDEC board are not drawn, so the body rows overstate what a real board does under the leads; with the heater on the pad the program reproduces the datasheet.
+The JESD51-7 2s2p board of `docs/calculators.md` 2.1 (TPS7A47, RθJA 32.5 K/W, θJC(bot) 1.7 K/W, 3 x 3 vias assumed), cell 1 mm, computed h, 1 W: the heater on the 3.15 mm exposed pad gives **31.9 K/W** (-1.8 %), on the 5 mm body 40.0 K/W (+23 %; 37.7 without the face term), on the body with the leads (5.8 mm) 45.1 K/W (+39 %; 42.0). The lead traces of the JEDEC board are not drawn, so the body rows overstate what a real board does under the leads; with the heater on the pad the program reproduces the datasheet. *Audit S1*: this agreement holds for the board drawn without bottom copper; the board source it follows (ROHM 64AN113E table 2, read on the page image) prints a 74.2 x 74.2 mm, 70 um backside copper and thermal vias joined to layers 1, 2 and 4 only, and with that plane the same model reads about 5 K/W lower (31.6 to 26.6 K/W at 0.5 mm, `docs/calculators.md` 2.1); JESD51-7 itself is not in the library, so which board the datasheet used is not settled.
 
 ### 29.3 The rule on eight boards
 
