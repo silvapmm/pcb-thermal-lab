@@ -17,6 +17,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Changed
 
+- **The thick-plate warning states a correct bound** (`fix/thick-plate-warning-bound`, text only, no number moves): the surface under a source can be hotter than the layered models read by up to `(q'' + q_f) t / (2 k)` (through the thickness plus the half plate under the face film, which the layered models leave out; at most `q'' t / k`), not `q'' t / (2 k)` alone; the film term is added when `h t / (2 k)` is above 1e-3 and the text names both terms; the 5 % limit is unchanged. Case 2 of Muzychka, Culham and Yovanovich (2003) is written up in `docs/validation.md` 22.1 (the error in K does not depend on `h`; the earlier '67 to 89 % of the limit' sentence is withdrawn).
 - `viawell.build` no longer needs its `active` argument (it was ignored); the keyword stays optional and ignored for research code that still passes it. The `fvm.factor_reuse` docstring states the memory peak correctly (one LU plus the matrices of the solve under way).
 
 ### Docs

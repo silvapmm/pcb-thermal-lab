@@ -1258,20 +1258,48 @@ def check_reduced_edge_laminate(problem, models):
     return out
 
 
-def thick_plate_bound(power, area, thickness, k):
+THICK_PLATE_FILM_RATIO = 1e-3
+
+
+def thick_plate_bound(power, area, thickness, k, film_flux=0.0):
     """!
-    @brief Upper bound of how much hotter the surface under a source can be than the through-thickness mean the layered models keep: q'' t / (2 k).
-    @details The bound is reached when all the heat crosses the plate with a uniform flux q'' = power / area (a linear profile through the thickness);
-             with sideways spreading the measured gradient is 0.6 to 0.8 of it (research/effective-conductivity, README 4.6). It is a bound, never a correction.
+    @brief Bound of how much hotter the surface under a source can be than the node the layered models keep (the through-thickness mean of the plate): q'' t / (2 k) + q_f t / (2 k).
+    @details Two terms, both closed forms of one-dimensional conduction through the plate. (1) Through the thickness: where a flux q'' enters the top face and crosses the plate
+             to the bottom, the profile is linear and the entering face is hotter than the column mean by q'' t / (2 k) (a column fed over its whole top; with sideways
+             spreading the measured gradient is 0.6 to 0.8 of it, research/effective-conductivity README 4.6). It is q'' t / (3 k) only for heat released uniformly
+             inside the plate, which is not the case of a source on a face. (2) The film: the layered models put the face film h on the node, so the half plate t / (2 k)
+             that lies between the node and the face is left out, and a flux q_f leaving through that film makes the node read q_f t / (2 k) cooler than the true column
+             mean; the 3D solid, which keeps half a slab in series with the film, does not have this term. Together at most q'' t / k when the whole flux crosses the
+             plate and leaves through the film (the column of the case 2 plate of Muzychka, Culham and Yovanovich: 1.87 K, measured 1.77 K). It is a bound, never a correction.
     @param power Heat crossing the plate in W.
     @param area Area it crosses in m2.
     @param thickness Thickness of the plate (a copper layer or a metal block) in m.
     @param k Conductivity of the plate in W/mK.
+    @param film_flux Heat flux leaving through the face film under the source in W/m2 (0 when the plate has no face film or it is negligible).
     @return Temperature difference in K (0 for a degenerate input).
     """
     if area <= 0 or k <= 0 or thickness <= 0:
         return 0.0
-    return 0.5 * abs(power) / area * thickness / k
+    return 0.5 * (abs(power) / area + abs(film_flux)) * thickness / k
+
+
+def _face_film_h(problem, layer, extra=0.0):
+    """!
+    @brief Typed film coefficient on the faces of a plate, for the film term of the thick-plate bound.
+    @param problem The Problem that was solved.
+    @param layer Index of the copper layer (0 = top) or of the face of a block (0 top, otherwise bottom).
+    @param extra Added coefficient of a metal block (h_extra) in W/m2K.
+    @return Coefficient in W/m2K (0 for an inner layer or a board with computed coefficients, whose value is not typed).
+    """
+    b = problem.board
+    if b.h_mode != "manual":
+        return 0.0
+    h = 0.0
+    if layer == 0:
+        h += b.h_top
+    if layer == b.layers - 1:
+        h += b.h_bottom
+    return h + (extra if h > 0 else 0.0)
 
 
 def _block_flux_under(result, heater, face):
@@ -1306,7 +1334,9 @@ def check_thick_plates(problem, rows, result=None):
     """!
     @brief Post-run warnings for a heater on a thick, poorly conducting plate (its copper layer or a metal block under its footprint).
     @details The layered models keep one temperature per copper layer and per block, the mean through the thickness. Where a flux q'' crosses a plate of
-             thickness t and conductivity k, its surface can be hotter than that mean by up to q'' t / (2 k); the warning appears when that bound exceeds
+             thickness t and conductivity k, its surface can be hotter than that mean by up to q'' t / (2 k) + q_f t / (2 k) (thick_plate_bound: the
+             through-thickness term and the film term, the half plate between the node and a face film that the layered models leave out; the film term is added only
+             when h t / (2 k) of the face exceeds THICK_PLATE_FILM_RATIO and q_f is the smaller of h x rise and q''); the warning appears when that bound exceeds
              THICK_PLATE_LIMIT (5 %) of the rise of the heater. For the copper layer of the heater q'' is the heat of the heater over its footprint (the
              heat enters the copper there). For a metal block it is the largest flux that actually enters the block under the footprint in the solved
              result (FVM or FDM): a block under the board is fed through the laminate and its copper, which spread the heat, and the flux of the footprint
@@ -1331,19 +1361,24 @@ def check_thick_plates(problem, rows, result=None):
         power = row["power_board_w"]
         footprint_flux = abs(power) / area
         # Plates under the source: its own copper layer and every metal block whose polygon holds the centre of the footprint
-        plates = [(f"the copper of layer {h.layer + 1}", b.copper_thickness[h.layer], b.materials.k_copper, footprint_flux, "")]
+        plates = [(f"the copper of layer {h.layer + 1}", b.copper_thickness[h.layer], b.materials.k_copper, footprint_flux, "", _face_film_h(problem, h.layer))]
         cx, cy = polygon_centroid(h.polygon)
         for j, s in enumerate(problem.heatsinks):
             if s.is_block() and bool(points_in_polygon(np.array([cx]), np.array([cy]), s.polygon)[0]):
                 face = 0 if (s.layer == 0 or b.layers == 1) else 1          # The face rule of blocks.block_faces
                 q = _block_flux_under(result, h, face)
                 note = "" if q is not None else " (heat flux of the footprint: this model does not give the flux into the block, so the bound is high)"
-                plates.append((s.name or f"Heatsink {j + 1}", s.thickness, s.k, footprint_flux if q is None else q, note))
-        for what, t, k, q, note in plates:
-            drop = thick_plate_bound(q, 1.0, t, k)
+                plates.append((s.name or f"Heatsink {j + 1}", s.thickness, s.k, footprint_flux if q is None else q, note, _face_film_h(problem, 0 if face == 0 else b.layers - 1, s.h_extra)))
+        for what, t, k, q, note, h_film in plates:
+            # The film term only when the half plate is a visible part of the film resistance 1/h; q_f cannot exceed the flux that crosses the plate
+            film = min(h_film * rise, q) if h_film * t / (2.0 * k) > THICK_PLATE_FILM_RATIO else 0.0
+            drop = thick_plate_bound(q, 1.0, t, k, film)
             if drop > THICK_PLATE_LIMIT * rise:
+                parts = f"{thick_plate_bound(q, 1.0, t, k):.1f} K through the thickness"
+                if film > 0:
+                    parts += f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K from the face film (the half plate between the node and the face is not in the model)"
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
-                           f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K){note}; the models "
+                           f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; the models "
                            "keep one temperature through the thickness. The value is a bound, not added to the results."))
     return out
 
