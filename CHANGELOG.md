@@ -5,9 +5,14 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+
+- **Filter box above the element tree** (`feature/element-tree-filter`): `Ctrl+F` (or a click) puts the keyboard in a *Filter elements* field that hides the rows that do not match (name, type, layer or value, case-insensitive; a group stays while a row matches); the selection is kept, `Esc` clears the field and `Down` goes to the first match. The window letters (G, T, D, M, L, the digits) never fire while you type in it. The filter is a view setting: it is not saved in the project, starts empty with a new, opened or imported project, and is applied again after every edit. In the field Backspace edits the text (it never deletes the selected element) and Ctrl+Z undoes the text, not the board; a line under the field says when nothing matches or when a selection made on the board is hidden by the filter, and clearing the filter gives back the groups that were open. Display only; no number moves. 1000 rows filter in 2 to 6 ms (with the redraw).
+
 ### Fixed
 
 - The OCR `map` command reads `reading_status.json`: pages marked verified or corrected by `status set` count as verified (E2), so the E1 and E2 counts and the per-PDF table no longer list verified pages as still to verify (`fix/ocr-map-reading-status`).
+- The warnings about vias next to a strongly cooled edge say what the independent finite-element comparison measured (text only, no number moves; `docs/validation.md` 49): the strong-edge warning of the FVM and FDM adds the FDM via effect 4 to 9 % low at 0.25 mm and 1000 W/m2K (up to 20 % at 1 mm) and the 3D solid up to about 26 % too large at 0.5 mm; the reduced-edge warning and the one-or-two-vias warning say the Analytic reads the via effect 17 to 20 % too small next to such an edge; the edge-via text quotes the 3D solid at 0.5 mm.
 - **The part rows of a Lumped run read the part's own peak** (`fix/lumped-part-readout`): the Lumped paints a footprint with its node, so the temperature of a part, `Tj`, the margin, the power limit, the Components table, the Power Calculator and the top-path split read the node, about 10 % of the rise too cool for a lone part (9 to 15 % on the boards of the review, 2 to 4 % for a part beside a hotter one), when the Lumped was the only model run (with the FVM in the run the rows read the FVM). They now read the peak the Lumped already used for its board maximum (`arrays["heater_peak"]`). The hottest board value does not move; the part rows move up (and, with a top path, the board moves down a little because the part sends more heat to its top); 51 frozen Lumped records at 2, 1 and 0.5 mm are held by the pending file `lumped-part-readout.json`. `docs/validation.md` 48.
 - The metal-block warning of the Lumped and Analytic states the accuracy by model: the Lumped on the cool side, about 5 % with one pad and up to about 7 % with several pads or a block much smaller than the board; the Analytic about 5 %.
 
@@ -17,6 +22,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Docs
 
+- The limits of the zoned Lumped footprint are written down (`docs/theory.md` 5.2, `docs/validation.md` 50): a position noise of 1 to 3 points on the grid and a cool level of -1.7 to -2.4 % against a converged 3D reference; no model change.
 - The README uses the three screenshots that no document showed (the outline editor, the Components tab and the Animation tab).
 
 ## [2.7.1] - 2026-11-13
