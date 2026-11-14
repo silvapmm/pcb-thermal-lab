@@ -7,7 +7,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Added
 
-- **Filter box above the element tree** (`feature/element-tree-filter`): `Ctrl+F` (or a click) puts the keyboard in a *Filter elements* field that hides the rows that do not match (name, type, layer or value, case-insensitive; a group stays while a row matches); the selection is kept, `Esc` clears the field and `Down` goes to the first match. The window letters (G, T, D, M, L, the digits) never fire while you type in it. The filter is a view setting: it is not saved in the project and is applied again after every edit. Display only; no number moves. 1000 rows filter in about 2 ms.
+- **Filter box above the element tree** (`feature/element-tree-filter`): `Ctrl+F` (or a click) puts the keyboard in a *Filter elements* field that hides the rows that do not match (name, type, layer or value, case-insensitive; a group stays while a row matches); the selection is kept, `Esc` clears the field and `Down` goes to the first match. The window letters (G, T, D, M, L, the digits) never fire while you type in it. The filter is a view setting: it is not saved in the project, starts empty with a new, opened or imported project, and is applied again after every edit. In the field Backspace edits the text (it never deletes the selected element) and Ctrl+Z undoes the text, not the board; a line under the field says when nothing matches or when a selection made on the board is hidden by the filter, and clearing the filter gives back the groups that were open. Display only; no number moves. 1000 rows filter in 2 to 6 ms (with the redraw).
 
 ### Fixed
 

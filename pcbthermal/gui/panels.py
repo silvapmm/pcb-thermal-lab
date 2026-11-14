@@ -511,6 +511,15 @@ class ElementList(QWidget):
         self.filter.textChanged.connect(self.apply_filter)
         self.filter.installEventFilter(self)
         lay.addWidget(self.filter)
+        # One line under the field, shown only when it has something to say: no row matches, or the selection (made on the board) is hidden by the filter
+        self.hint = QLabel("")
+        self.hint.setWordWrap(True)                  # A narrow dock wraps it instead of widening the dock
+        th.hint(self.hint)
+        self.hint.hide()
+        lay.addWidget(self.hint)
+        self._open_before = None                     # The open/closed state of the groups before the filter was typed, given back when it is cleared
+        # A different project (New, Open, Import of another board) starts without a filter, like the layer; an edit or a re-import keeps it
+        doc.project_replaced.connect(self.filter.clear)
         self.tree = QTreeWidget()
         self.tree.setToolTip("Every zone, heater, heatsink and via. Click to select on the board; right-click for actions.")
         self.tree.setHeaderLabels(["Element", "Layer", "Value"])
@@ -569,6 +578,14 @@ class ElementList(QWidget):
         """
         words = (self.filter.text() if text is None else text).lower().split()
         self.tree.setUpdatesEnabled(False)
+        tops = [self.tree.topLevelItem(t) for t in range(self.tree.topLevelItemCount())]
+        if words and self._open_before is None:
+            # The filter opens the groups that hold a match: remember what the user had open, to give it back when the filter is cleared
+            self._open_before = [top.isExpanded() for top in tops]
+        elif not words and self._open_before is not None:
+            for top, was in zip(tops, self._open_before):
+                top.setExpanded(was)
+            self._open_before = None
         for t in range(self.tree.topLevelItemCount()):
             top = self.tree.topLevelItem(t)
             kind = (top.data(0, Qt.UserRole + 1) or "")
@@ -584,12 +601,36 @@ class ElementList(QWidget):
             if words and shown:
                 top.setExpanded(True)
         self.tree.setUpdatesEnabled(True)
+        self._update_hint()
+
+    def _update_hint(self):
+        """!
+        @brief Show the line under the field when no row matches or when selected elements are hidden by the filter (the filter is kept: it is the user's text).
+        """
+        msg = ""
+        if self.filter.text().split():
+            visible = hidden_sel = 0
+            for t in range(self.tree.topLevelItemCount()):
+                top = self.tree.topLevelItem(t)
+                for c in range(top.childCount()):
+                    ch = top.child(c)
+                    if ch.isHidden():
+                        hidden_sel += ch.isSelected()
+                    else:
+                        visible += 1
+            if visible == 0:
+                msg = "No elements match the filter (Esc clears it)."
+            elif hidden_sel:
+                msg = (f"{hidden_sel} selected element{'s are' if hidden_sel > 1 else ' is'} hidden by the filter (Esc in the field clears it).")
+        self.hint.setText(msg)
+        self.hint.setVisible(bool(msg))
 
     def refresh(self):
         """!
         @brief Rebuild the tree from the document, keeping the selection.
         """
-        sel = set(self.selected())
+        # Every selected row, also those the filter hides (selectedItems() leaves hidden rows out, and a board selection must survive an edit made while filtered)
+        sel = {it.data(0, Qt.UserRole) for it in self._rows() if it.isSelected()}
         self._updating = True
         self.tree.clear()
         pr = self.doc.problem
@@ -624,9 +665,16 @@ class ElementList(QWidget):
         if self.filter.text():
             self.apply_filter()
 
+    def _rows(self):
+        """!
+        @brief Every element row of the tree, hidden or not.
+        @return List of QTreeWidgetItem.
+        """
+        return [top.child(c) for top in (self.tree.topLevelItem(t) for t in range(self.tree.topLevelItemCount())) for c in range(top.childCount())]
+
     def selected(self):
         """!
-        @brief Selected elements.
+        @brief Selected elements (the visible rows only: the tree's own actions never act on a row the filter hides).
         @return List of (kind, index).
         """
         return [it.data(0, Qt.UserRole) for it in self.tree.selectedItems() if it.data(0, Qt.UserRole)]
@@ -646,6 +694,7 @@ class ElementList(QWidget):
                 if ch.data(0, Qt.UserRole) in want:
                     ch.setSelected(True)
         self._updating = False
+        self._update_hint()                          # A selection made on the board may be hidden by the filter: say so
 
     def _on_selection(self):
         """!
@@ -653,6 +702,7 @@ class ElementList(QWidget):
         """
         if not self._updating:
             self.selection_requested.emit(self.selected())
+            self._update_hint()
 
     def _menu(self, pos):
         """!

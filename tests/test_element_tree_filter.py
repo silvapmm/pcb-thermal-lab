@@ -128,3 +128,110 @@ def test_filter_is_fast_on_1000_rows(qtbot):
     assert 0 < len(_rows(el)) < 1000
     assert dt < 0.2, f"filter took {dt * 1000:.0f} ms"             # Target 50 ms; the margin is for a loaded machine
     print(f"filter 1000 rows: {dt * 1000:.1f} ms")
+
+
+def test_backspace_and_delete_in_the_field_never_delete_an_element(win, qtbot):
+    # Backspace is also a key of the window's Delete action: in the field it edits the text, never the board
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    n = len(win.doc.problem.heaters)
+    win.activateWindow()
+    qtbot.waitActive(win)
+    win._focus_filter()
+    qtbot.waitUntil(lambda: win.elements.filter.hasFocus())
+    QTest.keyClicks(win.elements.filter, "ab")
+    QTest.keyClick(win.elements.filter, Qt.Key_Backspace)
+    assert win.elements.filter.text() == "a"
+    win.elements.filter.clear()
+    for key in (Qt.Key_Backspace, Qt.Key_Delete):                 # Also with the field empty
+        QTest.keyClick(win.elements.filter, key)
+    assert len(win.doc.problem.heaters) == n
+
+
+def test_ctrl_z_in_the_field_undoes_the_text_not_the_document(win, qtbot):
+    # Decided: in a text field Ctrl+Z is the field's own undo, as in every field of the window; the document's undo stays in the Edit menu
+    n = len(win.doc.problem.heaters)
+    win.doc.duplicate([("heater", 0)])
+    assert len(win.doc.problem.heaters) == n + 1
+    win.activateWindow()
+    qtbot.waitActive(win)
+    win._focus_filter()
+    qtbot.waitUntil(lambda: win.elements.filter.hasFocus())
+    QTest.keyClicks(win.elements.filter, "via")
+    QTest.keyClick(win.elements.filter, Qt.Key_Z, Qt.ControlModifier)
+    assert win.elements.filter.text() == ""
+    QTest.keyClick(win.elements.filter, Qt.Key_Z, Qt.ControlModifier)
+    assert len(win.doc.problem.heaters) == n + 1
+
+
+def test_every_window_letter_stays_in_the_field(win, qtbot):
+    # The tool letters (S, Z, H, C, V, O, P) and the view letters (G, T, D, M, L and the digits, with or without Shift)
+    fired = []
+    for a in win.findChildren(type(win.a_find)):
+        keys = [k.toString() for k in a.shortcuts()]
+        if any(len(k) == 1 or k.startswith("Shift+") and len(k) == 7 for k in keys):
+            a.setEnabled(True)
+            a.triggered.connect(lambda *_a, t=a.text(): fired.append(t))
+    win.activateWindow()
+    qtbot.waitActive(win)
+    win._focus_filter()
+    qtbot.waitUntil(lambda: win.elements.filter.hasFocus())
+    QTest.keyClicks(win.elements.filter, "szhcvopgtdml0123456789")
+    QTest.keyClicks(win.elements.filter, "GL")
+    assert fired == []
+    assert win.elements.filter.text() == "szhcvopgtdml0123456789GL"
+
+
+def test_clearing_the_filter_restores_the_open_and_closed_groups(qtbot):
+    from pcbthermal.model import Problem
+    pr = Problem.new(60, 40, layers=2)
+    for i in range(30):                                              # More than 12 rows: the group starts closed
+        pr.add_via(1 + i, 5, 0.3)
+    pr.add_heater(1, 1.0, rect=(28, 18, 32, 22), name="U1")
+    el = ElementList(Document(Project(problem=pr, options=default_options())))
+    qtbot.addWidget(el)
+    tops = {el.tree.topLevelItem(t).text(0).split(" (")[0]: el.tree.topLevelItem(t) for t in range(el.tree.topLevelItemCount())}
+    vias = next(v for k, v in tops.items() if k.startswith("Via"))
+    heaters = next(v for k, v in tops.items() if k.startswith("Heater"))
+    heaters.setExpanded(False)                                       # Closed by the user
+    before = (vias.isExpanded(), heaters.isExpanded())
+    assert before == (False, False)
+    el.filter.setText("v1")
+    assert vias.isExpanded()                                         # Opened to show the matches
+    el.filter.setText("")
+    assert (vias.isExpanded(), heaters.isExpanded()) == before
+
+
+def test_a_new_project_clears_the_filter(win):
+    win.elements.filter.setText("U1")
+    win.doc.new(50, 40, 2)
+    assert win.elements.filter.text() == ""
+
+
+def test_hint_for_no_match_and_for_a_hidden_selection(win):
+    el = win.elements
+    assert el.hint.isHidden()
+    el.filter.setText("zzz-no-such")
+    assert not el.hint.isHidden() and "No elements match" in el.hint.text()
+    el.filter.setText("via")
+    assert el.hint.isHidden()
+    # An element selected on the board that the filter hides: the filter is kept and the line says so
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    assert el.selected() == []                                       # Hidden rows are not offered to the tree's own actions
+    assert not el.hint.isHidden() and "hidden by the filter" in el.hint.text()
+    el.filter.setText("")
+    assert el.hint.isHidden()
+    assert el.selected() == [("heater", 0)]                          # Shown again as selected when the filter is cleared
+
+
+def test_an_edit_while_filtered_keeps_a_hidden_selection(win):
+    # The board selection is hidden by the filter; an edit rebuilds the tree, and clearing the filter must show it selected again
+    el = win.elements
+    el.filter.setText("via")
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    win.doc.duplicate([("via", 0)])                                  # Any edit: the tree is rebuilt
+    el.filter.setText("")
+    assert ("heater", 0) in el.selected()
+    assert win.canvas.selected_elements() == [("heater", 0)]
