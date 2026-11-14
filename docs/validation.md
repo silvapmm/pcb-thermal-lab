@@ -2494,3 +2494,17 @@ Hottest (or listed) part, Lumped-only run against the FVM at 0.5 mm, % of the FV
 | 2 mm part on bare laminate over a bottom plane, 0.5 W | 218.3 | -47.3 | -39.4 |
 
 Against the independent 3D conduction solver (`tests/helpers/layered3d.py`, 1 mm cells, isotropic laminate 0.3 W/mK, insulated sides, the film under the source; the program run with the same materials and `h_side` off; hottest top-surface cell of each part): the FVM is within -0.2 to +0.5 %, the Lumped part moves from -10.3 to -0.6 % (6 mm part on two planes), from -8.3 / -1.4 to -1.0 / +3.0 % (two parts on a top plane), from -3.9 / -1.9 to -0.3 / +2.9 % (four parts in a row) and from -6.8 to -1.3 % (a 2 mm part on two planes). The parts beside a hotter neighbour now read 2.5 to 3 % hot: the own peak adds the neighbour's rise at the centroid to a peak that is already the part's hottest point, a small over-estimate on the safe side that the map does not show. The rows of a part at or across the edge and of the small part on bare laminate are the known near-edge and small-part limits of the Lumped (sections 31 and 35), reduced by the fix but not removed; a part across an outline in the equivalent-rectangle path stays about 28 % cool (a limit of that path, not of this read-out, which moves it by the same 5 points). Two top-path parts and a third with its top heat clipped converge in the coupled split (no warning) and move toward the FVM (heat to the top 2.039 to 2.091 W against 2.150 W). The Lumped profile curves already read the peak (`lumped._own_point`), so the steady part rows and the time curves now agree.
+
+## 50. The zoned Lumped footprint and its position on the raster
+
+Source: `research/lumped-zone-placement` (reviewed, GO; README 10). Nothing in the program changed.
+
+### 50.1 What was measured
+
+- **Position noise.** The zoned reading of a dense via group depends on where the part and the vias fall on the 0.5 mm Lumped raster: 1 to 3 points of the rise between placements.
+- **Level against a converged independent 3D reference.** With the zone raster itself converged the zones read -1.7 to -2.4 % at the peak and -2.1 % on the mean (cool side); one node reads +2.5 to +3.1 % at the peak.
+- **As shipped** (0.5 mm zone raster) the zones read -0.8 to +0.8 %. The raster is part of the calibration of the zone constants (`theory.md` 5.2) and must not be refined alone.
+
+### 50.2 Decision
+
+No model change in 2.8.0: rule R1, the 0.25 mm raster and the removal of the zones were measured and not adopted. The limits above are stated in `theory.md` 5.2; the warning of up to 16 % too cool for an off-centre array stands. The numbers are those printed by the studies of the research folder (README 10), not re-run here.

@@ -16,6 +16,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Docs
 
+- The limits of the zoned Lumped footprint are written down (`docs/theory.md` 5.2, `docs/validation.md` 50): a position noise of 1 to 3 points on the grid and a cool level of -1.7 to -2.4 % against a converged 3D reference; no model change.
 - The README uses the three screenshots that no document showed (the outline editor, the Components tab and the Animation tab).
 
 ## [2.7.1] - 2026-11-13
