@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+
+- **Filter box above the element tree** (`feature/element-tree-filter`): `Ctrl+F` (or a click) puts the keyboard in a *Filter elements* field that hides the rows that do not match (name, type, layer or value, case-insensitive; a group stays while a row matches); the selection is kept, `Esc` clears the field and `Down` goes to the first match. The window letters (G, T, D, M, L, the digits) never fire while you type in it. The filter is a view setting: it is not saved in the project, starts empty with a new, opened or imported project, and is applied again after every edit. In the field Backspace edits the text (it never deletes the selected element) and Ctrl+Z undoes the text, not the board; a line under the field says when nothing matches or when a selection made on the board is hidden by the filter, and clearing the filter gives back the groups that were open. Display only; no number moves. 1000 rows filter in 2 to 6 ms (with the redraw).
+
 ### Fixed
 
 - The warnings about vias next to a strongly cooled edge say what the independent finite-element comparison measured (text only, no number moves; `docs/validation.md` 49): the strong-edge warning of the FVM and FDM adds the FDM via effect 4 to 9 % low at 0.25 mm and 1000 W/m2K (up to 20 % at 1 mm) and the 3D solid up to about 26 % too large at 0.5 mm; the reduced-edge warning and the one-or-two-vias warning say the Analytic reads the via effect 17 to 20 % too small next to such an edge; the edge-via text quotes the 3D solid at 0.5 mm.
