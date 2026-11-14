@@ -155,6 +155,7 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | A26 | the copper edge held inside the outline: the imported layers by the outline mask and the drawn zones by the centroid edge film, 2.7.0 (validation 38 to 40) |
 | A41 | the FDM reads a copper edge held inside the outline too cold (the nodal half-copper sheet and the harmonic mean): the face fill, 2.7.0 (`fdm-inset-edge`, validation 47; leftovers A40 and A32) |
 | A42 | the finite-element comparison tool re-checked in the repository (`independent-fem-edge` README 7.0: GO; program columns re-run on `develop` e39de188, the thin-laminate thickness term corrected); the extensions are A43 |
+| 5a | drawn copper read cooler than imported copper (validation 40.4): the cause is the in-plane faces of a cut cell, not the zone fill (`drawn-copper-faces`, reviewed: GO); the fix is item 5a of `docs/versions.md` 'Planned: 2.8.0'; left to investigate after it: the outline spread of the shifted aligned board (with A32/A40) |
 | A28, A31 | fast power waves, 2.6.0 (validation 37; A28 was closed by A31; leftovers above) |
 | C7 | the plate level on the vertical face: proposal A in 2.5.0, `plate-h-level` closed |
 | E2 | the default mapping of the imported copper: flow-based faces on the reduced sheet, confirmed by the maintainer (a nine-point reference is left for later) |

@@ -8,12 +8,13 @@ Branch `research/drawn-copper-faces`; item 5a of `docs/versions.md` 'Planned: 2.
 
 **Answer, in short** (numbers in sections 3 to 6; every error is the heater mean against an independent finite-element solution with the copper resolved, unless said):
 
-1. **The gap is the faces, not the fill.** Replacing the 4 x 4 samples of a zone by the exact area share moves the heater mean by 0.0 to 0.3 point (and in the FDM it makes things worse). Replacing the harmonic mean of the two cell sheets by the flow through the window of pixels between the two cell centres (the imported default, `copper.face_conductances`, mapping `faces`) moves it by 0.2 point (weak edge) to 10.3 points (stripes, 1000 W/m2K) at 1 mm and by 0.2 to 4.2 points at 0.25 mm on the boards tried.
+1. **The gap is the faces, not the fill.** Replacing the 4 x 4 samples of a zone by the exact area share moves the heater mean by 0.0 to 0.3 point in the FVM and the FDM (the review measured it directly, section 11.2; the earlier statement that the exact fill makes the FDM worse was a definition artefact of the `fill` mapping and is withdrawn). Replacing the harmonic mean of the two cell sheets by the flow through the window of pixels between the two cell centres (the imported default, `copper.face_conductances`, mapping `faces`) moves it by 0.2 point (weak edge) to 10.3 points (stripes, 1000 W/m2K) at 1 mm and by 0.2 to 4.2 points at 0.25 mm on the boards tried.
 2. **FVM, default laminate rule (4 sub-gaps), 1 mm / 0.5 mm / 0.25 mm:** the 20 mm inset square at 200 W/m2K -1.2 / -2.8 / -3.3 % becomes +0.1 / -1.4 / -1.2 %; the stripes board at 200 W/m2K -8.0 / -4.1 / -4.4 % becomes -0.6 / -1.9 / -1.9 %; the L-shaped copper -1.4 / -4.1 / -5.1 % becomes -0.0 / -2.5 / -2.6 %. What is left (1 to 3 % cool at the fine cells) is the laminate rule: with 8 sub-gaps the same boards read -0.2 to -1.3 % (section 3.3).
 3. **FDM:** -5.2 / -4.0 / -3.6 % (inset square, 200 W/m2K) and -12.9 / -6.1 / -5.0 % (stripes) become -1.0 / -1.2 / -1.4 % and -1.8 / -1.9 / -2.1 %.
 4. **Boards with an outline** (the turned and shifted squares, T and L of validation 40, independent 3D truths): mean error of the 20 mm inset square at 200 W/m2K and 1 mm -3.15 % becomes -1.26 %, the stripes board -11.8 % becomes -2.6 %, T and L inset -2.7 / -3.1 % become -0.7 / -1.1 %. Copper that reaches the outline does not move (T +1.19 / +1.24 %, L +0.81 / +0.83 %).
 5. **Cost, pixels, frozen numbers:** see sections 5 to 7 (10 pixels per cell; 2.5 to 4 times the time and +20 to +60 % memory on a 100 x 75 mm board). The 17 frozen-number boards are almost blind to the change (their copper edges lie on cell lines): with a raster only for the layers that have a cut cell, 8 of the 102 FVM and FDM records move (all at 2 mm; FVM at most 0.19 K, FDM at most 1.87 K, `two_layer_partial`) and the other 94 are bit for bit the same.
 6. **Recommendation:** adopt in 2.8.0 as a fix for the FVM and the FDM (section 8 and `INTEGRATION.md`); the fall-back, if the maintainer prefers not to move numbers, is a warning with the measured range of section 3.
+7. **Review** (section 11): the headline numbers reproduce; three corrections (the FDM exact-fill claim, the Lumped record that a hook inside `fvm.Network` would move, the cause of the spread on outline boards) and the measured memory term are in section 11.
 
 ## 2. Method
 
@@ -102,7 +103,7 @@ The finite-element heater mean is the mean over the heater elements of the coppe
 | plain_inset, 200, 4 | -4.6 / -3.5 / -3.1 | -7.7 / -5.4 / -4.0 | +1.0 / -0.4 / -0.5 | -0.4 / -0.5 / -0.8 |
 | hatch, 200, 2 (*) | -3.4 / -1.9 / -1.5 | -5.1 / -3.3 / -2.1 | +1.0 / +0.2 / +0.2 | -0.3 / +0.1 / +0.0 |
 
-The FDM is the larger beneficiary (it has the larger drawn error), **and its exact-fill-alone reading is worse than the drawn one** (-31.9 % against -18.3 % on the stripes at 1 mm): the node-centred harmonic mean of nodal sheets leaks the more the more exactly the fill is known, and only the flow faces repair it. So for the FDM the fill must not be changed without the faces. `plain_wall` is -2.5 / -6.1 % in the FDM whatever the reading: a different defect (the FDM at a copper-to-the-wall edge, A40 / A32 of `research/ROADMAP.md`), not touched.
+The FDM is the larger beneficiary (it has the larger drawn error). **Corrected by the review (section 11.2):** the 'exact fill alone' column of the FDM is NOT the exact fill alone. An imported layer with the `fill` mapping skips the face-fill rule of validation 47 (`fdm._copper_face_sheets` leaves the imported layers out), so this column is the exact fill plus the older harmonic mean of the nodal sheets; it equals the drawn board run with `face_fill=False` (stripes 1000 W/m2K, 1 mm: -31.8 % against -31.9 %). The exact fill alone with the program's face rule kept reads like the drawn one (-18.5 % against -18.3 %). The earlier sentence 'the exact fill makes the FDM worse, so the fill must not be changed without the faces' was wrong: in the FDM, as in the FVM, the fill does not matter and the faces are the whole effect. `plain_wall` is -2.5 / -6.1 % in the FDM whatever the reading: a different defect (the FDM at a copper-to-the-wall edge, A40 / A32 of `research/ROADMAP.md`), not touched.
 
 ### 3.3 FVM with eight laminate sub-gaps (`--n8`, the same boards)
 
@@ -163,7 +164,7 @@ The absolute mean error falls on 25 of the 30 rows; the worst board of the ten f
 
 * The five rows where the mean error rises are the boards with the copper TO the wall (`sq_wall` 200 at 1 mm +0.25 -> +0.39 %, `T_wall` and `L_wall`, 0.01 to 0.14 point): there the drawn and the imported path differ only in how the outline is taken (aperture links against the pixel mask), and the difference is small and hot-side.
 * The worst board rises on `L_wall` at 1 mm (1.16 -> 1.41 %) and on `T_wall` at 0.5 mm (0.42 -> 0.46 %).
-* **The spread of the ten turned and shifted boards RISES on 15 of the 30 rows**, mostly at 0.5 mm: `sq_in` 200 0.64 -> 1.25 %, 1000 1.43 -> 2.43 %, `sq_4l` 1000 1.64 -> 2.80 %, `L_in` 1.21 -> 1.98 %, and `sq_pad` at 1 mm 3.40 -> 6.38 %. The mean error improves and the whole distribution moves up towards the truth (so the worst error falls), but the board-to-board scatter at a fine cell grows: the probable cause (NOT tested here) is the cut-cell sensitivity of the pixel-level outline of the imported path (validation 38, 39), which the drawn path covers by reading every board about equally cool. It is not a defect of the faces, but a cost of adopting the imported path on outline boards that has to be stated.
+* **The spread of the ten turned and shifted boards RISES on 15 of the 30 rows**, mostly at 0.5 mm: `sq_in` 200 0.64 -> 1.25 %, 1000 1.43 -> 2.43 %, `sq_4l` 1000 1.64 -> 2.80 %, `L_in` 1.21 -> 1.98 %, and `sq_pad` at 1 mm 3.40 -> 6.38 %. The mean error improves and the whole distribution moves up towards the truth (so the worst error falls), but the board-to-board scatter at a fine cell grows: the cause guessed here (pixel sensitivity of the outline) was tested by the review and is mostly NOT the cause: at 0.5 mm the rise of the spread is ONE placement of the ten, the square shifted 0.3 cell and not turned, which reads 1 to 5 points warmer than the other nine (section 11.3), whatever the pixels per cell. It is not a defect of the faces, but a cost of adopting the imported path on outline boards that has to be stated.
 * The pad board (a 7.2 mm pad over bare laminate on the top layer) stays 4 to 5 % cool: a small pad on bare laminate is the A18 / bare-spot limit, not the faces.
 
 These rows use the design of section 7 (float coverage, a raster only for a layer that has a cut cell); the first run with a raster for every layer and 8-bit coverage gave the same table to 0.01 point.
@@ -220,7 +221,7 @@ The steady records of `tests/regression/regress_boards.py` through `regress_harn
 
 *Figure 4 (fig_04_harness_shift.png): the largest change of a temperature of the record for the records that move by more than 1e-3 K.*
 
-Which boards move and why: `two_layer_partial` (the copper window 15 to 45 mm on a 2 mm cell is cut at 15), the example board (the top copper) and `example_cut_to_T`. At 1 and 0.5 mm none moves: **the frozen boards are nearly blind to this change** (their copper edges lie on cell lines by design), so they cannot show that the change is safe or harmful; they only give the list of records for the pending file. The times to 63 % (the 2 mm step response of every part curve, 40 curves): 14 move by more than 1e-6 relative; the largest are the FDM `example_board` U2 +1.12 %, `example_cut_to_T` FDM U2 +0.58 %, U1 -0.11 %, the FVM at most +0.17 % (`two_layer_partial` U); the FDM steady resistance of `two_layer_partial` +1.33 %. 26 curves are unchanged.
+Which boards move and why: `two_layer_partial` (the copper window 15 to 45 mm on a 2 mm cell is cut at 15), the example board (the top copper) and `example_cut_to_T`. At 1 and 0.5 mm none moves: **the frozen boards are nearly blind to this change** (their copper edges lie on cell lines by design), so they cannot show that the change is safe or harmful; they only give the list of records for the pending file. The times to 63 % (the 2 mm step response of every part curve, 40 curves): 14 move by more than 1e-6 relative; the largest are the FDM `example_board` U2 +1.12 %, `example_cut_to_T` FDM U2 +0.58 %, U1 -0.11 %, the FVM at most +0.17 % (`two_layer_partial` U); the FDM steady resistance of `two_layer_partial` +1.33 %. 26 curves are unchanged. (Review, section 11.1: with the hook inside `fvm.Network.__init__`, as `INTEGRATION.md` designs it, the Lumped record `example_cut_to_T|lumped|2` moves too, because the Lumped builds an `fvm.Network`; the copy of this folder swaps the class and never reached the Lumped.)
 
 **New boards for the frozen set.** Because the 17 boards cannot see this change, an adoption must add to the harness at least: the inset square (copper 1.2 mm inside the wall, 200 W/m2K), the stripes-and-pad board and the L-shaped copper of this folder at 1 and 0.5 mm in the FVM and the FDM (records that move against the program and then stay as the new frozen numbers). The harness is the release's (`releases/regression-harness/`); adding boards is a change to it, which the maintainer decides.
 
@@ -242,3 +243,89 @@ See `INTEGRATION.md`. In short:
 * **From the program's docstrings only, not opened**: the transmissibility upscaling of reservoir grids that `copper.face_conductances` cites; no literature was opened for this study, and none is claimed.
 * **Reproduced**: the stripes and plain finite-element numbers of `independent-fem-extensions` 8.4 (to the digit); the program column of validation 40.2 (sq_in, sq_wall, sq_4l, sq_pad, sq_stripes, T and L, the left column of section 4).
 * **Not verified**: a physical board (nothing here is compared with a measurement); the references are finite-element solutions with extrapolation to zero size ASSUMED second order (estimate; 0.2 mm for the two-layer boards, 0.3 mm for the four-layer board); the hatch has no resolved reference; vias, parts over drawn partial copper, metal blocks and boards with several parts were not tried on the study boards (the frozen boards cover a few: no record with vias moves in the FVM at 1 and 0.5 mm); overlapping zones of different fill are approximated in the raster (sum clipped to the largest fill; the program's rule is the maximum at each sample); the cost study uses one board (section 6); the 3D solid, Lumped and Analytic were not run with the exact fill; transients were run only on the 17 frozen boards (the 2 mm step response); the imported path in the FDM was not looked at beyond the numbers above.
+
+## 11. Review
+
+Independent review of the folder (the reviewer agent). Everything below was re-run by `scripts/study_review.py` (subcommands `decomp`, `spread`, `neigh`, `mem`) and by the frozen-number test on a patched copy of the tree kept outside the repository. Verdict: **GO for the merge of the investigation**; the recommendation to adopt stands, with the three corrections and the two additions to the design listed here (also in `INTEGRATION.md`).
+
+### 11.1 Numbers re-run
+
+* **Finite-element references.** The 0.4 mm solves of `stripes` and `ell` at 200 W/m2K were repeated with the independent hexahedral solver (`lib/dc_fem.py`, direct solver, 39 015 nodes, 0.6 GB): 73.3435 and 64.0173 K, `out/fem.json` to the digit; the extrapolated values were not re-run (0.2 mm is heavier; the README already marks them as an estimate).
+* **Decomposition** (`study_review.py decomp`): the drawn, `fill` and `faces` columns of 3.1 and 3.2 reproduce to 0.1 point on the 20 cases tried (FVM and FDM; `plain_inset` 200 and 1000, `stripes` 200 and 1000, `ell` 200; cells 1 and 0.5 mm). The copy (float raster, only the cut layers) and the stored import (8-bit, every layer) agree to 0.1 point.
+* **Frozen numbers.** `PCBT_FROZEN_CELLS=2 pytest tests/regression/test_frozen_numbers.py` on a copy of the tree whose `fvm.Network.__init__` and `fdm.Network.__init__` call `patched.source_of` when `faces is None` (the place `INTEGRATION.md` 2 designs): the unpatched copy gives 149 passed; the patched copy fails exactly the eight FVM and FDM records of section 7 and the eight board-model time tests that hold the 14 curves of section 7 (FDM `example_board` U2 2.6494 -> 2.6790 s, +1.12 %, as stated), **plus one record the study did not list: `example_cut_to_T|lumped|2`** (part U1 hottest 93.3705 -> 93.3644 degC, -0.006 K). The Lumped builds its network with `fvm.Network(..., ladder=False, cut_cells=False)` (`lumped.py` 950 and 1028) and imports the class by name, so the class swap of `lib/patched.py` never reached it, but a hook inside `Network.__init__` does (the Lumped then reads the exact fill of the cut layers). An adoption must either keep the Lumped path out (apply the zone raster only when the network is built for the FVM itself, for example not with `ladder=False`) or add that record to its pending file; the second Lumped pending file, `lumped-part-readout.json`, already holds `example_cut_to_T|lumped`, so one record would be in two files (forbidden by `test_no_record_or_time_is_in_two_pending_files`). **Recommended: keep the Lumped out.**
+
+### 11.2 Fill or faces (the central claim)
+
+FVM and FDM, error of the heater mean against the finite elements, % at 1 / 0.5 mm, default laminate rule (four sub-gaps):
+
+| board | drawn | exact fill, the program's face rules kept | flow faces, 4 x 4 fill kept | flow faces, exact fill (the copy) | FDM drawn with `face_fill=False` |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| FVM stripes 200 | -8.0 / -4.1 | -8.1 / -4.1 | -0.5 / -1.9 | -0.6 / -1.9 | - |
+| FVM plain_inset 1000 | -2.6 / -5.2 | -2.7 / -5.4 | -0.0 / -2.4 | -0.0 / -2.4 | - |
+| FVM ell 200 | -1.4 / -4.1 | -1.7 / -4.3 | -0.0 / -2.4 | -0.0 / -2.5 | - |
+| FDM stripes 200 | -12.9 / -6.1 | -13.1 / -6.1 | -1.8 / -1.9 | -1.8 / -1.9 | -22.2 / -9.7 |
+| FDM stripes 1000 | -18.3 / -9.1 | -18.5 / -9.1 | -2.5 / -2.7 | -2.5 / -2.7 | -31.8 / -14.3 |
+| FDM plain_inset 1000 | -9.3 / -7.2 | -9.4 / -7.4 | -1.6 / -2.0 | -1.6 / -2.0 | -13.8 / -10.2 |
+
+* **The claim holds, in both models**: the exact fill alone moves 0.0 to 0.3 point; the flow faces with the 4 x 4 fill give the whole gain to 0.1 point.
+* **The FDM 'exact fill alone' column of 3.2 was a definition artefact** (corrected in 3.2): the import with the `fill` mapping drops the FDM face-fill rule of validation 47, so it equals the drawn board with `face_fill=False` (last column), not the exact fill.
+* **With one sub-gap per gap** (`laminate.using(10, 1)`, `decomp n1`) the faces still give 1.6 to 11.0 points (stripes 200 at 1 mm: -15.2 -> -8.6 %; FDM stripes 1000: -25.6 -> -14.6 %) and the fill still 0.1 to 0.3, so the decomposition does not depend on the laminate rule; the remaining error is larger with one sub-gap, which is the laminate at the inset edge of 3.3.
+* **Control.** The imported copper at the same raster is the column 'flow faces, exact fill' (the copy is the program's own imported path, `tests/test_drawn_faces.py` holds it to 5e-3 K against a real import), so the comparison with validation 38 to 40 is like for like.
+
+### 11.3 The spread on the outline boards (`study_review.py spread`)
+
+Ten placements per row (five turns, then the same five shifted 0.3 cell), error in %, 200 W/m2K:
+
+| case, cell | program: mean / spread | copy, 10 px: mean / spread | 20 px | 40 px | the shifted, unturned board (program / copy 10 px) |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| sq_in, 0.5 mm | -2.76 / 0.64 | -1.47 / 1.25 | -1.41 / 1.16 | -1.44 / 1.03 | -2.38 / -0.51 |
+| L_in, 0.5 mm | -2.86 / 1.21 | -1.38 / 1.98 | -1.27 / 1.98 | -1.32 / 1.88 | -2.70 / -0.29 |
+| sq_pad, 1 mm | -8.22 / 3.40 | -4.69 / 6.38 | -4.34 / 6.14 | -4.48 / 5.50 | -6.32 / -0.12 |
+| sq_in, 1 mm | -3.15 / 3.78 | -1.26 / 2.48 | -0.94 / 1.79 | -1.01 / 1.61 | -0.84 / -0.12 |
+
+* **Mechanism**: the rise of the spread is ONE placement, the square shifted 0.3 cell and not turned (outline and copper edges parallel to the grid, every edge cell cut). It is the warmest board in the program too, and in the copy it moves 0.7 to 6.2 points, to within 0.6 % of the truth, while the other nine move by about the mean shift (1.3 to 3.5 points). Without it the copy's spread is 0.46 % (`sq_in` 0.5 mm, program 0.41 %) and 3.24 % (`sq_pad` 1 mm, program 2.89 %).
+* **Not the pixels and not float32**: at 0.5 mm 10, 20 and 40 pixels per cell give the same spread within 0.2 point, and the raster is float. At 1 mm the pixels matter for the turned boards (`sq_in` 45 degrees -2.53 % at 10 px, -1.04 % at 20 px; spread 2.48 -> 1.79 %), which is the cost of ten pixels at a coarse cell, not a scatter of the method.
+* What the shifted aligned board exposes is the outline treatment of the imported path (pixel aperture and edge film on the mask, validation 38 and 39), which the copy brings to the drawn layers. It weighs against adopting before A32/A40 only in the sense that the spread must be re-measured after them; it does not make the mean or the worst board worse.
+
+### 11.4 Neighbouring paths (`study_review.py neigh`)
+
+Hottest rise, program -> copy, K, at 1 / 0.5 / 0.25 mm; heat balance error below 2e-11 in every run:
+
+| board | FVM | FDM |
+| :-- | :-- | :-- |
+| stripes with 3 x 3 vias under the part and a via on a stripe edge | 59.34 -> 62.16 / 60.64 -> 61.78 | 57.60 -> 62.49 / 60.06 -> 62.26 |
+| stripes with a 2 mm metal block on the bottom (no laminate rule) | 58.31 -> 62.40 / 60.85 -> 62.37 / 61.00 -> 62.37 | 52.59 -> 62.41 / 57.69 -> 62.37 / 59.64 -> 62.34 |
+| three parts, a hatch zone (0.5) over a solid zone and a hatch zone (0.3) | 110.73 -> 113.72 / 111.57 -> 114.54 | 107.53 -> 115.54 / 110.45 -> 114.96 |
+
+* Nothing breaks: vias, a metal block (a board without the laminate rule) and several parts run, conserve the heat and the copy is nearly independent of the cell (the block board 62.40 / 62.37 / 62.37 K) where the program moves 2.7 K (FVM) and 7.1 K (FDM). No independent reference for these boards.
+* The rim shares of the vias are those of the zones (the zones stay in the problem; `viawell.rim_copper_shares` reads them, not the raster): unchanged by construction, checked (1.0 on both layers for the two vias tried). The well's sheet conductance reads the exact fill of the cut layers, so the via records of a board with a cut layer may move.
+* **Overlapping zones**: the cell fill of the copy differs from the program's maximum rule (sampled 64 x 64 per cell) by at most 0.0044 of a cell on the overlap board; the sum-clipped rule differs from the maximum only in pixels that two zones of different fill share in part. The implementation should still take the maximum per pixel (`INTEGRATION.md` 2).
+
+### 11.5 Cost and the memory guard (`study_review.py mem`)
+
+Fresh process per run, peak resident memory against `memory.check` (base = the resident size at the start) plus a proposed term: 4 bytes per pixel per cut layer (the float32 raster held) + `FACES_BYTES_PER_PIXEL` (40) x the pixels of one layer + `FACES_FIXED_BYTES` (50 MB), 10 pixels per cell side.
+
+| board | model, cell | program: s, peak MB | copy: s, peak MB | peak growth MB | proposed term MB | copy peak / estimate with the term |
+| :-- | :-- | :-- | :-- | --: | --: | --: |
+| 60 x 40 mm, turned L, 2 layers | FVM 0.5 | 0.2, 211 | 0.4, 268 | 57 | 96 | 0.76 |
+| 60 x 40 mm | FDM 0.5 | 0.2, 219 | 0.4, 280 | 61 | 96 | 0.85 |
+| 100 x 75 mm, 4 layers (section 6) | FVM 0.5 | 1.4, 726 | 3.2, 873 | 147 | 182 | 0.76 |
+| 100 x 75 mm | FDM 0.5 | 1.8, 818 | 3.6, 962 | 144 | 182 | 0.83 |
+| 200 x 150 mm, stripes, 2 layers, 8 parts | FVM 1 | 1.2, 655 | 4.9, 828 | 173 | 194 | 0.76 |
+| 200 x 150 mm | FDM 1 | 1.2, 677 | 5.0, 835 | 158 | 194 | 0.77 |
+| 200 x 150 mm | FVM 0.5 | 9.6, 2993 | 25.4, 3312 | 319 | 578 | 0.63 |
+| 200 x 150 mm | FDM 0.5 | 8.5, 2889 | 23.3, 3523 | 634 | 578 | 0.61 |
+
+* The time is 2.0 to 4.2 times the program (2.6 to 2.7 at 0.5 mm on the 200 x 150 mm board), the peak memory +11 to +28 % at 0.5 mm; section 6's '+20 to +60 %' is the 2 and 1 mm runs of a small peak.
+* The estimate with the term stays above every measured peak (0.61 to 0.85), but **the term alone is not always above the growth it stands for**: the FDM at 0.5 mm on the large board grows 634 MB against a term of 578 MB (the base law's margin covers it). An adoption should not take the import law as it is: charge the float32 raster held (4 B per pixel and cut layer) and refit `FACES_BYTES_PER_PIXEL` on the FDM (about 50 B per pixel measured here), on a board of at least 200 x 150 mm.
+* The hottest rise of the large board moves by +2.0 / +4.1 K in the FVM and +15.4 / +7.1 K in the FDM at 1 / 0.5 mm (the stripes on its whole top layer), the widest shift measured: a drawn board with stripes or hatched-looking zones is where the users will see the change.
+
+### 11.6 Findings and their class
+
+1. **Wrong statement in the study** (fixed in 3.2 and section 1): 'the exact fill alone makes the FDM worse'. Evidence: 11.2.
+2. **Gap in the impact list** (fixed in 7 and `INTEGRATION.md` 3): a hook in `fvm.Network.__init__` moves `example_cut_to_T|lumped|2` (-0.006 K). Evidence: 11.1.
+3. **Unexplained result, now explained** (fixed in 4): the spread on outline boards is one placement, not the pixels. Evidence: 11.3.
+4. **Limit to record**: the memory term of the import law is under the measured growth for the FDM at 0.5 mm on a large board (11.5).
+5. Confirmed: the eight FVM/FDM records and the 14 times of section 7; the 0.4 mm finite-element values; the decomposition; vias, blocks, several parts and overlapping zones run.
+
+**Not verified by the review**: the extrapolated finite-element values (0.2 mm solves not repeated); the four-layer and hatch rows; the outline rows other than the four of 11.3; transients beyond the frozen times; boards larger than 200 x 150 mm; a mixed board (some layers imported, others drawn) through the copy.
