@@ -2,14 +2,14 @@
 
 Status: reviewed (section 7). **Go for C (3D solid slabs and face term) as written; A (local rule) and B (edge nodes) are sound in direction but not as written: both need the corrections of 7.4 before a feature branch.** The program is not touched; every change below is a proposal measured on a copy (`lib/local_laminate.py` replaces three functions of `pcbthermal.laminate` for the duration of a run and edits nothing).
 
-**Status (audit 2.7.0).** C is implemented in 2.6.0 (`feature/solid3d-slabs-by-thickness`), B in 2.6.0 in the corrected form of `research/laminate-edge-band` (`fix/laminate-edge-band`), A is open (A18 of `research/ROADMAP.md`). The folder was named `research/laminate-2-6/` before the 2.7.0 rename. Known defect of a study, not corrected by this audit: `scripts/study_solid_slices.py` counts the face term of the 3D solid twice on the 2.6.0 program (the program adds the face term itself since C was adopted).
+**Status (audit 2.7.0).** C is implemented in 2.6.0 (`feature/solid3d-slabs-by-thickness`), B in 2.6.0 in the corrected form of `research/laminate-edge-band` (`fix/laminate-edge-band`), A is open (A18 of `research/ROADMAP.md`). The folder was named `research/laminate-2-6/` before the 2.7.0 rename. `scripts/study_solid_slices.py` no longer counts the face term of the 3D solid twice: since commit c98d21d3 it adds the term only when the solid's result carries no `face_mean` array (the 2.7.0 audit sentence that called it 'not corrected' was wrong; 2.8.0 audit, `releases/2.8.0/audit/REVIEW_A2.md`).
 
 ## 1. The questions
 
 Three linked limits of the layered models, found in 2.5.0 (`docs/versions.md` 'Planned', `docs/theory.md` 1.4 and 4, `research/paper-case-studies` 11 to 16, `research/analytic-edge-spatial` 8.4):
 
 * **A. Small part over a thick laminate.** The laminate rule (sub-gaps of at most 0.4 mm, at most 4) is the same everywhere, so a part whose side is small against the sub-gap reads too cool (-4 to -9 % bare, -6 to -14 % over a pad at sub-gap / side 0.15 to 0.2; -12 to -24 % at 0.3 to 0.4). A global fine rule costs 3 times the unknowns. Question: a rule that is fine only under and around small parts.
-* **B. Edge film.** The FVM and FDM put the edge film of a whole slab on the copper node, so with a large `h_side` on a thick board they read 13 to 17 % low against the independent 3D solver. Question: nodes for the laminate at the edge, or an edge conductance with an efficiency.
+* **B. Edge film.** (Superseded numbers: the '13 to 17 % low' below was measured against a cell-centred 3D reference at 1 mm that reads hot at a strong edge, before the edge band of 2.6.0; against the finite elements the program with the band reads -0.4 to -6.5 % on the 1.6 mm four-layer board at 200 to 2000 W/m2K, `docs/validation.md` 46.1.) The FVM and FDM put the edge film of a whole slab on the copper node, so with a large `h_side` on a thick board they read 13 to 17 % low against the independent 3D solver. Question: nodes for the laminate at the edge, or an edge conductance with an efficiency.
 * **C. 3D solid.** It cuts each insulating gap into 4 slabs (reads +20 % bare / +27 % pad hot at 3.2 mm under a 2 mm part) and adds no face term. Question: slabs by thickness and the face term.
 
 ### 1.1 Diagrams
