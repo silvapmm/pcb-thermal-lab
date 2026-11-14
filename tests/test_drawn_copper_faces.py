@@ -257,3 +257,48 @@ def test_memory_estimate_is_above_the_measured_peak(model):
     out = subprocess.run([sys.executable, "-c", CHILD.format(root=str(HERE.parent)), model, "0.5"], capture_output=True, text=True, timeout=300, check=True)
     r = json.loads(out.stdout.strip().splitlines()[-1])
     assert r["est"] > 1.1 * r["peak"], r
+
+
+def test_cells_that_are_not_square_read_the_exact_fill_on_ten_pixels():
+    """!
+    @brief A 20 x 20.4 mm board at 1 mm has cells of 1 x 1.02 mm: the raster is built on the grid itself (10 x 10 pixels per cell), so the cell fill is the exact area share and
+           the face problems use the 10 pixels that the memory law counts (the square-pixel raster of the import gave 12 pixels per cell, sampled, and a fill off by 0.017).
+    @return None.
+    """
+    from pcbthermal.geometry import exact_coverage
+    w, h = 20.0, 20.4
+    p = Problem.new(w, h, layers=2, h_top=10, h_bottom=10, h_side=200)
+    p.add_zone(1, polygon=[[1.23, 1.37], [w - 1.41, 2.1], [w - 2.2, h - 1.33], [3.1, h - 2.7]])
+    p.add_zone(2, rect=(1.2, 1.2, w - 1.2, h - 1.2))
+    p.add_heater(1, 1.0, rect=(8, 8, 12, 12))
+    nx, ny = 20, 20
+    src = copper.drawn_source(p, nx, ny)
+    dx, dy = p.board.width / nx, p.board.height / ny
+    assert src.pixels_per_cell(dx, dy) == copper.DRAWN_PIXELS_PER_CELL
+    exact = exact_coverage(np.asarray(p.zones[0].polygon), nx, ny, dx, dy)
+    assert np.abs(src.fill(0, ny, nx, p.board.width, p.board.height) - exact).max() < 1e-6
+    net = fvm.Network(p, nx, ny, assemble=False)
+    assert np.abs(net.fill[0] - exact).max() < 1e-6
+    r = fvm.solve_steady(p, cell_mm=1.0)
+    assert abs(r.balance_error) < 1e-9
+    assert abs(fdm.solve_steady(p, cell_mm=1.0).balance_error) < 1e-9
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_the_cell_that_fits_is_not_refused_again(model):
+    """!
+    @brief The cell that the refusal proposes counts the drawn raster too: checked again at that cell the run is not refused (without the raster term in the search, 50 of the 68
+           limits tried here proposed a cell of 0.4 mm that `check` then refused, 1668 MB against 1650 MB).
+    @param model "fvm" or "fdm".
+    @return None.
+    """
+    w, h = 100, 75
+    p = Problem.new(w, h, 4, h_top=10, h_bottom=10, h_side=200)
+    for layer in range(1, 5):
+        p.add_zone(layer, rect=(1.2, 1.2, w - 1.2, h - 1.2))
+    p.add_heater(1, 2.0, rect=(48, 35, 52, 39))
+    for ram_mb in range(600, 2000, 100):
+        v = memory.check(p, (model,), 0.25, fraction=1.0, ram=int(ram_mb * 1e6), base=80e6, refuse="return", quiet=True)[0]
+        if v.verdict == "refuse" and v.cell_fit:
+            again = memory.check(p, (model,), v.cell_fit, fraction=1.0, ram=int(ram_mb * 1e6), base=80e6, refuse="return", quiet=True)[0]
+            assert again.verdict != "refuse", (ram_mb, v.cell_fit, again.estimate)

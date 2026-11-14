@@ -1,7 +1,7 @@
 {
  "base_version": "2.7.0",
  "branch": "fix/drawn-copper-faces",
- "evidence": "docs/validation.md 49; research/drawn-copper-faces README 7",
+ "evidence": "docs/validation.md 51; research/drawn-copper-faces README 7",
  "format": 1,
  "item": "Drawn copper read as imported copper (exact fill, flow-based faces) in the FVM and FDM",
  "records": {

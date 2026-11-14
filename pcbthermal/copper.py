@@ -433,6 +433,21 @@ class CopperSource:
         r = 0.5 * (dx + dy) / self.pix
         return int(min(max(2 * math.ceil(r / 2.0 - 1e-9), 2), MAX_PIXELS_PER_CELL))
 
+    def face_coverage(self, layer, width, height, n_rows, n_cols):
+        """!
+        @brief The coverage of a layer on the pixel grid of the face problems.
+        @details A grid at least as fine as the raster samples it (the clearances stay bare, `sample_coverage`); a raster finer than the grid is averaged down
+                 (`resample_coverage`).
+        @param layer Copper layer index (0 = top).
+        @param width Board width in m.
+        @param height Board height in m.
+        @param n_rows Pixel rows of the grid (cell rows times the pixels per cell).
+        @param n_cols Pixel columns of the grid.
+        @return float32 array (n_rows, n_cols), rows from the bottom, 0..1 (a new array: the caller changes it).
+        """
+        fine_enough = max(width / n_cols, height / n_rows) <= self.pix * (1.0 + 1e-9)
+        return (sample_coverage if fine_enough else resample_coverage)(self.raster(layer), self.pix, width, height, n_rows, n_cols)
+
     def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False, outline=None):
         """!
         @brief The in-plane face conductances of one imported layer on the reduced sheet.
@@ -460,8 +475,7 @@ class CopperSource:
         dx, dy = width / nx, height / ny
         n = self.pixels_per_cell(dx, dy)
         # A grid at least as fine as the raster samples it (the clearances stay bare); a raster finer than MAX_PIXELS_PER_CELL per cell is averaged down
-        fine_enough = max(dx, dy) / n <= self.pix * (1.0 + 1e-9)
-        cov = (sample_coverage if fine_enough else resample_coverage)(self.raster(layer), self.pix, width, height, ny * n, nx * n)       # (ny n, nx n) float32
+        cov = self.face_coverage(layer, width, height, ny * n, nx * n)                                                     # (ny n, nx n) float32
         if nodes:
             h = n // 2
             cov = np.pad(cov, ((h, h), (h, h)), mode="symmetric")                  # mirror at the board edge: half control volumes
@@ -567,16 +581,69 @@ class DrawnCopper(CopperSource):
              the program's own path, whose faces are the same, and their numbers stay bit for bit.
     """
 
-    def __init__(self, rasters, pix):
+    def __init__(self, rasters, pix, grid=None):
         """!
         @param rasters dict copper layer index (0 = top) -> float32 array (rows from the top), coverage times 255.
-        @param pix Pixel in m.
+        @param pix Pixel in m (the pixel width when `grid` is given).
+        @param grid None (square pixels of side `pix`, read as an import is), or (ny, nx, n): the rasters are exactly n x n pixels per cell of an ny x nx grid whose cells are
+               not square, and the face problems and the cell fill of that grid read them as they are (see `drawn_source`).
         """
         self.mapping = DEFAULT_MAPPING
         self.reduce_sheet = True
         self.pix = pix
         self.entries = {layer: {"index": layer} for layer in rasters}
         self._rasters = rasters
+        self._grid = grid
+
+    def pixels_per_cell(self, dx, dy):
+        """!
+        @brief The pixels per cell side of the face problems: those of the raster on its own grid, otherwise the import's rule.
+        @param dx Cell width in m.
+        @param dy Cell height in m.
+        @return int.
+        """
+        if self._grid is not None:
+            return self._grid[2]
+        return super().pixels_per_cell(dx, dy)
+
+    def _on_grid(self, n_rows, n_cols):
+        """!
+        @brief Whether a pixel grid is the one the rasters were built on.
+        @param n_rows Pixel rows.
+        @param n_cols Pixel columns.
+        @return bool.
+        """
+        return self._grid is not None and (n_rows, n_cols) == (self._grid[0] * self._grid[2], self._grid[1] * self._grid[2])
+
+    def face_coverage(self, layer, width, height, n_rows, n_cols):
+        """!
+        @brief The coverage on the pixel grid of the face problems: the raster itself when it was built on that grid.
+        @param layer Copper layer index (0 = top).
+        @param width Board width in m.
+        @param height Board height in m.
+        @param n_rows Pixel rows.
+        @param n_cols Pixel columns.
+        @return float32 array (n_rows, n_cols), rows from the bottom, 0..1 (a new array).
+        """
+        if self._on_grid(n_rows, n_cols):
+            return (self._rasters[layer][::-1] / np.float32(255.0)).astype(np.float32)
+        return super().face_coverage(layer, width, height, n_rows, n_cols)
+
+    def fill(self, layer, ny, nx, width, height):
+        """!
+        @brief The copper fraction of every cell: the block mean of the raster on its own grid, otherwise the import's average.
+        @param layer Copper layer index (0 = top).
+        @param ny Cell rows.
+        @param nx Cell columns.
+        @param width Board width in m.
+        @param height Board height in m.
+        @return float32 array (ny, nx), rows from the bottom, 0..1.
+        """
+        if self._grid is not None and (ny, nx) == self._grid[:2]:
+            n = self._grid[2]
+            r = self._rasters[layer][::-1].astype(np.float64).reshape(ny, n, nx, n).mean(axis=(1, 3)) / 255.0
+            return np.clip(r, 0.0, 1.0).astype(np.float32)
+        return super().fill(layer, ny, nx, width, height)
 
     def raster(self, layer):
         """!
@@ -673,6 +740,8 @@ def drawn_source(problem, nx, ny):
     @brief The CopperSource that makes the FVM and FDM read the zones of a drawn board as they read an import, or None.
     @details Built for the layers that have a cut cell (`drawn_layer_cuts`): a float32 coverage raster of `DRAWN_PIXELS_PER_CELL` pixels per cell side, the exact area of the
              union of the zones in each pixel. Imported layers win (a problem with imported copper returns None: the earlier path for its drawn layers, a stated limit).
+             Square cells get square pixels of dx / n read as an import's raster; cells that are not square get the raster on the grid itself (dx / n by dy / n pixels,
+             `DrawnCopper(grid=)`), so that the face problems use n pixels per cell and the fill is exact there too.
     @param problem Problem.
     @param nx Cells along x of the network that will read it.
     @param ny Cells along y.
@@ -682,19 +751,30 @@ def drawn_source(problem, nx, ny):
     if not layers:
         return None
     b = problem.board
-    pix = b.width / (nx * DRAWN_PIXELS_PER_CELL)
-    cols = nx * DRAWN_PIXELS_PER_CELL
-    rows = int(math.ceil(b.height / pix - 1e-9))
-    y0 = b.height - rows * pix                                                 # row 0 of the raster is the top edge of the board box (copper.resample_coverage)
+    n = DRAWN_PIXELS_PER_CELL
+    dx, dy = b.width / nx, b.height / ny
+    square = abs(dx - dy) <= 1e-9 * max(dx, dy)
+    if square:
+        pix = b.width / (nx * n)
+        cols = nx * n
+        rows = int(math.ceil(b.height / pix - 1e-9))
+        y0 = b.height - rows * pix                                             # row 0 of the raster is the top edge of the board box (copper.resample_coverage)
+        px, py, grid = pix, pix, None
+    else:
+        # Cells that are not square (the board sides are not the same whole number of cells): square pixels of dx / n would not fit the rows of cells, so the import's
+        # rule would take 12 pixels per cell and sample the raster onto them (a pixel row of error in the cell fill, 1.44 times the pixels that the memory law counts).
+        # The raster is then built on the grid itself, n x n pixels of dx / n by dy / n per cell, and read as it is (DrawnCopper.face_coverage, .fill)
+        cols, rows, y0 = nx * n, ny * n, 0.0
+        px, py, grid = dx / n, dy / n, (ny, nx, n)
     rasters = {}
     for layer in layers:
         mine = [z for z in problem.zones if z.layer == layer]
         try:
-            _, fill = _zone_union(mine, cols, rows, pix, pix, y0)
+            _, fill = _zone_union(mine, cols, rows, px, py, y0)
         except ValueError:
             return None
         rasters[layer] = np.ascontiguousarray((255.0 * _snap(fill))[::-1])       # rows from the top
-    return DrawnCopper(rasters, pix)
+    return DrawnCopper(rasters, px, grid)
 
 
 def resolve(faces, problem):

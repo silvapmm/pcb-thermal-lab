@@ -460,7 +460,8 @@ def largest_unknowns(model: str, cells: float, limit: float, base: Optional[floa
 
 def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit: float, cell_mm: float, base: Optional[float] = None,
                    factor: float = 1.0, cell_max: float = 50.0, max_unknowns: Optional[float] = None,
-                   bound: Optional[Callable[[float], Tuple[int, int]]] = None, vias: Optional[Callable[[float], float]] = None) -> Optional[float]:
+                   bound: Optional[Callable[[float], Tuple[int, int]]] = None, vias: Optional[Callable[[float], float]] = None,
+                   extra: Optional[Callable[[float], float]] = None) -> Optional[float]:
     """!
     @brief Smallest cell, grown in steps of 10 % and rounded up to 0.1 mm, not finer than cell_mm, whose model fits a limit (the refusal message and the Auto suggestion).
     @param count Function cell_mm -> (unknowns, plan cells), both counts.
@@ -474,6 +475,8 @@ def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit:
     @param bound Optional cheap function cell_mm -> (lower bound of the unknowns, plan cells); a cell whose bound is already above the limit is skipped without the
                  exact count (which samples the copper of every cell and costs about 300 bytes per plan cell). The bound has no via term (a lower bound stays one).
     @param vias Optional function cell_mm -> cells of the via footprints (via_cells), applied to the exact estimate only; None for no vias.
+    @param extra Optional function cell_mm -> bytes held beside the unknowns that depend on the cell (the raster of drawn copper with a cut cell, `drawn_run_bytes`), added to the
+           base of the exact estimate as `check` adds it; None for none. Without it the cell proposed for a drawn board could be refused again by `check`.
     @return Cell in mm, or None if even cell_max does not fit.
     """
     b = baseline_bytes() if base is None else base
@@ -485,7 +488,8 @@ def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit:
                 c = math.ceil(c * 1.1 * 10.0) / 10.0
                 continue
         n, cells = count(c)
-        if estimate_bytes(model, n, cells, b, factor, vias(c) if vias is not None else 0.0) <= limit and (max_unknowns is None or n <= max_unknowns):
+        b_c = b + (extra(c) if extra is not None else 0.0)
+        if estimate_bytes(model, n, cells, b_c, factor, vias(c) if vias is not None else 0.0) <= limit and (max_unknowns is None or n <= max_unknowns):
             return c
         c = math.ceil(c * 1.1 * 10.0) / 10.0              # Grow 10 % and round up to 0.1 mm: the count is not smooth in the cell
     return None
@@ -813,8 +817,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
         vc = via_cells(problem, cell_mm) if model != "solid3d" and exact else 0.0         # The via term goes with the exact count; the bound stays a lower bound
-        # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only: it depends on the cell, so it is not in the base that the search for
-        # the cell that fits uses, which therefore errs on the optimistic side by this term)
+        # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only; the search for the cell that fits adds it at every cell it tries)
         drawn = drawn_run_bytes(problem, cell_mm) if model != "solid3d" and exact else 0.0
         est = estimate_bytes(model, n, cells, base + drawn, mult, vc)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
@@ -828,7 +831,8 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             why = v
         fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, mult, max_unknowns=accepted if accepted is not None else
                               (CEILING_3D if model == "solid3d" else None), bound=bound,
-                              vias=(lambda c, _p=problem: via_cells(_p, c)) if model != "solid3d" else None)
+                              vias=(lambda c, _p=problem: via_cells(_p, c)) if model != "solid3d" else None,
+                              extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if model != "solid3d" else None)
                if v == "refuse" else None)
         msg = "" if v == "ok" else _message(model, n, est, limit, r, f, fit, cell_mm, why, exact)
         low = avail is not None and est > avail and v != "refuse"
