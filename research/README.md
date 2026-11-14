@@ -19,7 +19,7 @@ A first guide for a new reader: for each topic, the folder that holds today's an
 | The edge film of imported and drawn copper | [`imported-copper-edge-film/`](imported-copper-edge-film/README.md) | `cut-cell-links/`, `bochkov-robin-check/` |
 | The FDM at a copper edge inside the board | [`fdm-inset-edge/`](fdm-inset-edge/README.md) | `small-model-defects/` (the harmonic face mean), `strong-edge-laminate/` (the plate) |
 | An independent finite-element reference (a different method) | [`independent-fem-edge/`](independent-fem-edge/README.md) | `strong-edge-laminate/`, `imported-copper-edge-film/`, `fdm-inset-edge/` |
-| Convection (the laws, the face turned down, fins) | [`convection-laws/`](convection-laws/README.md), [`face-down-convection/`](face-down-convection/README.md), [`fin-channel/`](fin-channel/README.md) | `plate-h-level/`, `horizontal-plate-h/` (superseded), `block-and-fins/` |
+| Convection (the laws, the face turned down, fins) | [`convection-laws/`](convection-laws/README.md), [`face-down-convection/`](face-down-convection/README.md), [`fin-channel/`](fin-channel/README.md) | `plate-h-level/`, `horizontal-plate-h/` (superseded), `block-and-fins/`, `block-warning-remeasure/` |
 | Fast power waves | [`fast-wave-oscillation/`](fast-wave-oscillation/README.md) | - |
 | The Lumped model near an edge and with vias | [`lumped-near-edge/`](lumped-near-edge/README.md), [`lumped-zones-adoption/`](lumped-zones-adoption/README.md) | `lumped-ring-uniform-deficit/`, `lumped-via-groups/` (superseded) |
 | The Analytic model | [`analytic-edge-and-transient/`](analytic-edge-and-transient/README.md) | `analytic-edge-spatial/`, `analytic-partial-copper/` (open) |
@@ -44,6 +44,7 @@ A first guide for a new reader: for each topic, the folder that holds today's an
 | [`models-comparison/`](models-comparison/README.md) | implemented, repeated at each change | The five models against the FVM on 19 scenarios, grids, solvers and time. |
 | [`solid3d-verification/`](solid3d-verification/README.md) | implemented | Does the 3D solid reproduce an exact solution; how far are the layered models from it. |
 | [`block-and-fins/`](block-and-fins/README.md) | implemented | Metal block and fins: the fin formula, the block in the Lumped and Analytic models. |
+| [`block-warning-remeasure/`](block-warning-remeasure/README.md) | reviewed, closed for now; the warning text and the Lumped part rows are proposals (`INTEGRATION.md`) | Does 'the Lumped and Analytic block within about 5 % of the FVM' hold with several pads, small blocks and parts of unequal power? |
 | [`outline/`](outline/README.md) | implemented | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | [`stackup/`](stackup/README.md) | implemented | The advanced stack-up in the five models, its sensitivity, the typical templates against fabricators. |
 | [`via-fill/`](via-fill/README.md) | implemented | What fills a via barrel and how much it matters. |
