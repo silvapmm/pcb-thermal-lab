@@ -2508,3 +2508,39 @@ Source: `research/lumped-zone-placement` (reviewed, GO; README 10). Nothing in t
 ### 50.2 Decision
 
 No model change in 2.8.0: rule R1, the 0.25 mm raster and the removal of the zones were measured and not adopted. The limits above are stated in `theory.md` 5.2; the warning of up to 16 % too cool for an off-centre array stands. The numbers are those printed by the studies of the research folder (README 10), not re-run here.
+
+
+## 51. The Analytic transient reads the hot point of the steady solution
+
+**Defect and fix** (`fix/analytic-transient-hot-point`; evidence `research/transient-reference-boards` README 4.3). `analytic._local_dynamics` kept the readout point of `_modal_dynamics(..., 0.0, 0.0)`, the hottest cell of the board WITHOUT the vias and heatsinks, so the step responses, the profile curves and the profile decision of a board with them read a point that is not the hottest of the board they solve (on a 4 x 4 via cluster: the centre over the cluster, 2 mm from the hot point). Now the point of the served heater is the hottest cell of the steady field with the vias and heatsinks (the problem handed to `_local_dynamics` has only that heater powered), and the uniform-mode output row is rebuilt there before the calibration. Boards without vias and heatsinks do not take this path (bit-identical).
+
+### 51.1 The `vias` board against the finite-element numbers of the study
+
+20 x 20 mm, four layers, 4 x 4 resin vias under a 6 mm part, 1 W, h 10 W/m²K, 0.5 mm cell, 100 terms (the finite-element tool was not run: its numbers are those stored in the research folder; the 0.3 s value is derived from the recorded error).
+
+| | before | after |
+| :-- | --: | --: |
+| plateau against the finite elements (113.291 K/W) | -0.62 % | -0.04 % |
+| plateau against the steady solve | -0.6 % | equal to 1e-3 |
+| time to 63 % (119.781 s) | +1.01 % | +0.27 % |
+| rise at 0.3 s | -21.7 % | -7.9 % (the Analytic's own early error with vias; the FVM is -4.2 %) |
+
+Square wave of 20 s on this board against the program's FVM at 0.5 mm: swing -11.2 % (finite elements) before, -0.66 % (FVM) after. `tests/test_analytic_hot_point.py` holds these.
+
+### 51.2 Boards with a heatsink (the warning's sample)
+
+Time to 63 % of the unit step against the FVM at 0.5 mm, the 12 boards of 4.1 (the program's own FVM is the reference here, not a finite-element solution):
+
+| board | before | after |
+| :-- | --: | --: |
+| heatsink beside the part | -1.99 % | +0.29 % |
+| vias + heatsink beside | -0.40 % | +2.24 % |
+| 4 L vias + heatsink under (300 W/m²K) | -8.17 % | -10.56 % |
+| 4 L vias + heatsink under (100 W/m²K) | -0.48 % | -1.76 % |
+| the other eight (plain, 1 via, 4 x 4 vias, heatsink under, vias + heatsink under, plain 4 L, 2 L `h_side` 50, 2 L 300 W/m²K) | unchanged to 0.01 point | |
+
+The range of 4.1 (-8.1 to +0.5 %) becomes -10.6 to +2.2 %: **the fix is exact for the plateau and for a board with vias, mixed for a heatsink** (the time to 63 % of the strong-heatsink board moves 2.4 points away from the FVM). The warning now quotes -11 % to +2 % (`HEATSINK_TRANSIENT_KEY`); its other numbers (up to +4 % on further boards, 5 to 7 % low square-wave peaks of two overlapping parts over vias) were measured before this change and were NOT re-measured here.
+
+### 51.3 Frozen numbers
+
+`tests/regression/data/pending/analytic-transient-hot-point.json`: the times to 63 % of `example_board|analytic` and `profile_board|analytic`, U1 10.134 to 10.249 s (+1.1 %); no steady record moves. Fold at the refreeze.
