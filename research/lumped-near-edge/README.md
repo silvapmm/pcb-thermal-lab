@@ -59,7 +59,7 @@ Lumped `program`, error of the hottest node / of the footprint mean, % (mean ove
 
 The worst case is a 10 mm part in the corner of the 100 x 80 board (-22.0 % of the rise, 47.2 K reference). The deficit falls with the gap but does not vanish (-2.4 to -3 % at 30 mm, which is the
 centre value of the uniform-sheet deficit of `lumped-ring-uniform-deficit`, partly removed by the capped first ring that this tree has). It grows with the board (100 x 80 against 40 x 40) and falls with the
-edge film (a cooled side is a weaker wall). Size of the part: no clear trend (2 mm -6.2, 5 mm -6.6, 10 mm -6.9 % on the hottest node).
+edge film (a cooled side is a weaker wall; *2.8.0 audit: with the laminate band of 2.6.0 the deficit hardly depends on the film, -7.8 / -7.3 / -7.2 % at 10 / 50 / 200 as the 2.7.0 audit above says; the all-case figures re-run on 2.7.1 are -7.4 [-22.2, -0.8] %, `docs/validation.md` 35.1*). Size of the part: no clear trend (2 mm -6.2, 5 mm -6.6, 10 mm -6.9 % on the hottest node).
 
 ![Error against the gap](figures/fig_03_error_against_gap.png)
 

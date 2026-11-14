@@ -118,7 +118,7 @@ The 3D solver (`research/lumped-dense-via-group/lib/ref3d.py`, `tests/helpers/la
 
 *Table 5.1 (`out/independent_report.txt`): peak error mean % (range in points) over the eight shifts. 3D at 0.25 mm; the dense-group folder measured the 3D at 0.25 against 0.125 mm as +0.26 %.*
 
-* Against the raster-free reference the zones converge to -2.0 to -2.8 % and one node reads +2.1 to +2.9 %: **equally far, opposite sides**. The 0.5 mm raster makes the zones look 1 to 2 points better (-1.7 to +0.3 %) through the same positive bias that makes the noise.
+* Against the raster-free reference at 0.25 mm the zones converge to -2.0 to -2.8 % and one node reads +2.1 to +2.9 %: **equally far, opposite sides**. *(Superseded by the review, section 10: that reference is 0.3 to 0.5 % hot; against the converged 3D reference the zones read -1.7 to -2.4 % and one node +2.5 to +3.1 %, the zones a little closer on the peak, one node closer on the mean; the 2.8.0 audit, `releases/2.8.0/audit/REVIEW_A4.md`, keeps the review's wording.)* The 0.5 mm raster makes the zones look 1 to 2 points better (-1.7 to +0.3 %) through the same positive bias that makes the noise.
 * The candidate mask at 0.25 mm halves the range again (0.26 to 0.37) and the level is converged (-1.3 to -2.5).
 * **Review (section 10.2)**: the 3D at 0.25 mm is not converged (0.25 / 0.125 / 0.0625 mm: 131.23 / 130.58 / 130.65 K and 120.51 / 120.12 / 120.18 K, not monotone, 0.3 to 0.5 % of the rise hot at 0.25 mm); against the 0.0625 mm reference every column of table 5.1 moves 0.3 to 0.4 points up. The conclusion stands with the corrected numbers: zones at a converged raster -1.7 / -2.4 %, one node +2.5 / +3.1 % (3 x 3, 5 x 5).
 

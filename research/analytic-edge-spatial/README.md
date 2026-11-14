@@ -29,8 +29,7 @@ Three treatments are compared on the same steady solver (a copy of the program's
 
 ## 2. Published case reproduced (`scripts/study_muzychka_eq21.py`)
 
-Equation 21 of Muzychka, Culham, Yovanovich Part II (rectangular flux channel with edge cooling, eigenvalues `delta tan delta = Bi_e`, read as an image of p. 4, the OCR text
-being untrusted) is implemented in `lib/muzychka.py` and compared with an independent 3D finite-volume solver with side convection (`lib/layered3d_side.py`, tested against a
+Equation 21 of Muzychka, Culham, Yovanovich Part II (rectangular flux channel with edge cooling, eigenvalues `delta tan delta = Bi_e`, read at first from the OCR text layer of p. 4 only (this sentence said 'as an image', which section 8.5 corrected); the 2.8.0 audit (`releases/2.8.0/audit/REVIEW_L4L9.md`, `REVIEW_A4.md`) read eq. 21 on the page image rendered from the PDF, p. 4, and it matches `lib/muzychka.py`) is implemented in `lib/muzychka.py` and compared with an independent 3D finite-volume solver with side convection (`lib/layered3d_side.py`, tested against a
 series circuit and an energy balance), 50 x 50 mm, 10 x 10 mm source, adiabatic top outside it, `h` = 100 W/m2K, 24 cases (k 50 and 385 W/mK, t 0.2, 1, 3 mm, `h_e` 0, 50, 200, 1000):
 
 | quantity | result |
@@ -221,7 +220,7 @@ edge temperature of each layer (three passes, up to 7.5 %) removes it.
 
 Boards with metal blocks and the top-path split under Robin (the copy has neither); the transient with vias and heatsinks (the copy's step response has no via calibration);
 imported copper (merged into `develop` after the study; the Analytic warns on it); boards with an outline other than the two frozen ones; the time response against an FVM finer than
-2 mm; the page of eq. 21 as an image (only the OCR text layer and the derivation).
+2 mm; the page of eq. 21 as an image (only the OCR text layer and the derivation; read on the PDF page image by the 2.8.0 audit, which confirms eq. 21 as implemented).
 
 ## What was read and what was not verified
 
