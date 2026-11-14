@@ -723,16 +723,16 @@ def check_lumped_near_edge(problem, models):
     gap, k, name = flagged[0]
     why = ("the Lumped model reads a part near a side or a corner of the board too cool, because its rings around the part do not see the side that sends the heat back: "
            "on test boards the hottest temperature of a part this close to a side read 8 to 9.5 % of the rise too cool on average (120 cases of a sweep and 59 parts of "
-           "120 random boards) and up to 22 % at a corner; a sample, not a bound; use the FVM or the FDM.")
+           "120 random boards) and up to 22 % at a corner against the FVM, up to 26 % against an independent 3D solver at 200 W/m2K; a sample, not a bound; use the FVM or the FDM.")
     if len(flagged) == 1:
         out = []
         _add(out, "heater", k, f"{name}: the part is {gap * 1e3:.1f} mm from a side of the board; {why}",
-             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner); use the FVM.")
+             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
         return out
     names = ", ".join(n for _, _, n in flagged[:3]) + (f" and {len(flagged) - 3} more" if len(flagged) > 3 else "")
     out = []
     _add(out, "heater", k, f"{len(flagged)} parts ({names}) are within one side of the part (and at least 5 mm) of a side of the board (the nearest, {name}, {gap * 1e3:.1f} mm); {why}",
-         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner); use the FVM.")
+         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
     return out
 
 
@@ -864,9 +864,10 @@ def check_model_limits(problem, models, cell_mm=1.0):
                 if zoned:
                     # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
-                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): its via effect was "
-                               "measured 4.0 to 4.6 % off on average (up to 21 %) and the hottest temperature 1.6 to 2.6 % of the rise off on average (up to 7.6 %) "
-                               "over 62 boards; "
+                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): the hottest temperature was "
+                               "measured 1.6 to 2.6 % of the rise off on average (up to 7.6 %) over 62 boards, against a fine-grid layered solver of the same idealisation (not "
+                               "independent); against one resolved 3D cluster it read -2.4 and +1.0 %, and where the vias fall on the 0.5 mm raster moves it by 1 to 3 points; "
+                               "its via effect was 4.0 to 4.6 % off on average (up to 21 %); "
                                "use the FVM for via design.",
                          f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
                          "(via effect up to 21 % off); use the FVM.")
@@ -926,8 +927,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                  f"Analytic model: the via correction solves {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB and a few seconds).")
         if len(vs) <= 2:
             _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
-                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.",
-                 "Analytic model: one or two vias were measured up to 16 % too small in the via effect; use the FVM.")
+                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale), and 17 to 20 % too small next to an edge cooled at 1000 W/m2K; use the FVM for the value.",
+                 "Analytic model: one or two vias were measured up to 16 % too small in the via effect (up to 20 % next to a strongly cooled edge); use the FVM.")
     return out
 
 
@@ -1119,6 +1120,31 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
 EDGE_LAMINATE_H = 200.0
 
 
+def _edge_via_clause(problem, models):
+    """!
+    @brief Extra sentences of the strong-edge warning about the vias of the FDM and of the 3D solid (text only).
+    @details Measured against an independent finite-element solution on a 10 x 10 mm four-layer board with every wall cooled (via 0.16 mm and 3 mm from the wall, a 3 x 3 array):
+             the FDM with eight sub-gaps (its own part, beyond the laminate at the edge) reads the via effect 1 to 3 % low at 200 W/m2K and 4 to 9 % low at 1000 W/m2K at a 0.25 mm cell (up to 20 % at 1 mm),
+             on the safe side (the part reads hotter); the 3D solid reads it
+             too large, up to about 26 % at 0.5 mm and 10 % at 0.25 mm for a via 0.16 mm from a 1000 W/m2K edge and 7 to 14 % also 3 mm from it (unsafe side, falling about by half per halving of the cell).
+    @param problem A Problem.
+    @param models Iterable of model keys that will run.
+    @return Tuple (long text, short text) with the clauses, or ("", "") when there is no via or neither model runs.
+    """
+    if not problem.vias:
+        return "", ""
+    long_t, short_t = "", ""
+    if "fdm" in models:
+        long_t += (" The FDM also reads the effect of the vias low on its own, beyond the laminate error above, next to the edge and away from it (4 to 9 % at a 0.25 mm cell and "
+                   "1000 W/m2K, up to 20 % at 1 mm; on the safe side: the part reads hotter).")
+        short_t += "; FDM via effect 4 to 9 % low at 1000 W/m2K"
+    if "solid3d" in models:
+        long_t += (" The 3D solid reads the effect of the vias too large next to such an edge (up to about 26 % at a 0.5 mm cell for a via 0.16 mm from an edge of 1000 W/m2K, "
+                   "and about 7 to 14 % also 3 mm from it), so a part near it reads too cool; the error falls about by half with each halving of the cell.")
+        short_t += "; 3D solid via effect up to 26 % too large"
+    return long_t, short_t
+
+
 def check_edge_laminate(problem, models):
     """!
     @brief Warning for a board edge cooled by a large coefficient: the laminate along the edge is cut into too few sub-gaps and the layered FVM and FDM read it too cool (text only).
@@ -1142,26 +1168,30 @@ def check_edge_laminate(problem, models):
     s_max, n_max = laminate.parameters()
     if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
         # No gap is cut (every gap is under the longest sub-gap, as on 6 layers in 1.6 mm): the laminate along the edge is one node per gap, which is the coarsest case
-        return _edge_laminate_uncut(b, s_max)
+        return _edge_laminate_uncut(b, s_max, *_edge_via_clause(problem, models))
     out = []
+    via_l, via_s = _edge_via_clause(problem, models)
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
-         "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
-         "-2 % at 500 with eight; -2.8 % at 2000 W/m2K even with sixteen; on a 1.6 mm four-layer board, whose 0.49 mm gaps get two sub-gaps, against an independent finite-element solution "
-         "(a different method from the program): -0.4 % at 200, -1.4 % at 500, -3.4 % at 1000 and -6.2 % at 2000). The effect of a via near such an edge is a small difference of two temperatures "
-         "and reads lower still, so the via helps more than shown: on that board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, a via 3 mm from the edge -2 % at 200 and "
-         "-8 % at 1000. More sub-gaps do not simply improve it: with eight the plate reads HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, up to +6 % at 0.5 mm, because the half-cell film of "
-         "a cell wider than the sub-gap over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth. A larger "
-         f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce the cool error; with a cell larger than the gap many sub-gaps over-correct "
-         "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
-         "coefficient of 5 to 50 W/m2K, where the error is within 3 %.",
-         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-1 to -6 % at 200 to 2000 W/m2K on a 1.6 mm four-layer board, up to -16 % on 3.2 mm; the effect of a via "
-         f"near the edge more); refine the {cell_where()}, and take care: more {laminate_where('sub-gaps')} read hot at a coarse cell.")
+         "read the board too cool. The numbers quote the hottest point of the board against an independent finite-element solution (a different method from the program). On a 1.6 mm "
+         "four-layer board, whose 0.49 mm gaps get two sub-gaps, the error is about -1 / -2 / -4 / -7 % of the rise at 200 / 500 / 1000 / 2000 W/m2K as the cell is refined (the limit); at a "
+         "0.25 mm cell it reads -0.6 / -1.7 / -3.5 / -6.5 %, and at the default 1 mm cell +1.0 / +1.7 / +0.4 / -3.1 %, because the half-cell film of a coarse cell on the laminate nodes of "
+         "the band over-corrects and hides part of the error. On 3.2 mm two-layer boards (a converged graded 3D reference, confirmed by the finite elements to 0.06 %) the "
+         "four sub-gaps read about -2.4 % at 200 W/m2K, -5.5 % at 500 and -16 % at 2000, -2 % at 500 with eight, -2.8 % at 2000 even with sixteen. The effect of a via near such an edge is a small "
+         "difference of two temperatures and reads lower still, so the via helps more than shown: on the four-layer board a via 0.16 mm from the edge reads -3 % at 200 and -12 % at 1000 W/m2K, "
+         "a via 3 mm from the edge -2 % at 200 and -8 % at 1000. At the default sub-gaps a finer "
+         f"{cell_where()} alone makes the reading cooler (the hidden part appears: -4.1 % at 0.125 mm at 1000 W/m2K); more {laminate_where('sub-gaps')} (now {n_max}) help only with a cell no "
+         "wider than about two sub-gaps (eight sub-gaps at 0.125 mm: within 0.3 %), and with a cell wider than the sub-gap they read HOT (+0.6 % at 200 to +2.6 % at 2000 at a 0.25 mm cell, "
+         "up to +6 % at 0.5 mm; +7 % at 2000 W/m2K on a 0.8 mm board at a 1 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
+         "coefficient of 5 to 50 W/m2K, where the error is within 3 %." + via_l,
+         f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read the hottest point too cool (about -1 to -7 % at 200 to 2000 W/m2K on a "
+         "1.6 mm four-layer board, as the cell is refined; +1 to -3 % at a 1 mm cell; up to -16 % on 3.2 mm; the effect of a via near the edge more); "
+         f"a finer {cell_where()} alone makes it cooler, so cut the gaps (a sub-gap of about half the cell, {laminate_where('sub-gaps')}) and refine the cell together" + via_s + ".")
     return out
 
 
 # Edge laminate of a board whose gaps are all under the longest sub-gap (research/strong-edge-laminate, scripts/study_thin_laminate.py; docs/validation.md 44)
-def _edge_laminate_uncut(b, s_max):
+def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
     """!
     @brief The edge-laminate warning for a board whose laminate gaps are all thinner than the longest sub-gap, so that no gap is cut into sub-gaps.
     @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
@@ -1172,6 +1202,8 @@ def _edge_laminate_uncut(b, s_max):
              0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
     @param b The Board.
     @param s_max Longest sub-gap in m (laminate.parameters()).
+    @param via_l Extra sentences about the vias of the FDM and the 3D solid (_edge_via_clause), appended to the long text.
+    @param via_s Extra clause for the short text.
     @return List with the warning (CheckWarning, about the whole design).
     """
     out = []
@@ -1183,9 +1215,9 @@ def _edge_laminate_uncut(b, s_max):
          "the cell-centred 3D solver used before reads 1 to 9.5 % hot at that cell, which is why earlier texts quoted about twice these errors. "
          "Eight sub-gaps are not better at this cell: they read HOT, +1 % at 200 to +7 % at 2000 W/m2K at a 0.25 mm cell (the half-cell film of a cell wider than the sub-gap), so the default at 0.25 mm and eight sub-gaps at 0.125 mm "
          "bracket the truth; a gap of d mm gets eight from a "
-         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still.",
+         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still." + via_l,
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K and no laminate gap cut (all under {num(s_max * 1e3, 2)} mm): the FVM and FDM may read too cool (about -1 to -3 % at 500, "
-         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so refine the {cell_where()} first.")
+         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so cut the gaps and refine the {cell_where()} together" + via_s + ".")
     return out
 
 
@@ -1215,29 +1247,75 @@ def check_reduced_edge_laminate(problem, models):
         return []
     names = " and ".join({"lumped": "Lumped", "analytic": "Analytic"}[m] for m in reduced)
     out = []
+    via_l, via_s = "", ""
+    if "analytic" in reduced and problem.vias:
+        via_l = ("The Analytic model also reads the effect of the vias too small near such an edge: 17 to 20 % too small next to an edge of 1000 W/m2K "
+                 "(one via 0.16 or 3 mm from the edge, or a 3 x 3 array, on a 1.6 mm four-layer board, against an independent finite-element solution), within 5 % at 200 W/m2K. ")
+        via_s = "; Analytic via effect up to 20 % too small next to a 1000 W/m2K edge"
     _add(out, None, None,
          f"The {names} {'models keep' if len(reduced) > 1 else 'model keeps'} the edge film of the laminate at the copper temperature (no laminate nodes along the edge), so with an "
          f"edge coefficient of {num(hs, 2)} W/m2K on a {num(t_mm, 2)} mm board {'they read' if len(reduced) > 1 else 'it reads'} the board too cool where much of the heat leaves "
          "through the edge (two-layer boards against the FVM, a 10 mm part in a corner of a 30 x 20 mm board: about -3 % at 100 W/m2K on 1.6 mm or 50 W/m2K on 3.2 mm, -6 % at "
-         "200 W/m2K on 1.6 mm, -13 % at 200 W/m2K on 3.2 mm; less for a part far from the edge or a large board). Use the FVM or the FDM for such a board.",
-         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -13 %); use the FVM or FDM.")
+         "200 W/m2K on 1.6 mm, -13 % at 200 W/m2K on 3.2 mm; less for a part far from the edge or a large board). "
+         + via_l + "Use the FVM or the FDM for such a board.",
+         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -13 %){via_s}; use the FVM or FDM.")
     return out
 
 
-def thick_plate_bound(power, area, thickness, k):
+THICK_PLATE_FILM_RATIO = 1e-3
+
+
+def thick_plate_bound(power, area, thickness, k, film_flux=0.0):
     """!
-    @brief Upper bound of how much hotter the surface under a source can be than the through-thickness mean the layered models keep: q'' t / (2 k).
-    @details The bound is reached when all the heat crosses the plate with a uniform flux q'' = power / area (a linear profile through the thickness);
-             with sideways spreading the measured gradient is 0.6 to 0.8 of it (research/effective-conductivity, README 4.6). It is a bound, never a correction.
+    @brief Bound of how much hotter the surface under a source can be than the node the layered models keep (the through-thickness mean of the plate): q'' t / (2 k) + q_f t / (2 k).
+    @details Two terms, both closed forms of one-dimensional conduction through the plate. (1) Through the thickness: where a flux q'' enters the top face and crosses the plate
+             to the bottom, the profile is linear and the entering face is hotter than the column mean by q'' t / (2 k) (a column fed over its whole top; with sideways
+             spreading the measured gradient is 0.6 to 0.8 of it, research/effective-conductivity README 4.6). It is q'' t / (3 k) only for heat released uniformly
+             inside the plate, which is not the case of a source on a face. (2) The film: the layered models put the face film h on the node, so the half plate t / (2 k)
+             that lies between the node and the face is left out, and a flux q_f leaving through that film makes the node read q_f t / (2 k) cooler than the true column
+             mean; the 3D solid, which keeps half a slab in series with the film, does not have this term. Together at most q'' t / k when the whole flux crosses the
+             plate and leaves through the film (the column of the case 2 plate of Muzychka, Culham and Yovanovich: 1.87 K, measured 1.77 K). It is a bound, never a correction.
     @param power Heat crossing the plate in W.
     @param area Area it crosses in m2.
     @param thickness Thickness of the plate (a copper layer or a metal block) in m.
     @param k Conductivity of the plate in W/mK.
+    @param film_flux Heat flux leaving through the face film under the source in W/m2 (0 when the plate has no face film or it is negligible).
     @return Temperature difference in K (0 for a degenerate input).
     """
     if area <= 0 or k <= 0 or thickness <= 0:
         return 0.0
-    return 0.5 * abs(power) / area * thickness / k
+    return 0.5 * (abs(power) / area + abs(film_flux)) * thickness / k
+
+
+def _face_coefficients(problem, h_faces=None):
+    """!
+    @brief The face coefficients that produced a result, for the film term of the thick-plate bound.
+    @param problem The Problem that was solved.
+    @param h_faces (h_top, h_bottom) in W/m2K that the solve used (the computed coefficients of its last Picard step), or None for the typed values.
+    @return Tuple (h_top, h_bottom) in W/m2K.
+    """
+    b = problem.board
+    if h_faces is not None:
+        return float(h_faces[0]), float(h_faces[1])
+    return float(b.h_top), float(b.h_bottom)
+
+
+def _face_film_h(problem, layer, h_faces=None):
+    """!
+    @brief Film coefficient on the outer faces of a copper layer, for the film term of the thick-plate bound.
+    @param problem The Problem that was solved.
+    @param layer Index of the copper layer (0 = top).
+    @param h_faces (h_top, h_bottom) the solve used (computed coefficients), or None for the typed values.
+    @return Coefficient in W/m2K (0 for an inner layer).
+    """
+    b = problem.board
+    ht, hb = _face_coefficients(problem, h_faces)
+    h = 0.0
+    if layer == 0:
+        h += ht
+    if layer == b.layers - 1:
+        h += hb
+    return h
 
 
 def _block_flux_under(result, heater, face):
@@ -1268,11 +1346,17 @@ def _block_flux_under(result, heater, face):
     return float(flux[inside].max())
 
 
-def check_thick_plates(problem, rows, result=None):
+def check_thick_plates(problem, rows, result=None, h_faces=None):
     """!
     @brief Post-run warnings for a heater on a thick, poorly conducting plate (its copper layer or a metal block under its footprint).
     @details The layered models keep one temperature per copper layer and per block, the mean through the thickness. Where a flux q'' crosses a plate of
-             thickness t and conductivity k, its surface can be hotter than that mean by up to q'' t / (2 k); the warning appears when that bound exceeds
+             thickness t and conductivity k, its surface can be hotter than that mean by up to q'' t / (2 k) + q_f t / (2 k) (thick_plate_bound: the
+             through-thickness term and the film term, the half plate between the node and a face film that the layered models leave out; the film term is added only
+             when h t / (2 k) of the face exceeds THICK_PLATE_FILM_RATIO and q_f is the smaller of h x rise and q''; h is the typed coefficient, or the
+             computed one of the solve (h_faces) on a board with computed coefficients, and for a block the coefficient of its exposed face with the fin ratio,
+             blocks.exposed_h). On a board of two or more layers the copper of the part also passes heat into the laminate through its other face, and the
+             vertical links start at the node, so q_f is q'' there, and the other copper layers, also one node each, add q'' t_l / k for the heat that crosses them (the bound
+             q'' sum(t_l) / k, the one-dimensional column); the warning appears when that bound exceeds
              THICK_PLATE_LIMIT (5 %) of the rise of the heater. For the copper layer of the heater q'' is the heat of the heater over its footprint (the
              heat enters the copper there). For a metal block it is the largest flux that actually enters the block under the footprint in the solved
              result (FVM or FDM): a block under the board is fed through the laminate and its copper, which spread the heat, and the flux of the footprint
@@ -1285,6 +1369,7 @@ def check_thick_plates(problem, rows, result=None):
     @param problem The Problem that was solved.
     @param rows Heater rows of the reference model (Simulation.heater_rows(): name, power_board_w, t_max), one per heater in order.
     @param result The reference SteadyResult that produced the rows (gives the flux into the blocks), or None.
+    @param h_faces (h_top, h_bottom) in W/m2K that the solve used, for a board with computed coefficients (the film term then uses them), or None for the typed values.
     @return List of warning strings (empty when no plate is thick).
     """
     out = []
@@ -1297,20 +1382,43 @@ def check_thick_plates(problem, rows, result=None):
         power = row["power_board_w"]
         footprint_flux = abs(power) / area
         # Plates under the source: its own copper layer and every metal block whose polygon holds the centre of the footprint
-        plates = [(f"the copper of layer {h.layer + 1}", b.copper_thickness[h.layer], b.materials.k_copper, footprint_flux, "")]
+        # On a board of two or more layers the heat also leaves the copper of the part through its face towards the laminate, and the vertical links of the
+        # layered models start at the copper node, so the half plate on that side is missing as well: its flux is at most q'' (review of the bound, two
+        # thick plates over a thin film: 17.9 K measured in an independent 3D solver against 9.4 K for the through-thickness term alone)
+        # The other copper layers are one node each too: the heat that crosses them (at most q'') loses its whole drop t_l / k in the model, so they are
+        # added with the full thickness (the same review: 14.9 K measured against 9.4 K when the source covers most of the plate)
+        others = float(np.sum(b.copper_thickness)) - float(b.copper_thickness[h.layer]) if b.layers > 1 else 0.0
+        plates = [(f"the copper of layer {h.layer + 1}", b.copper_thickness[h.layer], b.materials.k_copper, footprint_flux, "",
+                   _face_film_h(problem, h.layer, h_faces), b.layers > 1, others)]
         cx, cy = polygon_centroid(h.polygon)
+        ht, hb = _face_coefficients(problem, h_faces)
         for j, s in enumerate(problem.heatsinks):
             if s.is_block() and bool(points_in_polygon(np.array([cx]), np.array([cy]), s.polygon)[0]):
                 face = 0 if (s.layer == 0 or b.layers == 1) else 1          # The face rule of blocks.block_faces
                 q = _block_flux_under(result, h, face)
                 note = "" if q is not None else " (heat flux of the footprint: this model does not give the flux into the block, so the bound is high)"
-                plates.append((s.name or f"Heatsink {j + 1}", s.thickness, s.k, footprint_flux if q is None else q, note))
-        for what, t, k, q, note in plates:
-            drop = thick_plate_bound(q, 1.0, t, k)
+                # The exposed face of the block carries the coefficient of blocks.extra_layers (face h times the fin ratio plus h_extra), on the block node
+                plates.append((s.name or f"Heatsink {j + 1}", s.thickness, s.k, footprint_flux if q is None else q, note,
+                               blocks.exposed_h(s, ht if face == 0 else hb), False, 0.0))
+        for what, t, k, q, note, h_film, into_laminate, others in plates:
+            # The film term only when the half plate is a visible part of the film resistance 1/h; q_f cannot exceed the flux that crosses the plate
+            film = min(h_film * rise, q) if h_film * t / (2.0 * k) > THICK_PLATE_FILM_RATIO else 0.0
+            if into_laminate:
+                film = q
+            across = 2.0 * thick_plate_bound(q, 1.0, others, k)          # q'' t_l / k summed over the other copper layers
+            drop = thick_plate_bound(q, 1.0, t, k, film) + across
             if drop > THICK_PLATE_LIMIT * rise:
-                out.append(warn(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
-                           f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K){note}; the models "
-                           "keep one temperature through the thickness. The value is a bound, not added to the results."))
+                parts = f"{thick_plate_bound(q, 1.0, t, k):.1f} K through the thickness"
+                if into_laminate:
+                    parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
+                              "that face is not in the model)")
+                    if across > 0:
+                        parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
+                elif film > 0:
+                    parts += f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K from the face film (the half plate between the node and the face is not in the model)"
+                out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
+                           f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; the models "
+                           "keep one temperature through the thickness. The value is an upper estimate from conduction straight through the plate, not added to the results."))
     return out
 
 
@@ -1438,7 +1546,7 @@ def check_low_rayleigh(board, info):
              the coefficient (research/plate-h-level: the numerical plate starts at 1e4), the layer is not thin compared with the face, and the plate
              correlation does not count the air drawn in at the sides; the two forms of Churchill and Chu agree to 4 to 6 % there, so the warning is about
              the correlation itself, not about the choice of form. A face where forced convection is at least the natural one is not counted (the natural
-             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e4 to 1e11 on the top
+             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e2 to 1e7 on the top
              face, is in api._solve_computed_h; research/plate-h-level did not study them) and neither are boards with typed coefficients.
              Called once per simulation, from the reference model (api._part_warnings), so that five models do not give five copies.
     @param board Board with orientation, h_mode and height (m).
@@ -1516,7 +1624,7 @@ def check_via_limits(problem, models, cell_mm):
             else:
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
                                     "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
-                                    "19 points too large; use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
+                                    "19 points too large at 1 mm (up to about 26 % at 0.5 mm next to an edge of 1000 W/m2K, and about 7 to 14 % also 3 mm from such an edge); use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
                      f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
         if len(todo) > 5:
             _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")

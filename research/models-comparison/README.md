@@ -27,6 +27,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 ## 2. Findings in short
 
 * On ordinary boards every model is within a few percent of the FVM (FDM about 2 % low where a via is sampled at the nearest node, 3D solid within 1 % above, Lumped within 4 %, Analytic within 2.3 %, except a copper island 30 mm wide around the heater: −4.3 %). Energy balance closes to 2e-12 in every model.
+  *Audit 2.8.0 (`releases/2.8.0/audit/REVIEW_A4.md`; `validation_study.py` re-run on 2.7.1, now `docs/validation.md` 2): FDM -0.5 to 0.0 % (-1.3 % across a copper edge), 3D solid -0.3 to +0.9 %, Lumped -8.7 to +9.6 % (within 4.4 % except the corners and the thin heater), Analytic -1.8 to +0.3 % except the island (-5.1 %); the straddling heater -29.8 % Lumped, -27.9 % Analytic. These are agreements with the FVM, which the Lumped and Analytic constants were tuned to (4.3), not accuracies; the independent checks are 4.1 (finite elements, not re-run) and the audit's comparison with `layered3d_side`. The bullet above is of the program at `0ea5f07`.*
 * The models stop being reliable where the copper edge crosses a heater (Lumped −27 %, Analytic −25 %: the input checks warn), for a heater in a corner (Lumped −8.7 %) and for a long thin heater (Lumped +9.5 %).
 * The FVM converges monotonically with the grid; the FDM does not (area sampling 0.3 to 1.4 °C below the FVM, largest at 1 mm; point sampling from +2.4 °C at 4 mm to −0.7 °C at 1 mm).
 * Direct, CG and SOR with a residual stopping rule agree to 2e-8 K on five boards; the original program's step rule stops 2.7 to 16 K away from the solution.
@@ -88,6 +89,8 @@ The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-
 | 2 layers, 20 mm top pad | 136.2 | 133.7 (-2.2 %) | 131.7 (-4.0 %) | 138.0 (+1.6 %) | 131.1 (-4.5 %) | 109.6 (-23.9 %) |
 | example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.9 (+0.5 %) | 85.2 (-0.6 %) | 85.6 (-0.0 %) | 84.7 (-1.5 %) | 84.7 (-1.5 %) |
 
+*Audit 2.8.0 (`releases/2.8.0/audit/REVIEW_A4.md`, claim RD-070): this table is of the program at `0ea5f07` (before the mean-potential via, the laminate sub-gaps of 2.4.5 and the edge items of 2.6.0 and 2.7.0) and of finite elements of 1 mm with no refinement shown; it was not re-run (scikit-fem lives in a scratch environment). It is the history of an independent check, not the accuracy of the current models; the current independent references are `research/independent-fem-edge`, `research/transient-reference-boards` and the `layered3d_side` comparison of the audit.*
+
 ### 4.2 Many scenarios, every model
 
 `python research/models-comparison/scripts/validation_study.py`
@@ -117,7 +120,7 @@ The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-
 | heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.2 %) | 98.51 (-8.5 %) | 105.19 (-0.2 %) | - |
 | two heaters 60 mm apart (4 W + 2 W) | 100.42 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.27 (-0.2 %) | - |
 
-What moved since the review's table (program at `0ea5f07`): the example-board rows by the via items of 2.4.5 (the mean-potential via: the FDM is no longer 2 % low, -0.1 to -0.2 %) and the 2.6.0 model items (+0.15 K on the FVM at 1 mm, mostly the via barrel `d + 0.5 t_cu`; not decomposed here) against `docs/validation.md` 2 and 2.1, which still print 85.23 degC at 1 mm and 85.07 at 2 mm, the numbers before 2.6.0; the Lumped of those rows by the via constriction (2.4.5) and the zonal network (2.5.0), from -1.9 to +2.3 %; the Analytic by the Robin and per-layer edge (-0.1 to -1.2 % on the example rows, the corner -0.1 % instead of +1.2 %, the copper island -5.0 % instead of -4.3 %); the straddling heater -28.9 / -26.9 % (were -27.2 / -24.7). The readings below hold, with those numbers.
+What moved since the review's table (program at `0ea5f07`): the example-board rows by the via items of 2.4.5 (the mean-potential via: the FDM is no longer 2 % low, -0.1 to -0.2 %) and the 2.6.0 model items (+0.15 K on the FVM at 1 mm, mostly the via barrel `d + 0.5 t_cu`; not decomposed here) against `docs/validation.md` 2 and 2.1, which printed 85.23 degC at 1 mm and 85.07 at 2 mm, the numbers before 2.6.0 (*updated by the 2.8.0 audit to the 2.7.1 run: 85.47 and 85.29 °C*); the Lumped of those rows by the via constriction (2.4.5) and the zonal network (2.5.0), from -1.9 to +2.3 %; the Analytic by the Robin and per-layer edge (-0.1 to -1.2 % on the example rows, the corner -0.1 % instead of +1.2 %, the copper island -5.0 % instead of -4.3 %); the straddling heater -28.9 / -26.9 % (were -27.2 / -24.7). The readings below hold, with those numbers.
 
 Table of the review (program at `0ea5f07`):
 
@@ -304,6 +307,8 @@ boundary nodes with a full cell. All were fixed (conservative cell balance, exac
 * **CSV example** (`examples/csv_profiles`, 1 mm): U1 a repeating 30 s cycle (12 W, 5 W, 0.5 W), U2 a one-shot start-up: peak FVM 119.5 °C, Lumped 116.1, Analytic 115.1 (the Analytic 4.7 % below the FVM on the rise above the 25 °C ambient, the Lumped 3.6 %); steady with the average powers 66.5 °C; bound 201.6 °C.
 
 ### 4.7 Computed heat transfer coefficients
+
+*Audit 2.8.0 (literature-to-code L1/L5): the script re-run on the program of 2.7.1 prints 5.5 W typed / computed 85.5 / 85.3 °C, bottom coefficient 10.4 W/m²K and 22 W 266.9 / 243.6 °C (+11 % on the rise with the typed pair); radiation 43 % / 59 % of the top / bottom coefficient; the table below is the 2.4.5 record. The current table is `docs/validation.md` 8.*
 
 Same script. Example board, FVM at 1 mm, Tmax [°C], typed `h` (10 top / 15 bottom) against computed (horizontal board, emissivity 0.9):
 

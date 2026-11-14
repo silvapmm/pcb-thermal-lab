@@ -26,6 +26,7 @@ from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .spinfit import fit_range
 from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
@@ -70,6 +71,7 @@ class NewBoardDialog(QDialog):
         nb = defaults.load()["new_board"]
         for s, v in ((self.w, nb["width_mm"]), (self.h, nb["height_mm"])):
             s.setRange(5, 1000)
+            fit_range(s, v)                               # A saved default outside the usual range is shown as it is, not clamped
             s.setValue(v)
             s.setSuffix(" mm")
         self.layers = QSpinBox()
@@ -129,6 +131,7 @@ class BackgroundDialog(QDialog):
             s.setRange(-2000, 4000)
             s.setDecimals(2)
             s.setSuffix(" mm")
+            fit_range(s, cfg.get(k, d))                   # A stored placement outside the usual range is not clamped when the dialog is accepted
             s.setValue(cfg.get(k, d))
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
@@ -416,6 +419,13 @@ class MainWindow(QMainWindow):
             self._docks_sized = True
             QTimer.singleShot(0, self._first_layout)         # After the first layout pass: during showEvent the dock layout ignores the sizes
 
+    def _focus_filter(self):
+        """!
+        @brief Show the Elements dock and put the keyboard in its filter field.
+        """
+        self.dock_elements.show()
+        self.elements.focus_filter()
+
     def _act(self, text, slot=None, shortcut=None, checkable=False, checked=False, tip=""):
         """!
         @brief Create an action.
@@ -468,6 +478,7 @@ class MainWindow(QMainWindow):
         self.a_delete.setShortcuts([QKeySequence("Del"), QKeySequence("Backspace")])
         self.a_dup = self._act("Duplicate", self._duplicate, "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
+        self.a_find = self._act("Filter elements", self._focus_filter, QKeySequence.Find, tip="Put the keyboard in the filter field of the Elements dock")
 
         self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
@@ -536,7 +547,7 @@ class MainWindow(QMainWindow):
                   self.a_export_json, None, self.a_quit):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&Edit")
-        for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
+        for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, self.a_find, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
         for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, *self.a_holes.values(), self.a_labels, None,
@@ -1721,6 +1732,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
 <tr><td><b>Del or Backspace, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Ctrl+A</b></td><td>Select all on the active layer</td></tr>
+<tr><td><b>Ctrl+F</b></td><td>Filter field of the Elements dock (Esc clears it, Down goes to the first match)</td></tr>
 <tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>

@@ -25,6 +25,7 @@ from .. import package
 from ..gerber import limits
 from ..numfmt import eng, num
 from . import theme as th
+from .spinfit import fit_range
 from . import tips
 
 
@@ -135,7 +136,7 @@ TIPS = {
     "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK.", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK.",
     "rho_fr4": "Simple-stack-up dielectric density, kg/m³.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK.",
     "copper_uncertainty_pct": "Uncertainty of the copper thickness of every layer, % (at most 99).",
-    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (correlations: 20 to 30).",
+    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (published plate laws: about 20 vertical, 50 horizontal face up).",
     "theta_uncertainty_pct": "Uncertainty of θ junction-pad, %.",
     "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT, % (it varies with board and air flow).",
     "reading_uncertainty_k": "Error of the temperature reading, K (thermocouple contact, IR emissivity; typically 1 to 3).",
@@ -404,6 +405,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(val, int):
                 wdg = QSpinBox()
                 wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (package.MIN_TOTAL_MB, package.MAX_TOTAL_MB) if key == "max_mb" else (0, 100000)))
+                fit_range(wdg, val)                         # A stored value outside the usual range is shown as stored, not clamped
                 wdg.setValue(val)
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, int(v)))
             else:
@@ -418,6 +420,7 @@ class PreferencesDialog(QDialog):
                 while places < 6 and round(float(val), places) != float(val):
                     places += 1
                 wdg.setDecimals(places)
+                fit_range(wdg, val)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
             tip = f"{TIPS.get(key, key)}\nJSON key: {key}"
@@ -561,6 +564,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(wdg, QCheckBox):
                 wdg.setChecked(bool(val))
             else:
+                fit_range(wdg, val)
                 wdg.setValue(val)
 
     def _after_change(self):

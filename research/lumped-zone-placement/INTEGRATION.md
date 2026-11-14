@@ -33,7 +33,7 @@ In `lumped.py`:
 | fractional node weights | expected to approach the 0.125 mm column (0.4 to 0.9) | -2.0 to -2.8 % (against the converged 3D: -1.5 to -2.4 %, README 10.2) | rewrite of `_zone_network` sums and `viaconstriction.ring_couplings`; not built |
 | drop the zones, keep one node | 0.3 to 0.6 points | +2.1 to +2.9 % (converged 3D: +2.5 to +3.1 %; safe side) | moves every zoned record (not measured here) and contradicts the earlier decision to adopt the zones |
 
-**Finding to weigh**: against the raster-free reference the converged zones read -2.0 to -2.8 %, one node +2.1 to +2.9 %: the zones are not closer than one node once the raster is converged, and they are on the unsafe side. The earlier conclusion that the zones read the peak 'closer' rests on the 0.5 mm raster's positive bias (README 5). The study first recommended R1; the review (section 0, README 10) recommends no model change and the statement of the noise and of the converged level as limits.
+**Finding to weigh**: against the raster-free reference at 0.25 mm the converged zones read -2.0 to -2.8 %, one node +2.1 to +2.9 %; against the converged 3D reference (review, README 10) -1.7 to -2.4 % and +2.5 to +3.1 %: on the peak the zones are a little closer, on the mean one node is closer, and the zones are on the unsafe side (the 0.25 mm numbers first written here are superseded; 2.8.0 audit). The earlier conclusion that the zones read the peak 'closer' rests on the 0.5 mm raster's positive bias (README 5). The study first recommended R1; the review (section 0, README 10) recommends no model change and the statement of the noise and of the converged level as limits.
 
 ## 3. The single Lumped branch (A46 + A27)
 

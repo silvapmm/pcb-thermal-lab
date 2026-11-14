@@ -21,7 +21,9 @@ CP_AIR = 1007.0                 # Specific heat of air (J/kgK), within 1 % betwe
 
 def air_properties(t_film_c):
     """!
-    @brief Properties of dry air at atmospheric pressure (Sutherland-type fits, valid about 250 to 450 K).
+    @brief Properties of dry air at atmospheric pressure (Sutherland-type fits).
+    @details Within 2.2 % of Lienhard Table A.6 from 250 to 400 K; at 450 K the Prandtl number is 3.5 % low (and alpha 2.4 % high) because the specific heat is held at 1007 J/kgK
+             (the table has 1021). Film temperatures of boards stay below 400 K, so h is not affected (audit L1L5, docs/theory.md 8).
     @param t_film_c Film temperature in degC.
     @return Dict with k (W/mK), nu (m2/s), alpha (m2/s), pr and beta (1/K).
     """
@@ -64,6 +66,10 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
              The 0.54 law is that of Lloyd and Moran (1974, not obtained; a mass-transfer correlation) via the textbooks; its published range on A/P is 2.2e4 to 8e6
              (quoted by Yovanovich and Jafarpur 1993, p 7). Boards up to about 100 x 80 mm at a 20 K rise are below that range, and from 60 mm up the coefficient exceeds the
              upper bound of Yovanovich and Jafarpur (1993, eq. 25, p 11) by 4 to 24 %; the board maximum moves by about 1 % (research/theory-sources 9.1). Documented limit, law unchanged.
+             Above Ra 1e7 the constant 0.15 of the turbulent branch is from memory: Lienhard eq. 8.35 prints 0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr), so the branch is about 7 % above
+             the printed form and steps by +6.4 % at Ra 1e7 (30.37 to 32.32); a PCB face reaches 1e7 only above A/P of about 0.15 m at a 30 K rise, so no board is affected.
+             api._solve_computed_h warns on the top face outside 1e2 to 1e7: the range where this law and the Raithby-Hollands form printed by Lienhard (eq. 8.37) agree within about
+             15 to 22 % (the program is the lower one below about Ra 2e3, the board reads hot there, and the higher one above it, +9 % at Ra 1e4 and +22 % at 1e7).
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param length Characteristic length A/P in metres.
@@ -88,7 +94,7 @@ def h_natural_vertical(t_surface, t_ambient, height, form="general"):
              "laminar" (the same authors' laminar form, meant for Ra < 1e9): Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9).
              Churchill and Chu (1975) itself has not been opened. The general form equals the library `ht` (1.2.0) to machine precision; `ht` has no laminar
              form, whose Ra^(1/4) term equals the laminar boundary-layer solution of an isothermal plate (LeFevre's Prandtl fit) within 0.21 %, the 0.68 being
-             the leading-edge correction (docs/validation.md section 22).
+             the constant that Churchill and Chu give to cover very low Ra, not a leading-edge term (Lienhard eq. 8.13a; docs/validation.md section 22).
              The laminar form is +7 % of the general one at Ra 1e4, +2 % at 1e6, -5 % at 1e7 and -25 % at 1e9
              (research/effective-conductivity, README 4.7).
     @param t_surface Mean surface temperature in degC.
@@ -114,7 +120,11 @@ def h_forced(t_surface, t_ambient, speed, length):
     @brief Forced convection coefficient of a flat plate parallel to the flow.
     @details Laminar Nu = 0.664 Re^(1/2) Pr^(1/3); above Re = 5e5 the mixed form Nu = (0.037 Re^(4/5) - 871) Pr^(1/3).
              The laminar mean value (Pohlhausen) is read in Lienhard and Lienhard, A Heat Transfer Textbook, p 311; Yovanovich (1993, eq. 26) is 3 % below it at Pr 0.71 and
-             Yovanovich and Teertstra (2001, eq. 18, coefficient 0.742 of their eq. 17) 11 to 14 % above it, 1 to 4 % above with 0.664 put in its place (research/theory-sources 9.1).
+             Yovanovich and Teertstra (2001, eq. 18) 11 to 14 % above it, 1 to 4 % above with 0.664 put in its place (research/theory-sources 9.1). Their 0.742 (eq. 17) is the coefficient
+             of their linearised analytical model with an assumed C_T = 2.31, an approximation of the same flat-plate boundary layer 11.7 % above the exact 0.664 (Lienhard eq. 6.68, printed
+             p 309, the exact similarity value, which is also their eq. 12); their CFD fits only the blending exponent. The uniform-flux mean is 0.688 (eq. 6.72), 3.6 % above 0.664, so 0.664
+             is exact for the isothermal plate modelled and 3.6 % on the hot side of a uniform flux. Laminar plate range about 100 < Re < 1e5 (checked by api._solve_computed_h); the
+             program stays laminar to 5e5 and has no lower bound, both errors under-state h.
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param speed Free-stream air speed in m/s (0 gives 0).
@@ -127,6 +137,20 @@ def h_forced(t_surface, t_ambient, speed, length):
     re = speed * length / props["nu"]
     nu = 0.664 * math.sqrt(re) * props["pr"] ** (1.0 / 3.0) if re < 5e5 else (0.037 * re ** 0.8 - 871.0) * props["pr"] ** (1.0 / 3.0)
     return nu * props["k"] / length
+
+
+def reynolds(t_surface, t_ambient, speed, length):
+    """!
+    @brief Reynolds number of the forced flow over a plate at the film temperature.
+    @param t_surface Mean surface temperature in degC.
+    @param t_ambient Air temperature in degC.
+    @param speed Free-stream air speed in m/s.
+    @param length Plate length along the flow in metres.
+    @return Reynolds number (dimensionless), 0 when the speed is not positive.
+    """
+    if speed <= 0.0:
+        return 0.0
+    return speed * length / air_properties(0.5 * (t_surface + t_ambient))["nu"]
 
 
 def h_radiation(t_surface, t_ambient, emissivity):
@@ -172,6 +196,7 @@ def board_h(board, t_top, t_bottom):
         hf = h_forced(ts, ta, board.air_speed, board.width)
         hc = board.h_calibration * (hn ** 3 + hf ** 3) ** (1.0 / 3.0)
         hr = h_radiation(ts, ta, eps)
-        info[name] = {"convection": hc, "radiation": hr, "rayleigh": ra, "natural": hn, "forced": hf}
+        info[name] = {"convection": hc, "radiation": hr, "rayleigh": ra, "natural": hn, "forced": hf,
+                      "reynolds": reynolds(ts, ta, board.air_speed, board.width)}
         out.append(hc + hr)
     return out[0], out[1], info

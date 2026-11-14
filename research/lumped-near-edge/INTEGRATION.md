@@ -6,10 +6,10 @@ Status (audit 2.7.0): proposals 1 (the warning) and 2 (the raster for a small pa
 
 * The Lumped reads a part near a side or a corner of the board too cool: on 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200, boards 40 x 40 and 100 x 80 mm) the hottest node is -6.6 % on average
   and as low as -22.0 % (10 mm part in a corner), the footprint mean -5.5 % and as low as -13.5 %; the FVM at 0.25 mm confirms the reference to 0.2 %, and the independent 3D solver confirms the FVM to 0.2 % on
-  five cases (README 10.1).
+  five cases (README 10.1). *(2.8.0 audit: on the program of 2.7.1 -7.4 % on average, -22.2 % at worst, footprint mean -6.4 %; the FVM moved with the laminate band; `docs/validation.md` 35.1.)*
 * **The cause is not the clipping of the rings.** Ring areas, contour lengths and the edge loss are already those of the board (README 3.2). The deficit is made in the links from the footprint outwards, mostly the
   footprint-to-ring-1 link, which uses the log potential of the part alone (it lacks the mirror image of the side) and a radial flux that a side pushes away (README 3.2, 10.3).
-* The sub-cell spread is a grid effect shared with the FVM (-19 to +6 % at 0.5 mm for parts of 0.1 to 0.5 mm, position dependent); a raster of side / 2 (at least 0.125 mm) removes it (-0.8 to +1.6 %, README 10.4).
+* The sub-cell spread is a grid effect shared with the FVM (-19 to +6 % at 0.5 mm for parts of 0.1 to 0.5 mm, position dependent); a raster of side / 2 (at least 0.125 mm) removes it (-0.8 to +1.6 %, README 10.4, measured on the integration tree; on the program the 0.2 to 0.3 mm parts stay 3.5 to 6.7 % too cool, `docs/validation.md` 35.3).
 
 ## 2. Proposals and the reviewer's recommendation for each decision
 
@@ -31,7 +31,7 @@ Status (audit 2.7.0): proposals 1 (the warning) and 2 (the raster for a small pa
    one false alarm (`example_cut_to_T`, -2.1 %). The threshold is the knee of the measured table (README 10.5). Add the case to the warning-text tests (no research or branch names in the text) and to the help.
    On an outline board the warning of the equivalent rectangle already fires; whether both are shown is the maintainer's choice of text. Impact: none on a number.
 2. **Raster refinement for small parts (a `feature/`; moves only the Lumped numbers of boards with a part under two cells). Recommendation: adopt in 2.6.0 only together with a memory guard for the Lumped**:
-   `lumped.cell_for` refines the raster to side / 2 (not below 0.125 mm) when a heat source is smaller than two cells. Measured -0.8 to +1.6 % on 15 cases against the FVM at 0.0625 mm. Cost about 1.7 KB per raster
+   `lumped.cell_for` refines the raster to side / 2 (not below 0.125 mm) when a heat source is smaller than two cells. Measured -0.8 to +1.6 % on 15 cases against the FVM at 0.0625 mm on the integration tree (on the program: 0.2 to 0.3 mm parts 3.5 to 6.7 % too cool, `docs/validation.md` 35.3). Cost about 1.7 KB per raster
    cell (0.97 GB and 0.5 s at 0.125 mm on 100 x 80 mm, 2.1 GB on 150 x 120 mm with 100 vias; about 3.3 GB on 200 x 150 mm and 6.5 GB on 300 x 200 mm, extrapolated). The raster is one per board, so one 0402
    part refines the whole board, and `memory.py` does not check the Lumped today: the guard (or a coarser floor when the board is large, which the study has not measured) must come first. **Frozen numbers: none
    moves** (the smallest source of the 17 boards is 6 mm). The other parts of a refined board move with the raster (not measured; the same effect as the zone raster). Until then, the warning that a part below

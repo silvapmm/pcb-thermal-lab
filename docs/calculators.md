@@ -26,7 +26,7 @@ Times at manual h (example board, one call and the band at design level *hand*):
 
 | Point | What it is | Needs | Typical use |
 | :-- | :-- | :-- | :-- |
-| Board ring (1 mm around the part) | board temperature 0.5 to 1.5 mm outside the package: the point where the datasheet's ψJB takes the board temperature | nothing from the datasheet | thermocouple taped on the copper next to the part |
+| Board ring (1 mm around the part) | mean board temperature 0.5 to 1.5 mm outside the package outline (the program's own band, all four sides): an approximation of the board point of ψJB, which TI SPRA953 (read on the page image, PDF page 11, section 5) defines as the temperature of the centre package pin, measured by JESD51-6 (not read); the 1 mm from the package edge is the reading of vendor summaries (Renesas, S), not of a page read | nothing from the datasheet | thermocouple taped on the copper next to the part |
 | Hottest board point under the part | maximum board temperature under the footprint | nothing | a probe under the package |
 | Mean board temperature under the part | average under the footprint | nothing | comparison with the model's mean |
 | Junction | `Tj = T_board,max + θ·P` | θ of the part | a sense diode or the part's own sensor |
@@ -52,9 +52,9 @@ Example (the board of table 2.2, U1 at 2 W, θ 6, ψJT 2, 1 mm resolution), numb
 | Measured at | nominal | best case | worst case | what each source moves (W) |
 | :-- | --: | --: | --: | :-- |
 | board ring | 2.00 W | 1.62 W | 2.31 W | copper 1.81–2.15, heat transfer 1.68–2.25, reading 1.89–2.11 |
-| top of the package | 2.00 W | 1.68 W | 2.27 W | copper 1.79–2.16, heat transfer 1.82–2.13, θ 1.87–2.15, ψJT 1.93–2.07, reading 1.94–2.06 |
+| top of the package | 2.00 W | 1.68 W | 2.27 W | copper 1.80–2.16, heat transfer 1.82–2.13, θ 1.87–2.15, ψJT 1.93–2.07, reading 1.94–2.06 |
 
-With the default board description (*Drawn by hand from the layout*, section 1.1c) the same example gives **ring 2.00 / 1.56 / 2.34 W** and **top 2.00 / 1.58 / 2.31 W** (nominal / best / worst); the design terms add, for the top: coverage 1.84–2.00, copper weight 1.79–2.16, inner planes 1.94–2.00, vias 1.97–2.02 W. The worst case rises by 0.03 to 0.04 W, the best case falls by 0.06 to 0.10 W. (On this board every zone is solid, so coverage and planes have no upward side.) The nominal never changes.
+With the default board description (*Drawn by hand from the layout*, section 1.1c) the same example gives **ring 2.00 / 1.56 / 2.34 W** and **top 2.00 / 1.58 / 2.31 W** (nominal / best / worst); the design terms add, for the top: coverage 1.84–2.00, copper weight 1.80–2.16, inner planes 1.94–2.00, vias 1.97–2.02 W. The worst case rises by 0.03 to 0.04 W, the best case falls by 0.06 to 0.10 W. (On this board every zone is solid, so coverage and planes have no upward side.) The nominal never changes.
 
 **Same board or a variant?** The power is fitted to the drawn board. Simulating *that same board* with it reproduces the measurement (the copper's error cancels); simulating *variants* (more copper, a heatsink) keeps the power, which is physically right, but the board's error does not cancel, so use the worst case for margins (and a board description level that matches how the board was drawn: without the design uncertainty the worst case holds only when the board is drawn right).
 
@@ -68,10 +68,10 @@ The terms of section 1.1b are uncertain *numbers* on a board that is assumed dra
 
 | Source | what is moved | the drawn board is changed by | measured sensitivity (table 2.2) | source of the percentage |
 | :-- | :-- | :-- | :-- | :-- |
-| copper coverage | the fill of every zone of the outer layers (the inner ones belong to the planes term, so that the same doubt is not counted twice) | fill × (1 ∓ a), limited to 1 (a pour that is already solid cannot be more solid) | top pad half filled: −13 % of power | assumed (a hatched pour is about 50 %) |
+| copper coverage | the fill of every zone of the outer layers (the inner ones belong to the planes term, so that the same doubt is not counted twice) | fill × (1 ∓ a), limited to 1 (a pour that is already solid cannot be more solid) | top pad half filled: −16 % of power | assumed (a hatched pour is about 50 %) |
 | copper weight | the thickness of every layer, on top of the 25 % of the copper number | thickness × (1 ∓ a) | copper 17.5 instead of 35 µm: −24 % | assumed (0.5 oz taken for 1 oz is 50 %) |
-| inner planes | the inner layers | down: fill × (1 − a); up: a board-sized plane at fill a in an inner layer that has none, fill × (1 + a) in one that has a zone | no inner planes: −34 % | assumed |
-| vias | the barrel copper (number or plating) | plating × (1 ∓ a) | no vias under the part: −11 % | assumed |
+| inner planes | the inner layers | down: fill × (1 − a); up: a board-sized plane at fill a in an inner layer that has none, fill × (1 + a) in one that has a zone | no inner planes: −36 % | assumed |
+| vias | the barrel copper (number or plating) | plating × (1 ∓ a) | no vias under the part: −12 % | assumed |
 
 **Levels.** `a` is the amplitude of the source at the level *Estimated* (defaults: coverage 40 %, weight 50 %, planes 50 %, vias 50 %) times the multiplier of the level: **None** 0, **Drawn from the real fabrication files** 0.2, **Drawn by hand from the layout** 0.5 (the default), **Estimated** 1. The sensitivities in the table are *measured* (table 2.2); the amplitudes and the multipliers of the levels are *assumed* judgements of how wrong each kind of drawing usually is, they are not fitted to any data, and are editable. Every amplitude (and the copper uncertainty) is limited to 99 % when read, so a thickness or a plating never reaches 0 or below, and the best case is never below 0 W (`tests/test_calculator_design.py`). The internal key of the level *Drawn from the real fabrication files* stays `cad`. A source with nothing to change (no vias, no inner layer, no zone) is left out. With the level *None*, or a multiplier of 0, no design source is run and the band is **bit-identical** to the one of section 1.1b (`tests/test_calculator_design.py`).
 
@@ -79,12 +79,14 @@ The terms of section 1.1b are uncertain *numbers* on a board that is assumed dra
 
 | Drawn board (real board: the example, 2 W) | nominal | numbers only (None) | **Drawn by hand** | **Estimated** |
 | :-- | --: | :-- | :-- | :-- |
-| top copper half filled (hatched) | 1.686 | 1.445–1.885, **out** | 1.375–1.931, **out** | 1.171–2.012, **in** (2 W is 0.012 W from the edge) |
-| copper 17.5 µm instead of 35 µm | 1.521 | 1.289–1.718, **out** | 1.203–1.768, **out** | 0.995–1.859, **out** |
-| no vias under the part (no via term: nothing drawn to move) | 1.766 | 1.493–1.998, **out** (0.002 W short) | 1.392–2.047, in | 1.166–2.140, in |
-| no inner planes (only the top copper drawn: the bottom plane is missing too) | 1.297 | 1.098–1.467, **out** | 1.008–1.634, **out** | 0.813–1.809, **out** |
+| top copper half filled (hatched) | 1.683 | 1.443–1.882, **out** | 1.373–1.928, **out** | 1.168–2.008, **in** (2 W is 0.008 W from the edge) |
+| copper 17.5 µm instead of 35 µm | 1.521 | 1.289–1.718, **out** | 1.202–1.768, **out** | 0.993–1.859, **out** |
+| no vias under the part (no via term: nothing drawn to move) | 1.768 | 1.494–2.001, in (0.001 W over) | 1.393–2.050, in | 1.166–2.144, in |
+| no inner planes (only the top copper drawn: the bottom plane is missing too) | 1.286 | 1.087–1.455, **out** | 0.996–1.631, **out** | 0.799–1.808, **out** |
 
-So the design term brings **1 of the 4** drawing errors inside the band at the level *Drawn by hand* (no vias) and 2 of 4 at *Estimated* (no vias, and the hatched pour only just); these counts are not a coverage rate: three of the sixteen verdicts lie within 0.012 W of the true 2 W, and the changes of 2.4.5 to the board model (0.002 to 0.05 W on these boards) flipped two of them; it does **not** cover a copper weight half the real one nor a missing set of inner planes, even at the widest level (worst case 1.86 and 1.82 W against a true 2 W). The amplitudes were not enlarged to cover them: the missing plane can only be added at a fill `a` (50 %), and the copper weight at +50 %, while the real errors were +100 % of copper and a full plane. The cases are the boards of the band study (section 4, part 2), run with `inverse.power_band(..., uncertainty={"design_level": ...})`; the table is measured with the coverage study of section 4 (several minutes, too long for a test): its columns none, hand and estimated reproduce the table to the last digit, and it also prints the column *Drawn from the real fabrication files* (hatched 1.434–1.894 out, half-weight copper 1.273–1.728 out, no vias 1.473–2.007 in, no planes 1.081–1.515 out); the column *None* also reproduces part 2 of the band study (`none`). At the level *Drawn from the real fabrication files* the band is only a little wider than *None* (example at the ring: 1.607–2.317 W against 1.616–2.311 W).
+*(Audit 2.8.0 A5: re-run on `development` 5fc91430 with `study_design_term_coverage.py`; the earlier table (nominals 1.686 / 1.521 / 1.766 / 1.297 W) was of the program before 2.7.0. The column None now holds the missing vias by 0.001 W, where it fell 0.002 W short: the verdicts at the edge flip with the program, as the next paragraph says. The column Drawn from the real fabrication files prints hatched 1.432–1.891 out, half-weight copper 1.272–1.728 out, no vias 1.475–2.010 in, no planes 1.070–1.510 out; the example band 2.00 / 1.61 / 2.32 W at the ring, as below.)*
+
+So the design term brings **1 of the 4** drawing errors inside the band at the level *Drawn by hand* (no vias, which the numbers-only band now also just holds) and 2 of 4 at *Estimated* (no vias, and the hatched pour only just); these counts are not a coverage rate: three of the sixteen verdicts lie within 0.012 W of the true 2 W, and the changes of 2.4.5 to the board model (0.002 to 0.05 W on these boards) flipped two of them; it does **not** cover a copper weight half the real one nor a missing set of inner planes, even at the widest level (worst case 1.86 and 1.81 W against a true 2 W). The amplitudes were not enlarged to cover them: the missing plane can only be added at a fill `a` (50 %), and the copper weight at +50 %, while the real errors were +100 % of copper and a full plane. The cases are the boards of the band study (section 4, part 2), run with `inverse.power_band(..., uncertainty={"design_level": ...})`; the table is measured with the coverage study of section 4 (several minutes, too long for a test): its columns none, hand and estimated reproduce the table to the last digit, and it also prints the column *Drawn from the real fabrication files* (numbers in the note under the table); the column *None* also reproduces part 2 of the band study (`none`). At the level *Drawn from the real fabrication files* the band is only a little wider than *None* (example at the ring: 1.607–2.317 W against 1.616–2.311 W).
 
 The design term is an honest widening, not a guarantee: a drawing error larger than the amplitude of the chosen level is not covered, and the "up" moves reach only as far as their amplitude (a plane that is missing can be added at the fill `a`, not at 100 %). Choose *Estimated* when the board is a guess. Errors of kinds not listed (a missing heatsink or metal block, a wrong stack-up, a different air flow, a different `h` model, a part near the board edge) are not covered either. Limits of the four terms: the vias term moves the plating, so it adds no via where none is drawn and barely moves a via filled with copper (its core already conducts like copper); the copper weight term is the same change as the copper number term, added as a second independent cause (fabrication tolerance and a wrong weight), so at the level *Drawn by hand* the two together are about ±35 % of copper (root sum of squares of 25 and 25); an amplitude of 100 % or more (Preferences accepts it) makes a thickness or a plating zero or negative, which is not a meaningful board.
 
@@ -108,13 +110,23 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 | JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.6 | 1.029 W | +2.9 % |
 | the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.6 | 1.029 W | +2.9 % |
 | the same JEDEC board **without** the thermal vias | - | 74.6 (0.5 mm; 70.9 in 2.6.0, 68.1 before 2.4.5; 73 to 88 K/W at other cell sizes) | (0.44 W) | the exposed pad needs the vias (JESD51-5) |
+| the JEDEC board **as ROHM 64AN113E prints it** (a 74.2 mm plane of 70 µm on the backside, vias joined to layers 1, 2 and 4 only) | 32.5 | 27.6 | 1.181 W | +18.1 % |
 
 * **Numbers of the table re-run on the 2.7.0 program** (`research/power-calculator/scripts/calculator_validation.py`, 0.5 mm cell, run by the review of `fix/enter-focus-and-calculator-test`; `tests/test_calculator_dialog.py` gets the same numbers through the dialog): the JEDEC rows read 31.6 K/W, 1.029 W, +2.9 % (they read 31.4 K/W, 1.034 W, +3.4 % on the 2.6.0 program; the table had kept those after the 2.7.0 release) and the board without vias 74.6 K/W (70.9); the CSD17308Q3 rows did not move (46.7 K/W, 0.986 W; maximum 45.6 K/W, 1.271 W). The two-layer CSD17308Q3 board is untouched by the 2.7.0 model items and the four-layer simple JEDEC board is not, so the move is attributed to the physical slabs of the simple stack-up (2.7.0); the items were not separated one by one. Cell sweep of the JEDEC row with vias (`study_cell_size.py --case jedec --cell MM`): 32.23 K/W (+0.8 %) at 1 mm, 31.59 K/W (+2.9 %) at 0.5 mm; 0.25 mm not run (resident memory 5.1 GB, over the 4 GB limit of the review). Before that, the face-down law of 2.6.0 and the other 2.6.0 model items had moved the rows (CSD17308Q3 47.5 to 46.7 K/W, 0.968 to 0.986 W; the JEDEC rows 1.039 / 1.040 to 1.034 W). The next note describes the earlier move and keeps its own numbers.
-* **The CSD17308Q3 row moved with the laminate nodes of the rule** (`docs/theory.md` 1.4): 0.983 W (−1.7 %) became 0.968 W (−3.2 %), towards the 3D estimate of about 0.96 W (the part sits on bare laminate under a two-layer board, where the earlier model was too cool); the test tolerance is 4 %. The JEDEC rows moved too, from 31.6 K/W (1.030 W, +3.0 %) to 31.3 K/W (1.039 W, +3.9 %), as printed by `calculator_validation.py`; the JEDEC test passes within 5 %.
+* *History (program of 2.4.5, superseded by the rows of the table):* the CSD17308Q3 row moved with the laminate nodes of the rule (`docs/theory.md` 1.4) from 0.983 W (−1.7 %) to 0.968 W (−3.2 %), and the JEDEC rows from 31.6 K/W (1.030 W, +3.0 %) to 31.3 K/W (1.039 W, +3.9 %); the face-down law of 2.6.0 took the CSD17308Q3 row to 0.986 W (−1.4 %). The test tolerances are 4 % (CSD17308Q3) and 5 % (JEDEC).
 * The CSD17308Q3 datasheet also gives 58 K/W as a *maximum* and 165 K/W for the minimum pad (also a maximum). A maximum covers the spread of parts and boards, not this board, so it is not a target (the model gives 46.4 K/W, 45.7 before 2.4.5, when the junction is 58 K above ambient because the computed convection improves with temperature). The pad of the minimum-pad case is not stated, so that case cannot be built.
 * The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet (SBVS204G); the 5 × 5 mm body and the 3.15 mm pad are from its package drawing RGW0020A; the 3 × 3 via array is an assumption, so this row is an indication (+3 %), not a proof.
-* **Cell size and model error.** (The 0.25 mm values of this paragraph were measured before the laminate nodes of the rule and were not repeated.) At 0.25 mm the two rows are −2.3 % (CSD17308Q3, 47.1 K/W) and +1.3 % (JEDEC, 32.1 K/W); the no-via board depends strongly on the cell (83.6, 68.1, 72.9 and 74.5 K/W at 1, 0.5, 0.35 and 0.25 mm; its heat leaves through a source a few cells wide) but needs the vias at every size. On the CSD17308Q3 board the FVM's board resistance is 2.4 % below an independent 3D solver and the program's 3D solid is within 0.1 % of it, so part of the agreement is a model error: with the 3D solid the calculator would return about 0.96 W (−4 %; estimated, **not printed by any script**: 46.8 × 48.3 / 47.2 = 47.9 K/W, 46 / 47.9 = 0.96). These numbers and the cell sweep come from the cell-size study of section 4 (the datasheet script prints the first four rows only, at 0.5 mm).
-* **The JEDEC bottom copper.** ROHM 64AN113E table 2 reads the backside copper of the 2s2p board as 74.2 × 74.2 mm of 70 µm (text extracted from the PDF; the study draws traces, as JESD51-7 is usually described, from memory); with that plane the model gives 26.4 K/W at 0.5 mm (+23 % of power), so the JEDEC row holds only for the traces reading.
+* **Cell size and model error** (re-run in the audit 2.8.0 A5 on `development` 5fc91430). CSD17308Q3: 47.02 K/W at 0.25 mm, −2.2 % of power (`study_cell_size.py --case csd --cell 0.25`; 46.7 K/W, −1.4 % at 0.5 mm). JEDEC with vias: 32.23 K/W at 1 mm, 31.59 K/W at 0.5 mm; 0.25 mm not run (5.1 GB resident). The no-via board depends strongly on the cell (its heat leaves through a source a few cells wide) but needs the vias at every size. **Model error on the CSD17308Q3 board** (`study_independent_datasheet_board.py`, the board with the converged face coefficients and FR-4 isotropic so that the independent solver represents the same board, 0.3 mm): the FVM's board resistance is 47.65 K/W against 48.00 K/W of the independent 3D solver (−0.7 %), the 3D solid 48.00 (+0.0 %); with the program's FR-4 the FVM gives 47.1 and the 3D solid 47.4 K/W of RθJA. So the −1.4 % of the row is not a model error cancelling: with the 3D solid the calculator would read about 0.6 % fewer watts (the ratio 47.1 / 47.4, an estimate, not printed). The earlier text (FVM 2.4 % below the independent solver, about 0.96 W with the 3D solid, −2.3 % and +1.3 % at 0.25 mm) was measured on programs before 2.4.5 and 2.6.0 and is withdrawn; the A2 review of the audit printed the same −0.7 %.
+* **The JEDEC board as its cited source prints it** (audit 2.8.0 A5; `research/power-calculator/scripts/study_jedec_board_readings.py`, 0.5 mm, computed h, 4.6 minutes, 2.1 GB). ROHM 64AN113E (PDF page 3, read on the page image by the audits S1 and A5; cells not merged) prints for the 2s2p board a backside copper of 74.2 × 74.2 mm, 70 µm, and NOTE1 joins the thermal vias to layers 1, 2 and 4 only; the rows above draw no backside copper and join every layer. The two differences separated (model RθJA at 1 W, K/W; calculator power for the datasheet's 32.5 K/W):
+
+  | board | RθJA | pad mean instead of the hottest point | calculator | error |
+  | :-- | --: | --: | --: | --: |
+  | A as drawn above (no backside copper, vias to every layer) | 31.62 | 30.95 | 1.029 W | +2.9 % |
+  | B backside plane, vias to every layer | 26.74 | 26.10 | 1.222 W | +22.2 % |
+  | C **as printed** (backside plane, vias to layers 1, 2, 4: an anti-pad of 0.7 mm around each via in layer 3) | 27.64 | 26.99 | 1.181 W | +18.1 % |
+  | D no backside copper, vias to layers 1, 2, 4 | 36.06 | 35.34 | 0.899 W | −10.1 % |
+
+  The backside plane is worth 5 K/W, the third layer's connection 1 K/W with the plane and 4 K/W without it. **So the +2.9 % of the JEDEC row is not a validation**: the datasheet's 32.5 K/W lies between the readings (27.6 to 36.1 K/W, −10 to +22 % of power), and on the board as its cited source prints it the model reads 15 % below the datasheet's RθJA (a board that cools better than the datasheet's, the unsafe side for a junction temperature). Which board JESD51-7 and JESD51-5 prescribe (the backside 'trace' layer, the layers the vias join) cannot be settled without the standards, which are not in the library; the TPS7A47's own test board is not described in its datasheet. The JEDEC rows are an **indication of order**, not a check of the calculator; the CSD17308Q3 row, whose board the datasheet states, is the check. The earlier 26.4 K/W of this bullet (and 26.2 in the research README 4.5) was the plane with every layer joined on older programs; now 26.7 K/W.
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
 * Tests: the three rows above with tolerances of 4 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
 
@@ -125,18 +137,20 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 | What differs between the drawn board and the real one | recovered power (W) | error |
 | :-- | --: | --: |
 | nothing | 2.000 | 0.0 % |
-| top copper half filled (hatched) | 1.686 | −15.7 % |
-| copper 17.5 µm instead of 35 µm | 1.521 | −23.9 % |
-| no inner planes | 1.297 | −35.1 % |
-| no top copper pad | 1.059 | −47.1 % |
-| no vias under the part | 1.766 | −11.7 % |
-| heat transfer coefficients +30 % / −30 % | 2.127 / 1.816 | +6.4 % / −9.2 % |
-| θ +20 % / −20 % | 1.872 / 2.146 | −6.4 % / +7.3 % |
-| ψJT 1 / 3 K/W instead of 2 | 1.892 / 2.120 | −5.4 % / +6.0 % |
+| top copper half filled (hatched) | 1.683 | −15.8 % |
+| copper 17.5 µm instead of 35 µm | 1.521 | −24.0 % |
+| no inner planes | 1.286 | −35.7 % |
+| no top copper pad | 1.044 | −47.8 % |
+| no vias under the part | 1.768 | −11.6 % |
+| heat transfer coefficients +30 % / −30 % | 2.127 / 1.817 | +6.3 % / −9.2 % |
+| θ +20 % / −20 % | 1.873 / 2.146 | −6.4 % / +7.3 % |
+| ψJT 1 / 3 K/W instead of 2 | 1.893 / 2.120 | −5.4 % / +6.0 % |
 | measured top temperature 3 K low / high | 1.830 / 2.170 | −8.5 % / +8.5 % |
-| datasheet shortcut with θJA 30 % below / above the board's (19.6 K/W) | 3.003 / 1.499 | +50.2 % / −25.0 % |
+| datasheet shortcut with θJA 30 % below / above the board's (19.7 K/W) | 3.003 / 1.499 | +50.1 % / −25.0 % |
 
-**Reading it.** On the datasheet's own board the calculator is within about 4 % (table 2.1); the large deltas appear only when the drawn board is not the real one. The copper dominates (12 to 47 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
+*(Audit 2.8.0 A5: printed by `power_from_top_study.py` on `development` 5fc91430; this table and `docs/validation.md` 19 had two different older sets, now one; the coverage table of 1.1c below keeps the boards of the band study, whose nominal powers 1.686 / 1.521 / 1.766 / 1.297 W were not re-run.)*
+
+**Reading it.** On the CSD17308Q3's own datasheet board the calculator is within 1.4 % (2.2 % at 0.25 mm; table 2.1; the JEDEC rows are an indication, not a check); the large deltas appear only when the drawn board is not the real one. The copper dominates (12 to 48 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
 
 ### 2.3 Self-consistency (`tests/test_inverse.py`)
 
@@ -165,7 +179,7 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 * It is only as good as the drawn board (copper, vias, stack-up, air) and the measurement: a thermocouple that touches the board cools it a little and an infrared spot is too large for a small part; the emissivity of a package top is about 0.9 and of bare copper 0.05 to 0.1.
 * The board is solved in steady state with constant power; a time-varying part is not covered.
 * The top of the package is taken as `Tj − ψJT·P`; the program has no top path model in this calculator (the heat is assumed to go into the board), so with a heatsink on the package use the part's θSA fields and the simulation, not this route.
-* ψJT, ψJB and θ come from the datasheet's board and are estimates on yours (ψJB within about 15 % of θJB).
+* ψJT, ψJB and θ come from the datasheet's board and are estimates on yours (ψJB within about 15 % of θJB, from the Renesas white paper read as a web page, status S; TI SPRA953 says only that ψJB is close to RθJB because the board takes 75 to 95 % of the heat). The ring of the program is a mean over a band on all four sides; a thermocouple on the trace of the centre pin, the reference of ψJB in SPRA953, is hotter than that mean on a part whose heat leaves through its pins, so the ring route reads a little more power than a pin reading would give (not measured).
 
 ## 4. Reproduce
 
@@ -179,6 +193,7 @@ Evidence for the tables of sections 1 and 2: each script below prints the table 
 .venv/bin/python research/power-calculator/scripts/study_power_band.py [level]     # the example of 1.1b; level none = numbers-only band
 .venv/bin/python research/power-calculator/scripts/study_design_term_coverage.py   # the coverage table of 1.1c
 .venv/bin/python research/power-calculator/scripts/study_cell_size.py              # cell sweep of table 2.1 (about 30 minutes)
+.venv/bin/python research/power-calculator/scripts/study_jedec_board_readings.py   # the JEDEC board read four ways, and the heater shapes of validation 29.2 (about 5 minutes)
 .venv/bin/python -m pytest -q tests/test_calculator_validation.py tests/test_inverse.py
 ```
 

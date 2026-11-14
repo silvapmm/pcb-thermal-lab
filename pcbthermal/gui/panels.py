@@ -27,6 +27,7 @@ from .document import KINDS
 from . import theme as th
 from ..checks import line
 from .boxes import CollapsibleBox
+from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
 from ..numfmt import num
 
@@ -79,6 +80,7 @@ def _spin(lo, hi, value=0.0, decimals=2, step=0.1, suffix=""):
     s.setRange(lo, hi)
     s.setDecimals(decimals)
     s.setSingleStep(step)
+    fit_range(s, value)                                 # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setKeyboardTracking(False)
     if suffix:
@@ -105,12 +107,12 @@ class BoardPanel(QWidget):
 
         g = CollapsibleBox("Size", "board")                 # The dock is already titled Board
         f = QFormLayout(g.body)
-        self.width = _spin(5, 1000, 100, 1, 1, "mm")
-        self.height = _spin(5, 1000, 80, 1, 1, "mm")
-        self.thickness = _spin(0.2, 10, 1.6, 3, 0.1, "mm")
+        self.width = _spin(1, 5000, 100, 1, 1, "mm")
+        self.height = _spin(1, 5000, 80, 1, 1, "mm")
+        self.thickness = _spin(0.05, 100, 1.6, 3, 0.1, "mm")
         self.layers = QSpinBox()
         self.layers.setRange(1, 12)
-        self.copper = _spin(5, 210, 35, 1, 5, "µm")
+        self.copper = _spin(1, 20000, 35, 1, 5, "µm")
         self.stack_note = QLabel("")
         self.stack_note.setWordWrap(True)
         th.hint(self.stack_note)
@@ -170,15 +172,18 @@ class BoardPanel(QWidget):
 
         g = CollapsibleBox("Environment", "board")
         f = QFormLayout(g.body)
-        self.ambient = _spin(-60, 200, 25, 1, 1, "°C")
+        self.ambient = _spin(-273, 1000, 25, 1, 1, "°C")
         self.h_mode = QComboBox()
         self.h_mode.addItem("Typed by me", "manual")
         self.h_mode.addItem("Computed (convection + radiation)", "computed")
-        self.h_mode.setToolTip("Typed h, or computed per face from the board temperature (natural or forced convection plus radiation, iterated).")
-        self.h_top = _spin(0, 500, 10, 1, 1, "W/m²K")
-        self.h_bottom = _spin(0, 500, 15, 1, 1, "W/m²K")
+        self.h_mode.setToolTip("Typed h, or computed per face from the board temperature (natural or forced convection plus radiation, iterated). "
+                               "The h top and h bottom boxes are shown only with 'Typed by me'; with 'Computed' the emissivities, air speed and multiplier are shown instead.")
+        self.h_top = _spin(0, 1e5, 10, 1, 1, "W/m²K")
+        self.h_bottom = _spin(0, 1e5, 15, 1, 1, "W/m²K")
         self.side_on = QCheckBox("Edges lose heat")
-        self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
+        self.h_side = _spin(0, 1e5, 10, 1, 1, "W/m²K")
+        # Its own tooltip before the first refresh: `_side_enabled` adds the greyed reason to it (the table of tips is applied later, only to empty tooltips)
+        self.h_side.setToolTip("Heat transfer coefficient of the edges, W/m²K (convection plus radiation).")
         self.orientation = QComboBox()
         self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
         self.orientation.addItem("Vertical (on its edge)", "vertical")
@@ -192,10 +197,10 @@ class BoardPanel(QWidget):
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the face (0 to 1): solder mask about 0.9, bare copper 0.05 to 0.1.")
         self.emis_bottom.setToolTip(self.emis_top.toolTip())
-        self.air_speed = _spin(0, 50, 0, 2, 0.5, "m/s")
+        self.air_speed = _spin(0, 1000, 0, 2, 0.5, "m/s")
         self.air_speed.setToolTip("Air speed along the board, m/s; 0 = still air (natural convection).")
-        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "× (factor)")
-        self.calibration.setToolTip("Multiplier of the computed convection (not radiation), to fit a measurement. Correlations are good to 20 to 30 %.")
+        self.calibration = _spin(0.01, 100, 1.0, 2, 0.05, "× (factor)")
+        self.calibration.setToolTip("Multiplier of the computed convection (not radiation), to fit a measurement. The published plate laws differ by about 20 % (vertical) to 50 % (horizontal, face up).")
         self.computed_rows = []
         f.addRow("Ambient", self.ambient)
         f.addRow("Heat transfer", self.h_mode)
@@ -215,10 +220,10 @@ class BoardPanel(QWidget):
 
         g = self.materials_box = QGroupBox("Materials")
         f = QFormLayout(g)
-        self.k_cu = _spin(1, 1000, 385, 0, 5, "W/mK")
-        self.k_th = _spin(0.05, 20, 0.3, 2, 0.05, "W/mK")
-        self.k_ip = _spin(0.05, 20, 0.9, 2, 0.05, "W/mK")
-        self.plating = _spin(1, 200, 25, 0, 1, "µm")
+        self.k_cu = _spin(0.01, 10000, 385, 0, 5, "W/mK")
+        self.k_th = _spin(0.01, 1000, 0.3, 2, 0.05, "W/mK")
+        self.k_ip = _spin(0.01, 1000, 0.9, 2, 0.05, "W/mK")
+        self.plating = _spin(1, 1000, 25, 0, 1, "µm")
         self.laminate = QComboBox()
         self.laminate.addItem("Laminate preset...", None)
         for entry in DIELECTRICS:
@@ -255,19 +260,20 @@ class BoardPanel(QWidget):
         b = self.doc.problem.board
         m = b.materials
         self._updating = True
-        self.width.setValue(b.width * 1000)
-        self.height.setValue(b.height * 1000)
+        self._shown = {}                                       # What each box shows now: _apply writes only the boxes whose value differs
+        self._put(self.width, b.width * 1000)
+        self._put(self.height, b.height * 1000)
         # The masks of imported copper have the extent of the board they were read for: the size is fixed until the Gerber files are imported again
         locked = self.doc.problem.imported is not None
         for w in (self.width, self.height):
             w.setEnabled(not locked)
         self.width.setToolTip("Board size along x in millimetres." + ("\n\nGreyed: the copper was imported for this size; change the Gerber files and import again." if locked else ""))
         self.height.setToolTip("Board size along y in millimetres." + ("\n\nGreyed: the copper was imported for this size; change the Gerber files and import again." if locked else ""))
-        self.thickness.setValue(b.thickness * 1000)
-        self.layers.setValue(b.layers)
-        self.copper.setValue(b.copper_thickness[0] * 1e6)
+        self._put(self.thickness, b.thickness * 1000)
+        self._put(self.layers, b.layers)
+        self._put(self.copper, b.copper_thickness[0] * 1e6)
         advanced = b.is_advanced()
-        self.thickness.setValue(b.total_thickness() * 1000)
+        self._put(self.thickness, b.total_thickness() * 1000)
         # Advanced stack-up: thickness, copper per layer and the dielectric are set layer by layer in the table, so those rows are hidden (not just greyed);
         # the number of layers, the copper conductivity and the via plating still apply
         for w in [self.thickness, self.copper] + self.simple_only:
@@ -280,27 +286,55 @@ class BoardPanel(QWidget):
         self.stack_note.setVisible(not advanced)
         self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
                                 else "Simple stack-up: equal gaps. For different copper weights or dielectrics choose Advanced in the Stack-up list at the top of this tab.")
-        self.ambient.setValue(b.ambient)
-        self.h_top.setValue(b.h_top)
-        self.h_bottom.setValue(b.h_bottom)
+        self._put(self.ambient, b.ambient)
+        self._put(self.h_top, b.h_top)
+        self._put(self.h_bottom, b.h_bottom)
         self.h_mode.setCurrentIndex(max(self.h_mode.findData(b.h_mode), 0))
         self.orientation.setCurrentIndex(max(self.orientation.findData(b.orientation), 0))
         self.natural_form.setCurrentIndex(max(self.natural_form.findData(b.natural_form), 0))
         self.natural_form.setEnabled(b.orientation == "vertical")      # The form only enters the vertical-plate correlation
-        self.emis_top.setValue(b.emissivity_top)
-        self.emis_bottom.setValue(b.emissivity_bottom)
-        self.air_speed.setValue(b.air_speed)
-        self.calibration.setValue(b.h_calibration)
+        self._put(self.emis_top, b.emissivity_top)
+        self._put(self.emis_bottom, b.emissivity_bottom)
+        self._put(self.air_speed, b.air_speed)
+        self._put(self.calibration, b.h_calibration)
         self._show_modes(b.h_mode)
         self.side_on.setChecked(b.h_side is not None)
-        self.h_side.setValue(b.h_side or 10.0)
-        self.h_side.setEnabled(b.h_side is not None)
-        self.k_cu.setValue(m.k_copper)
-        self.k_th.setValue(m.k_fr4_through)
-        self.k_ip.setValue(m.k_fr4_inplane)
-        self.plating.setValue(b.via_plating * 1e6)
+        self._put(self.h_side, b.h_side or 10.0)
+        self._side_enabled(b.h_side is not None)
+        self._put(self.k_cu, m.k_copper)
+        self._put(self.k_th, m.k_fr4_through)
+        self._put(self.k_ip, m.k_fr4_inplane)
+        self._put(self.plating, b.via_plating * 1e6)
         self._fill_outline(b)
         self._updating = False
+
+    def _put(self, widget, value):
+        """!
+        @brief Show a stored value in a box, widening the box if the value is outside its range, and remember what the box shows.
+        @param widget The spin box.
+        @param value The stored value, in the unit of the box.
+        """
+        show_value(widget, value)
+        self._shown[widget] = widget.value()
+
+    def _edited(self, widget):
+        """!
+        @brief Whether the user changed a box since the last load from the document (a greyed or hidden box never counts: it cannot be edited).
+        @param widget The spin box.
+        @return bool True when its value differs from what it showed after the load.
+        """
+        return widget.isEnabled() and widget.value() != self._shown.get(widget)
+
+    def _side_enabled(self, on):
+        """!
+        @brief Enable the edge coefficient with the 'Edges lose heat' box, and say in its tooltip why it is greyed.
+        @param on True when the edges lose heat.
+        """
+        self.h_side.setEnabled(on)
+        if self.h_side.property("base_tip") is None:                   # First time: remember the tooltip of the table of tips
+            self.h_side.setProperty("base_tip", self.h_side.toolTip())
+        base = self.h_side.property("base_tip")
+        self.h_side.setToolTip(base if on else base + "\n\nGreyed: the edges are insulated; tick 'Edges lose heat' to use this coefficient.")
 
     def _show_modes(self, mode):
         """!
@@ -326,25 +360,39 @@ class BoardPanel(QWidget):
         if self._updating:
             return
         b = self.doc.problem.board
-        self.h_side.setEnabled(self.side_on.isChecked())
+        self._side_enabled(self.side_on.isChecked())
         self._show_modes(self.h_mode.currentData())
 
+        # Only the boxes the user changed are written: a stored value that a box shows rounded (or could not hold) is never written back by an edit of another box
         def mutate(project):
             bd = project.problem.board
-            bd.width, bd.height = self.width.value() / 1000, self.height.value() / 1000
+            ed = self._edited
+            if ed(self.width):
+                bd.width = self.width.value() / 1000
+            if ed(self.height):
+                bd.height = self.height.value() / 1000
             if not bd.is_advanced():                           # In the advanced stack-up these come from the Stack-up tab
-                bd.thickness = self.thickness.value() / 1000
-                bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
-            bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
-            bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
+                if ed(self.thickness):
+                    bd.thickness = self.thickness.value() / 1000
+                if ed(self.copper):
+                    bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
+            for box, attr in ((self.ambient, "ambient"), (self.h_top, "h_top"), (self.h_bottom, "h_bottom"), (self.emis_top, "emissivity_top"),
+                              (self.emis_bottom, "emissivity_bottom"), (self.air_speed, "air_speed"), (self.calibration, "h_calibration")):
+                if ed(box):
+                    setattr(bd, attr, box.value())
+            if ed(self.h_side) or (bd.h_side is None) == self.side_on.isChecked():
+                bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
             bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
             bd.natural_form = self.natural_form.currentData()
-            bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
-            bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
-            bd.via_plating = self.plating.value() * 1e-6
-            bd.materials.k_copper = self.k_cu.value()
+            if ed(self.plating):
+                bd.via_plating = self.plating.value() * 1e-6
+            if ed(self.k_cu):
+                bd.materials.k_copper = self.k_cu.value()
             if not bd.is_advanced():
-                bd.materials.k_fr4_through, bd.materials.k_fr4_inplane = self.k_th.value(), self.k_ip.value()
+                if ed(self.k_th):
+                    bd.materials.k_fr4_through = self.k_th.value()
+                if ed(self.k_ip):
+                    bd.materials.k_fr4_inplane = self.k_ip.value()
 
         self.doc.edit("Board parameters", mutate, merge_key="board")
 
@@ -502,6 +550,24 @@ class ElementList(QWidget):
         self.doc, self._updating = doc, False
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
+        # The filter is a view setting only: it is never saved in the project and never changes the document
+        self.filter = QLineEdit()
+        self.filter.setPlaceholderText("Filter elements")
+        self.filter.setClearButtonEnabled(True)
+        self.filter.setToolTip("Show only the elements whose name, type, layer or value contains the text (Ctrl+F; Esc clears; Down goes to the first match).")
+        self.filter.setAccessibleName("Filter elements")
+        self.filter.textChanged.connect(self.apply_filter)
+        self.filter.installEventFilter(self)
+        lay.addWidget(self.filter)
+        # One line under the field, shown only when it has something to say: no row matches, or the selection (made on the board) is hidden by the filter
+        self.hint = QLabel("")
+        self.hint.setWordWrap(True)                  # A narrow dock wraps it instead of widening the dock
+        th.hint(self.hint)
+        self.hint.hide()
+        lay.addWidget(self.hint)
+        self._open_before = None                     # The open/closed state of the groups before the filter was typed, given back when it is cleared
+        # A different project (New, Open, Import of another board) starts without a filter, like the layer; an edit or a re-import keeps it
+        doc.project_replaced.connect(self.filter.clear)
         self.tree = QTreeWidget()
         self.tree.setToolTip("Every zone, heater, heatsink and via. Click to select on the board; right-click for actions.")
         self.tree.setHeaderLabels(["Element", "Layer", "Value"])
@@ -514,11 +580,105 @@ class ElementList(QWidget):
         doc.changed.connect(self.refresh)
         self.refresh()
 
+    def eventFilter(self, obj, event):
+        """!
+        @brief Keys of the filter field: Esc clears it, Down goes to the first match (letters stay in the field).
+        @param obj Watched object.
+        @param event The event.
+        @return True when the key was handled here.
+        """
+        if obj is self.filter and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Escape and self.filter.text():
+                self.filter.clear()
+                return True
+            if event.key() == Qt.Key_Down:
+                first = self._first_match()
+                if first is not None:
+                    self.tree.setFocus()
+                    self.tree.setCurrentItem(first)
+                return True
+        return super().eventFilter(obj, event)
+
+    def focus_filter(self):
+        """!
+        @brief Put the keyboard in the filter field with its text selected (Ctrl+F).
+        """
+        self.filter.setFocus()
+        self.filter.selectAll()
+
+    def _first_match(self):
+        """!
+        @brief First visible element row.
+        @return QTreeWidgetItem or None.
+        """
+        for t in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(t)
+            for c in range(top.childCount()):
+                if not top.child(c).isHidden():
+                    return top.child(c)
+        return None
+
+    def apply_filter(self, text=None):
+        """!
+        @brief Hide the element rows that do not match the filter (a group stays while a child matches); the selection is kept.
+        @param text Filter text; None reads the field. Words are separated by blanks and all must be found in the row
+               (name, type, layer, value), case-insensitive.
+        """
+        words = (self.filter.text() if text is None else text).lower().split()
+        self.tree.setUpdatesEnabled(False)
+        tops = [self.tree.topLevelItem(t) for t in range(self.tree.topLevelItemCount())]
+        if words and self._open_before is None:
+            # The filter opens the groups that hold a match: remember what the user had open, to give it back when the filter is cleared
+            self._open_before = [top.isExpanded() for top in tops]
+        elif not words and self._open_before is not None:
+            for top, was in zip(tops, self._open_before):
+                top.setExpanded(was)
+            self._open_before = None
+        for t in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(t)
+            kind = (top.data(0, Qt.UserRole + 1) or "")
+            shown = 0
+            for c in range(top.childCount()):
+                ch = top.child(c)
+                hay = " ".join([kind] + [ch.text(i) for i in range(3)]).lower()
+                ok = all(w in hay for w in words)
+                ch.setHidden(not ok)
+                shown += ok
+            # A group with no match is hidden; with a filter on, a group with a match is opened to show it
+            top.setHidden(bool(words) and shown == 0)
+            if words and shown:
+                top.setExpanded(True)
+        self.tree.setUpdatesEnabled(True)
+        self._update_hint()
+
+    def _update_hint(self):
+        """!
+        @brief Show the line under the field when no row matches or when selected elements are hidden by the filter (the filter is kept: it is the user's text).
+        """
+        msg = ""
+        if self.filter.text().split():
+            visible = hidden_sel = 0
+            for t in range(self.tree.topLevelItemCount()):
+                top = self.tree.topLevelItem(t)
+                for c in range(top.childCount()):
+                    ch = top.child(c)
+                    if ch.isHidden():
+                        hidden_sel += ch.isSelected()
+                    else:
+                        visible += 1
+            if visible == 0:
+                msg = "No elements match the filter (Esc clears it)."
+            elif hidden_sel:
+                msg = (f"{hidden_sel} selected element{'s are' if hidden_sel > 1 else ' is'} hidden by the filter (Esc in the field clears it).")
+        self.hint.setText(msg)
+        self.hint.setVisible(bool(msg))
+
     def refresh(self):
         """!
         @brief Rebuild the tree from the document, keeping the selection.
         """
-        sel = set(self.selected())
+        # Every selected row, also those the filter hides (selectedItems() leaves hidden rows out, and a board selection must survive an edit made while filtered)
+        sel = {it.data(0, Qt.UserRole) for it in self._rows() if it.isSelected()}
         self._updating = True
         self.tree.clear()
         pr = self.doc.problem
@@ -526,6 +686,7 @@ class ElementList(QWidget):
             lst = getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[kind])
             top = QTreeWidgetItem([f"{_TITLES[kind]} ({len(lst)})"])
             top.setFlags(top.flags() & ~Qt.ItemIsSelectable)
+            top.setData(0, Qt.UserRole + 1, f"{kind} {_TITLES[kind]}")      # The type words searched by the filter
             self.tree.addTopLevelItem(top)
             for i, el in enumerate(lst):
                 if kind == "via":
@@ -548,10 +709,20 @@ class ElementList(QWidget):
         for c in range(3):
             self.tree.resizeColumnToContents(c)
         self._updating = False
+        # A new element made while the filter is on is shown only if it matches (the filter is re-applied after every edit)
+        if self.filter.text():
+            self.apply_filter()
+
+    def _rows(self):
+        """!
+        @brief Every element row of the tree, hidden or not.
+        @return List of QTreeWidgetItem.
+        """
+        return [top.child(c) for top in (self.tree.topLevelItem(t) for t in range(self.tree.topLevelItemCount())) for c in range(top.childCount())]
 
     def selected(self):
         """!
-        @brief Selected elements.
+        @brief Selected elements (the visible rows only: the tree's own actions never act on a row the filter hides).
         @return List of (kind, index).
         """
         return [it.data(0, Qt.UserRole) for it in self.tree.selectedItems() if it.data(0, Qt.UserRole)]
@@ -571,6 +742,7 @@ class ElementList(QWidget):
                 if ch.data(0, Qt.UserRole) in want:
                     ch.setSelected(True)
         self._updating = False
+        self._update_hint()                          # A selection made on the board may be hidden by the filter: say so
 
     def _on_selection(self):
         """!
@@ -578,6 +750,7 @@ class ElementList(QWidget):
         """
         if not self._updating:
             self.selection_requested.emit(self.selected())
+            self._update_hint()
 
     def _menu(self, pos):
         """!
@@ -1473,8 +1646,9 @@ class SolverPanel(QWidget):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
-        doc.changed.connect(self._update_cells)
-        doc.changed.connect(self._update_availability)
+        # An undo or a redo restores the whole project, the options included, and emits only `changed`: the boxes are reloaded then too (refresh also updates the cell
+        # counts and the greyed settings), or a box would show an option the document no longer has and, since only edited boxes are written, never correct it
+        doc.changed.connect(self.refresh)
         doc.state_changed.connect(self.refresh)
         self._base_tips = {k: c.toolTip() for k, c in self.cb.items()}
         compact_combos(self)
@@ -1507,17 +1681,27 @@ class SolverPanel(QWidget):
         self._updating = True
         for k, c in self.cb.items():
             c.setChecked(k in o.models)
-        self.cell.setValue(o.cell_mm)
+        self._shown = {}                                       # What each box shows now: _apply writes only the boxes whose value differs
+        self._put(self.cell, o.cell_mm)
         self.solver.setCurrentIndex(max(self.solver.findData(o.linear_solver), 0))
-        self.rings.setValue(o.lumped_rings)
-        self.modes.setValue(o.analytic_modes)
+        self._put(self.rings, o.lumped_rings)
+        self._put(self.modes, o.analytic_modes)
         self.local.setChecked(o.analytic_local_corrections)
-        self.hot.setValue(o.hotspot_c)
-        self.lam_s.setValue(o.laminate_s_max_mm)
-        self.lam_n.setValue(o.laminate_n_max)
+        self._put(self.hot, o.hotspot_c)
+        self._put(self.lam_s, o.laminate_s_max_mm)
+        self._put(self.lam_n, o.laminate_n_max)
         self._updating = False
         self._update_cells()
         self._update_availability()
+
+    def _put(self, widget, value):
+        """!
+        @brief Show a stored option in a box, widening the box if the value is outside its range, and remember what the box shows.
+        @param widget The spin box.
+        @param value The stored value, in the unit of the box.
+        """
+        show_value(widget, value)
+        self._shown[widget] = widget.value()
 
     def verdicts(self):
         """!
@@ -1594,10 +1778,13 @@ class SolverPanel(QWidget):
             models = ("fvm",)
         # set_options emits state_changed, whose refresh shows the counts, the memory verdicts and the greyed settings: not repeated here (the memory check
         # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
-        self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
-                             lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
-                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value(),
-                             laminate_s_max_mm=self.lam_s.value(), laminate_n_max=self.lam_n.value())
+        # Only the boxes the user changed are written (a stored value that a box shows rounded or could not hold is never written back by another edit)
+        changed = {}
+        for box, key in ((self.cell, "cell_mm"), (self.rings, "lumped_rings"), (self.modes, "analytic_modes"), (self.hot, "hotspot_c"),
+                         (self.lam_s, "laminate_s_max_mm"), (self.lam_n, "laminate_n_max")):
+            if box.value() != self._shown.get(box):
+                changed[key] = box.value()
+        self.doc.set_options(models=models, linear_solver=self.solver.currentData(), analytic_local_corrections=self.local.isChecked(), **changed)
 
     def set_checks(self, warnings):
         """!

@@ -155,12 +155,15 @@ class Document(QObject):
 
     def _restore(self, snap):
         """!
-        @brief Replace the project by a snapshot (used by undo and redo).
+        @brief Replace the project by a snapshot (used by undo and redo); the solver options are kept as they are now.
+        @details `set_options` is not part of the undo history, so an undo of a board edit must not undo a later change of the cell, the models or the laminate options.
         @param snap Snapshot dict.
         """
         extras = self.project.package                 # The images and stored files are not in the JSON snapshot: carry them over
+        options = self.project.options                # Not undoable: the current ones stay
         self.project = project_from_dict(copy.deepcopy(snap), validate=False)
         self.project.package = extras
+        self.project.options = options
         self.changed.emit()
 
     def _set_project(self, project, path):
