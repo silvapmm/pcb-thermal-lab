@@ -305,6 +305,8 @@ boundary nodes with a full cell. All were fixed (conservative cell balance, exac
 
 ### 4.7 Computed heat transfer coefficients
 
+*Audit 2.8.0 (literature-to-code L1/L5): the script re-run on the program of 2.7.1 prints 5.5 W typed / computed 85.5 / 85.3 °C, bottom coefficient 10.4 W/m²K and 22 W 266.9 / 243.6 °C (+11 % on the rise with the typed pair); radiation 43 % / 59 % of the top / bottom coefficient; the table below is the 2.4.5 record. The current table is `docs/validation.md` 8.*
+
 Same script. Example board, FVM at 1 mm, Tmax [°C], typed `h` (10 top / 15 bottom) against computed (horizontal board, emissivity 0.9):
 
 | Power [W] | Typed | Computed | Difference | Computed h top / bottom [W/m²K] | Vertical | 2 m/s air | Convection ×0.8 |
