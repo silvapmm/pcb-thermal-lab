@@ -926,8 +926,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                  f"Analytic model: the via correction solves {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB and a few seconds).")
         if len(vs) <= 2:
             _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
-                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.",
-                 "Analytic model: one or two vias were measured up to 16 % too small in the via effect; use the FVM.")
+                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale), and 17 to 20 % too small next to an edge cooled at 1000 W/m2K; use the FVM for the value.",
+                 "Analytic model: one or two vias were measured up to 16 % too small in the via effect (up to 20 % next to a strongly cooled edge); use the FVM.")
     return out
 
 
@@ -1119,6 +1119,30 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
 EDGE_LAMINATE_H = 200.0
 
 
+def _edge_via_clause(problem, models):
+    """!
+    @brief Extra sentences of the strong-edge warning about the vias of the FDM and of the 3D solid (text only).
+    @details Measured against an independent finite-element solution on a 10 x 10 mm four-layer board with every wall cooled (via 0.16 mm and 3 mm from the wall, a 3 x 3 array):
+             the FDM reads the via effect 1 to 3 points low at 200 W/m2K and 4 to 9 % low at 1000 W/m2K at a 0.25 mm cell (up to 20 % at 1 mm), on the safe side; the 3D solid reads it
+             too large, up to about 26 % at 0.5 mm and 10 % at 0.25 mm for a via 0.16 mm from a 1000 W/m2K edge and 7 to 14 % also 3 mm from it (unsafe side, falling about by half per halving of the cell).
+    @param problem A Problem.
+    @param models Iterable of model keys that will run.
+    @return Tuple (long text, short text) with the clauses, or ("", "") when there is no via or neither model runs.
+    """
+    if not problem.vias:
+        return "", ""
+    long_t, short_t = "", ""
+    if "fdm" in models:
+        long_t += (" The FDM also reads the effect of the vias low away from the edge (4 to 9 % at a 0.25 mm cell and 1000 W/m2K, up to 20 % at 1 mm; "
+                   "on the safe side).")
+        short_t += "; FDM via effect 4 to 9 % low at 1000 W/m2K"
+    if "solid3d" in models:
+        long_t += (" The 3D solid reads the effect of the vias too large next to such an edge (up to about 26 % at a 0.5 mm cell for a via 0.16 mm from an edge of 1000 W/m2K, "
+                   "and about 7 to 14 % also 3 mm from it), so a part near it reads too cool; the error falls about by half with each halving of the cell.")
+        short_t += "; 3D solid via effect up to 26 % too large"
+    return long_t, short_t
+
+
 def check_edge_laminate(problem, models):
     """!
     @brief Warning for a board edge cooled by a large coefficient: the laminate along the edge is cut into too few sub-gaps and the layered FVM and FDM read it too cool (text only).
@@ -1142,8 +1166,9 @@ def check_edge_laminate(problem, models):
     s_max, n_max = laminate.parameters()
     if not any(laminate.n_for_gap(float(d), s_max, n_max) > 1 for d in b.gap_thicknesses()):
         # No gap is cut (every gap is under the longest sub-gap, as on 6 layers in 1.6 mm): the laminate along the edge is one node per gap, which is the coarsest case
-        return _edge_laminate_uncut(b, s_max)
+        return _edge_laminate_uncut(b, s_max, *_edge_via_clause(problem, models))
     out = []
+    via_l, via_s = _edge_via_clause(problem, models)
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K: the laminate along the board edge is cut into too few sub-gaps and the layered FVM and FDM "
          "read the board too cool (measured on 3.2 mm two-layer boards at a 0.25 mm cell against a cell-centred finite-volume 3D reference, which the finite-element comparison showed to read hot at that cell, so these figures are too pessimistic and the finite-element numbers below are the best estimate: about -2.4 % of the rise at 200 W/m2K, -5.5 % at 500 and -16 % at 2000 with the four sub-gaps; "
@@ -1154,14 +1179,14 @@ def check_edge_laminate(problem, models):
          "a cell wider than the sub-gap over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth. A larger "
          f"{laminate_where('sub-gaps')} (now {n_max}) and a smaller {cell_where()} reduce the cool error; with a cell larger than the gap many sub-gaps over-correct "
          "(+7 % at 2000 W/m2K, 0.8 mm board, 1 mm cell, eight sub-gaps; +3 to +9 % on the four-layer board at a 0.5 mm cell). The numbers are a sample, not a bound. A board in air has an edge "
-         "coefficient of 5 to 50 W/m2K, where the error is within 3 %.",
+         "coefficient of 5 to 50 W/m2K, where the error is within 3 %." + via_l,
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K: the edge laminate is under-resolved and the FVM and FDM read too cool (-1 to -6 % at 200 to 2000 W/m2K on a 1.6 mm four-layer board, up to -16 % on 3.2 mm; the effect of a via "
-         f"near the edge more); refine the {cell_where()}, and take care: more {laminate_where('sub-gaps')} read hot at a coarse cell.")
+         f"near the edge more); refine the {cell_where()}, and take care: more {laminate_where('sub-gaps')} read hot at a coarse cell." + via_s)
     return out
 
 
 # Edge laminate of a board whose gaps are all under the longest sub-gap (research/strong-edge-laminate, scripts/study_thin_laminate.py; docs/validation.md 44)
-def _edge_laminate_uncut(b, s_max):
+def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
     """!
     @brief The edge-laminate warning for a board whose laminate gaps are all thinner than the longest sub-gap, so that no gap is cut into sub-gaps.
     @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
@@ -1172,6 +1197,8 @@ def _edge_laminate_uncut(b, s_max):
              0.25 mm and eight sub-gaps at 0.125 mm bracket the truth.
     @param b The Board.
     @param s_max Longest sub-gap in m (laminate.parameters()).
+    @param via_l Extra sentences about the vias of the FDM and the 3D solid (_edge_via_clause), appended to the long text.
+    @param via_s Extra clause for the short text.
     @return List with the warning (CheckWarning, about the whole design).
     """
     out = []
@@ -1183,9 +1210,9 @@ def _edge_laminate_uncut(b, s_max):
          "the cell-centred 3D solver used before reads 1 to 9.5 % hot at that cell, which is why earlier texts quoted about twice these errors. "
          "Eight sub-gaps are not better at this cell: they read HOT, +1 % at 200 to +7 % at 2000 W/m2K at a 0.25 mm cell (the half-cell film of a cell wider than the sub-gap), so the default at 0.25 mm and eight sub-gaps at 0.125 mm "
          "bracket the truth; a gap of d mm gets eight from a "
-         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still.",
+         f"{laminate_where('sub-gap')} of d / 7 mm or less, with {laminate_where('sub-gaps')} set to 8, at a cost in time and memory. The effect of a via near such an edge reads lower still." + via_l,
          f"Edge coefficient above {EDGE_LAMINATE_H:g} W/m2K and no laminate gap cut (all under {num(s_max * 1e3, 2)} mm): the FVM and FDM may read too cool (about -1 to -3 % at 500, "
-         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so refine the {cell_where()} first.")
+         f"-2 to -6 % at 1000, -4 to -10 % at 2000 W/m2K against an independent finite-element solution; a sample, not a bound); eight sub-gaps read hot at a coarse cell, so refine the {cell_where()} first." + via_s)
     return out
 
 
@@ -1215,12 +1242,18 @@ def check_reduced_edge_laminate(problem, models):
         return []
     names = " and ".join({"lumped": "Lumped", "analytic": "Analytic"}[m] for m in reduced)
     out = []
+    via_l, via_s = "", ""
+    if "analytic" in reduced and problem.vias:
+        via_l = ("The Analytic model also reads the effect of the vias too small near such an edge: 17 to 20 % too small next to an edge of 1000 W/m2K "
+                 "(one via 0.16 or 3 mm from the edge, or a 3 x 3 array, on a 1.6 mm four-layer board, against an independent finite-element solution), within 5 % at 200 W/m2K. ")
+        via_s = "; Analytic via effect up to 20 % too small next to a 1000 W/m2K edge"
     _add(out, None, None,
          f"The {names} {'models keep' if len(reduced) > 1 else 'model keeps'} the edge film of the laminate at the copper temperature (no laminate nodes along the edge), so with an "
          f"edge coefficient of {num(hs, 2)} W/m2K on a {num(t_mm, 2)} mm board {'they read' if len(reduced) > 1 else 'it reads'} the board too cool where much of the heat leaves "
          "through the edge (two-layer boards against the FVM, a 10 mm part in a corner of a 30 x 20 mm board: about -3 % at 100 W/m2K on 1.6 mm or 50 W/m2K on 3.2 mm, -6 % at "
-         "200 W/m2K on 1.6 mm, -13 % at 200 W/m2K on 3.2 mm; less for a part far from the edge or a large board). Use the FVM or the FDM for such a board.",
-         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -13 %); use the FVM or FDM.")
+         "200 W/m2K on 1.6 mm, -13 % at 200 W/m2K on 3.2 mm; less for a part far from the edge or a large board). "
+         + via_l + "Use the FVM or the FDM for such a board.",
+         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -13 %){via_s}; use the FVM or FDM.")
     return out
 
 
@@ -1516,7 +1549,7 @@ def check_via_limits(problem, models, cell_mm):
             else:
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
                                     "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
-                                    "19 points too large; use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
+                                    "19 points too large at 1 mm (up to about 26 % at 0.5 mm next to an edge of 1000 W/m2K, and about 7 to 14 % also 3 mm from such an edge); use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
                      f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
         if len(todo) > 5:
             _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")

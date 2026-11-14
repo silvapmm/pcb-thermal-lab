@@ -284,3 +284,21 @@ def test_the_edge_warning_also_fires_when_no_laminate_gap_is_cut():
     assert "no gap is cut" in checks.check_edge_laminate(adv, ("fvm",))[0]
     # it is part of the model-limit warnings of a run, and the one-line form is short
     assert any("no gap is cut" in str(x) for x in checks.check_model_limits(six, ("fvm",)))
+
+
+def test_the_via_clauses_of_the_edge_warnings_appear_only_with_the_model_and_a_via():
+    # Texts of fix/via-and-edge-warning-texts: the FDM, 3D solid and Analytic via-effect clauses need the model in the run and a via on the board
+    bare = plate(1.6, 1000.0, "corner", layers=4)
+    withvia = plate(1.6, 1000.0, "corner", layers=4)
+    withvia.add_via(5.0, 15.0)
+    fvm = checks.check_edge_laminate(withvia, ("fvm",))[0]
+    assert "The FDM also reads" not in fvm and "The 3D solid reads" not in fvm
+    fdm = checks.check_edge_laminate(withvia, ("fvm", "fdm", "solid3d"))[0]
+    assert "The FDM also reads the effect of the vias low" in fdm and "The 3D solid reads the effect of the vias too large" in fdm
+    assert "The FDM also reads" not in checks.check_edge_laminate(bare, ("fvm", "fdm", "solid3d"))[0]
+    for text in (fdm, fdm.short if hasattr(fdm, "short") else ""):
+        assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    ana = checks.check_reduced_edge_laminate(withvia, ("analytic",))[0]
+    assert "effect of the vias too small near such an edge" in ana
+    assert "effect of the vias" not in checks.check_reduced_edge_laminate(bare, ("analytic",))[0]
+    assert "effect of the vias" not in checks.check_reduced_edge_laminate(withvia, ("lumped",))[0]
