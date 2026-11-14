@@ -148,24 +148,26 @@ rectangular board: the board has an outline polygon"), as documented; the rows a
    with an independent solver").
 3. **The first seconds are read too cool, and not because of the mesh.** On `two2` the response at 0.3 / 1 / 3 / 10 s is -58 / -30 / -9 / -1.4 % (FVM, FDM and Analytic alike, -47 / -25 / -8 / -1 % Lumped)
    and the error does not change with the cell (0.5 and 1 mm differ by 0.2 point; at 2 mm -60 %). The cause is the single node of the top layer: it holds the copper plus half of the adjacent gap,
-   and the heat of a step first heats the copper alone. The capacity of the node under the 10 x 10 mm part is (35 um x 3.45e6 + 0.78 mm x 1.665e6) x 1e-4 m2 = 0.142 J/K, so the adiabatic
-   rise per watt at 0.3 s is 0.3 / 0.142 = 2.1 K/W; the program reads 2.08 K/W (the finite-element node 4.99, 2.4 times higher). The time that the laminate half gap needs to follow is d2 / kappa = (0.78 mm)2 / 1.8e-7 =
-   3.4 s on two layers and 0.3 s for the 0.24 mm half gap of the four-layer boards, which is where the errors fall to about -10 % (`two2` 3 s; `simple4` 0.3 s). The disc (half gap 0.78 mm, a 4 mm
+   and the heat of a step first heats the copper alone. The capacity of the node under the 10 x 10 mm part is (35 um x 3.45e6 + 0.765 mm x 1.665e6) x 1e-4 m2 = 0.139 J/K, so the adiabatic
+   rise per watt at 0.3 s is 0.3 / 0.139 = 2.15 K/W; the program reads 2.08 K/W (the finite-element node 4.99, 2.4 times higher). The time that the laminate half gap needs to follow is d2 / kappa = (0.765 mm)2 / 1.8e-7 =
+   3.3 s on two layers and 0.3 s for the 0.24 mm half gap of the four-layer boards, which is where the errors fall to about -10 % (`two2` 3 s; `simple4` 0.3 s). The disc (half gap 0.765 mm, a 4 mm
    part) reads -37 / -18 / -9 / -3 %. This is the transient face of the known one-node-per-layer limit of the fast waves (the closed-form floor of the profile decision exists for that reason; the
-   step response and the animation have none). **Unsafe side** (too cool) for anything shorter than about 3 s on two layers.
+   step response and the animation have none). **Unsafe side** (too cool) for anything shorter than about 3 s on two layers. The review (section 4.2) checked that this is a limit of the model and not
+   a difference of definition: the program's node is the copper temperature at the plateau and carries the capacity of copper plus half gap at the start.
 4. **The wave of a slow board is 2 to 5 % cool in the peak.** FVM and FDM at 0.5 mm: peak -3.0 / -1.9 / -1.6 % and swing -4.3 / -3.2 / -4.5 % on `simple4` (2 s), `two2` (20 s) and `disc` (20 s); on
    the via and plate boards +0.1 / +0.3 % and -0.3 / +1.5 %. All the same sign as item 3 (the swing reads the response at the first seconds). Analytic: -3.4 to -2.0 % peak, -5.0 to -3.5 % swing on the
    via-free boards.
 5. **Cell size in the transient: 1 mm is not 0.5 mm on the via boards, and 2 mm is much worse.** `vias` and `plate`: the early response of the FVM at 1 mm is -10 to -2 % (0.3 to 10 s) and of the FDM
    +2 to +6 % (the two models bracket the reference by opposite signs, as in the steady state of the barrel: the node-centred well and the cell-centred well converge from different sides), both within
-   1.5 point of the reference and of each other from 0.5 mm. At 2 mm the FVM and FDM read -16 to -4 % early on the via boards and, on `simple4` (a 6 mm part is three cells), -4.5 % in the plateau and **+28 % in the time to 63 %**. The
+   1.5 point of the reference and of each other from 0.5 mm. At 2 mm the FVM and FDM read -16 to -4 % early on the via boards and, on `simple4` (a 6 mm part is three cells, its edges at 47 and 53 mm in the middle of 2 mm cells, so the source is smeared over four cells), -4.5 % in the plateau and **+28 % in the time to 63 %**; the same part with its edges on cell lines reads +2.4 % and -10 % against the program at 0.5 mm (review, section 4.4), so the size and the sign depend on where the edges fall, and the input check already warns ('only 3.0 cells wide'). The
    default step response of the profile decision uses at most a quarter of the narrow side of the part with a profile (1.5 mm here) and is not affected; an animation at the cell of the user (2 mm by
    default on large boards) is.
-6. **Analytic with vias is a constant offset, not a time constant.** `vias`: -21.7 / -15.4 / -12.2 / -7.0 % at 0.3 / 1 / 3 / 10 s, -0.6 % in the plateau, wave swing -11.2 %, time to 63 % +1.0 %. A control
+6. **Analytic with vias: an offset that the review traced to the point it reads (section 4.3).** `vias`: -21.7 / -15.4 / -12.2 / -7.0 % at 0.3 / 1 / 3 / 10 s, -0.6 % in the plateau, wave swing -11.2 %, time to 63 % +1.0 %. A control
    (same board without the vias, program's FVM against Analytic at 0.5 mm, `z` at 0.3, 1, 3, 10, 30, 100 s): the Analytic is within 0.5 % at every time (8.066 / 11.808 / 14.919 / 20.997 against
-   8.106 / 11.886 / 14.999 / 21.085), with the vias it is 0.77, 0.90, 1.0, 1.04, 1.03, 1.0 K/W below the FVM (3.42 / 5.07 / 7.10 / 12.84 against 4.19 / 5.97 / 8.10 / 13.88): the via path of its local
-   modal system, not the series truncation (`n_terms` from 100 to 2500 changes nothing at all in either board, so the argument may not reach the transient). The offset is about 1 K/W at every time (0.9 % of the plateau, 22 % of the 0.3 s response, which is
-   why the swing of a 20 s wave is 11 % off). Not isolated further. The Lumped with vias reads +2.5 to +7 % hot early.
+   8.106 / 11.886 / 14.999 / 21.085), with the vias it is 0.77, 0.90, 1.0, 1.04, 1.03, 1.0 K/W below the FVM (3.42 / 5.07 / 7.10 / 12.84 against 4.19 / 5.97 / 8.10 / 13.88): not the series truncation (`n_terms` reaches the transient: 20 terms move the plateau by 0.02 %, 100 to 2500 by under 1e-4, converged). The offset is about 1 K/W at every time (0.9 % of the plateau, 22 % of the 0.3 s response, which is
+   why the swing of a 20 s wave is 11 % off). **Cause (review):** the Analytic transient reads its 'hottest point' on the board WITHOUT the vias (the centre of the part, over the vias), not at the hottest cell of
+   its own steady solve with them (the part edge, 2 mm away); at its own point the plateau is the steady value there (112.59 K/W, so the calibration is right), but the steady maximum is 113.24 K/W. Read at the
+   steady hottest cell, the error falls to -7.9 / -3.1 / -1.9 / -0.8 % at 0.3 / 1 / 3 / 10 s, plateau -0.04 %, swing -1.9 % (a defect of the program, measured on a copy; `INTEGRATION.md` 3). The Lumped with vias reads +2.5 to +7 % hot early.
 7. **Outline board.** `disc`: FVM and FDM -0.3 to -0.5 % plateau and +0.2 to +0.4 % time to 63 % at every cell; wave -1.4 to -1.6 / -3.5 to -4.5 %. The 360-sided polygon of the program against the O-grid circle of the model (both
    resolve the rim) is within 0.4 % of the plateau.
 
@@ -193,15 +195,73 @@ are not affected, because the slow mode has no ripple there to leave.
   (0.01 to 0.15 %).
 * The old-rule rows rest on a monkeypatch of `slab_thicknesses` for three or more layers inside the study process; the equivalent advanced stack-up (equal gaps) of the earlier review gives the same numbers.
 
-## 4. What was read and what was not verified
+## 4. Review
+
+The independent review re-ran the study on the branch tip and tested its explanations. Verdict: **GO** for the merge, with the corrections below written into this folder.
+
+### 4.1 Re-run
+
+* Program side (`prog` of `two2`, `vias`, `simple4` and `progold` of `simple4`, 40 step responses): bit-identical to the cache (largest relative difference 0). Finite elements: `two2` at 1.0 and 0.25,
+  `simple4` at 0.2, `disc` at 14 re-solved from scratch: identical to the cache to 4e-12; energy residuals 7.5e-12 to 1.3e-10. The wave of `two2` by time stepping (48 periods, level 0.5) gives
+  17.5674 / 11.3571 again. The report on the cache reproduces all 392 numbers of Table 2 to the printed digit (Table 1 too).
+* The old slab rule: `simple4` FVM at 0.5 mm 3.3659 s against 2.8406 s, +18.49 % (the physical slabs 2.9026 s, +2.18 %), reproduced bit for bit.
+
+### 4.2 The first seconds: a limit of the model, not a difference of definition
+
+![Review checks](figures/fig_05_review_checks.png)
+
+*Figure 5 (fig_05_review_checks.png): (a) `two2`: the finite-element copper under the part and the heat-capacity mean of the column copper plus half gap under it, against the program's
+layer node; (b) `vias`: the Analytic step response read at its own point and at the hottest cell of its steady solve, error against the finite elements; (c) the plan of `vias` with the two points.*
+
+The finite-element hottest node is the copper surface under the part; the program's node holds copper plus half gap. The review read the finite elements also at the capacity mean of that column
+(`scripts/study_review_checks.py slab`, level 0.5): 1.68 / 3.95 / 6.93 / 10.43 K/W at 0.3 / 1 / 3 / 10 s and 30.89 at the plateau, against the copper 4.99 / 7.58 / 10.11 / 13.07 and 33.25 and the
+program 2.08 / 5.31 / 9.18 / 12.88 and 33.15. The program's node is neither: at the plateau it is the copper (within 0.3 %; the column mean is 7 % below), at the start it carries the capacity of the
+column (2.08 against 2.15 adiabatic). Since the program reports the node as the temperature of the part, the copper is the like quantity and the -58 % at 0.3 s is a limit of one node per layer.
+Checks of the reference: 24 elements through the gap instead of 12 change the copper at 0.3 s by 0.13 % (5.016 against 5.010); a closed-form bound (a heated sheet on a semi-infinite laminate,
+no sideways spread, `2 q'' sqrt(t / pi) / e`, e = sqrt(0.3 x 1.665e6)) gives 8.7 K/W at 0.3 s, above the finite elements as it must be.
+
+### 4.3 The Analytic with vias: the point it reads
+
+`analytic._local_dynamics` builds the coupled block on `_modal_dynamics(problem, ..., 0.0, 0.0)`, the board without vias, and keeps that system's `points`: the hottest cell of the board WITHOUT the
+vias (`vias`: x = y = 9.75 mm, over the cluster). The steady solve with the vias is hottest at x = 7.75 mm, at the edge of the part away from the vias (the FVM agrees by symmetry). The calibration
+makes the block's plateau equal the steady value at the point it reads (112.591 against 112.591 K/W), so it is right; the point is not. Experiments (`study_review_checks.py analytic`):
+
+| read at | plateau K/W | t63 s | z 0.3 / 1 / 3 / 10 s | err. plateau / t63 / z 0.3 s / swing 20 s |
+| :-- | --: | --: | :-- | :-- |
+| own point (the program, 0.5 mm) | 112.591 | 120.989 | 3.42 / 5.07 / 7.10 / 12.84 | -0.62 / +1.01 / -21.7 / -11.2 % |
+| hottest cell of the steady solve (copy, 0.5 mm) | 113.247 | 120.003 | 4.03 / 5.80 / 7.94 / 13.69 | -0.04 / +0.18 / -7.9 / -1.9 % |
+| FVM 0.5 mm / finite elements | 113.334 / 113.291 | 119.556 / 119.781 | 4.19 / 5.97 / 8.10 / 13.88 (FVM) | - |
+
+The size of the coupled block (K 8, 16, 32: under 0.02 K/W) and the calibration target (the FVM's plateau instead of the Analytic steady: 0.07 K/W) change almost nothing. The remaining -7.9 % at
+0.3 s is the Analytic's own early error with vias (the FVM is -4.2 %). On the example board the same change moves U1 (the part over vias) +0.69 % in the plateau and -1.0 % in the time to 63 %; the
+other part does not move. The animation map is not affected (it draws the field); the step responses, the profile curves and the decision are.
+
+### 4.4 The coarse cell
+
+The 6 mm part of `simple4` has its edges at 47 and 53 mm, in the middle of the 2 mm cells. With the edges on cell lines (48 to 54 mm) the same 2 mm cell reads +2.44 % in the plateau and -10.1 % in
+the time to 63 %, against -4.37 % and +25.7 % misaligned (both against the program at 0.5 mm; `study_review_checks.py align`). The input check (`checks.check_problem`) already warns in both cases
+('only 3.0 cells wide', with the cell to use), so a second warning (the author's proposal 2) would repeat it; the numbers are better added to that text.
+
+### 4.5 Corrections made by the review
+
+* Item 3 of 2.3: the half gap of `two2` is 0.765 mm (not 0.78): capacity 0.139 J/K, adiabatic 2.15 K/W, d2 / kappa 3.3 s; conclusion unchanged.
+* Item 5: the +28 % is a misaligned source; the aligned one reads -10 %, and the existing input warning fires.
+* Item 6: the offset is the point the Analytic transient reads (a program defect, `INTEGRATION.md` 3), not the via couplings of the block; the sentence that `n_terms` might not reach the
+  transient was wrong (it reaches it and the series is converged at 100 terms).
+* `INTEGRATION.md`: proposal 2 replaced, proposal 3 rewritten as a fix, the texts of proposal 1 given.
+
+## 5. What was read and what was not verified
 
 * Read in full: `research/independent-fem-extensions` README 8.3, 9.3 (the tool's checks and its stated uncertainty), `lib/transient.py`, `scripts/study_transient.py`, `cluster.py`; the program's
   `fvm.step_responses`, `profiles.wave_response`, `api._step_response`, `response_cell_mm`, `model.slab_thicknesses`; validation 43. No new literature source was needed: the reference is the folder above
   (checked there against the axisymmetric modal reference of `research/fast-wave-oscillation`).
 * Reproduced: the transient of the program on five boards against the finite-element tool; the earlier tool's statement that the plateau and the time to 63 % are within 0.5 % holds here for the plateau (0.05 %)
   and the time to 63 % (0.2 %) of the reference itself.
-* Not verified: the explanation of item 6 beyond the control (which module of the local system makes the offset); a measured board (none exists in this study); the profile decision end to end; any change
+* Not verified (by the author; the review found the cause of item 6, section 4.3): a measured board (none exists in this study); the profile decision end to end; any change
   of the program (none made).
-* Scripts: `scripts/study_transient_boards.py` (modes `fem`, `femwave`, `prog`, `progold`), `report_transient_boards.py`, `make_diagrams.py`, `make_figures.py`; tests `tests/test_refboards.py` (8 tests,
+* Review: read `analytic._local_dynamics`, `_modal_dynamics`, `_ModalSet`, `analytic_local.LocalSystem.calibrate`, `fvm.step_responses_from_network`, `checks.check_problem` (cell warning) and the diff of
+  `fix/via-and-edge-warning-texts` on `checks.py`; not verified by the review: `vias` and `plate` at a third finite-element level, the profile decision end to end, the fix of 4.3 with several parts and with a
+  heatsink (measured with one powered part per system).
+* Scripts: `scripts/study_transient_boards.py` (modes `fem`, `femwave`, `prog`, `progold`), `study_review_checks.py` (modes `slab`, `analytic`, `align`), `report_transient_boards.py`, `make_diagrams.py`, `make_figures.py`; tests `tests/test_refboards.py` (8 tests,
   the finite-element ones need the scratch environment of `independent-fem-edge`: numpy and scipy only, pyamg above 30 000 unknowns). Cache in `out/` (git-ignored). Scratch environment: a Python 3.13
   virtual environment outside the repository with `independent-fem-edge/requirements.txt`.
