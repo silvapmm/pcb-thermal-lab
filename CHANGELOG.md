@@ -5,6 +5,11 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+
+- **The part rows of a Lumped run read the part's own peak** (`fix/lumped-part-readout`): the Lumped paints a footprint with its node, so the temperature of a part, `Tj`, the margin, the power limit, the Components table, the Power Calculator and the top-path split read the node, about 10 % of the rise too cool for a lone part (9 to 15 % on the boards of the review, 2 to 4 % for a part beside a hotter one), when the Lumped was the only model run (with the FVM in the run the rows read the FVM). They now read the peak the Lumped already used for its board maximum (`arrays["heater_peak"]`). The hottest board value does not move; the part rows move up (and, with a top path, the board moves down a little because the part sends more heat to its top); 51 frozen Lumped records at 2, 1 and 0.5 mm are held by the pending file `lumped-part-readout.json`. `docs/validation.md` 48.
+- The metal-block warning of the Lumped and Analytic states the accuracy by model: the Lumped on the cool side, about 5 % with one pad and up to about 7 % with several pads or a block much smaller than the board; the Analytic about 5 %.
+
 ### Changed
 
 - `viawell.build` no longer needs its `active` argument (it was ignored); the keyword stays optional and ignored for research code that still passes it. The `fvm.factor_reuse` docstring states the memory peak correctly (one LU plus the matrices of the solve under way).

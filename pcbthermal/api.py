@@ -1048,10 +1048,14 @@ def _simulate(problem, options, progress):
             continue
         sim.seconds[name] = time.time() - t0
     if blocks.has_blocks(problem):
-        for name, how in (("lumped", "one more layer of the ring network"), ("analytic", "a graph of tiles in the Green-function correction")):
+        for name, how, accuracy in (
+                ("lumped", "one more layer of the ring network",
+                 "on the cool side of the FVM, within about 5 % with one pad under the block and up to about 7 % with several pads or a block much smaller than the board "
+                 "(tests on 100 x 80 mm two-layer boards)"),
+                ("analytic", "a graph of tiles in the Green-function correction",
+                 "within about 5 % of the FVM in the tests (one plate on one to four pads)")):
             if name in sim.results:
-                sim.results[name].warnings.append(f"the metal block is represented as {how}: within about 5 % of the FVM in the tests (docs/validation.md section 17); "
-                                                  "steady state only")
+                sim.results[name].warnings.append(f"the metal block is represented as {how}: {accuracy} (docs/validation.md section 17); steady state only")
     for name, r in sim.results.items():
         # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
         r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))

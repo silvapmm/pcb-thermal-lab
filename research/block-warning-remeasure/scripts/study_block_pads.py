@@ -126,7 +126,12 @@ def metrics(model, p, cell):
     mod = {"fvm": fvm, "lumped": lumped, "analytic": analytic}[model]
     _CAPTURED.clear()
     r = mod.solve_steady(p, cell_mm=cell)
+    # The "field" column is the record of the first pass: the hottest painted value under the footprint. Since fix/lumped-part-readout heater_stats reads the Lumped
+    # part's own peak (arrays["heater_peak"]), so the array is held aside here to keep that column the painted field
+    own_peak = r.arrays.pop("heater_peak", None)
     rows = heater_stats(r, p)
+    if own_peak is not None:
+        r.arrays["heater_peak"] = own_peak
     ex = r.extras
     nan = float("nan")
     parts = [row["t_max"] - AMB for row in rows]
