@@ -370,6 +370,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Lumped near an edge** (`research/lumped-edge-link`, reviewed GO, merged): the first footprint-to-ring link ignores the side image; the fix is adopted for 2.8.0 in its own branch (`fix/lumped-edge-first-link`) with a new pending file replacing `lumped-part-readout.json`; interior parts read a few points hotter (safe side).
+
 - **Warning texts of the via/edge limits and the element-tree filter merged** (`fix/via-and-edge-warning-texts`, `feature/element-tree-filter`, reviewed GO, whole battery 3552 passed): the FVM/FDM strong-edge warning carries the FDM via clause (4 to 9 % low at 0.25 mm, up to 20 % at 1 mm, safe side) and the 3D solid clause; the Analytic edge warning 17 to 20 % at 1000 W/m2K; a Filter elements box above the element tree (Ctrl+F, Esc, Down; Backspace edits only the text; the filter clears when the project is replaced).
 
 - **Transient reference** (`research/transient-reference-boards`, reviewed GO, merged): the independent finite-element transient tool confirmed the 2.7.0 slab rule; the first seconds are a stated limit; the Analytic transient with vias reads the wrong hot point (a defect, A48, its own fix branch); the texts follow.
