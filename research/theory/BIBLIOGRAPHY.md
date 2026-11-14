@@ -1711,7 +1711,7 @@ H. G. Rodero, D. Garrido, I. Baraia-Etxaburu, I. Aizpuru, J. P. Amillano, *Stead
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-Equations 1 to 4 (R_T = R_1D + R_s) and 37 to 50 read in the text layer: orthotropic flux tube and flux channel by the transformation xi = z/gamma, gamma = sqrt(kz/kr) (or kxy), k_eff = sqrt(kr kz), t_eff = t/gamma, Bi_eff = h b/k_eff; the composite-board conductivities are the parallel sum k_xy = sum k_i t_i/t (equation 39) and the series k_z = t / sum(t_i/k_i) (equation 40), valid "if the source size is considerably larger than the thickness of individual layers". **Status R for pages 1 to 6 (45 to 50)**; the numerical figures are plots. Not reproduced numerically (README 8).
+Equations 1 to 4 (R_T = R_1D + R_s) and 37 to 50 read in the text layer: orthotropic flux tube and flux channel by the transformation xi = z/gamma, gamma = sqrt(kz/kr) (or kxy), k_eff = sqrt(kr kz), t_eff = t/gamma, Bi_eff = h b/k_eff; the composite-board conductivities are the parallel sum k_xy = sum k_i t_i/t (equation 39) and the series k_z = t / sum(t_i/k_i) (equation 40), valid "if the source size is considerably larger than the thickness of individual layers". **Status R for pages 1 to 6 (45 to 50)**; the numerical figures are plots. Not reproduced numerically (README 8). **Checked on the page image by the 2.8.0 audit (`releases/2.8.0/audit/REVIEW_A2.md`)**: eq. 39 (bottom of the left column) and eq. 40 (right column) are on printed page 49 (PDF page 5), not page 6; eqs. 48 to 51 (the orthotropic flux channel, `k_eff = sqrt(k_xy k_z)`, `t_eff = t / γ`) and 52 to 56 on printed page 50 (PDF 6); the condition quoted above is printed on page 49.
 
 ### [Teertstra2004Enclosure] (read here)
 
