@@ -309,29 +309,31 @@ The range of the time to 63 % is -8.1 to +0.5 % on the 12 boards and -8.1 to -0.
 
 | Board | Solver | Tmax [°C] | max diff to direct [K] | Residual | Sweeps | Time [s] |
 | :-- | :-- | --: | --: | --: | --: | --: |
-| reference, 2 layers | direct (sparse LU) | 90.0657 | 0 | 3e-14 | - | 0.01 |
-| reference, 2 layers | CG (Jacobi) | 90.0657 | 3.3e-12 | 9e-13 | - | 0.01 |
-| reference, 2 layers | SOR, residual 1e-9, automatic ω | 90.0657 | 3.2e-09 | 1e-09 | 306 | 0.05 |
-| reference, 2 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 87.3447 | 2.7 | 6e-02 | 369 | 0.05 |
-| reference, 8 layers | direct (sparse LU) | 65.6612 | 0 | 8e-14 | - | 0.39 |
-| reference, 8 layers | CG (Jacobi) | 65.6612 | 4.6e-12 | 1e-12 | - | 0.05 |
-| reference, 8 layers | SOR, residual 1e-9, automatic ω | 65.6612 | 3.0e-09 | 1e-09 | 673 | 0.36 |
-| reference, 8 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 53.1158 | 13 | 1e-01 | 384 | 0.19 |
-| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.3756 | 0 | 1.1e-13 | - | 0.29 |
-| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.3756 | 1.9e-11 | 1.1e-12 | - | 0.19 |
-| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.3756 | 4.0e-09 | 9.8e-10 | 726 | 0.65 |
-| example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, ω = 1.5 (original rule) | 69.3756 | 16 | 1e-01 | 570 | 1.18 |
-| weak cooling (h = 2 W/m²K, 200 mm) | direct (sparse LU) | 44.2990 | 0 | 1e-13 | - | 0.15 |
-| weak cooling (h = 2 W/m²K, 200 mm) | CG (Jacobi) | 44.2990 | 6.6e-12 | 1e-12 | - | 0.09 |
-| weak cooling (h = 2 W/m²K, 200 mm) | SOR, residual 1e-9, automatic ω | 44.2990 | 7.8e-10 | 1e-09 | 779 | 0.70 |
-| weak cooling (h = 2 W/m²K, 200 mm) | SOR, step 0.01 K, ω = 1.5 (original rule) | 37.5624 | 6.7 | 3e-01 | 162 | 0.15 |
-| reference, insulated edges | direct (sparse LU) | 90.3925 | 0 | 2e-13 | - | 0.14 |
-| reference, insulated edges | CG (Jacobi) | 90.3925 | 5.6e-12 | 1e-12 | - | 0.09 |
-| reference, insulated edges | SOR, residual 1e-9, automatic ω | 90.3925 | 1.6e-09 | 1e-09 | 636 | 0.50 |
-| reference, insulated edges | SOR, step 0.01 K, ω = 1.5 (original rule) | 80.3174 | 10 | 2e-01 | 550 | 0.36 |
+| reference, 2 layers | direct (sparse LU) | 90.0689 | 0 | 3e-14 | - | 0.02 |
+| reference, 2 layers | CG (Jacobi) | 90.0689 | 3.1e-12 | 1e-12 | - | 0.01 |
+| reference, 2 layers | SOR, residual 1e-9, automatic ω | 90.0689 | 2.8e-09 | 1e-09 | 282 | 0.04 |
+| reference, 2 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 87.3953 | 2.7 | 6e-02 | 367 | 0.05 |
+| reference, 8 layers | direct (sparse LU) | 65.6779 | 0 | 8e-14 | - | 0.12 |
+| reference, 8 layers | CG (Jacobi) | 65.6779 | 5.2e-12 | 1e-12 | - | 0.02 |
+| reference, 8 layers | SOR, residual 1e-9, automatic ω | 65.6779 | 3.0e-09 | 1e-09 | 673 | 0.14 |
+| reference, 8 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 53.1332 | 13 | 1e-01 | 384 | 0.08 |
+| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.4650 | 0 | 1e-13 | - | 0.23 |
+| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.4650 | 1.0e-11 | 1e-12 | - | 0.12 |
+| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.4650 | 3.9e-09 | 1e-09 | 726 | 0.45 |
+| example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, ω = 1.5 (original rule) | 69.6006 | 16 | 1e-01 | 570 | 0.35 |
+| weak cooling (h = 2 W/m²K, 200 mm) | direct (sparse LU) | 44.2990 | 0 | 1e-13 | - | 0.04 |
+| weak cooling (h = 2 W/m²K, 200 mm) | CG (Jacobi) | 44.2990 | 6.5e-12 | 1e-12 | - | 0.03 |
+| weak cooling (h = 2 W/m²K, 200 mm) | SOR, residual 1e-9, automatic ω | 44.2990 | 7.8e-10 | 1e-09 | 779 | 0.17 |
+| weak cooling (h = 2 W/m²K, 200 mm) | SOR, step 0.01 K, ω = 1.5 (original rule) | 37.5624 | 6.7 | 3e-01 | 162 | 0.04 |
+| reference, insulated edges | direct (sparse LU) | 90.3925 | 0 | 2e-13 | - | 0.04 |
+| reference, insulated edges | CG (Jacobi) | 90.3925 | 5.6e-12 | 1e-12 | - | 0.03 |
+| reference, insulated edges | SOR, residual 1e-9, automatic ω | 90.3925 | 1.6e-09 | 1e-09 | 636 | 0.14 |
+| reference, insulated edges | SOR, step 0.01 K, ω = 1.5 (original rule) | 80.3174 | 10 | 2e-01 | 550 | 0.11 |
 
-Direct, CG and SOR with the residual criterion agree to **7e-9 K** or better on all five boards (the SOR with the largest difference, 6.3e-9 K, is the example board); the original program's stopping rule stops 2.7 to 16 K from the solution with a violated heat balance. The direct solver is the default
-(1 to 5 times faster than a correct SOR on these boards); SOR stays available as an independent check. With vias the SOR is a block SOR: after the two colours it solves the dense blocks of the via footprints exactly (relaxed by ω), so the example board with its nine vias still agrees with the direct solver to 4.0e-9 K in 726 sweeps on the 2.7.0 tree (676 sweeps and 6.3e-9 K at 2.4.5, when the factor was fitted; 2197 with the earlier relaxation factor, see below); without the blocks the red-black update iterated another matrix and stopped 19 to 22 K from the direct solution on the 3 × 3 via board (`research/sor-with-via-couplings`). The relaxation factor of the automatic SOR is the Rayleigh-quotient estimate of Young's optimum (`fvm.Network.sor_omega`, `docs/theory.md` 'Solvers'); the earlier `2 / (1 + sin(pi / n))` needed 656, 3247, 2197, 2237 and 1391 sweeps on these five boards, now 306, 673, 676, 779 and 636 (2.1, 4.8, 3.3, 2.9 and 2.2 times fewer; sweeps and times from `python -m pcbthermal solvers` and `research/models-comparison/scripts/solver_equivalence.py`, the temperatures are the same). On the example board at 2 mm the sweeps fall from 1054 (earlier formula) to 364 (reproduced with `.venv/bin/python research/models-comparison/scripts/solver_equivalence.py` (five boards, 1 mm) and `python -m pcbthermal solvers examples/example_board.pcbt.json [--cell-mm 2]`; the earlier factor is the same run with `fvm.Network.sor_omega` replaced by `2/(1 + sin(pi/max(nx, ny)))`). A via block above 5 000 unknowns is not inverted: the direct solver is used and the summary says *SOR not used* (`tests/test_point_via.py`).
+*(Table re-run on the program of 2.7.1 by the audit of 2.8.0; the earlier table was of 2.6.x: the temperatures of the multilayer boards moved with the physical slabs of the simple stack-up of 2.7.0, 90.0657 to 90.0689 °C and 85.3756 to 85.4650 °C, and the 2-layer board's SOR from 306 to 282 sweeps. Times are of one machine.)*
+
+Direct, CG and SOR with the residual criterion agree to **4e-9 K** or better on all five boards (the SOR with the largest difference, 3.9e-9 K, is the example board; 6.3e-9 K at 2.4.5); the original program's stopping rule stops 2.7 to 16 K from the solution with a violated heat balance. The direct solver is the default
+(1 to 5 times faster than a correct SOR on these boards); SOR stays available as an independent check. With vias the SOR is a block SOR: after the two colours it solves the dense blocks of the via footprints exactly (relaxed by ω), so the example board with its nine vias still agrees with the direct solver to 3.9e-9 K in 726 sweeps on the 2.7.1 tree (4.0e-9 K on 2.7.0) (676 sweeps and 6.3e-9 K at 2.4.5, when the factor was fitted; 2197 with the earlier relaxation factor, see below); without the blocks the red-black update iterated another matrix and stopped 19 to 22 K from the direct solution on the 3 × 3 via board (`research/sor-with-via-couplings`). The relaxation factor of the automatic SOR is the Rayleigh-quotient estimate of Young's optimum (`fvm.Network.sor_omega`, `docs/theory.md` 'Solvers'); the earlier `2 / (1 + sin(pi / n))` needed 656, 3247, 2197, 2237 and 1391 sweeps on these five boards, 306, 673, 676, 779 and 636 at 2.4.5 when it was fitted (2.1, 4.8, 3.3, 2.9 and 2.2 times fewer; 282, 673, 726, 779 and 636 on 2.7.1; sweeps and times from `python -m pcbthermal solvers` and `research/models-comparison/scripts/solver_equivalence.py`, the temperatures are the same). On the example board at 2 mm the sweeps fall from 1054 (earlier formula) to 364 (356 on 2.7.1; reproduced with `.venv/bin/python research/models-comparison/scripts/solver_equivalence.py` (five boards, 1 mm) and `python -m pcbthermal solvers examples/example_board.pcbt.json [--cell-mm 2]`; the earlier factor is the same run with `fvm.Network.sor_omega` replaced by `2/(1 + sin(pi/max(nx, ny)))`). A via block above 5 000 unknowns is not inverted: the direct solver is used and the summary says *SOR not used* (`tests/test_point_via.py`).
 
 ## 6. The removed wxPython program against the current one
 
@@ -1253,6 +1255,8 @@ When `docs/theory.md` was rewritten to describe the models as implemented (state
 | FVM | 45 | 1469 | 1.24 | 0.79 | 0.73 to 1.27 | 1.40 |
 | FDM | 7 | 1228 | 1.34 | 1.03 | 0.87 to 1.12 | 1.24 |
 | 3D solid | 15 | 1063 | 1.30 | 0.98 | 0.84 to 1.18 | 1.30 |
+
+The safety factor is the largest measured / law ratio times 1.1 (1.27, 1.12, 1.18). **Audit of 2.8.0** (program 2.7.1 with the symmetric LU, the example board with its nine vias, `api.simulate` in a fresh process, peak resident size from the kernel; one machine): FVM 0.5 / 0.35 / 0.25 mm (151 192 / 309 004 / 598 236 unknowns) 0.669 / 1.440 / 3.058 GB against estimates 0.880 / 2.020 / 4.461 GB; FDM 0.5 / 0.35 mm 0.692 / 1.559 GB against 0.859 / 2.096 GB (peaks repeat within 0.002 GB): measured / estimate 0.69 to 0.80, measured / law without the safety factor 0.91 to 1.03 (`releases/2.8.0/audit/scripts/study_numerics_data.py memory`).
 
 The first proposal of the study, eight classes by `t` with their own law, was replaced after the review found it flat in `t` beyond its last edge: against six points measured at 8 and 12 copper layers (outside both fits) it was below the measurement with its safety factor in four of six (measured / estimate up to 1.41), where the continuous law predicts the six within 0.91 to 1.15 (README 14.2):
 
