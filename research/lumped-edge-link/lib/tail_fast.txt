@@ -1,0 +1,24 @@
+
+# ---- appended by lib/variants.py: the ring-1 mean of the total potential only (what the first link needs), sources sampled
+U_SOURCES = 900          # source cells of the footprint kept in the potential of ring 1 (the program's own _MAX_POTENTIAL_CELLS)
+
+
+def _ring1_potential(cov, dx, dy, ny, nx, mask):
+    """Mean over the cells of `mask` (ring 1) of U(x) = mean over the footprint cells and the 8 images (weight RHO per mirror) of ln |x - source|; floor 0.447 cell."""
+    idx = np.argwhere(cov > 0)
+    w = cov[cov > 0].astype(float)
+    if len(idx) > U_SOURCES:
+        sel = np.linspace(0, len(idx) - 1, U_SOURCES).astype(int)
+        w, idx = w[sel] * (w.sum() / w[sel].sum()), idx[sel]
+    sx, sy = (idx[:, 1] + 0.5) * dx, (idx[:, 0] + 0.5) * dy
+    cy_, cx_ = np.nonzero(mask)
+    gx, gy = (cx_ + 0.5) * dx, (cy_ + 0.5) * dy
+    floor = 0.447 * np.sqrt(dx * dy)
+    total = np.zeros(len(gx))
+    for mx in (-1, 0, 1):
+        for my in (-1, 0, 1):
+            xi = sx if mx == 0 else (-sx if mx < 0 else 2 * nx * dx - sx)
+            yi = sy if my == 0 else (-sy if my < 0 else 2 * ny * dy - sy)
+            d = np.hypot(gx[:, None] - xi[None, :], gy[:, None] - yi[None, :])
+            total += RHO ** (abs(mx) + abs(my)) * (np.log(np.maximum(d, floor)) * w[None, :]).sum(axis=1) / w.sum()
+    return float(total.mean())
