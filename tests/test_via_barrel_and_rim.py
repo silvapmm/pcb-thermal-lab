@@ -247,11 +247,13 @@ def test_a_via_outside_a_copper_edge_is_uncoupled_and_never_heats_the_board(g):
 
 def test_partial_copper_via_effects_match_the_investigation_at_1_mm():
     """!
-    @brief Via effect in the FVM at 1 mm with the barrel and the rim rules: quarter 1.223 K, track 1.990 K (research/via-contact-geometry out/contact_b05.json, contact_geo).
+    @brief Via effect in the FVM at 1 mm with the barrel and the rim rules: quarter 1.223 K, track 2.476 K (research/via-contact-geometry out/contact_b05.json, contact_geo gave 1.990 K for the track).
+    @details fix/drawn-copper-faces: the track is a drawn copper edge through the via footprint, now read by the exact fill and the flow-based faces, so the layer couples more of the via
+             (1.990 -> 2.476 K); still far below the resolved 3D reference of the via effect (13.6 K, a safe-side deficit as before); the quarter does not move.
     @return None.
     """
     assert _effect(_quarter) == pytest.approx(1.2230, abs=2e-3)
-    assert _effect(_track) == pytest.approx(1.9903, abs=2e-3)
+    assert _effect(_track) == pytest.approx(2.4765, abs=2e-3)
 
 
 def test_the_cold_spot_board_keeps_its_documented_behaviour():
