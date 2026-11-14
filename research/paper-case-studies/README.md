@@ -351,13 +351,13 @@ Against the curves of the paper's own model (read from Figs. 5 and 6, **plot**, 
 | Plate, emissivity | peak 1 (solver / paper) | peak 2 | valley (z/L 0.5) | left end | heat in / out (W/m) |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | glass, 0 | 92.0 / 91.0 (+1.1 %) | 102.6 / 98.0 (+4.7 %) | 45.4 / 44.0 (+3.1 %) | 19.8 / 20.0 (-1.1 %) | 40.70 / 40.70 |
-| glass, 0.387 | 77.9 / 75.0 (+3.8 %) | 83.1 / 89.0 (-6.7 %) | 30.8 / 29.0 (+6.2 %) | 14.0 / 13.0 (+7.4 %) | 40.70 / 40.69 |
+| glass, 0.387 | 77.9 / 75.0 (+3.8 %) | 83.1 / 79.5 (+4.5 %) | 30.8 / 29.0 (+6.2 %) | 14.0 / 13.0 (+7.4 %) | 40.70 / 40.69 |
 | ceramic, 0 | 61.2 / 61.5 (-0.5 %) | 65.5 / 65.0 (+0.8 %) | 60.3 / 60.0 (+0.6 %) | 55.8 / 57.0 (-2.2 %) | 40.70 / 40.70 |
 | ceramic, 0.366 | 46.8 / 46.5 (+0.6 %) | 49.6 / 48.0 (+3.4 %) | 45.1 / 44.0 (+2.6 %) | 42.1 / 42.0 (+0.1 %) | 40.70 / 40.70 |
 
 Thermocouples of Zinnes (plot) against the solver: glass at z/L 0.11, 0.26, 0.51, 0.77: 22.6, 79.8, 33.1, 84.4 K measured against 23.6, 77.6, 30.6, 80.6 K; ceramic at 0.09, 0.24, 0.50, 0.75: 36.0, 42.0, 37.8, 42.7 K against 42.9, 46.6, 45.1, 49.6 K (the paper's own curve is also 4 to 8 K above these points on the ceramic).
 
-**R1 is met except the second peak of the glass plate with radiation** (-6.7 %, 5.9 K; the plot reading is +-2 K and the paper's ε = 0 second peak, +4.7 % the other way, makes a reading error alone unlikely); of the 16 values 13 are within 5 %; the other two outside are the glass valley and left end with radiation, +6.2 and +7.4 % (1.8 and 1.0 K, inside the plot reading). The solver therefore **reproduces the paper's own numerical results within the accuracy of the plot, with an independent fluid side**. Heat balance exact.
+**R1 is met** (*audit S1 correction*: an earlier version said 'except the second peak of the glass plate with radiation', -6.7 % against a plot value of 89.0 K, and called a reading error unlikely; it was a reading error: on the page image (PDF page 6, rendered at 5x, ticks every 10 K read by pixel) that curve tops at 79.5 to 80 K, so the solver is +4.5 %, on the same side as every other peak, and the study script now holds 79.5); of the 16 values 14 are within 5 %; the two outside are the glass valley and left end with radiation, +6.2 and +7.4 % (1.8 and 1.0 K, inside the plot reading). The solver therefore **reproduces the paper's own numerical results within the accuracy of the plot, with an independent fluid side**. Heat balance exact.
 
 ![The vertical plate](figures/fig_08_vertical_plate_conjugate.png)
 
@@ -387,7 +387,7 @@ Not established: Zinnes' measurements are plots (the 4 to 8 K scatter on the cer
 | S1 D | contrasts of Table II 0.07 to 0.67 of the measured (solder), Pattern I - II 0 to 1.7 | D1 fails as expected; not informative |
 | S2 L1 | single grid 0.5 to 2.6 % high; extrapolated -1.15 to -0.07 % | L1 as written failed (and stays failed); the post-hoc L1' holds on 32 of 33 (the reference was the problem, equation 50 and its transcription are right; 16.2) |
 | S2 L2 to L4 | default rule -0.3 to -19.8 % (worst S = 2 mm, 3.2 mm), (0.1, 16) within 2.5 %; the 3D solid +20 / +27 % from its four slabs per gap | L2 fails; L3 no pair meets both clauses; review decision: defaults kept, a warning for small parts over thick cut gaps in 2.5.0, a source-aware rule studied for 2.6.0 (16.3) |
-| S3 R | solver within the plot reading of the paper's curves on 13 of 16 values | R1 met except the glass second peak |
+| S3 R | solver within 5 % of the paper's curves on 14 of 16 values, the other two inside the plot reading | R1 met (the 'except the glass second peak' of an earlier version was a misread plot value, audit S1) |
 | S3 P | program 2 to 10 % hot on the strips of a poor conductor, within 5 % on a good one | P1 passes |
 
 ## 15. What was read and what was not verified
@@ -408,7 +408,7 @@ Reviewer's check of sections 10 to 15, the libraries, the scripts, the tests and
 
 * Tests: 31 passed (29 of the researcher, 2 added by the review).
 * S2 program rows, worst case (S = 2 mm on 20 mm, t = 3.2 mm, h = 1e3, FVM 0.25 mm, `run_program`): default 349.606 (bare) and 278.863 (pad), (0.2, 8) 392.898 and 316.233, (0.1, 16) 413.013 and 338.691 K/W: **equal to `out/run_S2full.txt` to the printed digit**; so the errors -16.6 / -19.7, -6.2 / -9.0 and -1.5 / -2.5 % stand.
-* S3 part R (`study_vertical_plate.py --no-program`, 6 s, 50 MB): the table of 13.2 to the printed digit, 13 of 16 within 5 %.
+* S3 part R (`study_vertical_plate.py --no-program`, 6 s, 50 MB): the table of 13.2 to the printed digit, 13 of 16 within 5 % (14 of 16 after the audit S1 correction of the plot value of the glass second peak, 13.2).
 * Equations 50 and 51 re-read on the page image (Muzychka, Yovanovich and Culham 2004, page 50): `lib/flux_channel.py` is the printed form (the three series, the `2 a^2 c d k_eff`, `2 b^2 c d k_eff` and `a^2 b^2 c d k_eff` denominators, phi with `zeta t_eff` and `h t_eff / k_eff`), and the transformed boundary condition (49) gives the film as `h / k_eff` in the stretched coordinate, which is what `phi` uses. The quarter normalisation is fixed by the published deep-channel correlation (a test, 0.003 %).
 * Fig. 28 and Fig. 27 of Soleymani's thesis (page 72) and the inputs of Lee and Yovanovich (q_p 3875 W/m2, k_s 1.032 / 28.38 W/mK, "Q_p half of the original total heat") checked on the source.
 
