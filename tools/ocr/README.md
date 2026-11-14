@@ -163,7 +163,7 @@ fake providers, a scripted HTTP layer). `tests/test_docs.py` and `tests/test_lic
   by Gemini and by the local conversion only, the text-layer quality of every page (clean, formula-heavy by the density of equals
   signs and mathematical glyphs, garbage or empty) and the **essential pages**: those that the documents (`docs/theory.md`,
   `models.md`, `validation.md`, `calculators.md`, the bibliography) and the program quote by key with a page, table or equation
-  number, plus the reviewer's list `OCR_TO_VERIFY.md`. Tiers: E1 essential and not verified against the image, E2 verified, O not
+  number, plus the reviewer's list `OCR_TO_VERIFY.md`. Tiers: E1 essential and not verified against the image, E2 verified (the reviewer's notes, or a page marked `verified` or `corrected` in `papers/ocr/reading_status.json`, the file that `status set` writes; the output says how many came from it), O not
   cited; the tokens to finish use 7.5k per page. The page detection is a heuristic (printed pages shifted by the file's offset),
   stated as such in the output.
 

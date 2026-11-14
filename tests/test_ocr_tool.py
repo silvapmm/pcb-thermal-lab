@@ -872,6 +872,43 @@ def test_papermap_formula_score_and_build(tmp_path):
     assert "Foo" in pm.render_markdown(m)
 
 
+def test_papermap_reads_the_status_file(tmp_path):
+    """!
+    @brief Pages marked verified or corrected by `status set` count as E2 in the map, the others stay E1.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    from tools.ocr import status as st
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "Foo.pdf").write_bytes(b"%PDF")
+    (papers / "notes").mkdir()
+    (papers / "notes" / "INDEX.md").write_text("| Foo.pdf | FooKey | A paper | x | y |\n")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    for n in (1, 2, 3):
+        (papers / "ocr" / "anthropic" / f"Foo_p{n}.md").write_text(f"<!-- page {n} -->\npage {n}")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "theory.md").write_text("[FooKey] p. 1, p. 2 and p. 3.")
+    st.set_status(papers, "Foo", {1}, "verified")
+    cf = st.corrected_path(papers, "Foo", 2)
+    cf.parent.mkdir(parents=True)
+    cf.write_text("<!-- page 2 -->\ncorrected page two\n")
+    st.set_status(papers, "Foo", {2}, "corrected", note="fixed an exponent")
+
+    def fake(path):
+        t = {1: "prose " * 80, 2: "prose " * 80, 3: "prose " * 80}
+        return {"pages": 3, "text": t, "words": {p: 80 for p in t}, "garbage": {p: False for p in t},
+                "formula": {p: 0.0 for p in t}, "equals": {p: 0 for p in t}}
+
+    m = pm.build_map(papers, tmp_path, fake)
+    row = m["rows"][0]
+    assert row["e2_pages"] == [1, 2] and row["e2_from_status"] == [1, 2]
+    assert 3 not in row["e2_pages"] and 3 in row["essential_pages"]
+    assert m["summary"]["e2_from_status_pages"] == 2
+    assert "Verified from the status file" in pm.render_markdown(m)
+
+
 # ---------------------------------------------------------------------------- OpenRouter (mocked transport)
 from tools.ocr.providers.openrouter import OpenRouterProvider, rank_models  # noqa: E402
 from tools.ocr import compare as ocr_compare  # noqa: E402
