@@ -364,6 +364,8 @@ There is no separate 2.6.1 release (maintainer's decision): everything below, th
 
 Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `viawell.py`, `lumped.py`, `checks.py` or `docs/theory.md` are merged one after another; each branch goes executor, reviewer, maintainer with the whole battery before the merge; a number-moving fix writes its pending frozen-number file and the refreeze happens once, after the version bump. Type: F feature, X fix, I investigation, V validation, D documents or tools. Size: S under a day of agents, M a few days, L a week or more. Frozen: whether the frozen numbers move.
 
+**Done on `fix/analytic-transient-hot-point` (from `research/transient-reference-boards`, item 3)**: `analytic._local_dynamics` reads each heater's transient output at the hottest cell of the steady field with the vias and heatsinks, keeping the point of the board without them while it is within 0.25 % of that maximum (`analytic._readout_point`; `tests/test_analytic_hot_point.py`, `validation.md` 52): the via board plateau -0.62 to -0.04 %, 0.3 s -21.7 to -7.9 % of the finite elements; with a heatsink the time to 63 % is -8.3 to +2.1 % of the FVM (the warning key is now '-8 % to +2 %'); no frozen number moves.
+
 **Released in 2.7.1 (wave 1)**: the rows below that are marked done in the 2.7.1 chapter (narrow window, Enter focus, Duplicate, the disclaimer, the third-party guard, the JEDEC numbers, the OCR environment, the version notes). Small interface item left for 2.8.0: the Cut slider of Profiles is very short at 900 x 700 with both docks open (the arrow keys move it; give it a minimum width or a line of its own).
 
 **Wave 1: cheap and safe (no number moves)**
