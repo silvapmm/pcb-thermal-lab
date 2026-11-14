@@ -196,6 +196,7 @@ Case 1b: paper centroid [56.55, 59.94], mean [56.05, 59.19]; Fourier series (Cul
 Case 2: paper centroid [97.4, 103.82, 101.28, 99.94], mean [96.85, 102.33, 100.1, 99.07]
   independent 3D solver: centroid [97.41, 103.85, 101.31, 99.95], mean [96.92, 102.53, 100.26, 99.19]
   fvm: centroid [94.46, 98.3, 96.62, 96.13]   fdm: [94.5, 98.26, 96.61, 96.14]   solid3d: [95.39, 99.23, 97.56, 97.07]   analytic: [94.46, 98.3, 96.63, 96.13]   lumped: [94.74, 97.56, 96.42, 95.88]
+  solid3d resolved (the plate as a dielectric gap of k 150 between two 1 um copper layers, 16 slabs, 1 mm; added by research/muzychka-case2-analytic README 9): centroid [97.32, 103.76, 101.21, 99.86], mean [96.99, 102.71, 100.4, 99.29]
 ```
 
 * The independent solver reproduces both cases (case 1 (b) within 0.03 K at the centroids; case 2 within 0.03 K; the means 0.07 to 0.2 K above the paper's, which section 3.10 explains by the sub-slab count: the review ran case 2 with 4, 8, 16 and 32 sub-slabs, and at 32 the centroids are 97.39, 103.80, 101.26, 99.92 C (within 0.03 K of the paper) and the means 96.87, 102.39, 100.15, 99.11 C (within 0.06 K), section 6). The first rows of case 2 were 102.53 K at 8 sub-slabs and extrapolate to 102.373 K against the paper's 102.33.

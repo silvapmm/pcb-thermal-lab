@@ -10,13 +10,15 @@ Nothing is implemented; every item is measured on the input (a copy of the probl
 | 4 | **Documents**: `docs/theory.md` 1.2 (the neglected `t_cu/(2k)` is 5e-7 of `1/h` for PCB copper and 1.3e-2 for a 10 mm plate of k 150 at h 400; "hotter by at most `q'' t/(2k)`" is wrong, the column reaches `q'' t / k`), 7.5 (the plate is read as the column mean minus the film term); `docs/validation.md` 22.1 (the case 2 rows with the two terms and the h sweep); `research/theory-sources/README.md` 3.7 and `INTEGRATION.md` 2.3 (correction lines added by this review) | README 2, 3, 8.2 | none |
 | 5 | **A published-case example**: `examples/published_muzychka_2003_case2.pcbt.json` (the project of `lib/case2.py`) with a note that the layered models read the column mean. Lower value than a regression test of item 2 (the case 2 plate against the 3D column mean, in `tests/`); check first the tests that iterate `examples/` | README 5 route A | a new example enters the tests that glob `examples/` |
 | 6 | **User guide note**: a new board has `h_top` 10 and edges losing heat (10 W/m2K); a published case with adiabatic top and sides needs `h_top` 0 and the edge box unticked (3.0 K on case 2); thick metal is meant to be a metal block, not a copper layer | README 5 route C | none |
+| 7 | **From the reporter's follow-up** (README 9): (a) the warning "there is no copper under it ... only spread through the FR-4" names FR-4 whatever the dielectric (here k 150 W/mK): name the dielectric or quote its conductivity; (b) the user guide and `docs/models.md` should say that a copper layer is one slab in the 3D solid too, so a thick metal plate drawn as a copper layer is read as its column mean in every model, and that a plate is resolved by the 3D solid when it is a dielectric gap (case 2: the paper to the digit at 0.5 mm) | README 9 | text only |
 
 ## Recommendation of the review (severity and effort)
 
 1. **Item 1, now**, branch `fix/board-dock-write-back`: the only defect that gives a large and silent wrong result (991 to 1138 C instead of 94 to 98 C) from an ordinary action (one edit of an unrelated field after opening a project), plus silent roundings of seven other fields; GUI only, no frozen number moves, half a day with the tests. Item 6 (one paragraph of the guide) goes on the same branch.
 2. **Item 3 with item 4, now**, branch `fix/thick-plate-warning-bound`: a warning that quotes a wrong bound, text and one formula, no result moves; the theory and validation sentences in the same commit.
 3. **Item 2, wave 3 of 2.8.0**, branch `fix/face-film-half-slab`: a model change for consistency that moves every record by a negligible amount except thick plates and blocks; with a pending file and the refreeze. When it is in, the bound of item 3 returns to `q'' t / (2 k)`.
-4. **Item 5**: as a regression test of item 2, not as an example; an example only if the maintainer wants a published case in `examples/`.
+4. **Item 7**: text, with item 3 on `fix/thick-plate-warning-bound` (warning texts) and item 6 (guide).
+5. **Item 5**: as a regression test of item 2, not as an example; an example only if the maintainer wants a published case in `examples/`.
 
 ## Risks
 

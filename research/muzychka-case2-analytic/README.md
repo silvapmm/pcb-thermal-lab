@@ -2,7 +2,7 @@
 
 A user reported that the Analytic model gives centroid temperatures 3 to 5.5 degC below the published case 2 (a 10 mm baseplate, four 10 x 10 mm sources) and below the independent 3D solver, that the error seems to grow for lower heat transfer coefficients, and that the window does not show the numbers of the study script. This folder reproduces the numbers, separates the causes and runs the case through the real main window. Nothing of the program is edited; the fixes are proposals (`INTEGRATION.md`).
 
-Scripts, from the repository root: `study_case2_reproduce.py` (peak about 7.5 GB: its finest 3D reference, 0.25 mm and 8 sub-slabs, stays resident, which is also why the memory guard of the later runs in the same process prints estimates of 7.5 GB for a 1250-unknown board; `--quick` skips it), `study_case2_h_sweep.py` (1.3 GB), `study_case2_gui.py` (offscreen), `study_case2_review.py` (the checks of the review, section 8), `make_figures.py`; shared code `lib/case2.py`; tests `tests/test_case2.py` (8 passed, about 10 s, 1.3 GB). Outputs go to the git-ignored `out/`.
+Scripts, from the repository root: `study_case2_reproduce.py` (peak about 7.5 GB: its finest 3D reference, 0.25 mm and 8 sub-slabs, stays resident, which is also why the memory guard of the later runs in the same process prints estimates of 7.5 GB for a 1250-unknown board; `--quick` skips it), `study_case2_h_sweep.py` (1.3 GB), `study_case2_gui.py` (offscreen), `study_case2_review.py` (the checks of the review, section 8), `study_case2_followup.py` (section 9; the reporter's project is passed as a path, never stored), `make_figures.py`; shared code `lib/case2.py`; tests `tests/test_case2.py` (8 passed, about 10 s, 1.3 GB). Outputs go to the git-ignored `out/`.
 
 ## 1. The case and the quantities
 
@@ -153,7 +153,25 @@ The edit is one undo step ("Board parameters"), but nothing tells the user that 
 
 The Lumped residual (0.2 to 0.8 K from the column mean with the film corrected, 1.7 K at S2 without) is measured, not explained; the film term of a metal block was not measured; the user's own project and figure were not seen (the three candidates of section 5 stay hypotheses, of which the write-back is the only one that produces a large, silent difference); a heat-sink baseplate modelled as a metal block under a thin board (the route the program intends for thick metal) was not run.
 
-## 9. What was read and what was not verified
+## 9. Follow-up from the reporter: the 3D solid in the window
+
+The reporter found the coefficient boxes of the Board dock (`h_top`, `h_bottom`, the edge box) and sent a project in which the 3D solid reads closer to the paper than the 3D solid of `research/theory-sources/scripts/study_muzychka_more_cases.py` (95.39, 99.23, 97.56, 97.07 C). His file was opened read-only from a copy (`package.load_any`); the numbers below are printed by `study_case2_followup.py`.
+
+**His project.** 50 x 50 mm, advanced stack-up of 2 layers: 4 mm "copper" per layer, one dielectric gap of 2 mm with k 150 W/mK both ways, total 10 mm; copper k 150; **no copper zone** (the 4 mm layers hold no copper; the numbers are those of a k 150 solid, so the absent copper takes the dielectric of the stack-up: inferred from the results, not traced in the code); `h_top` 0, `h_bottom` 400, edges insulated, manual coefficients, ambient 25 C; the four 10 x 10 mm sources of the paper on layer 1 (U1 to U4, 10 / 25 / 20 / 15 W, junction resistance 0); 3D solid only, cell 1 mm, the slab rule of the 3D solid (10 slabs in the 2 mm gap).
+
+| read-out (3D solid, his project, 1 mm) | U1 | U2 | U3 | U4 | against the paper |
+| :-- | --: | --: | --: | --: | :-- |
+| Results table, part peak (`t_max`) | 97.64 | 104.37 | 101.71 | 100.25 | +0.24 to +0.55 K |
+| layer 1 at the centroid | 96.20 | 101.02 | 99.01 | 98.20 | -1.2 to -2.8 K |
+| study script (one 10 mm copper layer) | 95.39 | 99.23 | 97.56 | 97.07 | -2.0 to -4.6 K |
+
+**Why his numbers are closer.** (a) His top node is the mean of the upper 5 mm of the plate (4 mm layer plus half the gap), not of the whole 10 mm column, so it is hotter than the column mean of the script. (b) His sources sit over absent copper, so the part rows add the face term of a part over bare laminate (`laminate.face_terms`, `Q t/(2 k A)` with the 4 mm layer and k 150: 1.33, 3.33, 2.67, 2.00 K), which happens to resemble the through-thickness term of section 3; the peak of the rows is that value plus the node peak. It is a closer number by a coincidence of the mapping, not a resolved surface. The window also warns "there is no copper under it ... the heat can only spread through the FR-4 and the part will run very hot", which is wrong for a dielectric of k 150 (the text names FR-4 whatever the dielectric).
+
+**The study script does not misuse the 3D solid, but its mapping cannot show the surface.** The 3D solid keeps every copper layer as ONE slab and cuts only the dielectric gaps into slabs (`solid3d.slab_rule`, at least 4); the script maps the plate as one 10 mm copper layer, so the 3D solid reads its column mean (95.39 against 95.35 of the independent column mean, section 2), as the theory-sources README already said ("its slab is also one node thick"). **What the 3D solid should give, and does**: with the plate mapped as a dielectric gap of k 150 between two 1 um copper layers (full copper zones, so no face term), the program's 3D solid reads 97.32 / 103.76 / 101.21 / 99.86 C at 1 mm (16 slabs by the rule) and **97.39 / 103.81 / 101.27 / 99.93 C at 0.5 mm, the independent reference to the digit** (means 96.88 / 102.42 / 100.18 / 99.12, the 16 sub-slab means of section 2); 32 slabs change the 1 mm values by at most 0.01 K (0.5 mm with 32 slabs is refused by the memory guard, 13.3 GB). So the 3D solid itself is right; the script now prints this resolved row as well (`solid3d resolved`, 1 mm). The script peaks at about 5 GB (31 s), most of it its independent reference; run it on a quiet machine.
+
+**Limit to record (program, not a defect of the solver):** a thick metal plate drawn as a copper layer is one slab in the 3D solid too, so the 3D solid is not a surface read-out for it; the user guide does not say so. Thick metal is resolved by the 3D solid when it is a dielectric gap (or a metal block: not checked here). INTEGRATION item 7.
+
+## 10. What was read and what was not verified
 
 * **Read (R):** the text layer of Muzychka, Culham and Yovanovich (2003) in the local papers library (`md/Muzychka2003.md`): case 2 description (page of Case 2), Tables 3 and 4 (the centroid and mean values 97.40 / 96.85, 103.82 / 102.33, ...), and that the temperature is the surface of the baseplate. Nothing of the paper is stored here.
 * **Reproduced:** Table 4 centroids by the independent 3D solver within 0.03 K (16 sub-slabs); the means within 0.06 to 0.2 K (sub-slab count, as `research/theory-sources` 3.7 explains).
