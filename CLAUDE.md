@@ -369,6 +369,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- **Market FEM comparison** (`research/market-fem-comparison`, desk study, reviewed GO, merged, deferred as A47 of `research/ROADMAP.md`): for now only scikit-fem is our independent reference; later DOLFINx, then CalculiX, Gmsh as an executable; only free solvers in committed numbers (commercial EULAs forbid benchmarking or publication); no SimScale.
+
 - **Open questions of 2.8.0 answered by the reviewer** (`releases/2.8.0/opinions/2026-11-15-open-questions.md`): the FDM via defect is a stated limit; the resolved tab with solder is a stated limit (about 1 %); A46 before A27 in one Lumped branch; model corrections in series (texts, then 5a, A30, A18); the 2.8.0 claim is measured, bounded and warned errors, not corrected ones.
 
 - **Lumped dense via group** (`research/lumped-dense-via-group`, reviewed GO, merged): no program change; definitions first (peak against mean: mixing them moves the conclusion by 4 points); the zones are better than one node on average but depend on where the vias fall on the Lumped grid (A46); `MAX_CORE` stays 0.92.
