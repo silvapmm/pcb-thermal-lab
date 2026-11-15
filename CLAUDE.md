@@ -371,6 +371,8 @@ Previous state: **2.7.0 was released** (2026-11-13): `develop` merged into `main
 
 ## Decisions Log
 
+- The final re-measure of the Lumped and imported-copper numbers (`releases/2.8.0/final-review/REMEASURE.md`) and the audit closing document (`releases/2.8.0/audit/FINAL.md`) merged; the Lumped first-ring check reads +1.3 to +4.6 % hot, zones put the hottest point 1.7 to 2.9 % off on average (up to 8.1 %, mostly hot), the imported-copper reduced-model warning quotes 23 to 76 % (Lumped) and 19 to 77 % (Analytic) cool on 82 parts; the 29+17 via boards of 18.1 and the independent 1/16 mm reference of 18.2 could not be re-measured (no script in the repository).
+
 - **Final review part 2c merged**: user-visible texts (guide limits table, calculator help, warning wording, README, CHANGELOG, versions) aligned with the corrected theory and validation; no rule, threshold or formula changed; the first seconds of any time result are stated as a limit (58/30/9 % low at 0.3/1/3 s); the README test badge is 3748; the stale pictures (editor with the filter box, results summaries) wait for the release documentation review; the live FDM small-outer-pad warning (decision 21) is NOT added: the error fell from 10.6 to 3.7 % with the drawn-copper faces and is stated in the guide.
 
 - **Final code-against-theory review, parts 1a 1b 2a 2b merged** (`releases/2.8.0/final-review/`): theory chapters 0 to 12, models.md and validation.md checked against the code and made explicit and consistent with the corrected numbers; no physics disagreement found; stale numbers corrected; the open items (texts of live warnings, figures 22 and 41, docstrings, user guide table of limits) are queued for the last texts branch; validation.md has a note listing which tables are current.
