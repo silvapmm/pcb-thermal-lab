@@ -610,6 +610,9 @@ class ResultsView(QWidget):
     @brief The whole results area.
     """
 
+    START_NOTE = "No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5)."
+    CLEARED_NOTE = "No results for this board yet. Press Run simulation (F5)."           # The notes over the plot pages: before any run, and after another board was opened
+
     show_on_board = Signal()
 
     def __init__(self, theme="dark", parent=None, display=None):
@@ -696,6 +699,11 @@ class ResultsView(QWidget):
         self.tabs.addTab(self.time_sim, "Power profile")
         # The pages that show a run are covered by a note while the results belong to another board (see clear)
         self._covers = [Cover(page, "No results for this board yet. Press Run simulation (F5).") for page in (summary, self.temp, self.grad, self.profile, comp, self.compare, self.time_sim)]
+        # Before the first run every plot page says what to do (review of the window: only the Summary had an empty state, the maps were blank figures);
+        # the Summary keeps its own note in the report box
+        for cover in self._covers[1:]:
+            cover.setText(self.START_NOTE)
+            cover.cover(True)
         # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
         # sideways in a narrow centre area, also on the Profiles tab. Only the page shown counts: the hidden pages ignore their size hints, so a narrow tab
         # never scrolls and a wide one (Animation) still scrolls to reach its controls instead of clipping them.
@@ -781,6 +789,7 @@ class ResultsView(QWidget):
         """
         self.sim = None
         for cover in self._covers:
+            cover.setText(self.CLEARED_NOTE)
             cover.cover(True)
 
     def set_simulation(self, sim):

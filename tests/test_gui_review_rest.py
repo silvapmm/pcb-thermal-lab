@@ -289,3 +289,22 @@ def test_the_plot_tool_bars_are_compact(win):
     for tb in bars:
         assert tb.iconSize().width() == ThemedToolbar.COMPACT_ICON
         assert tb.sizeHint().height() <= win.results.temp.model.sizeHint().height() + 12, tb.sizeHint().height()
+
+
+def test_every_plot_page_says_what_to_do_before_the_first_run(win):
+    """!
+    @brief Before any run the plot pages of the Results (Temperature to Power profile) carry the note of the first steps instead of a blank figure; a run
+           removes it, another board brings the 'no results for this board' note.
+    @param win Main window fixture.
+    """
+    from pcbthermal import SolverOptions, simulate
+    from pcbthermal.examples import example_board
+
+    rv = win.results
+    covers = rv._covers[1:]
+    assert all(c.isVisibleTo(c.parentWidget()) and c.text() == rv.START_NOTE for c in covers)
+    load(win, example_board())
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=2.0)))
+    assert not any(c.isVisibleTo(c.parentWidget()) for c in rv._covers)
+    load(win, example_board())
+    assert all(c.isVisibleTo(c.parentWidget()) and c.text() == rv.CLEARED_NOTE for c in rv._covers)
