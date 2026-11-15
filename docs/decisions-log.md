@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **FEM speed and the surface in the frozen records** (`fix/fem-solve-speed`, decisions B and D of `releases/2.8.0/fem-model/DECISIONS_REVIEWER.md`): CG `rtol` 1e-10 and the closed-form 3 x 3 assembly (example board at 1 mm 16.0 s to 11.7 s, numbers within 1e-9 K); the pending FEM records and a new `surface-records.json` hold the surface read-out of the FEM, FVM and FDM before the 2.8.0 refreeze (additions only; 346 frozen records pass).
+
 - **Maintainer, 2026-11-15: version 2.8.0 carries the steady FEM and the surface read-out; the FEM transient, the compare-differences views, the full comparison campaign and non-rectangular outlines move to 2.9.0** (`releases/2.9.0/PLAN.md`); every open decision of the maintainer goes to a reviewer and his answer is taken (standing rule).
 
 - **FEM branch 4 merged** (`feature/fem-model`, reviewer GO, whole battery on the merged tree 3903 passed + 4 stale tests fixed, frozen 346 = 317 intact + 29 added fem records): steady FEM as a comparison model (key `fem`, off by default, optional pyamg), project key `comparison_models`, parts on thick outer copper inject heat as a face flux (reviewer decision), CG failure drops only the FEM.
