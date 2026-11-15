@@ -140,7 +140,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 
 #### 1.3.1 Rasterisation
 
-A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for a heater on a rectangular board and for the sampled fallback of 1.3.2 (on a board with an outline the heater weights are exact areas), 4 for zones, heatsinks and blocks on the plan grid, 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
+A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for a heater on a rectangular board and for the sampled fallback of 1.3.2 (on a board with an outline the heater weights are exact areas), 4 for zones and heatsinks on the plan grid (a metal block is exact, 7.1), 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
 
     Q_i = P c_i / Σ c                                                            (1.5)
 
@@ -797,14 +797,14 @@ The Analytic model carries the mean temperature of a tile of its Green-function 
 
 ### 7.1 The plate in the layered models
 
-A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capacity `ρc`, thickness `t`) pressed on the top or bottom face through an interface of resistance per area `R''`. In the layered models it adds **one extra layer of nodes** (one per cell) on that face, with the coverage `c` of the cell by the block:
+A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capacity `ρc`, thickness `t`) pressed on the top or bottom face through an interface of resistance per area `R''`. In the layered models it adds **one extra layer of nodes** (one per cell) on that face, with the coverage `c` of the cell by the block: the **exact area of the block polygon on the board** in the cell over the cell area (`blocks.block_cover`: `geometry.exact_coverage`, and the polygon clipped to the outline with `geometry.part_weights` when the board has one, the rule of the board cover (1.3.2); limited to the board cover `b` of the model, so a cell taken off the board (`b` below 0.01, pinned to the ambient) carries no block (`validation.md` 54: a 4 x 4 sampling would be off by -0.34 to +0.88 % of the block area, with no fixed sign)). A polygon that crosses itself, or one the exact cover refuses, keeps the 4 x 4 sampling times the board cover. `c` is a share of the whole cell `Δx Δy`, so every area term below takes the block area once; on a board with an outline the code multiplies the share of the board part, `c / b`, by the board area `b Δx Δy` of the cell (`blocks.extra_layers(board_cover=)`, and in the 3D solid the through-thickness conductivity of the block slabs is `k c / b` on the board area `b Δx Δy`). In the FDM the cell cover is averaged on the four cells around a node (times the control volume it gives back the exact area), in the Analytic it is the cover of the tile:
 
     lateral sheet conductance   S = k t c                                (joined by the harmonic mean, as the board)
     heat capacity               C = ρc t Δx Δy c
     contact to the board layer  G = c Δx Δy [ f/R'' + (1 − f)/(R'' + r_half) ]
     exposed surface             G = h_exp Δx Δy c,           h_exp = h_face · r_fin + h_extra
     sides of the plate          G = h_wall t L_edge,         h_wall = h_face + h_extra                       (7.1)
-    board face under the block  its coefficient is multiplied by (1 − c)
+    board face under the block  its coefficient is multiplied by (1 − c/b)   (b the board cover of the cell, 1 off an outline)
 
 `f` is the copper fill of the board layer there and `r_half` half a layer slab over `k_th`: **the heat enters the block mostly where the block overlaps copper** (the intersection of the two planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across its thickness (valid while `h t/k` is small). Cells with no block have `10⁻⁹ W/K` to the ambient.
 

@@ -227,7 +227,13 @@ class Network:
             S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
-        ex = blocks.extra_layers(problem, lambda poly, n: cover(poly, n) * ncov, area, fill, dx, dy)      # Cut at the outline, as in the FVM
+        # Cut at the outline, as in the FVM; the exact area of the block on the board per cell, averaged over the control volume of the node like the board cover
+        def block_cov(poly, n):
+            if sampling != "area":
+                return cover(poly, n) * ncov
+            c = blocks.block_cover(poly, b.outline if b.has_outline() else None, cells_x, cells_y, dx, dy)
+            return np.minimum(_node_average(c), ncov) if b.has_outline() else _node_average(c)
+        ex = blocks.extra_layers(problem, block_cov, area, fill, dx, dy, board_cover=ncov)      # `area` is already the board part of the control volume
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:
