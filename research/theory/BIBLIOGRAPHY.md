@@ -1317,7 +1317,7 @@ The two equation images of the article (files `A3form1_2` and `A3formula` of the
 ### What could not be obtained (for the maintainer to fetch)
 Churchill and Chu (1975), Churchill (1977), Hollands et al. (1976) and Hollands (1984), Churchill and Usagi (1972), Elenbaas (1942), Bar-Cohen and Rohsenow (1984), Hashin and Shtrikman (1962), Keller (1964), Dykhne (1970), Bruggeman (1935), Landauer (1952), Incropera and DeWitt (any edition), Torquato (2002), Patankar (1980), Carslaw and Jaeger, JEDEC JESD51-2A, -3, -7, -14 and JESD51-12, IPC-2152, IPC-4761, ASTM D5470, ASME V&V 20, Briggs, Henson and McCormick (*A Multigrid Tutorial*), Roache's books. Publisher paywall or an account is needed; the open archives and search gave no copy. The researcher did not try sources that require evading an access check.
 
-## 20. Sources of `docs/theory.md` and of the code docstrings (status table, added for the rewrite of the theory)
+## 25. Sources of `docs/theory.md` and of the code docstrings (status table, added for the rewrite of the theory)
 
 The table lists every source that `docs/theory.md` (section 12) and the docstrings of `pcbthermal/` cite, with the status **as recorded above**; nothing was upgraded without a reading recorded in an entry. Where a statement of the theory rests on a source that was not opened, the theory marks it. The five entries after the table are new keys.
 

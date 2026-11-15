@@ -1089,7 +1089,7 @@ The models have **not** been compared with measurements of a physical board in t
 
 ## 12. References
 
-The reading status: **R** read in full or in the pages that matter; **S** seen as a summary, abstract or a search result; **M** known from memory; **N** not obtained; **L** own derivation checked in the repository. The full records (what was opened, pages, what was reproduced) are in `research/theory/BIBLIOGRAPHY.md` (its second section numbered 20, 'Sources of `docs/theory.md` and of the code docstrings', is the table of this document; the first section 20 belongs to `research/via-real-board`). Where a status here is newer than that table (the audit of 2.8.0), this table wins. A statement that rests on a source with status N, M or S is marked where it is made.
+The reading status: **R** read in full or in the pages that matter; **S** seen as a summary, abstract or a search result; **M** known from memory; **N** not obtained; **L** own derivation checked in the repository. The full records (what was opened, pages, what was reproduced) are in `research/theory/BIBLIOGRAPHY.md` (its section 25, 'Sources of `docs/theory.md` and of the code docstrings', is the table of this document). Where a status here is newer than that table (the audit of 2.8.0), this table wins. A statement that rests on a source with status N, M or S is marked where it is made.
 
 | Key | Citation | Status | Where used |
 | :-- | :-- | :-- | :-- |
