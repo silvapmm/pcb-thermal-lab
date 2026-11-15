@@ -128,3 +128,44 @@ def test_nothing_is_cut_at_1200_x_800(qtbot, tmp_path, sim):
     win.resize(2000, 1000)
     qtbot.wait(100)
     assert t.horizontalScrollBar().maximum() == 0
+
+
+def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
+    """!
+    @brief The Components tables take the same fix as the Summary: columns as wide as their header or content, a horizontal scroll bar when they do not fit, only the last one stretches.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    win = _window(qtbot, tmp_path, 1200, 800)
+    win._on_done(sim)
+    win.results.tabs.setCurrentIndex(4)             # Components
+    qtbot.wait(100)
+    rv = win.results
+    for t in (rv.heater_table, rv.zone_table, rv.hot_table):
+        head = t.horizontalHeader()
+        assert head.stretchLastSection() and head.sectionResizeMode(0) == head.ResizeMode.ResizeToContents
+        for c in range(t.columnCount() - 1):
+            assert head.sectionSize(c) >= head.sectionSizeHint(c), (t.columnCount(), c, head.sectionSize(c), head.sectionSizeHint(c))
+            assert head.sectionSize(c) >= t.sizeHintForColumn(c), (c,)
+    t = rv.heater_table                                 # 11 columns: either all fit or the scroll bar reaches the rest
+    assert t.horizontalScrollBar().maximum() > 0 or t.viewport().width() >= sum(t.horizontalHeader().sectionSize(c) for c in range(t.columnCount()))
+
+
+def test_warnings_are_ordered_junction_then_warnings_then_notes(qtbot):
+    """!
+    @brief The list puts a junction above its limit first, then the other warnings, then the notes; within a kind the order of the checks stays; the title says °C.
+    @param qtbot pytest-qt fixture.
+    """
+    from pcbthermal import checks
+    from pcbthermal.gui.warning_box import WarningAccordion
+    acc = WarningAccordion("t")
+    qtbot.addWidget(acc)
+    note1 = checks.warn("U1: a note one", "note")
+    alert = checks.warn("U3: a part is outside the board", "alert", "heater", 2)
+    note2 = checks.warn("U2: a note two", "note")
+    junction = checks.warn("U2: the junction reaches 130.4 degC, 90.4 K above its limit of 40 degC", "alert", "heater", 1)
+    alert2 = checks.warn("U4: heats nothing", "alert", "heater", 3)
+    acc.set_warnings([note1, alert, note2, junction, alert2])
+    assert [str(r.warning) for r in acc.rows] == [str(w) for w in (junction, alert, alert2, note1, note2)]
+    assert "°C" in acc.rows[0].title_label.text() and "degC" not in acc.rows[0].title_label.text()

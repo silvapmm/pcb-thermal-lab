@@ -39,6 +39,37 @@ def _put(spin, value):
     show_value(spin, value)
 
 
+class _AdaptiveSplitter(QSplitter):
+    """!
+    @brief A splitter that stacks its two panes one above the other when it is too narrow for them side by side (the page was wider than the window at 1200 x 800).
+    """
+
+    NARROW_PX = 800     # Logical px: below this width the panes are stacked
+
+    def resizeEvent(self, event):
+        """!
+        @brief Choose the orientation from the width, then lay out as usual.
+        @param event QResizeEvent.
+        """
+        want = Qt.Vertical if event.size().width() < self.NARROW_PX else Qt.Horizontal
+        if self.orientation() != want:
+            self.setOrientation(want)
+            self.updateGeometry()               # The minimum size changes with the orientation
+        super().resizeEvent(event)
+
+    def minimumSizeHint(self):
+        """!
+        @brief The minimum width is that of the wider pane only (the panes may be stacked), so that the page never forces a horizontal scroll bar.
+        @return QSize.
+        """
+        from PySide6.QtCore import QSize
+        w = max(self.widget(i).minimumSizeHint().width() for i in range(self.count()))
+        heights = [self.widget(i).minimumSizeHint().height() for i in range(self.count())]
+        # Stacked panes need the sum of their heights (the page scrolls vertically instead of squeezing the forms)
+        h = sum(heights) + self.handleWidth() if self.orientation() == Qt.Vertical else max(heights)
+        return QSize(w, h)
+
+
 class ProfilePage(QWidget):
     """!
     @brief Editor of the power profile of every heater, with the regime decision and the run settings.
@@ -199,7 +230,7 @@ class ProfilePage(QWidget):
         rv.addWidget(self.editor)
         rv.addWidget(self.canvas, 1)
         rv.addWidget(self.dec_table)
-        split = QSplitter(Qt.Horizontal)
+        split = _AdaptiveSplitter(Qt.Horizontal)
         split.addWidget(left)
         split.addWidget(right)
         split.setSizes([420, 760])

@@ -12,6 +12,17 @@ import numpy as np
 
 # Names of the models shown to the user (tables, lists, plots); the keys (fvm, lumped, ...) stay in the files, the reports and the API
 MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
+# The one short name of each model, for the legends of the plots and the card of the map (the key `lumped` is never shown to the user)
+MODEL_SHORT = {"fvm": "FVM", "lumped": "LPTN", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D", "fem": "FEM"}
+
+
+def short_name(key):
+    """!
+    @brief Short name of a model for a legend or a card.
+    @param key Model key ("fvm", "lumped", ...).
+    @return str, the key itself when unknown.
+    """
+    return MODEL_SHORT.get(key, key)
 
 # The one disclaimer line of every report the program writes (text and Markdown reports, the on-screen Results summary, the CLI output, the JSON summary,
 # the Power Calculator result): a design aid, never compared with a measured board. Reports import this constant; none words it again.

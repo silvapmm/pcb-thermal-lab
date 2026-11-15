@@ -268,7 +268,7 @@ SUMMARY_COLUMNS = (
     SummaryColumn("t_mean_c", "Tmean", "°C", "all layers", lambda r, ref: f"{r['t_mean_c']:.2f}",
                   "Column read-out: the mean over all copper layers together (every layer counts equally; inside a layer the cells are weighted by the area inside the outline); "
                   "metal blocks are not counted. On a board with inner planes it mixes the hot outer layer with the cool planes."),
-    SummaryColumn("delta_t_k", "ΔT", "K", "", lambda r, ref: f"{r['delta_t_k']:.2f}", "Rise of the column Tmax above the ambient: Tmax - ambient, in kelvin."),
+    SummaryColumn("delta_t_k", "ΔT", "K", "", lambda r, ref: f"{r['delta_t_k']:.2f}", "Rise of the column Tmax above the ambient: Tmax - ambient, a difference, in kelvin."),
     SummaryColumn("r_theta_k_per_w", "Rθ", "K/W", "", lambda r, ref: f"{r['r_theta_k_per_w']:.3f}",
                   "Board resistance, ΔT / power: from the hottest column value to the air. It is not a junction value (junction temperatures are in the Components tab)."),
     SummaryColumn("power_in_w", "Power", "W", "", lambda r, ref: f"{r['power_in_w']:.3f}", "Power injected by the heaters in this run."),

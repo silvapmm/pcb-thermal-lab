@@ -57,6 +57,9 @@ def _paint_figure(fig, name):
         ax.set_facecolor(c["alt"])
 
 
+MIN_SECTION = 56   # Logical px: the narrowest column of a results table
+
+
 def _table(headers):
     """!
     @brief Create a read-only table with the given column headers.
@@ -69,7 +72,13 @@ def _table(headers):
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    # Columns as wide as their header or text (at least MIN_SECTION px), only the last one stretches; a narrow window gets a horizontal scroll bar, never a cut header
+    head = t.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     t.setAlternatingRowColors(True)
     return t
 
@@ -140,9 +149,6 @@ def summary_table(ref_label="FVM"):
     t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     set_summary_headers(t, list(SUMMARY_COLUMNS), ref_label)
     return t
-
-
-MIN_SECTION = 56
 
 
 def set_summary_headers(table, cols, ref_label):
@@ -525,14 +531,14 @@ class PlotTab(QWidget):
                     ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean   "
+                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean\n"
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
-                                     f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
+                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
+                                     f"max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()
@@ -834,7 +840,7 @@ class ResultsView(QWidget):
                           "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean read-out)")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean)")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

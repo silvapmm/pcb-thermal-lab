@@ -11,44 +11,17 @@
 import math
 
 from PySide6.QtCore import QEvent, QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFontMetricsF, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QFontMetricsF, QPainter, QPainterPath
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ..checks import warning_severity, warning_title
 from . import theme as th
 from .boxes import CollapsibleBox
+from .dots import dot_pixmap, severity_token       # The one painter of the round verdict dot (also used by the memory lines)
 
 ICON_GAP = 6          # Logical px between the expand arrow and the dot, and between the dot and the title (at least 5)
-_ICON_CACHE = {}      # (logical size, device pixel ratio, colour) -> QPixmap of the dot, drawn once
 NAME_MAX_PX = 110     # Logical px: a longer element name is elided in the label (the full name is in its tooltip)
 ROW_GAP = 2           # Logical px above a row and between its title and its opened text
-
-
-def dot_pixmap(size, dpr, colour):
-    """!
-    @brief The severity dot of a warning: a solid round dot centred in a square of `size` px, drawn with QPainter (ours, no glyph set).
-    @details The severity is also in the accessible name and the tooltip of the row, so the colour is never the only carrier. Cached per (size, ratio, colour).
-    @param size Logical edge of the square in px.
-    @param dpr Device pixel ratio of the screen.
-    @param colour Fill colour as '#rrggbb' (the `bad` token for a warning, the `warn` token for a note: the colours of the memory verdicts).
-    @return QPixmap.
-    """
-    key = (size, round(dpr, 3), colour)
-    pm = _ICON_CACHE.get(key)
-    if pm is not None:
-        return pm
-    pm = QPixmap(math.ceil(size * dpr), math.ceil(size * dpr))
-    pm.setDevicePixelRatio(dpr)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor(colour))
-    r = max(3.0, size * 0.30)                          # A dot of about 60 % of the square: the same weight as the memory-verdict dots
-    p.drawEllipse(QPointF(size / 2.0, size / 2.0), r, r)
-    p.end()
-    _ICON_CACHE[key] = pm
-    return pm
 
 
 class _HeadGlyphs(QWidget):
@@ -88,7 +61,7 @@ class _HeadGlyphs(QWidget):
         @brief The theme token that colours the dot (the tokens of the memory verdicts).
         @return str "bad" (a warning) or "warn" (a note).
         """
-        return "bad" if self.severe else "warn"
+        return severity_token(self.severe)
 
     def indent(self):
         """!
@@ -176,6 +149,26 @@ class _Head(QWidget):
             super().keyPressEvent(event)
 
 
+def severity_rank(warning):
+    """!
+    @brief Sort key of a warning in the list: a junction above its limit first, then the other warnings (alerts), then the notes.
+    @param warning A warning (CheckWarning or plain string).
+    @return int 0, 1 or 2 (the sort is stable: within a rank the order of the checks is kept).
+    """
+    if warning_severity(warning) != "alert":
+        return 2
+    return 0 if "the junction reaches" in str(warning) else 1
+
+
+def display_title(title):
+    """!
+    @brief A title as written in the row: the unit with the degree sign, like the tables and the fields.
+    @param title Title from checks.warning_title.
+    @return str.
+    """
+    return title.replace(" degC", " °C")
+
+
 class _ElementLabel(QPushButton):
     """!
     @brief The label at the end of a warning row: the icon of the element type and the element name; it selects the element.
@@ -231,7 +224,7 @@ class _TopicRow(QWidget):
         self.glyphs = _HeadGlyphs(self.severe)
         hl.addWidget(self.glyphs, 0, Qt.AlignTop)
         # Plain text (a title names elements of the project: never read as markup); it wraps in a narrow dock, so nothing makes the dock scroll sideways
-        self.title_label = QLabel(self.title)
+        self.title_label = QLabel(display_title(self.title))
         self.title_label.setTextFormat(Qt.PlainText)
         self.title_label.setWordWrap(True)
         self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -270,6 +263,12 @@ class _TopicRow(QWidget):
         @param name Element name, or "" to show only the type.
         """
         self.elem_name = name or ""
+        # The label already names the element: the title drops its leading 'Name:' so that the name is not read twice and the title wraps later
+        shown = display_title(self.title)
+        if name and shown.lower().startswith(name.lower() + ":"):
+            rest = shown[len(name) + 1:].strip()
+            shown = rest[:1].upper() + rest[1:]
+        self.title_label.setText(shown)
         self._apply()
 
     def is_open(self):
@@ -304,10 +303,11 @@ class _TopicRow(QWidget):
         self.glyphs.set_state(self.severe, self._open)
         # The dot is only a picture: the severity is also in the accessible name and in the tooltip, so that a colour is never the only carrier
         word = "Warning" if self.severe else "Note"
-        self.head.setAccessibleName(f"{word}: {self.title}")
+        self.head.setAccessibleName(f"{word}: {display_title(self.title)}")
         self.head.setAccessibleDescription("open" if self._open else "closed")
         self.glyphs.setAccessibleName(word)
-        self.head.setToolTip(f"{word}. Click to read it." if not self._open else f"{word}. Click to close it.")
+        # The title wraps in a narrow dock and is never cut; the tooltip has it whole (and the full name of the element is in the tooltip of the label)
+        self.head.setToolTip(f"{word}: {display_title(self.title)}. " + ("Click to read it." if not self._open else "Click to close it."))
         self.text.setVisible(self._open)
         if self.button is None:
             return
@@ -322,7 +322,7 @@ class _TopicRow(QWidget):
         self.button.setAccessibleName(what)
         self.button.setEnabled(not self.stale)
         # The name takes the colour of the severity (the tokens of the memory verdicts); hover in the link colour, focus ring in the accent
-        ink = c["bad"] if self.severe else c["warn"]
+        ink = c[severity_token(self.severe)]
         self.button.setStyleSheet(
             f"QPushButton{{border:1px solid {c['border']}; border-radius:8px; padding:0px 6px 0px 3px; color:{ink}; background:transparent; text-align:left;}}"
             f"QPushButton:hover{{border:1px solid {c['link']}; color:{c['link']};}}"
@@ -376,7 +376,7 @@ class WarningAccordion(QWidget):
             r.setParent(None)
             r.deleteLater()
         self.rows = []
-        self.warnings = list(warnings)
+        self.warnings = sorted(warnings, key=severity_rank)         # Junction above its limit, then warnings, then notes; stable within each
         self.stale = False
         self.box.setTitle(f"Warnings ({len(self.warnings)})")
         for w in self.warnings:
