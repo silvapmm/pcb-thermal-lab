@@ -1490,7 +1490,7 @@ def test_display_control_in_the_application(win, qtbot):
             win.canvas.viewport().grab()
             win.display_button.click()
     win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
     win.doc.set_props("heater", 0, power=2.0)                                 # the first edit: the map leaves, the button greys
     assert win.canvas._overlay is None and win.canvas._overlay_card is None and not win.a_overlay.isEnabled()
     win.doc.stack.undo()

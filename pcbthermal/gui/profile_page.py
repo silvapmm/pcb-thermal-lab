@@ -166,8 +166,8 @@ class ProfilePage(QWidget):
         self.run_box = QGroupBox("Time simulation")
         rf = QFormLayout(self.run_box)
         self.threshold = QDoubleSpinBox()
-        self._spin(self.threshold, 0, 1000, 2, " °C")
-        self.threshold.setToolTip("Swing, °C, below which a heater runs at its average power; above, it is simulated in time. "
+        self._spin(self.threshold, 0, 1000, 2, " K")
+        self.threshold.setToolTip("Swing, K, below which a heater runs at its average power; above, it is simulated in time. "
                                   "Stretches under 4 s (2 s with 3+ layers): average + ripple.")
         self.start = QComboBox()
         self.start.addItem("Steady state of the average power", "average")
@@ -210,9 +210,9 @@ class ProfilePage(QWidget):
 
         # ---- decision table and waveform
         self.dec_table = QTableWidget(0, 7)
-        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
+        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. K", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (°C, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
+        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (K, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)

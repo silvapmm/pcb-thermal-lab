@@ -1128,7 +1128,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     ax.set_xlabel("Time in the last window (s)")
     ax.set_ylabel(COLUMN_LABEL)
     ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
-                 f"oscillation {result.oscillation:.1f} °C", fontsize=10)
+                 f"oscillation {result.oscillation:.1f} K", fontsize=10)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
 

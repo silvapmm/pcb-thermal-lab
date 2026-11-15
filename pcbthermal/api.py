@@ -401,8 +401,8 @@ class Simulation:
         if not self.decisions:
             return []
         lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
-                     f"threshold {num(self.options.profile.threshold_c)} °C):", "",
-                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
+                     f"threshold {num(self.options.profile.threshold_c)} K):", "",
+                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [K] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
             if d.kind != "constant":
@@ -411,7 +411,7 @@ class Simulation:
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
         if self.profile_results:
-            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [°C] | Steady, average power [°C] | "
+            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [K] | Steady, average power [°C] | "
                           "Steady, peak power (bound) [°C] | Windows | Steps | Time [s] |",
                       "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
             for name, r in self.profile_results.items():
@@ -424,8 +424,8 @@ class Simulation:
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | - | - | {r.seconds:.2f} |")
             for name, r in self.profile_results.items():
                 for x in r.ripple:
-                    lines.append(f"\n> **Ripple ({name})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} °C peak to peak "
-                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} °C about its mean, from the closed-form impedance of the stack) is added at the heater, "
+                    lines.append(f"\n> **Ripple ({name})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} K peak to peak "
+                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} K about its mean, from the closed-form impedance of the stack) is added at the heater, "
                                  "in the peak and the minimum above and not in the maps.")
         return lines
 
@@ -484,25 +484,25 @@ class Simulation:
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} C):")
+                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} K):")
             for d in self.decisions:
                 if d.kind != "constant":
                     lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
                                  f"average {d.average_power:.3f} W, "
-                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
+                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} K "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
                 else:
                     lines.append(f"  {d.name}: constant {d.average_power:.3f} W")
             for name, r in self.profile_results.items():
                 if r.resolved:
-                    lines.append(f"  {name}: peak {r.peak:.2f} C, minimum {r.minimum:.2f} C, oscillation {r.oscillation:.2f} C "
+                    lines.append(f"  {name}: peak {r.peak:.2f} C, minimum {r.minimum:.2f} C, oscillation {r.oscillation:.2f} K "
                                  f"(steady with the average power {r.steady_average_max:.2f} C, with the peak power "
                                  f"{r.steady_peak_max:.2f} C); {r.windows} windows, {r.steps} steps, "
                                  f"{'stable' if r.converged else 'not stable'}")
                 else:
                     lines.append(f"  {name}: every heater averaged; steady {r.steady_average_max:.2f} C")
                 for x in r.ripple:
-                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} C peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} C about its mean, closed form of the stack), "
+                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} K peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} K about its mean, closed form of the stack), "
                                  "in the peak and the minimum, not in the maps")
         if "fem" in self.results:
             f = self.results["fem"]
