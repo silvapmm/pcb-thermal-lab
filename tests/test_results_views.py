@@ -34,10 +34,11 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # the 'field' hash (a32414ed -> 3cea24b0), the 'fields' hash (07e40550 -> 5be14198) and the 'gradient' hash (f3c6d4e3 -> b8cdc541) follow the field, the drawing code is unchanged.
 # fix/face-film-half-slab: the film passes the half copper layer, the example board's field moves by about 2e-5 K (hottest +1e-5 K); only the 'fields' hash (5be14198 -> c86e8a40) changes, the drawing code is unchanged.
 # feature/surface-always-both: the all-layers picture names its read-out (suptitle 'column mean, all layers', colour bar 'Temperature, column mean (°C)'); only the 'fields' hash (c86e8a40 -> c29d267c) changes, the field is untouched.
+# fix/gui-review-rest: the suptitle gives the power balance as a percentage with a floor ('0.00 %', it printed the round-off); only the 'fields' hash (c29d267c -> bc473725) changes, the field is untouched.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
     "field": "3cea24b0d404096e174db97d0ceb290266fcbb94c0a9a57d2ec12602d1532a91",
-    "fields": "c29d267ca53754db860be160943f4ae15499590a4478799d4ef5df1355897bae",
+    "fields": "bc47372561800303aa7d97f568163b324b371ce3a62c603f0d006a1814f01567",
     "gradient": "b8cdc5413c1f54a0cfb4055c716bb3ab2bfbbfb928487dfa972ea1e35387dfe6",
 }
 
