@@ -12,7 +12,7 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
@@ -181,6 +181,43 @@ class BackgroundDialog(QDialog):
         return out
 
 
+class _FitWidth(QObject):
+    """!
+    @brief Keep the minimum width of a dock's scroll area at the minimum width of its content plus the vertical scroll bar.
+    """
+
+    def __init__(self, area, content):
+        """!
+        @brief Watch the content of a scroll area and update the area's minimum width now and after every layout change.
+        @param area The QScrollArea of the dock.
+        @param content The widget inside it.
+        """
+        super().__init__(area)
+        self.area, self.content = area, content
+        content.installEventFilter(self)
+        self.update()
+
+    def update(self):
+        """!
+        @brief Set the minimum width of the area: content minimum, vertical scroll bar and frame.
+        """
+        bar = self.area.verticalScrollBar().sizeHint().width()
+        need = self.content.minimumSizeHint().width() + bar + 2 * self.area.frameWidth()
+        if self.area.minimumWidth() != need:
+            self.area.setMinimumWidth(need)
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Update the width after a layout request of the content (a different element in Properties, a group shown).
+        @param obj Watched object.
+        @param event The event.
+        @return False (the event goes on).
+        """
+        if event.type() in (QEvent.LayoutRequest, QEvent.Show):
+            self.update()
+        return False
+
+
 class MainWindow(QMainWindow):
     """!
     @brief The application window.
@@ -317,6 +354,9 @@ class MainWindow(QMainWindow):
             # A dock narrower than its fields scrolls sideways instead of squeezing the rows on top of each other (they overlapped with the bar always off)
             area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             area_widget.setWidget(widget)
+            # The dock is never narrower than its fields plus the vertical scroll bar, so the sideways bar does not appear in normal use (review of the
+            # window: a 4 px bar in the Simulation dock at 322 px, and the Properties of a metal block asked 337 px); it follows the content as it changes
+            _FitWidth(area_widget, widget)
             if footer is not None:
                 host = QWidget()
                 hl = QVBoxLayout(host)

@@ -119,3 +119,46 @@ def test_the_memory_lines_and_the_warning_rows_use_one_dot_painter(win, monkeypa
     text = win.solver_panel.cells_label.text()
     assert text.count('src="data:image/png;base64,') >= 2 and calls
     assert "●" not in text
+
+
+def test_the_elements_header_is_not_cut_on_an_empty_board(win):
+    """!
+    @brief On a new empty board the Elements list keeps every header whole ('Layer' was cut to 'Laye').
+    @param win Main window fixture.
+    """
+    from pcbthermal.model import Problem
+
+    load(win, Problem.new(100, 80, layers=2))
+    tree = win.elements.tree
+    head = tree.header()
+    for c in range(3):
+        assert head.sectionSize(c) >= head.fontMetrics().horizontalAdvance(tree.headerItem().text(c)) + 16
+
+
+@pytest.mark.parametrize("case", ["block", "source"])
+def test_the_right_docks_never_scroll_sideways_at_their_narrowest(win, case):
+    """!
+    @brief A dock's scroll area is never narrower than its content plus the vertical bar: no sideways bar in the Simulation dock dragged to 300 px, nor in the
+           Properties of a metal block (it asked 337 px) or of a heat source.
+    @param win Main window fixture.
+    @param case Element shown in Properties.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+
+    from pcbthermal.examples import example_board
+
+    p = example_board()
+    p.add_heatsink(1, 50.0, rect=(5, 5, 20, 20), name="Block", thickness_mm=3.0)
+    load(win, p)
+    if case == "block":
+        win._select_from_warning("heatsink", len(p.heatsinks) - 1)
+    else:
+        win.doc.set_props("heater", 1, role="source")
+        win._select_from_warning("heater", 1)
+    QApplication.processEvents()
+    win.resizeDocks([win.dock_sim, win.dock_inspector], [300, 300], Qt.Horizontal)
+    QApplication.processEvents()
+    for d in (win.dock_sim, win.dock_inspector):
+        for a in d.findChildren(QScrollArea):
+            assert a.horizontalScrollBar().maximum() == 0, (d.windowTitle(), a.width(), a.widget().minimumSizeHint().width())

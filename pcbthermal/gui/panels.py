@@ -710,8 +710,13 @@ class ElementList(QWidget):
                 if (kind, i) in sel:
                     child.setSelected(True)
             top.setExpanded(len(lst) <= 12)
+        head = self.tree.header()
+        fm = head.fontMetrics()
         for c in range(3):
             self.tree.resizeColumnToContents(c)
+            # Never narrower than the header text with the padding of the theme's header style (8 px a side) and the sort arrow: an empty list cut 'Layer' to 'Laye'
+            label = self.tree.headerItem().text(c)
+            head.resizeSection(c, max(head.sectionSize(c), fm.horizontalAdvance(label) + 24))
         self._updating = False
         # A new element made while the filter is on is shown only if it matches (the filter is re-applied after every edit)
         if self.filter.text():
