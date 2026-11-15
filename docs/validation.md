@@ -1628,7 +1628,7 @@ The 62 via boards of the earlier Lumped studies (with and without vias), the exa
 * **Not smooth in the cap**: half an equivalent radius more or less moves a small part by up to 12 points; the value 1 was chosen for zero effect on the existing boards, not tuned.
 * **The 1 mm Lumped cell** (the API gives it for a user cell of 1 mm or more): a 1 mm part improves only from -20..-27 % to -15..-17 %; the raster is the limit there.
 * **A part smaller than about an eighth of a cell** is missed by the 4 x 4 coverage samples and put in the cell of its centroid (`lumped._footprint_coverage`), while the FVM spreads it over the cells it straddles: a 0.1 mm part across a cell corner of a 200 x 150 mm board reads +27.0 % against the FVM (it read -20.1 %); the same part inside one cell -40.2 % to -5.0 %. The disagreement is that of the footprints, older than the cap, which only makes it visible.
-* **A source near a board edge or corner** stays cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %): 4 to 15 % in this investigation, up to 22 % at a corner on the sweep of section 35, which the live check warns.
+* **A source near a board edge or corner** stays cool in the Lumped (the rings cut by the edge are held at one temperature; the Analytic is within 0.6 %): 4 to 15 % in this investigation, up to 22 % at a corner on the sweep of section 35 before the images of the sides entered the first link (section 53: -2.7 % on average and -7.5 % at worst after it), which the live check warns.
 * **Equivalent rectangle of a board with an outline**: unchanged, 10 to 19 % cool next to the outline on oswlight (section 13).
 * **Not studied**: several heaters at once with a metal block or a heatsink, and the zonal network with a part just larger than a core.
 
@@ -1907,7 +1907,7 @@ The position dependence is gone (the 0.2 mm part: 9.9 points between the two pos
 
 ### 35.4 What was not verified here
 
-The image-potential links of the study (a correction of the Lumped near a side) are not in the program: they compensate two links, and a cooled side reads up to +8.6 % hot with them. The rule was measured on single-part boards with the part centred along the side; off-centre placements were only sampled by the random boards. The memory estimate is a fit at 4 layers; the scaling by layers was measured by the review (35.3) and is on the safe side above four layers, about 7 % under at four. The near-edge numbers of the study tree were reproduced on `develop` for the sweep and the random boards (35.1, 35.2); the FVM 0.25 mm and the 3D solver checks of 35.1 were not re-run.
+The image-potential links of the study (the variants with the images in the links between rings too) are not in the program (section 53 adopts only the first link): they compensate two links, and a cooled side reads up to +8.6 % hot with them. The rule was measured on single-part boards with the part centred along the side; off-centre placements were only sampled by the random boards. The memory estimate is a fit at 4 layers; the scaling by layers was measured by the review (35.3) and is on the safe side above four layers, about 7 % under at four. The near-edge numbers of the study tree were reproduced on `develop` for the sweep and the random boards (35.1, 35.2); the FVM 0.25 mm and the 3D solver checks of 35.1 were not re-run.
 
 ## 36. The laminate band along the board edge (FVM and FDM)
 
@@ -2732,3 +2732,58 @@ The +2.07 % of the board with vias and a heatsink beside the part is the readout
 ### 52.3 Frozen numbers
 
 None moves (317 passed at 2, 1 and 0.5 mm without a pending file of this branch): on `example_board` and `profile_board` the point of U1 without vias is 0.12 % below the steady maximum at 1 mm, inside the band. The first version moved their U1 time to 63 % from 10.134 to 10.249 s (+1.1 %) with a pending file, which the review removed.
+
+## 53. The Lumped model near a side or a corner: the images of the sides in the first link
+
+Evidence: `research/lumped-edge-link` (README 3 and 4, reviewed: GO); branch `fix/lumped-edge-first-link`. Tests: `tests/test_lumped_edge_first_link.py`, `tests/test_lumped_near_edge.py`. Method: `docs/theory.md` 5.1 (the first link with the mirror images of the sides). The numbers below were re-measured on the tree of the branch with the program itself.
+
+### 53.1 The 180 cases of section 35.1, hottest node against the FVM at 0.5 mm (% of the rise)
+
+Two-layer full-copper boards of 40 x 40 and 100 x 80 mm, a square source of 2, 5 or 10 mm on layer 1 at 0 to 30 mm from a side or a corner, edge film 10, 50 and 200 W/m2K (`tests/data/lumped_near_edge_cases.json`, columns `sweep_before_edge_link`, `sweep_edge_link`). Before = the tree with the part read-out and without the images:
+
+| group | n | before: mean [min, max] | after: mean [min, max] |
+| :-- | --: | --: | --: |
+| all | 180 | -7.45 [-22.2, -0.8] | -1.64 [-7.5, +4.0] |
+| flagged by `check_lumped_near_edge` | 120 | -9.4 [-22.2, -1.4] | -2.7 [-7.5, +1.8] |
+| not flagged | 60 | -3.6 [-9.0, -0.8] | +0.5 [-5.2, +4.0] |
+| beyond -8 % | 70 | (the rule flags 69) | 0 |
+
+### 53.2 The 432 cases of the study (`research/lumped-edge-link/scripts/study_remeasure.py`, boards of 60 x 40 and 100 x 80 mm, 3, 6 and 10 mm parts, 2 and 4 layers, edge film 0 to 200 W/m2K), peak, mean [worst cool, worst hot]
+
+| group | n | before | after | cases beyond -8 %, before -> after |
+| :-- | --: | --: | --: | --: |
+| side, gap 0 to 2 mm | 128 | -9.1 [-13.5, -5.6] | -2.4 [-6.3, +2.7] | 97 -> 0 |
+| side, gap 5 mm | 32 | -6.3 [-8.6, -4.2] | -2.8 [-5.9, +0.1] | 2 -> 0 |
+| side, gap 10 mm or more | 64 | -3.0 [-6.7, +1.6] | -0.5 [-4.0, +1.9] | 0 -> 0 |
+| corner, gap 0 to 5 mm | 160 | -14.0 [-22.4, -6.1] | -3.4 [-8.6, +9.4] | 155 -> 6 |
+| corner, gap 10 mm or more | 48 | -5.8 [-10.8, -2.9] | -2.0 [-6.3, +1.8] | 8 -> 0 |
+| all | 432 | -9.4 [-22.4, +1.6] | -2.5 [-8.6, +9.4] | 262 -> 6 |
+| edge film 200 W/m2K only | 108 | -8.8 [-20.5, +1.5] | -0.9 [-7.2, +9.4] | 57 -> 0 |
+
+The part mean (footprint mean) improves less: all 432, -7.9 to -3.5 % (worst -13.8 to -10.6 %, 206 to 40 cases beyond -8 %). The +9.4 % hot case is a corner at 0.5 to 1 mm with a side cooled by 200 W/m2K: the images assume an insulated side (a reflection factor of 0.8 was tried by the research and was worse overall).
+
+### 53.3 Against the independent converged 3D solver (6 mm part, 40 x 40 mm, 2 layers, insulated sides, `research/lumped-edge-link` README 3.2; the converged 3D peaks are those of that table, the Lumped is run here)
+
+| case | before | after |
+| :-- | --: | --: |
+| side, gap 0 / 1 / 2 / 5 / 10 mm | -9.9 / -6.6 / -4.9 / -3.5 / -1.7 % | -3.1 / -5.4 / -4.2 / -3.0 / -0.4 % |
+| corner, gap 0 / 2 / 5 mm | -15.9 / -11.1 / -7.8 % | -3.3 / -7.3 / -5.4 % |
+| centred | +2.3 % | +0.8 % |
+
+(The 'before' column is the table of the research for the program of that time.) The remaining 3 to 7 % at 1 to 5 mm from a side or a corner are the links between rings, which are unchanged. `tests/test_lumped_edge_first_link.py` also runs the test helper `tests/helpers/layered3d.py` at the 0.5 mm cell on the side and corner cases: -2.8 % and -3.0 %.
+
+### 53.4 The cost: interior parts, the frozen boards and the times
+
+* A centred part moves hot: a 1 mm part on 100 x 80 mm against the independent 3D solver +0.3 to +2.3 % (the tolerance of `tests/test_lumped_first_ring.py` went from 2 to 3 %); a 6 mm part moves up to 3 % with the new link against the plain one.
+* The 17 frozen boards (`tests/regression/data/pending/lumped-first-link-edge.json`): all 51 Lumped records move, board hottest point -3.1 to +3.1 % of the rise (mean +0.5 %; `part_top_path` -2.7 to -3.1 % is the part read-out of `fix/lumped-part-readout` alone, `part_across_outline` +2.5 to +3.1 %, `example_cut_to_T` +0.8 to +1.5 %), and 12 times to 63 % (the research said 14; 12 are the Lumped times of the frozen file): `example_board` U2 2.43 to 1.94 s (-20 %), U1 8.84 to 8.81 s, `plate_uniform` 18.46 to 17.85 s, `plate_vias` 30.94 to 31.28 s. The research's own measure on the 17 boards against the FVM at the same cell: the mean absolute error of the part peaks goes 5.14 to 5.02 % at 0.5 mm and 5.04 to 5.17 % at 1 mm, so there is no net gain: an interior part that read right by a cancellation (`example_board` U2: its own -4.8 % against the superposed tail of U1) now reads +4.2 % at 1 mm (+1.4 % alone).
+* Time to 63 % against an FVM step response at 0.5 mm (research README 4.2): near a side +19.9 to -5.2 %, in a corner +43.4 to +1.7 %, centred 6 mm +3.0 to -6.4 %, `example_board` U2 +12.7 to -9.2 %: right near an edge, 5 to 9 % short in the interior (a faster rise: the safe side of the average-or-resolve decision).
+* Cost 0.02 to 0.6 s per part; a footprint above 3600 cells keeps the plain link (a 30 mm part at 0.5 mm is at the limit).
+
+### 53.5 Tests that moved (reason written in each)
+
+`test_one_mm_part_on_100_by_80_agrees_with_the_independent_3d_solver` (bound 2 to 3 %: +2.3 % with the images), `test_the_cap_does_act_on_a_small_part_of_a_big_board` (the first link is now compensated too, so the uncapped first ring is 2 % low instead of 20 %), `test_zones_read_the_hottest_temperature_nearer_the_fvm_than_one_node` (zones +1.0 %, one node -0.9 %: no longer strictly nearer, within 1.25 times) the wording test of the near-edge warning, and four stored values of the Lumped: the 4-layer example board without vias 94.841 to 96.056 K at 0.5 mm (`test_via_constriction.py`, with the heatsink board 95.306 to 96.496 K), the small T on the equivalent rectangle 217.730 to 219.447 K (`test_part_across_outline.py`), and the coupon against the 3D solver (+0.44 %, tolerance 0.3 to 0.6 %) and the one-layer board (+1.2 to +2.2 %) of `test_layered_vs_3d.py`.
+
+### 53.6 Limits and what was not verified
+
+The links between rings and a reflection factor for a cooled side are not changed; the zone patch was measured on one family of dense groups (5 x 5 vias, 8 mm part) only; the 120 random boards of section 35 were not re-run (their geometry is not kept in the data file, only side, gap and error); the 3D comparison of 53.3 is the research's converged 3D table with the Lumped re-run here, not a new 3D run; no physical board.
+

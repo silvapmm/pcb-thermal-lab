@@ -693,14 +693,13 @@ def heater_side_gap(problem, polygon):
 def check_lumped_near_edge(problem, models):
     """!
     @brief Warning, for the Lumped model only, about heat sources close to a side or a corner of the board (one aggregated line).
-    @details The ring network of a part sees neither the mirror image of an insulated side nor the radial flux that the side pushes away, so the hottest temperature of a part near
-             a side or a corner reads too cool: -7.4 % of the rise on average and -22.0 % at worst over 180 cases (2 to 10 mm parts, gaps 0 to 30 mm, edge film 10 to 200 W/m2K, boards
-             40 x 40 and 100 x 80 mm) against the FVM at 0.5 mm, -8.2 % on average over the 120 of them that the rule flags (-3.3 % over the other 60), and -8.3 % over the 59
-             flagged of 120 random boards (-3.6 % over the other 61). These were measured with the capped first ring of the 2.6.0 integration; on develop at 2.5.2
-             (without it) the same cases read -9.4 % (sweep, flagged) and -8.5 % (random, flagged), and the rule catches 68 of the 86 sweep cases beyond -8 % (16 of the 18 missed
-             are a 2 mm part on the 100 x 80 mm board 10 to 30 mm from a side, the other two a 5 mm part 10 mm from a corner: the small-part deficit of the rings, not the side) and 34 of 38 random ones. The text
-             quotes the flagged means of both trees (8 to 9.5 %), since those are the parts it is shown for. A source is flagged when its gap to the nearest side is at most
-             max(its equivalent side, 5 mm); the rule catches 57 of the 58 cases more than 8 % too cool on the sweep and 35 of 37 on the random boards (research/lumped-near-edge 6.1).
+    @details The ring network of a part sees the radial flux that a side pushes away only through the first link, which carries the mirror images of the sides (fix/lumped-edge-first-link,
+             research/lumped-edge-link); the links between the outer rings do not. Measured on the 180 cases of tests/data/lumped_near_edge_cases.json (2 to 10 mm parts, gaps 0 to 30 mm, edge film
+             10 to 200 W/m2K, boards 40 x 40 and 100 x 80 mm), hottest node against the FVM at 0.5 mm: before the images -7.4 % of the rise on average (-9.4 % over the 120 flagged, -22.2 % worst, 70 cases
+             beyond -8 %); with them -1.6 % (-2.7 % over the 120 flagged, +0.5 % over the other 60), worst -7.5 % cool and +4.0 % hot, none beyond -8 %. On the 432 cases of the study: -9.4 to -2.5 %, worst
+             -22.4 to -8.6 %, and up to +9.4 % hot at a corner with the side cooled by 200 W/m2K; against an independent converged 3D solver (6 mm part, 40 x 40 mm, insulated sides) -3.1 / -5.4 / -4.2 / -3.0 / -0.4 %
+             at a side gap of 0 / 1 / 2 / 5 / 10 mm and -3.3 / -7.3 / -5.4 % at a corner gap of 0 / 2 / 5 mm (before: -9.9 to -1.7 and -15.9 to -7.8 %). A source is flagged when its gap to the nearest side is at
+             most max(its equivalent side, 5 mm) (the rule of research/lumped-near-edge 6.1: it flags 69 of the 70 cases that were beyond -8 % before the images; 120 of the 180 cases are flagged).
              Only geometry is used, so the warning is live. A board with an outline also gets the run's note about the equivalent rectangle (one line each).
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
@@ -721,18 +720,20 @@ def check_lumped_near_edge(problem, models):
         return []
     flagged.sort()
     gap, k, name = flagged[0]
-    why = ("the Lumped model reads a part near a side or a corner of the board too cool, because its rings around the part do not see the side that sends the heat back: "
-           "on test boards the hottest temperature of a part this close to a side read 8 to 9.5 % of the rise too cool on average (120 cases of a sweep and 59 parts of "
-           "120 random boards) and up to 22 % at a corner against the FVM, up to 26 % against an independent 3D solver at 200 W/m2K; a sample, not a bound; use the FVM or the FDM.")
+    why = ("the Lumped model does not see the side that sends the heat back except through the mirror images of its first link, so a part this close to a side or a corner reads mostly "
+           "a little too cool: on 180 test boards (parts of 2 to 10 mm, gaps of 0 to 30 mm, edge film 10 to 200 W/m2K) the hottest temperature of the flagged parts read 2.7 % of the rise "
+           "too cool on average against the FVM (worst 7.5 % too cool), on 432 cases up to 8.6 % too cool and, at a corner with a side cooled by 200 W/m2K, up to 9 % too hot; "
+           "against an independent 3D solver 3 to 7 % too cool at 1 to 5 mm from a side or a corner (up to 7.3 %); a sample, not a bound; use the FVM or the FDM for the final value.")
+    short_why = "the Lumped model reads {} 3 % of the rise too cool on average (up to 9 % too cool, up to 9 % too hot at a cooled corner); use the FVM"
     if len(flagged) == 1:
         out = []
         _add(out, "heater", k, f"{name}: the part is {gap * 1e3:.1f} mm from a side of the board; {why}",
-             f"{name}: near a side of the board; the Lumped model reads it too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
+             f"{name}: near a side of the board; {short_why.format('it')}.")
         return out
     names = ", ".join(n for _, _, n in flagged[:3]) + (f" and {len(flagged) - 3} more" if len(flagged) > 3 else "")
     out = []
     _add(out, "heater", k, f"{len(flagged)} parts ({names}) are within one side of the part (and at least 5 mm) of a side of the board (the nearest, {name}, {gap * 1e3:.1f} mm); {why}",
-         f"{len(flagged)} parts are near a side of the board; the Lumped model reads them too cool (up to 22 % of the rise at a corner against the FVM, 26 % against an independent 3D solver); use the FVM.")
+         f"{len(flagged)} parts are near a side of the board; {short_why.format('them')}.")
     return out
 
 
