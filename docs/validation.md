@@ -2960,6 +2960,10 @@ and the one-dimensional column (a 200 mm board heated over its whole top, a bloc
 
 The bound of the thick-plate warning is `q'' t/(2k)` alone for a one-layer plate or a block (the ambient film is inside the model); case 2 warns 3 of its 4 sources (the 10 W source, 3.3 K, 4.7 % of its rise, is below the 5 % limit; before 4 of 4). On a board of two or more layers the half plate towards the laminate stays in the bound.
 
+### 55.6 The surface read-out beside the column mean (`fix/thick-plate-surface-estimate`)
+
+Case 2 of Muzychka, Culham and Yovanovich (2003) at 0.5 mm, the program's FVM and FDM `T_surface` against the independent 3D surface (layered3d, 8 sub-slabs, centroids of the 10 / 25 / 20 / 15 W sources): FVM +0.57 / +1.26 / +1.03 / +0.80 K and FDM +0.57 / +1.28 / +1.04 / +0.77 K (the column mean reads 1.96 / 4.62 / 3.73 / 2.85 K below the same surface), flagged 'upper side' (`t/a` = 1); the numbers reproduce `research/through-thickness-readout` 4.1 to the printed digit (`tests/test_thickness.py`, `tests/test_published_cases.py::test_t3b_muzychka_case_2_surface_read_out` at 1 mm). Closed form: a one-dimensional column reads `q t/(2k)` exactly (test). Ordinary boards (35 to 105 µm): no array, nothing changes; the frozen numbers (317 records at 2, 1 and 0.5 mm) are untouched. Not verified here: partly filled cells against an independent 3D with patterned copper, vias through a thick layer, metal blocks, imported copper on a thick layer.
+
 ### 55.5 Limits
 
 The lateral spread under a source is still the column mean; the 1D half block over-resists a source that spreads inside a thick block (55.3); computed-`h` boards read the node temperature in the loop, as before.

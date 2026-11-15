@@ -691,6 +691,29 @@ def test_metal_block_in_the_application(win, qtbot):
     assert rv.block_table.rowCount() == 0
 
 
+def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
+    """A thick copper plate: the Layer box lists the surface entries after a run (FVM, FDM), the map and the part table show them beside the column, the other models say none."""
+    from pcbthermal.model import Materials
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
+    p.add_full_copper()
+    p.add_heater(1, 25.0, rect=(20, 20, 30, 30), name="S")
+    load(win, p)
+    run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert "Surface (top)" in texts and "Surface (bottom)" in texts
+    assert rv.heater_table.columnCount() == 11 and "(surface)" in rv.heater_table.horizontalHeaderItem(10).text()
+    for model in ("fvm", "fdm", "lumped", "analytic"):
+        rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
+        for data in (200, 201, 0):
+            win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))      # The lumped and analytic draw a message, never an error
+    walk_results(win, qtbot)
+    # Animation and Profiles show the column and say so
+    rv.tabs.setCurrentWidget(rv.animation)
+    assert "Surface" not in [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+
+
 def test_component_fields_in_the_application(win, qtbot):
     """A part with theta, a junction limit, psi_JB and a power temperature coefficient: inspector fields, a run with every model, its table and the warnings."""
     load(win, example_board())
