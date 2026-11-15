@@ -391,6 +391,8 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 
 **Released in 2.7.1 (wave 1)**: the rows below that are marked done in the 2.7.1 chapter (narrow window, Enter focus, Duplicate, the disclaimer, the third-party guard, the JEDEC numbers, the OCR environment, the version notes). Small interface item left for 2.8.0: the Cut slider of Profiles is very short at 900 x 700 with both docks open (the arrow keys move it; give it a minimum width or a line of its own).
 
+**Planned, the maintainer's order (finite-element model and surface read-out)**: (1) the independent finite-element tool becomes a program model, key `fem`, a checkbox `Finite elements (FEM), comparison` like the FDM and the 3D solid, off by default, optional dependency pyamg, steady state first, branches as laid out in `releases/2.8.0/fem-model/DESIGN.md`; (2) an additive Surface read-out of thick layers and blocks (parabola `T_surf - T_col = t (2 q_top - q_bot) / (6 k)`), then copper slabs in the 3D solid, as in `research/through-thickness-readout/INTEGRATION.md`; no frozen number moves.
+
 **Wave 1: cheap and safe (no number moves)**
 
 | Item | Type | Size | Frozen | Depends on |
