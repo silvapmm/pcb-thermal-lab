@@ -36,7 +36,7 @@ from . import defaults
 from . import uicontext
 from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
-from .results import DISCLAIMER, SteadyResult
+from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult
 from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
@@ -1154,7 +1154,8 @@ def _simulate(problem, options, progress):
         if name in skipped:
             continue                                      # Refused by the memory guard (warning already in the list)
         if progress:
-            progress(f"Solving {name}", k / n)
+            # The model's display name, not its key ('Solving FEM', not 'Solving fem'); the FEM has no inner progress, so say that a large board takes minutes
+            progress(f"Solving {RESULT_MODEL_LABELS.get(name, name)}" + (" (assembly and solve: a large board can take minutes)" if name == "fem" else ""), k / n)
         t0 = time.time()
         try:
             sim.results[name], hh, powers = _solve_with_tc(steady_problem, name, options, computed)

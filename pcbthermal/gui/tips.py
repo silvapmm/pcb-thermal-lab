@@ -16,7 +16,7 @@ from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names l
 
 # The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
 SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, an estimate from the layer mean and the heat flowing in and out; it is what a thermocouple or an IR camera "
-                     "on the metal reads. Always available for the FVM and the FDM in steady state: milli-kelvins from the layer mean on 35 um copper, tenths of a kelvin to "
+                     "on the metal reads. An estimate for the FVM and the FDM, resolved by the elements for the FEM, in steady state: milli-kelvins from the layer mean on 35 um copper, tenths of a kelvin to "
                      "percent of the rise on thick metal. The title gives the difference in K and in % of the rise. Maps, tables, Tj and margins use the layer mean. "
                      "On patterned copper the difference includes the rise across the bare laminate under a source.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom)
 
@@ -28,10 +28,10 @@ COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of 
                      "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is an estimate of the outer face, hotter under a "
                      "source on thick copper.")
 SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in degC, estimated from the layer mean and the heat fluxes through the faces "
-                   "(layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); the face is the one the part sits on. Always shown for the "
-                   "FVM and the FDM in steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise "
+                   "(layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); the face is the one the part sits on. Shown for the "
+                   "FVM, the FDM (an estimate) and the FEM (resolved by the elements, not an estimate) in steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise "
                    "and for the surface mean. '(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at "
-                   "t/a = 1. Junction, margin and power limit stay on the column. n/a: the Lumped, the Analytic, the 3D solid, a time simulation, or a part on an inner layer.")
+                   "t/a = 1. Junction, margin and power limit stay on the column. n/a: the Lumped, the Analytic, the 3D solid, a time simulation, or a part on an inner layer. For the FEM the tooltip of a cell also gives the hottest mesh node under the part (a node value, not a cell mean).")
 
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",

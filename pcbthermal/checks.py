@@ -371,6 +371,22 @@ def _check_input(problem, models, cell_mm, live=False):
             + check_fast_wave(problem) + check_fem(problem, models, cell_mm))
 
 
+def fem_needs_pyamg(problem, cell_mm, gap_elements=6, refine=2.0):
+    """!
+    @brief Whether the FEM mesh of a problem is larger than the direct solver takes while the package pyamg is missing (the run would leave the FEM out).
+    @param problem A Problem (structurally valid).
+    @param cell_mm Cell size in mm of the run.
+    @param gap_elements Elements across every dielectric gap, count.
+    @param refine Ratio of the cell to the fine element near the parts, dimensionless.
+    @return Tuple (unknowns, needs_pyamg); (0, False) when no mesh can be built (that refusal has its own message).
+    """
+    try:
+        n = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
+    except ValueError:
+        return 0, False
+    return n, bool(n > femcore.FEM_DIRECT_MAX and not femcore.available())
+
+
 def check_fem(problem, models, cell_mm):
     """!
     @brief Warnings of the finite-element model that are known before the run: a mesh that cannot be built, the missing pyamg, imported copper and a part below the mesh.

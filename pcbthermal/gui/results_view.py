@@ -565,8 +565,9 @@ class ResultsView(QWidget):
         tables = QWidget()
         tl = QVBoxLayout(tables)
         self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"])
-        self.zone_table = _table(["Zone", "Layer", "Mean °C", "Max °C", "Min °C"])
-        self.hot_table = _table(["Hotspot", "Layer", "Tmax °C", "x mm", "y mm", "Area mm²"])
+        # Every temperature the user sees names its read-out: these tables are all column values (the layer mean through the copper thickness), like the part table
+        self.zone_table = _table(["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"])
+        self.hot_table = _table(["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"])
         self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
         self.block_table.setMaximumHeight(90)
         for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
@@ -703,7 +704,8 @@ class ResultsView(QWidget):
         # the hottest point of the outer face under the part, in the face of its source. The difference to the column in K and in % of the rise is in the tooltip of the
         # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
         # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
-        heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W", "Max °C\n(surface,\nestimate)"]
+        heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W",
+                 "Max °C\n(surface,\nresolved)" if ref.model == "fem" else "Max °C\n(surface,\nestimate)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         hi = self.heater_table.horizontalHeaderItem
@@ -723,12 +725,19 @@ class ResultsView(QWidget):
                 d = h["t_max_surface"] - h["t_max"]
                 face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
                 row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
-                notes.append(f"{face}: {h['t_max_surface']:.3f} °C, {signed_fixed(d, 3)} K ({signed_fixed(100 * d / rise, 3)} % of the rise) from the column max {h['t_max']:.3f} °C. "
-                             "Surface mean " + f"{h['t_mean_surface']:.3f} °C. " + tips.SURFACE_TRAP_TIP)
+                how = "Resolved by the finite elements (not an estimate). " if ref.model == "fem" else ""
+                hot_node = ""
+                if ref.model == "fem" and "T_point" in ref.arrays:
+                    # The hottest mesh node under the part, a read-out of its own (the element mean is what the maps and tables show)
+                    pt = analysis.point_max(ref, sim.problem.heaters[len(rows)].polygon, sim.problem.heaters[len(rows)].layer, sim.problem.board.outline)
+                    if pt is not None:
+                        hot_node = f" Hottest node under the part: {pt:.3f} °C."
+                notes.append(how + f"{face}: {h['t_max_surface']:.3f} °C, {signed_fixed(d, 3)} K ({signed_fixed(100 * d / rise, 3)} % of the rise) from the column max {h['t_max']:.3f} °C. "
+                             "Surface mean " + f"{h['t_mean_surface']:.3f} °C." + hot_node + " " + tips.SURFACE_TRAP_TIP)
             else:
                 row.append("n/a")
-                if ref.model not in ("fvm", "fdm"):
-                    notes.append(f"The {ref.model.upper()} model has no surface read-out (steady FVM and FDM only); the column is the only read-out.")
+                if ref.model not in ("fvm", "fdm", "fem"):
+                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM and FEM only); the column is the only read-out.")
                 elif 1 < h["layer"] < n_layers:
                     notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
                 else:

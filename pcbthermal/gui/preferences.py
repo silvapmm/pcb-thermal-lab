@@ -91,7 +91,7 @@ MACHINE_NOTES = {"solver": "The models and settings a new project starts with, a
 PACKAGE_MEMORY_NOTE = ("Above 512 MB: the whole package is held in memory while it is read and written (the files it holds, their compressed copy and the project), "
                        "so a package of this size needs several times its size in free memory.")
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
-MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
+MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
 LABELS = {
     "width_mm": "Width (mm)", "height_mm": "Height (mm)", "layers": "Copper layers", "ambient_c": "Ambient (°C)", "h_top": "h top (W/m²K)",

@@ -181,6 +181,28 @@ def surface_stats(result, polygon, layer, outline=None):
     return float(surf[inside].max()), float((np.nan_to_num(mean) * cov).sum() / cov.sum()), flag
 
 
+def point_max(result, polygon, layer, outline=None):
+    """!
+    @brief The hottest mesh node of the finite-element model under a part, on the outer face of its layer.
+    @details A read-out of its own beside the column and the surface (the FEM only: arrays["T_point"], the hottest node of each face in each cell). It is a node value, not a cell
+             mean, so it is never compared with the cell values of the other models; the window shows it in a tooltip and the report in a line.
+    @param result A SteadyResult with a field.
+    @param polygon Footprint vertices (n, 2) in metres.
+    @param layer 0-based layer of the part.
+    @param outline Board outline vertices in metres or None.
+    @return Hottest node temperature in degrees Celsius, or None when the result has no point read-out for that part (not the FEM, or a part on an inner layer).
+    """
+    arr = result.arrays
+    n = result.T.shape[0]
+    if "T_point" not in arr or layer not in (0, n - 1):
+        return None
+    pts = arr["T_point"][0 if layer == 0 else 1]
+    ny, nx = result.T.shape[1:]
+    cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
+    inside = (cov > 0) & np.isfinite(pts)
+    return float(pts[inside].max()) if inside.any() else None
+
+
 def zone_stats(result, problem):
     """!
     @brief Mean, maximum and minimum temperature of every copper zone.
