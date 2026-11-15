@@ -73,7 +73,7 @@ def warning_title(w):
     @details The checks return plain sentences, so this is a classifier on the text and not a stored field: the first clause ends at the first semicolon, at
              the first full stop, at a parenthesis after the first 20 characters, or at a colon that closes a first clause of at least TITLE_COLON_WORDS
              words (four words for a clause that follows a prefix), whichever comes first. A shorter text before a colon is a prefix (a part name "U1:", a model "Analytic model:", "lumped:", "Via 3 and 1 more
-             vias:") and stays in the title with the clause that follows it (the review found titles that were only "Analytic model" or "Lumped and Analytic").
+             vias:") and stays in the title with the clause that follows it (the review found titles that were only "Analytic model" or "LPTN and Analytic").
     @param w A warning (CheckWarning or plain string).
     @return str The title, without a final full stop.
     """
@@ -154,7 +154,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
     @brief List the validity warnings of a problem.
     @param problem A Problem (assumed structurally valid, see Problem.validate).
     @param cell_mm Cell size (mm) of the raster used for the geometric checks and the FVM mesh.
-    @param models  Model keys that will run, or None (every model): the warning about a copper edge across a footprint concerns only the Lumped and Analytic models.
+    @param models  Model keys that will run, or None (every model): the warning about a copper edge across a footprint concerns only the LPTN and Analytic models.
     @return List of warning strings (empty when nothing is doubtful).
     """
     b = problem.board
@@ -229,7 +229,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
                 # Only the reduced models are unreliable here, and an imported layer has its own, stronger warning (the gaps between the pins of a QFN
                 # already read as an edge): so no message on an FVM-only run or on imported copper
                 _add(out, "heater", k, f"{name}: a copper edge or hatching crosses its footprint (copper fill {f_mean:.2f}); the "
-                           "Lumped and Analytic models are unreliable here, use the FVM.",
+                           "LPTN and Analytic models are unreliable here, use the FVM.",
                      f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
 
     # Only the pairs whose bounding boxes overlap can overlap (polygon_overlap_area returns 0 for the others at once), found by a sweep so that
@@ -284,7 +284,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         # Same geometric share as the parts: a 3 mm block on a 2.5 mm cell read as partly outside at 2 of 10 positions with the cell cover
         if area > 0 and part_board_share(s.polygon, W, H, b.outline if b.has_outline() else None) < 0.9:
             _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board" + (" outline" if b.has_outline() else "") +
-                       "; the FVM, FDM and 3D solid cut it there and model only the part inside (the Lumped and Analytic models take the block "
+                       "; the FVM, FDM and 3D solid cut it there and model only the part inside (the LPTN and Analytic models take the block "
                        "whole on the rectangle of the same area).", f"{name}: part of the metal block is outside the board.")
         if cov.sum() > 0:
             overlap = float((fill[s.layer] * cov).sum() * dx * dy)
@@ -319,7 +319,7 @@ def check_input(problem, models, cell_mm=1.0, live=False, ui=None):
              cell of at least 0.5 mm, so below that cell the texts that quote cells can differ) and adds after them only what a run knows. The text of a warning is
              the full measured one (Results summary, tooltip of the live list); its attribute short is the one-line form that the live list shows (see line()). Only cheap geometry is
              used (rasters of the board at the cell, point-in-polygon tests, the tile plan of the Analytic correction, no solve: about 0.2 s for 8500 vias and 20 parts,
-             0.5 s on an outline); the warnings that need a run (thick plates, close fins, the zone model of the Lumped, the models' own notes) are only in the Results.
+             0.5 s on an outline); the warnings that need a run (thick plates, close fins, the zone model of the LPTN, the models' own notes) are only in the Results.
     @param problem A Problem (assumed structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -385,6 +385,33 @@ def fem_needs_pyamg(problem, cell_mm, gap_elements=6, refine=2.0):
     except ValueError:
         return 0, False
     return n, bool(n > femcore.FEM_DIRECT_MAX and not femcore.available())
+
+
+def fem_cell_for_direct(problem, cell_mm, gap_elements=6, refine=2.0):
+    """!
+    @brief The smallest cell, near `cell_mm` or coarser, whose FEM mesh the direct solver takes (no pyamg needed).
+    @details The unknowns fall about as 1 / cell^2, so the first guess scales the cell by sqrt(n / limit) and a few 5 % steps settle it.
+    @param problem A Problem (structurally valid).
+    @param cell_mm Cell size in mm of the run (its mesh is too large).
+    @param gap_elements Elements across every dielectric gap, count.
+    @param refine Ratio of the cell to the fine element near the parts, dimensionless.
+    @return Cell size in mm (rounded up to 0.1 mm), or None when no cell up to 50 mm gives a mesh the direct solver takes.
+    """
+    try:
+        n = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
+    except ValueError:
+        return None
+    cell = cell_mm * max(1.0, math.sqrt(n / femcore.FEM_DIRECT_MAX)) * 1.02
+    for _ in range(40):
+        if cell > 50.0:
+            return None
+        try:
+            if femmesh.unknowns(problem, cell, gap_elements, refine)[0] <= femcore.FEM_DIRECT_MAX:
+                return math.ceil(cell * 10.0 - 1e-9) / 10.0
+        except ValueError:
+            return None
+        cell *= 1.05
+    return None
 
 
 def is_fem_left_out(text):
@@ -534,7 +561,7 @@ def _board_via_groups(vx, vy, on_board):
 
 def _lumped_via_cases(polygon, vx, vy, inside, groups, d_nn):
     """!
-    @brief The three geometric cases in which the Lumped model reads a part with a via group too cool: the group continues past the edge of the footprint,
+    @brief The three geometric cases in which the LPTN model reads a part with a via group too cool: the group continues past the edge of the footprint,
            its vias stand off the footprint centre, the footprint is elongated. Only a group of two or more vias with at least one under the footprint counts.
     @param polygon Footprint polygon, sequence of (x, y) in m.
     @param vx x of all the vias in m.
@@ -579,7 +606,7 @@ def _lumped_via_cases(polygon, vx, vy, inside, groups, d_nn):
 
 def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     """!
-    @brief Text of the warning for a part that the Lumped model can read too cool because of its vias, or None. The rule: a via group of two or more vias,
+    @brief Text of the warning for a part that the LPTN model can read too cool because of its vias, or None. The rule: a via group of two or more vias,
            at least one under the footprint, that (i) continues outside the footprint (a via of the group outside the footprint lies within the reach of
            the array, see the note), or (ii) whose vias in the footprint have their centroid farther than 0.1 of the smaller footprint side from the
            centroid of the footprint, or (iii) a footprint whose side ratio exceeds 1.5.
@@ -601,7 +628,7 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     # The numbers are those of research/lumped-zones-adoption 8.4, reproduced by the review of this branch against a 1/8 mm reference: the via effect of
     # the 5 x 5 copper array shifted 7 mm under a 12 mm part 220 % too large (3.2 times), 10.8 K = 26 % of the rise in the error of the effect and 10.3 K =
     # 25 % in the hottest temperature (hence "about 11 K, a quarter"); the symmetry board 6.3 K = 17.5 % of the rise in the hottest temperature
-    return ("the Lumped model can read this part too cool, unsafe for a design: its vias form an array that continues past the edge of the footprint, "
+    return ("the LPTN model can read this part too cool, unsafe for a design: its vias form an array that continues past the edge of the footprint, "
             "stands off its centre, or lies under an elongated footprint (side ratio above 1.5), where the rings overstate the via effect (measured up to "
             "3.2 times the reference: the part up to about 11 K, a quarter of its rise, too cool for an array across the edge of a 12 mm footprint; "
             "6.3 K, 17.5 % of its rise, for a 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part); use the FVM for via design.")
@@ -609,7 +636,7 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
 
 def check_lumped_zones(problem, result):
     """!
-    @brief Warnings after a Lumped run about the parts over a group of vias, from the network of the run (which footprint was zoned is known only then).
+    @brief Warnings after a LPTN run about the parts over a group of vias, from the network of the run (which footprint was zoned is known only then).
     @details Per heater with at least one via under its footprint. A part the zone model splits (result.arrays["zoned_heaters"]): a group that continues past the edge
              of the footprint is read up to 16 % of the rise too cool (measured 1 to 16 % of the rise on a 5 x 5 array across the edge, steady state and profile), a group off
              the centre or under an elongated footprint 1 to 5 % and 2 to 4 % (research/lumped-zones-adoption 8.4, 10.1); a core across fewer than ten raster cells has its via
@@ -617,7 +644,7 @@ def check_lumped_zones(problem, result):
              lumped_via_cool_warning, which check_model_limits leaves out for the parts that the fine count says will be zoned: for those (the fine count says zoned, the
              count on the raster keeps one node) the text comes here, after a note that the footprint was kept as one node.
     @param problem A Problem.
-    @param result The SteadyResult of the Lumped model (arrays["zoned_heaters"], one row per heater: zoned flag, cells across the core), or None.
+    @param result The SteadyResult of the LPTN model (arrays["zoned_heaters"], one row per heater: zoned flag, cells across the core), or None.
     @return List of warning strings (CheckWarning, tagged with the heater).
     """
     out = []
@@ -642,7 +669,7 @@ def check_lumped_zones(problem, result):
             if lumped.will_be_zoned(problem, h):                       # The pre-run check left this part out: the grid count kept it one node
                 # Measured on four such boards (4 x 4 and 5 x 5 arrays whose core fills 82 to 92 % of the footprint on the fine grid, 93 to 94 % on the raster): the one
                 # node at 0.5 mm within +0.1 to +0.9 % of the rise of the FVM at 0.25 mm (review of feature/lumped-zones)
-                _add(out, "heater", k, f"{name}: the core of the vias covers more than {100 * lumped.MAX_CORE:.0f} % of the footprint on the 0.5 mm raster of the Lumped model, "
+                _add(out, "heater", k, f"{name}: the core of the vias covers more than {100 * lumped.MAX_CORE:.0f} % of the footprint on the 0.5 mm raster of the LPTN model, "
                                        "so the footprint was kept as one node (the pre-run note about the split does not apply)")
                 msg = lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
                 if msg:
@@ -650,11 +677,11 @@ def check_lumped_zones(problem, result):
             continue
         across, off_centre, elongated = _lumped_via_cases(h.polygon, vx, vy, inside, groups, d_nn)
         if across:
-            _add(out, "heater", k, f"{name}: the Lumped model splits this footprint into the vias' core and the rest, but its vias form an array that continues past the edge "
+            _add(out, "heater", k, f"{name}: the LPTN model splits this footprint into the vias' core and the rest, but its vias form an array that continues past the edge "
                                    "of the footprint, which the split does not resolve: the part can be read too cool, up to 16 % of its rise (measured 1 to 16 % of the rise "
                                    "for a 5 x 5 array across the edge, steady state and power profile); use the FVM for via design.")
         elif off_centre or elongated:
-            _add(out, "heater", k, f"{name}: the Lumped model splits this footprint into the vias' core and the rest; its vias stand off the centre of the footprint or the "
+            _add(out, "heater", k, f"{name}: the LPTN model splits this footprint into the vias' core and the rest; its vias stand off the centre of the footprint or the "
                                    "footprint is elongated (side ratio above 1.5): the part can be read too cool, measured 1 to 5 % of its rise (off centre) and 2 to 4 % "
                                    "(elongated) against 17 % without the split; use the FVM for via design.")
         if rows[k, 1] < 10:
@@ -663,7 +690,7 @@ def check_lumped_zones(problem, result):
     return out
 
 
-# Rule of the Lumped near-edge warning (research/lumped-near-edge 6.2 and 10.5): a heat source whose gap to the nearest board side is at most
+# Rule of the LPTN near-edge warning (research/lumped-near-edge 6.2 and 10.5): a heat source whose gap to the nearest board side is at most
 # max(NEAR_EDGE_SIDES equivalent sides, NEAR_EDGE_FLOOR_MM) is flagged (57 of 58 bad cases on the sweep, 35 of 37 on random boards)
 NEAR_EDGE_SIDES = 1.0
 NEAR_EDGE_FLOOR_MM = 5.0
@@ -703,7 +730,7 @@ def heater_side_gaps(problem, polygons, reaches=None):
     """!
     @brief Equivalent side of every heat source and its exact gap to the nearest side of the board, for many sources at once.
     @details Rectangular board: the distance from the polygon to the four sides of the box (zero when it reaches or crosses one). Board with an outline: the distance from the
-             polygon to the outline (zero when the polygon crosses it or lies outside it), not to the equivalent rectangle the Lumped solves. The inside test of every vertex is
+             polygon to the outline (zero when the polygon crosses it or lies outside it), not to the equivalent rectangle the LPTN solves. The inside test of every vertex is
              one call for all the polygons (it loops over the outline edges in Python, so a call per part cost seconds on an outline of thousands of points), and with a reach
              only the outline segments whose box comes within the reach of the polygon's box are measured: a gap beyond the reach is returned as infinity.
     @param problem A Problem.
@@ -756,7 +783,7 @@ def heater_side_gap(problem, polygon):
 
 def check_lumped_near_edge(problem, models):
     """!
-    @brief Warning, for the Lumped model only, about heat sources close to a side or a corner of the board (one aggregated line).
+    @brief Warning, for the LPTN model only, about heat sources close to a side or a corner of the board (one aggregated line).
     @details The ring network of a part sees the radial flux that a side pushes away only through the first link, which carries the mirror images of the sides (fix/lumped-edge-first-link,
              research/lumped-edge-link); the links between the outer rings do not. Measured on the 180 cases of tests/data/lumped_near_edge_cases.json (2 to 10 mm parts, gaps 0 to 30 mm, edge film
              10 to 200 W/m2K, boards 40 x 40 and 100 x 80 mm), hottest node against the FVM at 0.5 mm: before the images -7.4 % of the rise on average (-9.4 % over the 120 flagged, -22.2 % worst, 70 cases
@@ -785,12 +812,12 @@ def check_lumped_near_edge(problem, models):
         return []
     flagged.sort()
     gap, k, name = flagged[0]
-    why = ("the Lumped model does not see the side that sends the heat back except through the mirror images of its first link, so a part this close to a side or a corner reads mostly "
+    why = ("the LPTN model does not see the side that sends the heat back except through the mirror images of its first link, so a part this close to a side or a corner reads mostly "
            "a little too cool: on 180 test boards (parts of 2 to 10 mm, gaps of 0 to 30 mm, edge film 10 to 200 W/m2K) the hottest temperature of the flagged parts read 2.7 % of the rise "
            "too cool on average against the FVM (worst 7.5 % too cool), on 432 cases up to 8.6 % too cool and, at a corner with a side cooled by 200 W/m2K, up to 9 % too hot; "
            "against an independent 3D solver 3 to 7 % too cool at 1 to 5 mm from a side or a corner (up to 7.3 %); a part larger than about 30 mm at the 0.5 mm cell (60 mm at 1 mm) "
            "keeps the plain link and reads about 15 % too cool at a side; a sample, not a bound; use the FVM or the FDM for the final value.")
-    short_why = "the Lumped model reads {} 3 % of the rise too cool on average (up to 9 % too cool, up to 9 % too hot at a cooled corner); use the FVM"
+    short_why = "the LPTN model reads {} 3 % of the rise too cool on average (up to 9 % too cool, up to 9 % too hot at a cooled corner); use the FVM"
     if len(flagged) == 1:
         out = []
         _add(out, "heater", k, f"{name}: the part is {gap * 1e3:.1f} mm from a side of the board; {why}",
@@ -805,7 +832,7 @@ def check_lumped_near_edge(problem, models):
 
 def check_lumped_small_part(problem, models, cell_mm=1.0):
     """!
-    @brief Warning, for the Lumped model only, when a heat source is smaller than two cells of its raster and the run cannot refine the raster (memory bound or a zoned part).
+    @brief Warning, for the LPTN model only, when a heat source is smaller than two cells of its raster and the run cannot refine the raster (memory bound or a zoned part).
     @details lumped.cell_for refines the raster to half the side of the smallest source (not below 0.125 mm) when that fits in lumped.SMALL_PART_MAX_BYTES and in the memory-guard
              limit and no part of the board is zoned (a zoned board keeps the 0.5 mm raster of the zone model); otherwise the run keeps the 0.5 to 1 mm raster and this warning
              says that such a part reads -18 to +6 % of the rise depending on where it sits in its cell (re-measured on the final tree of 2.8.0, REMEASURE.md 2.3). The equivalent rectangle and the zone test are built only when a source
@@ -821,29 +848,29 @@ def check_lumped_small_part(problem, models, cell_mm=1.0):
     side = lumped._smallest_side_mm(problem)
     if side is None or side >= lumped.SMALL_PART_CELLS * clipped or max(side / lumped.SMALL_PART_CELLS, lumped.SMALL_PART_MIN_CELL_MM) >= clipped:
         return []                                                # No source the run would refine
-    # With an outline the Lumped solves the rectangle of the same area (the heaters keep their size, the box is smaller)
+    # With an outline the LPTN solves the rectangle of the same area (the heaters keep their size, the box is smaller)
     p = problem.equivalent_rectangle()[0] if problem.board.has_outline() else problem
     zoned = None
     if lumped.ZONES and len(p.vias) >= 2 and p.board.layers >= 2:
         kept = p.drop_off_board_vias()
         if len(kept.vias) >= 2:
             vs = viaconstriction.ViaSet(kept)
-            # The same test as lumped.cell_for (every heater, as there), on the board the Lumped solves
+            # The same test as lumped.cell_for (every heater, as there), on the board the LPTN solves
             zoned = next((h for h in kept.heaters if lumped.will_be_zoned(kept, h, vias=vs, prepared=True)), None)
-    head = ("a heat source is smaller than two cells of the Lumped raster; a part that small is spread over the whole cells it touches, so its hottest temperature "
+    head = ("a heat source is smaller than two cells of the LPTN raster; a part that small is spread over the whole cells it touches, so its hottest temperature "
             "read -18 to +6 % of the rise off the resolved value depending on where it sits in its cell (sides of 0.1 to 0.5 mm at a raster of 0.5 or 1 mm); ")
     if zoned is not None:
         if side >= lumped.SMALL_PART_CELLS * lumped.ZONE_CELL_MM:
             return []                                            # Two cells of the zone raster or more: the part is not small there
         why = (f"the finer raster that removes this (half the side of the part) is not used on this board, because {zoned.name or 'a part'} has a dense group of vias under "
-               "it and the zone model of the Lumped keeps the 0.5 mm raster; use the FVM for the small part.")
+               "it and the zone model of the LPTN keeps the 0.5 mm raster; use the FVM for the small part.")
     elif lumped.small_part_cell(p, clipped) is None:
         why = ("the finer raster that removes this (half the side of the part) does not fit in the memory bound of this board, so the run keeps the coarser one; "
                "use the FVM for the part.")
     else:
         return []                                                # The run refines the raster
     out = []
-    _add(out, None, None, head + why, "a heat source is under two cells of the Lumped raster; it reads -18 to +6 % off; use the FVM.")
+    _add(out, None, None, head + why, "a heat source is under two cells of the LPTN raster; it reads -18 to +6 % off; use the FVM.")
     return out
 
 
@@ -851,7 +878,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     """!
     @brief Warnings about the documented limits of the selected models on this input (text only; no result depends on them).
     @details Two groups, each measured in a research folder: a part whose centre sits on bare laminate (the layered models read below a
-             resolved 3D solution; research/bare-spot-under-source, INTEGRATION P3) and vias in the Lumped and Analytic models, which carry ring and
+             resolved 3D solution; research/bare-spot-under-source, INTEGRATION P3) and vias in the LPTN and Analytic models, which carry ring and
              tile means and add the constriction of the heat converging on a barrel (viaconstriction.py; research/lumped-analytic-vias,
              research/young-omega-tiles 3; the numbers are the error of the via effect against the FVM at 0.25 mm on the 29 boards of the
              branch fix/via-constriction and 17 more boards of its review, measured on this program). The Analytic copper-spread warning lives in analytic._effective_sheet, where its weights are computed.
@@ -893,7 +920,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            f"{f_core:.2f} on layer {h.layer + 1}); the layered models ({', '.join(layered)}) read lower than a resolved 3D "
                            "solution there: the FVM (which cuts the laminate there into sub-gaps) 0 to 3 % on 4- and 6-layer stack-ups and 0.8 to 1.6 mm two-layer boards, "
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
-                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value. "
+                           "the LPTN (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value. "
                            "The result there also rests on the in-plane FR-4 conductivity (0.9 W/mK by default, a typical value with no source): 0.6 or 1.2 W/mK "
                            "moved a 6 mm part on a bare two-layer board by +25 or -15 % of its rise; type your laminate's value.",
                      f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low (the FVM up to 10 %); "
@@ -906,12 +933,12 @@ def check_model_limits(problem, models, cell_mm=1.0):
     if not problem.vias or b.layers < 2:
         return out                                              # A one-layer board has no gap: its vias join nothing and change no model
 
-    # --- Vias in the Lumped and Analytic models: both carry area means (a ring, a tile) and add the constriction of the heat converging on a barrel
+    # --- Vias in the LPTN and Analytic models: both carry area means (a ring, a tile) and add the constriction of the heat converging on a barrel
     # (viaconstriction.py). The numbers are the error of the via effect (drop of the hottest temperature caused by the vias) against the FVM at 0.25 mm
     # on the 29 boards of the branch fix/via-constriction (examples with 9, 25 and 49 vias, arrays of 4 to 576 vias at 1.0 to 3.5 mm, rows, lone vias, pads)
     # and 17 boards of its review that were not used to build the model (6 and 2 layers, 30 to 80 mm boards, an array across or just outside the edge of a
     # footprint, mixed drills, outlines, a heatsink, metal blocks, 500 and 2000 scattered vias), cells 0.5 and 1 mm (research/lumped-analytic-vias,
-    # research/young-omega-tiles 3). Lumped: 8 % mean on the first set, 20 % on the second (-21 to +80 %); Analytic: 1.8 % and 2.9 % (-14 to +8 %).
+    # research/young-omega-tiles 3). LPTN: 8 % mean on the first set, 20 % on the second (-21 to +80 %); Analytic: 1.8 % and 2.9 % (-14 to +8 %).
     vx = np.array([v.x for v in problem.vias])
     vy = np.array([v.y for v in problem.vias])
     on_board = np.array([share > 0.0 for share in problem.via_board_shares()])   # A via with no board under it is ignored (check_problem says so)
@@ -925,7 +952,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
             n_in = int(inside.sum())
             if n_in >= 1:
                 if zone_board is None:
-                    # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the Lumped model solves) and the vias on the board
+                    # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the LPTN model solves) and the vias on the board
                     zp = problem.equivalent_rectangle()[0] if b.has_outline() else problem
                     kept = zp.drop_off_board_vias()
                     zone_board = (kept, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
@@ -933,23 +960,23 @@ def check_model_limits(problem, models, cell_mm=1.0):
                 if zoned:
                     # The numbers of the zone model (the 36 family and 26 held-out boards of research/lumped-via-groups, re-measured on the final tree of 2.8.0 against the FVM at
                     # 0.25 mm: releases/2.8.0/final-review/REMEASURE.md 2.1)
-                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the LPTN "
                                "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): the hottest temperature was "
                                "measured 1.7 to 2.9 % of the rise off on average (up to 8.1 %, on the hot side but for a few parts within 2 %) over 62 boards, against the finite-volume model "
                                "at 0.25 mm (the same idealisation, not independent); against one resolved 3D cluster it read -2.4 and +1.0 % (measured before the mirror images "
                                "of the sides in the first link, which make an interior part read a few points hotter), and where the vias fall on the 0.5 mm raster moves it by "
                                "1 to 3 points; "
                                "use the FVM for via design.",
-                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
+                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the LPTN model is approximate here "
                          "(hottest temperature up to about 8 % of the rise off); use the FVM.")
                 else:
-                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the LPTN "
                                "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
                                "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
                                "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more; against the program's own FVM at 0.25 mm, "
-                               "not an independent reference; next to an edge cooled by 200 W/m2K an independent finite-element solution reads the Lumped via effect 11 to 31 % too large); "
+                               "not an independent reference; next to an edge cooled by 200 W/m2K an independent finite-element solution reads the LPTN via effect 11 to 31 % too large); "
                                "use the FVM for via design.",
-                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
+                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the LPTN model is approximate here "
                          "(-21 to +33 % of the via effect); use the FVM.")
                 if groups is None:
                     groups, d_nn = _board_via_groups(vx, vy, on_board)
@@ -958,7 +985,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                 if msg:
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}",
                          # The rule has three triggers (array past the edge, off centre, elongated footprint): the short form names none of them alone
-                         f"{h.name or f'Heater {k + 1}'}: the Lumped model can read this part too cool, unsafe for a design (up to about 11 K, a quarter "
+                         f"{h.name or f'Heater {k + 1}'}: the LPTN model can read this part too cool, unsafe for a design (up to about 11 K, a quarter "
                          "of its rise); use the FVM.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
@@ -966,12 +993,12 @@ def check_model_limits(problem, models, cell_mm=1.0):
             v = problem.vias[int(outside[0])]
             first = v.name or f"Via {int(outside[0]) + 1}"
             _add(out, "via", int(outside[0]), f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside the "
-                       "footprint of every part; the Lumped model spreads such a via over a ring around the part: the effect of a lone via was "
+                       "footprint of every part; the LPTN model spreads such a via over a ring around the part: the effect of a lone via was "
                        "measured 22 % too small to 65 % too large depending on the distance and the number of rings (an effect of 0.5 to 3 K), "
                        "that of a row 6 to 21 % too large, that of vias scattered over the board 19 to 56 % too large, and that of an array just "
                        "outside the edge of a footprint up to 2.3 times the reference (the part up to 4 K, 9 % of its rise, too cool; "
                        "measured on 29 boards, and 17 more, against the FVM at 0.25 mm; a sample, not a bound; see docs/theory.md section 5); use the FVM.",
-                 f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside every footprint; the Lumped model is approximate here "
+                 f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside every footprint; the LPTN model is approximate here "
                  "(effect 22 % too small to 65 % too large, an array just beside a part up to 2.3 times); use the FVM.")
     if "analytic" in models and on_board.any() and b.layers > 1:
         # The tile of the correction follows the pitch (1 mm at most, 0.25 mm at least) and is enlarged when the dense system would pass MAX_UNKNOWNS;
@@ -1294,20 +1321,20 @@ def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
     return out
 
 
-# Product of the edge coefficient and the board thickness (W/m2K times mm) from which the Lumped and Analytic models, which keep the edge film at the copper temperature, can read
+# Product of the edge coefficient and the board thickness (W/m2K times mm) from which the LPTN and Analytic models, which keep the edge film at the copper temperature, can read
 # about 3 % too cool or more (two-layer boards, a part near the edge): 1.6 mm at about 100 W/m2K, 3.2 mm at about 50, 0.8 mm at about 200
 REDUCED_EDGE_HT = 150.0
 
 
 def check_reduced_edge_laminate(problem, models):
     """!
-    @brief Warning for the Lumped and Analytic models on a board whose edge is cooled strongly for its thickness: they put the edge film of the laminate at the copper temperature.
-    @details The FVM and FDM cut the laminate along the edge into nodes (laminate.edge_band), so their edge film acts on the laminate, which is cooler than the copper. The Lumped and
+    @brief Warning for the LPTN and Analytic models on a board whose edge is cooled strongly for its thickness: they put the edge film of the laminate at the copper temperature.
+    @details The FVM and FDM cut the laminate along the edge into nodes (laminate.edge_band), so their edge film acts on the laminate, which is cooler than the copper. The LPTN and
              the Analytic have no such nodes: their edge loses heat as if the whole slab were at the copper temperature, as the FVM did before the band, and they read cool where
              much of the heat leaves through the edge. Measured against the FVM with the band at 0.5 mm (two-layer boards with full copper, 10 mm part, faces 10 W/m2K, 30 x 20 and
              60 x 40 mm; the FVM itself within 0.6 % of a converged independent 3D solver on the 60 x 40 mm board at 50 and 200 W/m2K, docs/validation.md 36.3): Analytic, part in a
              corner of the 30 x 20 mm board, -2.0 / -3.1 / -4.1 % at 200 / 100 / 50 W/m2K on 0.8 / 1.6 / 3.2 mm (product 160), -6.2 % at 200 on 1.6 mm and -13.3 % at 200 on 3.2 mm;
-             a centred part -5.5 % and -9.6 % there; the Lumped the same or more. The warning fires when h_side times the thickness in mm reaches REDUCED_EDGE_HT.
+             a centred part -5.5 % and -9.6 % there; the LPTN the same or more. The warning fires when h_side times the thickness in mm reaches REDUCED_EDGE_HT.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @return List with at most one warning (CheckWarning, about the whole design).
@@ -1318,7 +1345,7 @@ def check_reduced_edge_laminate(problem, models):
     t_mm = float(b.thickness) * 1000.0
     if not reduced or b.layers < 2 or hs * t_mm < REDUCED_EDGE_HT:
         return []
-    names = " and ".join({"lumped": "Lumped", "analytic": "Analytic"}[m] for m in reduced)
+    names = " and ".join({"lumped": "LPTN", "analytic": "Analytic"}[m] for m in reduced)
     out = []
     via_l, via_s = "", ""
     if "analytic" in reduced and problem.vias:
@@ -1330,7 +1357,7 @@ def check_reduced_edge_laminate(problem, models):
          f"edge coefficient of {num(hs, 2)} W/m2K on a {num(t_mm, 2)} mm board {'they read' if len(reduced) > 1 else 'it reads'} the board too cool where much of the heat leaves "
          "through the edge (two-layer boards with a 10 mm part, against an independent 3D solver: the Analytic -2.6 to -14.9 % of the rise at 200 W/m2K, the most for a part in a corner "
          "of a 30 x 20 mm board on 3.2 mm, and within 1.4 % at the default 10 W/m2K; against the FVM -0.8 to -11.4 %; at the threshold of this warning, 100 W/m2K on 1.6 mm or 50 W/m2K "
-         "on 3.2 mm, about -3 %; less for a part far from the edge or a large board; the Lumped, since the mirror images of the sides in its first link, -8.0 to +1.2 % against the FVM on the same boards). "
+         "on 3.2 mm, about -3 %; less for a part far from the edge or a large board; the LPTN, since the mirror images of the sides in its first link, -8.0 to +1.2 % against the FVM on the same boards). "
          + via_l + "Use the FVM or the FDM for such a board.",
          f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -15 % at 200 W/m2K against an independent 3D solver){via_s}; use the FVM or FDM.")
     return out
@@ -1365,7 +1392,7 @@ def _block_flux_under(result, heater, face):
     @param result SteadyResult with arrays block_flux and block_face (FVM, FDM), or None.
     @param heater The Heater.
     @param face Face of the blocks (0 top, 1 bottom).
-    @return Flux in W/m2, or None when the result does not carry the flux into the blocks (Lumped, Analytic, 3D solid).
+    @return Flux in W/m2, or None when the result does not carry the flux into the blocks (LPTN, Analytic, 3D solid).
     """
     if result is None or "block_flux" not in result.arrays or result.T is None:
         return None
@@ -1400,7 +1427,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
              heat enters the copper there). For a metal block it is the largest flux that actually enters the block under the footprint in the solved
              result (FVM or FDM): a block under the board is fed through the laminate and its copper, which spread the heat, and the flux of the footprint
              would overstate it 5 to 70 times (a 3 x 3 mm, 2 W part over 3 mm of steel: 9 % with the footprint flux, 0.26 % with the flux into the block,
-             no measurable effect in the 3D solid). With a model that does not give that flux (Lumped, Analytic, 3D solid alone) the footprint flux is used,
+             no measurable effect in the 3D solid). With a model that does not give that flux (LPTN, Analytic, 3D solid alone) the footprint flux is used,
              an overestimate. The dielectric gaps are not checked: a gap is a series resistance between two nodes, not a node with a mean temperature, so its
              through-thickness drop is already in the model. Measured over the 74 metal-block cases of research/block-and-fins: median 0.07 % and maximum
              0.34 % of the rise, and 35 um of copper is of the order of 1e-4 K, so the check does not fire on the boards the program is built for. The bound
@@ -1458,11 +1485,11 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                 resolved = model == "fem" and what.startswith("the copper")
                 if resolved and "t_max_surface" in row:
                     est = (f" The surface resolved by the finite elements under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
-                           f"(surface max {row['t_max_surface']:.1f} degC, column max {row['t_max']:.1f} degC).")
+                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C).")
                 elif what.startswith("the copper") and "t_max_surface" in row:
                     # The surface read-out of the result (FVM, FDM), beside the column one: a number instead of the bound alone
                     est = (f" The surface estimate of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
-                           f"(surface max {row['t_max_surface']:.1f} degC, column max {row['t_max']:.1f} degC{'; upper side: the source is small against the plate' if row['surface_upper'] else ''}).")
+                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is small against the plate' if row['surface_upper'] else ''}).")
                 if into_laminate:
                     parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
                               "that face is not in the model)")
@@ -1509,7 +1536,7 @@ def fin_channel_rayleigh(gap, length, theta, ambient):
     @param gap Air gap between two fins (pitch minus thickness) in m.
     @param length Length of the channel in m.
     @param theta Mean excess temperature of the block over the ambient air in K.
-    @param ambient Ambient air temperature in degC.
+    @param ambient Ambient air temperature in °C.
     @return Ra_b, dimensionless (0 for a degenerate input).
     """
     if gap <= 0 or length <= 0 or theta <= 0:
@@ -1560,7 +1587,7 @@ def check_fin_channels(problem, result=None):
              (Bar-Cohen and Rohsenow 1984, read as printed in equation 21, p 83, of Teertstra, Culham and Yovanovich, J. Electronics Manufacturing 7 (2) (1997) 79-92; research/fin-channel). The review takes beta = 1 / T_0 (the inlet air): the Ra_b here is about 5 % lower at a 30 K excess, a 4 % shift of the threshold; the low-Ra branch of a finite array is the lower bound of the coefficient (Martin, Raithby and Yovanovich 1991, p 904), so the warning errs on the safe side (research/theory-sources 9.3). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
              finned-face conductance, the threshold missed 1 (the old rule, a gap below 4 mm, missed 367). The text gives the fraction phi and the loss of
              the finned face; nothing is added to the results. Forced air (air speed above zero) gets through narrow channels and is not checked. Without
-             block temperatures in the result (Lumped, Analytic) the check says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the
+             block temperatures in the result (LPTN, Analytic) the check says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the
              warning still rests on a simulation.
     @param problem The Problem that was solved.
     @param result The SteadyResult that carries arrays block_T, or None.

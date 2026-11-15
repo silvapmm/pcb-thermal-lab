@@ -58,13 +58,13 @@ def test_steady_run_and_other_models_do_not_warn():
 
 def test_warning_names_the_sample_and_not_the_lumped_model():
     """!
-    @brief The text says where the range was measured and does not send the user to the Lumped model (it was -41.8 % with the heatsink beside the part).
+    @brief The text says where the range was measured and does not send the user to the LPTN model (it was -41.8 % with the heatsink beside the part).
     """
     w = [x for x in analytic._AnalyticAdapter(_profile_board(True), 2.0, 40).warnings if KEY in x]
     assert len(w) == 1
     assert "sample" in w[0] and "not a bound" in w[0] and "300 W/m2K" in w[0] and "one part" in w[0]
     assert "FVM or the FDM" in w[0]
-    assert "Lumped" not in w[0]
+    assert "LPTN" not in w[0]
 
 
 def test_transient_result_carries_the_warning_for_the_animation():

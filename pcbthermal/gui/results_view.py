@@ -12,7 +12,7 @@ import matplotlib
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
@@ -193,7 +193,7 @@ class PlotTab(QWidget):
         self.hot.setChecked(True)
         self.equiv = QCheckBox("Equiv. rect.")
         self.equiv.setChecked(True)
-        self.equiv.setVisible(False)                    # Shown only for a Lumped or Analytic result of a board with an outline
+        self.equiv.setVisible(False)                    # Shown only for a LPTN or Analytic result of a board with an outline
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
@@ -211,7 +211,7 @@ class PlotTab(QWidget):
         self.cut_overlay.setChecked(True)
         self.map_on = lambda: False                      # The main window says whether the Map button (T) is on
         self.model.setToolTip("Model whose result is drawn.")
-        self.equiv.setToolTip("Lumped and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
+        self.equiv.setToolTip("LPTN and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
                               "Unticked: the field stretched back onto the box (parts look larger).")
         self.vmin.setToolTip("Lowest temperature of the colour scale, °C (Auto range off).")
         self.vmax.setToolTip("Highest temperature of the colour scale, °C (Auto range off).")
@@ -360,7 +360,7 @@ class PlotTab(QWidget):
         """!
         @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
         @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
-                 a view of the map, never a mode: no number of any table changes with it. Models without it (Lumped, Analytic, 3D solid) give no entry.
+                 a view of the map, never a mode: no number of any table changes with it. Models without it (LPTN, Analytic, 3D solid) give no entry.
         @return Sorted list of 0 (top) and 1 (bottom).
         """
         if self.sim is None:
@@ -501,6 +501,46 @@ class PlotTab(QWidget):
         self.canvas.draw_idle()
 
 
+class Cover(QLabel):
+    """!
+    @brief An opaque note laid over a results page (the page keeps its widgets): used when the results belong to another board than the one now open.
+    """
+
+    def __init__(self, page, text):
+        """!
+        @param page The page (QWidget) the note covers.
+        @param text The note.
+        """
+        super().__init__(text, page)
+        self.setAlignment(Qt.AlignCenter)
+        self.setWordWrap(True)
+        self.setMargin(24)
+        self.setAutoFillBackground(True)                # The page below must not show through
+        page.installEventFilter(self)                   # Follow the size of the page
+        self.hide()
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Keep the note the size of its page.
+        @param obj The page.
+        @param event The event.
+        @return False (the page handles its own events).
+        """
+        if event.type() == QEvent.Resize and self.isVisible():
+            self.setGeometry(obj.rect())
+        return False
+
+    def cover(self, on):
+        """!
+        @brief Show or hide the note.
+        @param on True to cover the page.
+        """
+        if on:
+            self.setGeometry(self.parentWidget().rect())
+            self.raise_()
+        self.setVisible(on)
+
+
 class ResultsView(QWidget):
     """!
     @brief The whole results area.
@@ -536,7 +576,7 @@ class ResultsView(QWidget):
         self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
         _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
-        # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
+        # The model names of the Simulation panel ("LPTN") were cut to "LPTN ..." in a column of the same width as the numbers
         self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
@@ -593,6 +633,8 @@ class ResultsView(QWidget):
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
+        # The pages that show a run are covered by a note while the results belong to another board (see clear)
+        self._covers = [Cover(page, "No results for this board yet. Press Run simulation (F5).") for page in (summary, self.temp, self.grad, self.profile, comp, self.compare, self.time_sim)]
         # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
         # sideways in a narrow centre area, also on the Profiles tab. Only the page shown counts: the hidden pages ignore their size hints, so a narrow tab
         # never scrolls and a wide one (Animation) still scrolls to reach its controls instead of clipping them.
@@ -672,12 +714,22 @@ class ResultsView(QWidget):
         self.time_sim.set_theme(theme)
         self._draw_components()
 
+    def clear(self):
+        """!
+        @brief Forget the run: another board was opened or created, so the pages that show a run say there are no results for it yet.
+        """
+        self.sim = None
+        for cover in self._covers:
+            cover.cover(True)
+
     def set_simulation(self, sim):
         """!
         @brief Display a finished simulation.
         @param sim Simulation.
         """
         self.sim = sim
+        for cover in self._covers:
+            cover.cover(False)
         rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
                  f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",

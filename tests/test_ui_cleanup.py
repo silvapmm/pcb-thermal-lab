@@ -23,7 +23,7 @@ def test_the_comparison_plot_writes_the_names_of_the_models_not_their_keys():
     results = {k: SimpleNamespace(t_max=80.0 + i, t_mean=50.0 + i) for i, k in enumerate(("fvm", "lumped", "analytic", "fdm", "solid3d"))}
     plots.draw_comparison(fig, results)
     labels = [t.get_text() for t in fig.axes[0].get_xticklabels()]
-    assert labels == ["FVM", "Lumped (LPTN)", "Analytic", "FDM", "3D solid"]
+    assert labels == ["FVM", "LPTN", "Analytic", "FDM", "3D solid"]
 
 
 def test_a_log_axis_of_more_than_six_decades_gets_a_tick_every_three_decades():
@@ -242,14 +242,14 @@ def test_thirty_warnings_do_not_push_the_run_button_or_the_settings_out_of_a_low
 
 
 def test_the_count_of_unknowns_spans_the_whole_form_row(qtbot, tmp_path):
-    from PySide6.QtWidgets import QFormLayout
+    from PySide6.QtWidgets import QGridLayout
 
     win = _window(qtbot, tmp_path)
     lab = win.solver_panel.cells_label
-    form = lab.parentWidget().layout()
-    form = form if isinstance(form, QFormLayout) else next(f for f in lab.parentWidget().findChildren(QFormLayout) if f.indexOf(lab) >= 0)
-    # In the field column the wrapped text was cut to its first line on macOS (not reproduced offscreen): it spans both columns now
-    assert form.getWidgetPosition(lab)[1] == QFormLayout.SpanningRole
+    grid = next(g for g in lab.parentWidget().findChildren(QGridLayout) if g.indexOf(lab) >= 0)
+    # In the field column the wrapped text was cut to its first line on macOS (not reproduced offscreen): it spans both columns of the grid now
+    row, col, rows, cols = grid.getItemPosition(grid.indexOf(lab))
+    assert col == 0 and cols == 2
     win.solver_panel.cb["solid3d"].setChecked(True)
     win.solver_panel.cell.setValue(0.2)            # The longest text: the count, the 3D count and its note
     win.resizeDocks([win.dock_sim], [200], Qt.Horizontal)

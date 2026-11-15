@@ -250,7 +250,7 @@ def test_the_model_settings_the_memory_verdict_and_the_warnings(board_dir):
     tiny = sx.memory_verdict(pixel_mm=0.0005)                         # a pixel that cannot fit: the guard refuses before anything is drawn
     assert "pixel of" in tiny["import_error"]
     w = " ".join(sx.warnings())
-    assert "No heat source is defined" in w and "Lumped / Analytic" in w and "flow-based face" in w
+    assert "No heat source is defined" in w and "LPTN / Analytic" in w and "flow-based face" in w
     sx.cell_mm, sx.mapping = 2.0, "fill"
     w = " ".join(sx.warnings())
     assert "'fill' mapping" in w

@@ -157,8 +157,8 @@ def cmd_run(args):
         # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
         if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
             bottom = r.extras.get("t_max_surface_bottom")
-            print(f"{name.upper()} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} degC"
-                  + (f", bottom {bottom:.1f} degC" if bottom is not None else "") + f"; column max {r.t_max:.1f} degC")
+            print(f"{name.upper()} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+                  + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
     files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
     return 0
@@ -182,8 +182,8 @@ def cmd_transient(args):
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
         tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
-    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
-          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
+    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C, "
+          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C")
     for w in tr.warnings:
         print(f"Warning: {w}")                                            # Limits of the model met by the run (the Analytic with a heatsink), as `run` prints its warnings
     os.makedirs(args.out, exist_ok=True)
@@ -214,8 +214,8 @@ def cmd_calibrate(args):
         options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
     what = f"heater {args.heater}" if args.heater else "the board maximum"
-    print(f"Measured {num(args.measured)} degC at {what}: convection multiplier {multiplier:.3f} "
-          f"(the {args.model} model then gives {predicted:.2f} degC).")
+    print(f"Measured {num(args.measured)} °C at {what}: convection multiplier {multiplier:.3f} "
+          f"(the {args.model} model then gives {predicted:.2f} °C).")
     print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
     return 0
 
@@ -388,13 +388,13 @@ def build_parser():
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
     pg.add_argument("--threshold-c", type=float, default=None,
-                    help="oscillation in degC below which a heater is replaced by its average power (default: 1)")
+                    help="oscillation in °C below which a heater is replaced by its average power (default: 1)")
     pg.add_argument("--duration", choices=("stable", "cycles", "time"), default=None,
                     help="simulate until the cycle repeats, for a number of cycles, or for a fixed time")
     pg.add_argument("--cycles", type=int, default=None, help="number of cycles of the longest resolved period")
     pg.add_argument("--time-s", type=float, default=None, help="simulated time in seconds (with --duration time)")
     pg.add_argument("--initial-c", type=float, default=None,
-                    help="start from this uniform temperature in degC (default: steady state of the average power)")
+                    help="start from this uniform temperature in °C (default: steady state of the average power)")
     r.set_defaults(func=cmd_run)
 
     t = sub.add_parser("transient", help="power-step response (FVM)")
@@ -408,7 +408,7 @@ def build_parser():
 
     k = sub.add_parser("calibrate", help="fit the convection multiplier to a measured steady temperature")
     k.add_argument("config", help="board JSON file")
-    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in degC")
+    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in °C")
     k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
     k.add_argument("--model", choices=MODELS, default="fvm")
     k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")

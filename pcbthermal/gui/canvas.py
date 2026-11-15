@@ -844,7 +844,7 @@ class BoardView(QGraphicsView):
         @brief Set the card at the top left of the map on the board: the model name and, when the model can be drawn, the hottest and coolest point with a ring on each.
         @details With `tmax` the card shows `max T` and `min T` lines and the rings are painted on the map at the two points; without it the card is only the title, in the
                  alert colour (a model that cannot be drawn on this board). Cleared by `clear_overlay`.
-        @param title Model short name (FVM, FDM, Lumped, Analytic, 3D solid) or the note of a refused model.
+        @param title Model short name (FVM, FDM, LPTN, Analytic, 3D solid) or the note of a refused model.
         @param tmax Highest temperature of the displayed layer in degC (None: refused, title only).
         @param pmax_mm Position (x, y) of the hottest point on the board in millimetres.
         @param tmin Lowest temperature of the displayed layer in degC.

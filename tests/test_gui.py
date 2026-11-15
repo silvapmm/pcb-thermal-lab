@@ -404,7 +404,7 @@ def test_first_run_texts_say_what_to_do_and_what_zero_means(win):
     texts = [s.text() for s in win.inspector.form_host.findChildren(QDoubleSpinBox)]
     assert "no limit" in texts and "no heatsink" in texts
     win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm", "lumped"), cell_mm=2.0)))
-    assert [win.results.model_table.item(r, 0).text() for r in range(2)] == ["FVM", "Lumped (LPTN)"]
+    assert [win.results.model_table.item(r, 0).text() for r in range(2)] == ["FVM", "LPTN"]
     assert win.results.temp.model.currentText() == "FVM" and win.results.temp.model.currentData() == "fvm"
 
 
@@ -525,7 +525,7 @@ def test_model_table_shows_five_models_without_a_scroll_bar(qtbot):
     qtbot.addWidget(t)
     t.resize(600, 400)
     t.show()
-    rows = [[name, "85.6", "60.2"] for name in ("FVM", "FDM", "Lumped (LPTN)", "Analytic", "3D solid")]
+    rows = [[name, "85.6", "60.2"] for name in ("FVM", "FDM", "LPTN", "Analytic", "3D solid")]
     _fill(t, rows)
     _fit_height(t)
     qtbot.wait(50)
@@ -539,7 +539,7 @@ def test_model_table_shows_five_models_without_a_scroll_bar(qtbot):
 
 def test_live_checks_show_model_limits_and_follow_the_models(win, qtbot):
     """!
-    @brief The list under Run holds the limits of the selected models (a part on bare laminate, vias in the Lumped model) before any run, and changes when the models change.
+    @brief The list under Run holds the limits of the selected models (a part on bare laminate, vias in the LPTN model) before any run, and changes when the models change.
     """
     def build(proj):
         pr = proj.problem
@@ -551,10 +551,10 @@ def test_live_checks_show_model_limits_and_follow_the_models(win, qtbot):
     win.doc.set_options(models=("fvm", "lumped"))
     win._update_checks()
     texts = [str(w) for w in win.solver_panel.checks.warnings]
-    assert any("Lumped" in t and "via" in t for t in texts)
+    assert any("LPTN" in t and "via" in t for t in texts)
     win.doc.set_options(models=("fvm",))
     win._update_checks()
-    assert not any("Lumped" in str(w) for w in win.solver_panel.checks.warnings)
+    assert not any("LPTN" in str(w) for w in win.solver_panel.checks.warnings)
     # A change of the models or the cell schedules the check by itself (no edit of the design)
     win._check_timer.stop()
     win._checks_key = None

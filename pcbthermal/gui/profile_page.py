@@ -25,6 +25,7 @@ from .spinfit import show_value
 from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 from ..numfmt import num
+from ..results import model_label
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
@@ -696,13 +697,13 @@ class ProfilePage(QWidget):
         try:
             plan = profiles.plan_run(self.doc.problem, decisions, self.doc.options.profile)
             if plan["resolved"]:
-                self.status.setText(f"Decision from the {ref} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
+                self.status.setText(f"Decision from the {model_label(ref)} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
                                     f"({num(plan['window'])} s per window); press F5 to run.")
             elif any(d.regime == profiles.REGIME_RIPPLE for d in decisions):
-                self.status.setText(f"Decision from the {ref} step response: no heater needs time steps; the fast waves are held at their average power and their "
+                self.status.setText(f"Decision from the {model_label(ref)} step response: no heater needs time steps; the fast waves are held at their average power and their "
                                     "temperature wave is added at the heater (average + ripple). Press F5 to run.")
             else:
-                self.status.setText(f"Decision from the {ref} step response: every heater is replaced by its average power; "
+                self.status.setText(f"Decision from the {model_label(ref)} step response: every heater is replaced by its average power; "
                                     "no time simulation is needed.")
         except profiles.ProfileError as exc:
             self.status.setText(str(exc))

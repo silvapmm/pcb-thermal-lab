@@ -330,7 +330,7 @@ def _small(**films):
 @pytest.mark.parametrize("label", ["k_negative", "k_zero", "k_nan", "q_nan", "h_negative", "t_amb_inf", "node_nan", "zero_volume", "no_film", "node_id", "force"])
 def test_hostile_inputs_raise_value_error_instead_of_a_wrong_field(label):
     """!
-    @brief Inputs that gave a plausible but wrong field before the review (a negative conductivity or film: Tmax 20 degC with a source; a NaN source: a NaN field)
+    @brief Inputs that gave a plausible but wrong field before the review (a negative conductivity or film: Tmax 20 °C with a source; a NaN source: a NaN field)
            or an opaque SuperLU error (zero conductivity, a zero-volume element, no film) raise ValueError naming the problem.
     @param label Which input is spoiled.
     @return None.

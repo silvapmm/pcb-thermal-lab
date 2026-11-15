@@ -11,7 +11,7 @@
          * `build_problem()` - the new Problem with its import record (project format 2): raises `ImportNotAvailable` now.
          * `memory_verdict()` - the guard verdict of the model grid and of the rasters of the import; the FVM law of `pcbthermal.memory` plus the raster estimate of the
            reader now, the measured import term when `feature/imported-copper` merges.
-         * `warnings()` - the list under the Model step; the always-on notes of the Lumped and Analytic models on imported copper are part of it.
+         * `warnings()` - the list under the Model step; the always-on notes of the LPTN and Analytic models on imported copper are part of it.
          Lengths are in millimetres, the Gerber axes (Y up); rasters run from the top edge downwards, one byte of coverage per pixel.
 """
 
@@ -1273,7 +1273,7 @@ class ImportSession:
 
     def warnings(self) -> List[str]:
         """!
-        @brief The warnings of the Model step (the import still runs): the notes the program owes on imported copper (Lumped and Analytic always), a coarse cell or pixel, the job file and the parts.
+        @brief The warnings of the Model step (the import still runs): the notes the program owes on imported copper (LPTN and Analytic always), a coarse cell or pixel, the job file and the parts.
         @return list of text lines.
         """
         out = []

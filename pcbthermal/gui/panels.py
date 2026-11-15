@@ -25,11 +25,12 @@ from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
-from ..checks import fem_needs_pyamg, line
+from ..checks import fem_cell_for_direct, fem_needs_pyamg, line
 from .boxes import CollapsibleBox
 from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
 from ..numfmt import num
+from ..results import model_full_label
 
 
 def _is_rect(pts):
@@ -138,7 +139,7 @@ class BoardPanel(QWidget):
         v = QVBoxLayout(g.body)
         self.outline_label = QLabel("")
         self.outline_label.setWordWrap(True)
-        self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; Lumped, Analytic: the rectangle of the same area.")
+        self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; LPTN, Analytic: the rectangle of the same area.")
         self.preset = QComboBox()
         self.preset.addItem("Preset shape...", None)
         for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
@@ -1089,10 +1090,10 @@ class Inspector(QWidget):
                             lay.addRow("", note)
                 else:
                     lay = box("Metal block")
-                    only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (Analytic within about 5 % of the FVM; Lumped up to about 7 % too cool with several pads or a small block); their time simulation does not.")
+                    only = QLabel("The FVM, FDM and 3D solid model the block fully. The LPTN and Analytic models have it in steady state only (Analytic within about 5 % of the FVM; LPTN up to about 7 % too cool with several pads or a small block); their time simulation does not.")
                     only.setWordWrap(True)
                     th.hint(only)
-                    only.setToolTip("Lumped: one more ring-network layer, within about 5 % of the FVM with one pad, up to about 7 % too cool with several pads or a block much smaller than the board. Analytic: a tile graph, within about 5 %. No time simulation.")
+                    only.setToolTip("LPTN: one more ring-network layer, within about 5 % of the FVM with one pad, up to about 7 % too cool with several pads or a block much smaller than the board. Analytic: a tile graph, within about 5 %. No time simulation.")
                     lay.addRow(only)
                     block_t = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
                     block_t.setToolTip("Thickness of the metal block, mm. Heat enters only where it overlaps copper of this layer.")
@@ -1555,12 +1556,8 @@ class SolverPanel(QWidget):
 
         g = CollapsibleBox("Models", "simulation")
         v = QVBoxLayout(g.body)
-        self.cb = {"fvm": QCheckBox("Finite volume (FVM), reference"),
-                   "lumped": QCheckBox("Thermal network (LPTN)"),
-                   "analytic": QCheckBox("Analytical (Fourier series)"),
-                   "fdm": QCheckBox("Finite difference (FDM)"),
-                   "solid3d": QCheckBox("3D solid (finite volumes)"),
-                   "fem": QCheckBox("Finite elements (FEM)")}
+        # The names come from the one table of the core (results.MODEL_FULL); the FVM adds its role, which the program really gives it (the column 'Error vs FVM')
+        self.cb = {k: QCheckBox(model_full_label(k) + (", reference" if k == "fvm" else "")) for k in ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")}
         off = "Off by default; a cross-check of the three models above. "
         tips = {"fvm": "Reference model: any geometry, exact energy balance. Use it for final answers and when a warning appears. Cost grows with the cells.",
                 "lumped": "Fast network (milliseconds), within about 4 % in most cases. Weak where a copper edge crosses a heater, at corners and for thin heaters.",
@@ -1673,7 +1670,7 @@ class SolverPanel(QWidget):
     GROUPS = (("All models", "All", (), (("Cell size", "cell_row"), (None, "cells_label"), ("Hotspot limit", "hot"))),
               ("Finite volume (FVM)", "FVM", ("fvm",), (("FVM solver", "solver"),)),
               ("Laminate (FVM, FDM)", "FVM·FDM", ("fvm", "fdm"), (("Laminate sub-gap", "lam_s"), ("Laminate sub-gaps", "lam_n"))),
-              ("Thermal network (LPTN)", "LPTN", ("lumped",), (("Lumped rings", "rings"),)),
+              ("Thermal network (LPTN)", "LPTN", ("lumped",), (("LPTN rings", "rings"),)),
               ("Analytical", "Analytic", ("analytic",), (("Analytic modes", "modes"), (None, "local"))),
               ("Finite elements (FEM)", "FEM", ("fem",), (("FEM gap elements", "fem_gap"), ("FEM refinement", "fem_ref"))))
 
@@ -1773,7 +1770,7 @@ class SolverPanel(QWidget):
         lam_on = (on("fvm") or on("fdm")) and not blocked
         used = lambda who: f"used only by {who}, not selected or not available here."   # noqa: E731
         lam_why = "not used on a board with a metal block (the laminate rule does not apply there)." if blocked else used("the FVM or the FDM")
-        for widget, active, why in ((self.solver, on("fvm"), used("the FVM")), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), used("the Lumped model")),
+        for widget, active, why in ((self.solver, on("fvm"), used("the FVM")), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), used("the LPTN model")),
                                     (self.modes, on("analytic"), used("the Analytic model")), (self.local, on("analytic"), used("the Analytic model")),
                                     (self.fem_gap, on("fem"), used("the FEM")), (self.fem_ref, on("fem"), used("the FEM"))):
             base = widget.property("base_tip")
@@ -1868,9 +1865,9 @@ class SolverPanel(QWidget):
                 text += "; more than the memory available now"
             # A fitting model is a dot in the verdict colour and the text in the hint colour (secondary); a slow or refused model keeps the verdict colour on the whole row
             if v.verdict == "ok" and not v.exceeds_available:
-                rows.append(f'<span style="color:{colours["ok"]}">●</span>&nbsp;{html.escape(text)}')
+                rows.append(f'{th.verdict_dot(colours["ok"])}&nbsp;{html.escape(text)}')
             else:
-                rows.append(f'<span style="color:{colours[v.verdict]}">●&nbsp;{html.escape(text)}</span>')
+                rows.append(f'<span style="color:{colours[v.verdict]}">{th.VERDICT_DOT}&nbsp;{html.escape(text)}</span>')
             # The 3D solid and the FEM are only skipped when other models run next to them (api.SKIPPABLE_MODELS, the rule of api.simulate); any other refusal stops the run
             if v.verdict == "refuse" and (v.model not in SKIPPABLE_MODELS or len(self.doc.options.models) == 1):
                 blocked = blocked or v.message
@@ -1881,13 +1878,15 @@ class SolverPanel(QWidget):
                 if need:
                     # Next to other models the run leaves the FEM out (api.simulate); alone, the run would fail with that reason, so Run is blocked like a refusal
                     alone = len(self.doc.options.models) == 1
+                    fit = fem_cell_for_direct(self.doc.problem, self.cell.value(), o.fem_gap_elements, o.fem_refine)
+                    use = f"use a cell of {fit:.1f} mm or more" if fit else "use a coarser cell"            # Like the other models: say which cell to use
                     why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
-                           + ("will not run: install it or use a coarser cell" if alone else "will be left out"))
-                    rows.append(f'<span style="color:{colours["refuse"]}">●&nbsp;' + html.escape(why) + "</span>")
+                           + (f"will not run: install it or {use}" if alone else f"will be left out ({use} to keep it)"))
+                    rows.append(f'<span style="color:{colours["refuse"]}">{th.VERDICT_DOT}&nbsp;' + html.escape(why) + "</span>")
                     if alone:
                         blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
-        self.cells_label.setVisible(bool(rows))            # No empty strip under the cell size when no selected model is guarded (Lumped, Analytic)
+        self.cells_label.setVisible(bool(rows))            # No empty strip under the cell size when no selected model is guarded (LPTN, Analytic)
         self.blocked = blocked
         self._style_run_button()
 
@@ -1980,6 +1979,15 @@ class SolverPanel(QWidget):
         self.run.setText(self.RUN_TEXT)
         self.run.setEnabled(not self.blocked and not self._running and not self._hold)
         self.run.setToolTip(f"Cannot run: {self.blocked}" if self.blocked else "Solve the selected models (F5).")
+        # Why Run is grey is said next to the button (the status line of the footer, above the scrolled boxes), not only in a tooltip or below the fold
+        reason = f"Cannot run: {self.blocked}" if self.blocked else ""
+        if reason:
+            self.status.setText(reason)
+            self.status.setStyleSheet(f"color: {th.colors(th.current_name())['bad']};")
+        elif self.status.text().startswith("Cannot run: "):
+            self.status.setText("")
+        if not reason:
+            self.status.setStyleSheet("")
 
     def set_running(self, running, text=""):
         """!
@@ -1991,6 +1999,7 @@ class SolverPanel(QWidget):
         self._style_run_button()
         self.status.setText(text)
         if not running:
+            self.progress.setRange(0, 100)
             self.progress.setValue(0)
 
     def set_progress(self, text, fraction):
@@ -2000,4 +2009,8 @@ class SolverPanel(QWidget):
         @param fraction Progress between 0 and 1.
         """
         self.status.setText(text)
-        self.progress.setValue(int(fraction * 100))
+        # The FEM has no inner progress (one assembly and solve): an indeterminate bar says 'working', a fixed 66 % would say a number it does not know
+        indeterminate = text.startswith("Solving FEM")
+        self.progress.setRange(0, 0 if indeterminate else 100)
+        if not indeterminate:
+            self.progress.setValue(int(fraction * 100))

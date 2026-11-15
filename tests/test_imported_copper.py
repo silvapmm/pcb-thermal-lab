@@ -379,7 +379,7 @@ def test_fdm_takes_the_faces_and_corrects_the_fill():
 
 def test_five_models_run_and_warn():
     """!
-    @brief Imported copper runs in all five models: the layered models say what the copper is, Lumped and Analytic always warn (a sample, not a bound), the 3D solid says it reads the fill.
+    @brief Imported copper runs in all five models: the layered models say what the copper is, LPTN and Analytic always warn (a sample, not a bound), the 3D solid says it reads the fill.
     @return None.
     """
     n = int(WINDOW / PIX)
@@ -387,9 +387,9 @@ def test_five_models_run_and_warn():
     sim = api.simulate(p, api.SolverOptions(models=("fvm", "fdm", "lumped", "analytic", "solid3d"), cell_mm=1.0))
     assert set(sim.results) == {"fvm", "fdm", "lumped", "analytic", "solid3d"}
     for name in ("lumped", "analytic"):
-        assert any("imported copper on the Lumped" in w for w in sim.results[name].warnings), name
+        assert any("imported copper on the LPTN" in w for w in sim.results[name].warnings), name
     for name in ("lumped", "analytic"):
-        w = [x for x in sim.results[name].warnings if "imported copper on the Lumped" in x][0]
+        w = [x for x in sim.results[name].warnings if "imported copper on the LPTN" in x][0]
         # The text states the cases honestly: windows and the whole board, a sample and not a bound, and who reads the copper
         assert "not a bound" in w and "82 parts" in w and "23 to 76 %" in w and "19 to 77 %" in w and "33 to 76 %" in w and "0402" in w and "do read" in w, name
         assert "average over a cell" in w and "invisible" in w, name

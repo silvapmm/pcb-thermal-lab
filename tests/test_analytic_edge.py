@@ -446,7 +446,7 @@ def test_not_a_number_edge_coefficient_is_refused():
 @pytest.mark.parametrize("model", ["fvm", "analytic"])
 def test_bad_edge_coefficient_is_refused_by_the_board(h_side, model):
     """Board.validate refuses a NaN, infinite or negative edge coefficient for every model (the review found that the FVM ran a negative one, the edge acting as
-    a heat source, 170.33 degC against 169.41 for the insulated board at 1 mm, and that only the Analytic refused it, from inside its basis)."""
+    a heat source, 170.33 °C against 169.41 for the insulated board at 1 mm, and that only the Analytic refused it, from inside its basis)."""
     p = _plate(40, 30, 10, h_side, pos="corner")
     with pytest.raises(ValueError, match="edge heat transfer coefficient"):
         p.validate()

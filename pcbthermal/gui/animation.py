@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayo
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fdm, fvm, plots
+from ..results import model_full_label
 from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from .display import DisplayState
 
@@ -50,9 +51,8 @@ class AnimationTab(QWidget):
         self.frames.setRange(10, 400)
         self.frames.setValue(60)
         self.model = QComboBox()
-        self.model.addItem("Finite volume (FVM)", "fvm")
-        self.model.addItem("Finite difference (FDM)", "fdm")
-        self.model.addItem("Analytical (Fourier series)", "analytic")
+        for key in ("fvm", "fdm", "analytic"):
+            self.model.addItem(model_full_label(key), key)
         self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points.")
         self.scheme = QComboBox()
         self.scheme.addItem("Implicit Euler (robust)", 1.0)

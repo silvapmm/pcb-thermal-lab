@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from .femcore import FEM_DIRECT_MAX
+from .results import MODEL_FULL
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +81,8 @@ TIME_LAWS = {
     "solid3d": [(6.5, 11.2, 1.70), (12.0, 14.8, 1.52), (math.inf, 44.1, 1.50)],
 }
 
-MODEL_LABELS = {"fvm": "finite volume (FVM)", "fdm": "finite difference (FDM)", "solid3d": "3D solid", "fem": "finite elements (FEM)"}
+# In a sentence ("the finite volume (FVM) model would have ..."): the full name of results.MODEL_FULL with a lower-case first letter
+MODEL_LABELS = {k: (v[0].lower() + v[1:] if not v[0].isdigit() else v) for k, v in MODEL_FULL.items() if k in ("fvm", "fdm", "solid3d", "fem")}
 
 
 class MemoryGuardError(ValueError):
@@ -796,7 +798,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
           laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
-    @details The Lumped and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the Lumped) and the Analytic has its own guard of
+    @details The LPTN and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the LPTN) and the Analytic has its own guard of
              4 800 tile unknowns in `viaconstriction`. Inside a with block of `accept_unknowns` a model is never refused on memory up to the number given
              (it may still be "slow") and always refused above it. The layered models are first estimated from a lower bound of their unknowns (one node per
              copper layer and plan cell): a bound above the limit refuses without the exact count, which samples the copper of every plan cell.

@@ -23,7 +23,7 @@ from pcbthermal.api import suggest_cell_mm
 from pcbthermal.examples import example_board
 from pcbthermal.gui import theme as th
 from pcbthermal.model import Problem
-from tests.test_gui_stress import load, popups, win  # noqa: F401  (fixtures and helpers)
+from tests.test_gui_stress import load, popups, run, win  # noqa: F401  (fixtures and helpers)
 
 SETS = {"fvm_fem": ("fvm", "fem"), "lumped_analytic": ("lumped", "analytic")}
 
@@ -194,3 +194,97 @@ def test_the_local_corrections_tooltip_says_steady_only(win):
     @param win Main window fixture.
     """
     assert "Steady run only" in win.solver_panel.local.toolTip()
+
+
+def _ratio(a, b):
+    """!
+    @brief WCAG contrast ratio of two theme colour strings.
+    @param a Colour string.
+    @param b Colour string.
+    @return float.
+    """
+    return th.contrast(th.qcolor(a), th.qcolor(b))
+
+
+def test_text_tokens_reach_4_5_to_1_in_both_themes():
+    """!
+    @brief The label of the main buttons (on_accent on the three primary states) and the warn and bad tones used as text, against the window and the boxes.
+    """
+    for name in ("light", "dark"):
+        c = th.colors(name)
+        for state in ("primary", "primary_hover", "primary_pressed"):
+            assert _ratio(c["on_accent"], c[state]) >= 4.5, (name, state)
+        for tone in ("ok", "warn", "bad", "alert", "hint"):
+            for ground in ("window", "base"):
+                assert _ratio(c[tone], c[ground]) >= 4.5, (name, tone, ground)
+
+
+def test_the_dot_is_drawn_once_and_the_reason_for_a_grey_run_is_next_to_the_button(win, monkeypatch):
+    """!
+    @brief The memory lines use the shared dot; a refused model greys Run and the footer status (beside the button) says why, and clears when it fits again.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    load(win, example_board())
+    sp = win.solver_panel
+    win.doc.set_options(models=("fvm",), cell_mm=1.0)
+    assert th.VERDICT_DOT in sp.cells_label.text()
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
+    win.doc.options.memory_fraction = 0.1
+    win.doc.set_options(models=("fvm",), cell_mm=0.3)
+    assert not sp.run.isEnabled() and sp.status.text().startswith("Cannot run: ") and "use a cell of" in sp.status.text()
+    assert sp.status.isVisibleTo(sp.footer)
+    win.doc.set_options(cell_mm=2.0)
+    assert sp.run.isEnabled() and sp.status.text() == ""
+
+
+def test_the_progress_is_indeterminate_while_the_fem_solves_and_the_bar_says_stop(win):
+    """!
+    @brief The FEM has no inner progress: the bar is a busy bar, then a normal one; the status bar does not say 'Ready.' while busy.
+    @param win Main window fixture.
+    """
+    sp = win.solver_panel
+    sp.set_progress("Solving FEM (assembly and solve: a large board can take minutes)", 0.66)
+    assert sp.progress.maximum() == 0
+    sp.set_progress("Solving FVM", 0.5)
+    assert sp.progress.maximum() == 100 and sp.progress.value() == 50
+    win._on_busy(True)
+    assert "Ready" not in win.statusBar().currentMessage()
+    win._on_busy(False)
+    assert win.statusBar().currentMessage() == "Ready."
+
+
+def test_results_of_a_board_do_not_stay_when_another_board_is_opened_created_or_imported(win, qtbot, monkeypatch):
+    """!
+    @brief Open, new and import all go through _after_load: the run is forgotten, the Results pages say there are none, the 'Done: Tmax' line is gone; a run shows them again.
+    @param win Main window fixture.
+    @param qtbot Fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal.gui import main_window as mw
+
+    def shown(window):
+        return [c.isVisibleTo(c.parentWidget()) for c in window.results._covers]
+
+    load(win, example_board())
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.sim is not None and not any(shown(win)) and win.solver_panel.status.text().startswith("Done")
+    other = Problem.new(30, 20, layers=2, name="other")
+    other.add_full_copper([1, 2])
+    other.add_heater(1, 1.0, rect=(10, 8, 14, 12), name="Q9")
+    # open (a project file) and the ready-made problem path
+    for how in ("problem", "new", "import"):
+        win.doc.open_problem(other, "other")                                   # a board with a heater, without the load path under test
+        run(win, qtbot, ("fvm",), cell=2.0)
+        assert win.sim is not None
+        if how == "problem":
+            win._load_problem(other, "other")
+        elif how == "new":
+            monkeypatch.setattr(mw.NewBoardDialog, "exec", lambda self: True)
+            win.new_board()
+        else:
+            win._after_load()                                                  # open_import and open_file end in this call, as do the two above
+        assert win.sim is None and all(shown(win)) and win.results.sim is None
+        assert win.solver_panel.status.text() == "" and win.tabs.tabText(mw.TAB_RESULTS) == "Results"
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert not any(shown(win)) and win.results.sim is win.sim

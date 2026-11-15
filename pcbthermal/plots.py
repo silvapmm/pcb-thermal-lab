@@ -180,7 +180,7 @@ FLAT_FIELD_K = 1e-9           # A field flatter than this has no hottest or cool
 def _mark_extremes(ax, field, problem, dx, dy, hot_mm=None):
     """!
     @brief Mark the hottest (red ring) and the coolest (blue ring) sample of the field AS DRAWN, like the map on the board.
-    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a Lumped or Analytic outline board), so the marks sit on the
+    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a LPTN or Analytic outline board), so the marks sit on the
              samples that the colour bar's ends belong to. The first sample wins a tie; a field flatter than `FLAT_FIELD_K` marks nothing.
     @param ax Matplotlib axis (coordinates in mm).
     @param field Array (ny, nx) of temperatures, NaN off the board.
@@ -211,7 +211,7 @@ EQUIVALENT_LABEL = "rectangle solved (same area as the outline"
 
 def _solved_view(problem, dx, dy, scale):
     """!
-    @brief The geometry that the Lumped and Analytic models really solved for a board with an outline.
+    @brief The geometry that the LPTN and Analytic models really solved for a board with an outline.
     @details They solve `Problem.equivalent_rectangle` (box, positions, zones, vias and heatsinks scaled by s about the origin, parts of the
              same size moved to the scaled centre) and the result is stretched back by 1/s onto the real box (`api._run_model`). Drawing the
              field on its solved spacing (dx s, dy s) with the elements of that rectangle puts the field, the parts and the dashed edge in one
@@ -454,7 +454,7 @@ def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_
              contour lines, or the field at `view.opacity` over the copper of the layer. No mode changes the data or the colour limits.
     @param ax Matplotlib axis (coordinates in mm).
     @param field Array (ny, nx) already blanked off the outline.
-    @param problem The Problem that gives the frame of the field (the rectangle as solved for a Lumped or Analytic result on an outline).
+    @param problem The Problem that gives the frame of the field (the rectangle as solved for a LPTN or Analytic result on an outline).
     @param dx Cell width in metres.
     @param dy Cell height in metres.
     @param layer 0-based layer (copper under the map).
@@ -512,7 +512,7 @@ def _draw_underlay(ax, problem, layer, view, solved_view):
     @param problem The Problem.
     @param layer 0-based layer.
     @param view MapView.
-    @param solved_view True for the equivalent rectangle of a Lumped or Analytic result on an outline.
+    @param solved_view True for the equivalent rectangle of a LPTN or Analytic result on an outline.
     @return None.
     """
     if view.underlay == "image" and view.image is not None:
@@ -558,7 +558,7 @@ def _draw_copper(ax, problem, layer, view, solved_view):
     @param problem The Problem.
     @param layer 0-based layer.
     @param view MapView (colours and the picture cache).
-    @param solved_view True for the equivalent rectangle of a Lumped or Analytic result on an outline: plain laminate and a note.
+    @param solved_view True for the equivalent rectangle of a LPTN or Analytic result on an outline: plain laminate and a note.
     @return None.
     """
     b = problem.board
@@ -603,7 +603,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.
-    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) of a Lumped or Analytic result on a board with
+    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) of a LPTN or Analytic result on a board with
            an outline: the field is drawn as solved, on the rectangle of the same area with its parts, the rectangle dashed and the real outline
            dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
     @param equivalent_color Colour of that dashed line.
@@ -840,7 +840,7 @@ def _cut_map_source(results, problem):
     @param results Dict {model: SteadyResult}.
     @param problem The Problem.
     @return (SteadyResult or None, note): the reference model (the finite-volume one when present) when its map is drawn as solved, else None and a short note
-            (a Lumped or Analytic map of an outline board is stretched onto the box, which the board picture would contradict).
+            (a LPTN or Analytic map of an outline board is stretched onto the box, which the board picture would contradict).
     """
     ref = results.get("fvm") or next(iter(results.values()))
     if ref.T is None:
@@ -954,7 +954,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
         else:
             j = int(np.argmin(np.abs(xs * 1000.0 - position_mm)))
             xd, yd, pos = ys * 1000, T[:, j], float(xs[j]) * 1000.0
-        ax.plot(xd, yd, label=name)
+        ax.plot(xd, yd, label=model_label(name))                # The name of the window, not the key (`fvm`, `lumped`)
         curves.append((xd, yd))
         if r is ref:
             ref_curve = (xd, yd)
@@ -1011,7 +1011,7 @@ def draw_comparison(fig, results):
         ax.text(k - 0.2, results[n].t_max + 0.5, f"{results[n].t_max:.1f}", ha="center", fontsize=8)
         ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
     ax.set_xticks(x)
-    ax.set_xticklabels([model_label(n) for n in names])        # "Lumped (LPTN)", as the tables, not the key `lumped`
+    ax.set_xticklabels([model_label(n) for n in names])        # "LPTN", as the tables, not the key `lumped`
     ax.set_ylabel(COLUMN_LABEL)
     ax.legend()
     ax.grid(axis="y", alpha=0.3)

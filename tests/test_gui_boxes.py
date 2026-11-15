@@ -82,14 +82,14 @@ def test_warning_titles_are_short_and_clean():
     """!
     @brief The title is the first clause of the warning; a designator prefix stays; a long clause is cut at a word.
     """
-    assert checks.warning_title("U1: 9 vias under the footprint; the Lumped model is approximate here.") == "U1: 9 vias under the footprint"
+    assert checks.warning_title("U1: 9 vias under the footprint; the LPTN model is approximate here.") == "U1: 9 vias under the footprint"
     assert checks.warning_title("Imported copper at a cell above 1 mm: on 24 mm windows the faces read hot.") == "Imported copper at a cell above 1 mm"
     # A short text before a colon is a prefix and keeps the clause that follows (the review found titles that were only the prefix)
     assert checks.warning_title("Analytic model: one or two vias beside a part were measured 16 % too small; use the FVM.") \
         == "Analytic model: one or two vias beside a part were measured 16…"
-    assert checks.warning_title("Via 3 and 1 more vias: outside the footprint of every part; the Lumped model ...") \
+    assert checks.warning_title("Via 3 and 1 more vias: outside the footprint of every part; the LPTN model ...") \
         == "Via 3 and 1 more vias: outside the footprint of every part"
-    assert checks.warning_title("lumped: the board has an outline: computed on a rectangle of the same area") == "Lumped: the board has an outline"
+    assert checks.warning_title("LPTN: the board has an outline: computed on a rectangle of the same area") == "LPTN: the board has an outline"
     assert checks.warning_title("analytic (time simulation): the transient keeps the heatsinks local").startswith("Analytic (time simulation): the transient")
     long = checks.warning_title("word " * 40)
     assert len(long) <= checks.TITLE_MAX + 1 and long.endswith("…")

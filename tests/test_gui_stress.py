@@ -730,7 +730,7 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
 
 
 def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_none(win, qtbot):
-    """Decision (always computed, always shown, no threshold): 35 um copper has the surface arrays, the Layer box entries and the ONE surface column; the Lumped says n/a with a reason."""
+    """Decision (always computed, always shown, no threshold): 35 um copper has the surface arrays, the Layer box entries and the ONE surface column; the LPTN says n/a with a reason."""
     load(win, example_board())
     run(win, qtbot, ("fvm", "lumped"), cell=2.0)
     rv = win.results
@@ -1320,7 +1320,7 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
 
 
 def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
-    """The zone model of the Lumped network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
+    """The zone model of the thermal network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
     that stays one node, a footprint covered by 400 vias (core above 92 %, the fallback, no zone warning), an array across the edge (post-run warning) and a board with an outline."""
     def zoned(proj, cover=False):
         pr = proj.problem
@@ -1346,7 +1346,7 @@ def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
     win.doc.edit("Across the edge", lambda proj: [setattr(v, "x", v.x + 5.0e-3) for v in proj.problem.vias])
     run(win, qtbot, ("lumped",))
     assert any("past the edge" in str(w) for w in win.sim.warnings)
-    # A board with an outline: the Lumped model solves the rectangle of the same area, where the decision of the zones is made too
+    # A board with an outline: the LPTN model solves the rectangle of the same area, where the decision of the zones is made too
     win.doc.edit("Outline", lambda proj: setattr(proj.problem.board, "outline", np.array([(0.0, 0.0), (30e-3, 0.0), (30e-3, 30e-3), (12e-3, 30e-3), (0.0, 18e-3)])))
     run(win, qtbot, ("lumped",))
     assert np.isfinite(win.sim.results["lumped"].t_max)
@@ -1507,7 +1507,7 @@ def test_display_control_in_the_application(win, qtbot):
             win.canvas.viewport().grab()
             win.display_button.click()
     win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
     win.doc.set_props("heater", 0, power=2.0)                                 # the first edit: the map leaves, the button greys
     assert win.canvas._overlay is None and win.canvas._overlay_card is None and not win.a_overlay.isEnabled()
     win.doc.stack.undo()

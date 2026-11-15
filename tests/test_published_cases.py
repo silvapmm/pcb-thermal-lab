@@ -31,7 +31,7 @@ from pcbthermal import Problem, SolverOptions, blocks, fvm, simulate   # noqa: E
 from pcbthermal.model import Materials                          # noqa: E402
 
 FULL = os.environ.get("PCBT_PUBLISHED_FULL") == "1"
-AMB = 25.0   # Ambient of every Muzychka case in degC
+AMB = 25.0   # Ambient of every Muzychka case in °C
 
 
 def _centroid(field, dx, cx, cy):
@@ -68,7 +68,7 @@ def _plate(width, t_mm, k, h, sources, cell_mm):
     @param h Film coefficient of the bottom face in W/m2K.
     @param sources List of ((x0, y0, x1, y1) in mm, power in W).
     @param cell_mm Cell of the FVM in mm.
-    @return Tuple (Simulation, centroid temperatures in degC, mean temperatures over each source in degC).
+    @return Tuple (Simulation, centroid temperatures in °C, mean temperatures over each source in °C).
     """
     p = Problem.new(width, width, layers=1, thickness_mm=1.0001 * t_mm, copper_um=t_mm * 1e3, ambient=AMB, h_top=1e-6, h_bottom=h, h_side=None,
                     materials=Materials(k_copper=k))
@@ -85,7 +85,7 @@ def _read(p, width, sources, cell_mm):
     @param width Board side in mm.
     @param sources List of ((x0, y0, x1, y1) in mm, power in W).
     @param cell_mm Cell of the FVM in mm.
-    @return Tuple (Simulation, centroid temperatures in degC, mean temperatures in degC).
+    @return Tuple (Simulation, centroid temperatures in °C, mean temperatures in °C).
     """
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=cell_mm))
     t_map = np.asarray(sim.results["fvm"].T)[0]
@@ -171,7 +171,7 @@ def test_t1_seri_lee_plate_through_the_block_model(position):
 def test_t2_muzychka_cross_case_3():
     """!
     @brief Muzychka, Culham and Yovanovich, J. Electronic Packaging 125 (2003) 178-185, case 3: five 20 x 20 mm sources of 5 W in a cross on a 100 x 100 x 10 mm plate.
-    @details k 50 W/mK, h 50 W/m2K on the bottom, ambient 25 degC; printed maximum temperature 80.61 degC at the centre. The FVM at 1 mm reads 79.69 +- 0.1 degC
+    @details k 50 W/mK, h 50 W/m2K on the bottom, ambient 25 °C; printed maximum temperature 80.61 °C at the centre. The FVM at 1 mm reads 79.69 +- 0.1 °C
              (one node through the thickness is the column mean, with the film through the half plate since fix/face-film-half-slab: it read 79.44 before, the 0.25 K is the
              film term): the shortfall is 0 to 2.5 % of the 55.6 K rise (measured 1.7 %), never above the paper.
              The thick-plate warning stays silent (bound 2.8 % of the rise, below the 5 % limit). A failure of the band means the model moved; a reading above 80.61
@@ -190,14 +190,14 @@ def test_t2_muzychka_cross_case_3():
 # T3: case 2, the baseplate of a heat sink
 # ----------------------------------------------------------------------------------------------------------------------
 CASE2_SOURCES = [(_sq(12.5, 12.5, 10), 10.0), (_sq(37.5, 12.5, 10), 25.0), (_sq(12.5, 37.5, 10), 20.0), (_sq(37.5, 37.5, 10), 15.0)]
-CASE2_PAPER = [97.40, 103.82, 101.28, 99.94]                  # Printed centroid temperatures in degC (Tables 3 and 4)
-CASE2_COLUMN_MEAN = [95.35, 99.15, 97.49, 97.01]              # 3D surface centroid minus the through-thickness term (research/muzychka-case2-analytic 3), degC
+CASE2_PAPER = [97.40, 103.82, 101.28, 99.94]                  # Printed centroid temperatures in °C (Tables 3 and 4)
+CASE2_COLUMN_MEAN = [95.35, 99.15, 97.49, 97.01]              # 3D surface centroid minus the through-thickness term (research/muzychka-case2-analytic 3), °C
 
 
 def test_t3_muzychka_case_2_baseplate():
     """!
     @brief Muzychka, Culham and Yovanovich (2003), case 2 (Tables 3 and 4): a 50 x 50 x 10 mm baseplate, k 150 W/mK, h 400 W/m2K, four 10 x 10 mm sources of 10, 25, 20, 15 W.
-    @details Printed centroids 97.40 / 103.82 / 101.28 / 99.94 degC (ambient 25 degC assumed, not printed). The FVM at 1 mm reads each centroid 1.5 to 5.0 K below the paper
+    @details Printed centroids 97.40 / 103.82 / 101.28 / 99.94 °C (ambient 25 °C assumed, not printed). The FVM at 1 mm reads each centroid 1.5 to 5.0 K below the paper
              (measured 2.0 / 4.6 / 3.7 / 2.9 K), never above it: what is left is the through-thickness term of the single node (the paper reports the surface, the node is the
              column mean). Since fix/face-film-half-slab the film h passes the half plate (h_eff = 1/(1/400 + 0.01/300) = 394.74 W/m2K inside the model), so with h = 400 in the input
              the FVM reads the 3D column mean of the research within 0.10 K (measured 0.04 to 0.08 K); before it read 2.9 to 5.5 K below the paper and 0.85 to 0.89 K below the column
@@ -236,7 +236,7 @@ CASE1_SOURCES = [(_sq(90, 90, 25), 10.0), (_sq(210, 210, 25), 15.0)]
 def test_t4_muzychka_case_1a_thick_plate():
     """!
     @brief Muzychka, Culham and Yovanovich (2003), case 1 (a): a 300 x 300 x 10 mm plate, k 10 W/mK, h 10 W/m2K on the bottom, two 25 x 25 mm sources of 10 W and 15 W.
-    @details Printed centroids 84.97 and 108.43 degC (Table 1). The FVM at 2.5 mm reads them 8.4 % and 9.0 % of the paper's rise low, never above; bounds 7.9 to 8.9 %
+    @details Printed centroids 84.97 and 108.43 °C (Table 1). The FVM at 2.5 mm reads them 8.4 % and 9.0 % of the paper's rise low, never above; bounds 7.9 to 8.9 %
              and 8.5 to 9.5 % (half a point around the measured values: a 1 % change of the plate model is seen); the thick-plate warning fires on both sources (bounds
              15 and 16 % of the rise). A failure means the thick-plate behaviour of the single node moved.
     @return None.
@@ -251,7 +251,7 @@ def test_t4_muzychka_case_1a_thick_plate():
 def test_t5_muzychka_case_1b_spreader_layer():
     """!
     @brief Muzychka, Culham and Yovanovich (2003), case 1 (b), Table 2: case 1 (a) with a 2 mm layer of k 350 W/mK on top (spreader on a 10 mm k 10 W/mK substrate).
-    @details Printed centroids 56.55 and 59.94 degC. The program maps the spreader as copper layer 1 over a dielectric gap of the substrate and a 1 um copper layer that
+    @details Printed centroids 56.55 and 59.94 °C. The program maps the spreader as copper layer 1 over a dielectric gap of the substrate and a 1 um copper layer that
              carries the bottom film. The FVM at 2.5 mm reads within 0.3 % of the paper's rise (measured 0.14 % and 0.16 % low). A failure means the layered
              idealisation no longer reproduces the thin spreader on a thick substrate, the case where one node per layer is accurate.
     @return None.
@@ -308,7 +308,7 @@ def test_a2_t1_strong_edge_plate_against_the_stored_finite_element_limit():
 def test_l4l9_t1_the_cut_cell_peak_does_not_depend_on_the_film_floor(monkeypatch):
     """!
     @brief The FVM peak of the recessed turned square at 2000 W/m2K is the same for any value of fvm.EDGE_FILM_FLOOR (audit REVIEW_L4L9 T1).
-    @details Board: tests/helpers/cut_cell_study.recessed_board (a 20 mm square turned 20 degrees, the top copper held 1.2 mm inside the outline), 1 mm cell. Measured: 99.834 degC (98.075 before the drawn-copper change: drawn copper is now read with the exact fill and flux faces; this square is not a frozen record)
+    @details Board: tests/helpers/cut_cell_study.recessed_board (a 20 mm square turned 20 degrees, the top copper held 1.2 mm inside the outline), 1 mm cell. Measured: 99.834 °C (98.075 before the drawn-copper change: drawn copper is now read with the exact fill and flux faces; this square is not a frozen record)
              for floors 0.05, 0.1, 0.25 and 0.5 (the floor is only a safety net since 2.7.0). `docs/theory.md` 2.1.1 states this independence. A failure means the floor binds
              again (a node outside the board by more than S / H), and the theory statement is false.
     @param monkeypatch pytest fixture.

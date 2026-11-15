@@ -34,7 +34,7 @@ def row_of(p):
     """!
     @brief The row of the part in the report of an FVM run on a coarse cell.
     @param p Problem.
-    @return Tuple (row, hottest temperature in degC).
+    @return Tuple (row, hottest temperature in °C).
     """
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
     return sim.heater_rows()[0], sim.results["fvm"].t_max

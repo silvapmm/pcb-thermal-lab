@@ -2,10 +2,10 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_via_groups_lone_via.py
-@brief A lone via far from a via array is not joined to it by the grouping of the Lumped and Analytic models (research/small-model-defects, INTEGRATION.md 1).
+@brief A lone via far from a via array is not joined to it by the grouping of the LPTN and Analytic models (research/small-model-defects, INTEGRATION.md 1).
 
 @details The single linkage joined two vias when their distance was at most twice the LARGER of their nearest-neighbour distances, so the wide ball of a far via reached the
-         cluster: the via joined the group, its large distance entered the mean spacing of the group (the Wigner-Seitz cell of the cluster well) and the Lumped read the part
+         cluster: the via joined the group, its large distance entered the mean spacing of the group (the Wigner-Seitz cell of the cluster well) and the LPTN read the part
          0.65 to 1.26 K too hot with the FVM unchanged. The rule is now the SMALLER distance (each via reaches the other) and a via left alone has an infinite distance.
 """
 
@@ -108,7 +108,7 @@ def rise(p, model, cell=1.0):
 @pytest.mark.parametrize("cell", [1.0, 0.5])
 def test_a_far_via_no_longer_heats_the_lumped_part(cell):
     base = rise(board([]), "lumped", cell)
-    # The far via cools the board a little (it adds a conductor); before the fix the Lumped read it as a dilution of the cluster and the part got hotter
+    # The far via cools the board a little (it adds a conductor); before the fix the LPTN read it as a dilution of the cluster and the part got hotter
     assert rise(board([(32.0, 20.0)]), "lumped", cell) <= base + 0.05
     assert rise(board([(35.0, 22.0), (6.0, 30.0)]), "lumped", cell) <= base + 0.05
 

@@ -27,12 +27,12 @@ SURFACE_TRAP_TIP = ("On a board with patterned copper the difference includes th
 COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of the copper through its thickness (plus the laminate face term under a source over absent copper). "
                      "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is the outer face (an estimate for the FVM and "
                      "the FDM, resolved for the FEM), hotter under a source on thick copper.")
-SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in degC; the face is the one the part sits on. FVM and FDM: an estimate from the "
+SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in °C; the face is the one the part sits on. FVM and FDM: an estimate from the "
                    "layer mean and the heat fluxes through the faces (layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); "
                    "'(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at t/a = 1. FEM: resolved by "
                    "the elements (the element mean on the face, not an estimate); the tooltip of a cell also gives the hottest mesh node under the part (a node value, not a "
                    "cell mean). Steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise and "
-                   "for the surface mean. Junction, margin and power limit stay on the column. n/a: the Lumped, the Analytic, the 3D solid, a time simulation, or a part "
+                   "for the surface mean. Junction, margin and power limit stay on the column. n/a: the LPTN, the Analytic, the 3D solid, a time simulation, or a part "
                    "on an inner layer.")
 # Tooltips of the other tables of the Components tab and of the Summary table: they name the read-out of their temperatures (every number names its read-out)
 COLUMN_TABLE_TIP = ("Column read-out: the temperature of the copper layer in each cell, the mean through its thickness (the layer mean), the read-out of the maps and of the "
@@ -63,7 +63,7 @@ TIPS = {
     # Simulation
     "cell size": "Solver cell, mm. Smaller: more accurate, slower (unknowns shown below). Auto: a quarter of the smallest part.",
     "fvm solver": "Solver of the FVM system: sparse direct (exact, default), conjugate gradients, or SOR (comparison, slow).",
-    "lumped rings": "Rings of each heater's thermal network. Rings under one cell are merged: 10 is enough.",
+    "lptn rings": "Rings of each heater's thermal network. Rings under one cell are merged: 10 is enough.",
     "analytic modes": "Cosine modes per direction of the analytical series (more resolve smaller parts).",
     "local via and heatsink corrections": "Apply vias and heatsinks locally in the analytical model (Green function) instead of smearing them. Steady run only: the time run (power profiles) always treats vias and heatsinks locally.",
     "hotspot limit": "Temperature, °C, above which an area is a hotspot (outlined on the map).",

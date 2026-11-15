@@ -24,7 +24,7 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # sha256 of the RGBA buffer of the maps that the program draws for the example board at a 2 mm cell; they hold the Current view to the pictures of the
 # release, byte for byte. Pixel output depends on the Matplotlib version, so the check runs only on the one that made them.
 # Regenerated for 2.6.0 (branch feature/refreeze-260, from the integration tree feature/integration-260): the 2.6.0 items that move the example board's field
-# move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 degC at 2 mm): the via barrel length and rim uncoupling, the laminate edge
+# move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 °C at 2 mm): the via barrel length and rim uncoupling, the laminate edge
 # band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
 # 2.7.0 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
 # coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
@@ -218,7 +218,7 @@ def test_copper_image_from_zones_and_from_an_imported_mask(sim):
 
 def test_solved_rectangle_has_no_copper_and_says_so():
     """!
-    @brief A Lumped result on an outline board drawn as solved shows a note instead of the copper.
+    @brief A LPTN result on an outline board drawn as solved shows a note instead of the copper.
     """
     p = example_board()
     W, H = p.board.width, p.board.height

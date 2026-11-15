@@ -2,10 +2,10 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_via_constriction.py
-@brief The constriction resistance of the vias in the Lumped (micro well, capped cluster well) and Analytic (tile rule, bilinear spread, self-term) models.
+@brief The constriction resistance of the vias in the LPTN (micro well, capped cluster well) and Analytic (tile rule, bilinear spread, self-term) models.
 @details Independent references: the radial integral of a sink in a circular cell (no code of the program), the FVM with the mean-potential via at a fine cell, and the
          fixed points of the tile rule. Before the correction the two models joined the planes through the barrel conductance only: the copper-fill gain of the example board
-         was 6.3 to 6.8 K against 4.2 K of the FVM, a 3 x 3 array at 3.5 mm pitch was 57 % (Lumped) and 36 % (Analytic) too large. Boards without vias must not change at all.
+         was 6.3 to 6.8 K against 4.2 K of the FVM, a 3 x 3 array at 3.5 mm pitch was 57 % (LPTN) and 36 % (Analytic) too large. Boards without vias must not change at all.
 """
 
 import copy
@@ -95,8 +95,8 @@ def test_krogh_against_the_radial_integral(ratio):
 
 def test_unit_cell_against_the_fvm():
     """!
-    @brief Periodic cell of a lattice of vias (only the constriction is present): Lumped within 6 % and Analytic within 4 % of the FVM at a fine cell.
-    @details Before: +11 % (Lumped) and +2 % (Analytic) on the cell of 3.5 mm; the 8 mm cell was +35 % (Analytic).
+    @brief Periodic cell of a lattice of vias (only the constriction is present): LPTN within 6 % and Analytic within 4 % of the FVM at a fine cell.
+    @details Before: +11 % (LPTN) and +2 % (Analytic) on the cell of 3.5 mm; the 8 mm cell was +35 % (Analytic).
     @return None.
     """
     for pitch in (3.5, 8.0):
@@ -109,7 +109,7 @@ def test_unit_cell_against_the_fvm():
 
 def test_copper_fill_gain_of_the_example_board():
     """!
-    @brief The gain of filling the nine vias of the example board with copper: 4.2 K in the FVM, 6.3 (Analytic) and 6.8 K (Lumped) before the correction.
+    @brief The gain of filling the nine vias of the example board with copper: 4.2 K in the FVM, 6.3 (Analytic) and 6.8 K (LPTN) before the correction.
     @return None.
     """
     gains = {}
@@ -128,7 +128,7 @@ def test_copper_fill_gain_of_the_example_board():
 
 def test_sparse_array_and_rows_against_the_fvm():
     """!
-    @brief 2 x 2 array at 3.5 mm pitch and a row of five: the program was +57 % / +36 % (array) and +84 % / +48 % (row) off in the Lumped / Analytic models.
+    @brief 2 x 2 array at 3.5 mm pitch and a row of five: the program was +57 % / +36 % (array) and +84 % / +48 % (row) off in the LPTN / Analytic models.
     @return None.
     """
     p = array(2, 3.5)
@@ -145,7 +145,7 @@ def test_sparse_array_and_rows_against_the_fvm():
 
 def test_thermal_pad_and_dense_arrays_against_the_fvm():
     """!
-    @brief Pads at 1.2 and 0.5 mm pitch (the tile follows the pitch): the Analytic within 4 %, the Lumped (capped cluster well) within 10 %.
+    @brief Pads at 1.2 and 0.5 mm pitch (the tile follows the pitch): the Analytic within 4 %, the LPTN (capped cluster well) within 10 %.
     @return None.
     """
     for pitch, tol in ((1.2, 0.04), (0.5, 0.04)):
@@ -159,18 +159,18 @@ def test_thermal_pad_and_dense_arrays_against_the_fvm():
 
 def test_boards_without_vias_are_unchanged():
     """!
-    @brief The temperatures of the Lumped and Analytic models on boards without vias are those of the program before the correction (stored from it).
+    @brief The temperatures of the LPTN and Analytic models on boards without vias are those of the program before the correction (stored from it).
     @return None.
     """
     p = example_board()
     p.vias = []
-    # Re-baselined for 2.7.0 (fix/simple-stackup-physical-layers: the simple stack-up now has the physical layers, so the 4-layer example board moves; Lumped 94.693179 / 96.510345
+    # Re-baselined for 2.7.0 (fix/simple-stackup-physical-layers: the simple stack-up now has the physical layers, so the 4-layer example board moves; LPTN 94.693179 / 96.510345
     # -> 94.841459 / 96.660887 K at 0.5 / 1.0 mm, Analytic with insulated edges 94.714973 / 94.558017 -> 94.856398 / 94.698697 K); the heatsink rows below did not move
-    # Re-baselined for fix/lumped-edge-first-link (the first link carries the images of the board sides: Lumped 94.841459 / 96.660887 -> 96.056148 / 96.707303 K at 0.5 / 1.0 mm,
+    # Re-baselined for fix/lumped-edge-first-link (the first link carries the images of the board sides: LPTN 94.841459 / 96.660887 -> 96.056148 / 96.707303 K at 0.5 / 1.0 mm,
     # board mean 50.408 -> 50.4075 and 50.4002 -> 50.4018 K; the Analytic rows did not move)
     stored = {("lumped", 0.5): (96.05615992912341, 50.40754613184847), ("lumped", 1.0): (96.70731555810649, 50.40182772072635),
               ("analytic", 0.5): (94.85641269424822, 50.842321815391465), ("analytic", 1.0): (94.69871148121717, 50.84232309387713)}
-    # (+1.2e-5 to +1.4e-5 K on the Lumped and Analytic rows with fix/face-film-half-slab: the film passes the half copper layer, hotter)
+    # (+1.2e-5 to +1.4e-5 K on the LPTN and Analytic rows with fix/face-film-half-slab: the film passes the half copper layer, hotter)
     # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
     insulated = copy.deepcopy(p)
     insulated.board.h_side = None
@@ -182,7 +182,7 @@ def test_boards_without_vias_are_unchanged():
     q.add_full_copper()
     q.add_heater(1, 2.0, rect=(10, 10, 18, 16))
     q.add_heatsink(1, 200.0, rect=(20, 5, 30, 12))
-    # the Lumped row moved with fix/lumped-edge-first-link (95.306384 / 68.1358 -> 96.496194 / 68.153385; images of the sides in the first link)
+    # the LPTN row moved with fix/lumped-edge-first-link (95.306384 / 68.1358 -> 96.496194 / 68.153385; images of the sides in the first link)
     for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (96.49621050543944, 68.15340127204664), ("analytic", 0.5): (103.0995757732179, 72.68789447284516),
                                            ("analytic", 1.0): (102.96317016988827, 72.68789447284514)}.items():   # +1.6e-5 to +2.0e-5 K with fix/face-film-half-slab
         qq = copy.deepcopy(q)
@@ -289,7 +289,7 @@ def test_spread_weights():
     assert viaconstriction.spread_weights(5.3e-3, 7.8e-3, tw, th, 20, 20, math.inf, 0.3e-3) == {(7, 5): 1.0}
 
 
-# ------------------------------------------------------------------------------------------------ Lumped network
+# ------------------------------------------------------------------------------------------------ thermal network
 
 def test_lumped_couplings_are_symmetric_positive_and_reach_non_adjacent_sheets():
     """!
@@ -331,7 +331,7 @@ def test_lumped_transient_with_vias_matches_the_steady_state():
 
 def test_four_hundred_vias_run_and_the_tile_is_coarsened():
     """!
-    @brief 400 vias on a 40 mm board (stress): both models finish, the Analytic tile is coarsened and warned about, and the answers stay within 10 % (Analytic) and 15 % (Lumped) of the FVM.
+    @brief 400 vias on a 40 mm board (stress): both models finish, the Analytic tile is coarsened and warned about, and the answers stay within 10 % (Analytic) and 15 % (LPTN) of the FVM.
     @return None.
     """
     p = array(20, 1.0, side=40.0, source=24.0, power=4.0)
@@ -344,7 +344,7 @@ def test_four_hundred_vias_run_and_the_tile_is_coarsened():
 
 def test_via_warnings_carry_the_measured_numbers():
     """!
-    @brief The Lumped warnings quote the range measured on 46 boards (the branch and its review) and the lone-via range; the Analytic ones appear for one via, a pitch
+    @brief The LPTN warnings quote the range measured on 46 boards (the branch and its review) and the lone-via range; the Analytic ones appear for one via, a pitch
            under 0.45 mm and a huge system only.
     @return None.
     """

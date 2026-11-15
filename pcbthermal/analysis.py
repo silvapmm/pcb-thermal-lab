@@ -51,7 +51,7 @@ def hotspots(result, threshold):
 def gradient_magnitude(result):
     """!
     @brief Magnitude of the in-plane temperature gradient of every layer.
-    @details A Lumped or Analytic result of a board with an outline is the field of the rectangle of the same area stretched by 1/s onto
+    @details A LPTN or Analytic result of a board with an outline is the field of the rectangle of the same area stretched by 1/s onto
              the box (`SteadyResult.equivalent_scale`); its gradient is taken on the spacing that was solved (dx s, dy s), since the stretched
              spacing would make it s times too small.
     @param result A SteadyResult with a field.
@@ -69,7 +69,7 @@ def gradient_magnitude(result):
 def _board_mask(result, outline):
     """!
     @brief Which samples of a result field lie on the board (cells or nodes the models take as on the board).
-    @details Off the board the FVM, FDM and 3D solid pin the field to the ambient (and the Lumped and Analytic fields, stretched back from
+    @details Off the board the FVM, FDM and 3D solid pin the field to the ambient (and the LPTN and Analytic fields, stretched back from
              the rectangle of the same area, hold values that belong to no board), so a statistic over a polygon that crosses the outline
              must leave those samples out. The test is the one of the models: exact board cover of at least 0.01 on the cells
              (FVM, 3D solid) and the same cover averaged on the nodes (FDM).
@@ -278,7 +278,7 @@ def heater_stats(result, problem, powers=None):
              with psi_jb the second estimate is Tj = mean board temperature in the 0.5 to 1.5 mm ring around the outline + psi_jb P. The device temperature
              used for the limit is Tj (or the hottest point under a part without theta). The power limit is the dissipation that brings the device to tj_max
              with the board's response of this run (linear in the power for constant coefficients).
-    @param result A SteadyResult with a field (a Lumped result also carries arrays["heater_peak"], the own peak of each powered part, which t_max then reads).
+    @param result A SteadyResult with a field (a LPTN result also carries arrays["heater_peak"], the own peak of each powered part, which t_max then reads).
     @param problem The Problem that owns the heaters.
     @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
     @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
@@ -292,7 +292,7 @@ def heater_stats(result, problem, powers=None):
         mean, mx, _ = _footprint_stats(result, h.polygon, h.layer, problem.board.outline, face=True)
         peak = result.arrays.get("heater_peak")
         if peak is not None and k < len(peak) and np.isfinite(peak[k]):
-            # The Lumped paints the footprint with its node; the part's own peak (node + peak term + the other parts at its centre) is what its board maximum uses,
+            # The LPTN paints the footprint with its node; the part's own peak (node + peak term + the other parts at its centre) is what its board maximum uses,
             # so the part rows read it too (never below the drawn field)
             mx = max(mx, float(peak[k]))
         tj, p_top = part_split(h, mx, power, amb)
@@ -345,7 +345,7 @@ def extreme_points(field, mask, dx, dy, nodes=False, hot=None):
     @param dx Spacing along x in metres.
     @param dy Spacing along y in metres.
     @param nodes True when the field holds values at grid points (the first sample sits at 0), False for cell values (the first centre sits at half a cell).
-    @param hot Optional (tmax_degC, (x_mm, y_mm)): the hottest point as the MODEL reports it (`SteadyResult.t_max` and `t_max_location`, for the Lumped the peak of
+    @param hot Optional (tmax_degC, (x_mm, y_mm)): the hottest point as the MODEL reports it (`SteadyResult.t_max` and `t_max_location`, for the LPTN the peak of
            a part); it replaces the computed hottest sample, so only the coolest point is taken from the drawn field. None computes both ends.
     @return dict with `tmax`, `tmin` (degC) and `pmax`, `pmin` ((x, y) in millimetres), or None when no sample is finite.
     """

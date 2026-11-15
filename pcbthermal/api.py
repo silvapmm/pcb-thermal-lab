@@ -57,7 +57,7 @@ class SolverOptions:
     lumped_rings: int = 10                       # Rings per heater network in the lumped model
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
     analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
-    hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
+    hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (°C)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     laminate_s_max_mm: float = 0.4               # Longest sub-gap of the laminate between two copper nodes in mm (FVM and FDM; laminate.py)
     laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n); a gap gets min(n_max, ceil(d / s_max)), so a larger n_max needs a smaller s_max
@@ -176,7 +176,7 @@ def surface_report_lines(res):
              that a thermocouple on the copper and the column agree there. On a patterned board the difference of the whole face includes the rise across the bare laminate under a
              source (the laminate face term), so it can be 1 to 4 K on 35 um copper; the line says so.
     @param res A SteadyResult.
-    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: Lumped, Analytic, 3D solid, transient).
+    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: LPTN, Analytic, 3D solid, transient).
     """
     out = []
     for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
@@ -192,8 +192,8 @@ def surface_report_lines(res):
         # The FEM resolves the surface with its elements; the FVM and FDM estimate it from the heat fluxes
         how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}"
         patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
-        out.append(f"Hottest surface ({name}): {surf:.1f} degC ({how}; "
-                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} degC; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
+        out.append(f"Hottest surface ({name}): {surf:.1f} °C ({how}; "
+                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} °C; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
                    + ("; the difference includes the rise across the bare laminate under a source where copper is absent" if patterned else "") + ")")
     return out
 
@@ -227,7 +227,7 @@ class Simulation:
         # A plain string (the notes of the models, the guard messages) gets its severity here, so that every line of the summary has one
         out = [w if getattr(w, "severity", None) else warn(str(w), warning_severity(w)) for w in list(self.problem_warnings) + list(self.part_warnings)]
         for name, r in self.results.items():
-            out += [warn(f"{name}: {w}", warning_severity(w)) for w in r.warnings]
+            out += [warn(f"{RESULT_MODEL_LABELS.get(name, name)}: {w}", warning_severity(w)) for w in r.warnings]
         for name, r in self.profile_results.items():
             out += [warn(f"{name} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
         if self.profile_error:
@@ -292,7 +292,7 @@ class Simulation:
         """
         if not self.decisions:
             return []
-        lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
+        lines = ["", f"Power profiles (decision from the {RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, "
                      f"threshold {num(self.options.profile.threshold_c)} °C):", "",
                  "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
@@ -352,7 +352,7 @@ class Simulation:
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
-                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} degC, "
+                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} °C, "
                  f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings)]
         if self.h_used:
             b = self.problem.board
@@ -368,7 +368,7 @@ class Simulation:
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} C):")
+                         f"{RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, threshold {num(self.options.profile.threshold_c)} °C):")
             for d in self.decisions:
                 if d.kind != "constant":
                     lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
@@ -390,16 +390,16 @@ class Simulation:
                                  "in the peak and the minimum, not in the maps")
         if "fem" in self.results:
             f = self.results["fem"]
-            lines.append(f"FEM read-outs (finite elements, steady state): column mean {f.t_max:.2f} degC (the headline, like for like with the other models), "
-                         f"hottest node {f.extras['t_max_point']:.2f} degC" +
-                         "".join(f", surface {n} {f.extras[k]:.2f} degC" for n, k in (("top", "t_max_surface_top"), ("bottom", "t_max_surface_bottom")) if k in f.extras) +
+            lines.append(f"FEM read-outs (finite elements, steady state): column mean {f.t_max:.2f} °C (the headline, like for like with the other models), "
+                         f"hottest node {f.extras['t_max_point']:.2f} °C" +
+                         "".join(f", surface {n} {f.extras[k]:.2f} °C" for n, k in (("top", "t_max_surface_top"), ("bottom", "t_max_surface_bottom")) if k in f.extras) +
                          f"; {int(f.extras['unknowns'])} unknowns, energy balance {num(f.balance_error, sign=True)}")
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
-            lines.append(f"Hotspots above {num(self.options.hotspot_c)} degC: {len(hs)}")
+            lines.append(f"Hotspots above {num(self.options.hotspot_c)} °C: {len(hs)}")
             for h in hs[:10]:
-                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
+                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} °C at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
             surf_lines = surface_report_lines(ref)
             if surf_lines:
@@ -408,31 +408,31 @@ class Simulation:
             else:
                 lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {ref.model} model has no surface read-out here (steady FVM, FDM and FEM only)")
             for h in self.heater_rows():
-                extra = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
+                extra = f", junction {h['t_junction']:.1f} °C" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
-                    extra += f", board ring {h['t_ring']:.1f} degC"
+                    extra += f", board ring {h['t_ring']:.1f} °C"
                 if h["t_junction_psi"] is not None:
-                    extra += f", junction by psi_JB {h['t_junction_psi']:.1f} degC"
+                    extra += f", junction by psi_JB {h['t_junction_psi']:.1f} °C"
                 if h["power_top_w"] > 0:
                     extra += f", top path {h['power_top_w']:.2f} W ({100.0 * h['power_top_w'] / h['power_w']:.0f} % of the power, {h['r_top']:.1f} K/W)"
                 if h["margin_k"] is not None:
-                    extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
+                    extra += f", limit {num(h['tj_max'])} °C (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
                 if "t_max_surface" in h:
                     # Both read-outs exist (always, for the FVM and the FDM): every number names its own
                     note = "resolved" if ref.model == "fem" else ("estimate, upper side" if h["surface_upper"] else "estimate")
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
-                                 f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} degC{extra}; "
-                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note}; "
+                                 f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} °C{extra}; "
+                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} °C ({note}; "
                                  f"surface minus column max {signed_fixed(h['t_max_surface'] - h['t_max'], 3)} K)")
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
-                                 f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
+                                 f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} °C{extra}")
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
-                             f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")
+                             f"max {z['t_max']:.1f}, min {z['t_min']:.1f} °C")
             for k in block_stats(ref, self.problem):
-                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} degC; "
+                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} °C; "
                              f"{k['w_to_block']:.2f} W enter it through the interface, {k['w_to_air']:.2f} W leave by its surface")
         return "\n".join(lines) + "\n"
 
@@ -666,10 +666,10 @@ def _top_path_split(problem, pr, totals, once, active):
 def _solve_with_tc(problem, name, options, computed):
     """!
     @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient or a top path.
-    @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
+    @details P = P0 (1 + tc (Tj - 25 °C)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
              part of P to the ambient through the top and only the rest enters the board (analysis.part_split).
              The power coefficient is a fixed-point loop around the solve, like the computed heat transfer coefficients: it stops when the powers change by less than
-             1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point; the slope of the loop
+             1e-5 (relative), or reports a thermal runaway when the device passes 1500 °C or the power grows 50 times (no stable operating point; the slope of the loop
              alpha P0 R is the physical runaway condition); after 80 iterations without either it warns that the powers did not settle.
              The split of a part with a top path is not a fixed-point loop: for the powers of the parts it is the root of a monotone scalar equation per part, solved
              by _top_path_split (secant / quasi-Newton), because the fixed-point iteration diverges when the board under the part resists more than the top path.
@@ -740,7 +740,7 @@ def _solve_with_tc(problem, name, options, computed):
 def _block_flux_result(sim):
     """!
     @brief The result that carries the heat flux into the metal blocks, for the thick-plate warning.
-    @details The reference result of the FVM or FDM has it. For the other models (Lumped, Analytic, 3D solid) a quiet auxiliary FVM run of the same
+    @details The reference result of the FVM or FDM has it. For the other models (LPTN, Analytic, 3D solid) a quiet auxiliary FVM run of the same
              problem (steady power, cell of at least 2 mm, no other model, its own warnings dropped) gives it, so the warning rests on a simulation and
              not on the flux of the footprint, which overstates a block under the board 5 to 70 times. Nothing is run without a metal block.
     @param sim Simulation with its results.
@@ -767,7 +767,7 @@ CONVECTION_NOT_MEASURED_NOTE = ("the computed heat transfer coefficients are pub
 def _part_warnings(sim):
     """!
     @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
-           the plate, channel and Lumped-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
+           the plate, channel and LPTN-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
     @param sim Simulation with its results.
     @return List of strings.
     """
@@ -775,8 +775,8 @@ def _part_warnings(sim):
     runaway = any(r.extras.get("thermal_runaway") for r in sim.results.values())
     for row, h in zip(sim.heater_rows(), sim.problem.heaters):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
-            out.append(warn(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
-                            f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)", ALERT))
+            out.append(warn(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} °C, "
+                            f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} °C (power limit {row['p_limit_w']:.2f} W with this board)", ALERT))
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
@@ -786,7 +786,7 @@ def _part_warnings(sim):
     ex = sim.reference.extras
     h_faces = (ex["h_top"], ex["h_bottom"]) if sim.problem.board.h_mode == "computed" and "h_top" in ex and "h_bottom" in ex else None
     out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result, h_faces, model=sim.reference.model)
-    # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
+    # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the LPTN and Analytic
     out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
     if sim.problem.board.h_mode == "computed":
         # Once per simulation, from the face means of the reference model (the coefficients of its last Picard step, within 0.01 W/m2K), so that the
@@ -912,11 +912,11 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
              this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
              and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
     @param problem A Problem (it is not modified).
-    @param measured_c Measured steady temperature in degC.
+    @param measured_c Measured steady temperature in °C.
     @param options SolverOptions (default: 1 mm cell); only the chosen model is run.
     @param model "fvm" (default), "lumped" or "analytic".
     @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
-    @return Tuple (multiplier, model temperature with it in degC).
+    @return Tuple (multiplier, model temperature with it in °C).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
     options = copy.deepcopy(options) if options else SolverOptions()
@@ -929,10 +929,10 @@ def _calibrate_convection(problem, measured_c, options, heater):
     """!
     @brief Body of calibrate_convection(), run with the laminate numbers of the options in force.
     @param problem A Problem (it is not modified).
-    @param measured_c Measured steady temperature in degC.
+    @param measured_c Measured steady temperature in °C.
     @param options SolverOptions (a private copy) with the one model to run in models.
     @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
-    @return Tuple (multiplier, model temperature with it in degC).
+    @return Tuple (multiplier, model temperature with it in °C).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
     from .analysis import heater_stats
@@ -953,8 +953,8 @@ def _calibrate_convection(problem, measured_c, options, heater):
 
     lo, hi = math.log(0.1), math.log(10.0)
     if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
-        raise ValueError(f"the measured {num(measured_c)} degC is outside what a multiplier between 0.1 and 10 can give "
-                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
+        raise ValueError(f"the measured {num(measured_c)} °C is outside what a multiplier between 0.1 and 10 can give "
+                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} °C): check the powers, the ambient "
                          "temperature and where the measurement was taken")
     for _ in range(40):
         mid = 0.5 * (lo + hi)
@@ -1048,14 +1048,14 @@ def _run_profiles(sim, progress, start):
     o = sim.options
     p = sim.effective_problem or sim.problem
     # The lumped and analytic models have no time simulation on a board with an outline (the rectangle of the same area is a steady-state device)
-    # Lumped and Analytic have no time simulation with a metal block either (the block layer is a steady-state aggregation)
+    # LPTN and Analytic have no time simulation with a metal block either (the block layer is a steady-state aggregation)
     usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and (p.board.has_outline() or blocks.has_blocks(p))))
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
         sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)"))
     ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
-        sim.profile_error = "select the FVM or the FDM (or Lumped/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
         return
     sim.profile_reference = ref
     if progress:
@@ -1188,7 +1188,7 @@ def _simulate(problem, options, progress):
             if name in sim.results:
                 sim.results[name].warnings.append(f"the metal block is represented as {how}: {accuracy} (docs/validation.md section 17); steady state only")
     for name, r in sim.results.items():
-        # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
+        # Imported copper (copper.py): the LPTN, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
         r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:

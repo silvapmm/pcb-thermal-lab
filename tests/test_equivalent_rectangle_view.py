@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_equivalent_rectangle_view.py
-@brief The maps draw the rectangle of the same area that the Lumped and Analytic models solved, only for those models and only on a board with an outline.
+@brief The maps draw the rectangle of the same area that the LPTN and Analytic models solved, only for those models and only on a board with an outline.
 """
 
 import numpy as np
@@ -95,7 +95,7 @@ def test_draw_field_adds_the_rectangle_only_when_asked(sim):
 
 def test_gradient_uses_the_solved_spacing(sim):
     """!
-    @brief The gradient of a Lumped or Analytic result on an outline board is taken on the spacing that was solved, not the stretched one.
+    @brief The gradient of a LPTN or Analytic result on an outline board is taken on the spacing that was solved, not the stretched one.
     @param sim Simulation fixture.
     """
     from pcbthermal import analysis
@@ -142,7 +142,7 @@ def test_rectangular_board_is_unchanged():
 
 def test_gui_checkbox(qtbot, tmp_path, sim):
     """!
-    @brief The Temperature and Gradient tabs show the checkbox for Lumped and Analytic only; the board overlay stays the stretched map without a
+    @brief The Temperature and Gradient tabs show the checkbox for LPTN and Analytic only; the board overlay stays the stretched map without a
            rectangle (the editor's parts are on the real board, so the solved frame cannot be drawn there).
     @param qtbot pytest-qt fixture.
     @param tmp_path pytest folder.

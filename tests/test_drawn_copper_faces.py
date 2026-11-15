@@ -6,7 +6,7 @@
 @details The references are the heater-mean rises of an independent hexahedral finite-element solution of the three 20 mm boards of `research/drawn-copper-faces` (extrapolated to
          zero size, 200 W/m2K, two layers; README 2.1 there), stored here as numbers. Before the change the FVM read the inset square -1.2 / -2.8 % (1 / 0.5 mm), the stripes board
          -8.0 / -4.1 % and the L -1.4 / -4.1 %; now +0.1 / -1.4, -0.6 / -1.9 and -0.0 / -2.5 %. Also: the exact area of the raster, the union of zones, the layers that keep the
-         earlier path (bit for bit), the Lumped, Analytic and 3D solid untouched, the heat balance, and the memory law above the measured peaks. The three boards are also
+         earlier path (bit for bit), the LPTN, Analytic and 3D solid untouched, the heat balance, and the memory law above the measured peaks. The three boards are also
          boards of the release harness (`regress_boards.py`); the harness freezes them at the next release (a board absent from the frozen file cannot be a pending record), so their
          numbers at 1 and 0.5 mm are held here until then.
 """
@@ -165,8 +165,8 @@ def test_layers_without_a_cut_cell_keep_the_earlier_path_bit_for_bit():
 
 def test_the_hook_is_off_for_the_lumped_network_and_the_other_models(monkeypatch):
     """!
-    @brief The network the Lumped builds (no ladder, no cut cells) never reads the drawn source, and the Lumped, the Analytic and the 3D solid give the same numbers with the hook
-           switched off: the review of the study found that a hook inside `fvm.Network` moved a Lumped record.
+    @brief The network the LPTN builds (no ladder, no cut cells) never reads the drawn source, and the LPTN, the Analytic and the 3D solid give the same numbers with the hook
+           switched off: the review of the study found that a hook inside `fvm.Network` moved a LPTN record.
     @param monkeypatch pytest fixture.
     @return None.
     """

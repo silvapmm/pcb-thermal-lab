@@ -2,9 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_near_edge.py
-@brief The Lumped near-edge warning (checks.check_lumped_near_edge) and the finer Lumped raster for a heat source under two cells (lumped.small_part_cell, cell_for).
+@brief The LPTN near-edge warning (checks.check_lumped_near_edge) and the finer LPTN raster for a heat source under two cells (lumped.small_part_cell, cell_for).
 @details The rule is held to the cases of research/lumped-near-edge (tests/data/lumped_near_edge_cases.json: the 180 sweep cases and the 120 random boards, with the error of the
-         Lumped against the FVM measured there): 57 of the 58 cases more than 8 % too cool are flagged on the sweep and 35 of 37 on the random boards, and the 17 frozen boards flag
+         LPTN against the FVM measured there): 57 of the 58 cases more than 8 % too cool are flagged on the sweep and 35 of 37 on the random boards, and the 17 frozen boards flag
          exactly three. The raster rule is held to the FVM at 0.0625 mm on the 24 mm board of the study, to the memory bound, and to bit-identical rasters for boards without small parts.
 """
 
@@ -57,7 +57,7 @@ def _sweep_problem(row):
 
 def _near(p):
     """!
-    @brief The near-edge warnings of a problem for the Lumped model.
+    @brief The near-edge warnings of a problem for the LPTN model.
     @param p Problem.
     @return List of warnings.
     """
@@ -95,7 +95,7 @@ def test_the_threshold_is_one_side_with_a_five_millimetre_floor():
 
 def test_only_the_lumped_and_only_powered_parts():
     """!
-    @brief The warning belongs to the Lumped model alone, and a part with no power is not flagged.
+    @brief The warning belongs to the LPTN model alone, and a part with no power is not flagged.
     @return None.
     """
     p = _board(100, 80, 5, (4.0, 40.0))
@@ -299,7 +299,7 @@ def test_a_zoned_board_keeps_its_raster_and_the_check_says_so():
 
 def _rise_errors(side, shift):
     """!
-    @brief Error of the hottest rise of the Lumped, through the API (refined raster) and at the 0.5 mm raster of the earlier releases, against the FVM at 0.0625 mm.
+    @brief Error of the hottest rise of the LPTN, through the API (refined raster) and at the 0.5 mm raster of the earlier releases, against the FVM at 0.0625 mm.
     @param side Side of the source in mm.
     @param shift Shift of the centre from (12, 12) mm, in both directions, in mm.
     @return tuple (refined error, 0.5 mm error) as fractions of the rise.
@@ -314,7 +314,7 @@ def _rise_errors(side, shift):
 @pytest.mark.parametrize("side, limit", [(0.2, 0.08), (0.5, 0.03), (1.0, 0.03)])
 def test_the_finer_raster_follows_the_resolved_fvm(side, limit):
     """!
-    @brief 24 x 24 mm board, 1 W, source centred on a cell corner and in a cell of the 0.5 mm raster: the refined Lumped is within the limit of the FVM at 0.0625 mm
+    @brief 24 x 24 mm board, 1 W, source centred on a cell corner and in a cell of the 0.5 mm raster: the refined LPTN is within the limit of the FVM at 0.0625 mm
            (measured on this program: 0.2 mm -6.0 and -6.7 %, 0.5 mm +0.1 and +0.7 %, 1.0 mm +1.6 and -0.3 %; the 0.2 mm level is the deficit of the rings of a tiny
            footprint, which the capped first ring of the next version removes, the position dependence is gone).
     @param side Side of the source in mm.

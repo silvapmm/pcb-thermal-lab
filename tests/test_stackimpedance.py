@@ -313,7 +313,7 @@ def test_warnings_for_bare_laminate_and_for_a_slow_wave_near_a_side():
     assert any("no copper under it" in x for x in checks.check_input(bare, ("fvm",), 1.0))      # part of the live list
 
 
-# ------------------------------------------------------------------ tables, the Lumped and Analytic runs, the warnings added by the review
+# ------------------------------------------------------------------ tables, the LPTN and Analytic runs, the warnings added by the review
 
 def test_a_table_gets_the_same_closed_form_as_the_square_wave_it_describes():
     col, _ = S.column_for_heater(two_layer(), 0)
