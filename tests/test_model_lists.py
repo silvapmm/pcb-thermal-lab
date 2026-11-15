@@ -18,7 +18,8 @@ GUI = os.path.join(ROOT, "pcbthermal", "gui")
 # (file, text of the literal) pairs that name the 3D solid and not the FEM on purpose; the key is a fragment of the literal's source
 ALLOWED = {
     ("checks.py", '"layered"'): "the small-part rule is a rule of the cell footprint of the layered models and of the 3D solid's slabs; the FEM has its own check_fem (part below the mesh)",
-    ("checks.py", '("fvm", "fdm", "solid3d")'): "the via-at-the-edge warning is about the cut footprint of a via on a cell grid (the FEM meshes the barrel as a hollow tube)",
+    ("checks.py", '("fvm", "fdm", "solid3d")'): ("the via-at-the-edge warning is about the cut footprint of a via on the FVM/FDM cell grid; the FEM meshes the barrel as a hollow tube, or, without room for "
+                                              "one, as a rod over the elements under the drill, and its outline is rectangular (a refused outline never reaches it)"),
     ("checks.py", '{"fdm", "solid3d"}'): "the same via-at-the-edge test: the models that do not take the FVM's mirror image",
 }
 

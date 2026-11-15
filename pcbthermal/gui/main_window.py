@@ -1535,7 +1535,8 @@ class MainWindow(QMainWindow):
         # needs more than the memory available now only warns
         self.solver_panel.refresh()
         if self.solver_panel.blocked:
-            QMessageBox.warning(self, "Cannot run: not enough memory", self.solver_panel.blocked)
+            # The reason is the memory, a FEM mesh that cannot be built or a FEM that needs pyamg (the text says which): the title names none of them
+            QMessageBox.warning(self, "Cannot run", self.solver_panel.blocked)
             return
         low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
         self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])

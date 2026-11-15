@@ -34,6 +34,8 @@ ALL_MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 # The FEM is not in ALL_MODELS (decision: the 1 mm tests would add 15 s and 2 GB each); it has dedicated scenarios (tests/test_fem_gui.py), the model loop of the profile
 # test below, the live checks and the random actions (only at the default mesh options, at a cell of 2 mm or more)
 MODELS_WITH_FEM = ALL_MODELS + ("fem",)
+FEM_MONKEY_CELLS = 2e4          # Largest board (plan cells x layers) on which the random actions may tick the FEM: about 170 000 FEM unknowns, 10 s and 1.5 GB at most
+                                # (the example board at 2 mm: 8000 cells, 67 229 unknowns; at 1 mm: 32 000 cells, 275 724 unknowns, 15 s, 2 GB)
 
 
 @pytest.fixture
@@ -611,7 +613,10 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
             if win.doc.problem.heaters and win.doc.problem.total_power() > 0 and cells < 3e5 \
                     and win.doc.options.analytic_modes <= 400 and win.doc.options.profile.max_steps <= 300000:
                 o = win.doc.options
-                pool = MODELS_WITH_FEM if (o.fem_gap_elements <= 6 and o.fem_refine >= 2.0) else ALL_MODELS       # a fine FEM mesh is a long solve: not in a monkey run
+                # A fine FEM mesh or a large board is a long solve (the FEM has about six times the unknowns of the FVM: 400 x 300 mm, 4 layers at 2 mm is 756 000
+                # unknowns and about 6 GB, which the memory guard of a 16 GB machine still lets run): the FEM only on boards up to FEM_MONKEY_CELLS cells at the run's cell
+                small = b.width * b.height / (max(o.cell_mm, 2.0) * 1e-3) ** 2 * b.layers <= FEM_MONKEY_CELLS
+                pool = MODELS_WITH_FEM if (small and o.fem_gap_elements <= 6 and o.fem_refine >= 2.0) else ALL_MODELS
                 run(win, qtbot, tuple(rng.sample(pool, rng.randint(1, len(pool)))), cell=max(o.cell_mm, 2.0),
                     expect_ok=False)
         else:

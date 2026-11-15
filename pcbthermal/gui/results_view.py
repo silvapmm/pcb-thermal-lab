@@ -568,8 +568,13 @@ class ResultsView(QWidget):
         # Every temperature the user sees names its read-out: these tables are all column values (the layer mean through the copper thickness), like the part table
         self.zone_table = _table(["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"])
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"])
-        self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
-        self.block_table.setMaximumHeight(90)
+        self.block_table = _table(["Metal block", "Face", "Mean °C\n(block)", "Max °C\n(block)", "Heat in W", "Heat to air W"])     # The block read-out: the mean through the block
+        self.block_table.setMaximumHeight(110)                 # Two rows (a block on each side) under the two-line header that names the read-out
+        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled)
+        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP),
+                             (self.model_table, (1, 2, 3), tips.MODEL_TABLE_TIP)):
+            for c in cols:
+                t.horizontalHeaderItem(c).setToolTip(tip)
         for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
             tl.addWidget(t)
         split.addWidget(tables)

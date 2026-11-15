@@ -275,10 +275,63 @@ def test_fem_cancel_leaves_no_worker(win, qtbot):
     assert win.sim.reference.model == "fvm"
 
 
-def test_the_main_window_progress_message_for_the_fem(win):
+def test_the_card_title_of_the_fem(win):
     """!
-    @brief The status text of the Run block names the FEM by its label.
+    @brief The card of the map on the board names the FEM by its short label, not its key.
     @param win Main window fixture.
     """
     from pcbthermal.gui import fieldscale
     assert fieldscale.MODEL_SHORT["fem"] == "FEM"
+
+
+def test_the_fem_alone_without_pyamg_on_a_large_mesh_blocks_run(win, monkeypatch, popups):
+    """!
+    @brief Review of branch 5: alone, a FEM whose mesh needs pyamg would fail the run ('Simulation failed'); the row says it will not run and Run is blocked, while next
+           to the FVM it is only left out.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    @param popups Recorder of the message boxes.
+    """
+    monkeypatch.setattr(femcore, "available", lambda: False)
+    load(win, example_board())
+    sp = win.solver_panel
+    win.doc.set_options(models=("fem",), cell_mm=2.0)                    # 67 229 unknowns: above FEM_DIRECT_MAX
+    sp.refresh()
+    text = sp.cells_label.text()
+    assert "pyamg" in text and "will not run" in text and "left out" not in text
+    assert not sp.run.isEnabled() and "pyamg" in sp.blocked
+    win.run_simulation()                                                   # F5 or the menu: a box with the reason, no job
+    assert any(k == "warning" and t == "Cannot run" and "pyamg" in m for k, t, m in popups) and win.worker is None
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=2.0)
+    sp.refresh()
+    assert "will be left out" in sp.cells_label.text() and sp.run.isEnabled() and not sp.blocked
+
+
+def test_the_tables_name_their_read_out(win):
+    """!
+    @brief Review of branch 5: every temperature header of the Components and Summary tables names its read-out in the text or in its tooltip (the block table: 'block').
+    @param win Main window fixture.
+    """
+    rv = win.results
+    assert "(block)" in rv.block_table.horizontalHeaderItem(2).text() and "(block)" in rv.block_table.horizontalHeaderItem(3).text()
+    assert "no surface" in rv.block_table.horizontalHeaderItem(2).toolTip()
+    for t, cols in ((rv.zone_table, (2, 3, 4)), (rv.hot_table, (2,)), (rv.model_table, (1, 2, 3))):
+        for c in cols:
+            assert "Column read-out" in t.horizontalHeaderItem(c).toolTip(), (t, c)
+
+
+@needs_pyamg
+def test_the_thick_plate_warning_of_a_fem_reference_says_resolved():
+    """!
+    @brief Review of branch 5: with the FEM as the reference (FEM alone), the thick-plate warning quotes the resolved surface, not 'the surface estimate of this
+           model', and does not say that the model keeps one temperature through the thickness; with the FVM it keeps its wording.
+    """
+    from pcbthermal import api
+    for models, says, never in ((("fem",), "The surface resolved by the finite elements", "The surface estimate of this model"),
+                                (("fvm",), "The surface estimate of this model", "resolved by the finite elements")):
+        sim = api.simulate(thick_plate(), api.SolverOptions(models=models, cell_mm=2.0))
+        plates = [w for w in sim.warnings if "thick and poorly conducting" in w]
+        assert plates, models
+        for w in plates:
+            assert says in w and never not in w
+            assert ("keep one temperature through the thickness" in w) == (models == ("fvm",))

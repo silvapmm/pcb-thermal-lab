@@ -317,7 +317,7 @@ def heater_stats(result, problem, powers=None):
 def block_stats(result, problem):
     """!
     @brief Temperature of the metal blocks and the heat they take, one row per face that carries blocks.
-    @param result A SteadyResult from the FVM or the FDM (other models have no blocks).
+    @param result A SteadyResult from the FVM, the FDM or the FEM (the block mean through its thickness; other models have no blocks).
     @param problem The Problem that owns the heatsinks.
     @return List of dicts: name, face ("top" or "bottom"), t_mean, t_max, w_to_block (heat entering the block through the interface,
             W) and w_to_air (heat leaving through its exposed surface, W); empty without blocks.

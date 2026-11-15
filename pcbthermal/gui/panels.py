@@ -1775,8 +1775,13 @@ class SolverPanel(QWidget):
                 o = self.doc.options
                 n_fem, need = fem_needs_pyamg(self.doc.problem, self.cell.value(), o.fem_gap_elements, o.fem_refine)
                 if need:
-                    rows.append(f'<span style="color:{colours["refuse"]}">' + html.escape(f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package "
-                                                                                       "pyamg (pip install pyamg) and will be left out") + "</span>")
+                    # Next to other models the run leaves the FEM out (api.simulate); alone, the run would fail with that reason, so Run is blocked like a refusal
+                    alone = len(self.doc.options.models) == 1
+                    why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
+                           + ("will not run: install it or use a coarser cell" if alone else "will be left out"))
+                    rows.append(f'<span style="color:{colours["refuse"]}">' + html.escape(why) + "</span>")
+                    if alone:
+                        blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
         self.blocked = blocked
         self._style_run_button()
