@@ -1,7 +1,8 @@
 # The Lumped model near a board edge: the first link (A27), re-measured and a correction on a copy
 
-Branch `research/lumped-edge-link`. Nothing in `pcbthermal/`, `tests/`, `examples/` or the project documents was edited: every variant is a copy of `pcbthermal/lumped.py` made in memory
-(`lib/variants.py`) and installed where `pcbthermal.api` calls the Lumped model. Synthetic boards of ours only.
+Branch `research/lumped-edge-link`. Nothing in `pcbthermal/`, `tests/`, `examples/` or the project documents was edited: every variant is a copy of the Lumped module made in memory
+(`lib/variants.py`) and installed where `pcbthermal.api` calls the Lumped model. Since the adoption (4.6) the copy is made from `lib/lumped_before_fix.py`, the module as it was before the fix (byte-identical to `pcbthermal/lumped.py` of
+development `dbe5068e`), so `program` in the tables below means the pre-fix Lumped and the adopted program is the variant `shipped`. Synthetic boards of ours only.
 
 ## 0. Summary
 
@@ -25,6 +26,7 @@ Branch `research/lumped-edge-link`. Nothing in `pcbthermal/`, `tests/`, `example
   change of the chain of the first link (strip replaced by the potential difference from the boundary cells to the ring-1 mean), not the images, which matter only for a part touching a side or a corner (a part 29 mm from every side:
   -4.8 to +1.4 % with the images, +1.2 % without); (b) on the 17 frozen boards the correction does NOT make the Lumped closer to the FVM on average (mean absolute error of the part peaks 5.04 to 5.17 % at 1 mm), because an interior
   part of the example board read right only by a cancellation; (c) the times to 63 % against a converged FVM step response are fixed near an edge (+20 to -5 %, corner +43 to +2 %) and become 5 to 9 % short in the interior.
+* **Adopted** (4.6) as `fix/lumped-edge-first-link` (2.8.0, `docs/validation.md` 53); the closing review (4.7) re-ran the key numbers with the shipped program (GO) and corrected the size of the interior shift (+3.8 points at 0.5 mm for parts 10 mm or more from every side, not 'about 2').
 
 ### 1.1 Drawings
 
@@ -112,6 +114,7 @@ overall: the residual of `first` at a gap of 1 to 5 mm and in a corner (3 to 7 %
   without the images (`pot_first:0`, ρ = 0) -4.0 / -2.6; the ring-to-ring links alone (`pot_rings`) -6.2 / -6.2, without images -18.9 / -13.4; centred part: program -0.6, `pot_first` +1.5, `pot_rings` -1.9. So at a gap most of the gain of the first link is
   the replacement of the strip `t / (S L)` of ring 1 by the potential difference to the ring-1 mean (a mean over the annulus, not a mean distance), and the image adds the rest; the image alone (`img`, only the footprint potentials) lifts the part on a side (-11.3 to -4.0 %) and does almost nothing from a gap of 2 mm (-7.7 to -6.2 %).
 * **The raised centred reading**: `pot_first` reads a centred 6 mm part +1.5 % hot against the FVM (program -0.6 %): the program's interior factor and first-ring cap were fitted with its own links, so a different first link shifts the centre by about 2 points. On the 17 frozen boards it moves the records by +0.4 to +1.7 %.
+  **Review (closing, 4.7): 'about 2 points' understates the shift of `first:zone` as adopted.** On the 72 of the 180 cases of `docs/validation.md` 53.1 that sit 10 mm or more from every side, the hottest node moves +3.8 points of the rise on average at the 0.5 mm cell (+0.5 to +6.4) and reads up to +4.0 % hot against the FVM; +2.2 points at 1 mm (`docs/validation.md` 53.4). On the small 40 x 40 mm board of 3.2 the centred part moves the other way (+2.3 to +0.8 %). The shift is on the hot (safe) side in every case measured.
 * The earlier alternative `delta` (the image term only ADDED to the program's link, so that the centre would not move) overshoots at a side (+2.0 to +7.4 % at gap 0) and does nothing at a gap: the program's strip and the potential difference are not the same quantity.
 
 ### 3.4 Candidates compared (432 cases, hottest point, mean [worst cool, worst hot] %)
@@ -268,6 +271,17 @@ The first-link correction (`first:zone`) is in the program as `fix/lumped-edge-f
 The jump at the footprint limit (a part of more than 3600 cells keeps the old link, so a 30 mm part and a 40 mm part at 0.5 mm are not read on the same footing) is a stated limit, kept in the program.
 **Tests after the adoption**: `lib/variants.py` no longer patches `pcbthermal/lumped.py` (its anchors were the text the fix rewrote); it patches a frozen copy of the pre-fix module, `lib/lumped_before_fix.py` (development `dbe5068e`), and `tests/test_edge_link.py` checks that the prototype `first:zone` built on the copy equals the shipped Lumped to rounding (mean and peak of the part, four boards: at a side, interior, corner, insulated edge). The studies of `scripts/` that name `program` now read the pre-fix copy; the adopted program is the variant `shipped`.
 
+### 4.7 Closing review (after the adoption)
+
+Re-run on this branch with the program of the merged `fix/lumped-edge-first-link` (one process, 74 s); the review script was kept outside the repository.
+
+* **The frozen copy.** `lib/lumped_before_fix.py` is byte-identical to `git show dbe5068e:pcbthermal/lumped.py`; the only program modules that changed between `dbe5068e` and the adopted tree are `lumped.py`, `checks.py` and the user guide, so the copy with the current sibling modules is the pre-fix Lumped exactly. Every anchor of `lib/variants.py` applies to it (`test_every_variant_builds`).
+* **The adoption test is not vacuous.** With the constant `IMAGE_MAX_CELLS` of the shipped `pcbthermal/lumped.py` set to 100, or the factor 4.0 of `f_r` in the frozen copy set to 4.01, the four cases of `test_adoption_prototype_equals_shipped_program` fail (files restored afterwards, `cmp` with `dbe5068e` clean). A change of the frozen copy that the 0.5 mm cases do not reach (the minimum ring width, the 1.5-cell floor of the first ring) passes, as it should. The variant `shipped` returns `pcbthermal.lumped` itself (the tree's module, checked by `pcbthermal.__file__`). The test boards have no vias, so the zone half of `first:zone` is exercised by `study_zoned_edge.py` and by the program's own tests, not by the adoption test.
+* **Folder tests**: 13 passed.
+* **Numbers with the shipped Lumped** (FVM at 0.5 mm re-solved, not read from a cache): the 180 cases of `docs/validation.md` 53.1 go from -7.45 [-22.2, -0.8] to -1.64 [-7.5, +4.0] % of the rise, 70 to 0 cases beyond -8 %, flagged -9.4 to -2.7 %, not flagged -3.6 to +0.5 %; both columns equal `tests/data/lumped_near_edge_cases.json` to 5e-4 point. The 3D table of 3.2 with the shipped Lumped: side gap 0 / 1 / 2 / 5 / 10 mm -9.8 -> -3.1 / -6.6 -> -5.4 / -4.9 -> -4.2 / -3.5 -> -3.0 / -1.7 -> -0.4 %, corner gap 0 / 2 / 5 mm -15.9 -> -3.3 / -11.1 -> -7.3 / -7.8 -> -5.4 %, centred +2.3 -> +0.8 % (against the converged peaks of 3.2 as printed to 0.01 K; the column `first` of 3.2 reads -0.3 and -7.4 at side gap 10 and corner gap 2, the same within the rounding of the 3D peaks; `docs/validation.md` 53.3 prints -0.4 and -7.3). The footprint limit: a part touching a side reads -6.6 % at 30.0 mm (Lumped 13.36 K, FVM 14.31 K) and -14.6 % at 30.1 mm (12.18 K, 14.26 K). These are the numbers of `docs/validation.md` 53 and of `releases/2.8.0/audit` (the near-edge entries of `DECISIONS_2.md` quote the pre-fix -9.4 / -22.4 % and the fix as planned; consistent).
+* **Corrected**: the 'about 2 points' of the interior shift (3.3, `INTEGRATION.md` 1 and 6), see 3.3: +3.8 points on average at 0.5 mm for the parts 10 mm or more from every side (re-measured here: +3.84, range +0.51 to +6.38, largest reading +3.98 %).
+* **Verdict: GO** for merging the closed investigation.
+
 ## 5. What was read and what was not verified
 
 * **Read in full**: `pcbthermal/lumped.py` (`ring_edges`, `_one_node_network`, `_zone_network`, `_footprint_potentials`, `_heater_network`), `docs/validation.md` 35 and 48, `research/lumped-near-edge` README sections 3, 5, 6, 10 and `INTEGRATION.md`,
@@ -277,4 +291,6 @@ The jump at the footprint limit (a part of more than 3600 cells keeps the old li
   (`pot` -2.7 %, `img` -5.5 %).
 * **Not reproduced / no source**: no published case was added here: the near-edge problem has no published numerical case beyond the Seri Lee plate already reproduced in `research/lumped-near-edge` (`study_seri_lee.py`), not re-run on this tree.
 * **Not done**: a reflection factor of a cooled side; a correction of the ring-to-ring links that does not move the centred boards; partial copper, outlines, a metal block, several parts; a transient reference for the changed network.
-* **Doubts of the author**: the centred reading rises by about 2 points with `first` (the program's calibration was made with its own links); whether the 8 mirror images of one tiling are enough on a board of 40 mm; the +9 % hot corner cases at a cooled side.
+* **Source of the method of images**: [CarslawJaeger] (status M in `research/theory/BIBLIOGRAPHY.md`: from memory, the book was not opened); the images of an insulated side are an own construction checked against the FVM and the independent 3D solver, not against a published case.
+* **Closing review (4.7)**: re-run with the shipped program: the 180 cases, the 3D table of 3.2 (Lumped only, the 3D peaks of the table), the footprint-limit jump and the 13 folder tests; not re-run: the 432 cases, the zoned board of 3.5, the frozen-number study, the 3D solves and the times to 63 %.
+* **Doubts of the author**: the centred reading rises with `first` (by about 2 points said the author; +3.8 points on average at 0.5 mm for parts 10 mm or more from every side, the review, 3.3 and 4.7; the program's calibration was made with its own links); whether the 8 mirror images of one tiling are enough on a board of 40 mm; the +9 % hot corner cases at a cooled side.
