@@ -197,3 +197,17 @@ def test_the_ruler_corner_holds_only_the_unit(win):
         view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + 7)
         view.verticalScrollBar().setValue(view.verticalScrollBar().value() + 5)
         assert corner(view._paint_rulers) == want
+
+
+def test_an_empty_board_shows_the_first_steps_and_the_hint_goes_with_the_first_element(win):
+    """!
+    @brief A new board has no element: the canvas shows the first-step hint; after the first heater it is gone.
+    @param win Main window fixture.
+    """
+    from pcbthermal.model import Problem
+
+    load(win, Problem.new(100, 80, layers=2))
+    assert win.canvas.empty_hint_shown() and "Run (F5)" in win.canvas.EMPTY_HINT
+    win.doc.problem.add_heater(1, 1.0, rect=(40, 30, 50, 40), name="U1")
+    win.doc.changed.emit()
+    assert not win.canvas.empty_hint_shown()

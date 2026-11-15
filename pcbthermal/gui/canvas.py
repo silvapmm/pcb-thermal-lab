@@ -371,6 +371,7 @@ class BoardView(QGraphicsView):
         self._fitted = False
 
         doc.changed.connect(self.rebuild)
+        doc.changed.connect(lambda *_: self.viewport().update())     # The hint of an empty board is painted over the whole viewport: repaint it all
         self.scene().selectionChanged.connect(self._on_scene_selection)
         self.rebuild()
 
@@ -1259,8 +1260,43 @@ class BoardView(QGraphicsView):
         painter = QPainter(self.viewport())
         try:
             self._paint_rulers(painter)
+            self._paint_empty_hint(painter)
         finally:
             painter.end()
+
+    EMPTY_HINT = "Draw a heater (H) and give it a power, then Run (F5). Or open an example: File - Open example."
+
+    def empty_hint_shown(self):
+        """!
+        @brief True when the board has no element at all, so the first-step hint is drawn on the canvas.
+        @return bool.
+        """
+        p = self.doc.problem
+        return not (p.heaters or p.zones or p.vias or p.heatsinks or p.imported is not None)
+
+    def _paint_empty_hint(self, painter):
+        """!
+        @brief On an empty board, a one-line hint of the first steps, in a rounded box under the top ruler (review of the window: a new user saw only an
+               empty green rectangle and a status-bar line); it goes away with the first element.
+        @param painter QPainter on the viewport.
+        """
+        if not self.empty_hint_shown():
+            return
+        c = th.colors(self.theme)
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        fm = painter.fontMetrics()
+        text = fm.elidedText(self.EMPTY_HINT, Qt.ElideRight, max(40, self.viewport().width() - 60))
+        w, h = fm.horizontalAdvance(text) + 20, fm.height() + 10
+        x, y = max(24, (self.viewport().width() - w) // 2), 28
+        bg = QColor(c["base"])
+        bg.setAlpha(235)
+        painter.setPen(QPen(QColor(c["border"])))
+        painter.setBrush(bg)
+        painter.drawRoundedRect(QRectF(x, y, w, h), 6, 6)
+        painter.setPen(QPen(QColor(c["text"])))
+        painter.drawText(QRectF(x, y, w, h), int(Qt.AlignCenter), text)
+        painter.restore()
 
     def _paint_rulers(self, painter):
         """!
