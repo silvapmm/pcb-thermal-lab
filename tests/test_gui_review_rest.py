@@ -275,3 +275,17 @@ def test_the_import_parts_step_reads_in_words_and_tj_max_zero_is_no_limit(win, t
     assert spins and all(s.specialValueText() == "none" for s in spins)
     assert any(s.value() == 0 and s.text() == "none" for s in spins)
     dlg.close()
+
+
+def test_the_plot_tool_bars_are_compact(win):
+    """!
+    @brief The Matplotlib tool bar above each plot is about one combo box high (it was a row of 24 px icons, about 50 px).
+    @param win Main window fixture.
+    """
+    from pcbthermal.gui.toolbar_icons import ThemedToolbar
+
+    bars = win.results.findChildren(ThemedToolbar)
+    assert bars
+    for tb in bars:
+        assert tb.iconSize().width() == ThemedToolbar.COMPACT_ICON
+        assert tb.sizeHint().height() <= win.results.temp.model.sizeHint().height() + 12, tb.sizeHint().height()
