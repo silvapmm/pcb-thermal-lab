@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Documentation simplification plan** (`releases/2.8.0/simplify/DOCS_PLAN.md`): superseded validation sections moved byte-identical to `docs/validation-history.md`; the rest of the simplification waits for the FEM documents (six branches in series: validation, theory, models, guide, versions, changelog+index); a `docs/README.md` index will be created; old CHANGELOG entries stay as released; the `Planned: 2.7.0` list moves to `releases/2.7.0/`.
+
 - **CLAUDE.md simplified (859 -> 262 lines)**: the Decisions Log lives in `docs/decisions-log.md`, the test-count history in `docs/versions.md`, the module map in `docs/models.md`; the rules decided with the FEM and the surface read-out are in section 11.
 
 - **Surface read-out merged** (`fix/thick-plate-surface-estimate`, reviewed GO, whole battery 3830 passed, 12 skipped all gates): `pcbthermal/thickness.py` computes T_surface for FVM and FDM outer copper above 105 um as a VIEW (parabola, estimate; flag t/a > 0.5), shown beside the column mean (Results table columns, report line above max(0.1 K, 1 % of the rise), Layer-box entries Surface (top/bottom)); no mode, no option, no project key; Tj, margin, power limit, top path, power_tc and the Power Calculator stay on the column; nothing frozen moves. The readout-conventions study (reviewed GO) confirms every source that quotes a board or package temperature measures a surface and found the width of the source is a third parameter of the surface-minus-mean map.
