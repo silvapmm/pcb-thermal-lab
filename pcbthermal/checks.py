@@ -1398,10 +1398,15 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
                               "that face is not in the model)")
                     if across > 0:
                         parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
+                # What to do (text only): read the surface where the model has it, otherwise use a model that has it or the 3D solid
+                todo = (" What to do: the surface is in the Layer box (Surface (top) / Surface (bottom)) and in the surface columns of the Components table; compare it with a "
+                        "thermocouple or a paper that reports the surface. Tj, margin and power limit stay on the layer mean." if est else
+                        " What to do: read the bound as the largest surface excess; the FVM and the FDM give an estimate of the surface itself (Layer box, Surface entries) for "
+                        "copper thicker than 105 um, and the 3D solid resolves the thickness.")
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; the models "
                            "keep one temperature through the thickness. The value is an upper estimate from conduction straight through the plate, not added to the results."
-                           f"{shape}{est}"))
+                           f"{shape}{est}{todo}"))
     return out
 
 

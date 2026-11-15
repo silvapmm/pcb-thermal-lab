@@ -19,6 +19,15 @@ SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, an estimate f
                      "on the metal reads. Milli-kelvins from the layer mean on ordinary copper; percent of the rise on thick metal. Tables, Tj and margins use the layer mean. "
                      "Steady state only.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom) (research/readout-conventions INTEGRATION.md 5)
 
+# Tooltips of the columns of the Components table when the surface read-out is shown beside the column one (docs: user guide 'Surface temperature and column mean')
+COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of the copper through its thickness. Tables, junction temperature, margin, power limit and "
+                     "top path all use it. The surface columns on the right are an estimate of the outer face, hotter under a source on thick copper.")
+SURFACE_MEAN_TIP = ("Mean over the footprint of the part of the temperature of the outer face of the copper (an estimate: layer mean + t (2 q_top - q_bot) / (6 k)). "
+                    "Compare it with a thermocouple, an infrared camera or a paper that reports the surface. Steady state, FVM and FDM, copper above 105 um.")
+SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, estimated from the layer mean and the heat fluxes through the faces. "
+                   "'(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at t/a = 1. "
+                   "Junction, margin and power limit stay on the column. Not given by the Lumped, the Analytic or in a time simulation.")
+
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",
     "profile page": "Copper layer; the same choice as in the editor and the Results maps.",

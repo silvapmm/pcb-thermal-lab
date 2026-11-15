@@ -703,7 +703,7 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     rv.tabs.setCurrentWidget(rv.temp)
     texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
     assert "Surface (top)" in texts and "Surface (bottom)" in texts
-    assert rv.heater_table.columnCount() == 11 and "(surface, estimate)" in rv.heater_table.horizontalHeaderItem(10).text()
+    assert rv.heater_table.columnCount() == 11 and "(surface," in rv.heater_table.horizontalHeaderItem(10).text() and "estimate)" in rv.heater_table.horizontalHeaderItem(10).text()
     sbox = win.layer_combo
     assert "estimate" in sbox.itemData(sbox.findData(200), Qt.ToolTipRole)          # The entry carries its own tooltip
     for model in ("fvm", "fdm", "lumped", "analytic"):

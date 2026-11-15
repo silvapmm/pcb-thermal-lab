@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Surface read-out documented in the guide, tooltips, models and theory** (`docs/surface-readout-help`; maintainer: 'boa documentacao'): a guide section with the formula, the worked case 2, the film term and a FAQ line, tooltips on the table headers, the warning says what to do, `models.md` 4b.2, theory 1.2c completed, the Power Calculator stays on the column; no physics or number changed. Leftovers in `releases/2.8.0/fem-model/SURFACE_DOCS.md`.
+
 - **Documentation simplification plan** (`releases/2.8.0/simplify/DOCS_PLAN.md`): superseded validation sections moved byte-identical to `docs/validation-history.md`; the rest of the simplification waits for the FEM documents (six branches in series: validation, theory, models, guide, versions, changelog+index); a `docs/README.md` index will be created; old CHANGELOG entries stay as released; the `Planned: 2.7.0` list moves to `releases/2.7.0/`.
 
 - **CLAUDE.md simplified (859 -> 262 lines)**: the Decisions Log lives in `docs/decisions-log.md`, the test-count history in `docs/versions.md`, the module map in `docs/models.md`; the rules decided with the FEM and the surface read-out are in section 11.
