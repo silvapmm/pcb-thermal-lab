@@ -308,3 +308,18 @@ def test_every_plot_page_says_what_to_do_before_the_first_run(win):
     assert not any(c.isVisibleTo(c.parentWidget()) for c in rv._covers)
     load(win, example_board())
     assert all(c.isVisibleTo(c.parentWidget()) and c.text() == rv.CLEARED_NOTE for c in rv._covers)
+
+
+def test_a_failed_run_says_the_cause_and_what_to_do(win, monkeypatch):
+    """!
+    @brief The 'Simulation failed' box gives the cause and then what to do; the status line and the status bar say 'Failed.'.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from PySide6.QtWidgets import QMessageBox
+
+    seen = []
+    monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda parent, title, text, *a: seen.append((title, text))))
+    win._on_failed("the FEM mesh could not be built")
+    assert seen and seen[0][0] == "Simulation failed" and seen[0][1].startswith("the FEM mesh could not be built") and "run again" in seen[0][1]
+    assert win.solver_panel.status.text() == "Failed." and win.statusBar().currentMessage() == "Failed."

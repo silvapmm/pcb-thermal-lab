@@ -1850,7 +1850,11 @@ class MainWindow(QMainWindow):
         @param message Error text.
         """
         self.solver_panel.set_running(False, "Failed.")
-        QMessageBox.critical(self, "Simulation failed", message)
+        # The cause first, then what to do (review of the window: the box gave the cause only); the traceback of a bug stays in the log file the text names
+        QMessageBox.critical(self, "Simulation failed", f"{message}\n\n{self.FAILED_HINT}")
+
+    FAILED_HINT = ("Nothing of the earlier result was changed. Correct the input the message names (or choose a coarser cell or fewer models) and run again; "
+                   "if it says 'Unexpected error', please send the log file it names.")
 
     # ------------------------------------------------------------------ misc
     def toggle_theme(self):
