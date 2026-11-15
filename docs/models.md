@@ -143,6 +143,10 @@ The result has the same layout as the FVM (the temperature of the copper slab of
 What it is for: it does **not** use the "one node per copper layer" idea, so it measures the error of that idea on your own board (largest with a copper pad hardly bigger than the heater, a copper edge across a footprint, and thick or small blocks). It is verified in turn against an independent offline finite-element solid (scikit-fem; `docs/validation.md` section 3).
 It is not a truth either: the barrel is a lumped copper area (no plating geometry), copper is one slab thick, the contact of a block is perfect over the pad, and there are no measurements of a real board in this project yet.
 
+### 2.8 Finite elements (comparison; in `femcore.py`, not selectable yet) (theory §4a)
+
+The solver core of a sixth, comparison model exists (`pcbthermal/femcore.py`): trilinear hexahedral finite elements with Robin films, a volumetric source and via rods, solved directly up to 30 000 unknowns or by CG with the optional package pyamg above that. It is the port of the independent finite-element tool of `research/independent-fem-edge` and `research/independent-fem-extensions` and is checked against it to 1e-9 and against closed forms (`tests/test_fem_port.py`). **There is no mesh builder from a project, no key and no interface yet**: nothing in the application, the command line or the saved files changes; the model will be offered as a checkbox like the FDM and the 3D solid when the later branches land (`releases/2.8.0/fem-model/DESIGN.md`).
+
 ## 3. Input checks
 
 `check_problem` (also run by `simulate` and live in the application under the Run button) never blocks a run; it warns about inputs that make a result doubtful: a heater partly outside the board

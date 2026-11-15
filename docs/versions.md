@@ -393,6 +393,8 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 
 **Planned, the maintainer's order (finite-element model and surface read-out)**: (1) the independent finite-element tool becomes a program model, key `fem`, a checkbox `Finite elements (FEM), comparison` like the FDM and the 3D solid, off by default, optional dependency pyamg, steady state first, branches as laid out in `releases/2.8.0/fem-model/DESIGN.md`; (2) an additive Surface read-out of thick layers and blocks (parabola `T_surf - T_col = t (2 q_top - q_bot) / (6 k)`), then copper slabs in the 3D solid, as in `research/through-thickness-readout/INTEGRATION.md`; no frozen number moves.
 
+**Progress of the finite-element model**: branch 2 `feature/fem-core` done: `femcore.py` (the port of the research solver, `tests/test_fem_port.py`, `docs/theory.md` 4a); not selectable yet; the mesh builder and memory guard (branch 3, with pyamg in `requirements.txt` and the README table), `fem.py` and the API key, and the interface follow.
+
 **Wave 1: cheap and safe (no number moves)**
 
 | Item | Type | Size | Frozen | Depends on |

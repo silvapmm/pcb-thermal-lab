@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45, fig_46 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47 and fig_49 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1371,6 +1371,69 @@ def gerber_sampling(path):
     dk.save(fig, path, "Gerber coverage sampling and memory")
 
 
+def fem_mesh_section(path):
+    """!
+    @brief Draw the element and the mesh through the thickness of the finite-element comparison model (theory 4a, figure D1 of the design): the trilinear brick with its eight nodes and the 2 x 2 x 2 Gauss points (left), and a section of a four-copper-layer board with thin copper elements, graded laminate elements, a source in the top copper, films on every outer face and wall, and a via rod (right). Schematic, no numbers.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(16, 6.2, 1, 2, ratios=[0.8, 1.5])
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 10); a.set_aspect("equal")
+    # The brick in a simple oblique projection: bottom quad (0..3) counter-clockwise, top quad (4..7) shifted up and right
+    b = np.array([[1.5, 1.5], [6.0, 1.5], [7.5, 3.3], [3.0, 3.3]])
+    t = b + np.array([0.0, 4.0])
+    for q in (b, t):
+        a.add_patch(Polygon(q, closed=True, fc="#f3d9b1" if q is t else "#e8e8e8", ec="k", alpha=0.55))
+    for i in range(4):
+        a.plot([b[i, 0], t[i, 0]], [b[i, 1], t[i, 1]], "k-", lw=1)
+        a.text(b[i, 0], b[i, 1] - 0.45, str(i + 1), ha="center", fontsize=8)
+        a.text(t[i, 0], t[i, 1] + 0.3, str(i + 5), ha="center", fontsize=8)
+    for q in (b, t):
+        a.plot(q[:, 0], q[:, 1], "ko", ms=4)
+    c = (b.mean(axis=0) + t.mean(axis=0)) / 2
+    for dx in (-0.55, 0.55):
+        for dy in (-0.45, 0.45):
+            for dz in (-1.0, 1.0):
+                a.plot(c[0] + dx * 1.6 + 0.3 * dz, c[1] + dy * 1.6 + dz * 0.9, "r+", ms=6)
+    a.text(5, 9.4, "trilinear brick Q1: 8 nodes, one k = (kx, ky, kz) per element,\n2 x 2 x 2 Gauss points (red +), any mapped brick", ha="center", fontsize=8.5, fontweight="bold")
+    a.text(5, 0.3, "T(x) = sum N_i(xi, eta, zeta) T_i, continuous across elements", ha="center", fontsize=8)
+    a = axs[1]; a.set_xlim(0, 16); a.set_ylim(-1.5, 11); a.axis("off")
+    x0, x1 = 1.5, 14.0
+    y = 9.0
+    rows = []
+    gaps = (4, 4, 4)
+    for lay in range(4):
+        rows.append(("cu", y, 0.35)); y -= 0.35
+        if lay < 3:
+            n = gaps[lay]
+            w = np.array([1.0, 1.4, 1.4, 1.0])[:n]
+            w = w / w.sum() * 1.9
+            for hh in w:
+                rows.append(("gap", y, hh)); y -= hh
+    for kind, ytop, hh in rows:
+        a.add_patch(Rectangle((x0, ytop - hh), x1 - x0, hh, fc="#c97a2b" if kind == "cu" else "#d8e6c8", ec="k", lw=0.6))
+    for xv in np.linspace(x0, x1, 15):
+        a.plot([xv, xv], [y, 9.0], color="k", lw=0.3, alpha=0.5)
+    # Source in the top copper, via rod, films
+    a.add_patch(Rectangle((3.0, 8.65), 2.6, 0.35, fc="#e63946", ec="k", lw=0.8))
+    a.text(4.3, 10.55, "source q (W/m3) in the top copper elements", ha="center", fontsize=7.5)
+    a.add_patch(Rectangle((9.0, y), 0.6, 9.0 - y, fc="#a05a18", ec="k", lw=0.8, alpha=0.8))
+    a.text(10.5, y - 0.45, "via rod (barrel copper)", ha="center", fontsize=7.5)
+    a.set_ylim(-2.2, 11)
+    for xv in np.linspace(2.0, 13.2, 8)[[0, 2, 3, 4, 6, 7]] + 0.3:
+        dk.arrow(a, xv, 9.05, xv, 10.0, color="#1f77b4", width=1.1)
+        dk.arrow(a, xv, y, xv, y - 0.9, color="#1f77b4", width=1.1)
+    a.text(x1 - 0.2, 10.2, "film h_top on the face nodes", ha="right", fontsize=8, color="#1f77b4")
+    a.text(x1 - 0.2, y - 1.25, "film h_bottom", ha="right", fontsize=8, color="#1f77b4")
+    for ym in np.linspace(y + 0.4, 8.6, 6):
+        dk.arrow(a, x1, ym, x1 + 0.9, ym, color="#1f77b4", width=1.1)
+    a.text(x1 + 0.9, (y + 9.0) / 2, "h_side\non every\nwall slab", ha="left", va="center", fontsize=8, color="#1f77b4")
+    a.text(x0 - 0.15, 8.8, "copper: thin elements,\nthe face nodes ARE the surface", ha="right", va="top", fontsize=7.5)
+    a.text(x0 - 0.15, 6.5, "laminate: graded elements,\nfinest at the copper", ha="right", va="top", fontsize=7.5)
+    a.set_title("section of a four-layer board: conforming slabs through the thickness (not to scale), film term inherent (no half-cell film in series)", fontsize=8.5)
+    dk.save(fig, path, "The element and the mesh through the thickness")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1393,7 +1456,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 
