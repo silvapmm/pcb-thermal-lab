@@ -450,7 +450,7 @@ def _fast_swing(problem, index, wave):
     @details A square wave uses the exact pulse coefficients, a table the coefficients of its stretches (stackimpedance.profile_coefficients). The value is the swing at the centre
              of the disc of the part's area on an infinite board: it leaves out vias, planes other than as layers of the column, the board edge and the other heaters.
     @note Measured against the reviewer's Cartesian 3D reference (docs/validation.md 37.2): 0.995 to 1.08 on full copper; above 1 with vias (to 2.04 at 0.1 to 1 Hz), elongated parts (1.37)
-          and inner layers at 0.1 Hz (1.20), the safe side for a floor; 0.61 at 0.1 Hz for a part within its radius of a board side (warned by checks.check_fast_wave).
+          and inner layers at 0.1 Hz (1.20), the safe side for a floor; 0.60 at 0.1 Hz for a part within its radius of a board side (warned by checks.check_fast_wave).
     @param problem A Problem (h_top and h_bottom as the run uses them: the steady effective values with computed h).
     @param index Heater index.
     @param wave SquareWave or repeating TableProfile of that heater.

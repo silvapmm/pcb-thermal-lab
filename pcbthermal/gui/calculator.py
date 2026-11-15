@@ -31,7 +31,7 @@ DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band cover
           ("Drawn by hand from the layout", "hand", "Drawn by hand from the layout: half the 'estimated' amplitudes by default."),
           ("Estimated (no layout at hand)", "estimated", "The board is a guess (copper, planes or vias unknown): the full amplitudes of Preferences - Power Calculator."))
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
-           "The board 0.5 to 1.5 mm outside the package (where ψJB is defined), e.g. a thermocouple on the copper. No datasheet value needed."),
+           "The mean board temperature 0.5 to 1.5 mm outside the package (an approximation of the board point of ψJB, which TI SPRA953 defines at the centre package pin), e.g. a thermocouple on the copper. No datasheet value needed."),
           ("Hottest board point under the part", "max",
            "The hottest copper under the footprint. No datasheet value needed."),
           ("Mean board temperature under the part", "mean", "The mean board temperature under the footprint. No datasheet value needed."),
@@ -224,7 +224,7 @@ class PowerCalculator(QDialog):
         lay.addWidget(note)
         f = QFormLayout()
         self.tj = _spin(-50, 500, 100.0, 1, "°C", "Junction temperature, °C (e.g. from a sense diode).")
-        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Reference temperature, °C: board 1 mm from the package (ψJB, θJB) or case top (ψJT).")
+        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Reference temperature, °C: the board next to the package (ψJB, θJB; the program's ring is 0.5 to 1.5 mm outside it) or the case top (ψJT).")
         self.par = _spin(0.01, 2000, 10.0, 2, "K/W", "Datasheet ψJB, ψJT or θ, K/W; an estimate on your board (ψJB within about 15 % of θJB).")
         self.out2 = QLabel("")
         self.out2.setToolTip("P = (Tj − Treference) / parameter.")

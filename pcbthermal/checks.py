@@ -384,9 +384,10 @@ def check_fast_wave(problem):
     @details The closed-form impedance of the stack under a part (stackimpedance, docs/theory.md 10.5) replaces the node swing of the layered models for a fast repeating profile
              (square wave or table) where there is copper under the part. Four cases are warned, one line per case and heater:
              (a) bare laminate under the part (fill below stackimpedance.MIN_FILL) and a wave of FAST_BARE_HZ or faster: the closed form does not apply and the program's swing is
-                 0.73 at 1 Hz and up to 2.2 times too small between 3 and 50 Hz, while the face term makes it up to 2.4 times too large at 1 kHz (docs/validation.md 37.2);
+                 0.73 at 1 Hz and up to 2.2 times too small between 3 and 50 Hz, while the face term makes it 2.4 times too large at 1 kHz and 4.1 times at 3 kHz (against an
+                 independent 3D reference, docs/validation.md 37.2);
              (b) a part whose gap to the nearest side of the board (or of its outline) is shorter than the radius of its disc, for a wave slower than 1 Hz: the closed form treats
-                 the board as infinite and reads 0.61 of the truth at 0.1 Hz for a 5 mm part 1 mm from two sides (the program is also low there);
+                 the board as infinite and reads 0.60 of the truth at 0.1 Hz for a 5 mm part 1 mm from two sides (the program is also low there);
              (c) a metal block on the board and a stretch shorter than profiles.fast_stretch_limit: the closed form is switched off and the node structure is kept, which
                  understates a short stretch (not measured with a block);
              (d) a one-shot table with a stretch shorter than that limit: a one-shot profile is always time-stepped by the node structure (no closed form for it).
@@ -420,8 +421,8 @@ def check_fast_wave(problem):
         if status == "bare" and freq >= FAST_BARE_HZ:
             _add(out, "heater", k,
                  f"{name}: the part has no copper under it on its layer and its power wave repeats {num(freq, 3)} times a second. The layered models cannot follow a wave that fast over "
-                 "bare laminate: at 1 Hz the temperature swing they compute is about 0.75 of the true one and between 3 and 50 Hz up to 2.2 times too small, and from about 300 Hz the allowance for the laminate over bare "
-                 "copper makes it too large (2.4 times at 1 kHz). Take the swing as an estimate, or put copper under the part.",
+                 "bare laminate: against an independent 3D reference, at 1 Hz the temperature swing they compute is about 0.73 of the true one and between 3 and 50 Hz up to 2.2 times too small, and from about 300 Hz the allowance for the laminate over bare "
+                 "copper makes it too large (2.4 times at 1 kHz, 4.1 times at 3 kHz). Take the swing as an estimate, or put copper under the part.",
                  f"{name}: a fast wave on bare laminate; the swing is not reliable (2.2 times too small near 10 Hz, 2.4 times too large at 1 kHz).")
         elif status == "block" and w.shortest_feature() < limit:
             _add(out, "heater", k,
@@ -434,7 +435,7 @@ def check_fast_wave(problem):
             if gap < col.radius:
                 _add(out, "heater", k,
                      f"{name}: the part is {num(gap * 1e3, 3)} mm from a side of the board and its power wave is slower than 1 Hz. The closed form used for the swing of a wave "
-                     "treats the board as infinite, so near a side it reads too low (0.61 of the true swing at 0.1 Hz for a 5 mm part 1 mm from two sides, 0.88 at 1 Hz), and the "
+                     "treats the board as infinite, so near a side it reads too low (against an independent 3D reference, 0.60 of the true swing at 0.1 Hz for a 5 mm part 1 mm from two sides, 0.88 at 1 Hz), and the "
                      "layered model is low there too. Take the swing as a lower estimate.",
                      f"{name}: a slow wave near a side of the board; the swing is a lower estimate.")
     return out
@@ -829,7 +830,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            f"{f_core:.2f} on layer {h.layer + 1}); the layered models ({', '.join(layered)}) read lower than a resolved 3D "
                            "solution there: the FVM (which cuts the laminate there into sub-gaps) 0 to 3 % on 4- and 6-layer stack-ups and 0.8 to 1.6 mm two-layer boards, "
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
-                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.",
+                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value. "
+                           "The result there also rests on the in-plane FR-4 conductivity (0.9 W/mK by default, a typical value with no source): 0.6 or 1.2 W/mK "
+                           "moved a 6 mm part on a bare two-layer board by +25 or -15 % of its rise; type your laminate's value.",
                      f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low (the FVM up to 10 %); "
                      "use the 3D solid.")
 
@@ -869,16 +872,18 @@ def check_model_limits(problem, models, cell_mm=1.0):
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                                "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): the hottest temperature was "
                                "measured 1.6 to 2.6 % of the rise off on average (up to 7.6 %) over 62 boards, against a fine-grid layered solver of the same idealisation (not "
-                               "independent); against one resolved 3D cluster it read -2.4 and +1.0 %, and where the vias fall on the 0.5 mm raster moves it by 1 to 3 points; "
-                               "its via effect was 4.0 to 4.6 % off on average (up to 21 %); "
+                               "independent); against one resolved 3D cluster it read -2.4 and +1.0 %, and where the vias fall on the 0.5 mm raster moves it by 1 to 3 points "
+                               "(measured before the mirror images of the sides in the first link, which make an interior part read a few points hotter); "
                                "use the FVM for via design.",
                          f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
-                         "(via effect up to 21 % off); use the FVM.")
+                         "(hottest temperature up to about 8 % of the rise off); use the FVM.")
                 else:
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                                "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
                                "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
-                               "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.",
+                               "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more; against the program's own FVM at 0.25 mm, "
+                               "not an independent reference; next to an edge cooled by 200 W/m2K an independent finite-element solution reads the Lumped via effect 11 to 31 % too large); "
+                               "use the FVM for via design.",
                          f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
                          "(-21 to +33 % of the via effect); use the FVM.")
                 if groups is None:
@@ -1258,10 +1263,11 @@ def check_reduced_edge_laminate(problem, models):
     _add(out, None, None,
          f"The {names} {'models keep' if len(reduced) > 1 else 'model keeps'} the edge film of the laminate at the copper temperature (no laminate nodes along the edge), so with an "
          f"edge coefficient of {num(hs, 2)} W/m2K on a {num(t_mm, 2)} mm board {'they read' if len(reduced) > 1 else 'it reads'} the board too cool where much of the heat leaves "
-         "through the edge (two-layer boards against the FVM, a 10 mm part in a corner of a 30 x 20 mm board: about -3 % at 100 W/m2K on 1.6 mm or 50 W/m2K on 3.2 mm, -6 % at "
-         "200 W/m2K on 1.6 mm, -13 % at 200 W/m2K on 3.2 mm; less for a part far from the edge or a large board). "
+         "through the edge (two-layer boards with a 10 mm part, against an independent 3D solver: the Analytic -2.6 to -14.9 % of the rise at 200 W/m2K, the most for a part in a corner "
+         "of a 30 x 20 mm board on 3.2 mm, and within 1.4 % at the default 10 W/m2K; against the FVM -0.8 to -11.4 %; at the threshold of this warning, 100 W/m2K on 1.6 mm or 50 W/m2K "
+         "on 3.2 mm, about -3 %; less for a part far from the edge or a large board; the Lumped, since the mirror images of the sides in its first link, -8.0 to +1.2 % against the FVM on the same boards). "
          + via_l + "Use the FVM or the FDM for such a board.",
-         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -13 %){via_s}; use the FVM or FDM.")
+         f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -15 % at 200 W/m2K against an independent 3D solver){via_s}; use the FVM or FDM.")
     return out
 
 
@@ -1540,8 +1546,10 @@ def check_via_limits(problem, models, cell_mm):
                of a straight edge (viawell.edge_term; research/via-edge-image: +14.5 % becomes +0.7 %), so the warning stays only for what it does not
                cover cleanly (a slanted, curved or short outline side or a reflex corner within six cells, where the image is partial or left out and
                the via effect was measured -6 to +12 % off at 1 mm, docs/validation.md 28.1; a cell of 2 mm or more, where the image is applied but
-               the via is a fraction of a cell, +3 to +4 % at 2 mm; a via centre within its radius of the edge) and for the FDM (-4.5 to -10 % at
-               1 mm) and the 3D solid (about +19 points), which have no image;
+               the via is a fraction of a cell, +3 to +4 % at 2 mm; a via centre within its radius of the edge) and for the FDM and the 3D solid,
+               which have no image: next to a strongly cooled edge, against an independent finite-element solution (docs/validation.md 49.1), the FDM
+               reads the via effect 2 to 20 % too small at 1 mm (1 to 9 % at 0.25 mm, the safe side) and the 3D solid +10 to +26 % too large at
+               0.5 mm (the unsafe side; 1 mm not measured); the earlier '-4.5 to -10 %' and '+19 points' rested on a reference later found hot;
              * from a 2 mm cell the via is a fraction of a cell and the position of its centre inside the cell moves the answer. Measured on the example
                board (9 vias, the drop of the hottest temperature caused by the vias, 9.6 K at 0.25 mm): FVM -2.9 % at 2 mm, -0.3 % at 0.5 mm, FDM -4.0 % at
                2 mm, -0.2 % at 0.5 mm, and at 3 and 4 mm the error is between -5 and +16 % (FVM) and -22 and -49 % (FDM), by the position of the vias
@@ -1585,9 +1593,10 @@ def check_via_limits(problem, models, cell_mm):
                      f"{name}: via within one cell of the board edge; its effect can be off by -6 to +15 % at 1 mm.")
             else:
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
-                                    "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
-                                    "19 points too large at 1 mm (up to about 26 % at 0.5 mm next to an edge of 1000 W/m2K, and about 7 to 14 % also 3 mm from such an edge); use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
-                     f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
+                                    "(half-volume edge nodes) has no image: next to a strongly cooled edge it reads the via effect 2 to 20 % too small at a 1 mm cell (1 to 9 % at 0.25 mm, the safe side), "
+                                    "and the 3D solid has none and reads it 10 to 26 % too large at 0.5 mm (the unsafe side; about 7 to 14 % also 3 mm from an edge of 1000 W/m2K), against an "
+                                    "independent finite-element solution; use the FVM, or a finer cell (" + cell_where() + "), for the part near it.",
+                     f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (FDM effect 2 to 20 % too small at 1 mm, 3D solid 10 to 26 % too large at 0.5 mm).")
         if len(todo) > 5:
             _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")
     if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
@@ -1616,7 +1625,8 @@ def partial_copper_vias(problem, cell_mm):
              (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
              further; this check keeps the plain footprint.
              Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
-             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 22 to 85 % low (FVM) or 0 to 76 % (FDM) at a copper corner or a track end (cells of 1 to 0.25 mm)
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread: 55 to 85 % low (FVM) or 22 to 73 % (FDM) at a copper corner or a track end (cells of 1 to 0.25 mm, against the committed resolved 3D reference of
+             audit 2.8.0 A3; a second resolved reference reads the corner 25 to 39 % lower, so the sign of the FDM at a corner is not settled)
              (31 to 68 % before the rim rule of viawell.build), and for a via just outside a copper edge lost (drawn copper, and imported copper since the mask ray test of viawell).
     @param problem The Problem.
     @param cell_mm Cell size in mm.
@@ -1697,8 +1707,8 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
     @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
     @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
              seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
-             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 22 to 85 % low in the FVM and 0 to 76 % in the FDM (cells of 1 to 0.25 mm, against the 3D solid and an independent resolved 3D reference), the part
-             up to 11 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
+             is misread because it goes both ways (research/via-contact-geometry 7.2: at the corner of a copper region or the end of a track the via effect reads 55 to 85 % low in the FVM and 22 to 73 % in the FDM (cells of 1 to 0.25 mm, against an independent resolved 3D reference, docs/validation.md
+             34.2), the part up to 11.5 % of the rise too hot, safe side; a drawn via just outside a copper edge is uncoupled from that layer by the rim rule of viawell and loses its effect, up to
              1.2 K or 1.4 % of the rise too hot; on imported copper the rim is read by the mask ray test, so a pad island just outside an imported copper edge is uncoupled too: its effect, 0.5 to 2.6 K in an independent 3D reference
              for islands 0.75 to 0.15 mm from the plane, is lost, at most 0.5 % of the rise too hot; the full contact before the ray test read it 1.5 to 5 times high, FVM and FDM, 1 to 0.25 mm), and the cold spot below the
              barrel is a numerical artefact of the fixed footprint weights.
@@ -1726,7 +1736,7 @@ def check_via_partial_copper(problem, models, cell_mm, budget_s=None):
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
          f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower. A via at the corner of a copper region or at the end of a track "
-         "is not solved: its effect reads 22 to 85 % low in the FVM, 0 to 76 % in the FDM, and the part up to 11 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm). A drawn via just outside a copper edge, not under a part, is "
+         "is not solved: against an independent resolved 3D reference its effect reads 55 to 85 % low in the FVM, 22 to 73 % in the FDM, and the part up to 11.5 % of its rise too hot, the safe side (measured at cells of 1 to 0.25 mm; a second resolved reference reads the corner lower, and against it the FDM is slightly high there, so its sign at a corner is not settled). A drawn via just outside a copper edge, not under a part, is "
          "left uncoupled from that layer and loses its effect (about 1.2 K, 1.4 % of the rise, too hot, on the board measured); on imported copper the contact is read from the masks (a ray test), so a via whose pad is an island just outside an edge of imported copper is not connected "
          "either and loses its effect (at most 2.6 K, 0.5 % of the rise, too hot on the board measured, where the old full contact read it 1.5 to 5 times high). The cold spot that the FVM can show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + cell_where() + ") or check the via with the 3D solid." + cap_note,
          f"{lead} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "

@@ -42,7 +42,7 @@
 <h3>Measured at</h3>
 <table>
 <tr><th>Point</th><th>What it is</th><th>Needs</th></tr>
-<tr><td>Board ring (1 mm around the part)</td><td>Board temperature 0.5 to 1.5 mm outside the package, the point where the datasheet's ψJB takes the board temperature. A thermocouple taped on the copper next to the part.</td><td>nothing from the datasheet</td></tr>
+<tr><td>Board ring (1 mm around the part)</td><td>Mean board temperature in a band 0.5 to 1.5 mm outside the package, an approximation of the board point of ψJB (TI SPRA953 defines ψJB with the temperature of the centre package pin). A thermocouple taped on the copper next to the part.</td><td>nothing from the datasheet</td></tr>
 <tr><td>Hottest board point under the part</td><td>Maximum board temperature under the footprint.</td><td>nothing</td></tr>
 <tr><td>Mean board temperature under the part</td><td>Average under the footprint.</td><td>nothing</td></tr>
 <tr><td>Junction</td><td>The junction itself (a sense diode or the part's own sensor): <code>Tj = T board,max + θ·P</code>.</td><td>θ junction-pad</td></tr>
@@ -82,7 +82,7 @@
 <p>The power (nominal, best and worst), the temperatures the model reads at the nominal power (hottest board point, ring, junction, top), and the <b>board resistance</b> at the measured point in K/W.</p>
 
 <h2>Route 2: from a datasheet parameter</h2>
-<p>If you already know the junction temperature (a sense diode, a temperature output) the datasheet relation is enough: <code>P = (Tj − T reference) / parameter</code>, with the parameter and its reference point of the same definition: <b>ψJB</b> (reference: the board 1 mm from the package), <b>ψJT</b> (the top of the case) or <b>θ</b>. It uses no board model, so it is exact only on the datasheet's own board; ψ values are not thermal resistances (ψJB is within about 15 % of θJB). The result updates as you type; <b>Use as the power of this part</b> writes it into the part.</p>
+<p>If you already know the junction temperature (a sense diode, a temperature output) the datasheet relation is enough: <code>P = (Tj − T reference) / parameter</code>, with the parameter and its reference point of the same definition: <b>ψJB</b> (reference: the board next to the package; the program's ring, 0.5 to 1.5 mm outside it, is an approximation of that point), <b>ψJT</b> (the top of the case) or <b>θ</b>. It uses no board model, so it is exact only on the datasheet's own board; ψ values are not thermal resistances (ψJB is within about 15 % of θJB). The result updates as you type; <b>Use as the power of this part</b> writes it into the part.</p>
 <p>The shortcut <code>P = (T top − T ambient)/(θJA − ψJT)</code> follows from the definitions but is <b>not offered</b>: θJA belongs to the JEDEC board, and with a θJA 30 % away from your board's it is 25 to 50 % off.</p>
 
 <h2>How good is it?</h2>
@@ -90,10 +90,10 @@
 <tr><th>Check</th><th>Result</th></tr>
 <tr><td>TI CSD17308Q3 on its datasheet board (1 in², 2 oz): datasheet RθJA 46 K/W</td><td>model 47.1 K/W, power error −2.4 %</td></tr>
 <tr><td>JEDEC JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, package assumed): datasheet RθJA 32.5 K/W. <b>An indication, not a verification</b>: the drawing of the board decides the answer</td><td>model 31.9 K/W on the board as drawn (power +1.8 %, 0.5 mm cell), but 27.0 to 36.6 K/W over four readings of the board; on the board as the ROHM note prints it, 27.9 K/W, about 14 % below the datasheet (a board that cools better: the unsafe side for a junction temperature; the calculator reads 17 % more power)</td></tr>
-<tr><td>A wrong board: top copper half filled / copper 17.5 µm instead of 35 µm / no inner planes / no vias</td><td>power −13 % / −24 % / −34 % / −11 %</td></tr>
-<tr><td>Heat transfer ±30 %; θ ±20 %; ψJT ±1 K/W; 3 K of reading error</td><td>+6 / −9 %; ±7 %; ±6 %; ±8.5 %</td></tr>
+<tr><td>A wrong board: top copper half filled / copper 17.5 µm instead of 35 µm / no inner planes / no vias</td><td>power −16 % / −24 % / −36 % / −12 %</td></tr>
+<tr><td>Heat transfer ±30 %; θ ±20 %; ψJT ±1 K/W; 3 K of reading error</td><td>+6 / −9 %; −6 / +7 %; −5 / +6 %; ±8.5 %</td></tr>
 </table>
-<p>On the datasheet's own board (the TI CSD17308Q3 row) the calculator is within 1 to 4 %; the JEDEC row is only an indication of the order of magnitude; the large errors appear only when the drawn board is not the real one. <b>Everything depends on the copper.</b> That is why the band exists. A probe that touches the board cools it a little, and an infrared spot is too large for a small part. When the copper of the board is imported from its Gerber files (File - Import Gerber board) it is the real copper and this dominant error goes away.</p>
+<p>On the datasheet's own board (the TI CSD17308Q3 row) the calculator is within 2.4 % of the power; the JEDEC row is only an indication of the order of magnitude; the large errors appear only when the drawn board is not the real one. <b>Everything depends on the copper.</b> That is why the band exists. A probe that touches the board cools it a little, and an infrared spot is too large for a small part. When the copper of the board is imported from its Gerber files (File - Import Gerber board) it is the real copper and this dominant error goes away.</p>
 
 <h2>Limits</h2>
 <ul>

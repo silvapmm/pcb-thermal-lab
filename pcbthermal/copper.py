@@ -1167,7 +1167,7 @@ FILL_NOTE = ("the copper of this board is an import and the models read it as a 
              "on bare laminate at 2 mm, and the imported overshoot lies between the two; no measurement on a physical board exists)")
 # A powered 0402 of the imported RP2040 board, 1 W, rise of the hottest copper node (README 3.2 of the study): 84.6 K at a 1 mm cell, 201.2 K at 0.25 mm
 SMALL_PART_CELL_NOTE_TEXT = ("a coarse cell reads a small powered part of an imported board too cool: a 0402 capacitor of one board read 84.6 K at a 1 mm cell and 201 K at 0.25 mm, "
-                        "2.4 times (one part, a sample, not a bound)")
+                        "2.4 times (one part, a sample, not a bound; the 201 K is itself a lower estimate, the 0.25 mm cell is not converged for so small a part)")
 COARSE_CELL_MM = 1.0                             # Cell above which the note on the faces adds the coarse-cell warning (README 10 of research/gerber-real-boards, review)
 SCREENING_CELL_MM = 1.5                          # Cell above which the warning calls the result a screening estimate
 COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4.3 % too hot at a 1 mm cell and 7 to 10 % "

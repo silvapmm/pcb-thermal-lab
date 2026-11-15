@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.7.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3502%20passed-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.7.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3748%20passed-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -17,9 +17,9 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face; a fast wave on a part with copper under it is held at its average power with its temperature wave, computed in closed form from the layers, added at the heater); animation of the heat evolution with GIF export.
 
 **Tools**
-- **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
+- **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); checked on one datasheet's own board (TI CSD17308Q3, within 2.4 % of the power), the JEDEC 2s2p row an indication only (`docs/calculators.md`).
 - **Interface of 2.7.0**: the dock panels are **boxes** whose title row is the button (collapsible, remembered between sessions); the live input warnings are a **Warnings (N)** accordion with one closed row and a short title per warning, with a severity icon; the **layer keys** `L` / `Shift+L` and `0` to `9` choose the layer in every context; the hot and the **coldest** point are ringed on the temperature maps; the Profiles tab draws a **cut overlay** (the board with the cut line); component and non-plated **holes** are shown on the editor board.
-- **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
+- **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, a **Filter elements** box above the element tree (`Ctrl+F`), undo/redo, background photo, dark and light themes, a tooltip on every field.
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
@@ -76,18 +76,18 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
 
-Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its checks against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
 What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary at the top) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Which model should I use?
 
-| Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
+| Model | Advantage | Apply it to | Error on the rise vs an independent finite-element solid (`docs/validation.md` 3) | Time (example board) |
 | :-- | :-- | :-- | :-- | :-- |
-| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.7 % (up to 3 % on a one-sided pad no larger than the heater) | 0.13 s (1 mm) |
-| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.4 to 2.4 % | 0.12 s |
-| **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0 to 1.6 % | 0.1 to 10 s |
-| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other; a part over a dense group of vias has the footprint in two zones (core and rest), on a 0.5 mm cell | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.6 % | about 10 ms |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.5 % (within about 1 % on a one-sided pad no larger than the heater, against converged finite elements) | 0.13 s (1 mm) |
+| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.5 to 1.1 % (up to 1.8 % with a metal block) | 0.12 s |
+| **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0.1 to 1.6 % (+2.3 to +4.9 % on one-sided pads at a 1 mm cell, too hot) | 0.1 to 10 s |
+| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other; a part over a dense group of vias has the footprint in two zones (core and rest), on a 0.5 mm cell | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.6 % (measured before the mirror images of the sides in its first link, which read an interior part a few points hotter) | about 10 ms |
 | **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms without vias, a few tenths of a second with vias |
 
 The lumped network and the analytic series need a rectangular board: on a board with an outline they run on the rectangle of the same area (the Results summary says so with a warning); every model reads the advanced stack-up.

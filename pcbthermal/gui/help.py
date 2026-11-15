@@ -146,7 +146,7 @@ class AboutDialog(QDialog):
             f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"
             "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series and a 3D solid, "
             "with power profiles, computed convection, parts with junction temperature, any board shape and the import of a board from Gerber files.</p>"
-            "<p>The models are validated against independent models (a resolved 3D solid, closed forms, datasheet cases), not against a measured board.</p>"
+            "<p>The models are checked against independent solutions (a resolved 3D solid, finite elements, closed forms, published cases and one datasheet board), not against a measured board.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
