@@ -698,8 +698,8 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     diff = float(np.nanmax(field)) - col
     # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
     # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
-    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, estimate (°C)",
-                    title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C\n"
+    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + ("resolved" if result.model == "fem" else "estimate") + " (°C)",
+                    title=f"{result.model.upper()} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
                           f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
     face_peak = result.arrays.get("face_peak")
     if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:

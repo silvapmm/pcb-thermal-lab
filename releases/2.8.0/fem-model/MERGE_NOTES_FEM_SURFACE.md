@@ -27,3 +27,6 @@ No other 'will resolve' / 'vai resolver' in guide, models, theory, tips.
 | tests/test_fem_model.py::test_the_surface_and_the_column_agree_on_thin_copper_and_the_point_is_the_hottest_node | expected no surface line; the surface is always reported now | interaction of the two branches | expects two lines, "resolved by the finite elements", "+0.000 K" |
 | tests/test_fem_model.py::test_a_one_layer_board_reads_the_copper_face_not_the_laminate_bottom | same | interaction | two lines, resolved, "0.000 K" |
 | tests/test_single_layer.py::test_the_lists_in_each_context | Layer box of the Temperature tab now ends with 'Surface (top)', 'Surface (bottom)' | feature/surface-always-both alone (fails there too) | the expected list has the two entries |
+
+## Result of the gates on the merged tree (after the stale-test commit)
+Whole battery before the test fixes: 4 failed (the four above), 3903 passed, 12 skipped, 2 xfailed in 2938 s; the 4 re-run after the fixes: 59 passed (test_fdm, test_single_layer, test_fem_model). Frozen 346 passed; compat 2.4.5: 5; compat 2.7.1: 17; secrets 4; published full + calculator: 14 passed, 1 xfailed; research readout-conventions 5, through-thickness-readout 7, independent-fem-edge 11 + 1 skip.
