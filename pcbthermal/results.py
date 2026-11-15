@@ -12,8 +12,9 @@ import numpy as np
 
 # Names of the models shown to the user (tables, lists, plots); the keys (fvm, lumped, ...) stay in the files, the reports and the API
 MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
-# The one short name of each model, for the legends of the plots and the card of the map (the key `lumped` is never shown to the user)
-MODEL_SHORT = {"fvm": "FVM", "lumped": "LPTN", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D", "fem": "FEM"}
+# The one short name of each model, for the legends of the plots and the card of the map (the key `lumped` is never shown to the user). It must agree with the
+# short names of feature/gui-panel-polish (results.MODEL_LABELS there: FVM, LPTN, Analytic, FDM, 3D solid, FEM); at that merge it becomes an alias of MODEL_LABELS
+MODEL_SHORT = {"fvm": "FVM", "lumped": "LPTN", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
 
 
 def short_name(key):

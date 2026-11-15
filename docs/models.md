@@ -179,7 +179,7 @@ A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p
 1. **Step response** `Z_i(t)` of every heater's own hottest point to a unit step of its power, from the reference model (FVM, else Lumped, else Analytic, else FDM; the 3D solid has no time simulation).
 2. **Decision, per heater** (`profiles.decide`): by superposition the periodic response of a piecewise-constant power is `T(u) = Σ_j P_j [G(σ₂) − G(σ₁)]` with
    `G(σ) = Σ_{m≥0} [Z(σ + mT) − Z(mT)]` plus the tail `σ/T·(R_th − Z(MT))`; for a square wave `peak = P_off R_th + ΔP·G(t_p)`. The oscillation (peak minus valley) is in **°C**. Heaters are sorted by oscillation and
-   *averaged* (smallest first) while their cumulative oscillation stays below the threshold (default 1 °C); the others are *resolved* in time. One-shot tables are always resolved. Percentages are shown for information only.
+   *averaged* (smallest first) while their cumulative oscillation stays below the threshold (default 1 K: an oscillation is a difference); the others are *resolved* in time. One-shot tables are always resolved. Percentages are shown for information only.
 3. **Run** (`profiles.run_windows`, one runner for the models through an adapter): the step is a tenth of the shortest stretch, each step's power is the **exact mean** of the profile over the step, averaged heaters keep their
    constant power in the same run, the window is the least common multiple of the periods, and windows repeat until peak and minimum change by less than 0.1 °C ("until the cycle repeats"), for N cycles, or for a fixed time;
    more than 200,000 steps is refused with an explanation. Start: the steady state of the average power (the first power for a one-shot table) or a uniform temperature typed in °C.

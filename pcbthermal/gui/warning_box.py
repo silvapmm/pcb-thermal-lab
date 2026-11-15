@@ -14,7 +14,7 @@ from PySide6.QtCore import QEvent, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QFontMetricsF, QPainter, QPainterPath
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from ..checks import warning_severity, warning_title
+from ..checks import line, warning_severity, warning_title
 from . import theme as th
 from .boxes import CollapsibleBox
 from .dots import dot_pixmap, severity_token       # The one painter of the round verdict dot (also used by the memory lines)
@@ -266,8 +266,11 @@ class _TopicRow(QWidget):
         # The label already names the element: the title drops its leading 'Name:' so that the name is not read twice and the title wraps later
         shown = display_title(self.title)
         if name and shown.lower().startswith(name.lower() + ":"):
-            rest = shown[len(name) + 1:].strip()
-            shown = rest[:1].upper() + rest[1:]
+            # The short title is taken again from the text WITHOUT the name: the length budget of warning_title (TITLE_MAX) counted the name, so a long
+            # designator cut the clause short ('63 % of the footprint is outside…') although the name itself moved to the label (review of the branch)
+            text = " ".join(line(self.warning).split())          # The short form of the warning when it has one, as warning_title reads it
+            rest = text[len(name) + 1:].strip() if text.lower().startswith(name.lower() + ":") else shown[len(name) + 1:].strip()
+            shown = display_title(warning_title(rest))
         self.title_label.setText(shown)
         self._apply()
 

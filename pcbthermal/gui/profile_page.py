@@ -39,6 +39,9 @@ def _put(spin, value):
     show_value(spin, value)
 
 
+PLOT_MIN_PX = 220     # Logical px: the smallest height of the waveform plot of the page
+
+
 class _AdaptiveSplitter(QSplitter):
     """!
     @brief A splitter that stacks its two panes one above the other when it is too narrow for them side by side (the page was wider than the window at 1200 x 800).
@@ -218,6 +221,9 @@ class ProfilePage(QWidget):
         self.dec_table.setMaximumHeight(150)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        # A floor for the waveform: with the panes stacked (a window narrower than _AdaptiveSplitter.NARROW_PX) the canvas was squeezed to 10 px at 1200 x 800
+        # (review of the branch; Matplotlib then warned that constrained layout collapsed); the page scrolls vertically instead
+        self.canvas.setMinimumHeight(PLOT_MIN_PX)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
 
         left = QWidget()

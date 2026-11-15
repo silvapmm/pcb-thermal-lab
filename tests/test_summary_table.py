@@ -150,6 +150,8 @@ def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
             assert head.sectionSize(c) >= t.sizeHintForColumn(c), (c,)
     t = rv.heater_table                                 # 11 columns: either all fit or the scroll bar reaches the rest
     assert t.horizontalScrollBar().maximum() > 0 or t.viewport().width() >= sum(t.horizontalHeader().sectionSize(c) for c in range(t.columnCount()))
+    # Review of the branch: the scroll bar took the height of the second row (U2 hidden); the table keeps two rows above its bar
+    assert t.viewport().height() >= 2 * t.verticalHeader().defaultSectionSize()
 
 
 def test_warnings_are_ordered_junction_then_warnings_then_notes(qtbot):

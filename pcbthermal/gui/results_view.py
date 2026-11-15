@@ -814,6 +814,11 @@ class ResultsView(QWidget):
         _fill(self.heater_table, rows)
         for r, note in enumerate(notes):
             self.heater_table.item(r, len(heads) - 1).setToolTip(note)
+        # The heater table keeps room for two rows AND its horizontal scroll bar (review of the branch: at 1200 x 800 the bar took the height of the second
+        # row of the example board, so U2 was behind a vertical scroll bar)
+        t = self.heater_table
+        t.setMinimumHeight(t.horizontalHeader().sizeHint().height() + min(max(t.rowCount(), 1), 2) * t.verticalHeader().defaultSectionSize()
+                           + t.horizontalScrollBar().sizeHint().height() + 2 * t.frameWidth() + 2)
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
                                  f"{z['t_min']:.1f}"] for z in zones])

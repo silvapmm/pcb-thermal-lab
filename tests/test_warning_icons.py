@@ -223,6 +223,34 @@ def test_the_element_label_names_the_type_and_the_element_and_a_long_name_is_eli
     assert plain.button is None
 
 
+def test_a_long_designator_does_not_shorten_the_title_and_tab_goes_from_the_row_to_the_label(win, qtbot):
+    """!
+    @brief Review of the branch: the title budget of checks.warning_title counted the name, so a long designator cut the clause ('63 % of the footprint is outside…')
+           although the name moves to the label; the title is now taken from the text without the name. Tab goes from the row head to its label.
+    @param win MainWindow fixture.
+    @param qtbot pytest-qt fixture.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from pcbthermal import checks
+    name = "Q_OFFBOARD_LONG_DESIGNATOR_99"
+    acc = win.solver_panel.checks
+    acc.set_warnings([checks.warn(f"{name}: 63 % of the footprint is outside the board; its full power is applied to the part that is inside.", "alert", "heater", 0)],
+                     names=lambda kind, index: name)
+    row = acc.rows[0]
+    assert checks.warning_title(row.warning).endswith("…")                      # the budget with the name cuts it ...
+    assert row.title_label.text() == "63 % of the footprint is outside the board"      # ... the row, without the name, does not
+    win.show()
+    row.head.setFocus()
+    qtbot.waitUntil(row.head.hasFocus)
+    QTest.keyClick(row.head, Qt.Key_Tab)
+    assert row.button.hasFocus()
+    # A warning with a short form keeps it (the title is read from the short form, as warning_title does), not from the long text
+    acc.set_warnings([checks.warn(f"{name}: the centre of the part sits on bare laminate (copper fill 0.10 under the centre; long measured text)", "note", "heater", 0,
+                                  short=f"{name}: the part sits on bare laminate")], names=lambda kind, index: name)
+    assert acc.rows[0].title_label.text() == "The part sits on bare laminate"
+
+
 def wb_rows_without_select():
     """!
     @brief A row built for the Results summary (select off) for a warning that names an element.

@@ -38,7 +38,10 @@ def test_the_power_profile_page_has_no_horizontal_scroll_bar_at_1200_x_800(qtbot
     assert isinstance(area, QScrollArea) and area.horizontalScrollBar().maximum() == 0
     page = win.profile_page
     assert page.minimumSizeHint().width() <= area.viewport().width()
-    win.resize(2000, 1000)                                   # Wide again: side by side
+    # Review of the branch: stacked, the waveform plot was squeezed to 10 px (constrained layout collapsed); it keeps a floor and the page scrolls down
+    from pcbthermal.gui.profile_page import PLOT_MIN_PX
+    assert page.canvas.height() >= PLOT_MIN_PX
+    win.resize(2000, 1000)                                  # Wide again: side by side
     qtbot.wait(150)
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QSplitter
@@ -71,7 +74,7 @@ def test_bar_legends_sit_beside_the_axes_and_the_profile_legend_uses_short_names
     plots.draw_comparison(fig, sim.results)
     fig.canvas.draw()
     assert fig.legends and not fig.axes[0].get_legend()
-    assert short_name("lumped") == "LPTN" and short_name("solid3d") == "3D" and set(MODEL_SHORT) == {"fvm", "lumped", "analytic", "fdm", "solid3d", "fem"}
+    assert short_name("lumped") == "LPTN" and short_name("solid3d") == "3D solid" and set(MODEL_SHORT) == {"fvm", "lumped", "analytic", "fdm", "solid3d", "fem"}
     fig3 = Figure(layout="constrained")
     plots.draw_profile(fig3, sim.results, sim.problem, picture="off")
     texts = [t.get_text() for ax in fig3.axes for t in (ax.get_legend().get_texts() if ax.get_legend() else [])]
