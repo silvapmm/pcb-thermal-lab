@@ -219,6 +219,11 @@ class ProfilePage(QWidget):
         doc.changed.connect(self._load_options)
         doc.state_changed.connect(self._load_options)
         compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
+        # The 'Repeats every' row holds two lists and a number: at 16 characters each it asked 531 px and the page scrolled sideways at 1200 x 800 even with the
+        # panes stacked. The two short lists ('Period' / 'Frequency', the unit) need far fewer characters
+        self.by.setMinimumContentsLength(9)
+        self.unit.setMinimumContentsLength(4)
+        self.value.setMinimumWidth(1)
         self.refresh()
         self._load_options()
 

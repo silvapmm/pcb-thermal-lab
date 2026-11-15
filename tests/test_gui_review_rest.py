@@ -409,3 +409,25 @@ def test_the_all_layers_title_gives_the_balance_as_in_the_summary():
     plots.draw_fields(fig, sim.results["fvm"], sim.problem)
     text = fig._suptitle.get_text()
     assert "power balance 0.00 %" in text and "E-" not in text
+
+
+def test_the_power_profile_page_has_no_sideways_bar_at_1200_by_800(win):
+    """!
+    @brief The Power profile page fits the centre of a 1200 x 800 window with its panes stacked (the 'Repeats every' row asked 531 px and the page scrolled).
+    @param win Main window fixture.
+    """
+    from PySide6.QtWidgets import QScrollArea
+
+    from pcbthermal.examples import example_profile_board
+    from pcbthermal.gui.main_window import TAB_PROFILE
+
+    load(win, example_profile_board())
+    win.resize(1200, 800)
+    win.show()
+    win.tabs.setCurrentIndex(TAB_PROFILE)
+    for _ in range(3):
+        QApplication.processEvents()
+    area = win.profile_page.parentWidget()
+    while not isinstance(area, QScrollArea):
+        area = area.parentWidget()
+    assert area.horizontalScrollBar().maximum() == 0, (area.viewport().width(), win.profile_page.minimumSizeHint().width())
