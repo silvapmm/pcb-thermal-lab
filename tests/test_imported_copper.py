@@ -274,7 +274,8 @@ def test_one_dimensional_chain_is_the_series_circuit():
     b = p.board
     area = b.width * b.height
     r_chain = float(np.sum(b.gap_thicknesses() / (b.gap_properties()[0] * area)))
-    r_top, r_bot = 1.0 / (H_FACE * area), 1.0 / (H_FACE * area)
+    # Both films pass the half copper layer of their node (fix/face-film-half-slab, theory 1.2a): the full-copper coefficient of Board.face_film_h
+    r_top, r_bot = 1.0 / (b.face_film_h(H_FACE, 0, 1.0) * area), 1.0 / (b.face_film_h(H_FACE, 3, 1.0) * area)
     expected = 1.0 / (1.0 / r_top + 1.0 / (r_chain + r_bot))
     th, _ = fvm.Network(p, 6, 6).solve_steady()
     assert abs(th[0].mean() / expected - 1.0) < 1e-9

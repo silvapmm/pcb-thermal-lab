@@ -97,7 +97,8 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # the FVM value 85.20347171898253 was already stale on develop 6e66ae05 (85.29380457046574, no FVM change here), re-baselined with it)
     # (fix/drawn-copper-faces: the partial top copper of the example is read as an import (exact fill, flow-based faces): FVM 85.29380457046574 -> 85.29255698693045 K (-0.0012),
     # FDM 84.51886092076673 -> 84.62254460447653 K (+0.104); the board with the rectangle as outline equals the board without to rounding (1e-14 K), so the outline path is consistent)
-    stored = {fvm: 85.29255698693045, fdm: 84.62254460447653, solid3d: 85.48327731195374}
+    # +1.18e-5 K in the FVM and FDM with fix/face-film-half-slab (the film passes the half copper layer; the 3D solid resolves the slab and does not move)
+    stored = {fvm: 85.2925688016371, fdm: 84.62255641589951, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
@@ -168,11 +169,11 @@ def test_lumped_and_analytic_on_the_equivalent_rectangle_are_unchanged():
     # with an insulated edge it is still that. With the edge in the eigenfunctions of the series (feature/analytic-robin-edge) the edge loss is where the edge is:
     # 215.944 degC (it was 215.233 with the edge moved to the faces, +0.33 % of the rise; the FVM reads 231.87 at 1 mm, the equivalent rectangle is the limit here).
     o = api.SolverOptions(cell_mm=1.0)
-    assert api._run_model(small_t(), "lumped", o).t_max == pytest.approx(219.44705298196652, abs=1e-9)   # was 217.73005348656147 K before the images of the board sides in the first link (fix/lumped-edge-first-link, +0.8 % of the rise)
-    assert api._run_model(small_t(), "analytic", o).t_max == pytest.approx(215.94408257945503, abs=1e-6)
+    assert api._run_model(small_t(), "lumped", o).t_max == pytest.approx(219.44713226972294, abs=1e-9)   # +7.9e-5 K (4e-7 of the rise) with fix/face-film-half-slab; was 217.73005348656147 K before the images of the board sides in the first link (fix/lumped-edge-first-link, +0.8 % of the rise)
+    assert api._run_model(small_t(), "analytic", o).t_max == pytest.approx(215.94415807426918, abs=1e-6)   # +7.6e-5 K with fix/face-film-half-slab (the film passes the half copper layer)
     insulated = small_t()
     insulated.board.h_side = None
-    assert api._run_model(insulated, "analytic", o).t_max == pytest.approx(237.28294907393308, abs=1e-9)
+    assert api._run_model(insulated, "analytic", o).t_max == pytest.approx(237.28304811351, abs=1e-9)   # +9.9e-5 K (4e-7 of the rise) with fix/face-film-half-slab
 
 
 @pytest.mark.parametrize("model", [fvm, fdm, solid3d])
