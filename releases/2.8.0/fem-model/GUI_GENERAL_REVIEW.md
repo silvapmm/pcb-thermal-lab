@@ -29,7 +29,7 @@ The user guide says 'The models are named as in the Simulation panel (FVM, Lumpe
 
 ### 2.2 Units, words and capitalisation
 
-* **Degree sign**: the text report and the warning titles of the Results write `degC` ('U2: the junction reaches 130.4 degC, 90.4 K above its limit'), the tables and fields `°C`; the report table writes `dT C` and `Rth K/W` where the Qt table writes `ΔT °C` and `Rθ K/W`. `ΔT` is a difference and should be in K (already in `SUMMARY_TABLE_REVIEW.md`). *Superseded by the maintainer's unit rule: differences, rises and margins are written in `°C` too; `K` only inside compound units (`GUI_FIX_PLAN.md` 3).*
+* **Degree sign**: the text report and the warning titles of the Results write `degC` ('U2: the junction reaches 130.4 degC, 90.4 K above its limit'), the tables and fields `°C`; the report table writes `dT C` and `Rth K/W` where the Qt table writes `ΔT °C` and `Rθ K/W`. `ΔT` is a difference and should be in K (already in `SUMMARY_TABLE_REVIEW.md`). *The maintainer's rule agrees: `°C` for absolute temperatures, `K` for rises, differences and margins (provisional until a literature check; `GUI_FIX_PLAN.md` 3).*
 * **Micrometre**: `µm` in the Stack-up and Properties, `um` in the import window ('35 / 35 um copper').
 * **Unit notation**: `x (mm)` in the outline table, `x mm` and `Area mm²` in the hotspot table, `Power W` in the tables, `Power (W)` in the import parts table.
 * **Layer names**: toolbar Layer box `1 top`, `4 bottom`; Properties `1 (top)`, `4 (bottom)`; Elements list `1`; map title `layer 1`.
