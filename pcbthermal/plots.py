@@ -765,8 +765,11 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
         fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
+    from .api import balance_text                    # Imported here: the API imports this module for its figures
+
+    # The balance as in the Summary table: a percentage with a floor (the raw round-off, '-401.30E-15', read like a number to worry about)
     fig.suptitle(f"{model_label(result.model)} - column mean, all layers: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
-                 f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
+                 f"power balance {balance_text(result.balance_error)}", fontsize=10)
 
 
 CUT_COLOUR = "#ffb000"        # The amber of the alert token: the cut line on the plain board

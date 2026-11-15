@@ -390,3 +390,22 @@ def test_map_titles_use_the_short_model_name_and_the_cut_title_says_where_it_is(
     title = fig.axes[0].get_title()
     assert "y = 39.0 mm" in title or "y = 41.0 mm" in title or "y = 40.0 mm" in title
     assert ("nearest to 40.0 mm" in title) == ("y = 40.0 mm" not in title)
+
+
+def test_the_all_layers_title_gives_the_balance_as_in_the_summary():
+    """!
+    @brief The title of the all-layers map writes the energy balance as the Summary table does (a percentage with a floor), not the raw round-off.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+
+    from pcbthermal import SolverOptions, plots, simulate
+    from pcbthermal.examples import example_board
+
+    sim = simulate(example_board(), SolverOptions(models=("fvm",), cell_mm=2.0))
+    fig = Figure()
+    plots.draw_fields(fig, sim.results["fvm"], sim.problem)
+    text = fig._suptitle.get_text()
+    assert "power balance 0.00 %" in text and "E-" not in text
