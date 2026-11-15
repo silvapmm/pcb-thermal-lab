@@ -1,6 +1,8 @@
 # Integration: drawn copper read as imported copper (FVM and FDM)
 
-**What enters the program now: nothing.** `git diff development --stat -- pcbthermal tests examples ico` stays empty; the copy lives in `lib/patched.py` (subclasses of `fvm.Network` and `fdm.Network`) and in `lib/dc_cases.py`. This file is the design for a `fix/drawn-copper-faces` branch if the maintainer decides to adopt (README 8), with the measured impact of every proposal.
+**Adopted** (`fix/drawn-copper-faces`, merged into `development` for 2.8.0, unreleased; `docs/validation.md` 51, `docs/versions.md` 5a): this file is kept as the design record. Where the shipped code differs from this design (overlapping fills, cells that are not square, mixed boards, the memory term) is README 12.2. The text below is the design as it was written before the adoption.
+
+**What entered the program at the time of writing: nothing.** `git diff development --stat -- pcbthermal tests examples ico` stays empty; the copy lives in `lib/patched.py` (subclasses of `fvm.Network` and `fdm.Network`) and in `lib/dc_cases.py`. This file is the design for a `fix/drawn-copper-faces` branch if the maintainer decides to adopt (README 8), with the measured impact of every proposal.
 
 ## 1. Recommendation
 

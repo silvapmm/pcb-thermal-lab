@@ -2,6 +2,8 @@
 
 Branch `research/drawn-copper-faces`; item 5a of `docs/versions.md` 'Planned: 2.8.0'. The program is not touched: everything below runs on a COPY of its networks (`lib/patched.py`) or on a deep copy of the problem (`lib/dc_cases.py`).
 
+**Status: adopted in the program** (`fix/drawn-copper-faces`, merged into `development` for 2.8.0, unreleased; `docs/validation.md` 51). Since then the program's own FVM and FDM read drawn copper the way the copy of this folder does, so the 'drawn' and 'program' columns of sections 3 to 7 are the EARLIER path of the program: re-running the older scripts now prints the adopted path in those columns. The closing review (section 12, `scripts/study_adopted.py`) reproduces the earlier path by switching `copper.drawn_source` off at runtime and checks every headline number against the shipped code.
+
 ## 1. Question and answer
 
 **Question.** Drawn copper (zones, hatching) reads cooler than the same copper imported (validation 40.4: the 20 mm square with the copper 1.2 mm inside the wall, 200 W/m2K, 1 mm cell: -3.15 % drawn, -0.93 % imported against the 3D truth; striped and padded tops 5 to 12 % cool; the only unsafe-side FVM error with no warning). What is the gap made of, and does it go away when a zone is read the way an import is read?
@@ -15,6 +17,7 @@ Branch `research/drawn-copper-faces`; item 5a of `docs/versions.md` 'Planned: 2.
 5. **Cost, pixels, frozen numbers:** see sections 5 to 7 (10 pixels per cell; 2.5 to 4 times the time and +20 to +60 % memory on a 100 x 75 mm board). The 17 frozen-number boards are almost blind to the change (their copper edges lie on cell lines): with a raster only for the layers that have a cut cell, 8 of the 102 FVM and FDM records move (all at 2 mm; FVM at most 0.19 K, FDM at most 1.87 K, `two_layer_partial`) and the other 94 are bit for bit the same.
 6. **Recommendation:** adopt in 2.8.0 as a fix for the FVM and the FDM (section 8 and `INTEGRATION.md`); the fall-back, if the maintainer prefers not to move numbers, is a warning with the measured range of section 3.
 7. **Review** (section 11): the headline numbers reproduce; three corrections (the FDM exact-fill claim, the Lumped record that a hook inside `fvm.Network` would move, the cause of the spread on outline boards) and the measured memory term are in section 11.
+8. **Closing review after the adoption** (section 12): the shipped program equals the copy bit for bit on the study boards, sections 3.1, 3.2 and 4 reproduce to the printed digit (earlier path and shipped program), and the small outer pads of the 2.8.0 audit read -10.6 -> -3.7 % in the FDM at 1 mm. GO for the merge of the folder.
 
 ## 2. Method
 
@@ -243,6 +246,7 @@ See `INTEGRATION.md`. In short:
 * **From the program's docstrings only, not opened**: the transmissibility upscaling of reservoir grids that `copper.face_conductances` cites; no literature was opened for this study, and none is claimed.
 * **Reproduced**: the stripes and plain finite-element numbers of `independent-fem-extensions` 8.4 (to the digit); the program column of validation 40.2 (sq_in, sq_wall, sq_4l, sq_pad, sq_stripes, T and L, the left column of section 4).
 * **Not verified**: a physical board (nothing here is compared with a measurement); the references are finite-element solutions with extrapolation to zero size ASSUMED second order (estimate; 0.2 mm for the two-layer boards, 0.3 mm for the four-layer board); the hatch has no resolved reference; vias, parts over drawn partial copper, metal blocks and boards with several parts were not tried on the study boards (the frozen boards cover a few: no record with vias moves in the FVM at 1 and 0.5 mm); overlapping zones of different fill are approximated in the raster (sum clipped to the largest fill; the program's rule is the maximum at each sample); the cost study uses one board (section 6); the 3D solid, Lumped and Analytic were not run with the exact fill; transients were run only on the 17 frozen boards (the 2 mm step response); the imported path in the FDM was not looked at beyond the numbers above.
+* **After the adoption** (section 12): re-measured on the shipped program, the decomposition of 3.1 and 3.2 on seven boards (42 triples), nine outline rows of section 4 and the small outer pads of the audit; the finite-element values, the 3D truths and the audit's 74.35 K are read, not re-run; sections 5 to 7 and the other outline rows are read, not re-run (validation 51.2 and 51.3 measured the shipped cost and memory).
 
 ## 11. Review
 
@@ -329,3 +333,43 @@ Fresh process per run, peak resident memory against `memory.check` (base = the r
 5. Confirmed: the eight FVM/FDM records and the 14 times of section 7; the 0.4 mm finite-element values; the decomposition; vias, blocks, several parts and overlapping zones run.
 
 **Not verified by the review**: the extrapolated finite-element values (0.2 mm solves not repeated); the four-layer and hatch rows; the outline rows other than the four of 11.3; transients beyond the frozen times; boards larger than 200 x 150 mm; a mixed board (some layers imported, others drawn) through the copy.
+
+## 12. Closing review after the adoption
+
+Re-run on `research/drawn-copper-faces` after `development` (with `fix/drawn-copper-faces` merged) was merged into it, by `scripts/study_adopted.py` (subcommands `decomp`, `copy`, `outline`, `pad`) with the program's `.venv`. The earlier path is the shipped program with `copper.drawn_source` replaced by a function that returns None for the length of a run (a runtime attribute of the imported module; no file of `pcbthermal/` is read or written by the scripts or the tests).
+
+### 12.1 Sections 3.1 and 3.2 against the shipped program
+
+`decomp`: seven boards (`plain_inset` 200 and 1000, `plain_wall` 200, `stripes` 200 and 1000, `ell` 200, the four-layer `plain_inset` 200), FVM and FDM at 1 / 0.5 / 0.25 mm. The earlier path gives the 'drawn' column of 3.1 and 3.2 and the shipped program gives the 'flow faces' column, both to the printed digit on all 42 triples (for example FVM stripes 200 W/m2K -8.0 / -4.1 / -4.4 -> -0.6 / -1.9 / -1.9 %, FDM -12.9 / -6.1 / -5.0 -> -1.8 / -1.9 / -2.1 %, FDM `ell` -8.1 / -6.3 / -5.8 -> -4.0 / -3.1 / -2.6 %); the import reading (`zones_to_imported`, 8-bit) equals the shipped program to the digit; the copper-to-the-wall control does not move; heat balance below 2.2e-12 in every run. The references are the extrapolated finite elements of `out/fem.json` (**read, not re-run**: the scratch environment of the finite-element tool is outside git; the 0.4 mm solves of `stripes` and `ell` were re-run by the first review, 11.1).
+
+### 12.2 The program's code against the design of this folder
+
+`copy`: on six study boards (the five above and the hatch), FVM and FDM at 1 and 0.5 mm, the shipped program and `patched.use('faces')` give the same heater mean bit for bit, and the two rasters at 1 mm are identical (0 of 255). The code is not the same; the differences that remain, none of which changes a study board:
+
+| item | copy (`lib/patched.py`) | program (`copper.DrawnCopper`, `MixedCopper`, `drawn_source`) | matters? |
+| :-- | :-- | :-- | :-- |
+| zones of different fill that overlap | exact shares times fill, summed and clipped to the largest fill | largest fill first, each over the share not yet taken (`_zone_union`), the maximum rule asked by `INTEGRATION.md` | only on overlapping fills (validation 51.6: +1.3 -> +1.7 % on such a board) |
+| cells that are not square | square pixels of `cell / 10`, the import's rule then samples about 12 per cell | the raster is built on the grid itself (`DrawnCopper(grid=)`), the fill exact to 3e-8 | yes, fixed in the program (heater mean at most 0.26 %, validation 51.6) |
+| a board with imported copper | the drawn layers keep the earlier path | `MixedCopper`: the drawn layers with a cut cell are rasterised on the import's pixel grid | yes, the program goes further (validation 51.4: up to 10 % cool before on the drawn layer) |
+| the Lumped network, the time-constant helper | not reached (the class swap does not reach the Lumped's import) | excluded by the gate `ladder and cut_cells` in `fvm.Network` | no: same result, no Lumped record moves |
+| a zone that crosses itself, too many crossings | rasterised anyway | earlier path (`drawn_layer_cuts` returns `{}`) | a fallback, not on a study board |
+| cut-layer test | summed exact coverage strictly between 1e-9 and 1 - 1e-9 | union share between 1e-6 and 1 - 1e-6, shares snapped | no |
+| memory | not charged | `memory.drawn_run_bytes`: 4 B per pixel per cut layer + 80 B per pixel + 50 MB; also in `cell_that_fits` | the design's proposal (about 50 B per pixel, 11.5) was replaced by a floor above the measured growth (validation 51.3) |
+
+### 12.3 Section 4 (outline boards) against the shipped program
+
+`outline`: nine rows of section 4 (`sq_in` 200 W/m2K at 1 and 0.5 mm, `sq_stripes`, `sq_pad`, `sq_4l`, `T_in`, `T_wall`, `L_in`, `L_wall` at 1 mm; ten placements each) give the left column with the earlier path and the right column with the shipped program, mean / spread / worst to the printed digit (`sq_in` 1 mm -3.15 / 3.78 / 4.62 -> -1.26 / 2.48 / 2.53 %; `sq_stripes` -11.81 / 10.96 / 14.64 -> -2.58 / 2.53 / 3.47 %; `L_wall` +0.81 / 1.26 / 1.16 -> +0.83 / 1.51 / 1.41 %). The 3D truths are those stored by `research/imported-copper-edge-film` (**read, not re-run**). The other 21 rows of the table were not re-run.
+
+### 12.4 The small outer pads of the audit
+
+`pad`: the four-layer 10 x 10 mm board with 5 x 4 mm pads on the outer layers (`research/strong-edge-laminate` builder, 0.5 W on 3 x 2 mm), hottest rise at 1 mm, before -> now: FDM 66.450 -> 71.596 K at `h_side` 10 W/m2K, 52.090 -> 57.938 K at 200, 38.612 -> 46.104 K at 1000; FVM 72.770 -> 72.848 K, 59.505 -> 59.555 K, 47.079 -> 47.052 K. Against the finite elements (74.35 K at 10 W/m2K, from the audit, and the point extrapolations of `research/independent-fem-edge` README 6, 61.073 and 50.357 K; **read, not re-run**) the FDM goes -10.6 -> -3.7 %, -14.7 -> -5.1 % and -23.3 -> -8.4 %, the FVM -2.1 -> -2.0 %, -2.6 -> -2.5 % and -6.5 -> -6.6 %, as validation 51.7 says. At 0.5 mm the pad edges lie on cell lines and nothing moves (FDM 71.162 K, -4.3 %). **The FDM still reads the small outer pad 3.7 % cool at 1 mm** (and 5 to 8 % with a strong edge): what is left is the FDM at the copper edge of the pad and the laminate at the edge (A40 / A32, A16), not the faces.
+
+### 12.5 Frozen numbers, tests and what is left
+
+* `PCBT_FROZEN_CELLS=2 pytest tests/regression tests/test_drawn_copper_faces.py` on the merged tree: 179 passed (the pending file `drawn-copper-faces.json` holds the 8 records and 8 time tests of section 7; the three new harness boards are held by `tests/test_drawn_copper_faces.py`). The 1 and 0.5 mm cells were not re-run here (validation 51.7 compared all of them value by value).
+* `research/drawn-copper-faces/tests`: 5 passed (a new test holds the copy equal to the shipped program and the earlier path equal to the 'drawn' column, stripes 200 W/m2K at 1 mm -8.0 -> -0.6 %).
+* **Left, stated limits** (each also in validation 51): a mixed board whose import pixel is coarser than the cell asks for reads by that pixel (0.4 mm pixel at a 1 mm cell: about 1 % from the drawn board, -0.9 % FVM, +1.1 % FDM); a mixed board with an outline was not checked; the FDM small outer pad -3.7 % at 1 mm (12.4); the laminate at the inset edge (1 to 3 % cool at fine cells); a small pad on bare laminate (4 to 5 % cool); vias on a drawn copper edge now read the imported copper's hot (safe) side at a coarse cell (+10.6 % at 1 mm in one position, validation 51.6); the outline spread of the shifted, unturned board (re-measure after A32/A40).
+* **Not re-run by this review**: the finite-element and 3D-truth references (read), sections 5 to 7 (pixels, cost, harness shift: the cost and memory of the shipped code are measured in validation 51.2 and 51.3 and were not repeated), the hatch and the other 21 outline rows, the mixed board (held by `tests/test_drawn_copper_faces.py`, which passed).
+
+Verdict: **GO for the merge of the folder**; the investigation is closed as adopted in 2.8.0 (unreleased).
+

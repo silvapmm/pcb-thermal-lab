@@ -86,3 +86,21 @@ def test_face_across_a_copper_edge_is_the_series_of_the_two_parts():
         # the face between cells 1 and 2 (centres 1.5 and 2.5) lies wholly in copper: its value is the full sheet; the face of cells 0 and 1 is the series
         assert abs(gx[0, i, 0] - expect) / expect < 1e-3
         assert abs(gx[0, i, 1] - a_full) / a_full < 1e-3
+
+
+def test_the_shipped_program_is_the_copy_and_the_earlier_path_is_the_drawn_column():
+    """!
+    @brief After the adoption the program's own networks equal the copy, and the earlier path (copper.drawn_source switched off at runtime) still gives the 'drawn' column of README 3.1.
+    @return None.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    import study_adopted as A
+    p = D.problem(D.case("stripes", 200.0))
+    now = D.heater_mean_fvm(p, 1.0)[0]
+    with P.use("faces"):
+        assert abs(D.heater_mean_fvm(p, 1.0)[0] - now) < 1e-9                  # the same raster, the same faces (README 12.2)
+    with A.earlier_path():
+        before = D.heater_mean_fvm(p, 1.0)[0]
+    ref = 73.872                                                             # finite elements, extrapolated (README 2.1)
+    assert round(100 * (before / ref - 1), 1) == -8.0
+    assert round(100 * (now / ref - 1), 1) == -0.6
