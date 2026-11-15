@@ -124,8 +124,9 @@ def main():
                     continue
                 r = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", case, variant] + (["--cell", str(a.cell)] if a.cell else []),
                                    capture_output=True, text=True, timeout=1800)
-                line = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else json.dumps({"case": case, "variant": variant, "refused": r.stderr[-300:]})
-                rec = json.loads(line)
+                # pyamg prints warnings to stdout ("Inner denominator was zero."): take the last line that is a JSON object
+                js = [s for s in r.stdout.splitlines() if s.startswith("{")]
+                rec = json.loads(js[-1]) if js else {"case": case, "variant": variant, "refused": "no result line; stderr: " + r.stderr[-300:]}
                 rec["cell_req"] = a.cell
                 with open(LOG, "a") as fh:
                     fh.write(json.dumps(rec) + "\n")
