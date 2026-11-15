@@ -702,7 +702,7 @@ def check_import(rows: int, cols: int, n_layers: int, cell_mm: float, fraction: 
         room = max(limit - b - FACES_FIXED_BYTES, 1.0)
         need = max(draw, run - FACES_FIXED_BYTES)
         fit = (pixel_mm or 0.0) * math.sqrt(need / room)
-        where = f" ({cols} x {rows} pixels of {pixel_mm:g} mm, {n_layers} layers)" if pixel_mm else f" ({cols} x {rows} pixels, {n_layers} layers)"
+        where = f" ({cols} × {rows} pixels of {pixel_mm:g} mm, {n_layers} layers)" if pixel_mm else f" ({cols} × {rows} pixels, {n_layers} layers)"
         src = f"{f * 100:.0f} % of the {r / GB:.1f} GB of memory" if r else "the fixed limit (the memory of the machine could not be read)"
         raise MemoryGuardError(f"the import{where} would need about {peak / GB:.1f} GB, more than the {limit / GB:.1f} GB allowed ({src})"
                                + (f"; use a pixel of {math.ceil(fit * 1000.0) / 1000.0:g} mm or more" if fit > 0 else ""))

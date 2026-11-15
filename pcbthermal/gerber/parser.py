@@ -379,7 +379,7 @@ class Layer:
                 if m and m.group(1) and (int(m.group(1)) > 1 or int(m.group(2) or 1) > 1):
                     nx, ny = int(m.group(1)), int(m.group(2) or 1)
                     if nx * ny > MAX_OPERATIONS:
-                        raise GerberError(f"{self.name}: step and repeat of {nx} x {ny} copies (limit {MAX_OPERATIONS} operations)")
+                        raise GerberError(f"{self.name}: step and repeat of {nx} × {ny} copies (limit {MAX_OPERATIONS} operations)")
                     st["sr"] = (nx, ny, float(m.group(3) or 0) * unit, float(m.group(4) or 0) * unit, len(self.ops))
             elif cmd.startswith("AS") and cmd[2:6] != "AXBY":
                 self._refuse(f"{cmd} (axis select that swaps the axes, deprecated)")

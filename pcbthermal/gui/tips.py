@@ -46,7 +46,7 @@ MODEL_TABLE_TIP = ("One row per model. Tmax (column) and Tmean (all layers) are 
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",
     "profile page": "Copper layer; the same choice as in the editor and the Results maps.",
-    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer, the metal block, or Surface (top) / Surface (bottom), the outer face of "
+    "temperature": "Layer of the Temperature map: all side by side, all in 2 × 2, one layer, the metal block, or Surface (top) / Surface (bottom), the outer face of "
                    "the copper (an estimate for the FVM and the FDM, resolved for the FEM; a view of the map only: the tables keep the layer mean). A single layer is also "
                    "the drawing layer.",
     "gradient": "Copper layer of the gradient map, shared with the editor. All layers and the block: Temperature tab only.",

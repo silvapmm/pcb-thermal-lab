@@ -238,7 +238,7 @@ class Preview(QWidget):
             if self.show_layers["holes"]:
                 self._paint_legend(p, c)
         p.setPen(QColor(c["muted"]))
-        p.drawText(10, self.height() - 8, f"{b.width:.1f} x {b.height:.1f} mm   zoom {self.zoom:.1f}x")
+        p.drawText(10, self.height() - 8, f"{b.width:.1f} × {b.height:.1f} mm   zoom {self.zoom:.1f}x")
         p.end()
 
     def _paint_parts(self, p, c):
@@ -743,9 +743,9 @@ class Step1Page(QWidget):
         self.layers_label.setText(f"{len(layers)}: {sx.stackup_text().split(': ', 1)[1]}" if layers else "none")
         b = sx.board()
         if b is not None and b.outline_area_mm2 is not None:
-            self.outline_label.setText(f"{b.width:.2f} x {b.height:.2f} mm, area {b.outline_area_mm2:.1f} mm², {len(b.outline)} board(s)")
+            self.outline_label.setText(f"{b.width:.2f} × {b.height:.2f} mm, area {b.outline_area_mm2:.1f} mm², {len(b.outline)} board(s)")
         elif b is not None:
-            self.outline_label.setText(f"none: the box of the copper, {b.width:.2f} x {b.height:.2f} mm")
+            self.outline_label.setText(f"none: the box of the copper, {b.width:.2f} × {b.height:.2f} mm")
         else:
             self.outline_label.setText("-")
         v, comp, nonplated = sx.vias()
@@ -1017,7 +1017,7 @@ class Step2Page(QWidget):
             size = "-"
             if has:
                 xs, ys = [q[0] for q in p.polygon_mm], [q[1] for q in p.polygon_mm]
-                size = f"{max(xs) - min(xs):.1f} x {max(ys) - min(ys):.1f}"
+                size = f"{max(xs) - min(xs):.1f} × {max(ys) - min(ys):.1f}"
             pos = p.from_file.get("position_mm") or ([sum(q[0] for q in p.polygon_mm) / len(p.polygon_mm), sum(q[1] for q in p.polygon_mm) / len(p.polygon_mm)] if has else None)
             nop = len(sx._openings_of(p))
             vals = {1: p.designator, 2: (p.footprint or p.from_file.get("package", "")), 3: sx.source_label(p), 4: str(nop or p.from_file.get("n_openings", 0)), 5: size,
@@ -1461,7 +1461,7 @@ class Step3Page(QWidget):
             if mv["import_error"]:
                 text += f"<span style='color:{c['bad']}'>Masks: {html.escape(mv['import_error'])}</span>"
             else:
-                text += (f"<span style='color:{c['ok']}'>Masks: {len(sx.board().copper)} layers of {mv['cols']} x {mv['rows']} pixels, peak about {mv['import_peak'] / 1e9:.2f} GB (fits)</span>")
+                text += (f"<span style='color:{c['ok']}'>Masks: {len(sx.board().copper)} layers of {mv['cols']} × {mv['rows']} pixels, peak about {mv['import_peak'] / 1e9:.2f} GB (fits)</span>")
             self.mem.setText(text)
         n, comp, nonp = sx.vias()
         self.vias.setText(f"{n} vias, {comp} component holes kept out of the models; {nonp} non-plated holes ignored." if sx.board() else "-")
@@ -2223,7 +2223,7 @@ class ImportBoardWindow(QDialog):
         """
         if self._busy:
             self._close_asked = True
-            self.status.setText("Closing when the reading in progress has ended...")
+            self.status.setText("Closing when the reading in progress has ended…")
             return
         super().reject()
 

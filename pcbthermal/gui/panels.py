@@ -142,13 +142,13 @@ class BoardPanel(QWidget):
         self.outline_label.setWordWrap(True)
         self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; LPTN, Analytic: the rectangle of the same area.")
         self.preset = QComboBox()
-        self.preset.addItem("Preset shape...", None)
+        self.preset.addItem("Preset shape…", None)
         for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
             self.preset.addItem(label, label)
         self.preset.setToolTip("Replace the outline by a preset that fits the box; edit the vertices below.")
         self.preset.currentIndexChanged.connect(self._pick_outline)
         self.outline_table = QTableWidget(0, 2)
-        self.outline_table.setHorizontalHeaderLabels(["x (mm)", "y (mm)"])
+        self.outline_table.setHorizontalHeaderLabels(["x mm", "y mm"])     # Unit after the name, as every table of the Results
         self.outline_table.setMaximumHeight(140)
         self.outline_table.setToolTip("Outline vertices, mm from the box's lower-left corner. Edit a cell to move one.")
         self.outline_table.itemChanged.connect(self._edit_vertex)
@@ -229,7 +229,7 @@ class BoardPanel(QWidget):
         self.k_ip = _spin(0.01, 1000, 0.9, 2, 0.05, "W/mK")
         self.plating = _spin(1, 1000, 25, 0, 1, "µm")
         self.laminate = QComboBox()
-        self.laminate.addItem("Laminate preset...", None)
+        self.laminate.addItem("Laminate preset…", None)
         for entry in DIELECTRICS:
             self.laminate.addItem(f"{entry[0]}: {num(entry[1])} / {num(entry[2])} W/mK", entry)
         self.laminate.setToolTip("Typical dielectric (indicative): fills k through, k in-plane, density and specific heat of the simple stack-up.")
@@ -1275,7 +1275,7 @@ class Inspector(QWidget):
             self.doc.set_props(kind, index, merge=False, **fields)
 
         mat = QComboBox()
-        mat.addItem("Interface material preset...", None)
+        mat.addItem("Interface material preset…", None)
         mat.addItem("Direct contact (no material, R = 0)", "direct")
         for label, k_, t_ in INTERFACES:
             mat.addItem(f"{label}: {num(t_)} mm", (k_, t_ * 1e-3))

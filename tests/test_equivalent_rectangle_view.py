@@ -75,7 +75,7 @@ def test_draw_field_adds_the_rectangle_only_when_asked(sim):
     assert len(lines) == 1 and fig.legends
     W, H = eq.board.width * 1000.0, eq.board.height * 1000.0
     assert max(lines[0].get_xdata()) == pytest.approx(W) and max(lines[0].get_ydata()) == pytest.approx(H)
-    assert f"{W:.1f} x {H:.1f} mm" in lines[0].get_label()
+    assert f"{W:.1f} × {H:.1f} mm" in lines[0].get_label()
     ext = ax.get_images()[0].get_extent()                                   # The field fills the solved rectangle, not the real box
     assert ext[1] == pytest.approx(W, rel=1e-6) and ext[3] == pytest.approx(H, rel=1e-6)
     assert not np.ma.getmaskarray(ax.get_images()[0].get_array()).any()              # Nothing blanked: the rectangle is the board that was solved

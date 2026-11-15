@@ -162,3 +162,38 @@ def test_the_right_docks_never_scroll_sideways_at_their_narrowest(win, case):
     for d in (win.dock_sim, win.dock_inspector):
         for a in d.findChildren(QScrollArea):
             assert a.horizontalScrollBar().maximum() == 0, (d.windowTitle(), a.width(), a.widget().minimumSizeHint().width())
+
+
+def test_the_ruler_corner_holds_only_the_unit(win):
+    """!
+    @brief The corner square of the rulers shows the unit 'mm' and nothing else, whatever the pan (the ticks of both rulers were drawn through the letters).
+    @param win Main window fixture.
+    """
+    from PySide6.QtGui import QColor, QImage, QPainter, QPen
+
+    from pcbthermal.examples import example_board
+
+    load(win, example_board())
+    view = win.canvas
+    c = th.colors(view.theme)
+
+    def corner(draw):
+        img = QImage(40, 40, QImage.Format_RGB32)
+        img.fill(QColor(c["canvas"]))
+        p = QPainter(img)
+        draw(p)
+        p.end()
+        return [img.pixel(x, y) for x in range(18) for y in range(18)]
+
+    def only_unit(p):
+        p.setPen(QPen(QColor(c["text"])))
+        font = p.font()
+        font.setPointSizeF(7.5)
+        p.setFont(font)
+        p.drawText(2, 12, "mm")
+
+    want = corner(only_unit)
+    for _ in range(12):
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + 7)
+        view.verticalScrollBar().setValue(view.verticalScrollBar().value() + 5)
+        assert corner(view._paint_rulers) == want

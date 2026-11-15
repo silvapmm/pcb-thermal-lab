@@ -237,7 +237,7 @@ def _equivalent_lines(ax, problem, solved, color):
     """
     W, H = solved.board.width * 1000.0, solved.board.height * 1000.0
     rect, = ax.plot([0, W, W, 0, 0], [0, 0, H, H, 0], color=color, lw=1.8, ls=(0, (6, 3)), clip_on=False, zorder=5,
-                    label=f"{EQUIVALENT_LABEL}, {W:.1f} x {H:.1f} mm)")
+                    label=f"{EQUIVALENT_LABEL}, {W:.1f} × {H:.1f} mm)")
     o = np.vstack([problem.board.outline, problem.board.outline[:1]]) * 1000.0
     real, = ax.plot(o[:, 0], o[:, 1], color="#9a9a9a", lw=1.0, ls=":", zorder=4, label="real outline")
     return [rect, real]

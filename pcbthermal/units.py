@@ -37,6 +37,14 @@ FORBIDDEN = (
     (r"\bRth K/W\b", "Rθ K/W", "the resistance symbol is Rθ"),
     (r"\bCancel calculation\b", "Stop calculation", "one word for one action: Stop"),
     (r"\b[1-9] (top|bottom)\b", "1 (top), 4 (bottom)", "the layer reads as in the Properties panel"),
+    (r"\b(rise|margin|oscillation|swing) (of|is) [−-]?\d+(\.\d+)? °C", f"... {DELTA}", "a rise, margin or oscillation is a difference: K"),
+    (r"[A-Za-z]\.\.\.$", ELLIPSIS, "a label that opens a dialog, or a text cut short, ends with the ellipsis character"),
+)
+
+# Justified exceptions of the typography scan: (file name, text that may hold an old form, why). The scan of tests/test_typography.py skips a match whose
+# string contains the text of an exception for that file.
+ALLOWED = (
+    ("warning_box.py", " degC", "the converter that turns the old spelling into °C"),
 )
 
 

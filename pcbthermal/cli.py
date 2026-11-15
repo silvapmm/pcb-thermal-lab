@@ -150,7 +150,7 @@ def cmd_run(args):
     if args.h_multiplier is not None:
         b.h_mode, b.h_calibration = "computed", args.h_multiplier
     sim = simulate(project.problem, options)
-    print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} x "
+    print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} × "
           f"{project.problem.board.height * 1000:.0f} mm, {project.problem.board.layers} layers, "
           f"{project.problem.total_power():.3f} W")
     print(sim.to_markdown())

@@ -690,7 +690,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addWidget(QLabel(" Snap "))
         self.snap_combo = QComboBox()
-        for label, v in (("off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
+        for label, v in (("Off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
             self.snap_combo.addItem(label, v)
         self.snap_combo.setCurrentIndex(3)
         self.snap_combo.currentIndexChanged.connect(lambda _i: self.canvas.set_snap(self.snap_combo.currentData()))
@@ -966,8 +966,11 @@ class MainWindow(QMainWindow):
         n = self.canvas.hole_counts()
         what = {"via": "vias (modelled; they are the via elements)", "component": "plated holes above the via limit (not modelled)",
                 "nonplated": "non-plated holes and slots (not modelled)"}
+        imported = bool(self.doc.project.imports)
         for kind, a in self.a_holes.items():
-            tip = f"Draw the {what[kind]} of the import: {n[kind]} on this board"
+            # A drawn board has no import: its vias are its own elements, and it has no other holes (the tip said 'of the import' on the example board)
+            tip = (f"Draw the {what[kind]} of the import: {n[kind]} on this board" if imported
+                   else f"Draw the {what[kind]}: {n[kind]} on this board")
             a.setToolTip(tip)
             a.setStatusTip(tip)
 

@@ -1545,7 +1545,7 @@ class ImportSession:
             ow, oh = old_box[2] - old_box[0], old_box[3] - old_box[1]
             nw, nh = new_box[2] - new_box[0], new_box[3] - new_box[1]
             if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
-                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
+                reasons.append(f"the outline is {nw:.1f} × {nh:.1f} mm, the stored one {ow:.1f} × {oh:.1f} mm")
         def base(name):
             """!
             @brief File name without the folders of an archive, in lower case.
