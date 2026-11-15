@@ -8,7 +8,7 @@ Run from the repository root with the main environment: `.venv/bin/python resear
 
 ## 1. Question, what would answer it, and the situation
 
-*Questions.* (A22) The program counts the barrel conductance of a gap as `k_cu A / d` with `d` the dielectric gap and crosses the copper nodes with no resistance; the earlier study (`published-cases-followup` 6.4, reviewed) measured on one stack that `d + t_cu / 2` brings the FVM to -0.3 / -0.5 %. What is the rule over a sweep, and is it a constant? (A20) What contact geometry should the coupling use where the copper covers only part of the footprint, without a star coupling (no-go, `via-star-coupling`)?
+*Questions.* (A22) The program counts the barrel conductance of a gap as `k_cu A / d` with `d` the dielectric gap and crosses the copper nodes with no resistance; the earlier study (`published-cases-followup` 6.4, reviewed) measured on one stack that `d + t_cu / 2` brings the FVM to -0.3 / -0.5 % *(that agreement compared the program's hottest point with the solver's mean and was a cancellation; like for like it is -1.5 / -1.9 %, section 7.5b; on the 2.7.1 tree the FVM part mean reads -1.5 %, `docs/validation.md` 18.2)*. What is the rule over a sweep, and is it a constant? (A20) What contact geometry should the coupling use where the copper covers only part of the footprint, without a star coupling (no-go, `via-star-coupling`)?
 
 *What answers it.* (A22) A reference that does not use the program: an axisymmetric unit cell of the layered idealisation (`lib/axicell.py`), against the FVM and FDM over a sweep of copper, gap, drill, filler, layers and pitch. (A20) The fifteen 10 mm boards of the star's review against the 3D solid, in kelvin and in per cent of the rise, for the program and the candidates; the cold-spot board of `docs/theory.md` 2.2; the frozen boards.
 
@@ -68,6 +68,8 @@ The footprint of cells is enlarged until the lattice effective radius equals the
 ### 3.3 The fifteen-board set against the 3D solid (`scripts/study_contact_set.py`, `scripts/study_reference_set.py solid`)
 
 The 3D solid at 0.1 mm and 8 slabs (written by `study_reference_set.py solid`, copied from the star's review; a program model, good to about 5 % on the partial cases, whose slab convergence the star's review measured: track 13.84 / 12.28 / 11.65 K, quarter 5.82 / 5.52 / 5.39 K at 4 / 8 / 16 slabs). FVM, **error of the via effect in K and, in brackets, in per cent of the rise without the via** (positive: the via is too effective, the part reads too cool, unsafe). The other nine cases (full copper with drills 0.2 to 1.5 mm, 4 layers, arrays, via 0.35 mm from an edge or a corner) are identical for the four variants (bit-identical by construction) and are -0.4 to -2.8 K (-0.1 to -4.2 %) at 1 to 0.25 mm, the discretisation error that is not about contact.
+
+*(Audit of 2.8.0: the reference of this table is the program's own 3D solid, not converged in its slabs; a resolved reference committed in `releases/2.8.0/audit/scripts/study_via_contact_resolved.py` reads the quarter 7.91 K and the track 13.60 K (not 5.52 and 12.28), and the FDM of 2.7.1 differs from this table's; the current numbers are in `docs/validation.md` 34.2. The direction of every reading below holds against it; the sizes do not.)*
 
 | case (3D effect, rise) | cell | current | sheet | contact_geo | contact |
 | :-- | --: | --: | --: | --: | --: |

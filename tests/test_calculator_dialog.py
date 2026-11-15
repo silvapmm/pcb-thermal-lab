@@ -61,26 +61,27 @@ def _wait(qtbot, dlg):
 
 
 def test_the_dialog_gives_the_csd17308q3_numbers_of_the_validation_table(qtbot):
-    """TI CSD17308Q3 (RθJA 46 K/W): the dialog shows 0.986 W, i.e. a model resistance of 46.7 K/W and -1.4 % (docs/calculators.md 2.1)."""
+    """TI CSD17308Q3 (RθJA 46 K/W): the dialog shows 0.976 W, i.e. a model resistance of 47.1 K/W and -2.4 % (docs/calculators.md 2.1; 0.986 W, 46.7 K/W and -1.4 % before fix/drawn-copper-faces read the drawn copper edges of the pad as an import: the same board reads hotter per watt)."""
     _doc, dlg = _dialog(qtbot, cv.csd17308q3_board(), 46.0)
     dlg.compute.click()
     _wait(qtbot, dlg)
     assert dlg.out is not None, dlg.result.text()
     p = dlg.out["power_w"]
-    assert 46.0 / p == pytest.approx(46.7, abs=0.15)
-    assert 100 * (p - 1.0) == pytest.approx(-1.4, abs=0.3)
+    assert 46.0 / p == pytest.approx(47.14, abs=0.15)
+    assert 100 * (p - 1.0) == pytest.approx(-2.4, abs=0.3)
     assert f"{p:.3f} W" in dlg.result.text()
 
 
 def test_the_dialog_gives_the_jedec_2s2p_numbers_of_the_validation_table(qtbot):
-    """JEDEC 2s2p exposed-pad QFN (RθJA 32.5 K/W): 31.6 K/W and +2.9 % at the 0.5 mm cell of the dialog (docs/calculators.md 2.1; `calculator_validation.py` prints the same) (the top point with ψJT is held through the API by tests/test_calculator_validation.py)."""
+    """JEDEC 2s2p exposed-pad QFN (RθJA 32.5 K/W), the board as drawn: 31.9 K/W and +1.8 % at the 0.5 mm cell of the dialog (31.6 K/W and +2.9 % before fix/drawn-copper-faces read the drawn pad and planes as an import), a regression of the program's own
+    value through the window, not a validation (the four readings of the board span 27.0 to 36.6 K/W) (docs/calculators.md 2.1; `calculator_validation.py` prints the same) (the top point with ψJT is held through the API by tests/test_calculator_validation.py)."""
     _doc, dlg = _dialog(qtbot, cv.jedec_2s2p_board(), 32.5)
     dlg.compute.click()
     _wait(qtbot, dlg)
     assert dlg.out is not None, dlg.result.text()
     p = dlg.out["power_w"]
-    assert 32.5 / p == pytest.approx(31.6, abs=0.2)
-    assert 100 * (p - 1.0) == pytest.approx(2.9, abs=0.4)
+    assert 32.5 / p == pytest.approx(31.93, abs=0.2)
+    assert 100 * (p - 1.0) == pytest.approx(1.8, abs=0.4)
 
 
 def test_closing_the_dialog_while_the_job_runs_cancels_it_cleanly(qtbot):

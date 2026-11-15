@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 from ..model import DIELECTRICS, Dielectric
 from . import theme as th
 from .panels import compact_combos
+from .spinfit import fit_range
 from ..numfmt import num
 
 _UNITS = (("µm and mm", "both"), ("µm", "um"), ("mm", "mm"))
@@ -248,6 +249,7 @@ class StackupEditor(QTableWidget):
         s = QDoubleSpinBox()
         s.setRange(lo, hi)
         s.setDecimals(decimals)
+        fit_range(s, value)                                # A stored value outside the usual range is shown as it is, not clamped
         s.setValue(value)
         s.setKeyboardTracking(False)
         s.setEnabled(enabled)

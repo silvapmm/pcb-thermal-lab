@@ -21,12 +21,22 @@ from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
+from .spinfit import show_value
 from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 from ..numfmt import num
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
+
+
+def _put(spin, value):
+    """!
+    @brief Show a stored value in a spin box, widening the box if the value is outside its range (never clamped).
+    @param spin The spin box.
+    @param value The stored value, in the unit of the box.
+    """
+    show_value(spin, value)
 
 
 class ProfilePage(QWidget):
@@ -197,6 +207,8 @@ class ProfilePage(QWidget):
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addWidget(split)
         doc.changed.connect(self.refresh)
+        # An undo or a redo keeps the current options (they are not undoable); the run settings are reloaded on `changed` anyway (only edited boxes are written back)
+        doc.changed.connect(self._load_options)
         doc.state_changed.connect(self._load_options)
         compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
         self.refresh()
@@ -295,13 +307,14 @@ class ProfilePage(QWidget):
         @brief Show the profile of the current heater in the editor.
         """
         self._updating = True
+        self._shown = {}                                      # What the wave boxes show after the load: _apply keeps the stored value of every box left alone
         pr = self.doc.problem
         ok = 0 <= self.current < len(pr.heaters)
         self.editor.setEnabled(ok)
         if ok:
             h = pr.heaters[self.current]
             self.kind.setCurrentIndex(0 if h.profile is None else (2 if h.profile.kind == "table" else 1))
-            self.const_power.setValue(h.power)
+            _put(self.const_power, h.power)
             w = h.profile
             self.repeat.setChecked(True if w is None else bool(w.repeat))
             if w is not None and w.kind == "table":
@@ -312,28 +325,48 @@ class ProfilePage(QWidget):
                     unit = "µs" if w.period < 1e-3 else "ms" if w.period < 1 else "s" if w.period < 600 else "min"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(w.period / _PERIOD_UNITS[unit])
+                    _put(self.value, w.period / _PERIOD_UNITS[unit])
                 else:
                     f = 1.0 / w.period
                     unit = "Hz" if f < 1e3 else "kHz" if f < 1e6 else "MHz"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(f / _FREQUENCY_UNITS[unit])
-                self.duty.setValue(w.duty * 100.0)
-                self.p_on.setValue(w.p_on)
-                self.p_off.setValue(w.p_off)
-                self.avg.setValue(w.average())
+                    _put(self.value, f / _FREQUENCY_UNITS[unit])
+                _put(self.duty, w.duty * 100.0)
+                _put(self.p_on, w.p_on)
+                _put(self.p_off, w.p_off)
+                _put(self.avg, w.average())
             else:
                 self._fill_units()
                 self.unit.setCurrentText("s")
-                self.value.setValue(10.0)
-                self.duty.setValue(50.0)
-                self.p_on.setValue(h.power)
-                self.p_off.setValue(0.0)
-                self.avg.setValue(h.power / 2.0)
+                _put(self.value, 10.0)
+                _put(self.duty, 50.0)
+                _put(self.p_on, h.power)
+                _put(self.p_off, 0.0)
+                _put(self.avg, h.power / 2.0)
         self._show_kind()
         self._updating = False
+        self._remember(self.value, self.duty, self.p_on, self.p_off, self.avg)
+        self._shown[self.unit] = self.unit.currentText()
         self._derived()
+
+    def _remember(self, *boxes):
+        """!
+        @brief Record what some boxes of the page show now, so that an edit of another box does not count them as edited.
+        @param boxes The spin boxes.
+        """
+        for b in boxes:
+            self._shown[b] = b.value()
+
+    def _left_alone(self, box):
+        """!
+        @brief Whether the user has not changed a box since the page loaded it from the document.
+        @param box A spin box or the unit combo of the page.
+        @return bool True when the box shows what was loaded.
+        """
+        shown = getattr(self, "_shown", {})
+        now = box.currentText() if box is self.unit else box.value()
+        return box in shown and shown[box] == now
 
     def _show_kind(self):
         """!
@@ -391,10 +424,30 @@ class ProfilePage(QWidget):
         @brief Square wave described by the editor widgets.
         @return SquareWave (not validated).
         """
-        duty = self.duty.value() / 100.0
-        p_off = self.p_off.value()
-        p_on = p_off + (self.avg.value() - p_off) / duty if self.avg_mode.isChecked() else self.p_on.value()
-        return SquareWave(p_on=p_on, period=self._period_seconds(), duty=duty, p_off=p_off)
+        # A box shows its value rounded to its decimals (a period of 1/3 s, a duty of 12.345 %): the stored wave keeps every field whose box the user did not
+        # change, so an edit of one box never rounds the others into the project
+        old = None
+        if 0 <= self.current < len(self.doc.problem.heaters):
+            old = self.doc.problem.heaters[self.current].profile
+        if old is None or old.kind != "square":
+            duty = self.duty.value() / 100.0
+            p_off = self.p_off.value()
+            p_on = p_off + (self.avg.value() - p_off) / duty if self.avg_mode.isChecked() else self.p_on.value()
+            return SquareWave(p_on=p_on, period=self._period_seconds(), duty=duty, p_off=p_off)
+        keep = self._left_alone
+        period = old.period if keep(self.value) and keep(self.unit) else self._period_seconds()
+        duty = old.duty if keep(self.duty) else self.duty.value() / 100.0
+        p_off = old.p_off if keep(self.p_off) else self.p_off.value()
+        if self.avg_mode.isChecked():
+            # The average is what the user types here: the power while on follows it (the stored average when the average box was left alone)
+            if keep(self.avg) and duty == old.duty and p_off == old.p_off:
+                p_on = old.p_on
+            else:
+                avg = old.average() if keep(self.avg) else self.avg.value()
+                p_on = p_off + (avg - p_off) / duty
+        else:
+            p_on = old.p_on if keep(self.p_on) else self.p_on.value()
+        return SquareWave(p_on=p_on, period=period, duty=duty, p_off=p_off)
 
     def _derived(self):
         """!
@@ -419,8 +472,10 @@ class ProfilePage(QWidget):
             self.derived.setText("")
             return
         self._updating = True
-        (self.avg if not self.avg_mode.isChecked() else self.p_on).setValue(w.average() if not self.avg_mode.isChecked() else w.p_on)
+        derived = self.avg if not self.avg_mode.isChecked() else self.p_on
+        derived.setValue(w.average() if not self.avg_mode.isChecked() else w.p_on)
         self._updating = False
+        self._remember(derived)                               # Set by the program, not by the user
         self.derived.setText(f"Period {num(w.period)} s = {num(1.0 / w.period)} Hz; on for {num(w.on_time())} s, off for {num(w.off_time())} s; "
                              f"average {num(w.average(), 4)} W, power while on {num(w.p_on, 4)} W, energy per period {num(w.average() * w.period, 4)} J")
 
@@ -542,15 +597,16 @@ class ProfilePage(QWidget):
         o = self.doc.options
         po = o.profile
         self._updating = True
-        self.threshold.setValue(po.threshold_c)
+        _put(self.threshold, po.threshold_c)
         self.start.setCurrentIndex(max(self.start.findData(po.initial), 0))
-        self.start_c.setValue(self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
+        _put(self.start_c, self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
         self.duration.setCurrentIndex(max(self.duration.findData(po.duration), 0))
-        self.cycles.setValue(po.cycles)
-        self.time_s.setValue(po.time_s)
-        self.max_steps.setValue(po.max_steps)
+        _put(self.cycles, po.cycles)
+        _put(self.time_s, po.time_s)
+        _put(self.max_steps, po.max_steps)
         self.steady_mode.setCurrentIndex(max(self.steady_mode.findData(o.steady_power), 0))
         self._updating = False
+        self._options_shown = {b: b.value() for b in (self.threshold, self.start_c, self.cycles, self.time_s, self.max_steps)}
         self._enable_options()
 
     def _enable_options(self):
@@ -569,11 +625,20 @@ class ProfilePage(QWidget):
         if self._updating:
             return
         po = self.doc.options.profile
-        po.threshold_c = self.threshold.value()
+        shown = getattr(self, "_options_shown", {})
+        edited = lambda box: shown.get(box) != box.value()                     # noqa: E731
+        # Only the boxes the user changed are written: a stored value that a box shows rounded or could not hold is kept
+        if edited(self.threshold):
+            po.threshold_c = self.threshold.value()
         po.initial = self.start.currentData()
-        po.initial_c = self.start_c.value() if po.initial == "temperature" else None
+        if po.initial != "temperature":
+            po.initial_c = None
+        elif edited(self.start_c) or po.initial_c is None:
+            po.initial_c = self.start_c.value()
         po.duration = self.duration.currentData()
-        po.cycles, po.time_s, po.max_steps = self.cycles.value(), self.time_s.value(), self.max_steps.value()
+        for box, attr in ((self.cycles, "cycles"), (self.time_s, "time_s"), (self.max_steps, "max_steps")):
+            if edited(box):
+                setattr(po, attr, box.value())
         self.doc.set_options(steady_power=self.steady_mode.currentData())
         self._enable_options()
         self._mark_stale()

@@ -127,14 +127,43 @@ def test_cli_computed_h(tmp_path, capsys):
 
 
 def test_rayleigh_warning_outside_the_fitted_range():
-    # A very small heated board with almost no power sits below Ra = 1e4: the correlation is an extrapolation
-    p = reference_problem(layers=2, heater_mm=5.0, power=0.01)
+    # A very small heated board with almost no power sits below Ra = 100 (the band is 1e2 to 1e7): the correlation is an extrapolation
+    p = reference_problem(layers=2, heater_mm=5.0, power=0.0002)
     p.board.h_mode = "computed"
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
     assert any("Rayleigh" in w for w in sim.results["fvm"].warnings)
     q = example_board()
     q.board.h_mode = "computed"
     assert not any("Rayleigh" in w for w in simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"].warnings)
+
+
+def test_top_face_rayleigh_band_is_1e2_to_1e7_and_reynolds_note_is_on_the_hot_side():
+    # audit L1L5 D1 and D3: the face-up warning fires at Ra 50 and 2e7 and not at 1e3 and 1e5; the Reynolds note outside 100 to 1e5 of forced air
+    from pcbthermal import api, convection
+    real = convection.board_h
+    p = example_board()
+    p.board.h_mode = "computed"
+
+    def run(ra_top, re=0.0, speed=0.0):
+        p.board.air_speed = speed
+
+        def fake(board, t_top, t_bottom):
+            ht, hb, info = real(board, t_top, t_bottom)
+            info["top"]["rayleigh"] = ra_top
+            info["bottom"]["rayleigh"] = 1e5                  # inside the face-down band
+            info["top"]["reynolds"] = re
+            return ht, hb, info
+        convection.board_h = fake
+        try:
+            return api._solve_computed_h(p, "fvm", SolverOptions(models=("fvm",), cell_mm=2.0))[0].warnings
+        finally:
+            convection.board_h = real
+    top = lambda ws: any("top-face Rayleigh" in w for w in ws)
+    assert top(run(50.0)) and top(run(2e7)) and not top(run(1e3)) and not top(run(1e5))
+    note = lambda ws: any("Reynolds" in w for w in ws)
+    assert note(run(1e3, re=60.0, speed=0.05)) and note(run(1e3, re=2e5, speed=15.0))
+    assert not note(run(1e3, re=2e4, speed=1.0)) and not note(run(1e3))
+    assert convection.reynolds(50.0, 25.0, 0.0, 0.1) == 0.0 and 5e3 < convection.reynolds(50.0, 25.0, 1.0, 0.1) < 1e4
 
 
 def test_calibration_recovers_a_known_multiplier():

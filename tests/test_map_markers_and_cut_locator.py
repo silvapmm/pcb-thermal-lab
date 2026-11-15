@@ -335,6 +335,8 @@ def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, si
     win.tabs.setCurrentIndex(TAB_RESULTS)
     win.results.tabs.setCurrentWidget(win.results.profile)
     qtbot.wait(200)
+    # The case is 'both docks open': a dock arrangement restored from another window (closed or floating docks) gives a wider page, where the box rightly stays inline
+    assert all(d.isVisible() and not d.isFloating() for d in (win.dock_board, win.dock_sim)), "the docks of the default arrangement must be open"
     page = win.tabs.widget(TAB_RESULTS)
     for area in [page] + page.findChildren(QAbstractScrollArea):
         if area.isVisible():
@@ -362,3 +364,31 @@ def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, si
     assert plots.profile_has_strip(tab.fig) != strip
     assert tab._thumb_strip == plots.profile_has_strip(tab.fig)
     assert len(_cut_picture_axes(tab.fig)) == 1
+
+
+def test_a_window_without_settings_never_uses_the_real_preference_store(qtbot):
+    """!
+    @brief A MainWindow built with no settings argument keeps its geometry and dock state in a private file, empty at the start of every test, so one test never
+           restores the layout another one saved (a closed dock saved by an earlier window put the Cut overlay box inline and failed the Profiles test).
+    @param qtbot pytest-qt fixture.
+    """
+    import os
+    from PySide6.QtCore import QSettings
+    from pcbthermal.gui import boxes
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    native = QSettings("PMS Labs", "PCB Thermal Lab").fileName()           # The real store of this machine (the class itself is not patched)
+    win = MainWindow(Document())
+    qtbot.addWidget(win)
+    assert win.settings.fileName() != native
+    assert win.settings.fileName().endswith("window_default.ini")
+    assert win.settings.allKeys() == [], win.settings.allKeys()              # Nothing restored from another test or from the user
+    assert os.path.dirname(win.settings.fileName()) != os.path.expanduser("~/Library/Preferences")
+    # Two windows of one test share the private file: the saved arrangement still reaches the next window
+    win.dock_board.hide()
+    win.close()
+    assert win.settings.value("window_state") is not None
+    again = MainWindow(Document())
+    qtbot.addWidget(again)
+    assert again.settings.fileName() == win.settings.fileName()
+    assert boxes._settings is again.settings

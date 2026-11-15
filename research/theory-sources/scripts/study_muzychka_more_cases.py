@@ -8,6 +8,9 @@
 Case 2, Tables 3 and 4: the baseplate of a heat sink, 50 x 50 x 10 mm, k 150 W/mK, h = 400 W/m2K on the bottom, four 10 x 10 mm sources (10 W at (12.5, 12.5), 25 W at (37.5, 12.5), 20 W at
 (12.5, 37.5), 15 W at (37.5, 37.5) mm; the ambient is not printed in the extracted text, 25 C is assumed as in the other cases); paper centroids 97.40, 103.82, 101.28, 99.94 C and means 96.85, 102.33,
 100.10, 99.07 C. The model of the program is one layer of the plate (case 2), or a top layer of the spreader on a dielectric gap of 10 mm with k 10 W/mK both ways (case 1 (b)).
+A copper layer is ONE node in the layered models and ONE slab in the 3D solid, so the plate mapping reads the mean of the column, not the top surface the paper reports
+(research/muzychka-case2-analytic README 3 and 9). The row 'solid3d resolved' therefore also maps the plate as a dielectric gap of the plate's conductivity between two
+1 um copper layers (advanced stack-up): the 3D solid cuts a gap into slabs (solid3d.slab_rule, 16 here) and its top node is then the surface.
 Run from the repository root: .venv/bin/python research/theory-sources/scripts/study_muzychka_more_cases.py
 """
 
@@ -22,7 +25,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "research", "effective-conductivity", "lib"))
 import layered3d as L  # noqa: E402
 from pcbthermal import Problem, SolverOptions, simulate  # noqa: E402
-from pcbthermal.model import Materials  # noqa: E402
+from pcbthermal.model import Dielectric, Materials  # noqa: E402
 
 AMB = 25.0
 MODELS = ("fvm", "fdm", "solid3d", "analytic", "lumped")
@@ -75,16 +78,22 @@ def independent(case):
             "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"]}
 
 
-def program(case, model, cell_mm):
+def program(case, model, cell_mm, resolved=False):
     """!
     @brief The same board in one model of the program.
     @param case Case dictionary.
     @param model Model key.
     @param cell_mm Cell size in mm.
+    @param resolved True (a plate only): the plate as a dielectric gap of its conductivity between two 1 um copper layers, so that the 3D solid resolves its thickness.
     @return Dict with centroid and mean lists in C, or None when the model refuses the board.
     """
     slabs = case["slabs"]
-    if len(slabs) == 1:                                           # a plate: one copper layer with the plate conductivity on a laminate of 0.01 % of it
+    if len(slabs) == 1 and resolved:                              # the plate as a gap: the 3D solid cuts it into slabs, its top node is the surface
+        t, k, _ = slabs[0]
+        p = Problem.new(case["w"], case["w"], layers=2, thickness_mm=t + 0.002, copper_um=1.0, ambient=AMB, h_top=0.0, h_bottom=case["h"], h_side=None,
+                        materials=Materials(k_copper=k))
+        p.board.dielectrics = [Dielectric(thickness=t * 1e-3, name="plate", k_through=k, k_inplane=k)]
+    elif len(slabs) == 1:                                           # a plate: one copper layer with the plate conductivity on a laminate of 0.01 % of it
         t, k, _ = slabs[0]
         p = Problem.new(case["w"], case["w"], layers=1, thickness_mm=1.0001 * t, copper_um=t * 1e3, ambient=AMB, h_top=1e-6, h_bottom=case["h"], h_side=None,
                         materials=Materials(k_copper=k))
@@ -93,7 +102,7 @@ def program(case, model, cell_mm):
         mat = Materials(k_copper=k1, k_fr4_through=k2, k_fr4_inplane=k2)
         p = Problem.new(case["w"], case["w"], layers=2, thickness_mm=t1 + t2 + 0.001, copper_um=t1 * 1e3, ambient=AMB, h_top=1e-6, h_bottom=case["h"], h_side=None, materials=mat)
         p.board.copper_thickness = [t1 * 1e-3, 1e-6]
-    p.add_full_copper(layers=[1] if len(slabs) > 1 else None)
+    p.add_full_copper(layers=[1] if len(slabs) > 1 else None)                 # (the resolved plate: every layer)
     if len(slabs) > 1:
         p.add_full_copper(layers=[2], fill=1.0)
     for i, (r, pw) in enumerate(case["sources"]):
@@ -128,6 +137,10 @@ def main():
             r = program(case, m, 2.5 if name == "1b" else 1.0)
             if r:
                 print("  %s: centroid %s, mean %s" % (m, np.round(r["centroid"], 2).tolist(), np.round(r["mean"], 2).tolist()), flush=True)
+        if len(case["slabs"]) == 1:
+            r = program(case, "solid3d", 2.5 if name == "1b" else 1.0, resolved=True)
+            if r:
+                print("  solid3d resolved (the plate as a dielectric gap): centroid %s, mean %s" % (np.round(r["centroid"], 2).tolist(), np.round(r["mean"], 2).tolist()), flush=True)
 
 
 if __name__ == "__main__":

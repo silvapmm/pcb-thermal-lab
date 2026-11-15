@@ -36,7 +36,8 @@ L_MM, T_HALF_MM, STRIP_MM, Q_P = 96.52, 1.143, 5.08, 3875.0
 W_MM = 20.32                    # width of the board of the program (40 cells of 0.508 mm): the problem does not depend on it
 CASES = {"glass": (1.032, 0.387), "ceramic": (28.38, 0.366)}
 # values read from the plot, +-2 K: (z/L of the peak, rise at peak 1, peak 2, valley, left end), "present model" curve of Figs. 5 and 6 (plot)
-PLOT_MODEL = {("glass", 0.0): (91.0, 98.0, 44.0, 20.0), ("glass", 0.387): (75.0, 89.0, 29.0, 13.0),
+# Audit S1: the glass 0.387 second peak was 89.0, a misreading of the tick labelled 80 (the curve tops at 79.5 to 80 by pixel read of PDF page 6 at 5x, ticks every 73 px = 10 K)
+PLOT_MODEL = {("glass", 0.0): (91.0, 98.0, 44.0, 20.0), ("glass", 0.387): (75.0, 79.5, 29.0, 13.0),
               ("ceramic", 0.0): (61.5, 65.0, 60.0, 57.0), ("ceramic", 0.366): (46.5, 48.0, 44.0, 42.0)}
 # Zinnes' thermocouples (plot): (z/L, rise in K) at the emissivity of the plate
 ZINNES = {"glass": [(0.11, 22.6), (0.26, 79.8), (0.51, 33.1), (0.77, 84.4)], "ceramic": [(0.09, 36.0), (0.24, 42.0), (0.50, 37.8), (0.75, 42.7)]}

@@ -115,6 +115,86 @@ def _footprint_potentials(cov, dx, dy):
     return phi_mean, phi_bnd, float(phi.min())
 
 
+IMAGE_MAX_CELLS = 3600              # Largest footprint (cells) whose potentials are cell-resolved with the mirror images of the board sides (a 30 mm part at 0.5 mm); a larger one keeps the plain link
+RING1_SOURCES = 900                 # Source cells of the footprint kept in the potential of ring 1 (weights rescaled)
+
+
+def _footprint_potentials_images(cov, dx, dy):
+    """!
+    @brief Logarithmic potentials of the footprint with the eight mirror images of the sides of the board (insulated sides, one tiling).
+    @details As _footprint_potentials, but every footprint cell also has its images in the four sides and the four corners of the box of the grid (weight 1 each), so that
+             the heat of a part near a side is read against the half plane it really has. Cell-resolved up to IMAGE_MAX_CELLS cells (the block aggregation of the plain
+             potentials is not on the same footing as the ring means of _ring1_potential); above it the plain potentials are returned and the first link keeps its old form.
+             Docs/theory.md 5 (the first link), research/lumped-edge-link.
+    @param cov Array (ny, nx) of footprint coverage in [0, 1].
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Tuple (phi_mean, phi_boundary, phi_min), as _footprint_potentials (the same function of the cells, with the images added); None when the footprint has more than IMAGE_MAX_CELLS cells.
+    """
+    idx = np.argwhere(cov > 0)
+    if len(idx) > IMAGE_MAX_CELLS:
+        return None
+    w = cov[cov > 0]
+    ny, nx = cov.shape
+    boundary = np.zeros(len(idx), dtype=bool)
+    for k, (i, j) in enumerate(idx):
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if 0 <= a < ny and 0 <= b < nx and cov[a, b] == 0:      # Exchange boundary only; the board sides are not
+                boundary[k] = True
+                break
+    x = (idx[:, 1] + 0.5) * dx
+    y = (idx[:, 0] + 0.5) * dy
+    floor = 0.447 * np.sqrt(dx * dy)                                # Mean log distance inside a cell
+    d = np.hypot(x[:, None] - x[None, :], y[:, None] - y[None, :])
+    np.fill_diagonal(d, floor)
+    phi = (np.log(d) * w[None, :]).sum(axis=1) / w.sum()
+    xw, yw = nx * dx, ny * dy
+    for mx in (-1, 0, 1):
+        for my in (-1, 0, 1):
+            if mx == 0 and my == 0:
+                continue
+            xi = x if mx == 0 else (-x if mx < 0 else 2 * xw - x)
+            yi = y if my == 0 else (-y if my < 0 else 2 * yw - y)
+            di = np.hypot(x[:, None] - xi[None, :], y[:, None] - yi[None, :])
+            phi += (np.log(np.maximum(di, floor)) * w[None, :]).sum(axis=1) / w.sum()
+    phi_mean = float((phi * w).sum() / w.sum())
+    phi_bnd = float(phi[boundary].mean()) if boundary.any() else phi_mean
+    return phi_mean, phi_bnd, float(phi.min())
+
+
+def _ring1_potential(cov, dx, dy, ny, nx, mask):
+    """!
+    @brief Mean over the cells of ring 1 of the logarithmic potential of the footprint and its eight mirror images.
+    @details U(x) = mean over the footprint cells and the images of ln |x - source| (floor 0.447 cell); the first link of the network is (U1 - phi_boundary) / (2 pi S).
+             At most RING1_SOURCES source cells are kept (weights rescaled), so the cost does not grow with the part.
+    @param cov Array (ny, nx) of footprint coverage in [0, 1].
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param ny Rows of the grid.
+    @param nx Columns of the grid.
+    @param mask Boolean array (ny, nx), the cells of ring 1.
+    @return float Mean of U over the cells of the mask (ln of metres).
+    """
+    idx = np.argwhere(cov > 0)
+    w = cov[cov > 0].astype(float)
+    if len(idx) > RING1_SOURCES:
+        sel = np.linspace(0, len(idx) - 1, RING1_SOURCES).astype(int)
+        w, idx = w[sel] * (w.sum() / w[sel].sum()), idx[sel]
+    sx, sy = (idx[:, 1] + 0.5) * dx, (idx[:, 0] + 0.5) * dy
+    cy, cx = np.nonzero(mask)
+    gx, gy = (cx + 0.5) * dx, (cy + 0.5) * dy
+    floor = 0.447 * np.sqrt(dx * dy)
+    total = np.zeros(len(gx))
+    for mx in (-1, 0, 1):
+        for my in (-1, 0, 1):
+            xi = sx if mx == 0 else (-sx if mx < 0 else 2 * nx * dx - sx)
+            yi = sy if my == 0 else (-sy if my < 0 else 2 * ny * dy - sy)
+            d = np.hypot(gx[:, None] - xi[None, :], gy[:, None] - yi[None, :])
+            total += (np.log(np.maximum(d, floor)) * w[None, :]).sum(axis=1) / w.sum()
+    return float(total.mean())
+
+
 def _footprint_potentials_blocks(cov, idx, w, boundary, dx, dy):
     """!
     @brief Footprint potentials of a large footprint: the cells are aggregated in k x k blocks instead of keeping every step-th cell.
@@ -298,7 +378,10 @@ def _one_node_network(net, cov, layer, power, rings, vias=None):
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
 
-    phi_mean, phi_bnd, phi_min = _footprint_potentials(cov, net.dx, net.dy)
+    # The first link reads the footprint against the board sides (mirror images); a footprint above IMAGE_MAX_CELLS keeps the plain potentials and the old half strip
+    img = _footprint_potentials_images(cov, net.dx, net.dy) if R > 1 else None
+    phi_mean, phi_bnd, phi_min = img if img is not None else _footprint_potentials(cov, net.dx, net.dy)
+    u1 = _ring1_potential(cov, net.dx, net.dy, ny, nx, idx == 1) if img is not None else None
     a_eq = np.sqrt(cnt[0] * cell / np.pi)
     A_foot = cnt[0] * cell
 
@@ -319,7 +402,11 @@ def _one_node_network(net, cov, layer, power, rings, vias=None):
                 return np.inf
             half_k1 = 0.5 * thick[k + 1] / (S[l, k + 1] * length[k + 1])
             if k == 0:
-                return f_r[l] * max(phi_bnd - phi_mean, 1e-3) / (2.0 * np.pi * S[l, 0]) + half_k1
+                first = f_r[l] * max(phi_bnd - phi_mean, 1e-3) / (2.0 * np.pi * S[l, 0])
+                if u1 is None:
+                    return first + half_k1
+                # Potential of the footprint and its images, from its boundary to the mean of ring 1; the floor keeps the link positive when ring 1 is thinner than a cell
+                return first + max(u1 - phi_bnd, 0.1 * half_k1 * 2.0 * np.pi * S[l, 1]) / (2.0 * np.pi * S[l, 1])
             return 0.5 * thick[k] / (S[l, k] * length[k]) + half_k1
 
         for l in range(L):
@@ -710,6 +797,10 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
     source[layer * R + 0], source[layer * R + 1] = 1.0 - frac_c, frac_c
     r_c = math.sqrt(cnt[1] * cell / math.pi)
     a_f = math.sqrt((cnt[0] + cnt[1]) * cell / math.pi)
+    # A to ring 1 reads the potential of the whole footprint and its mirror images in the sides (the old half ring where the footprint is too large)
+    img = _footprint_potentials_images(cov, net.dx, net.dy) if R > 2 else None
+    phi_bz = img[1] if img is not None else None
+    u1z = _ring1_potential(cov, net.dx, net.dy, ny, nx, idx2 == 2) if img is not None else None
     pot = _mutual_potentials(cov * (idx2 == 0), cov * (idx2 == 1), net.dx, net.dy)
 
     def lateral(l):
@@ -718,7 +809,11 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
         if S[l, 0] > 0 and S[l, 1] > 0:
             out.append((0, 1, pot / (2.0 * math.pi * S[l, 0])))
         if R > 2 and S[l, 0] > 0 and S[l, 2] > 0:
-            out.append((0, 2, viaconstriction.annulus_out_resistance(S[l, 0], r_c, a_f) + 0.5 * thick[2] / (S[l, 2] * length[2])))
+            if u1z is None:
+                tail = 0.5 * thick[2] / (S[l, 2] * length[2])
+            else:
+                tail = max(u1z - phi_bz, 0.1 * 0.5 * thick[2] / (S[l, 2] * length[2]) * 2.0 * math.pi * S[l, 2]) / (2.0 * math.pi * S[l, 2])
+            out.append((0, 2, viaconstriction.annulus_out_resistance(S[l, 0], r_c, a_f) + tail))
         for k in range(2, R - 1):
             if S[l, k] > 0 and S[l, k + 1] > 0:
                 out.append((k, k + 1, 0.5 * thick[k] / (S[l, k] * length[k]) + 0.5 * thick[k + 1] / (S[l, k + 1] * length[k + 1])))

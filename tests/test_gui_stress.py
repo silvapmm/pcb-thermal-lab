@@ -1731,3 +1731,21 @@ def test_a_finished_and_a_failed_calculation_give_the_button_back(win, qtbot):
     qtbot.waitUntil(lambda: _is_stop(win), timeout=20000)
     qtbot.waitUntil(lambda: bool(seen), timeout=60000)
     qtbot.waitUntil(lambda: _is_run(win), timeout=20000)
+
+
+def test_element_tree_filter_in_the_application(win, qtbot):
+    """!
+    @brief The filter of the element tree under edits, undo and an odd text.
+    @param win Main window.
+    @param qtbot pytest-qt fixture.
+    """
+    load(win, example_board())
+    el = win.elements
+    for text in ("via", "  ", "Ø", "heater 1", "(", "zone  1", ""):
+        el.filter.setText(text)
+        win.a_selall.trigger()
+        win.doc.stack.undo()
+        win.doc.stack.redo()
+    el.filter.setText("heater")
+    win.a_find.trigger()
+    el.filter.clear()

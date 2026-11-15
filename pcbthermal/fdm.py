@@ -195,6 +195,8 @@ class Network:
         self.area = area
 
         self.copper = copper.resolve(faces, problem) if sampling == "area" else None
+        if faces is None and sampling == "area":
+            self.copper = copper.drawn_source(problem, cells_x, cells_y) or self.copper          # Drawn copper read as an import (copper.drawn_source); the FDM has no variant that must keep the old path
         # Copper fill at the nodes
         if sampling == "area":
             # The union of the zones per sample point on the cells, then averaged over the cells around every node
@@ -225,7 +227,13 @@ class Network:
             S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
-        ex = blocks.extra_layers(problem, lambda poly, n: cover(poly, n) * ncov, area, fill, dx, dy)      # Cut at the outline, as in the FVM
+        # Cut at the outline, as in the FVM; the exact area of the block on the board per cell, averaged over the control volume of the node like the board cover
+        def block_cov(poly, n):
+            if sampling != "area":
+                return cover(poly, n) * ncov
+            c = blocks.block_cover(poly, b.outline if b.has_outline() else None, cells_x, cells_y, dx, dy)
+            return np.minimum(_node_average(c), ncov) if b.has_outline() else _node_average(c)
+        ex = blocks.extra_layers(problem, block_cov, area, fill, dx, dy, board_cover=ncov)      # `area` is already the board part of the control volume
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:
@@ -435,6 +443,8 @@ def unknowns(problem, cell_mm=2.0):
         # The laminate nodes of the rule exist only at the nodes that carry them: count them as the network will (area sampling of the fill, the default)
         dx, dy = b.width / cells_x, b.height / cells_y
         cell_fill = copper.problem_fill(problem, cells_x, cells_y, dx, dy, 4)
+        for layer, drawn_fill in copper.drawn_layer_cuts(problem, cells_x, cells_y).items():     # (the exact fill of the drawn layers with a cut cell, as the network reads it)
+            cell_fill[layer] = drawn_fill
         fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
         if b.has_outline():
             c = _node_average(exact_coverage(b.outline, cells_x, cells_y, dx, dy))

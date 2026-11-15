@@ -872,6 +872,87 @@ def test_papermap_formula_score_and_build(tmp_path):
     assert "Foo" in pm.render_markdown(m)
 
 
+def test_papermap_reads_the_status_file(tmp_path):
+    """!
+    @brief Pages marked verified or corrected by `status set` count as E2 in the map, the others stay E1.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    from tools.ocr import status as st
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "Foo.pdf").write_bytes(b"%PDF")
+    (papers / "notes").mkdir()
+    (papers / "notes" / "INDEX.md").write_text("| Foo.pdf | FooKey | A paper | x | y |\n")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    for n in (1, 2, 3):
+        (papers / "ocr" / "anthropic" / f"Foo_p{n}.md").write_text(f"<!-- page {n} -->\npage {n}")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "theory.md").write_text("[FooKey] p. 1, p. 2 and p. 3.")
+    st.set_status(papers, "Foo", {1}, "verified")
+    cf = st.corrected_path(papers, "Foo", 2)
+    cf.parent.mkdir(parents=True)
+    cf.write_text("<!-- page 2 -->\ncorrected page two\n")
+    st.set_status(papers, "Foo", {2}, "corrected", note="fixed an exponent")
+
+    def fake(path):
+        t = {1: "prose " * 80, 2: "prose " * 80, 3: "prose " * 80}
+        return {"pages": 3, "text": t, "words": {p: 80 for p in t}, "garbage": {p: False for p in t},
+                "formula": {p: 0.0 for p in t}, "equals": {p: 0 for p in t}}
+
+    m = pm.build_map(papers, tmp_path, fake)
+    row = m["rows"][0]
+    assert row["e2_pages"] == [1, 2] and row["e2_from_status"] == [1, 2]
+    assert 3 not in row["e2_pages"] and 3 in row["essential_pages"]
+    assert m["summary"]["e2_from_status_pages"] == 2
+    assert "Verified from the status file" in pm.render_markdown(m)
+
+
+def test_papermap_error_note_against_the_status_file(tmp_path):
+    """!
+    @brief An ERROR note of OCR_TO_VERIFY.md (about the Gemini page) yields to the status file only when another page is in use.
+    @details p1: the Gemini page is still in use and marked verified: the order of the note and the mark is unknown, so E1.
+             p2: a Claude page replaced the Gemini one and was verified: the note is stale, so E2. p3: corrected: E2.
+             The summary counts E2 over the same files as the essential pages, so E1 + E2 = essential.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    from tools.ocr import status as st
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "Foo.pdf").write_bytes(b"%PDF")
+    (papers / "notes").mkdir()
+    (papers / "notes" / "INDEX.md").write_text("| Foo.pdf | FooKey | A paper | x | y |\n")
+    (papers / "notes" / "OCR_TO_VERIFY.md").write_text(
+        "| file | pages | why | note |\n| :-- | :-- | :-- | :-- |\n"
+        "| Foo | 1-3 | test | p1 ERROR: a sign; p2 ERROR: an exponent; p3 ERROR: a digit |\n")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    for n in (1, 2, 3):
+        (papers / "ocr" / f"Foo_p{n}.md").write_text(f"<!-- page {n} -->\ngemini page {n}")
+    (papers / "ocr" / "anthropic" / "Foo_p2.md").write_text("<!-- page 2 -->\nclaude page 2")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "theory.md").write_text("[FooKey] p. 1, p. 2 and p. 3.")
+    st.set_status(papers, "Foo", {1}, "verified", source_sha={1: st._src_sha(papers, "Foo", 1)})
+    st.set_status(papers, "Foo", {2}, "verified", source_sha={2: st._src_sha(papers, "Foo", 2)})
+    cf = st.corrected_path(papers, "Foo", 3)
+    cf.parent.mkdir(parents=True)
+    cf.write_text("<!-- page 3 -->\ncorrected page three\n")
+    st.set_status(papers, "Foo", {3}, "corrected", note="fixed a digit")
+
+    def fake(path):
+        t = {1: "prose " * 80, 2: "prose " * 80, 3: "prose " * 80}
+        return {"pages": 3, "text": t, "words": {p: 80 for p in t}, "garbage": {p: False for p in t},
+                "formula": {p: 0.0 for p in t}, "equals": {p: 0 for p in t}}
+
+    m = pm.build_map(papers, tmp_path, fake)
+    row = m["rows"][0]
+    assert row["e2_pages"] == [2, 3] and row["e2_from_status"] == [2, 3]
+    s = m["summary"]
+    assert s["e2_pages"] == 2 and s["essential_pages"] == 3
+
+
 # ---------------------------------------------------------------------------- OpenRouter (mocked transport)
 from tools.ocr.providers.openrouter import OpenRouterProvider, rank_models  # noqa: E402
 from tools.ocr import compare as ocr_compare  # noqa: E402

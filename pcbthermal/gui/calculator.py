@@ -21,6 +21,7 @@ from .. import defaults
 from ..inverse import power_from_theta
 from ..results import DISCLAIMER
 from .compute import ProcessWorker
+from .spinfit import fit_range
 from . import theme as th
 from .help import set_themed_page
 
@@ -57,6 +58,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     s = QDoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
+    fit_range(s, value)                                   # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setSuffix(" " + suffix)
     s.setToolTip(tip)
@@ -253,6 +255,8 @@ class PowerCalculator(QDialog):
         k = self.heater.currentData()
         if k is not None and 0 <= k < len(self.doc.problem.heaters):
             self.theta.setValue(self.doc.problem.heaters[k].theta)
+        if hasattr(self, "point"):
+            self._top_allowed()
 
     def _point_changed(self, *_):
         """!
@@ -261,12 +265,29 @@ class PowerCalculator(QDialog):
         @param _ Ignored (the Qt signal argument).
         """
         key = self.point.currentData()
+        self._top_allowed()
         for wd, on, why in ((self.theta, key in ("junction", "top"), "junction or the top of the package"), (self.psi_jt, key == "top", "top of the package")):
             wd.setEnabled(on)
             label = self.theta_label if wd is self.theta else self.psi_label
             label.setEnabled(on)
             suffix = "" if on else f"\n\nGreyed: not used by this point (used by the {why})."
             wd.setToolTip(wd.property("base_tip") + suffix)
+
+    def _top_allowed(self):
+        """!
+        @brief Grey the "Top of the package" point for a part that has a heatsink on top, with the reason in its tooltip.
+        @details psi_JT of a datasheet is defined for a package with no heatsink, so no split of the power makes the route valid (docs/calculators.md 3).
+        """
+        k = self.heater.currentData()
+        heaters = self.doc.problem.heaters
+        blocked = k is not None and 0 <= k < len(heaters) and heaters[k].theta_sa > 0
+        i = self.point.findData("top")
+        item = self.point.model().item(i)
+        if item is not None:
+            item.setEnabled(not blocked)
+            item.setToolTip(POINTS[i][2] + ("\n\nGreyed: this part has a heatsink on top (θSA set); ψJT of a datasheet is defined without a heatsink." if blocked else ""))
+        if blocked and self.point.currentData() == "top":
+            self.point.setCurrentIndex(self.point.findData("ring"))
 
     def _theta(self, *_):
         """!
@@ -328,7 +349,10 @@ class PowerCalculator(QDialog):
         self.result.setText(head + f"reproduces {out['temperature_c']:.1f} °C ({out['runs']} model runs"
                             f"{', linear' if out['linear'] else ', iterated: the heat transfer depends on the temperature'}).<br>"
                             f"At the nominal power the model reads: {reads}.<br>"
-                            f"Board resistance at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air)."
+                            f"Board resistance of the part at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air; "
+                            f"it does not include the heating by the other parts)."
+                            + (f"<br>The other parts alone raise this point by <b>{out['other_parts_rise_k']:.1f} K</b> (already taken off before the power is found)."
+                               if out.get("other_parts_rise_k", 0.0) > 0.05 else "")
                             + band + f"<br><i>{DISCLAIMER}</i>")
         self.use.setEnabled(True)
 
