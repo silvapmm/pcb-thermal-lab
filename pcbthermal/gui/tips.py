@@ -15,10 +15,15 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox, QFormLayo
 from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names live in the core, the plots use them too)
 
 # The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
+SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, an estimate from the layer mean and the heat flowing in and out; it is what a thermocouple or an IR camera "
+                     "on the metal reads. Milli-kelvins from the layer mean on ordinary copper; percent of the rise on thick metal. Tables, Tj and margins use the layer mean. "
+                     "Steady state only.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom) (research/readout-conventions INTEGRATION.md 5)
+
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",
     "profile page": "Copper layer; the same choice as in the editor and the Results maps.",
-    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer or the metal block. A single layer is also the drawing layer.",
+    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer, the metal block, or (thick copper) Surface (top) / Surface (bottom), "
+                   "an estimate of the outer face of the copper (a view of the map only: the tables keep the layer mean). A single layer is also the drawing layer.",
     "gradient": "Copper layer of the gradient map, shared with the editor. All layers and the block: Temperature tab only.",
     "animation": "Copper layer of the animation, shared with the editor. All layers and the block: Temperature tab only.",
     "profiles": "Copper layer of the cut or the time maps, shared with the editor. All layers and the block: Temperature tab only.",

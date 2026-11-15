@@ -212,6 +212,21 @@ def test_t3_muzychka_case_2_baseplate():
     assert np.max(np.abs(np.asarray(cen) - np.asarray(CASE2_COLUMN_MEAN))) < 0.10
 
 
+def test_t3b_muzychka_case_2_surface_read_out():
+    """!
+    @brief Case 2 again with the surface read-out beside the column mean (thickness.py): the paper reports the SURFACE centroid, so the surface estimate must sit above it by the
+           documented amount of the parabola (+0.6 to +1.3 K against the independent 3D surface at 0.5 mm, research/through-thickness-readout 4.1; t/a = 1, upper side) and
+           far closer to it than the column mean (2.0 to 4.6 K below).
+    @return None.
+    """
+    sim, cen, _ = _plate(50.0, 10.0, 150.0, 400.0, CASE2_SOURCES, 1.0)
+    surf = sim.results["fvm"].arrays["T_surface"][0]
+    for (rect, _), paper, c in zip(CASE2_SOURCES, CASE2_PAPER, cen):
+        s = _centroid(surf, 1.0, 0.5 * (rect[0] + rect[2]), 0.5 * (rect[1] + rect[3]))
+        assert 0.3 < s - paper < 1.6 and abs(s - paper) < abs(c - paper)
+    assert sim.heater_rows()[1]["surface_upper"]
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # T4 and T5: case 1 (a) and case 1 (b)
 # ----------------------------------------------------------------------------------------------------------------------

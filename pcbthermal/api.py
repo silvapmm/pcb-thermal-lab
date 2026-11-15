@@ -30,7 +30,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d, thickness
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
@@ -133,6 +133,26 @@ class SolverOptions:
         o = cls(**known)
         o.validate()
         return o
+
+
+def surface_report_lines(res):
+    """!
+    @brief The lines of the report and of the Results summary that give the surface read-out beside the column one (empty without a surface).
+    @param res A SteadyResult.
+    @return List of strings, one per face that has a surface; each names both read-outs when the two differ by at least max(0.1 K, 1 % of the rise), and gives that share.
+    """
+    out = []
+    if not thickness.significant(res):
+        return out                                          # Within the threshold the two read-outs are the same number: nothing is added to an ordinary report
+    for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
+        if key not in res.extras:
+            continue
+        surf = float(res.extras[key])
+        flagged = bool(np.asarray(res.arrays["T_surface_flag"])[face].any())
+        rise = max(res.t_max - res.ambient, 1e-9)
+        out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}; "
+                   f"the column mean read-out is {res.t_max:.1f} degC; the surface is {surf - res.t_max:+.1f} K, {100 * (surf - res.t_max) / rise:+.1f} % of the rise)")
+    return out
 
 
 @dataclass
@@ -332,6 +352,10 @@ class Simulation:
             for h in hs[:10]:
                 lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
+            surf_lines = surface_report_lines(ref)
+            if surf_lines:
+                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper, an estimate from the heat fluxes)")
+                lines += surf_lines
             for h in self.heater_rows():
                 extra = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
@@ -343,8 +367,16 @@ class Simulation:
                 if h["margin_k"] is not None:
                     extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
-                lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
-                             f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
+                if "t_max_surface" in h and abs(h["t_max_surface"] - h["t_max"]) >= max(thickness.SHOW_ABS_K, thickness.SHOW_REL * max(h["t_max"] - ref.ambient, 1e-9)) \
+                        and abs(h["t_max_surface"] - h["t_max"]) >= 1e-3:
+                    # Both read-outs exist: every number names its own
+                    note = "estimate, upper side" if h["surface_upper"] else "estimate"
+                    lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
+                                 f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} degC{extra}; "
+                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note})")
+                else:
+                    lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
+                                 f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
                              f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")

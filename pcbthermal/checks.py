@@ -1345,7 +1345,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
     @param problem The Problem that was solved.
     @param rows Heater rows of the reference model (Simulation.heater_rows(): name, power_board_w, t_max), one per heater in order.
     @param result The reference SteadyResult that produced the rows (gives the flux into the blocks), or None.
-    @param h_faces (h_top, h_bottom) in W/m2K that the solve used; no longer read (the film is inside the model), kept so that callers need not change.
+    @param h_faces (h_top, h_bottom) in W/m2K that the solve used (computed coefficients), or None for the typed ones; only for the Biot number quoted in the text (the film is inside the model).
     @return List of warning strings (empty when no plate is thick).
     """
     out = []
@@ -1381,6 +1381,18 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
             drop = thick_plate_bound(q, 1.0, t, k, film) + across
             if drop > THICK_PLATE_LIMIT * rise:
                 parts = f"{thick_plate_bound(q, 1.0, t, k):.1f} K through the thickness"
+                est = ""
+                # The numbers that set the size of the surface term (research/readout-conventions: the Biot number of the plate, t/a and the side of the source;
+                # the width of the plate around the source changes it too): the film is the larger of the two faces that the run used (or the typed ones)
+                side = float(np.sqrt(area))
+                hf = [float(x) for x in (h_faces or (b.h_top, b.h_bottom)) if x is not None]
+                h_film = max(hf) if hf else 0.0
+                shape = (f" Bi = h t/k = {num(h_film * t / k, 3)} (h {num(h_film)} W/m2K), t/a = {num(t / side, 3)}, source side a = {num(1000 * side, 3)} mm; "
+                         "the surface term grows with Bi, with t/a and with the width of the plate around the source.")
+                if what.startswith("the copper") and "t_max_surface" in row:
+                    # The surface read-out of the result (FVM, FDM), beside the column one: a number instead of the bound alone
+                    est = (f" The surface estimate of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
+                           f"(surface max {row['t_max_surface']:.1f} degC, column max {row['t_max']:.1f} degC{'; upper side: the source is small against the plate' if row['surface_upper'] else ''}).")
                 if into_laminate:
                     parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
                               "that face is not in the model)")
@@ -1388,7 +1400,8 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
                         parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; the models "
-                           "keep one temperature through the thickness. The value is an upper estimate from conduction straight through the plate, not added to the results."))
+                           "keep one temperature through the thickness. The value is an upper estimate from conduction straight through the plate, not added to the results."
+                           f"{shape}{est}"))
     return out
 
 
