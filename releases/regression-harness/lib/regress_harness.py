@@ -127,8 +127,9 @@ def _parts(sim, model, problem):
         rows = heater_stats(sim.results[model], problem, sim.power_used.get(model))
     except Exception:
         return None
+    # t_max_surface and t_mean_surface are the surface read-out under the part (only a part on an outer layer has them: None otherwise)
     return [{"name": r["name"], "power_w": _f(r["power_w"]), "t_max": _f(r["t_max"]), "t_mean": _f(r["t_mean"]), "t_junction": _f(r["t_junction"]),
-             "power_top_w": _f(r["power_top_w"])} for r in rows]
+             "power_top_w": _f(r["power_top_w"]), "t_max_surface": _f(r.get("t_max_surface")), "t_mean_surface": _f(r.get("t_mean_surface"))} for r in rows]
 
 
 def _blocks(sim, model, problem):
@@ -147,6 +148,27 @@ def _blocks(sim, model, problem):
                 for r in block_stats(sim.results[model], problem)]
     except Exception:
         return None
+
+
+def _surface(result):
+    """!
+    @brief Statistics of the surface read-out of a result (arrays T_surface and T_surface_mean, one map per outer face), so a change of the surface is seen by the frozen numbers.
+    @param result A model result.
+    @return dict {"top": {...}, "bottom": {...}} with t_max, t_mean (of the surface map), mean_max (maximum of the cell-mean surface map) and t_sum (sum of the map, a checksum) in
+            degC for each face that has a finite map, or None when the result has no surface read-out (a model without one, or an older revision).
+    """
+    import numpy as np
+    arr = getattr(result, "arrays", None) or {}
+    if "T_surface" not in arr:
+        return None
+    out = {}
+    for face, name in enumerate(("top", "bottom")):
+        s = np.asarray(arr["T_surface"][face], dtype=float)
+        if not np.isfinite(s).any():
+            continue
+        m = np.asarray(arr["T_surface_mean"][face], dtype=float) if "T_surface_mean" in arr else s
+        out[name] = {"t_max": _f(np.nanmax(s)), "t_mean": _f(np.nanmean(s)), "mean_max": _f(np.nanmax(m)), "t_sum": _f(np.nansum(s))}
+    return out or None
 
 
 def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SOLID_CAP, linear_solver="direct", fem_cap=FEM_CAP):
@@ -197,6 +219,7 @@ def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SO
                balance_error=_f(r.balance_error), residual=_f(r.residual), layer_mean=[_f(v) for v in r.layer_mean],
                warnings=sorted(sim.warnings), parts=_parts(sim, model, p), blocks=_blocks(sim, model, p),
                extras={k: _f(v) for k, v in (r.extras or {}).items() if isinstance(v, (int, float))})
+    rec["surface"] = _surface(r)
     if r.T is not None:
         T = np.asarray(r.T, dtype=float)
         rec.update(t_shape=list(T.shape), t_sum=_f(np.nansum(T)), t_sumsq=_f(np.nansum(T * T)))        # a checksum of the whole field: a change anywhere is seen
