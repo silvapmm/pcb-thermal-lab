@@ -7,7 +7,7 @@ Project memory for Claude Code: the rules, the layout, the commands and the curr
 ## 1. Project Overview
 
 **PCB Thermal Lab** (version: `pcbthermal.__version__`; the original wxPython program was "PCB Thermal Simulator Tool" 1.0.0, tag `legacy-wxpython-1.0.0`, commit `641da87`, removed in 2.0.0; old editor JSON files still open through `problem_from_legacy`; why its solvers were replaced: `docs/validation.md` 6) is a physics package, command line and PySide 6 application for the thermal simulation of printed circuit boards. Author Pedro Silva (PMS Labs); MIT licence, Copyright (c) 2025-2026 Pedro Silva (PMS Labs) (`LICENSE`).
-- Users draw zones, heaters, vias and heatsinks (or import Gerber files) and run three main models, keys `fvm` (**Finite volume (FVM), reference**, cell-centred, direct/CG/SOR), `lumped` (**Thermal network (LPTN)**, rings per heater) and `analytic` (**Analytical (Fourier series)**, multilayer series with local corrections), plus comparison models: `fdm` (node-centred finite differences of the same layered model, steady and time; not the old wxPython "FDM", see `docs/models.md` "FDM or FVM"), `solid3d` (3D finite volumes with real slabs, steady) and `fem` (finite elements, steady, see section 11).
+- Users draw zones, heaters, vias and heatsinks (or import Gerber files) and run three main models, keys `fvm` (**Finite volume (FVM), reference**, cell-centred, direct/CG/SOR), `lumped` (**Thermal network (LPTN)**, rings per heater) and `analytic` (**Analytical (Fourier series)**, multilayer series with local corrections), plus three models off by default that cross-check them: `fdm` (node-centred finite differences of the same layered model, steady and time; not the old wxPython "FDM", see `docs/models.md` "FDM or FVM"), `solid3d` (3D finite volumes with real slabs, steady) and `fem` (finite elements, steady, see section 11).
 - Outputs: temperature maps, power profiles in time (square waves, CSV tables), animations, hotspots, gradients, zone and heater statistics, reports, CSV and figures. Projects are JSON (`.pcbt.json`) or a package (`.pcbtz`). Full feature list: `README.md`.
 
 ## 2. Technology Stack
@@ -146,7 +146,7 @@ Maintainer's rule (2026-10-21): **no commit without updating, in the same commit
 
 ## 11. Standing rules of the models and the numbers
 
-- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, a comparison model like the FDM and the 3D solid (checkbox `Finite elements (FEM), comparison`, off by default), optional pyamg; it ships **steady and transient** in 2.8.0 (`releases/2.8.0/fem-model/DESIGN.md`, `COMPARE_PLAN.md`). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
+- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, off by default like the FDM and the 3D solid, which cross-check the three main models (checkbox `Finite elements (FEM)`), optional pyamg; it ships **steady and transient** in 2.8.0 (`releases/2.8.0/fem-model/DESIGN.md`, `COMPARE_PLAN.md`). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
 - **The surface read-out is a VIEW, never a mode**: it changes what is read from a solved field, not the solve.
 - **The theory is explicit and self-contained** (`docs/theory.md`): for every law, the formula, the constants, the range, the source and its reading status, the direction of the error, the warnings, and what is not modelled; it describes what is implemented, with a picture per section.
 - **Numbers name their tree and their reference**: every number of the theory and the validation says which tree (commit or version) and which reference it was measured against; **every number the user sees carries the name of its read-out** (peak, mean, node, surface, ...).
@@ -198,8 +198,8 @@ pcbthermal/            physics core, no GUI imports (docs/models.md, docs/theory
   geometry.py          polygons, exact cell coverage, part weights across the outline, clipping and overlap, outline edge per cell
   fvm.py               reference finite volumes: steady (direct, CG, SOR) and transient; lu_factor, factor_reuse
   fdm.py               node-centred finite differences of the same layered physics, steady and time
-  solid3d.py           3D finite-volume solid (real slabs, steady; comparison, key solid3d; memory guard in its constructor)
-  femcore.py, femmesh.py, fem.py  the FEM: hexahedral core (Robin faces, direct up to 30 000 unknowns, CG + optional pyamg), the mesh of a Problem or a refusal, and the model `fem.solve_steady` (column, surface and point read-outs; key `fem`, a comparison model saved under `comparison_models` so that v2.7.1 still opens the file)
+  solid3d.py           3D finite-volume solid (real slabs, steady; off by default, key solid3d; memory guard in its constructor)
+  femcore.py, femmesh.py, fem.py  the FEM: hexahedral core (Robin faces, direct up to 30 000 unknowns, CG + optional pyamg), the mesh of a Problem or a refusal, and the model `fem.solve_steady` (column, surface and point read-outs; key `fem`, saved under `comparison_models` so that v2.7.1 still opens the file)
   lumped.py            ring network per heater; two-node zones over a dense via group
   analytic.py, analytic_local.py  multilayer series with local via/heatsink corrections, per-layer edge; the coupled modal block of the transient
   viawell.py           the via on the FVM/FDM grid: footprint, Peaceman well, Kron couplings, rim test, edge image
