@@ -252,7 +252,7 @@ def test_energy_balance_holds_on_every_structured_case():
 
 def test_direct_and_cg_amg_solutions_agree():
     """!
-    @brief The direct solution and the conjugate-gradient solution with the pyamg preconditioner differ by less than 1e-8 relative on a 4000-unknown board.
+    @brief The direct solution and the conjugate-gradient solution with the pyamg preconditioner differ by less than 1e-8 relative on a 2646-unknown board (measured 1.7e-11).
     @return None.
     """
     pytest.importorskip("pyamg")
@@ -305,5 +305,66 @@ def test_structured_helpers_faces_volumes_and_rods():
         fc.rod_conductivity(0.3, 385.0, 1.5)
     with pytest.raises(ValueError):
         fc.structured_mesh([0, 1, 1], [0, 1], [0, 1])
+    m.add_faces(fc.structured_face(elems, (4, 3, 2), "top")[0], h=10.0)     # a film, so that the input checks pass and the cancel is what stops it
     with pytest.raises(fc.FemCancelled):
         m.solve(cancel=lambda: True)
+
+
+def _small(**films):
+    """!
+    @brief A 2 x 2 x 2 brick model with a source and a top film, for the input checks.
+    @param films Films by side (default a top film of 10 W/m2K).
+    @return femcore.Model.
+    """
+    return fc.structured_model([0, 0.5e-3, 1e-3], [0, 0.5e-3, 1e-3], [0, 1e-4, 2e-4], k=1.0, q=1e6, films=films or {"top": 10.0})
+
+
+@pytest.mark.parametrize("label", ["k_negative", "k_zero", "k_nan", "q_nan", "h_negative", "t_amb_inf", "node_nan", "zero_volume", "no_film", "node_id", "force"])
+def test_hostile_inputs_raise_value_error_instead_of_a_wrong_field(label):
+    """!
+    @brief Inputs that gave a plausible but wrong field before the review (a negative conductivity or film: Tmax 20 degC with a source; a NaN source: a NaN field)
+           or an opaque SuperLU error (zero conductivity, a zero-volume element, no film) raise ValueError naming the problem.
+    @param label Which input is spoiled.
+    @return None.
+    """
+    m = _small()
+    if label == "k_negative":
+        m.k[0, 2] = -1.0
+    elif label == "k_zero":
+        m.k[3, 0] = 0.0
+    elif label == "k_nan":
+        m.k[1] = np.nan
+    elif label == "q_nan":
+        m.q[0] = np.nan
+    elif label == "h_negative":
+        m.faces[0]["h"][:] = -5.0
+    elif label == "t_amb_inf":
+        m.faces[0]["t_amb"][0, 0] = np.inf
+    elif label == "node_nan":
+        m.nodes[0, 0] = np.nan
+    elif label == "zero_volume":
+        m.nodes[m.elems[0, 4:]] = m.nodes[m.elems[0, :4]]
+    elif label == "no_film":
+        m.faces = []
+    elif label == "node_id":
+        m.elems[0, 0] = m.nodes.shape[0]
+    with pytest.raises(ValueError):
+        m.solve(force="lu" if label == "force" else None)
+    with pytest.raises(ValueError):
+        fc.structured_mesh([0.0, np.nan, 1.0], [0, 1], [0, 1])
+
+
+def test_module_imports_without_the_unix_resource_module(monkeypatch):
+    """!
+    @brief `resource` does not exist on Windows: femcore must still import and solve, reporting the peak memory as NaN.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setitem(sys.modules, "resource", None)
+    mod = importlib.reload(fc)
+    try:
+        r = mod.Model.solve(_small())
+        assert np.isnan(r["peak_gb"]) and r["solver"] == "direct"
+    finally:
+        monkeypatch.delitem(sys.modules, "resource")
+        importlib.reload(fc)
