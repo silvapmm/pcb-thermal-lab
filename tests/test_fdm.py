@@ -51,8 +51,9 @@ def test_fdm_is_selectable_through_the_api_and_runs_the_time_simulation():
     # The FDM alone decides and simulates
     only = simulate(example_profile_board(), SolverOptions(models=("fdm",), cell_mm=2.0))
     assert not only.profile_error and only.profile_reference == "fdm" and only.profile_results["fdm"].resolved
+    SolverOptions(models=("fem",)).validate()                                   # The FEM is a selectable comparison model since feature/fem-model
     with pytest.raises(ValueError):
-        SolverOptions(models=("fem",)).validate()
+        SolverOptions(models=("nonexistent",)).validate()
 
 
 def test_cli_compare(tmp_path, capsys):

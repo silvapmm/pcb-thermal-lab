@@ -79,7 +79,8 @@ def test_the_surface_and_the_column_agree_on_thin_copper_and_the_point_is_the_ho
     r = fem.solve_steady(small(), cell_mm=2.0)
     assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)           # 35 um copper: the two read-outs differ by micro-kelvin
     assert r.extras["t_max_point"] >= r.t_max and r.extras["t_max_point"] >= r.extras["t_max_surface_top"] - 1e-9
-    assert not api.surface_report_lines(r)                                         # nothing to add to an ordinary report
+    lines = api.surface_report_lines(r)                                            # The surface is always reported now: two lines, resolved, a difference of zero to the digit
+    assert len(lines) == 2 and all("resolved by the finite elements" in l and "+0.000 K" in l for l in lines)
     assert r.arrays["T_surface"].shape == (2,) + r.T.shape[1:] and not r.arrays["T_surface_flag"].any()
     assert r.t_max_location[0] == 0 and 0.0 < r.t_max_location[1] < 0.04
 
@@ -280,14 +281,15 @@ def test_case_2_of_muzychka_the_resolved_surface_meets_the_paper():
 
 
 def test_a_one_layer_board_reads_the_copper_face_not_the_laminate_bottom():
-    # Review of branch 4: the bottom 'surface' of a one-layer board is the bottom face of its copper (the meaning of thickness.py), so an ordinary 35 um board adds no
-    # surface line to the report; the bottom of the laminate (6.8 K cooler on this board) is bottom_face_mean, the film temperature of the computed-h loop
+    # Review of branch 4: the bottom 'surface' of a one-layer board is the bottom face of its copper (the meaning of thickness.py), so an ordinary 35 um board reports a surface
+    # equal to the column (no longer omitted: the surface is always shown); the bottom of the laminate (6.8 K cooler on this board) is bottom_face_mean, the film temperature of the computed-h loop
     p = Problem.new(width_mm=40, height_mm=30, layers=1, h_top=10.0, h_bottom=10.0)
     p.add_full_copper([1])
     p.add_heater(1, 1.0, rect=(17, 12, 23, 18), name="U1")
     r = fem.solve_steady(p, cell_mm=2.0)
     assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)
-    assert not api.surface_report_lines(r)
+    lines = api.surface_report_lines(r)                                            # always reported now (feature/surface-always-both), resolved, no difference to the column
+    assert len(lines) == 2 and all("resolved by the finite elements" in l and "0.000 K" in l for l in lines)
     assert r.extras["t_max_surface_bottom"] == pytest.approx(r.t_max, abs=0.01)
     assert r.extras["bottom_face_mean"] < r.layer_mean[0] - 1.0                    # the laminate carries a drop of kelvins to the bottom face
     assert abs(r.balance_error) < 1e-9

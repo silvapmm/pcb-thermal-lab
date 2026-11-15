@@ -19,3 +19,11 @@ Glue (small, done in the merge commit and one follow-up commit, ~12 lines): the 
 - pcbthermal/help/index.html: "it will resolve" -> "it resolves"; "the FEM will fill" -> "the FEM fills".
 - docs/models.md surface row: the FEM is a model that fills the arrays now (no "will fill ... in review").
 No other 'will resolve' / 'vai resolver' in guide, models, theory, tips.
+
+## Stale tests found by the whole battery (4 failures, all test text, no physics)
+| Test | Cause | Owner | Fix |
+| :-- | :-- | :-- | :-- |
+| tests/test_fdm.py::test_fdm_is_selectable_through_the_api_and_runs_the_time_simulation | expected `SolverOptions(models=("fem",)).validate()` to raise; the FEM is selectable | feature/fem-model alone (fails there too) | the FEM validates; an unknown model name still raises |
+| tests/test_fem_model.py::test_the_surface_and_the_column_agree_on_thin_copper_and_the_point_is_the_hottest_node | expected no surface line; the surface is always reported now | interaction of the two branches | expects two lines, "resolved by the finite elements", "+0.000 K" |
+| tests/test_fem_model.py::test_a_one_layer_board_reads_the_copper_face_not_the_laminate_bottom | same | interaction | two lines, resolved, "0.000 K" |
+| tests/test_single_layer.py::test_the_lists_in_each_context | Layer box of the Temperature tab now ends with 'Surface (top)', 'Surface (bottom)' | feature/surface-always-both alone (fails there too) | the expected list has the two entries |

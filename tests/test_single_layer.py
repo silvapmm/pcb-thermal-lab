@@ -112,7 +112,8 @@ def test_the_lists_in_each_context(qtbot, tmp_path, sim):
         win.tabs.setCurrentIndex(tab)
         assert _texts(win) == layers
     _go(win, win.results.temp)
-    assert _texts(win) == ["All layers", "All (2 x 2)"] + layers
+    # The surface read-out is always computed now (feature/surface-always-both): its two faces are listed after the layers
+    assert _texts(win) == ["All layers", "All (2 x 2)"] + layers + ["Surface (top)", "Surface (bottom)"]
     for w in (win.results.grad, win.results.animation, win.results.profile, win.results.time_sim):
         _go(win, w)
         assert _texts(win) == layers
