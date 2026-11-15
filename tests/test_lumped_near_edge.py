@@ -117,7 +117,7 @@ def test_text_is_plain_tagged_and_aggregated():
     assert w.kind == "heater" and w.index == 0
     text, short = str(w), checks.line(w)
     assert "U: the part is 1.5 mm from a side of the board" in text
-    assert "8 to 9.5 %" in text and "22 %" in text and "sample, not a bound" in text and "FVM or the FDM" in text
+    assert "2.7 %" in text and "7.5 %" in text and "9 % too hot" in text and "sample, not a bound" in text and "FVM or the FDM" in text
     assert not NAMES.search(text) and not NAMES.search(short) and len(short) < len(text)
     p.heaters[1].polygon = [(5e-3, 5e-3), (9e-3, 5e-3), (9e-3, 9e-3), (5e-3, 9e-3)]                 # a second flagged part
     (w2,) = _near(p)
@@ -334,3 +334,19 @@ def test_the_position_in_the_cell_no_longer_moves_a_tiny_part():
     (n0, o0), (n1, o1) = _rise_errors(0.2, 0.0), _rise_errors(0.2, 0.25)
     assert abs(o0 - o1) > 0.08
     assert abs(n0 - n1) < 0.02
+
+
+def test_the_sweep_with_the_images_of_the_sides_in_the_first_link():
+    """!
+    @brief The same 180 cases re-run on the tree of fix/lumped-edge-first-link (DATA sweep_before_edge_link, sweep_edge_link; hottest node against the FVM at 0.5 mm, % of the rise):
+           before, -7.4 % on average, 70 cases beyond -8 % of which the rule flags 69, worst -22.2 %; with the images, -1.6 % on average (-2.7 % over the flagged, +0.5 % over the others),
+           none beyond -8 %, worst -7.5 % cool and +4.0 % hot. These are the numbers the text of the warning quotes.
+    @return None.
+    """
+    fl = np.array([bool(_near(_sweep_problem(r))) for r in DATA["sweep"]])
+    before, after = np.array(DATA["sweep_before_edge_link"]), np.array(DATA["sweep_edge_link"])
+    assert int((before < BAD).sum()) == 70 and int(((before < BAD) & fl).sum()) == 69
+    assert before.mean() == pytest.approx(-7.45, abs=0.05) and before.min() == pytest.approx(-22.2, abs=0.1) and before[fl].mean() == pytest.approx(-9.4, abs=0.05)
+    assert int((after < BAD).sum()) == 0
+    assert after.mean() == pytest.approx(-1.6, abs=0.05) and after[fl].mean() == pytest.approx(-2.7, abs=0.05) and after[~fl].mean() == pytest.approx(0.5, abs=0.05)
+    assert after.min() == pytest.approx(-7.5, abs=0.05) and after.max() == pytest.approx(4.0, abs=0.05)

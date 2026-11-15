@@ -5,7 +5,7 @@
 @brief The layered models of the program against an independent 3D conduction solver (tests/helpers/layered3d.py, which imports nothing from the program) on a laminate coupon and on a one-layer board.
 
 @details The numbers are those measured in research/effective-conductivity (README 4.5 and 4.11): on a Cu / FR-4 / Cu coupon of 50 x 50 mm the FVM, the 3D solid and the
-         Analytic model are within 0.2 % of the independent solver, the FDM within 1.2 % and the Lumped within 0.3 % (0.5 mm cells); on a one-layer board the FVM is within 0.1 % with full
+         Analytic model are within 0.2 % of the independent solver, the FDM within 1.2 % and the Lumped within 0.3 % (0.5 mm cells; +0.44 % on the 1 mm cells of the test since the images of the board sides entered the first link of the Lumped); on a one-layer board the FVM is within 0.1 % with full
          copper and 2.5 % low with a 20 mm pad, where the FDM (-7.4 %), the Lumped (-14.7 %) and the Analytic (-28.8 %) are documented limits (roadmap), tested as ranges so
          that an improvement or a regression is noticed (the ranges are those measured on the 1 mm cells of the test). The coupon test uses the 16 mm source (epsilon 0.1) on 1 mm cells (the study uses 0.5 mm; the 1 mm cells keep every test to seconds).
 """
@@ -63,7 +63,8 @@ def coupon_program(side_mm, model, cell_mm=1.0):
 # Tolerance of every model on the 16 mm source, relative to the independent solver: the documented worst case over the source sizes on 0.5 mm cells
 # (README 4.5: 0.2 % for FVM, 3D solid and Analytic, 1.2 % for the FDM, 0.3 % for the Lumped). Measured here on 1 mm cells: fvm -0.02, fdm -0.59, solid3d +0.00,
 # lumped +0.27, analytic -0.06 % (on 0.5 mm cells: -0.02, -0.29, +0.00, +0.15, -0.03 %; the 0.5 mm reference solve takes about 85 s, so the test uses 1 mm)
-COUPON_TOLERANCE = {"fvm": 0.002, "solid3d": 0.002, "analytic": 0.002, "lumped": 0.003, "fdm": 0.012}
+# lumped 0.3 -> 0.6 % since fix/lumped-edge-first-link: the coupon reads +0.44 % (was within 0.3 %)
+COUPON_TOLERANCE = {"fvm": 0.002, "solid3d": 0.002, "analytic": 0.002, "lumped": 0.006, "fdm": 0.012}
 
 
 @pytest.fixture(scope="module")
@@ -126,8 +127,8 @@ def test_one_layer_board_with_full_copper_the_fvm_and_the_3d_solid_match():
     assert one_layer_program("fvm", False) == pytest.approx(ref, rel=0.002)       # measured -0.01 % (1 mm cells; -0.0 % on 0.5 mm)
     assert one_layer_program("solid3d", False) == pytest.approx(ref, rel=0.002)   # measured +0.00 %
     assert one_layer_program("fdm", False) == pytest.approx(ref, rel=0.002)       # measured -0.01 %
-    # The two fast models with full copper (measured on 1 mm cells: Lumped +1.20 %, Analytic -0.83 %)
-    assert one_layer_program("lumped", False) / ref - 1.0 == pytest.approx(0.012, abs=0.005)
+    # The two fast models with full copper (measured on 1 mm cells: Lumped +2.18 %, +1.20 % before the images of the sides in its first link; Analytic -0.83 %)
+    assert one_layer_program("lumped", False) / ref - 1.0 == pytest.approx(0.022, abs=0.005)      # +2.18 % since fix/lumped-edge-first-link (images of the sides in the first link; was +1.20 %)
     assert one_layer_program("analytic", False) / ref - 1.0 == pytest.approx(-0.0083, abs=0.005)
 
 

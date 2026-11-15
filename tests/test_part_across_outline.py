@@ -168,7 +168,7 @@ def test_lumped_and_analytic_on_the_equivalent_rectangle_are_unchanged():
     # with an insulated edge it is still that. With the edge in the eigenfunctions of the series (feature/analytic-robin-edge) the edge loss is where the edge is:
     # 215.944 degC (it was 215.233 with the edge moved to the faces, +0.33 % of the rise; the FVM reads 231.87 at 1 mm, the equivalent rectangle is the limit here).
     o = api.SolverOptions(cell_mm=1.0)
-    assert api._run_model(small_t(), "lumped", o).t_max == pytest.approx(217.73005348656147, abs=1e-9)
+    assert api._run_model(small_t(), "lumped", o).t_max == pytest.approx(219.44705298196652, abs=1e-9)   # was 217.73005348656147 K before the images of the board sides in the first link (fix/lumped-edge-first-link, +0.8 % of the rise)
     assert api._run_model(small_t(), "analytic", o).t_max == pytest.approx(215.94408257945503, abs=1e-6)
     insulated = small_t()
     insulated.board.h_side = None
