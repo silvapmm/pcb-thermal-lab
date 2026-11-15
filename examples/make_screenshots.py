@@ -46,9 +46,12 @@ def _assert_neutral(path):
         raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
 
 
+FULL_COLOUR = ("editor", "simulation_")          # File-name prefixes saved without the 256-colour quantisation (the verdict dots must stay distinct)
+
+
 def shrink(path, max_width=1400):
     """!
-    @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth).
+    @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth), except the window pictures of FULL_COLOUR.
     @param path PNG file, rewritten in place.
     @param max_width Largest width in pixels.
     @return None
@@ -60,6 +63,10 @@ def shrink(path, max_width=1400):
     im = Image.open(path).convert("RGB")
     if im.width > max_width:
         im = im.resize((max_width, round(im.height * max_width / im.width)), Image.LANCZOS)
+    # The pictures of the windows (the Simulation panel with its red, amber and green dots) stay full colour: 256 colours merged the three dots into one tone
+    if os.path.basename(path).startswith(FULL_COLOUR):
+        im.save(path, optimize=True)
+        return
     im.quantize(256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG).save(path, optimize=True)
 
 

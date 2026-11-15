@@ -388,7 +388,7 @@ def build_parser():
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
     pg.add_argument("--threshold-c", type=float, default=None,
-                    help="oscillation in °C below which a heater is replaced by its average power (default: 1)")
+                    help="oscillation in K below which a heater is replaced by its average power (default: 1)")
     pg.add_argument("--duration", choices=("stable", "cycles", "time"), default=None,
                     help="simulate until the cycle repeats, for a number of cycles, or for a fixed time")
     pg.add_argument("--cycles", type=int, default=None, help="number of cycles of the longest resolved period")

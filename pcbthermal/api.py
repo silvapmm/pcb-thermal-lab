@@ -273,11 +273,11 @@ class Simulation:
         @return String.
         """
         lines = [f"> {DISCLAIMER}", "",
-                 "| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [K/W] | Power [W] | Balance | Error vs " +
-                 self.reference.model + " | Time [s] |",
+                 "| Model | Tmax [°C] | Tmean [°C] | ΔT [K] | Rθ [K/W] | Power [W] | Balance | Error vs " +
+                 RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model) + " | Time [s] |",
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
-            lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
+            lines.append(f"| {RESULT_MODEL_LABELS.get(r['model'], r['model'])} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
                          f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {num(r['energy_balance'], sign=True)} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
         lines += self._profile_markdown()
@@ -293,8 +293,8 @@ class Simulation:
         if not self.decisions:
             return []
         lines = ["", f"Power profiles (decision from the {RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, "
-                     f"threshold {num(self.options.profile.threshold_c)} °C):", "",
-                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
+                     f"threshold {num(self.options.profile.threshold_c)} K):", "",
+                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [K] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
             if d.kind != "constant":
@@ -303,21 +303,21 @@ class Simulation:
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
         if self.profile_results:
-            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [°C] | Steady, average power [°C] | "
+            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [K] | Steady, average power [°C] | "
                           "Steady, peak power (bound) [°C] | Windows | Steps | Time [s] |",
                       "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
             for name, r in self.profile_results.items():
                 if r.resolved:
-                    lines.append(f"| {name} | {r.peak:.2f} | {r.minimum:.2f} | {r.oscillation:.2f} | "
+                    lines.append(f"| {RESULT_MODEL_LABELS.get(name, name)} | {r.peak:.2f} | {r.minimum:.2f} | {r.oscillation:.2f} | "
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | {r.windows} | {r.steps} | "
                                  f"{r.seconds:.2f} |")
                 else:
-                    lines.append(f"| {name} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
+                    lines.append(f"| {RESULT_MODEL_LABELS.get(name, name)} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | - | - | {r.seconds:.2f} |")
             for name, r in self.profile_results.items():
                 for x in r.ripple:
-                    lines.append(f"\n> **Ripple ({name})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} °C peak to peak "
-                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} °C about its mean, from the closed-form impedance of the stack) is added at the heater, "
+                    lines.append(f"\n> **Ripple ({RESULT_MODEL_LABELS.get(name, name)})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} K peak to peak "
+                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} K about its mean, from the closed-form impedance of the stack) is added at the heater, "
                                  "in the peak and the minimum above and not in the maps.")
         return lines
 
@@ -328,11 +328,11 @@ class Simulation:
                                and that the Warnings list of the window shows them (the on-screen report, which sits under that list).
         @return String.
         """
-        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT C':>8s} {'Rth K/W':>8s} {'P W':>7s} {'balance':>9s} " \
-               f"{'vs ' + self.reference.model:>9s} {'time s':>7s}"
+        head = f"{'model':9s} {'Tmax °C':>8s} {'Tmean °C':>8s} {'ΔT K':>8s} {'Rθ K/W':>8s} {'P W':>7s} {'balance':>9s} " \
+               f"{'vs ' + RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model):>9s} {'time s':>7s}"
         lines = [head, "-" * len(head)]
         for r in self.table():
-            lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
+            lines.append(f"{RESULT_MODEL_LABELS.get(r['model'], r['model']):9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
                          f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
         if inline_warnings:
@@ -362,31 +362,31 @@ class Simulation:
                          f"convection multiplier {num(b.h_calibration)}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
-                lines.append(f"  {name}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
+                lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
                              f"{e['h_top_radiation']:.2f}), bottom {hb:.2f} W/m2K (convection {e['h_bottom_convection']:.2f} + "
                              f"radiation {e['h_bottom_radiation']:.2f}), {int(e['h_iterations'])} iterations")
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, threshold {num(self.options.profile.threshold_c)} °C):")
+                         f"{RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, threshold {num(self.options.profile.threshold_c)} K):")
             for d in self.decisions:
                 if d.kind != "constant":
                     lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
                                  f"average {d.average_power:.3f} W, "
-                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
+                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} K "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
                 else:
                     lines.append(f"  {d.name}: constant {d.average_power:.3f} W")
             for name, r in self.profile_results.items():
                 if r.resolved:
-                    lines.append(f"  {name}: peak {r.peak:.2f} C, minimum {r.minimum:.2f} C, oscillation {r.oscillation:.2f} C "
-                                 f"(steady with the average power {r.steady_average_max:.2f} C, with the peak power "
-                                 f"{r.steady_peak_max:.2f} C); {r.windows} windows, {r.steps} steps, "
+                    lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: peak {r.peak:.2f} °C, minimum {r.minimum:.2f} °C, oscillation {r.oscillation:.2f} K "
+                                 f"(steady with the average power {r.steady_average_max:.2f} °C, with the peak power "
+                                 f"{r.steady_peak_max:.2f} °C); {r.windows} windows, {r.steps} steps, "
                                  f"{'stable' if r.converged else 'not stable'}")
                 else:
-                    lines.append(f"  {name}: every heater averaged; steady {r.steady_average_max:.2f} C")
+                    lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: every heater averaged; steady {r.steady_average_max:.2f} °C")
                 for x in r.ripple:
-                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} C peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} C about its mean, closed form of the stack), "
+                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} K peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} K about its mean, closed form of the stack), "
                                  "in the peak and the minimum, not in the maps")
         if "fem" in self.results:
             f = self.results["fem"]

@@ -48,3 +48,15 @@ def test_the_panel_the_animation_and_the_result_lists_use_the_tables(win, qtbot)
     combo = win.results.temp.model
     assert [combo.itemText(i) for i in range(combo.count())] == [results.MODEL_LABELS[combo.itemData(i)] for i in range(combo.count())]
     assert "LPTN" in [combo.itemText(i) for i in range(combo.count())]
+
+
+def test_the_text_and_markdown_reports_print_names_not_keys():
+    """!
+    @brief The comparison tables of the reports name the models like the window (FVM, LPTN, Analytic), and the table heads follow the unit rule (K for the difference).
+    """
+    from pcbthermal.api import SolverOptions, simulate
+    sim = simulate(example_board(), SolverOptions(models=("fvm", "lumped", "analytic"), cell_mm=2.0))
+    for text in (sim.to_text(), sim.to_markdown()):
+        assert "LPTN" in text and "Analytic" in text and "FVM" in text
+        assert not any(line.lstrip("| ").startswith(("lumped", "fvm", "analytic")) for line in text.splitlines())
+    assert "ΔT K" in sim.to_text() and "dT C" not in sim.to_text() and "ΔT [K]" in sim.to_markdown()
