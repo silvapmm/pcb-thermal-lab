@@ -37,7 +37,7 @@ from . import uicontext
 from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
 from .results import DISCLAIMER, SteadyResult
-from .numfmt import num
+from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
@@ -157,7 +157,7 @@ def surface_report_lines(res):
         diff = surf - col
         patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
         out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}; "
-                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} degC; the surface is {diff:+.3f} K, {100 * diff / rise:+.3f} % of the rise"
+                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} degC; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
                    + ("; the difference includes the rise across the bare laminate under a source where copper is absent" if patterned else "") + ")")
     return out
 
@@ -382,7 +382,7 @@ class Simulation:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} degC{extra}; "
                                  f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note}; "
-                                 f"surface minus column max {h['t_max_surface'] - h['t_max']:+.3f} K)")
+                                 f"surface minus column max {signed_fixed(h['t_max_surface'] - h['t_max'], 3)} K)")
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")

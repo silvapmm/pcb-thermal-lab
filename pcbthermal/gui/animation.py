@@ -244,7 +244,7 @@ class AnimationTab(QWidget):
         k = self.slider.value()
         with _mpl_theme(self.theme):
             plots.draw_field(self.fig, tr.frames[k, l], self.problem, dx, dy, cmap=self.display.cmap,
-                             vmin=tr.ambient, vmax=float(tr.frames[:, l].max()), layer=l,
+                             vmin=tr.ambient, vmax=float(tr.frames[:, l].max()), layer=l, label=plots.COLUMN_LABEL,
                              title=f"Layer {l + 1}   t = {tr.times[k]:.2f} s   Tmax = {tr.t_max[k]:.1f} °C", view=self.map_view())
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()

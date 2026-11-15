@@ -1402,11 +1402,10 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
                 # which cuts a block into slabs of about 1 mm (it keeps ONE cell through a copper slab, so it does not resolve a copper plate)
                 if est:
                     todo = (" What to do: compare the surface estimate, not the layer mean, with a thermocouple or a paper that reports the surface; it is in the Layer box "
-                            "(Surface (top) / Surface (bottom)) and in the surface columns of the Components table when it differs from the layer mean by at least "
-                            "max(0.1 K, 1 % of the rise). Tj, margin and power limit stay on the layer mean.")
+                            "(Surface (top) / Surface (bottom)) and in the surface column of the Components table. Tj, margin and power limit stay on the layer mean.")
                 elif what.startswith("the copper"):
-                    todo = (" What to do: read the bound as the largest surface excess; the FVM and the FDM give an estimate of the surface itself (Layer box, Surface entries) "
-                            "for an outer copper layer thicker than 105 um.")
+                    todo = (" What to do: read the bound as the largest surface excess; the FVM and the FDM give an estimate of the surface itself (Layer box, Surface entries, "
+                            "surface column of the Components table) for a part on an outer copper layer.")
                 else:
                     todo = (" What to do: read the bound as the largest surface excess of the block; the 3D solid cuts a block into slabs of about 1 mm and gives the "
                             "temperature through it.")

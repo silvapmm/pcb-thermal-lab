@@ -26,7 +26,7 @@ from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
-from ..numfmt import num
+from ..numfmt import num, signed_fixed
 
 
 @contextlib.contextmanager
@@ -723,8 +723,8 @@ class ResultsView(QWidget):
                 d = h["t_max_surface"] - h["t_max"]
                 face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
                 row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
-                notes.append(f"{face}: {h['t_max_surface']:.3f} degC, {d:+.3f} K ({100 * d / rise:+.3f} % of the rise) above the column max {h['t_max']:.3f} degC. "
-                             "Surface mean " + f"{h['t_mean_surface']:.3f} degC. " + tips.SURFACE_TRAP_TIP)
+                notes.append(f"{face}: {h['t_max_surface']:.3f} °C, {signed_fixed(d, 3)} K ({signed_fixed(100 * d / rise, 3)} % of the rise) from the column max {h['t_max']:.3f} °C. "
+                             "Surface mean " + f"{h['t_mean_surface']:.3f} °C. " + tips.SURFACE_TRAP_TIP)
             else:
                 row.append("n/a")
                 if ref.model not in ("fvm", "fdm"):
@@ -758,11 +758,12 @@ class ResultsView(QWidget):
         heaters = self.sim.heater_rows()
         with _mpl_theme(self.theme):
             if heaters:
-                series = {"mean under footprint": [h["t_mean"] for h in heaters],
-                          "max under footprint": [h["t_max"] for h in heaters]}
+                # The bars are the column read-out, like the table (the surface is the last column of the table and its tooltip)
+                series = {"mean under footprint (column)": [h["t_mean"] for h in heaters],
+                          "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean read-out)")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

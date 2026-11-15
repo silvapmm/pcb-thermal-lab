@@ -25,7 +25,7 @@ from scipy import ndimage
 
 from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
-from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
+from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
 from .results import model_label
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
@@ -581,7 +581,7 @@ def _draw_copper(ax, problem, layer, view, solved_view):
     ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
 
 
-COLUMN_LABEL = "Temperature, column mean (°C)"   # Colour-bar name of every steady layer map: the solved value, one per copper layer (the surface read-out has its own name)
+COLUMN_LABEL = "Temperature, column mean (°C)"   # Colour-bar and axis name of every map and graph of the solved value, one per copper layer (the surface read-out has its own name)
 
 
 @_with_engineering_ticks
@@ -696,10 +696,11 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     rise = max(result.t_max - result.ambient, 1e-9)
     col = float(np.nanmax(result.T[layer]))                    # The column of the layer that owns the face, not the board maximum
     diff = float(np.nanmax(field)) - col
-    # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold)
+    # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
+    # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
     ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, estimate (°C)",
-                    title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C   "
-                          f"(column max {col:.1f} °C, {diff:+.3f} K, {100 * diff / rise:+.2f} % of the rise)")
+                    title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C\n"
+                          f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
     face_peak = result.arrays.get("face_peak")
     if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:
         # The trap of the patterned thin copper: over bare laminate under a source the surface includes the rise across the laminate, which the column node does not
@@ -962,7 +963,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     if actual is None:
         actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
-    ax.set_ylabel(f"Layer {layer + 1} temperature (°C)")
+    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
     ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm", fontsize=10)
     ax.grid(alpha=0.3)
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
@@ -1011,7 +1012,7 @@ def draw_comparison(fig, results):
         ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
     ax.set_xticks(x)
     ax.set_xticklabels([model_label(n) for n in names])        # "Lumped (LPTN)", as the tables, not the key `lumped`
-    ax.set_ylabel("Temperature (°C)")
+    ax.set_ylabel(COLUMN_LABEL)
     ax.legend()
     ax.grid(axis="y", alpha=0.3)
 
@@ -1077,7 +1078,7 @@ def draw_transient(fig, tr):
     if np.isfinite(tau):
         ax.axvline(tau, color="C3", ls=":", label=f"63 % at {tau:.1f} s")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Temperature (°C)")
+    ax.set_ylabel(COLUMN_LABEL)
     ax.grid(alpha=0.3, which="both")
     ax.legend()
 
@@ -1111,7 +1112,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     if limit_c is not None:
         ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {num(limit_c)} °C")
     ax.set_xlabel("Time in the last window (s)")
-    ax.set_ylabel("Temperature (°C)")
+    ax.set_ylabel(COLUMN_LABEL)
     ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
                  f"oscillation {result.oscillation:.1f} °C", fontsize=10)
     ax.grid(alpha=0.3)
@@ -1322,7 +1323,7 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno", view=N
     writer = PillowWriter(fps=fps)
     with writer.saving(fig, path, dpi=90):
         for k in range(len(tr.times)):
-            draw_field(fig, tr.frames[k, layer], problem, dx, dy, cmap=cmap, vmin=vmin, vmax=vmax,
+            draw_field(fig, tr.frames[k, layer], problem, dx, dy, cmap=cmap, vmin=vmin, vmax=vmax, label=COLUMN_LABEL,
                        layer=layer, title=f"Layer {layer + 1}  t = {tr.times[k]:.2f} s  "
                                           f"Tmax = {tr.t_max[k]:.1f} °C", view=view)
             writer.grab_frame()

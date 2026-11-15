@@ -704,7 +704,7 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
     assert "Surface (top)" in texts and "Surface (bottom)" in texts
     assert rv.heater_table.columnCount() == 10 and "(surface," in rv.heater_table.horizontalHeaderItem(9).text() and "estimate)" in rv.heater_table.horizontalHeaderItem(9).text()
-    assert "above the column max" in rv.heater_table.item(0, 9).toolTip() and "% of the rise" in rv.heater_table.item(0, 9).toolTip()   # the difference is in the cell tooltip
+    assert "from the column max" in rv.heater_table.item(0, 9).toolTip() and "% of the rise" in rv.heater_table.item(0, 9).toolTip()   # the difference is in the cell tooltip
     sbox = win.layer_combo
     assert "estimate" in sbox.itemData(sbox.findData(200), Qt.ToolTipRole)          # The entry carries its own tooltip
     for model in ("fvm", "fdm", "lumped", "analytic"):

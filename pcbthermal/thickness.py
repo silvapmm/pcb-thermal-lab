@@ -24,7 +24,13 @@
          VALIDITY PER LAYER TYPE. Outer copper (top of layer 1, bottom of the last layer; both faces of a one-layer board): the formula applies at every thickness; on 35 um copper it is
          correct and tiny (0.4 to 5.6 mK on the harness boards). Inner copper: no outer face and no flux to define one (its faces are interfaces with the laminate, where the temperature is
          continuous), so the surface IS the column ('equal'); no array is made for it. Laminate: resolved through its thickness by the sub-gap nodes, so its face is a node (nothing to
-         estimate). Metal blocks: the face is a node of the block (resolved), not computed here.
+         estimate). Metal blocks: ONE node through the block's thickness (blocks.py), so the block face is NOT resolved and has no surface read-out (the thick-plate warning
+         gives its bound); the heat into a block is a face flux of the copper layer it sits on.
+         CONTRACT FOR ANOTHER MODEL (the FEM of feature/fem-model will fill these): a SteadyResult with T (layers, ny, nx) in degC may carry arrays["T_surface"],
+         ["T_surface_mean"] (float, shape (2, ny, nx), degC, face 0 the top of layer 1 and face 1 the bottom of the last layer, NaN off the board and on a face not computed),
+         ["T_surface_flag"] (bool, (2, ny, nx), True where the value is an upper estimate; a computed face has none) and extras["t_max_surface_top"], ["t_max_surface_bottom"]
+         (float degC, the nanmax of each finite face, absent for a face not computed) and ["surface_excess_k"] (float K). Every reader (analysis.surface_stats, api.surface_report_lines,
+         plots.draw_surface, the Layer box, the part table, Simulation.save) needs only these names and shapes, so a model that fills them gets the whole display.
          THE THIN-COPPER TRAP: on a patterned board the surface under a source over ABSENT copper includes the rise across the bare laminate (the face term of laminate.face_terms):
          the surface can be 1 to 4 K above the node maximum on 35 um copper although the copper term is milli-kelvin. The part rows already include that term in their 'column' maximum,
          so there surface minus column is the copper term only. Never gate anything on the board-level difference (surface_excess_k).

@@ -291,3 +291,23 @@ def test_the_thick_plate_warning_quotes_the_estimate():
     sim = simulate(plate(), SolverOptions(models=("fvm",), cell_mm=1.0))
     w = [x for x in sim.warnings if "thick and poorly conducting" in x]
     assert len(w) == 1 and "surface estimate of this model" in w[0] and "upper side" in w[0]
+
+
+def test_no_surface_text_prints_a_negative_zero():
+    # Review: a part whose surface equals its column (the patterned-copper rows) printed '-0.000 K' from a rounding of -1e-5; every surface difference goes through signed_fixed
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent / "regression"))
+    import regress_boards as rb
+    from matplotlib.figure import Figure
+    from pcbthermal import plots
+    for name in ("hatched_copper", "drawn_ell", "example_board"):
+        p = rb.build(name, str(Path(__file__).parent.parent / "examples"))
+        sim = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=1.0 if name != "example_board" else 2.0))
+        texts = [sim.report()]
+        for r in sim.results.values():
+            for face in (0, 1):
+                fig = Figure()
+                plots.draw_surface(fig, r, p, face)
+                texts.append(fig.axes[0].get_title())
+        assert not any("-0.000" in t or "-0.00 %" in t for t in texts), name
