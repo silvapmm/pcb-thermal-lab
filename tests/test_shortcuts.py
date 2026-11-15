@@ -269,9 +269,6 @@ def test_every_key_of_every_menu_is_in_the_keyboard_list(win):
             for k in a.shortcuts():
                 key = k.toString(QKeySequence.PortableText)
                 ok = _mentions(shown, key)
-                m = re.fullmatch(r"Ctrl\+([1-9])", key)
-                if not ok and m:
-                    ok = "Ctrl+1 to Ctrl+4" in shown and 1 <= int(m.group(1)) <= 4      # the four tabs are listed as one range
                 if not ok and key in ("Ctrl+Shift+S", "Ctrl+N", "Ctrl+O", "Ctrl+S", "Ctrl+Q", "Del"):
                     ok = True                                                           # the standard keys of the File and Edit menus (written in the menus)
                 if not ok:

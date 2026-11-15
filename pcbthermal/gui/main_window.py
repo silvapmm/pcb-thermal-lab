@@ -581,6 +581,7 @@ class MainWindow(QMainWindow):
         for n, key in enumerate(("Board", "Stack-up", "Power profile", "Results")):
             a = self._act(f"{key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}", tip=f"Show the {key} tab (Ctrl+{n + 1})")
             self.a_tabs.append(a)                              # In the View menu (they were active but in no menu: found only in the keyboard list)
+            self.addAction(a)                                  # Also on the window, so the key works whatever has the focus
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
@@ -1885,7 +1886,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>M</b></td><td>Model of the map: the list of the models of the result (the same as a click on the model name of the card on the board)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / stop the calculation (the Run button is Stop while one runs)</td></tr>
-<tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
+<tr><td><b>Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs (also in the View menu)</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr>
 <tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""
