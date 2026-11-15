@@ -42,7 +42,7 @@ The standards therefore give no rule of "must": they allow both and note the num
 | JEDEC JESD51 series (JESD51-1, -2A, -12; M, N: the standards were not opened) | | From memory the series prints degC/W and "K/W" both; the RthetaJA definition is (Tj - Ta)/P | not relied on |
 | Incropera and DeWitt (M, N: not in the library) | | From memory: K for differences and for R_t (K/W), degC for temperatures | not relied on |
 
-Reading: of the 31 sources of the library with a resistance unit, 17 print K/W and 12 print degC/W (Shen and Wang both). The split follows the field and the era: the electronics-cooling group of Yovanovich printed degC/W up to 2000 and K/W from 2003 (Culham 2000 degC/W, Culham 2007 K/W: the same author, both units); the datasheet world (TI, ROHM) prints degC/W; Lienhard and Infineon print K/W. No source prints a gradient in degC/mm in the library (not searched exhaustively).
+Reading: of the 30 sources of the library with a resistance unit, 19 print K/W and 12 print degC/W (Shen and Wang print both). The split follows the field and the group more than the era: the Yovanovich group printed degC/W in 1992 to 2000 but K/W in 1995 (Teertstra) and from 2003 on (Culham 2000 degC/W, Culham 2007 K/W: the same author, both units); the datasheet world (TI, ROHM) prints degC/W; Lienhard and Infineon print K/W. No source prints a gradient in degC/mm in the library (not searched exhaustively).
 
 ## 4. What the program writes today (tree: development at 6c225276)
 
@@ -84,7 +84,7 @@ The rule in one sentence for the guide: "Temperatures are in degC; differences b
 ## 6. How sure
 
 - That K is SI-preferred and degC is accepted for a difference: sure (brochure read, three passages). The NIST wording is from a summary of the page (S).
-- That engineering practice is mixed: sure (31 sources of the library counted by a text search of the extracted files; counts are of occurrences, not of a reading of each paper; the JEDEC standards, Incropera, ISO 80000, IEC were not opened).
+- That engineering practice is mixed: sure (30 sources of the library counted by a text search of the extracted files; counts are of occurrences, not of a reading of each paper; the JEDEC standards, Incropera, ISO 80000, IEC were not opened).
 - The recommendation (K for differences) is a choice of consistency, not a requirement of any standard; degC for a difference would be equally conformant.
 
 ## What was read and what was not verified
