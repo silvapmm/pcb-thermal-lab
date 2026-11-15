@@ -12,7 +12,7 @@
          under a via has no physical cause: no sink is there).
          - On copper that covers the footprints (the example board at 1 mm, a dense 10 x 10 array of 0.3 mm vias at 0.5 and 0.25 mm) the field has no cold spot.
          - Where the copper of a plane covers only part of a footprint (a copper edge through the via, a part on bare laminate over a via) the fixed weights take
-           heat from cells that cannot supply it, and the FVM shows a cold spot of 8 to 14 K at 0.5 to 0.25 mm on a 2 W part (tens of K, even below the ambient,
+           heat from cells that cannot supply it, and the FVM shows a cold spot of 5.5 to 12.8 K at 0.5 to 0.25 mm on a 2 W part (the two values the test prints) (tens of K, even below the ambient,
            in the reviewer's sweeps); that limit is recorded in docs/theory.md 2.2 and is tested below as a strict expected failure, so that a correction of the
            via weights must update this test.
 """

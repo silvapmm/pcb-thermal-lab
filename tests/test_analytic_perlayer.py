@@ -118,7 +118,7 @@ def test_heat_balance_with_unlike_layers_vias_and_heatsink(fills, vias, sink):
 @pytest.mark.parametrize("fills,pos,hs", [((0.2, 1), "corner", 200.0), ((1, 0.2), "corner", 200.0), ((0.2, 0.2, 1, 1), "centre", 200.0)])
 def test_against_the_fvm_on_boards_with_very_different_copper(fills, pos, hs):
     """!
-    @brief The hottest rise against the FVM at 0.5 mm (measured on 48 boards: -4.07 to +0.06 %, the earlier common beta -8.64 to +5.76 %): within 4.5 % and not hot by
+    @brief The hottest rise against the FVM at 0.5 mm (measured on 48 boards against the shipped FVM: -4.91 to -0.01 % (mean of the magnitudes 1.19 %); the earlier -4.07 to +0.06 % was against the FVM of 2.5.x, the earlier common beta -8.64 to +5.76 %): within 4.5 % and not hot by
            more than 1.5 %; the cool side is the one laminate link per gap of the Analytic (the FVM with its sub-gaps and the 3D solid read hotter, review).
     @param fills Fill of each layer.
     @param pos Position of the part.
