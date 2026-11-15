@@ -251,7 +251,13 @@ def test_the_progress_is_indeterminate_while_the_fem_solves_and_the_bar_says_sto
     win._on_busy(True)
     assert "Ready" not in win.statusBar().currentMessage()
     win._on_busy(False)
-    assert win.statusBar().currentMessage() == "Ready."
+    assert win.statusBar().currentMessage() == "Ready."                         # No final line under Run: the bar is idle
+    # Review of the window: after a run or a Stop the bar keeps the final line of the dock instead of going back to 'Ready.'
+    sp.set_running(False, "Cancelled.")
+    assert win.statusBar().currentMessage() == "Cancelled."
+    sp.set_running(False, "Done: Tmax 85.5 °C, Rθ 10.99 K/W")
+    win._on_busy(False)
+    assert win.statusBar().currentMessage().startswith("Done: Tmax")
 
 
 def test_results_of_a_board_do_not_stay_when_another_board_is_opened_created_or_imported(win, qtbot, monkeypatch):
@@ -336,7 +342,8 @@ def test_the_properties_of_a_heat_source_fit_a_narrow_dock(win):
     win.doc.set_props("heater", 1, role="source")
     win._select_from_warning("heater", 1)
     QApplication.processEvents()
-    info = [lab for lab in win.inspector.findChildren(type(win.solver_panel.status)) if lab.text().startswith("Direct contact")]
+    from PySide6.QtWidgets import QLabel
+    info = [lab for lab in win.inspector.findChildren(QLabel) if lab.text().startswith("Direct contact")]
     assert info and all(lab.wordWrap() for lab in info)
     # At the dock width the window opens with (340 px) the panel scrolls only vertically; it asked 354 px before the wrap (a 30 px horizontal bar at 340 px)
     from PySide6.QtCore import Qt

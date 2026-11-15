@@ -220,7 +220,12 @@ class MainWindow(QMainWindow):
         self.stackup_page.add_parameters(self.board_panel.stack_box, self.board_panel.materials_box)
         self.elements = ElementList(self.doc)
         self.inspector = Inspector(self.doc)
+        self._busy_since = time.monotonic()
+        self._busy_timer = QTimer(self)                       # Refreshes the elapsed time of a running calculation in the status bar, once a second
+        self._busy_timer.setInterval(1000)
+        self._busy_timer.timeout.connect(self._show_run_state)
         self.solver_panel = SolverPanel(self.doc)
+        self.solver_panel.status_changed.connect(self._on_run_status)        # One owner of the run state: the status bar follows the line under Run
         self._build_docks()
         self._build_actions()
         self._build_toolbar()
@@ -1488,13 +1493,50 @@ class MainWindow(QMainWindow):
         self.a_bg.setStatusTip(tip)
 
     # ------------------------------------------------------------------ simulation
+    def _on_run_status(self, text):
+        """!
+        @brief The line under the Run button changed: show it in the status bar while a calculation runs or when it is a final state (Done, Cancelled, Failed, Cannot run).
+        @details Other lines (the note of Auto) stay in the dock only, so that the hints of the canvas in the status bar are not overwritten.
+        @param text The new line.
+        """
+        if not hasattr(self, "_busy_timer"):
+            return                                             # Still building the window
+        if getattr(self, "_is_busy", False) or text.startswith(self.FINAL_RUN_STATES) or (not text and self.statusBar().currentMessage().startswith("Cannot run:")):
+            self._show_run_state()                             # The last case: the reason went away (a coarser cell), the bar must not keep it
+
+    FINAL_RUN_STATES = ("Done:", "Cancelled.", "Failed.", "Cannot run:")    # Lines of the dock that the status bar keeps after a calculation
+
+    def _show_run_state(self):
+        """!
+        @brief Write the run state in the status bar: the stage and the elapsed time while a calculation runs, the final line of the dock afterwards, or 'Ready.'.
+        """
+        line = self.solver_panel.status.text()
+        if getattr(self, "_is_busy", False):
+            seconds = int(time.monotonic() - self._busy_since)
+            stage = f": {line}" if line else ""
+            self.statusBar().showMessage(f"Calculating ({seconds} s){stage}. Stop with Ctrl+.")
+        elif line.startswith(self.FINAL_RUN_STATES):
+            self.statusBar().showMessage(line)
+        else:
+            self.statusBar().showMessage(self.canvas.background_problem if getattr(self, "canvas", None) is not None and self.canvas.background_problem else "Ready.")
+
     def _on_busy(self, busy):
         """!
         @brief Follow the calculation engine: the Run button of the toolbar and of the dock is the Stop button while a calculation runs or waits.
         @param busy True while any calculation runs or waits.
         """
         self.solver_panel.set_busy(busy)
-        self.statusBar().showMessage("Calculating: Stop with Ctrl+." if busy else "Ready.")     # The bar said 'Ready.' during a run
+        # One owner of the run state: the status bar follows the line under the Run button. While busy it says what runs and for how long (a timer
+        # refreshes it every second); when the calculation ends it keeps the final line of the dock ('Done: ...', 'Cancelled.', 'Failed.',
+        # 'Cannot run: ...'), and says 'Ready.' only when there is no such line (review of the window: it went back to 'Ready.' after a run or a Stop)
+        self._is_busy = bool(busy)
+        if busy:
+            if not self._busy_timer.isActive():
+                self._busy_since = time.monotonic()
+                self._busy_timer.start()
+        else:
+            self._busy_timer.stop()
+        self._show_run_state()
         # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
         # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
         hold = (not busy) and time.monotonic() < getattr(self, "_run_hold_until", 0.0)

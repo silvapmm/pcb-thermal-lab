@@ -27,6 +27,7 @@ from .document import KINDS
 from . import theme as th
 from ..checks import fem_cell_for_direct, fem_needs_pyamg, line
 from .boxes import CollapsibleBox
+from .elided import ElidedLabel
 from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
 from ..numfmt import num
@@ -1543,6 +1544,7 @@ class SolverPanel(QWidget):
 
     run_requested = Signal()
     cancel_requested = Signal()
+    status_changed = Signal(str)                           # The line under the Run button changed (the main window mirrors it in the status bar)
     RUN_TEXT = "Run simulation   (F5)"
     STOP_TEXT = "Stop   (Ctrl+.)"
     STOP_TIP = "Stop the calculation (Ctrl+.)"
@@ -1640,11 +1642,18 @@ class SolverPanel(QWidget):
         self.run.setObjectName("primary")
         self.run.clicked.connect(self._run_clicked)        # Run when idle, Stop while a calculation runs
         self.progress = QProgressBar()
+        self.progress.setObjectName("runProgress")         # A slim bar (theme style): an empty full-height box was always shown under Run
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
-        self.status = QLabel("")
-        self.status.setWordWrap(True)
+        keep = self.progress.sizePolicy()
+        keep.setRetainSizeWhenHidden(True)                 # Hidden when idle, its place kept: the boxes below do not jump when a run starts
+        self.progress.setSizePolicy(keep)
+        self.progress.setVisible(False)
+        # The status line: up to three lines, the rest elided with the whole text in the tooltip; it always keeps two lines of height so that a
+        # one-line stage and a two-line one ('Solving FEM (assembly and solve: ...)') do not move the Models box while a calculation runs
+        self.status = ElidedLabel("", max_lines=3)
+        self.status.setMinimumHeight(2 * self.status.fontMetrics().lineSpacing() + 2)
         self.checks = WarningAccordion("simulation")          # The 'Warnings (N)' box of the scrolled settings
         # The Run button and the progress are a header of their own: the main window keeps it above the scrolled boxes, so the
         # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
@@ -1904,7 +1913,7 @@ class SolverPanel(QWidget):
         self.cell.setValue(cell)
         # A board with imported copper has its own sentence (Auto is capped at 1 mm there, and above 1.5 mm the result is a screening estimate)
         note = copper.auto_cell_note(self.doc.problem, cell)
-        self.status.setText(note or (f"Auto: the cell was enlarged to {num(cell, 2)} mm to fit the memory limit." if cell > base + 1e-9 else ""))
+        self._set_status(note or (f"Auto: the cell was enlarged to {num(cell, 2)} mm to fit the memory limit." if cell > base + 1e-9 else ""))
 
     def _apply(self, *_):
         """!
@@ -1974,6 +1983,11 @@ class SolverPanel(QWidget):
         """!
         @brief Text, tooltip and enabled state of the Run / Stop button: Stop is always usable; Run is off while a model is above the memory limit.
         """
+        # The button is drawn as Stop (the 'stop' fill of the theme, red like the stop square of the tool bar) while a calculation runs
+        if bool(self.run.property("stop")) != self._busy:
+            self.run.setProperty("stop", self._busy)
+            self.run.style().unpolish(self.run)
+            self.run.style().polish(self.run)
         if self._busy:
             self.run.setText(self.STOP_TEXT)
             self.run.setToolTip(self.STOP_TIP)
@@ -1985,12 +1999,20 @@ class SolverPanel(QWidget):
         # Why Run is grey is said next to the button (the status line of the footer, above the scrolled boxes), not only in a tooltip or below the fold
         reason = f"Cannot run: {self.blocked}" if self.blocked else ""
         if reason:
-            self.status.setText(reason)
             self.status.setStyleSheet(f"color: {th.colors(th.current_name())['bad']};")
+            self._set_status(reason)
         elif self.status.text().startswith("Cannot run: "):
-            self.status.setText("")
+            self._set_status("")
         if not reason:
             self.status.setStyleSheet("")
+
+    def _set_status(self, text):
+        """!
+        @brief Write the line under the Run button and tell the main window (which shows the run state in its status bar too).
+        @param text The line, "" for none.
+        """
+        self.status.setText(text)
+        self.status_changed.emit(text)
 
     def set_running(self, running, text=""):
         """!
@@ -2000,7 +2022,8 @@ class SolverPanel(QWidget):
         """
         self._running = running
         self._style_run_button()
-        self.status.setText(text)
+        self._set_status(text)
+        self.progress.setVisible(bool(running))
         if not running:
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
@@ -2011,7 +2034,8 @@ class SolverPanel(QWidget):
         @param text Status text.
         @param fraction Progress between 0 and 1.
         """
-        self.status.setText(text)
+        self._set_status(text)
+        self.progress.setVisible(True)
         # The FEM has no inner progress (one assembly and solve): an indeterminate bar says 'working', a fixed 66 % would say a number it does not know
         indeterminate = text.startswith("Solving FEM")
         self.progress.setRange(0, 0 if indeterminate else 100)
