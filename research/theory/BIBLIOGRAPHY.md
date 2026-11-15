@@ -1333,7 +1333,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [IncroperaDeWitt] | fin and sheet equations, correlations, radiation | M content, S citations | section 2 |
 | [CarslawJaeger] | Fourier series, K0 Green function of the fin equation, disc sources (I0, I1) | M content, S citation | section 2 |
 | [CulhamYovanovich1998] | no homogenised conductivity of a laminate; coupon cases | R pages 460 to 466 (scan; page 462, equations 7 to 10, re-read in batch 1) | section 12, batch 1 |
-| [EC1998Spreading] | Seri Lee plate check, equations 1 and 2, worked example | R (equations and numbers, as images) | section 2 |
+| [EC1998Spreading] | Seri Lee plate check, equations 1 and 2, worked example | S: the worked example and its printed values R (the text of the article, re-read in the audit of 2.8.0); the equations are images that were not read (N). The earlier status 'R (equations and numbers, as images)' was wrong (audit 2.8.0 A1, RA-346; the final review 2a aligned this row with `docs/theory.md` 12) | section 2 |
 | [Lee1995] | cited by earlier documents for the plate check | N (not located) | section 2 |
 | [Muzychka2003], [Lemczyk1992] | cross of five sources and coupon cases reproduced | R | section 12 |
 | [ChurchillChu1975] | vertical plate, general and laminar forms | paper N; equations R through [Lienhard2024] (8.13a, 8.13b) | section 3 |
@@ -1344,7 +1344,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [JESD15-3], [JESD51family] | two-resistor model, theta and psi definitions | JESD15-3 R through a mirror; JESD51 documents N | section 4 |
 | [Celik2008] | grid convergence index, procedure and Table 1 | R pages 4 to 9 | section 19 |
 | [Roache] | GCI as used by ASME V&V 20 | M (summaries S) | section 1 |
-| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms, forced plate (page 311), air and copper properties | R pages 310, 311, 419 to 421 (equations 8.11 to 8.13b by image), 431, 433 to 437, 755 (Table A.6) and Table A.1 | section 19, batch 2, image pass below |
+| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms, forced plate (page 311), air and copper properties | R pages 310, 311, 419 to 421 (equations 8.11 to 8.13b by image), 431, 433 to 437, 755 (Table A.6) and 739 (Table A.1, PDF 753, by image in audit L12); in audit L1/L5 by image 72 (eqs 2.28 to 2.31), 309 (eq. 6.68), 312 (eq. 6.72), 332 to 334; printed 234, PDF 248 (eq. 5.62, used in `docs/theory.md` 10.5) | section 19, batch 2, image pass below; the audits of 2.8.0 |
 | [Fish2017] | microspreading of via cells (context of the constriction) | R chapter 6, reproduced; chapter 7 formulation R (equations 58 to 83, 177 to 182), its series S; chapter 5 not read | sections 17, 18, batch 1 |
 | [Kron2022], [MFEMStaticCond] | Kron reduction, static condensation | S; [Kron2022] is S. Chevalier, M. R. Almassalkhi, *Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554; the theory of the reduction is read in [DorflerBullo2013Kron] (R in part), the better citation | sections 1, 24, batch 2 |
 | [George1973] | nested-dissection fill and operations (form of the memory law) | R in part (abstract, Theorems 4.1, 5.2, the closing remark on the cube; the constants of A.6 unreadable), with [LiGolub2013] slides 19, 20 (R) | sections 22, 24 |
