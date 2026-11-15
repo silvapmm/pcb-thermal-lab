@@ -195,6 +195,8 @@ class Network:
         self.area = area
 
         self.copper = copper.resolve(faces, problem) if sampling == "area" else None
+        if faces is None and sampling == "area":
+            self.copper = copper.drawn_source(problem, cells_x, cells_y) or self.copper          # Drawn copper read as an import (copper.drawn_source); the FDM has no variant that must keep the old path
         # Copper fill at the nodes
         if sampling == "area":
             # The union of the zones per sample point on the cells, then averaged over the cells around every node
@@ -435,6 +437,8 @@ def unknowns(problem, cell_mm=2.0):
         # The laminate nodes of the rule exist only at the nodes that carry them: count them as the network will (area sampling of the fill, the default)
         dx, dy = b.width / cells_x, b.height / cells_y
         cell_fill = copper.problem_fill(problem, cells_x, cells_y, dx, dy, 4)
+        for layer, drawn_fill in copper.drawn_layer_cuts(problem, cells_x, cells_y).items():     # (the exact fill of the drawn layers with a cut cell, as the network reads it)
+            cell_fill[layer] = drawn_fill
         fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
         if b.has_outline():
             c = _node_average(exact_coverage(b.outline, cells_x, cells_y, dx, dy))

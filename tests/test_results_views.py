@@ -30,11 +30,13 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
 # 2.7.0 (fix/simple-stackup-physical-layers, merge 35f242aa): the 'field' hash (489e1bd3 -> a32414ed) and the 'fields' hash (324047ee -> 07e40550, All layers draws the same field) moved, because the 4-layer example board's FVM field moved exactly
 # there (hottest 85.203 -> 85.294 K at 2 mm); not the markers, the hot mark or the display code and the 'gradient' hash (f1046ff0 -> f3c6d4e3) is the gradient of that same field; the drawing code is unchanged.
+# fix/drawn-copper-faces: the partial copper of the example board is read as an import (exact fill, flow-based faces), so the FVM field moved (hottest 85.29380 -> 85.29256 K at 2 mm);
+# the 'field' hash (a32414ed -> 3cea24b0), the 'fields' hash (07e40550 -> 5be14198) and the 'gradient' hash (f3c6d4e3 -> b8cdc541) follow the field, the drawing code is unchanged.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
-    "field": "a32414ed17a349d01fa6453f2f972c4aef94036b0a670ca270eefdbc1e3cadf4",
-    "fields": "07e405503f2f7d094e122246b6e4a18c5c9d6d308badf72700926bc8152b201e",
-    "gradient": "f3c6d4e35e58d695307747a726722348e4bfec6c31bbdb84816d5e55a38a55ec",
+    "field": "3cea24b0d404096e174db97d0ceb290266fcbb94c0a9a57d2ec12602d1532a91",
+    "fields": "5be14198096a76abfc5f9e2de79268ad47f8bd6700775ff24b18f4e5616f4fb0",
+    "gradient": "b8cdc5413c1f54a0cfb4055c716bb3ab2bfbbfb928487dfa972ea1e35387dfe6",
 }
 
 

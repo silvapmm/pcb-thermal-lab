@@ -95,7 +95,9 @@ def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
     # (fix/fdm-harmonic-face-mean: the FDM face is the harmonic mean of the physical sheets, so the partial top copper of the example no longer leaks across its edge: 84.41209008961394 -> 84.45321208048577 K, +0.041 K)
     # (fix/fdm-copper-edge-faces: the FDM face sheet from the copper fill of the cells, the partial top copper of the example is a copper edge: 84.45321208048577 -> 84.51886092076673 K, +0.066 K;
     # the FVM value 85.20347171898253 was already stale on develop 6e66ae05 (85.29380457046574, no FVM change here), re-baselined with it)
-    stored = {fvm: 85.29380457046574, fdm: 84.51886092076673, solid3d: 85.48327731195374}
+    # (fix/drawn-copper-faces: the partial top copper of the example is read as an import (exact fill, flow-based faces): FVM 85.29380457046574 -> 85.29255698693045 K (-0.0012),
+    # FDM 84.51886092076673 -> 84.62254460447653 K (+0.104); the board with the rectangle as outline equals the board without to rounding (1e-14 K), so the outline path is consistent)
+    stored = {fvm: 85.29255698693045, fdm: 84.62254460447653, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])

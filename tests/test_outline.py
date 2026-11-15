@@ -63,7 +63,11 @@ def test_rectangle_as_polygon_is_identical_to_no_outline(model):
 def test_outline_smaller_than_the_box_equals_the_smaller_board(model):
     small = board(None, width=30, height=40)
     cut = board([[0, 0], [30, 0], [30, 40], [0, 40]], width=60, height=40)
-    cut.zones = [z for z in cut.zones]                                   # The copper keeps its full size: only the board shape limits it
+    # The copper of the cut board is the copper of the small board (inset 0.5 mm from the outline). With the copper to the full box the two boards differ by a strip of
+    # copper at the outline (the drawn-copper faces read a copper edge 0.5 mm from the outline, the earlier path hid it): FDM 123.843 against 123.908 K, not the same board
+    cut.zones = []
+    for layer in (1, 2):
+        cut.add_zone(layer, rect=(0.5, 0.5, 29.5, 39.5))
     a, b = run(small, model), run(cut, model)
     # Same copper on the board (the zone beyond the outline is not board), same edges: the same temperatures
     assert b.t_max == pytest.approx(a.t_max, abs=0.05) and b.t_mean == pytest.approx(a.t_mean, abs=0.05)
