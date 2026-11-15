@@ -25,11 +25,11 @@ from pcbthermal import Problem, api, copper, fdm, fvm, memory       # noqa: E402
 
 # Heater-mean rise (K) of the finite-element solution, extrapolated to zero size (research/drawn-copper-faces README 2.1)
 FEM = {"drawn_inset_square": 57.157, "drawn_stripes_pad": 73.872, "drawn_ell": 64.563}
-# What the branch gives (K), frozen: model, cell in mm
+# What the branch gives (K), frozen: model, cell in mm. +4 to +5e-6 K on every value with fix/face-film-half-slab (the film passes the half copper layer: 1e-7 of a 40 to 70 K rise, hotter)
 FROZEN = {
-    "drawn_inset_square": {("fvm", 1.0): 57.216642, ("fvm", 0.5): 56.375651, ("fdm", 1.0): 56.609878, ("fdm", 0.5): 56.495192},
-    "drawn_stripes_pad": {("fvm", 1.0): 73.465223, ("fvm", 0.5): 72.477498, ("fdm", 1.0): 72.540350, ("fdm", 0.5): 72.467266},
-    "drawn_ell": {("fvm", 1.0): 64.558501, ("fvm", 0.5): 62.978721, ("fdm", 1.0): 61.978150, ("fdm", 0.5): 62.573500},
+    "drawn_inset_square": {("fvm", 1.0): 57.216647, ("fvm", 0.5): 56.375655, ("fdm", 1.0): 56.609882, ("fdm", 0.5): 56.495197},
+    "drawn_stripes_pad": {("fvm", 1.0): 73.465228, ("fvm", 0.5): 72.477503, ("fdm", 1.0): 72.540355, ("fdm", 0.5): 72.46727},
+    "drawn_ell": {("fvm", 1.0): 64.558505, ("fvm", 0.5): 62.978725, ("fdm", 1.0): 61.978155, ("fdm", 0.5): 62.573505},
 }
 
 

@@ -171,15 +171,16 @@ def test_t1_seri_lee_plate_through_the_block_model(position):
 def test_t2_muzychka_cross_case_3():
     """!
     @brief Muzychka, Culham and Yovanovich, J. Electronic Packaging 125 (2003) 178-185, case 3: five 20 x 20 mm sources of 5 W in a cross on a 100 x 100 x 10 mm plate.
-    @details k 50 W/mK, h 50 W/m2K on the bottom, ambient 25 degC; printed maximum temperature 80.61 degC at the centre. The FVM at 1 mm reads 79.44 +- 0.1 degC
-             (one node through the thickness is the column mean): the shortfall is 0 to 2.5 % of the 55.6 K rise (measured 2.1 %), never above the paper.
+    @details k 50 W/mK, h 50 W/m2K on the bottom, ambient 25 degC; printed maximum temperature 80.61 degC at the centre. The FVM at 1 mm reads 79.69 +- 0.1 degC
+             (one node through the thickness is the column mean, with the film through the half plate since fix/face-film-half-slab: it read 79.44 before, the 0.25 K is the
+             film term): the shortfall is 0 to 2.5 % of the 55.6 K rise (measured 1.7 %), never above the paper.
              The thick-plate warning stays silent (bound 2.8 % of the rise, below the 5 % limit). A failure of the band means the model moved; a reading above 80.61
              would mean it now exceeds the surface value the paper reports (a double count of the film).
     @return None.
     """
     src = [(_sq(50, 50, 20), 5.0), (_sq(30, 50, 20), 5.0), (_sq(70, 50, 20), 5.0), (_sq(50, 30, 20), 5.0), (_sq(50, 70, 20), 5.0)]
     sim, cen, _ = _plate(100.0, 10.0, 50.0, 50.0, src, 1.0)
-    assert cen[0] == pytest.approx(79.44, abs=0.1)
+    assert cen[0] == pytest.approx(79.69, abs=0.1)
     shortfall = (80.61 - cen[0]) / (80.61 - AMB)
     assert 0.0 <= shortfall <= 0.025
     assert _thick_warnings(sim) == []
@@ -196,20 +197,19 @@ CASE2_COLUMN_MEAN = [95.35, 99.15, 97.49, 97.01]              # 3D surface centr
 def test_t3_muzychka_case_2_baseplate():
     """!
     @brief Muzychka, Culham and Yovanovich (2003), case 2 (Tables 3 and 4): a 50 x 50 x 10 mm baseplate, k 150 W/mK, h 400 W/m2K, four 10 x 10 mm sources of 10, 25, 20, 15 W.
-    @details Printed centroids 97.40 / 103.82 / 101.28 / 99.94 degC (ambient 25 degC assumed, not printed). The FVM at 1 mm reads each centroid 2.5 to 6.0 K below the paper
-             (measured 2.9 / 5.5 / 4.7 / 3.8 K), never above it; this is the documented thick-plate limit (through-thickness term plus the film on the node, research/
-             muzychka-case2-analytic 3). The thick-plate warning fires on all four sources. With the film put through the half plate (h = 1/(1/400 + 0.01/300) = 394.74
-             W/m2K in the input) the FVM reads the 3D column mean of the research within 0.15 K (measured 0.04 to 0.08 K), which proves the film term is the part of the
-             gap that is not a bound. A failure of the shortfall band means the plate model moved; a failure of the column mean that the film treatment changed (expected
-             when fix/face-film-half-slab removes the film term: then re-baseline with the reason).
+    @details Printed centroids 97.40 / 103.82 / 101.28 / 99.94 degC (ambient 25 degC assumed, not printed). The FVM at 1 mm reads each centroid 1.5 to 5.0 K below the paper
+             (measured 2.0 / 4.6 / 3.7 / 2.9 K), never above it: what is left is the through-thickness term of the single node (the paper reports the surface, the node is the
+             column mean). Since fix/face-film-half-slab the film h passes the half plate (h_eff = 1/(1/400 + 0.01/300) = 394.74 W/m2K inside the model), so with h = 400 in the input
+             the FVM reads the 3D column mean of the research within 0.10 K (measured 0.04 to 0.08 K); before it read 2.9 to 5.5 K below the paper and 0.85 to 0.89 K below the column
+             mean (the film term, 0.84 K). The thick-plate warning, whose bound is now the through-thickness term q'' t / (2 k) alone, fires on the three sources whose bound passes 5 % of the
+             rise (the 10 W source is at 4.7 %). A failure of the shortfall band means the plate model moved; a failure of the column mean that the film term moved.
     @return None.
     """
     sim, cen, _ = _plate(50.0, 10.0, 150.0, 400.0, CASE2_SOURCES, 1.0)
     for c, paper in zip(cen, CASE2_PAPER):
-        assert 2.5 <= paper - c <= 6.0
-    assert len(_thick_warnings(sim)) == 4
-    _, cen_h, _ = _plate(50.0, 10.0, 150.0, 394.74, CASE2_SOURCES, 1.0)
-    assert np.max(np.abs(np.asarray(cen_h) - np.asarray(CASE2_COLUMN_MEAN))) < 0.15
+        assert 1.5 <= paper - c <= 5.0
+    assert len(_thick_warnings(sim)) == 3
+    assert np.max(np.abs(np.asarray(cen) - np.asarray(CASE2_COLUMN_MEAN))) < 0.10
 
 
 # ----------------------------------------------------------------------------------------------------------------------

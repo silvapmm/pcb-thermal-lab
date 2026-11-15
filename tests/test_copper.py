@@ -28,10 +28,16 @@ def test_every_cell_of_the_outer_face_loses_heat_over_copper_and_laminate():
     p = cd.board(40)
     r = fvm.solve_steady(p, 1.0)
     b = p.board
-    top = float((b.h_top * (r.T[0] - b.ambient) * r.dx * r.dy).sum())
+    # The film passes the half copper layer where there is copper (fix/face-film-half-slab, theory 1.2a): the coefficient of a cell is the fill mean of Board.face_film_h
+    net = fvm.Network(p, r.T.shape[2], r.T.shape[1])
+    top = float((b.face_film_h(b.h_top, 0, net.fill[0]) * (r.T[0] - b.ambient) * r.dx * r.dy).sum())
     assert top == pytest.approx(r.power_out["top"], rel=1e-9)         # The whole face, pad and bare laminate alike
     w_pad, w_rest = cd.face_split(p)
-    assert w_pad > 0 and w_rest > 0 and w_pad + w_rest == pytest.approx(top, rel=1e-9)
+    # copper_dissipation.face_split (a research helper, not edited here) multiplies the node temperature by the plain h_top: the same face without the film term, so it
+    # covers the whole face as that sum, 3e-7 of the heat above `top` (the film term)
+    top_plain = float((b.h_top * (r.T[0] - b.ambient) * r.dx * r.dy).sum())
+    assert w_pad > 0 and w_rest > 0 and w_pad + w_rest == pytest.approx(top_plain, rel=1e-9)
+    assert top_plain == pytest.approx(top, rel=1e-6) and top_plain > top
     assert w_rest > 0.2 * w_pad                                       # The copper carried heat out beyond its edge to the laminate
 
 

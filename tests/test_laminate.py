@@ -55,7 +55,9 @@ def test_a_uniform_one_layer_board_matches_the_series_closed_form(model):
     p.add_heater(1, 5.0, rect=(0, 0, 50, 50), name="U")
     b = p.board
     t_lam = b.thickness - b.copper_thickness[0]
-    expected = 5.0 / (0.05 * 0.05 * (10.0 + 1.0 / (1.0 / 15.0 + t_lam / b.materials.k_fr4_through)))
+    # Both films pass the half copper layer of the node (fix/face-film-half-slab, theory 1.2a)
+    r_cu = b.copper_thickness[0] / (2.0 * b.materials.k_copper)
+    expected = 5.0 / (0.05 * 0.05 * (1.0 / (1.0 / 10.0 + r_cu) + 1.0 / (1.0 / 15.0 + t_lam / b.materials.k_fr4_through + r_cu)))
     r = (fvm.solve_steady(p, 5.0) if model == "fvm" else fdm.solve_steady(p, 5.0))
     assert rise(r) == pytest.approx(expected, rel=1e-9)
     assert abs(r.balance_error) < 1e-9 and r.T.shape[0] == 1

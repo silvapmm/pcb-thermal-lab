@@ -248,9 +248,11 @@ class Network:
         self.g_bottom = np.zeros((L, ny, nx))
         self.g_heatsink = np.zeros((L, ny, nx))
         self.g_side = np.zeros((L, ny, nx))
-        self.g_top[0] = b.h_top * cell
+        # The films act on the copper node through the half copper layer between the node and the face (Board.face_film_h, theory 1.2): the node is the column mean
+        self.g_top[0] = b.face_film_h(b.h_top, 0, f[0]) * cell
         if self.laminate is None:
-            self.g_bottom[L - 1] = b.h_bottom * cell   # (With laminate nodes the bottom film acts on the last of them, below)
+            # (With laminate nodes the bottom film acts on the last of them, below, and carries the half copper in series there too)
+            self.g_bottom[L - 1] = b.face_film_h(b.h_bottom, L - 1, f[L - 1]) * cell
         for s in problem.heatsinks:
             if s.is_block() and with_blocks:
                 continue                               # A metal block is a layer of its own (below)
@@ -347,7 +349,7 @@ class Network:
         @param b The Board.
         @param cell Board area of every cell (m2), shape (ny, nx).
         """
-        layers = laminate.extra_layers(b, self.laminate, cell, self.cover, self._edge_lengths(), b.h_side)
+        layers = laminate.extra_layers(b, self.laminate, cell, self.cover, self._edge_lengths(), b.h_side, self.fill[0])
         zeros = np.zeros((len(layers), self.ny, self.nx))
         base = self.nl
         self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in layers])])

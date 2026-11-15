@@ -78,6 +78,16 @@ def test_the_block_area_on_the_grid_is_the_exact_area_across_an_outline(deg, cel
         assert got == pytest.approx(exact, rel=1e-12)
 
 
+def _link_resistance(p, block):
+    """!
+    @brief Resistance per unit area between the copper node of the board and the node of a block over full copper: the interface plus half the block plus half the copper (fix/face-film-half-slab).
+    @param p Problem.
+    @param block The Heatsink (a block).
+    @return m2K/W.
+    """
+    return max(block.interface_resistance(), 1e-7) + block.thickness / (2.0 * block.k) + p.board.copper_thickness[0] / (2.0 * p.board.materials.k_copper)
+
+
 def test_contact_conductance_over_full_copper_is_the_exact_area_over_the_interface_resistance():
     # Closed form: with the copper fill 1 under the whole block the contact is area / R'' (the 4 x 4 sampling read 0.3 to 0.8 % of the area wrong here)
     p = board(20.0, False)
@@ -85,7 +95,7 @@ def test_contact_conductance_over_full_copper_is_the_exact_area_over_the_interfa
     a = p.heatsinks[0]
     exact = area_right_of(a.polygon * 1e3, -1e9) * 1e-6
     g = sum(i["g_link"].sum() for i in net.block_info)
-    assert g == pytest.approx(exact / max(a.interface_resistance(), 1e-7), rel=1e-9)
+    assert g == pytest.approx(exact / _link_resistance(p, a), rel=1e-9)
 
 
 def test_a_rectangle_on_the_grid_lines_is_unchanged():
@@ -152,10 +162,11 @@ def test_contact_capacity_and_faces_of_a_block_cut_by_the_outline_are_exact(deg)
         a = p.heatsinks[0]
         exact = area_right_of(a.polygon * 1e3, 20.4) * 1e-6
         info = net.block_info[0]
-        assert info["g_link"].sum() == pytest.approx(exact / max(a.interface_resistance(), 1e-7), rel=1e-9)
+        assert info["g_link"].sum() == pytest.approx(exact / _link_resistance(p, a), rel=1e-9)
         assert net.C[info["layer"]].sum() == pytest.approx(a.rho_cp * a.thickness * exact, rel=1e-9)
         # The board face left exposed plus the block is the board area: the face under the block exchanges nothing
-        bottom = net.g_bottom[info["board_layer"]].sum() / p.board.h_bottom
+        # (full copper: the bottom film is the one through the half copper layer, fix/face-film-half-slab)
+        bottom = net.g_bottom[info["board_layer"]].sum() / p.board.face_film_h(p.board.h_bottom, p.board.layers - 1, 1.0)
         assert bottom == pytest.approx(net.cover.sum() * net.dx * net.dy - exact, rel=1e-9)
 
 

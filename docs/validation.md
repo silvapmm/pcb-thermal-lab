@@ -1088,6 +1088,8 @@ From `research/effective-conductivity/` (README and seventeen figures counting t
 
 One temperature node through the thickness is the mean of the layer: the surface under a source is hotter by at most `q'' t / (2 k)` through the thickness, less when the heat spreads sideways (measured 1.6 % of the rise for a 10 mm plate of `k` 50 and 8 to 9 % for `k` 10, against bounds of 2.25 % and 14 to 16 %), plus the film term `q_f t / (2 k)` of the next paragraph, negligible for copper layers.
 
+*The numbers of this subsection and of the thick-plate table of 22 were measured before `fix/face-film-half-slab`; since that branch the ambient film passes the half plate in the model (section 55): case 2 reads the column mean within 0.1 K, the column reads 0.84 K below the surface against the 0.93 K bound (the bound now holds), and the film term left the warning of a one-layer plate (S1 of case 2 is silent again, 4.7 % of its rise).*
+
 **Case 2 of Muzychka, Culham and Yovanovich (2003)** (a 50 x 50 x 10 mm plate of `k` 150, `h` 400 W/m²K on the bottom, adiabatic top and sides, four 10 x 10 mm sources of 10, 25, 20 and 15 W; `research/muzychka-case2-analytic`, which also holds the scripts). The independent 3D solver reproduces the paper's centroids to 0.03 K (97.39 / 103.81 / 101.27 / 99.93 against 97.40 / 103.82 / 101.28 / 99.94 with 16 sub-slabs through the thickness). The FVM, FDM and Analytic read 94.46 / 98.30 / 96.62 / 96.13 C, **2.9, 5.5, 4.7 and 3.8 K below** the surface; the 3D solid 2.0 to 4.6 K below. The gap is two terms:
 
 | term (K) | S1 | S2 | S3 | S4 | what it is |
@@ -2847,3 +2849,71 @@ Of the 317 records at 2, 1 and 0.5 mm, only the Analytic records of the finned b
 ### 54.4 Limits
 
 A block polygon that crosses itself, or with so many long edges that the exact cover refuses it, keeps the sampled rule (times the board cover). The part of a block over a cell whose board share is below 0.01 is dropped with that cell, as the board is (1e-5 to 3e-5 of the block area in the review cases). The FDM averages the cell cover over the four cells around a node, as it does for the board. The extra coefficient of a plain heatsink without thickness (`h_extra` over a polygon) still uses the 4 x 4 sampled cover of the whole cell times the board area of the cell (no double count there): its area is off by -0.6 to +0.2 % in the six review cases and the hottest point by at most 0.09 K at 30 W/m2K (an ellipse cutting the heatsink at a 2 mm cell, on a rise of 121 K). The 3D solid takes the cell cover for the block slabs: its sliver cells are those of `docs/validation.md` 33. Not compared against a physical block.
+
+## 55. The face film passes the half copper layer (`fix/face-film-half-slab`)
+
+**What changed.** Every ambient film of a copper node of the layered models is in series with the half copper layer between the node (the column mean) and the face, `h_eff = 1/(1/h + t_cu/(2 k_cu))` over copper, `h` over bare laminate, the area mean in between (`Board.face_film_h`, `docs/theory.md` 1.2a); on a metal block the contact link takes half the block and half the copper in series, and the exposed film half the block. The 3D solid is not changed: it keeps one cell through each copper slab and already put half of that cell in series with the film (`solid3d.face_g`), so the layered models now have its series (its metal blocks are cut in slabs of 1 mm, and on the plate of 55.1 the 3D solid and the FVM agree to 0.001 K). Not covered, measured and left out on purpose (55.5): the half laminate over a bare outer face, the half copper towards the laminate of a multilayer board (the vertical links start at the node); also not covered: the edge film `h_side`, the plain heatsink `h_extra`.
+
+### 55.1 Case 2 of Muzychka, Culham and Yovanovich (2003): the column mean
+
+A 50 x 50 x 10 mm plate, `k` 150 W/mK, `h` 400 W/m²K (`h t/(2k)` = 1.3·10⁻²), four 10 x 10 mm sources of 10, 25, 20, 15 W; 1 mm cell; the centroid of each source minus the column mean of the independent 3D solver (`research/muzychka-case2-analytic` 3: 95.35 / 99.15 / 97.49 / 97.01 °C), in K, before the change (`development` ea7791be) and after:
+
+| model | before | after |
+| :-- | :-- | :-- |
+| FVM | −0.894 / −0.850 / −0.867 / −0.877 | +0.042 / +0.087 / +0.071 / +0.058 |
+| FDM | −0.852 / −0.893 / −0.878 / −0.866 | +0.084 / +0.045 / +0.059 / +0.070 |
+| Analytic | −0.893 / −0.847 / −0.864 / −0.876 | +0.043 / +0.091 / +0.074 / +0.060 |
+| Lumped (not part of the target) | −0.637 / −1.68 / −1.138 / −1.179 | +0.299 / −0.742 / −0.200 / −0.243 |
+| 3D solid (one cell through the plate) | | +0.042 / +0.087 / +0.071 / +0.058 |
+
+The 'after' column is the review's run against the unrounded column means of the folder's reference (0.5 mm, 8 sub-slabs: 95.347 / 99.147 / 97.485 / 97.008 °C); the 'before' column and the first version of this section were taken against the means rounded to 0.01 K, which moved them by up to 0.005 K. The FVM, FDM and Analytic read the column mean within **0.10 K** (at most +0.091 K, the Analytic at S2; target 0.10 K). The 3D solid gives the FVM number to 0.001 K here because it too keeps one cell through the 10 mm copper slab with half of it in series with the film. The printed centroid minus the FVM is 2.0 / 4.6 / 3.7 / 2.9 K (it was 2.9 / 5.5 / 4.7 / 3.8 K), the through-thickness term that the single node cannot hold; never above the paper. The cross of the same paper (case 3, 100 mm, `k` 50, `h` 50): the FVM centre reads 79.69 °C (79.44 before) against the printed 80.61 °C, 1.7 % of the rise low (2.1 % before). `tests/test_published_cases.py` (T2, T3) hold the new numbers. A one-dimensional column (a source over a whole 10 mm plate, `h` 400) reads `q''(1/h + t/(2k))` to within 0.2 % in the FVM, FDM and Analytic (`tests/test_face_film_half_slab.py`); without the series film it read 1.3 % low.
+
+### 55.2 Boards of ordinary copper
+
+The independent coupon of Culham and Yovanovich (35.6 µm of copper, `h` 5 W/m²K; `tests/test_layered_vs_3d.py`, 16 mm source, 1 mm cell) moves by at most 0.0001 percentage points in every model (FVM −0.0222 / −0.0222 %, FDM −0.5851 / −0.5850 %, Lumped +0.4411 / +0.4412 %, Analytic −0.0637 / −0.0637 %, 3D solid +0.0000 %) and the one-layer board with full copper by 0.0001 points. On the 17 boards of the frozen numbers (249 records at 2, 1 and 0.5 mm; 58 times to 63 %): **204 records move** (the 51 of each of the FVM, FDM, Lumped and Analytic, none of the 3D solid), by a median of 2.0·10⁻⁵ to 2.1·10⁻⁵ K on the hottest temperature, at most **0.040 K on the finned block board** (the half block in its link and its film), and 29 of the 58 times to 63 % move by more than the 10⁻⁶ relative tolerance. All the moves are towards hotter.
+
+### 55.3 Metal blocks against the 3D solid
+
+The remainder of the block's thickness (3D solid minus FVM at the hottest point, minus the same difference for a stiff block of 10⁵ W/mK; the cases of `tests/test_thick_plate.py`, 2 mm cell), in K:
+
+| case | none (before) | film only | contact link only | both (as implemented) |
+| :-- | :-- | :-- | :-- | :-- |
+| 10 mm part, 6 mm of 10 W/mK, same face | +4.81 | +4.79 | −2.51 | −2.54 |
+| 3 mm part, 3 mm of 50 W/mK, same face | +0.90 | +0.90 | −0.46 | −0.46 |
+| 10 mm part, 10 mm of 2 W/mK, under the board | +1.76 | +1.48 | −0.16 | −0.41 |
+| 3 mm part, 3 mm of 50 W/mK, under the board | +0.01 | +0.01 | −0.02 | −0.02 |
+
+The half block in the contact link is what carries the effect. The one-dimensional half block over-resists a source that spreads inside the block, so the layered block now reads hotter than the solid, by less than it read cooler before in every case (the magnitude falls from 4.8 to 2.5, 0.9 to 0.5, 1.8 to 0.4 K): on the safe side. The finned block of the harness moves by +0.027 K (0.04 %) and the plain 3 mm plate by +0.02 K.
+
+**Review: the choice between the variants, measured** (the review's script patches the two terms of `blocks.extra_layers` one at a time; FVM minus the 3D solid at the hottest point, minus the same for a stiff block of 10⁵ W/mK; positive = the FVM reads hotter; 60 x 60 mm two-layer board, 30 mm block on a 30 mm pad, `R''` 1 K cm²/W unless said; cells 2 mm / 1 mm):
+
+| case | rise 3D (K) | none (before) | film only | link only | both (kept) |
+| :-- | --: | :-- | :-- | :-- | :-- |
+| A 10 mm part, 5 W, 6 mm of k 10, same face | 81.4 | −4.81 / −5.00 | −4.79 / −4.98 | +2.51 / +2.56 | +2.54 / +2.58 |
+| B 3 mm part, 2 W, 3 mm of k 50, same face | 37.1 | −0.90 / −1.04 | −0.90 / −1.04 | +0.46 / +0.56 | +0.46 / +0.56 |
+| C 10 mm part, 5 W, 10 mm of k 2, under the board | 111.6 | −1.76 / −1.65 | −1.48 / −1.36 | +0.16 / +0.26 | +0.41 / +0.52 |
+| D 3 mm part, 2 W, 3 mm of k 50, under | 65.6 | −0.01 / +0.00 | −0.01 / +0.01 | +0.02 / +0.04 | +0.02 / +0.04 |
+| E thin: 1 mm aluminium, 10 mm part, 5 W, under | 119.1 | +0.01 / +0.04 | +0.01 / +0.04 | +0.02 / +0.05 | +0.02 / +0.05 |
+| F thick: 10 mm aluminium, 10 mm part, 5 W, under | 107.8 | −0.04 / −0.04 | −0.04 / −0.03 | +0.03 / +0.03 | +0.03 / +0.03 |
+| G 8 mm of k 5, 10 mm part, 5 W, under | 111.8 | −0.72 / −0.61 | −0.62 / −0.51 | +0.19 / +0.29 | +0.28 / +0.39 |
+| H the part beside the block (6 mm of k 5 under the right half, part 20 mm off it) | 124.6 | −0.26 / −0.25 | −0.24 / −0.23 | +0.06 / +0.06 | +0.08 / +0.08 |
+| I the finned block of the harness | 105.3 | −0.03 / −0.03 | −0.02 / −0.02 | −0.01 / −0.01 | +0.01 / +0.01 |
+
+and the one-dimensional column (a 200 mm board heated over its whole top, a block over its whole bottom face, film 400 W/m²K on the block, 10 mm cell; FVM top-layer mean rise against the 3D solid):
+
+| block | 3D solid | none | film only | link only | both |
+| :-- | --: | --: | --: | --: | --: |
+| 8 mm of k 5 | 8.848 K | 7.434 (−16.0 %) | 8.068 (−8.8 %) | 8.235 (−6.9 %) | 8.870 (+0.25 %) |
+| 3 mm of aluminium | 7.577 K | 7.563 | 7.570 | 7.571 | 7.577 |
+
+**Decision of the review: keep both halves.** Only both make the column exact (the block node is the column mean, half the block lies on each side of it); the link only is closer on the spreading cases by 0.1 to 0.25 K but reads a column 6.9 % cool, which is the unsafe side; the film only keeps the large cool error of A and B. With both the FVM is never cooler than the 3D solid on the nine cases and hotter by at most 2.6 K (A, a 6 mm block of 10 W/mK on the part's face, which the thick-plate warning flags), and the 1 mm cells give the same picture. `tests/test_face_film_half_slab.py` holds the column.
+
+### 55.4 Warning
+
+The bound of the thick-plate warning is `q'' t/(2k)` alone for a one-layer plate or a block (the ambient film is inside the model); case 2 warns 3 of its 4 sources (the 10 W source, 3.3 K, 4.7 % of its rise, is below the 5 % limit; before 4 of 4). On a board of two or more layers the half plate towards the laminate stays in the bound.
+
+### 55.5 Limits
+
+The lateral spread under a source is still the column mean; the 1D half block over-resists a source that spreads inside a thick block (55.3); computed-`h` boards read the node temperature in the loop, as before.
+
+**Two terms measured by the review and not adopted.** (b) *The half laminate over a bare outer face* (the review's variant puts half a sub-gap of laminate, `d/(2n)/k_th`, in series with the film on the bare share of each outer cell; FVM and 3D solid at 0.5 mm, hottest rise against the 3D solid): plate_pad −1.66 → −1.53 % at `h` 10 and −1.37 → −1.17 % at 50; two_layer_partial −0.30 → −0.20 and −0.25 → −0.10 %; one_layer_pad −1.48 → −1.37 and −1.17 → −1.01 %; part_top_path −0.70 → −0.67 and −1.11 → −1.03 % (shifts +0.01 to +0.41 K). It moves every board with partial copper toward the 3D solid by 0.03 to 0.20 points, an order below the residual of those boards (the laminate under the part), and with the laminate rule the node of a bare cell already stands at the face of its first sub-gap (the vertical link is the whole sub-gap), so the term is not clearly missing: not adopted in 2.8.0, a stated limit. (c) *The half copper towards the laminate in the vertical links of a multilayer board* (the gap lengthened by `k_th (t_a + t_b)/(2 k_cu)`): the Culham-Yovanovich coupon moves by 6·10⁻⁵ K (FVM 113.96789 → 113.96795 °C against the independent solver's 113.99315; FDM and Analytic the same), the example board by 4.5·10⁻⁴ K (FVM and Analytic): 10⁻⁵ of the gap resistance for PCB copper, not worth moving every multilayer record; a thick copper layer of a multilayer board stays covered by the thick-plate warning (the `q_f` term towards the laminate, 55.4). Not adopted.

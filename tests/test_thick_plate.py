@@ -82,7 +82,10 @@ def test_a_thick_poorly_conducting_block_fires_with_a_bound_above_the_3d_effect(
     w = thick(sim)
     assert len(w) == 1 and "U1" in w[0] and "B is thick" in w[0] and "not added to the results" in w[0] and "footprint" not in w[0]
     effect = gradient_effect_3d(p)
-    assert 0.0 < effect < bound_in(w[0])                                      # A bound, and an honest one: the 3D solid sees part of it
+    # A bound above the effect. Since fix/face-film-half-slab the layered block has half the block in its contact link and in its exposed film, so it carries part of the
+    # thickness: the remainder (3D solid minus FVM, block against a stiff block) was +4.81 / +0.90 / +1.76 K and is -2.54 / -0.46 / -0.41 K (the 1D half block over-resists a
+    # source that spreads inside the block: the FVM is now on the hot side by that much, and the magnitude is smaller in every case)
+    assert effect < bound_in(w[0])
     # The temperatures are those of the model: the warning does not change them
     assert sim.reference.t_max == simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).reference.t_max
 
@@ -201,9 +204,9 @@ def test_the_bound_adds_the_film_term_and_a_column_reaches_q_t_over_k():
     assert thick_plate_bound(70.0, 0.05 ** 2, 10e-3, 150.0, film_flux=q) == pytest.approx(2 * thick_plate_bound(70.0, 0.05 ** 2, 10e-3, 150.0))
 
 
-def test_the_case_2_plate_fires_for_every_source_and_names_the_film_term():
-    # Muzychka, Culham and Yovanovich (2003) case 2: the layered models read 2.9 to 5.5 K below the surface (0.84 K of it the film, the rest through the thickness);
-    # the source of 10 W (S1, 4.0 % low) used to stay silent under the old through-thickness-only bound
+def test_the_case_2_plate_fires_for_the_three_larger_sources_and_has_no_film_clause():
+    # Muzychka, Culham and Yovanovich (2003) case 2: the layered models read 2.0 to 4.6 K below the surface since the film passes the half plate (they read 2.9 to 5.5 K
+    # before: 0.84 K of it the film, the rest through the thickness); the bound is the through-thickness term alone, so the source of 10 W (3.3 K, 4.7 % of its rise) stays silent
     from pcbthermal.model import Materials
     p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=10000.0, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
     p.add_full_copper(layers=None)
@@ -211,33 +214,31 @@ def test_the_case_2_plate_fires_for_every_source_and_names_the_film_term():
         p.add_heater(1, pw, rect=(c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5), name=f"S{i + 1}")
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
     w = thick(sim)
-    assert len(w) == 4 and all("from the face film" in x and "through the thickness" in x for x in w)
-    gaps = [2.90, 5.55, 4.66, 3.79]                       # K, surface of the 3D reference minus the FVM (study of the plate)
+    assert len(w) == 3 and all("from the face film" not in x and "through the thickness" in x for x in w)
+    gaps = [4.59, 3.72, 2.87]                             # K, printed centroid minus the FVM of the three warned sources (S2, S3, S4; 2.01 K for the silent S1)
     for x, g in zip(w, gaps):
         assert bound_in(x) >= g
 
 
 def test_a_thin_copper_board_does_not_fire_and_a_stiff_plate_has_no_film_term():
     assert thick(simulate(example_board(), SolverOptions(models=("fvm",), cell_mm=2.0))) == []
-    # 35 um of copper: h t / (2 k) is 1e-8, the film term is not even computed; a plate of k 385 and 1 mm at h 400: 5e-4, below the relevance ratio
+    # 35 um of copper, and a plate of k 385 and 1 mm: the through-thickness bound stays under the limit
     p = plate(1.0, 385.0, 20.0)
     assert thick(simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))) == []
 
 
 @pytest.mark.parametrize("t_mm, k, power", [(5.0, 50.0, 20.0), (10.0, 150.0, 40.0), (20.0, 385.0, 60.0)])
 def test_the_number_in_the_text_is_the_closed_form(t_mm, k, power):
-    # The bound quoted equals 0.5 (q'' + q_f) t / k with q'' = P / A of the footprint and q_f = min(h x rise, q'') (the film term only when h t / (2k) > 1e-3)
+    # The bound quoted equals 0.5 q'' t / k with q'' = P / A of the footprint (the ambient film passes the half plate in the model since fix/face-film-half-slab)
     p = plate(t_mm, k, power)
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
     rise = sim.heater_rows()[0]["t_max"] - p.board.ambient
     q = power / 1e-4
-    h = 400.0
-    qf = min(h * rise, q) if h * t_mm * 1e-3 / (2 * k) > 1e-3 else 0.0
-    expected = 0.5 * (q + qf) * t_mm * 1e-3 / k
+    expected = 0.5 * q * t_mm * 1e-3 / k
     w = thick(sim)
     if expected > THICK_PLATE_LIMIT * rise:
         assert len(w) == 1 and bound_in(w[0]) == pytest.approx(expected, abs=0.051)
-        assert ("from the face film" in w[0]) == (qf > 0)
+        assert "from the face film" not in w[0]
     else:
         assert w == []
 
@@ -259,20 +260,19 @@ def test_two_thick_plates_quote_the_face_towards_the_laminate(side, power, measu
     assert bound_in(w[0]) >= measured
 
 
-def test_computed_coefficients_enter_the_film_term():
-    # A 10 mm plate of k 20 with computed coefficients (natural convection and radiation, about 10 W/m2K a face): h t / (2 k) is above the ratio, so the film
-    # term is applied with the coefficients of the solve (the first version left it out for every board with computed coefficients)
+def test_computed_coefficients_leave_no_film_term_in_the_bound():
+    # A 10 mm plate of k 20 with computed coefficients (natural convection and radiation, about 10 W/m2K a face): the film passes the half plate inside the model (with the
+    # coefficients of the solve), so the bound is the through-thickness term alone
     p = plate(10.0, 20.0, 5.0)
     p.board.h_mode = "computed"
     sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
     ex = sim.reference.extras
     rise = sim.heater_rows()[0]["t_max"] - p.board.ambient
     q = 5.0 / 1e-4
-    h = ex["h_top"] + ex["h_bottom"]
-    assert h * 10e-3 / (2 * 20.0) > 1e-3
+    assert ex["h_top"] + ex["h_bottom"] > 0 and rise > 0
     w = thick(sim)
-    assert len(w) == 1 and "from the face film" in w[0]
-    assert bound_in(w[0]) == pytest.approx(0.5 * (q + min(h * rise, q)) * 10e-3 / 20.0, abs=0.051)
+    assert len(w) == 1 and "from the face film" not in w[0]
+    assert bound_in(w[0]) == pytest.approx(0.5 * q * 10e-3 / 20.0, abs=0.051)
 
 
 def test_the_short_title_of_the_warning_says_what_it_is():

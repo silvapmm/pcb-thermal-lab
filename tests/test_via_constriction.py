@@ -168,8 +168,9 @@ def test_boards_without_vias_are_unchanged():
     # -> 94.841459 / 96.660887 K at 0.5 / 1.0 mm, Analytic with insulated edges 94.714973 / 94.558017 -> 94.856398 / 94.698697 K); the heatsink rows below did not move
     # Re-baselined for fix/lumped-edge-first-link (the first link carries the images of the board sides: Lumped 94.841459 / 96.660887 -> 96.056148 / 96.707303 K at 0.5 / 1.0 mm,
     # board mean 50.408 -> 50.4075 and 50.4002 -> 50.4018 K; the Analytic rows did not move)
-    stored = {("lumped", 0.5): (96.05614785506242, 50.407534747784716), ("lumped", 1.0): (96.70730347910528, 50.40181633624395),
-              ("analytic", 0.5): (94.85639828629249, 50.84230763456435), ("analytic", 1.0): (94.69869707407254, 50.84230891300549)}
+    stored = {("lumped", 0.5): (96.05615992912341, 50.40754613184847), ("lumped", 1.0): (96.70731555810649, 50.40182772072635),
+              ("analytic", 0.5): (94.85641269424822, 50.842321815391465), ("analytic", 1.0): (94.69871148121717, 50.84232309387713)}
+    # (+1.2e-5 to +1.4e-5 K on the Lumped and Analytic rows with fix/face-film-half-slab: the film passes the half copper layer, hotter)
     # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
     insulated = copy.deepcopy(p)
     insulated.board.h_side = None
@@ -182,8 +183,8 @@ def test_boards_without_vias_are_unchanged():
     q.add_heater(1, 2.0, rect=(10, 10, 18, 16))
     q.add_heatsink(1, 200.0, rect=(20, 5, 30, 12))
     # the Lumped row moved with fix/lumped-edge-first-link (95.306384 / 68.1358 -> 96.496194 / 68.153385; images of the sides in the first link)
-    for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (96.49619434634783, 68.15338490213838), ("analytic", 0.5): (103.09955553667217, 72.68787455758647),
-                                           ("analytic", 1.0): (102.96314995913453, 72.68787455758647)}.items():
+    for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (96.49621050543944, 68.15340127204664), ("analytic", 0.5): (103.0995757732179, 72.68789447284516),
+                                           ("analytic", 1.0): (102.96317016988827, 72.68789447284514)}.items():   # +1.6e-5 to +2.0e-5 K with fix/face-film-half-slab
         qq = copy.deepcopy(q)
         if model == "analytic":
             qq.board.h_side = None                                           # stored before the edge transfer, as above
