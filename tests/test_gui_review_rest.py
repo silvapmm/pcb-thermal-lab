@@ -346,3 +346,23 @@ def test_the_stack_up_page_has_no_sideways_bar_at_1200_by_800(win):
     assert area.horizontalScrollBar().maximum() == 0, (area.viewport().width(), win.stackup_page.minimumSizeHint().width())
     sc = win.stackup_page.scale
     assert sc.width() >= sc.sizeHint().width() - 2
+
+
+def test_the_run_button_shows_where_the_keyboard_is(win):
+    """!
+    @brief The primary button draws a visible ring when it has the keyboard focus (its style sheet hid Fusion's ring): the edge of the button differs
+           with and without the focus.
+    @param win Main window fixture.
+    """
+    run = win.solver_panel.run
+    win.activateWindow()
+    win.solver_panel.cb["fvm"].setFocus()
+    QApplication.processEvents()
+    plain = run.grab().toImage()
+    run.setFocus()
+    QApplication.processEvents()
+    if not run.hasFocus():
+        pytest.skip("the offscreen platform gave the focus to no widget")
+    ring = run.grab().toImage()
+    edge = [(x, 1) for x in range(4, plain.width() - 4, 7)] + [(1, y) for y in range(4, plain.height() - 4, 3)]
+    assert any(plain.pixel(x, y) != ring.pixel(x, y) for x, y in edge)
