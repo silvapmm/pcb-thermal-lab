@@ -49,5 +49,5 @@
    }
   }
  },
- "why": "heater_stats took the footprint node of the Lumped field and now takes the own peak of the part (fix/lumped-part-readout); and the first footprint-to-ring link is read from the logarithmic potential of the footprint with the mirror images of the board sides, so the part reads a few points hotter near a side and about 2 points hotter in the interior (both changes in this one file: every record holds both)"
+ "why": "heater_stats took the footprint node of the Lumped field and now takes the own peak of the part (fix/lumped-part-readout); and the first footprint-to-ring link is read from the logarithmic potential of the footprint with the mirror images of the board sides, so the part reads a few points hotter near a side and about 2 points hotter in the interior (both changes in this one file: every record holds both) Its records and times also moved by fix/face-film-half-slab are held in face-film-half-slab.json (key also_moved_by), so that each record is in one file."
 }

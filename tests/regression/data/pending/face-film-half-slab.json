@@ -1,4 +1,225 @@
 {
+ "also_moved_by": {
+  "example_board|fdm|2": [
+   "drawn-copper-faces"
+  ],
+  "example_board|fvm|2": [
+   "drawn-copper-faces"
+  ],
+  "example_board|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "example_board|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "example_board|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "example_cut_to_T|fdm|2": [
+   "drawn-copper-faces"
+  ],
+  "example_cut_to_T|fvm|2": [
+   "drawn-copper-faces"
+  ],
+  "example_cut_to_T|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "example_cut_to_T|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "example_cut_to_T|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "finned_block|analytic|0.5": [
+   "block-exact-cover"
+  ],
+  "finned_block|analytic|1": [
+   "block-exact-cover"
+  ],
+  "finned_block|analytic|2": [
+   "block-exact-cover"
+  ],
+  "finned_block|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "finned_block|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "finned_block|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "hatched_copper|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "hatched_copper|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "hatched_copper|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_full|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_full|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_full|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_pad|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_pad|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "one_layer_pad|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "part_across_outline|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "part_across_outline|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "part_across_outline|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "part_top_path|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "part_top_path|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "part_top_path|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "plate_lone_via|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "plate_lone_via|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "plate_lone_via|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "plate_pad|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "plate_pad|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "plate_pad|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "plate_uniform|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "plate_uniform|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "plate_uniform|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "plate_vias|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "plate_vias|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "plate_vias|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "profile_board|fdm|2": [
+   "drawn-copper-faces"
+  ],
+  "profile_board|fvm|2": [
+   "drawn-copper-faces"
+  ],
+  "profile_board|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "profile_board|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "profile_board|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "reference_board|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "reference_board|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "reference_board|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "round_outline|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "round_outline|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "round_outline|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "t63:example_board|fdm": [
+   "drawn-copper-faces"
+  ],
+  "t63:example_board|fvm": [
+   "drawn-copper-faces"
+  ],
+  "t63:example_board|lumped": [
+   "lumped-first-link-edge"
+  ],
+  "t63:example_cut_to_T|fdm": [
+   "drawn-copper-faces"
+  ],
+  "t63:example_cut_to_T|fvm": [
+   "drawn-copper-faces"
+  ],
+  "t63:plate_lone_via|lumped": [
+   "lumped-first-link-edge"
+  ],
+  "t63:plate_uniform|lumped": [
+   "lumped-first-link-edge"
+  ],
+  "t63:plate_vias|lumped": [
+   "lumped-first-link-edge"
+  ],
+  "t63:profile_board|fdm": [
+   "drawn-copper-faces"
+  ],
+  "t63:profile_board|fvm": [
+   "drawn-copper-faces"
+  ],
+  "t63:profile_board|lumped": [
+   "lumped-first-link-edge"
+  ],
+  "t_outline|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "t_outline|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "t_outline|lumped|2": [
+   "lumped-first-link-edge"
+  ],
+  "two_layer_partial|fdm|2": [
+   "drawn-copper-faces"
+  ],
+  "two_layer_partial|fvm|2": [
+   "drawn-copper-faces"
+  ],
+  "two_layer_partial|lumped|0.5": [
+   "lumped-first-link-edge"
+  ],
+  "two_layer_partial|lumped|1": [
+   "lumped-first-link-edge"
+  ],
+  "two_layer_partial|lumped|2": [
+   "lumped-first-link-edge"
+  ]
+ },
  "base_version": "2.7.0",
  "branch": "fix/face-film-half-slab",
  "evidence": "docs/validation.md 55; research/muzychka-case2-analytic README 3, 8; tests/test_face_film_half_slab.py",
@@ -4260,5 +4481,5 @@
    }
   }
  },
- "why": "The layered models keep the column mean of each copper layer, so the flux of every ambient film starts half a layer below the face; the series film moves the FVM, FDM, Lumped and Analytic records by about 2e-5 K (copper, 5e-7 of the rise) and finned-block boards by up to 0.04 K; the 3D solid already resolved the slab and does not move. This file holds the FINAL numbers of every record it lists, including the records that the earlier pending files (drawn-copper-faces, lumped-first-link-edge, block-exact-cover) also moved: those records were taken out of the older files so that each record is in one file."
+ "why": "The layered models keep the column mean of each copper layer, so the flux of every ambient film starts half a layer below the face; the series film moves the FVM, FDM, Lumped and Analytic records by about 2e-5 K (copper, 5e-7 of the rise) and finned-block boards by up to 0.04 K; the 3D solid already resolved the slab and does not move. This file holds the FINAL numbers of every record it lists, including the records that the earlier pending files (drawn-copper-faces, lumped-first-link-edge, block-exact-cover) also moved: those records were taken out of the older files so that each record is in one file. The key also_moved_by names, for each such record (and time, prefixed t63:), the older pending files that had moved it at development ea7791be, so that the table of expected shifts of the refreeze attributes it to every item (make_expected_shifts.py reads only the file that holds a record)."
 }
