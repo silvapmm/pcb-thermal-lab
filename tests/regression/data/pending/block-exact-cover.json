@@ -4,62 +4,7 @@
  "evidence": "",
  "format": 1,
  "item": "Exact cover of a metal block",
- "records": {
-  "finned_block|analytic|0.5": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 4.8018774142140806e-11,
-    "layer_mean[0]": 75.90677028491429,
-    "layer_mean[1]": 65.89784425247569,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 6.0,
-    "part:U:t_max": 129.97772661799183,
-    "part:U:t_mean": 117.83673221542121,
-    "power_in": 6.0,
-    "t_max": 129.97772661799183,
-    "t_mean": 70.902307268695,
-    "t_min": 63.46339477433619,
-    "t_sum": 1361324.2995589438,
-    "t_sumsq": 98845305.16859132
-   }
-  },
-  "finned_block|analytic|1": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 4.8018774142140806e-11,
-    "layer_mean[0]": 75.90683293847073,
-    "layer_mean[1]": 65.89790288436701,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 6.0,
-    "part:U:t_max": 129.78629332797846,
-    "part:U:t_mean": 117.90556719131571,
-    "power_in": 6.0,
-    "t_max": 129.78629332797846,
-    "t_mean": 70.90236791141886,
-    "t_min": 63.47661492812045,
-    "t_sum": 340331.36597481056,
-    "t_sumsq": 24711371.236547887
-   }
-  },
-  "finned_block|analytic|2": {
-   "class": "moved",
-   "metrics": {
-    "balance_error": 4.8018774142140806e-11,
-    "layer_mean[0]": 75.90683293847073,
-    "layer_mean[1]": 65.89790288436701,
-    "part:U:power_top_w": 0.0,
-    "part:U:power_w": 6.0,
-    "part:U:t_max": 129.78629332797846,
-    "part:U:t_mean": 117.90556719131571,
-    "power_in": 6.0,
-    "t_max": 129.78629332797846,
-    "t_mean": 70.90236791141886,
-    "t_min": 63.47661492812045,
-    "t_sum": 340331.36597481056,
-    "t_sumsq": 24711371.236547887
-   }
-  }
- },
+ "records": {},
  "transients": {},
  "why": "The tiles of the Analytic block layer take the exact area of the block (no 4 x 4 sampling); the finned block of the harness has its edges off the tile lines. The FVM, FDM, 3D solid and Lumped records do not move (their block edges are on the grid lines at 2, 1 and 0.5 mm)."
 }
