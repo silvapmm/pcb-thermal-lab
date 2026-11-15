@@ -115,6 +115,41 @@ def face_shape(xi: float, eta: float):
     return n, dn
 
 
+def jacobian(X, dn):
+    """!
+    @brief Jacobians dx_i/dxi_j of a batch of mapped bricks at one Gauss point (a batched matrix product, not an einsum).
+    @param X Corner coordinates, array (e, 8, 3) in m.
+    @param dn Local shape-function gradients at the point, array (8, 3), dimensionless.
+    @return numpy.ndarray (e, 3, 3) in m.
+    """
+    return np.matmul(X.transpose(0, 2, 1), dn)
+
+
+def det_inv3(J, need_inv: bool = True):
+    """!
+    @brief Determinant and inverse of a batch of 3 x 3 matrices by the closed-form cofactors (several times faster than the batched `numpy.linalg` calls on
+           millions of tiny matrices, and equal to them to rounding).
+    @param J Matrices, array (e, 3, 3).
+    @param need_inv False skips the inverse (the volume and validation passes only need the determinant).
+    @return Tuple (det (e,), inv (e, 3, 3) or None). A singular matrix gives a zero determinant and a non-finite inverse (no exception: `Model.validate` refuses such
+            elements before any assembly).
+    """
+    a, b, c = J[:, 0, 0], J[:, 0, 1], J[:, 0, 2]
+    d, e, f = J[:, 1, 0], J[:, 1, 1], J[:, 1, 2]
+    g, h, i = J[:, 2, 0], J[:, 2, 1], J[:, 2, 2]
+    c00, c01, c02 = e * i - f * h, f * g - d * i, d * h - e * g          # cofactors of the first row
+    det = a * c00 + b * c01 + c * c02
+    if not need_inv:
+        return det, None
+    inv = np.empty_like(J)
+    with np.errstate(divide="ignore", invalid="ignore"):             # a singular element gives inf/nan here, never an exception
+        r = 1.0 / det
+        inv[:, 0, 0], inv[:, 0, 1], inv[:, 0, 2] = c00 * r, (c * h - b * i) * r, (b * f - c * e) * r
+        inv[:, 1, 0], inv[:, 1, 1], inv[:, 1, 2] = c01 * r, (a * i - c * g) * r, (c * d - a * f) * r
+        inv[:, 2, 0], inv[:, 2, 1], inv[:, 2, 2] = c02 * r, (b * g - a * h) * r, (a * e - b * d) * r
+    return det, inv
+
+
 class Model:
     """!
     @brief One steady conduction problem: nodes, hexahedra with their conductivities and sources, Robin and flux faces.
@@ -194,7 +229,7 @@ class Model:
             for gy in (-G1, G1):
                 for gz in (-G1, G1):
                     _, dn = shape(gx, gy, gz)
-                    dmin = np.minimum(dmin, np.abs(np.linalg.det(np.einsum("eai,aj->eij", X, dn))))
+                    dmin = np.minimum(dmin, np.abs(det_inv3(jacobian(X, dn), False)[0]))
         bad = np.flatnonzero(~(dmin > 1e-12 * diag ** 3))
         if bad.size:
             raise ValueError(f"{bad.size} element(s) have a degenerate (zero-volume) mapping, the first is element {int(bad[0])}")
@@ -210,8 +245,7 @@ class Model:
             for gy in (-G1, G1):
                 for gz in (-G1, G1):
                     _, dn = shape(gx, gy, gz)
-                    J = np.einsum("eai,aj->eij", X, dn)
-                    v += np.abs(np.linalg.det(J))
+                    v += np.abs(det_inv3(jacobian(X, dn), False)[0])
         return v
 
     def _assemble_elements(self, chunk=20000, cancel: Optional[Callable[[], bool]] = None):
@@ -236,12 +270,13 @@ class Model:
             fe = np.zeros((el.shape[0], 8))
             for gx, gy, gz in gps:
                 n, dn = shape(gx, gy, gz)
-                J = np.einsum("eai,aj->eij", X, dn)                # dx_i / dxi_j
-                det = np.abs(np.linalg.det(J))
-                Jinv = np.linalg.inv(J)
-                B = np.einsum("aj,eji->eai", dn, Jinv)             # grad N_a in physical coordinates, (e, 8, 3)
+                # closed-form 3 x 3 determinant and inverse and batched matrix products instead of per-call numpy.linalg and einsum (the same numbers to
+                # rounding, a faster assembly: see docs/theory.md 4a)
+                det, Jinv = det_inv3(jacobian(X, dn))              # J = dx_i / dxi_j
+                det = np.abs(det)
+                B = np.matmul(dn, Jinv)                            # grad N_a in physical coordinates, (e, 8, 3)
                 # B diag(k) B^T times det (weight 1 at every Gauss point)
-                ke += np.einsum("eai,ei,ebi->eab", B, k, B) * det[:, None, None]
+                ke += np.matmul(B * (k * det[:, None])[:, None, :], B.transpose(0, 2, 1))
                 fe += (self.q[a:a + chunk] * det)[:, None] * n[None, :]
             rows.append(np.repeat(el, 8, axis=1).ravel())
             cols.append(np.tile(el, (1, 8)).ravel())
@@ -314,12 +349,14 @@ class Model:
                     q_flux += float((f["flux"] * dA).sum())
         return {"A": A, "rhs": (rhs1 + rhs2)[used], "used": used, "gam": gam, "q_gen": q_gen, "q_flux": q_flux, "q_amb": q_amb}
 
-    def solve(self, direct_max: int = FEM_DIRECT_MAX, tol: float = 1e-12, cancel: Optional[Callable[[], bool]] = None, force: Optional[str] = None):
+    def solve(self, direct_max: int = FEM_DIRECT_MAX, tol: float = 1e-10, cancel: Optional[Callable[[], bool]] = None, force: Optional[str] = None):
         """!
         @brief Assemble and solve.
         @param direct_max Largest unknown count solved by SuperLU (its fill-in for the 27-point stencil is large); above it conjugate gradients with a
                           pyamg smoothed-aggregation preconditioner.
-        @param tol Relative residual of the iterative solve (dimensionless).
+        @param tol Relative residual of the iterative solve (dimensionless). The default 1e-10 is what the recursive residual of CG can honestly deliver on these matrices: the true
+                residual hardly moves when less is asked (example board at 1 mm: 2.2e-10 at 1e-12 and 2.3e-10 at 1e-10; the worst conditioned plate measured, 828 375 unknowns,
+                needs the restart below at either tolerance), so 1e-12 only added iterations; the field changes by about 1e-10 K (docs/theory.md 4a).
         @param cancel Optional callable checked between assembly chunks; True raises FemCancelled.
         @param force None (by size), 'direct' or 'cg' (for tests and studies).
         @return dict with T (node field (N,) in the units of T_amb, NaN on unused nodes), n (unknowns), E (elements), balance (heat leaving through the films
@@ -403,7 +440,7 @@ class Model:
             for gy in (-G1, G1):
                 for gz in (-G1, G1):
                     n, dn = shape(gx, gy, gz)
-                    det = np.abs(np.linalg.det(np.einsum("eai,aj->eij", X, dn)))
+                    det = np.abs(det_inv3(jacobian(X, dn), False)[0])
                     tot += float(((T[el] @ n) * det).sum())
                     vol += float(det.sum())
         return tot, vol

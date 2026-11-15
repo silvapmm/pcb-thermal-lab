@@ -70,16 +70,35 @@ def main(argv=None):
     ap.add_argument("--branch", required=True, help="branch of the change")
     ap.add_argument("--why", required=True, help="why the records move (one or two sentences)")
     ap.add_argument("--evidence", default="", help="where the shift is measured and explained")
+    ap.add_argument("--new-readouts", action="store_true", help="ADD the metrics that no frozen record holds (the surface read-out) to the existing records of the named models and boards "
+                    "(a file with \"new_readouts\": it moves no frozen number)")
     ap.add_argument("--no-times", action="store_true", help="write only the steady records (a change that moves no time to 63 %%, or whose times belong to another pending file)")
     ap.add_argument("--times-only", action="store_true", help="write only the times to 63 %% (the steady records of the named boards do not move)")
     a = ap.parse_args(argv)
     frozen = F.load(T.FROZEN_FILE)
     s = frozen["settings"]
     records, transients, skipped = {}, {}, {}
-    if not a.model and not a.new_model:
+    if not a.model and not a.new_model and not a.new_readouts:
         print("refused: name --model (existing records) or --new-model with --cell")
         return 2
-    for board in a.board if a.new_model else []:
+    if a.new_readouts:
+        if not a.model:
+            print("refused: --new-readouts needs --model")
+            return 2
+        for board in a.board:
+            p = B.build(board)
+            for model in a.model:
+                for k, old in frozen["records"].items():
+                    if not k.startswith(f"{board}|{model}|") or k in frozen["skipped"]:
+                        continue
+                    rec = H.run_one(p, board, model, float(k.split("|")[2]), s_cap("max_unknowns", frozen), s_cap("solid_cap", frozen))
+                    if rec["status"] != "ok":
+                        print(f"refused: {k} did not run ({rec['status']}: {rec.get('reason', '')})")
+                        return 2
+                    added = {n: v for n, v in C.metrics_of(rec).items() if n not in old["metrics"]}
+                    if added:
+                        records[k] = {"class": "added", "metrics": added}
+    for board in [] if a.new_readouts else (a.board if a.new_model else []):
         if board not in frozen["boards"]:
             print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
             return 2
@@ -98,7 +117,7 @@ def main(argv=None):
                     print(f"refused: {k} did not run ({rec['status']}: {rec.get('reason', '')})")
                     return 2
                 records[k] = {"class": "new", "metrics": C.metrics_of(rec)}
-    for board in a.board:
+    for board in [] if a.new_readouts else a.board:
         if board not in frozen["boards"]:
             print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
             return 2
@@ -127,6 +146,8 @@ def main(argv=None):
            "records": records, "transients": transients}
     if a.new_model:
         out["new_models"] = sorted(a.new_model)
+    if a.new_readouts:
+        out["new_readouts"] = True
     if skipped:
         out["skipped"] = skipped
     path = HERE / "data" / "pending" / f"{a.name}.json"
