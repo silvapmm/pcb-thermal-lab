@@ -745,7 +745,7 @@ def check_lumped_small_part(problem, models, cell_mm=1.0):
     @brief Warning, for the Lumped model only, when a heat source is smaller than two cells of its raster and the run cannot refine the raster (memory bound or a zoned part).
     @details lumped.cell_for refines the raster to half the side of the smallest source (not below 0.125 mm) when that fits in lumped.SMALL_PART_MAX_BYTES and in the memory-guard
              limit and no part of the board is zoned (a zoned board keeps the 0.5 mm raster of the zone model); otherwise the run keeps the 0.5 to 1 mm raster and this warning
-             says that such a part reads -19 to +6 % of the rise depending on where it sits in its cell. The equivalent rectangle and the zone test are built only when a source
+             says that such a part reads -18 to +6 % of the rise depending on where it sits in its cell (re-measured on the final tree of 2.8.0, REMEASURE.md 2.3). The equivalent rectangle and the zone test are built only when a source
              is small enough to be refined (the heaters keep their size on the equivalent rectangle, so the smallest side is that of the problem).
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
@@ -768,7 +768,7 @@ def check_lumped_small_part(problem, models, cell_mm=1.0):
             # The same test as lumped.cell_for (every heater, as there), on the board the Lumped solves
             zoned = next((h for h in kept.heaters if lumped.will_be_zoned(kept, h, vias=vs, prepared=True)), None)
     head = ("a heat source is smaller than two cells of the Lumped raster; a part that small is spread over the whole cells it touches, so its hottest temperature "
-            "read -19 to +6 % of the rise off the resolved value depending on where it sits in its cell (sides of 0.1 to 0.5 mm at a 0.5 mm raster); ")
+            "read -18 to +6 % of the rise off the resolved value depending on where it sits in its cell (sides of 0.1 to 0.5 mm at a raster of 0.5 or 1 mm); ")
     if zoned is not None:
         if side >= lumped.SMALL_PART_CELLS * lumped.ZONE_CELL_MM:
             return []                                            # Two cells of the zone raster or more: the part is not small there
@@ -780,7 +780,7 @@ def check_lumped_small_part(problem, models, cell_mm=1.0):
     else:
         return []                                                # The run refines the raster
     out = []
-    _add(out, None, None, head + why, "a heat source is under two cells of the Lumped raster; it reads -19 to +6 % off; use the FVM.")
+    _add(out, None, None, head + why, "a heat source is under two cells of the Lumped raster; it reads -18 to +6 % off; use the FVM.")
     return out
 
 
@@ -868,12 +868,14 @@ def check_model_limits(problem, models, cell_mm=1.0):
                     zone_board = (kept, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
                 zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1], prepared=True)
                 if zoned:
-                    # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
+                    # The numbers of the zone model (the 36 family and 26 held-out boards of research/lumped-via-groups, re-measured on the final tree of 2.8.0 against the FVM at
+                    # 0.25 mm: releases/2.8.0/final-review/REMEASURE.md 2.1)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                                "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): the hottest temperature was "
-                               "measured 1.6 to 2.6 % of the rise off on average (up to 7.6 %) over 62 boards, against a fine-grid layered solver of the same idealisation (not "
-                               "independent); against one resolved 3D cluster it read -2.4 and +1.0 %, and where the vias fall on the 0.5 mm raster moves it by 1 to 3 points "
-                               "(measured before the mirror images of the sides in the first link, which make an interior part read a few points hotter); "
+                               "measured 1.7 to 2.9 % of the rise off on average (up to 8.1 %, on the hot side but for a few parts within 2 %) over 62 boards, against the finite-volume model "
+                               "at 0.25 mm (the same idealisation, not independent); against one resolved 3D cluster it read -2.4 and +1.0 % (measured before the mirror images "
+                               "of the sides in the first link, which make an interior part read a few points hotter), and where the vias fall on the 0.5 mm raster moves it by "
+                               "1 to 3 points; "
                                "use the FVM for via design.",
                          f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
                          "(hottest temperature up to about 8 % of the rise off); use the FVM.")

@@ -950,9 +950,10 @@ def _smallest_side_mm(problem):
 def small_part_cell(problem, clipped):
     """!
     @brief The finer Lumped raster for a heat source smaller than two cells, or None when the raster stays as it is.
-    @details A source narrower than the raster is spread over the whole cells it touches, so the hottest node depends on where the source sits in its cell: -19 to +6 % of the rise
-             at 0.5 mm for sides of 0.1 to 0.5 mm against the FVM at 0.0625 mm (the FVM at the same cell has the same spread, a grid effect). The raster of half the side of
-             the smallest source with power, not below SMALL_PART_MIN_CELL_MM, brings it to -0.8 to +1.6 % (15 cases). The raster is one per board, so one small part refines the
+    @details A source narrower than the raster is spread over the whole cells it touches, so the hottest node depends on where the source sits in its cell: -13 to +6 % of the rise
+             at 0.5 mm and -18 to -3 % at 1 mm for sides of 0.1 to 0.5 mm against the FVM at 0.0625 mm (the FVM at the same cell has the same spread, a grid effect). The raster
+             of half the side of the smallest source with power, not below SMALL_PART_MIN_CELL_MM, brings parts of 0.2 to 2 mm to -0.1 to +3.7 % (28 cases; the final tree of
+             2.8.0, docs/validation.md 35.3). The raster is one per board, so one small part refines the
              whole board. The Lumped has no memory guard of its own, so the refinement is refused (None) when its estimated peak, SMALL_PART_BYTES_PER_CELL per raster cell (scaled
              by the layers above four), exceeds the smaller of SMALL_PART_MAX_BYTES and the memory-guard limit of the machine.
     @param problem A Problem (the board the Lumped solves: for an outline, the equivalent rectangle).
