@@ -247,7 +247,7 @@ PCBT_PUBLISHED_FULL=1 .venv/bin/python -m pytest -q tests/test_published_cases.p
 PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   # release gate: key values
 ```
 
-**Current state of the battery**: the last whole battery (merge of the surface read-out) gave `3830 passed, 12 skipped, 2 xfailed, 1 warning` in 47 min 29 s, with the real-board environment proven loaded (the 12 skips are gates and missing optional dependencies). Frozen numbers 317 at 2, 1 and 0.5 mm, compat 5, secrets 4. Known flakes under load: the timing test `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). The history is in `docs/versions.md` ("How each version was tested").
+**Current state of the battery**: the last whole battery gave `3903 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 1 warning, plus 4 stale tests fixed and re-run, on the merge of the steady FEM and the always-shown surface read-out (whole battery 48 min 59 s, real-board environment proven loaded; frozen 346, compat 5 + 17, secrets 4)`. Known flakes under load: the timing test `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). The history is in `docs/versions.md` ("How each version was tested").
 
 ## 15. Where to continue (2.8.0)
 
