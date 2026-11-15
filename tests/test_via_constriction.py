@@ -166,7 +166,9 @@ def test_boards_without_vias_are_unchanged():
     p.vias = []
     # Re-baselined for 2.7.0 (fix/simple-stackup-physical-layers: the simple stack-up now has the physical layers, so the 4-layer example board moves; Lumped 94.693179 / 96.510345
     # -> 94.841459 / 96.660887 K at 0.5 / 1.0 mm, Analytic with insulated edges 94.714973 / 94.558017 -> 94.856398 / 94.698697 K); the heatsink rows below did not move
-    stored = {("lumped", 0.5): (94.84145917899876, 50.40807990502485), ("lumped", 1.0): (96.66088737731312, 50.400228636199266),
+    # Re-baselined for fix/lumped-edge-first-link (the first link carries the images of the board sides: Lumped 94.841459 / 96.660887 -> 96.056148 / 96.707303 K at 0.5 / 1.0 mm,
+    # board mean 50.408 -> 50.4075 and 50.4002 -> 50.4018 K; the Analytic rows did not move)
+    stored = {("lumped", 0.5): (96.05614785506242, 50.407534747784716), ("lumped", 1.0): (96.70730347910528, 50.40181633624395),
               ("analytic", 0.5): (94.85639828629249, 50.84230763456435), ("analytic", 1.0): (94.69869707407254, 50.84230891300549)}
     # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
     insulated = copy.deepcopy(p)
@@ -179,7 +181,8 @@ def test_boards_without_vias_are_unchanged():
     q.add_full_copper()
     q.add_heater(1, 2.0, rect=(10, 10, 18, 16))
     q.add_heatsink(1, 200.0, rect=(20, 5, 30, 12))
-    for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (95.30638364936246, 68.13580022840694), ("analytic", 0.5): (103.09955553667217, 72.68787455758647),
+    # the Lumped row moved with fix/lumped-edge-first-link (95.306384 / 68.1358 -> 96.496194 / 68.153385; images of the sides in the first link)
+    for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (96.49619434634783, 68.15338490213838), ("analytic", 0.5): (103.09955553667217, 72.68787455758647),
                                            ("analytic", 1.0): (102.96314995913453, 72.68787455758647)}.items():
         qq = copy.deepcopy(q)
         if model == "analytic":
