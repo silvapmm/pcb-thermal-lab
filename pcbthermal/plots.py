@@ -685,10 +685,12 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
         ax.text(0.5, 0.5, "This model has no surface read-out", ha="center", va="center", transform=ax.transAxes)
         return
     tag = "top" if face == 0 else "bottom"
+    if face == 1 and problem.board.layers == 1:
+        tag = "bottom of the copper, on the laminate"     # A one-layer board: the lower face of its copper is the interface with the laminate, not the board's bottom face
     layer = 0 if face == 0 else problem.board.layers - 1
     field = result.arrays["T_surface"][face]
     upper = bool(np.asarray(result.arrays["T_surface_flag"])[face].any())
-    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature (°C)",
+    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, estimate (°C)",
                title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C   "
                      f"(layer mean {result.t_max:.1f} °C)")
 

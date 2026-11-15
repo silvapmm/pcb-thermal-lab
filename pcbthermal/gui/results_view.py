@@ -701,11 +701,12 @@ class ResultsView(QWidget):
         heaters = sim.heater_rows()
         # The surface read-out beside the column one, only when a part has it (thick outer copper): then every temperature column names its read-out; an ordinary board
         # keeps the headers it always had. Junction, margin and power limit stay on the column.
-        both = any("t_max_surface" in h for h in heaters)
+        # Gated by the same threshold as the report and the Layer box (thickness.significant): 140 um copper has the arrays but differs by milli-kelvin
+        both = thickness.significant(ref) and any("t_max_surface" in h for h in heaters)
         heads = ["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"]
         if both:
             heads[3], heads[4] = "Mean °C (column)", "Max °C (column)"
-            heads += ["Mean °C (surface)", "Max °C (surface)"]
+            heads += ["Mean °C (surface, estimate)", "Max °C (surface, estimate)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         if both:

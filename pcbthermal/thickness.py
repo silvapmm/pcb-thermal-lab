@@ -8,7 +8,7 @@
          (q_top and q_bot the heat flux ENTERING through the two faces, z downwards), so the profile through the thickness is a parabola with T_z(0) = -q_top / k and T_z(t) = q_bot / k:
              T_top - T_m = t (2 q_top - q_bot) / (6 k),    T_bottom - T_m = t (2 q_bot - q_top) / (6 k).
          A column fed at the top and cooled at the bottom (q_bot = -q_top) gives the familiar q t / (2 k); heat that spreads sideways (q_bot = 0) gives q t / (3 k). The parabola is
-         within 7 % of an independent 3D solution up to t/a = 0.5 (a the side of the source) and an UPPER estimate beyond (research/through-thickness-readout 4.2, validation 56.1).
+         within 7 % of an independent 3D solution up to t/a = 0.5 (a the side of the source) and an UPPER estimate beyond (research/through-thickness-readout 4.2, validation 55.6).
          The surface is ALWAYS a second number beside the column, never a mode: no option, no project key. `attach` is called by the FVM and the FDM when an outer copper layer is
          thicker than THICK_MIN_M (105 um); then the result holds (absolute temperatures in degC, NaN off the board and on a face that is not computed)
              arrays["T_surface"] (2, ny, nx)       top face of layer 1 and bottom face of the last layer, the HOTTEST value in the cell;
@@ -29,8 +29,8 @@ from .geometry import points_in_polygon, polygon_area
 
 THICK_MIN_M = 105e-6                       # An outer copper layer at or below this thickness gets no surface (the term is milli-kelvin; the 35 to 105 um boards are unchanged)
 UPPER_RATIO = 0.5                          # t / a above this: the parabola overshoots, the surface is an upper estimate (research README 4.2)
-SHOW_ABS_K = 0.1                           # The surface is worth showing when it differs from the column mean by this many kelvin ...
-SHOW_REL = 0.005                           # ... or by this share of the rise of the board
+SHOW_ABS_K = 0.1                           # The surface is worth showing when it differs from the column mean by at least this many kelvin ...
+SHOW_REL = 0.01                            # ... AND by at least this share of the rise of the board (max of the two: research/readout-conventions, 1 % of the rise)
 
 
 def offsets(t, k, q_top, q_bot):
@@ -110,11 +110,11 @@ def _upper_flags(problem, res, faces):
 
 def _finish(res, problem, d, fill, faces, area):
     """!
-    @brief Turn the copper terms of the outer faces into the arrays of the result (shared by the grid models and the Analytic).
+    @brief Turn the copper terms of the outer faces into the arrays of the result (the FVM and the FDM; written so that a model without partial cells can pass fill None).
     @param res SteadyResult.
     @param problem The Problem.
     @param d Dict {face: copper term in K per cell}, faces 0 (top of layer 1) and 1 (bottom of the last layer).
-    @param fill Copper fill of the layers (layers, ny, nx), or None for a uniform sheet (the Analytic: no partial cells).
+    @param fill Copper fill of the layers (layers, ny, nx), or None for a uniform sheet (no partial cells).
     @param faces List of (face, layer) to fill.
     @param area Board area of every cell (ny, nx) in m2; cells with no board get no offset.
     """
@@ -132,7 +132,8 @@ def _finish(res, problem, d, fill, faces, area):
             fm = res.arrays["face_mean"][layer] if "face_mean" in res.arrays else np.zeros_like(c)
             c_cu = np.where(f > 0, c, 0.0)
             # The hottest point of a partly filled cell is over the bare laminate: the larger of the two terms; where the laminate term is absent the copper term is the peak
-            peak = np.where(fp > 0, np.maximum(c_cu, fp), c)
+            # (and a cell without copper and without a laminate term has no offset: the copper term of an empty cell has no meaning, as in the mean f c)
+            peak = np.where(fp > 0, np.maximum(c_cu, fp), c_cu)
             mean = f * c + fm
         surf[face], surf_mean[face] = T + peak, T + mean
     for face in (0, 1):                                                       # A face that is not computed, or off the board, has no surface value
@@ -200,11 +201,11 @@ def attach(res, net, theta, cell, problem):
 
 def significant(res):
     """!
-    @brief True when the surface of a result differs from the column mean enough to be shown with the numbers (SHOW_ABS_K or SHOW_REL of the rise).
+    @brief True when the surface of a result differs from the column mean enough to be shown with the numbers: by at least max(SHOW_ABS_K, SHOW_REL of the rise).
     @param res A SteadyResult.
     @return Boolean; False for a result without the arrays.
     """
     if "T_surface" not in res.arrays:
         return False
     ex = float(res.extras.get("surface_excess_k", 0.0))
-    return ex >= SHOW_ABS_K or ex >= SHOW_REL * max(res.t_max - res.ambient, 1e-9)
+    return ex >= max(SHOW_ABS_K, SHOW_REL * max(res.t_max - res.ambient, 1e-9))

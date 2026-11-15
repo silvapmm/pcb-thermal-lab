@@ -703,7 +703,9 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     rv.tabs.setCurrentWidget(rv.temp)
     texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
     assert "Surface (top)" in texts and "Surface (bottom)" in texts
-    assert rv.heater_table.columnCount() == 11 and "(surface)" in rv.heater_table.horizontalHeaderItem(10).text()
+    assert rv.heater_table.columnCount() == 11 and "(surface, estimate)" in rv.heater_table.horizontalHeaderItem(10).text()
+    sbox = win.layer_combo
+    assert "estimate" in sbox.itemData(sbox.findData(200), Qt.ToolTipRole)          # The entry carries its own tooltip
     for model in ("fvm", "fdm", "lumped", "analytic"):
         rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
         for data in (200, 201, 0):
@@ -712,6 +714,21 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     # Animation and Profiles show the column and say so
     rv.tabs.setCurrentWidget(rv.animation)
     assert "Surface" not in [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+
+
+def test_surface_columns_wait_for_a_difference_that_matters(win, qtbot):
+    """Review: 140 um outer copper has the surface arrays but differs from the column by milli-kelvin: the part table keeps its nine columns and the Layer box no surface entry."""
+    p = example_board()
+    ct = list(p.board.copper_thickness)
+    ct[0] = ct[-1] = 140e-6
+    p.board.copper_thickness = ct
+    load(win, p)
+    run(win, qtbot, ("fvm",), cell=2.0)
+    rv = win.results
+    assert "T_surface" in win.sim.results["fvm"].arrays
+    assert rv.heater_table.columnCount() == 9
+    rv.tabs.setCurrentWidget(rv.temp)
+    assert not any("Surface" in win.layer_combo.itemText(i) for i in range(win.layer_combo.count()))
 
 
 def test_component_fields_in_the_application(win, qtbot):

@@ -139,7 +139,7 @@ def surface_report_lines(res):
     """!
     @brief The lines of the report and of the Results summary that give the surface read-out beside the column one (empty without a surface).
     @param res A SteadyResult.
-    @return List of strings, one per face that has a surface; each names both read-outs when the two differ by more than 0.1 K or 0.5 % of the rise.
+    @return List of strings, one per face that has a surface; each names both read-outs when the two differ by at least max(0.1 K, 1 % of the rise), and gives that share.
     """
     out = []
     if not thickness.significant(res):
@@ -149,8 +149,9 @@ def surface_report_lines(res):
             continue
         surf = float(res.extras[key])
         flagged = bool(np.asarray(res.arrays["T_surface_flag"])[face].any())
-        out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is wide against the plate (t/a above 0.5)' if flagged else ''}; "
-                   f"the column mean read-out is {res.t_max:.1f} degC)")
+        rise = max(res.t_max - res.ambient, 1e-9)
+        out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}; "
+                   f"the column mean read-out is {res.t_max:.1f} degC; the surface is {surf - res.t_max:+.1f} K, {100 * (surf - res.t_max) / rise:+.1f} % of the rise)")
     return out
 
 
@@ -366,7 +367,7 @@ class Simulation:
                 if h["margin_k"] is not None:
                     extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
-                if "t_max_surface" in h and abs(h["t_max_surface"] - h["t_max"]) >= min(thickness.SHOW_ABS_K, thickness.SHOW_REL * max(h["t_max"] - ref.ambient, 1e-9)) \
+                if "t_max_surface" in h and abs(h["t_max_surface"] - h["t_max"]) >= max(thickness.SHOW_ABS_K, thickness.SHOW_REL * max(h["t_max"] - ref.ambient, 1e-9)) \
                         and abs(h["t_max_surface"] - h["t_max"]) >= 1e-3:
                     # Both read-outs exist: every number names its own
                     note = "estimate, upper side" if h["surface_upper"] else "estimate"

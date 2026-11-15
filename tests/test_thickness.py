@@ -60,7 +60,7 @@ def test_a_one_dimensional_column_reads_q_t_over_2k_exactly():
 @pytest.mark.parametrize("model", ["fvm", "fdm"])
 def test_case_2_of_muzychka_the_surface_is_within_the_stated_range_of_the_3d_surface(model):
     # Independent 3D surface (research/muzychka-case2-analytic, layered3d with 8 sub-slabs, 0.5 mm): 97.41 / 103.85 / 101.31 / 99.95 degC. The program's column mean reads
-    # 2.0 / 4.6 / 3.7 / 2.9 K below it; the parabola reads +0.57 / +1.26 / +1.03 / +0.80 K above it (README 4.1 of research/through-thickness-readout), upper side at t/a = 1
+    # 2.0 / 4.6 / 3.7 / 2.9 K below it; the parabola reads +0.56 / +1.26 / +1.03 / +0.80 K above it at 0.5 mm (validation 55.6; the research prototype printed +0.57 for the first, README 4.1 of research/through-thickness-readout), upper side at t/a = 1
     ref = [97.41, 103.85, 101.31, 99.95]
     cen = [(12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5)]
     p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
@@ -127,6 +127,17 @@ def test_the_partial_cell_peak_is_the_larger_of_the_two_terms_not_their_sum():
     assert top[0, 0] == pytest.approx(100.2) and mean[0, 0] == pytest.approx(100.2)          # full copper: the copper term
     assert top[0, 1] == pytest.approx(100.5)                                                   # f = 0.5: the larger of 0.2 and 0.5, not 0.7
     assert mean[0, 1] == pytest.approx(100.0 + 0.5 * 0.2 + 0.25)                               # the mean is f c plus the laminate mean term
+
+
+def test_a_cell_without_copper_and_without_a_laminate_term_has_no_offset():
+    # Review: the peak of an empty cell took the copper term c (a parabola through copper that is not there) while its mean was f c = 0; both are 0 now
+    ny, nx = 1, 2
+    res = types.SimpleNamespace(T=np.full((1, ny, nx), 50.0), arrays={"face_peak": np.zeros((1, ny, nx)), "face_mean": np.zeros((1, ny, nx))},
+                                extras={}, ambient=25.0, grid="cells", dx=1e-3, dy=1e-3, coords=lambda: (np.array([0.5e-3, 1.5e-3]), np.array([0.5e-3])))
+    prob = types.SimpleNamespace(heaters=[], board=types.SimpleNamespace(copper_thickness=[1e-3], layers=1))
+    thickness._finish(res, prob, {0: np.full((ny, nx), 0.3), 1: np.full((ny, nx), -0.3)}, np.array([[[1.0, 0.0]]]), [(0, 0), (1, 0)], np.full((ny, nx), 1e-6))
+    assert res.arrays["T_surface"][0][0, 0] == pytest.approx(50.3) and res.arrays["T_surface"][0][0, 1] == 50.0
+    assert res.arrays["T_surface_mean"][0][0, 1] == 50.0
 
 
 def test_the_flag_marks_a_part_that_is_wide_against_the_plate_only():

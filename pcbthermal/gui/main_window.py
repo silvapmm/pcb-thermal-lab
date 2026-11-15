@@ -1116,6 +1116,8 @@ class MainWindow(QMainWindow):
             box.clear()
             for text, data in entries:
                 box.addItem(text, data)
+                if isinstance(data, int) and data >= layerchoice.SURFACE_BASE:
+                    box.setItemData(box.count() - 1, tips.SURFACE_ENTRY_TIP, Qt.ToolTipRole)     # The surface entries say what they are, one by one
             box.blockSignals(False)
         box.blockSignals(True)
         box.setCurrentIndex(max(box.findData(value), 0))
