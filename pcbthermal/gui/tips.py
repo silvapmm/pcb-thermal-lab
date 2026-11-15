@@ -39,8 +39,9 @@ COLUMN_TABLE_TIP = ("Column read-out: the temperature of the copper layer in eac
                     "part table. The surface of the outer copper is in the Layer box (Surface entries) and in the last column of the part table.")
 BLOCK_TABLE_TIP = ("Metal block read-out: the block temperature, the mean through its thickness in each cell (every model, the FEM too: a block has no surface "
                    "read-out); Mean and Max are over the plan of the blocks on that side of the board (Face: top or bottom).")
-MODEL_TABLE_TIP = ("Column read-out of each model: Tmax is its hottest layer-mean value (cell or node), Tmean the mean over the board, ΔT = Tmax - ambient. "
-                   "The surface and, for the FEM, the hottest mesh node are in the report below.")
+MODEL_TABLE_TIP = ("One row per model. Tmax (column) and Tmean (all layers) are column read-outs (the copper layer averaged through its thickness); Tmax (surface) is the hottest "
+                   "point of the top face of the copper (FVM, FDM, FEM only); ΔT = Tmax (column) - ambient. Hover a column title for its meaning; the bottom face and, for the FEM, "
+                   "the hottest mesh node are in the report.")
 
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",

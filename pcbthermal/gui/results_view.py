@@ -26,6 +26,7 @@ from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
+from ..api import SUMMARY_COLUMNS
 from ..numfmt import num, signed_fixed
 
 
@@ -101,7 +102,64 @@ def _fit_height(table, min_rows=3, max_rows=12):
     """
     rows = min(max(table.rowCount(), min_rows), max_rows)
     h = table.horizontalHeader().height() + rows * table.verticalHeader().defaultSectionSize() + 2 * table.frameWidth() + 2
+    bar = table.horizontalScrollBar()
+    if bar.maximum() > 0:                                  # A table with a horizontal scroll bar needs its height as well (nothing cut)
+        h += bar.sizeHint().height()
     table.setFixedHeight(h)
+
+
+class _SummaryTable(QTableWidget):
+    """!
+    @brief The models table of the Summary: columns as wide as their content, a horizontal scroll bar when they do not fit, the height of its rows.
+    """
+
+    def resizeEvent(self, event):
+        """!
+        @brief Fit the height again: the horizontal scroll bar appears or goes away with the width.
+        @param event QResizeEvent.
+        """
+        super().resizeEvent(event)
+        _fit_height(self, min_rows=self.rowCount() or 1)
+
+
+def summary_table(ref_label="FVM"):
+    """!
+    @brief Create the models table of the Summary with the headers of the one column definition of the API (api.SUMMARY_COLUMNS).
+    @details Headers in two lines name the read-out; every column is as wide as its header or its longest cell (at least MIN_SECTION px) and only the last one
+             stretches, so that a narrow window shows a horizontal scroll bar instead of a cut header or number.
+    @param ref_label Name of the reference model for the error column.
+    @return QTableWidget.
+    """
+    t = _SummaryTable(0, 0)
+    t.setToolTip(tips.MODEL_TABLE_TIP)
+    t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    t.setSelectionBehavior(QAbstractItemView.SelectRows)
+    t.verticalHeader().setVisible(False)
+    t.setAlternatingRowColors(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+    set_summary_headers(t, list(SUMMARY_COLUMNS), ref_label)
+    return t
+
+
+MIN_SECTION = 56
+
+
+def set_summary_headers(table, cols, ref_label):
+    """!
+    @brief Put the headers, the tooltips and the resize modes of the models table.
+    @param table QTableWidget of summary_table.
+    @param cols List of api.SummaryColumn.
+    @param ref_label Name of the reference model for the error column.
+    """
+    table.setColumnCount(len(cols))
+    table.setHorizontalHeaderLabels(["\n".join(c.header_lines(ref_label)) for c in cols])
+    head = table.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    for i, c in enumerate(cols):
+        table.horizontalHeaderItem(i).setToolTip(c.tip)
 
 
 def recolour_toolbar(toolbar, theme):
@@ -533,11 +591,9 @@ class ResultsView(QWidget):
         # Summary: models table, warnings and the text report
         summary = QWidget()
         sl = QVBoxLayout(summary)
-        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
-                                   "Balance", "Error vs ref", "Time s"])
-        _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
-        # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
-        self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        # Headers in two lines name the read-out; the columns come from the one definition of the API (api.SUMMARY_COLUMNS), as wide as their content
+        self.model_table = summary_table()
+        _fit_height(self.model_table, min_rows=1)            # The height follows the rows (as many as there are models), see _fit_height
         self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
@@ -570,9 +626,8 @@ class ResultsView(QWidget):
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"])
         self.block_table = _table(["Metal block", "Face", "Mean °C\n(block)", "Max °C\n(block)", "Heat in W", "Heat to air W"])     # The block read-out: the mean through the block
         self.block_table.setMaximumHeight(110)                 # Two rows (a block on each side) under the two-line header that names the read-out
-        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled)
-        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP),
-                             (self.model_table, (1, 2, 3), tips.MODEL_TABLE_TIP)):
+        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled; the models table has one per column)
+        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP)):
             for c in cols:
                 t.horizontalHeaderItem(c).setToolTip(tip)
         for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
@@ -678,17 +733,19 @@ class ResultsView(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
-        rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
-                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
-                 "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
-                 f"{r['seconds']:.2f}"] for r in sim.table()]
+        cols, rows, cell_tips = sim.summary_grid(tips.model_label)
+        set_summary_headers(self.model_table, cols, tips.model_label(sim.reference.model))
         _fill(self.model_table, rows)
-        _fit_height(self.model_table)
+        for r, per_cell in enumerate(cell_tips):                # The raw energy balance is in the tooltip of its cell (the cell shows a percentage with a floor)
+            for c, tip in per_cell.items():
+                self.model_table.item(r, c).setToolTip(tip)
+        self.model_table.resizeColumnsToContents()
+        _fit_height(self.model_table, min_rows=len(rows))
         self._anim_warns = []                                   # A new run: the notes of the old animation are gone
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report(inline_warnings=False))      # The warnings are in the box above it
+        self.report.setPlainText(sim.report(inline_warnings=False, table=False))      # The warnings are in the box above it and the models table is the table above
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
