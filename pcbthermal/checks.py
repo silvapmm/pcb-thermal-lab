@@ -698,7 +698,8 @@ def check_lumped_near_edge(problem, models):
              10 to 200 W/m2K, boards 40 x 40 and 100 x 80 mm), hottest node against the FVM at 0.5 mm: before the images -7.4 % of the rise on average (-9.4 % over the 120 flagged, -22.2 % worst, 70 cases
              beyond -8 %); with them -1.6 % (-2.7 % over the 120 flagged, +0.5 % over the other 60), worst -7.5 % cool and +4.0 % hot, none beyond -8 %. On the 432 cases of the study: -9.4 to -2.5 %, worst
              -22.4 to -8.6 %, and up to +9.4 % hot at a corner with the side cooled by 200 W/m2K; against an independent converged 3D solver (6 mm part, 40 x 40 mm, insulated sides) -3.1 / -5.4 / -4.2 / -3.0 / -0.4 %
-             at a side gap of 0 / 1 / 2 / 5 / 10 mm and -3.3 / -7.3 / -5.4 % at a corner gap of 0 / 2 / 5 mm (before: -9.9 to -1.7 and -15.9 to -7.8 %). A source is flagged when its gap to the nearest side is at
+             at a side gap of 0 / 1 / 2 / 5 / 10 mm and -3.3 / -7.3 / -5.4 % at a corner gap of 0 / 2 / 5 mm (before: -9.9 to -1.7 and -15.9 to -7.8 %). A footprint above
+             lumped.IMAGE_MAX_CELLS cells keeps the plain link: a 30.1 mm part touching a side of a 100 x 80 mm board reads -14.6 % at 0.5 mm (-6.6 % at 30.0 mm), docs/validation.md 53.4. A source is flagged when its gap to the nearest side is at
              most max(its equivalent side, 5 mm) (the rule of research/lumped-near-edge 6.1: it flags 69 of the 70 cases that were beyond -8 % before the images; 120 of the 180 cases are flagged).
              Only geometry is used, so the warning is live. A board with an outline also gets the run's note about the equivalent rectangle (one line each).
     @param problem A Problem (structurally valid).
@@ -723,7 +724,8 @@ def check_lumped_near_edge(problem, models):
     why = ("the Lumped model does not see the side that sends the heat back except through the mirror images of its first link, so a part this close to a side or a corner reads mostly "
            "a little too cool: on 180 test boards (parts of 2 to 10 mm, gaps of 0 to 30 mm, edge film 10 to 200 W/m2K) the hottest temperature of the flagged parts read 2.7 % of the rise "
            "too cool on average against the FVM (worst 7.5 % too cool), on 432 cases up to 8.6 % too cool and, at a corner with a side cooled by 200 W/m2K, up to 9 % too hot; "
-           "against an independent 3D solver 3 to 7 % too cool at 1 to 5 mm from a side or a corner (up to 7.3 %); a sample, not a bound; use the FVM or the FDM for the final value.")
+           "against an independent 3D solver 3 to 7 % too cool at 1 to 5 mm from a side or a corner (up to 7.3 %); a part larger than about 30 mm at the 0.5 mm cell (60 mm at 1 mm) "
+           "keeps the plain link and reads about 15 % too cool at a side; a sample, not a bound; use the FVM or the FDM for the final value.")
     short_why = "the Lumped model reads {} 3 % of the rise too cool on average (up to 9 % too cool, up to 9 % too hot at a cooled corner); use the FVM"
     if len(flagged) == 1:
         out = []

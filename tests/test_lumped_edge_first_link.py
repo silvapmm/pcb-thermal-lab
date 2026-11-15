@@ -163,3 +163,22 @@ def test_a_30_mm_part_stays_fast():
     t0 = time.perf_counter()
     lumped_rise(p)
     assert time.perf_counter() - t0 < 2.0
+
+
+def test_the_footprint_limit_is_a_jump_for_a_part_at_a_side(monkeypatch):
+    """!
+    @brief The stated limit of docs/validation.md 53.4: a part above IMAGE_MAX_CELLS (a 30.1 mm square at 0.5 mm) keeps the plain link bit for bit, while 30.0 mm takes the images,
+           so a part touching a side jumps back to the old deficit (13.36 against 12.18 K; the FVM reads 14.31 and 14.26 K).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    def run(side):
+        p = Problem.new(100, 80, layers=2, thickness_mm=1.6, copper_um=35.0, h_top=10.0, h_bottom=15.0, h_side=10.0)
+        p.add_full_copper(fill=1.0)
+        p.add_heater(1, 1.0, rect=(0.0, 40.0 - side / 2, side, 40.0 + side / 2), name="U")
+        return simulate(p, SolverOptions(models=("lumped",), cell_mm=0.5)).results["lumped"].t_max - p.board.ambient
+    below, above = run(30.0), run(30.1)
+    assert below == pytest.approx(13.358, abs=0.01) and above == pytest.approx(12.176, abs=0.01)
+    monkeypatch.setattr(lumped, "IMAGE_MAX_CELLS", -1)            # the image path switched off everywhere: the plain link of the merge base
+    assert run(30.1) == above
+    assert run(30.0) < below - 1.0
