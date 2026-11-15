@@ -323,3 +323,26 @@ def test_a_failed_run_says_the_cause_and_what_to_do(win, monkeypatch):
     win._on_failed("the FEM mesh could not be built")
     assert seen and seen[0][0] == "Simulation failed" and seen[0][1].startswith("the FEM mesh could not be built") and "run again" in seen[0][1]
     assert win.solver_panel.status.text() == "Failed." and win.statusBar().currentMessage() == "Failed."
+
+
+def test_the_stack_up_page_has_no_sideways_bar_at_1200_by_800(win):
+    """!
+    @brief The Stack-up page stacks the diagram over the forms when the centre is narrow (it scrolled sideways at 1200 x 800, the forms hidden) and its texts
+           are not cut (the Scale box read 'Readable (thin layers enl').
+    @param win Main window fixture.
+    """
+    from PySide6.QtWidgets import QScrollArea
+
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.main_window import TAB_STACKUP
+
+    load(win, example_board())
+    win.resize(1200, 800)
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    QApplication.processEvents()
+    area = win.stackup_page.parentWidget()
+    while not isinstance(area, QScrollArea):
+        area = area.parentWidget()
+    assert area.horizontalScrollBar().maximum() == 0, (area.viewport().width(), win.stackup_page.minimumSizeHint().width())
+    sc = win.stackup_page.scale
+    assert sc.width() >= sc.sizeHint().width() - 2
