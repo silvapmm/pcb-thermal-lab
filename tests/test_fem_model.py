@@ -86,7 +86,8 @@ def test_the_surface_and_the_column_agree_on_thin_copper_and_the_point_is_the_ho
 
 def test_a_plain_board_agrees_with_the_fvm_and_the_3d_solid():
     # Measured on these boards at the same 2 mm cell (rise of the hottest cell, K): 60 x 40 mm FEM 34.13, FVM 34.27, 3D solid 34.30; 40 x 30 mm FEM 54.28, FVM 54.76, 3D solid
-    # 54.79: the FEM column read-out is 0.4 to 0.9 % below (a 6 mm part: the node of the FVM is a cell mean too, the FEM column also includes the fine elements of the cell)
+    # 54.79: the FEM column read-out is 0.4 to 0.9 % below. The review traced it to the finite volumes: on a 40 x 30 mm two-layer board the FEM converges from below
+    # (0.06 % under the converged heater mean at the default mesh) and the independent finite volumes from above (0.5 % over at 1 mm; REVIEW_BRANCH4.md 3)
     for w, h in ((60.0, 40.0), (40.0, 30.0)):
         p = small(width=w, height=h)
         rows = {m: simulate(p, SolverOptions(models=(m,), cell_mm=2.0)).results[m] for m in ("fvm", "solid3d")}
@@ -258,7 +259,10 @@ def test_case_2_of_muzychka_the_resolved_surface_meets_the_paper():
     # Case 2 of Muzychka, Culham and Yovanovich (2003): a 50 x 50 x 10 mm plate (k 150), h 400 on the bottom face, top and sides adiabatic, four 10 x 10 mm sources of
     # 10 / 25 / 20 / 15 W. Paper Table 4 centroids (top surface): 97.40 / 103.82 / 101.28 / 99.94 degC; the independent 3D solver of research/muzychka-case2-analytic reads
     # 97.39 / 103.81 / 101.27 / 99.93 with 16 sub-slabs (its column mean 95.35 / 99.15 / 97.49 / 97.01). The FEM resolves the surface: it must sit on the surface values, the
-    # column on the column means (docs/validation.md 55 and 56)
+    # column on the column means (docs/validation.md 55 and 56). Review of branch 4: the first version read a 2 x 2 cell window chosen with round(), which is off the
+    # centroid by 0.5 mm (to even: down at 12.5, up at 37.5) and about 0.07 K below it, and met the paper to the printed digit only because that cancelled the 1 um FR-4 film
+    # of this Problem (+0.09 K). The centred 1 mm cell reads 97.467 / 103.851 / 101.327 / 99.992 (column 95.436 / 99.231 / 97.571 / 97.095); the node test below, with the
+    # film made conductive, is the clean comparison with the paper
     cen = [(12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5)]
     p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
     p.add_full_copper()
@@ -268,8 +272,60 @@ def test_case_2_of_muzychka_the_resolved_surface_meets_the_paper():
     paper, col3d = [97.40, 103.82, 101.28, 99.94], [95.35, 99.15, 97.49, 97.01]
     S, T = r.arrays["T_surface"][0], r.T[0]
     for (cx, cy), want, col in zip(cen, paper, col3d):
-        i, j = int(round(cx)), int(round(cy))
-        s, c = S[j - 1:j + 1, i - 1:i + 1].mean(), T[j - 1:j + 1, i - 1:i + 1].mean()
-        print(f"case 2 at ({cx}, {cy}): FEM surface {s:.2f} (paper {want}), column {c:.2f} (3D column {col})")
-        assert abs(s - want) < 0.15 and abs(c - col) < 0.15
+        i, j = int(cx // 1.0), int(cy // 1.0)                                       # the 1 mm cell whose centre IS the centroid (x.5 mm)
+        s, c = S[j, i], T[j, i]
+        print(f"case 2 at ({cx}, {cy}): FEM surface {s:.3f} (paper {want}), column {c:.3f} (3D column {col})")
+        assert 0.0 < s - want < 0.09 and abs(c - col) < 0.1                        # the 1 um FR-4 film of this Problem puts the plate about 0.09 K up
     assert abs(r.balance_error) < 1e-9
+
+
+def test_a_one_layer_board_reads_the_copper_face_not_the_laminate_bottom():
+    # Review of branch 4: the bottom 'surface' of a one-layer board is the bottom face of its copper (the meaning of thickness.py), so an ordinary 35 um board adds no
+    # surface line to the report; the bottom of the laminate (6.8 K cooler on this board) is bottom_face_mean, the film temperature of the computed-h loop
+    p = Problem.new(width_mm=40, height_mm=30, layers=1, h_top=10.0, h_bottom=10.0)
+    p.add_full_copper([1])
+    p.add_heater(1, 1.0, rect=(17, 12, 23, 18), name="U1")
+    r = fem.solve_steady(p, cell_mm=2.0)
+    assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)
+    assert not api.surface_report_lines(r)
+    assert r.extras["t_max_surface_bottom"] == pytest.approx(r.t_max, abs=0.01)
+    assert r.extras["bottom_face_mean"] < r.layer_mean[0] - 1.0                    # the laminate carries a drop of kelvins to the bottom face
+    assert abs(r.balance_error) < 1e-9
+
+
+def test_a_solve_that_does_not_converge_leaves_the_fem_out_and_the_other_models_answer(monkeypatch):
+    # Review of branch 4: a RuntimeError of the conjugate gradients escaped the API and stopped every model of the run; it is now a refusal of the FEM with the reason
+    def fail(self, **kw):
+        raise RuntimeError("the conjugate-gradient solution has a relative residual of 1.12e-08")
+    monkeypatch.setattr(femcore.Model, "solve", fail)
+    p = small()
+    with pytest.raises(ValueError, match="did not converge"):
+        fem.solve_steady(p, cell_mm=2.0)
+    sim = simulate(p, SolverOptions(models=("fvm", "fem"), cell_mm=2.0))
+    assert "fvm" in sim.results and "fem" not in sim.results
+    assert any("was not run" in str(w) and "did not converge" in str(w) for w in sim.warnings)
+    with pytest.raises(ValueError, match="did not converge"):
+        simulate(p, SolverOptions(models=("fem",), cell_mm=2.0))
+
+
+@needs_pyamg
+def test_case_2_the_converged_node_at_the_centroid_meets_the_paper_with_a_conductive_film():
+    # Review of branch 4: the node at each source centroid on the top face, with the 1 um laminate film that a one-layer Problem must carry made as conductive as the
+    # plate (k 150), reads 97.381 / 103.777 / 101.248 / 99.909 degC at a 1 mm cell (97.380 / 103.774 / 101.246 / 99.908 at 0.5 mm, refinement 4): 0.02 to 0.05 K below
+    # Table 4 of the paper (97.40 / 103.82 / 101.28 / 99.94); with the FR-4 film the same nodes read 0.09 K higher (the film's resistance times the mean flux)
+    cen = [(12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5)]
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None,
+                    materials=Materials(k_copper=150.0, k_fr4_through=150.0, k_fr4_inplane=150.0))
+    p.add_full_copper()
+    for i, (c, pw) in enumerate(zip(cen, [10.0, 25.0, 20.0, 15.0])):
+        p.add_heater(1, pw, rect=(c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5), name=f"S{i}")
+    mesh = femmesh.build(p, 1.0, 6, 2.0)
+    th = mesh.model.solve()["T"]
+    s0 = [s for s, sl in enumerate(mesh.slabs) if sl["region"] == "board"][0]
+    nodes = np.unique(mesh.model.elems[mesh.elem_slab == s0][:, :4])
+    X = mesh.model.nodes[nodes]
+    for (cx, cy), want in zip(cen, [97.40, 103.82, 101.28, 99.94]):
+        d = np.hypot(X[:, 0] - cx * 1e-3, X[:, 1] - cy * 1e-3)
+        assert d.min() < 1e-9                                                       # the centroid is a node of the mesh
+        got = 25.0 + th[nodes[int(np.argmin(d))]]
+        assert -0.07 < got - want < 0.0, (cx, cy, got)

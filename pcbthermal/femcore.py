@@ -350,6 +350,11 @@ class Model:
             ml = pyamg.smoothed_aggregation_solver(A.tocsr(), symmetry="symmetric", strength=("symmetric", {"theta": 0.0}), max_coarse=200)
             M = ml.aspreconditioner(cycle="V")
             t, info = spla.cg(A, rhs, rtol=tol, maxiter=5000, M=M)
+            bnorm0 = float(np.linalg.norm(rhs))
+            if info == 0 and bnorm0 > 0 and float(np.linalg.norm(A @ t - rhs)) / bnorm0 > max(1e-8, 100 * tol):
+                # The recursive residual of CG drifts from the true one on a matrix with a strong conductivity contrast (review of branch 4: the case-2 plate with a
+                # conductive film at 828 000 unknowns stopped at a true residual of 1.1e-8): one restart from the solution recomputes the true residual and reduces it
+                t, info = spla.cg(A, rhs, x0=t, rtol=tol, maxiter=5000, M=M)
             if info != 0:
                 raise RuntimeError(f"conjugate gradients did not converge (info {info})")
             how = "cg"

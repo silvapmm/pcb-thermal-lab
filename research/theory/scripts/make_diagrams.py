@@ -1541,7 +1541,7 @@ def fem_flow(path):
     @return None.
     """
     fig, a = dk.canvas(15.5, 6.4)
-    a.set_xlim(0, 31); a.set_ylim(0, 13); a.axis("off")
+    a.set_xlim(0, 31.4); a.set_ylim(0, 13); a.axis("off")
     w, h = 4.6, 2.2
     top = [(0.4, "Problem\n(board, zones, heaters,\nvias, blocks, h)", "#cfe3f5"), (5.6, "memory guard\nfemmesh.unknowns:\nexact count, verdict", "#f6e7b4"),
            (10.8, "plan mesh\nbreak lines, refined\nnear parts, via patches", "#cfe3f5"), (16.0, "extrusion\ncopper slabs, graded\ngaps, partial blocks", "#cfe3f5"),

@@ -15,7 +15,7 @@
            over that cell and the copper slabs of that layer (the elements are shared between cells in proportion to the overlap of their plan rectangle); like for like with the
            node value of the FVM, FDM and 3D solid;
          * **surface**: the area mean of the field over the cell on the outer face of the outer copper layers (top of layer 1, bottom of the last layer; for a one-layer board the
-           bottom face of its laminate), resolved, not the parabola of thickness.py: `arrays["T_surface"]` and `arrays["T_surface_mean"]` (2, ny, nx; both are that area mean, so
+           bottom face of its copper, as in thickness.py; the bottom of its laminate is `extras["bottom_face_mean"]`), resolved, not the parabola of thickness.py: `arrays["T_surface"]` and `arrays["T_surface_mean"]` (2, ny, nx; both are that area mean, so
            that their difference from the column is the through-thickness term only), `arrays["T_surface_flag"]` (all False: nothing is estimated), `extras["t_max_surface_top"]`,
            `["t_max_surface_bottom"]`, `["surface_excess_k"]`; the names and the meaning of thickness.py, so the Layer entries and the part rows read them unchanged;
          * **point**: the hottest node of the whole mesh, `extras["t_max_point"]`, and `arrays["T_point"]` (2, ny, nx), the hottest node of each face in each cell.
@@ -167,7 +167,8 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
     @param force_solver None (by size), "direct" or "cg" (tests and studies).
     @return SteadyResult (model "fem"; T per layer is the column read-out, arrays T_surface and the rest as in the module docstring).
     @throws memory.MemoryGuardError (a ValueError) If the estimated memory is above the limit.
-    @throws ValueError With the reason when no mesh can be built (slanted outline, too many break lines, a cell that is too fine).
+    @throws ValueError With the reason when no mesh can be built (slanted outline, too many break lines, a cell that is too fine), or when the conjugate gradients do not
+                       converge (the RuntimeError of femcore turned into a refusal, so that the other models of a run still answer).
     @throws femcore.FemUnavailable If the mesh needs the conjugate gradients and pyamg is not installed.
     @throws femcore.FemCancelled If `cancel` returned True.
     """
@@ -178,7 +179,14 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
                                      "installed (pip install pyamg): use a coarser cell or install it")
     mesh = femmesh.build(problem, cell_mm, gap_elements, refine)
     model = mesh.model
-    sol = model.solve(cancel=cancel, force=force_solver)
+    try:
+        sol = model.solve(cancel=cancel, force=force_solver)
+    except (femcore.FemUnavailable, femcore.FemCancelled):
+        raise
+    except RuntimeError as exc:
+        # A conjugate-gradient solve that does not reach its residual is a failure of this comparison model, not of the run: as a ValueError the API leaves the FEM
+        # out with the reason when other models are ticked and says the reason when it is the only one (a raw RuntimeError would stop every model of the run)
+        raise ValueError(f"the finite-element solve did not converge ({exc}); a coarser cell or a smaller refinement gives a smaller system") from exc
     th = sol["T"]
     b = problem.board
     L = b.layers
@@ -207,7 +215,11 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
     surf = np.full((2, ny, nx), np.nan)
     point = np.full((2, ny, nx), np.nan)
     board_slabs = [s for s, sl in enumerate(mesh.slabs) if sl["region"] == "board"]
-    for face, s_face, kind in ((0, board_slabs[0], "top"), (1, board_slabs[-1], "bottom")):
+    # The faces of thickness.py: the top of layer 1 and the bottom of the last copper layer. On a one-layer board that bottom is the face of the copper on the laminate,
+    # NOT the bottom of the laminate (which would put the whole laminate drop in the surface excess and in the report of an ordinary 35 um board); the bottom of the
+    # laminate is read apart below as bottom_face_mean, the film temperature of the computed-h loop
+    bottom_slab = mesh.copper_slabs[0][-1] if (L == 1 and mesh.copper_slabs[0]) else board_slabs[-1]
+    for face, s_face, kind in ((0, board_slabs[0], "top"), (1, bottom_slab, "bottom")):
         ids = np.arange(*_slab_range(mesh, s_face))
         tot, area = _gauss_weights(model, th, ids, kind)
         mean, den = _to_cells(_cell_shares(plan, mesh.elem_quad[ids], nx, ny, W, H), tot, area, nx, ny)
@@ -257,9 +269,11 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
             out.extras[f"t_max_surface_{'top' if face == 0 else 'bottom'}"] = float(np.nanmax(surf[face]))
     out.extras["surface_excess_k"] = max(exc) if exc else 0.0
     if L == 1:
-        # The bottom face of a one-layer board is the last laminate node of the other models: the film temperature the computed-h loop reads
-        bm = np.nanmean(np.where(active, surf[1], np.nan))
-        out.extras["bottom_face_mean"] = float(bm)
+        # The bottom face of a one-layer board (the bottom of its laminate) is the last laminate node of the other models: the film temperature the computed-h loop reads
+        ids = np.arange(*_slab_range(mesh, board_slabs[-1]))
+        tot, area = _gauss_weights(model, th, ids, "bottom")
+        mean, den = _to_cells(_cell_shares(plan, mesh.elem_quad[ids], nx, ny, W, H), tot, area, nx, ny)
+        out.extras["bottom_face_mean"] = float(np.nanmean(np.where(active, amb + _fill_empty(mean, den > 0, active), np.nan)))
     _blocks_readout(out, problem, mesh, th, nx, ny, amb)
     if abs(out.balance_error) > 1e-6:
         out.warnings.append(f"the energy balance of the finite-element solve is off by {out.balance_error:+.2e}: check the mesh and the solve")
