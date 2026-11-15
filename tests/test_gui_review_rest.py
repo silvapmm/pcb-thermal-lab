@@ -211,3 +211,29 @@ def test_an_empty_board_shows_the_first_steps_and_the_hint_goes_with_the_first_e
     win.doc.problem.add_heater(1, 1.0, rect=(40, 30, 50, 40), name="U1")
     win.doc.changed.emit()
     assert not win.canvas.empty_hint_shown()
+
+
+def test_open_recent_lists_the_projects_newest_first_and_drops_missing_files(win, tmp_path):
+    """!
+    @brief File - Open recent lists the projects opened or saved, newest first; a file that was deleted leaves the list; the menu is greyed when it is empty.
+    @param win Main window fixture.
+    @param tmp_path pytest fixture.
+    """
+    from pcbthermal.examples import example_board
+    from pcbthermal.project import Project, save_project
+
+    win.settings.setValue("recent_files", [])
+    win._fill_recent_menu()
+    assert not win.recent_menu.isEnabled()
+    paths = []
+    for name in ("a", "b"):
+        path = tmp_path / f"{name}.pcbt.json"
+        save_project(str(path), Project(problem=example_board()))
+        paths.append(str(path))
+        win.open_file(str(path))
+    assert win.recent_files()[:2] == [paths[1], paths[0]]
+    texts = [a.text() for a in win.recent_menu.actions() if a.text()]
+    assert texts[0].endswith("b.pcbt.json") and texts[1].endswith("a.pcbt.json") and win.recent_menu.isEnabled()
+    os_remove = __import__("os").remove
+    os_remove(paths[0])
+    assert paths[0] not in win.recent_files()

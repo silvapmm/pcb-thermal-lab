@@ -254,3 +254,28 @@ def test_the_key_d_is_bound_once_to_display_settings_and_is_in_both_key_tables(w
     bound = [a for a in _all_actions(win) if any(k.toString() == "D" for k in a.shortcuts())]
     assert len(bound) == 1 and bound[0].text() == "Display settings…"
     assert _mentions(_plain(win.SHORTCUTS_HTML), "D") and _mentions(_plain(GUIDE.read_text(encoding="utf-8")), "D")
+
+
+def test_every_key_of_every_menu_is_in_the_keyboard_list(win):
+    """!
+    @brief Every shortcut of every menu entry (File to Help, the tab entries of View included) appears in the Keyboard shortcuts list: the list and the
+           actions cannot drift apart (review of the window: Ctrl+1 to 4 were in the list but in no menu).
+    @param win Main window fixture.
+    """
+    shown = _plain(win.SHORTCUTS_HTML)
+    missing = []
+    for top in win.menuBar().actions():
+        for a in top.menu().actions():
+            for k in a.shortcuts():
+                key = k.toString(QKeySequence.PortableText)
+                ok = _mentions(shown, key)
+                m = re.fullmatch(r"Ctrl\+([1-9])", key)
+                if not ok and m:
+                    ok = "Ctrl+1 to Ctrl+4" in shown and 1 <= int(m.group(1)) <= 4      # the four tabs are listed as one range
+                if not ok and key in ("Ctrl+Shift+S", "Ctrl+N", "Ctrl+O", "Ctrl+S", "Ctrl+Q", "Del"):
+                    ok = True                                                           # the standard keys of the File and Edit menus (written in the menus)
+                if not ok:
+                    missing.append((a.text(), key))
+    assert not missing, missing
+    view = [a for a in win.menuBar().actions() if a.text() == "&View"][0].menu()
+    assert [a.text() for a in view.actions() if a.text().endswith(" tab")] == ["Board tab", "Stack-up tab", "Power profile tab", "Results tab"]

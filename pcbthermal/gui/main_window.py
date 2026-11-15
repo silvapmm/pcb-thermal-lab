@@ -577,13 +577,19 @@ class MainWindow(QMainWindow):
         self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
         self.a_about = self._act("About PCB Thermal Lab", self.show_about)
+        self.a_tabs = []
         for n, key in enumerate(("Board", "Stack-up", "Power profile", "Results")):
-            a = self._act(f"Show the {key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}")
-            self.addAction(a)                                  # Active without a menu entry
+            a = self._act(f"{key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}", tip=f"Show the {key} tab (Ctrl+{n + 1})")
+            self.a_tabs.append(a)                              # In the View menu (they were active but in no menu: found only in the keyboard list)
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for a in (self.a_new, self.a_open, self.a_import, None):
+        for a in (self.a_new, self.a_open):
+            m.addAction(a)
+        self.recent_menu = m.addMenu("Open recent")
+        self.recent_menu.setToolTipsVisible(True)               # The full path of each project in its tooltip
+        self._fill_recent_menu()
+        for a in (self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
@@ -596,10 +602,10 @@ class MainWindow(QMainWindow):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
         for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, *self.a_holes.values(), self.a_labels, None,
-                  self.a_bg, self.a_theme):
+                  self.a_bg, self.a_theme, None, *self.a_tabs, None):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
-            m.addAction(d.toggleViewAction())
+            m.addAction(d.toggleViewAction())                  # The docks after a line of their own (they followed the theme entry with no separator)
         m = mb.addMenu("&Simulation")
         m.addAction(self.a_run)
         m.addAction(self.a_cancel)
@@ -1351,6 +1357,50 @@ class MainWindow(QMainWindow):
         @brief Window title with the file name and the modified flag.
         """
         self.setWindowTitle(f"{self.doc.title}{' *' if self.doc.modified else ''} - PCB Thermal Lab {__version__}")
+        if self.doc.path and getattr(self, "_recent_top", None) != str(self.doc.path):
+            self._remember_recent(self.doc.path)              # A project opened or saved under a name goes to the top of File - Open recent
+
+    RECENT_MAX = 8                                             # Projects listed in File - Open recent
+
+    def recent_files(self):
+        """!
+        @brief The recent projects, newest first, without the files that no longer exist.
+        @return list of str paths.
+        """
+        raw = self.settings.value("recent_files", []) or []
+        paths = [raw] if isinstance(raw, str) else list(raw)
+        return [p for p in paths if p and os.path.exists(p)][:self.RECENT_MAX]
+
+    def _remember_recent(self, path):
+        """!
+        @brief Put a project at the top of the recent list (kept in the settings) and rebuild the menu.
+        @param path Path of the project file.
+        """
+        path = str(path)
+        paths = [path] + [p for p in self.recent_files() if os.path.abspath(p) != os.path.abspath(path)]
+        self.settings.setValue("recent_files", paths[:self.RECENT_MAX])
+        self._recent_top = path
+        self._fill_recent_menu()
+
+    def _fill_recent_menu(self):
+        """!
+        @brief List the recent projects in File - Open recent (greyed when there is none).
+        """
+        menu = getattr(self, "recent_menu", None)
+        if menu is None:
+            return
+        menu.clear()
+        paths = self.recent_files()
+        for i, p in enumerate(paths):
+            a = menu.addAction(f"{i + 1}  {os.path.basename(p)}")
+            a.setToolTip(p)
+            a.setStatusTip(p)
+            a.triggered.connect(lambda _=False, path=p: self.open_file(path))
+        if paths:
+            menu.addSeparator()
+            clear = menu.addAction("Clear the list")
+            clear.triggered.connect(lambda: (self.settings.setValue("recent_files", []), self._fill_recent_menu()))
+        menu.setEnabled(bool(paths))
 
     # ------------------------------------------------------------------ files
     def _confirm_discard(self):
