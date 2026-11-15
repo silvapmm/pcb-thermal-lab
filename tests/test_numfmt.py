@@ -86,16 +86,21 @@ def test_num_digits_sign_and_edge_of_the_window():
     assert num(1.5e-9, sign=True) == "+1.50E-9" and num(0.0, sign=True) == "+0" and num(math.inf) == "inf" and num(math.nan) == "nan"
 
 
-def test_balance_column_of_the_summary_is_in_engineering_notation():
+def test_balance_column_of_the_summary_is_a_percentage_with_a_floor():
     """!
-    @brief The Markdown summary shows the power balance without an "e" exponent and with an explicit sign.
+    @brief The Markdown summary shows the power balance as a percentage with a floor ("0.00 %", never round-off noise such as +111.10E-15); the raw value is kept in the table rows.
     """
-    from pcbthermal.api import SolverOptions, simulate
+    from pcbthermal.api import SolverOptions, balance_text, simulate
     from pcbthermal.examples import example_board
     res = simulate(example_board(), SolverOptions(models=("fvm",), cell_mm=2.0))
-    row = [ln for ln in res.to_markdown().split("\n") if ln.startswith("| fvm")][0]
-    balance = row.split("|")[7].strip()
-    assert balance[0] in "+-" and "e" not in balance and (balance == "+0" or "E" in balance or float(balance) < 0.01)
+    lines = res.to_markdown().split("\n")
+    head = [ln for ln in lines if ln.startswith("| Model")][0].split("|")
+    row = [ln for ln in lines if ln.startswith("| FVM")][0].split("|")
+    balance = row[[h.strip() for h in head].index("Balance")].strip()
+    assert balance.endswith(" %") and "E" not in balance
+    assert balance == "0.00 %" or abs(float(balance[:-2])) >= 0.005                      # a floor: nothing between zero and 0.005 %
+    assert balance_text(1.1e-13) == "0.00 %" and balance_text(-3.6e-11) == "0.00 %" and balance_text(0.0031) == "+0.31 %" and balance_text(-0.0125) == "-1.25 %"
+    assert res.table()[0]["energy_balance"] == res.results["fvm"].balance_error          # the raw value stays in the rows (and in summary.json)
 
 
 def test_eng_of_a_subnormal_number():

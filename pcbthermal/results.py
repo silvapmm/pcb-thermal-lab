@@ -16,6 +16,17 @@ import numpy as np
 MODEL_LABELS = {"fvm": "FVM", "lumped": "LPTN", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
 MODEL_FULL = {"fvm": "Finite volume (FVM)", "lumped": "Thermal network (LPTN)", "analytic": "Analytical (Fourier series)", "fdm": "Finite difference (FDM)",
               "solid3d": "3D solid (finite volumes)", "fem": "Finite elements (FEM)"}
+# The same table: one short name per model for the whole program (the legends of the plots, the card of the map); an alias, not a second spelling
+MODEL_SHORT = MODEL_LABELS
+
+
+def short_name(key):
+    """!
+    @brief Short name of a model for a legend or a card.
+    @param key Model key ("fvm", "lumped", ...).
+    @return str, the key itself when unknown.
+    """
+    return MODEL_SHORT.get(key, key)
 
 # The one disclaimer line of every report the program writes (text and Markdown reports, the on-screen Results summary, the CLI output, the JSON summary,
 # the Power Calculator result): a design aid, never compared with a measured board. Reports import this constant; none words it again.

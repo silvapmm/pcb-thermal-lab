@@ -165,4 +165,4 @@ def overlay_refusal(result, problem):
     return None
 
 
-MODEL_SHORT = dict(MODEL_LABELS)   # Title of the card of the map on the board
+from ..results import MODEL_SHORT   # One table of short names for the whole program (results.MODEL_SHORT)

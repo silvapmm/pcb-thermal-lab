@@ -315,9 +315,12 @@ def test_the_tables_name_their_read_out(win):
     rv = win.results
     assert "(block)" in rv.block_table.horizontalHeaderItem(2).text() and "(block)" in rv.block_table.horizontalHeaderItem(3).text()
     assert "no surface" in rv.block_table.horizontalHeaderItem(2).toolTip()
-    for t, cols in ((rv.zone_table, (2, 3, 4)), (rv.hot_table, (2,)), (rv.model_table, (1, 2, 3))):
+    for t, cols in ((rv.zone_table, (2, 3, 4)), (rv.hot_table, (2,))):
         for c in cols:
             assert "Column read-out" in t.horizontalHeaderItem(c).toolTip(), (t, c)
+    # The models table: Tmax and Tmean say 'column' in the header text, the surface column says 'surface' (one definition: api.SUMMARY_COLUMNS)
+    heads = {rv.model_table.horizontalHeaderItem(c).text().replace("\n", " "): c for c in range(rv.model_table.columnCount())}
+    assert "Tmax °C (column)" in heads and "Tmean °C (all layers)" in heads and "ΔT K" in heads
 
 
 @needs_pyamg

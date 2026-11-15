@@ -198,6 +198,88 @@ def surface_report_lines(res):
     return out
 
 
+BALANCE_FLOOR_PERCENT = 0.005    # Below this the energy balance reads "0.00 %": round-off noise of the solver (1e-13 and the like) is not a result
+
+
+def balance_text(value):
+    """!
+    @brief The energy balance of a model as a percentage with a floor, so that round-off noise reads as zero.
+    @param value Relative balance (power out - power in) / power in, dimensionless.
+    @return str Such as "0.00 %", "+0.31 %" or "-1.25 %".
+    """
+    pc = 100.0 * float(value)
+    if not math.isfinite(pc):
+        return "n/a"
+    return "0.00 %" if abs(pc) < BALANCE_FLOOR_PERCENT else f"{pc:+.2f} %"
+
+
+@dataclass(frozen=True)
+class SummaryColumn:
+    """!
+    @brief One column of the models table: the single definition behind the window, the text report and the Markdown report.
+    @details `title`, `unit` and `readout` build the header: two lines in the window and the text report ("Tmax °C" over "(column)"), one line in Markdown
+             ("Tmax [°C] (column)"). `{ref}` in the title is replaced by the name of the reference model.
+    """
+    key: str                                  # Key of the row dict of Simulation.table()
+    title: str                                # Quantity, for example "Tmax"; "{ref}" stands for the reference model
+    unit: str                                 # Unit, for example "°C" (empty for a quantity written with its own unit)
+    readout: str                              # Read-out the number is taken from, for example "column" (empty when not a temperature of a field)
+    fmt: Callable                             # (row dict, reference model key) -> str
+    tip: str                                  # Tooltip of the header in the window
+    left: bool = False                        # True: left-aligned (the model name)
+
+    def header_lines(self, ref_label):
+        """!
+        @brief The header as the lines of the window and of the text report.
+        @param ref_label Name of the reference model (for example "FVM").
+        @return List of one or two str.
+        """
+        first = (self.title.format(ref=ref_label) + (f" {self.unit}" if self.unit else "")).strip()
+        return [first] + ([f"({self.readout})"] if self.readout else [])
+
+    def header_markdown(self, ref_label):
+        """!
+        @brief The header on one line, with the unit in brackets.
+        @param ref_label Name of the reference model.
+        @return str.
+        """
+        return self.title.format(ref=ref_label) + (f" [{self.unit}]" if self.unit else "") + (f" ({self.readout})" if self.readout else "")
+
+
+def _err_text(r, ref):
+    """!
+    @brief Cell of the error column: the reference model reads "reference", the others the error of the rise in percent.
+    @param r Row dict of Simulation.table().
+    @param ref Key of the reference model.
+    @return str.
+    """
+    return "reference" if r["model"] == ref else f"{r['error_vs_reference'] * 100:+.1f} %"
+
+
+SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM). "
+               "It is a view of the same solution, not another model; the LPTN, Analytic and 3D solid models have no surface read-out (n/a). The bottom face and the "
+               "hottest mesh node of the FEM are in the report.")
+SUMMARY_COLUMNS = (
+    SummaryColumn("model", "Model", "", "", lambda r, ref: r["model"], "The model; the reference model (FVM when it runs) is the one the errors are measured against.", left=True),
+    SummaryColumn("t_max_c", "Tmax", "°C", "column", lambda r, ref: f"{r['t_max_c']:.2f}",
+                  "Column read-out: the hottest layer-mean value (the copper layer averaged through its thickness) over every copper layer and every cell inside the outline; "
+                  "metal blocks are not counted. For the LPTN model it is the peak of the ring network at the heater (a column value, not the maximum of a map)."),
+    SummaryColumn("t_max_surface_c", "Tmax", "°C", "surface", lambda r, ref: "n/a" if r.get("t_max_surface_c") is None else f"{r['t_max_surface_c']:.2f}", SURFACE_TIP),
+    SummaryColumn("t_mean_c", "Tmean", "°C", "all layers", lambda r, ref: f"{r['t_mean_c']:.2f}",
+                  "Column read-out: the mean over all copper layers together (every layer counts equally; inside a layer the cells are weighted by the area inside the outline); "
+                  "metal blocks are not counted. On a board with inner planes it mixes the hot outer layer with the cool planes."),
+    SummaryColumn("delta_t_k", "ΔT", "K", "", lambda r, ref: f"{r['delta_t_k']:.2f}", "Rise of the column Tmax above the ambient: Tmax - ambient, a difference, in kelvin."),
+    SummaryColumn("r_theta_k_per_w", "Rθ", "K/W", "", lambda r, ref: f"{r['r_theta_k_per_w']:.3f}",
+                  "Board resistance, ΔT / power: from the hottest column value to the air. It is not a junction value (junction temperatures are in the Components tab)."),
+    SummaryColumn("power_in_w", "Power", "W", "", lambda r, ref: f"{r['power_in_w']:.3f}", "Power injected by the heaters in this run."),
+    SummaryColumn("energy_balance", "Balance", "", "", lambda r, ref: balance_text(r["energy_balance"]),
+                  "Energy balance, (power out - power in) / power in, in percent; below 0.005 % it reads 0.00 % (round-off). The raw value is in the tooltip of the cell and in summary.json."),
+    SummaryColumn("error_vs_reference", "Error vs {ref}", "", "of ΔT", _err_text,
+                  "Error of the rise ΔT of this model against the reference model: ΔT / ΔT(reference) - 1, in percent. It is the error of the rise, not of Tmax."),
+    SummaryColumn("seconds", "Time", "s", "", lambda r, ref: f"{r['seconds']:.2f}", "Wall-clock time of the solve."),
+)
+
+
 @dataclass
 class Simulation:
     """!
@@ -261,25 +343,50 @@ class Simulation:
         rows = []
         for name, r in self.results.items():
             err = (r.delta_t / ref.delta_t - 1.0) if ref.delta_t > 0 else 0.0
-            rows.append({"model": name, "t_max_c": r.t_max, "t_mean_c": r.t_mean, "delta_t_k": r.delta_t,
+            # The top-face peak of the surface read-out (FVM, FDM and FEM); None for the models that have none
+            surf = float(r.extras["t_max_surface_top"]) if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None else None
+            rows.append({"model": name, "t_max_c": r.t_max, "t_max_surface_c": surf, "t_mean_c": r.t_mean, "delta_t_k": r.delta_t,
                          "r_theta_k_per_w": r.r_theta, "power_in_w": r.power_in,
                          "energy_balance": r.balance_error, "error_vs_reference": err,
                          "seconds": self.seconds.get(name, 0.0), "warnings": len(r.warnings)})
         return rows
+
+    def summary_columns(self):
+        """!
+        @brief The columns of the models table that carry a value in this run (the surface column is left out when no model has a surface read-out).
+        @return List of SummaryColumn.
+        """
+        rows = self.table()
+        return [c for c in SUMMARY_COLUMNS if c.key != "t_max_surface_c" or any(r["t_max_surface_c"] is not None for r in rows)]
+
+    def summary_grid(self, model_name=None):
+        """!
+        @brief The models table as strings: the one place that formats it, used by the window, the text report and the Markdown report.
+        @param model_name Optional function key -> text for the first column (the window passes the labels of the Simulation panel); the short name of the model (results.MODEL_LABELS) when None, never the key.
+        @return tuple (columns, rows, tips): the SummaryColumn list, one list of cell texts per model, and per row a dict {column index: tooltip} (the raw balance).
+        """
+        cols = self.summary_columns()
+        ref = self.reference.model
+        rows, tips = [], []
+        for r in self.table():
+            cells = [c.fmt(r, ref) for c in cols]
+            cells[0] = model_name(r["model"]) if model_name is not None else RESULT_MODEL_LABELS.get(r["model"], r["model"])
+            rows.append(cells)
+            tips.append({i: f"Raw value (out - in) / in = {num(r['energy_balance'], sign=True)}" for i, c in enumerate(cols) if c.key == "energy_balance"})
+        return cols, rows, tips
 
     def to_markdown(self):
         """!
         @brief The comparison table as Markdown, headed by the disclaimer and followed by the warnings.
         @return String.
         """
+        ref_label = RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model)
+        cols, rows, _ = self.summary_grid()
         lines = [f"> {DISCLAIMER}", "",
-                 "| Model | Tmax [°C] | Tmean [°C] | ΔT [K] | Rθ [K/W] | Power [W] | Balance | Error vs " +
-                 RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model) + " | Time [s] |",
-                 "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
-        for r in self.table():
-            lines.append(f"| {RESULT_MODEL_LABELS.get(r['model'], r['model'])} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
-                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {num(r['energy_balance'], sign=True)} | "
-                         f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
+                 "| " + " | ".join(c.header_markdown(ref_label) for c in cols) + " |",
+                 "| " + " | ".join(":--" if c.left else "--:" for c in cols) + " |"]
+        for cells in rows:
+            lines.append("| " + " | ".join(cells) + " |")
         lines += self._profile_markdown()
         for w in self.warnings:
             lines.append(f"\n> **Warning**: {w}")
@@ -321,39 +428,47 @@ class Simulation:
                                  "in the peak and the minimum above and not in the maps.")
         return lines
 
-    def to_text(self, inline_warnings=True):
+    def to_text(self, inline_warnings=True, table=True):
         """!
-        @brief The comparison table as aligned plain text, followed by the warnings.
+        @brief The comparison table as aligned plain text (two header lines, widths from the longest cell), followed by the warnings.
         @param inline_warnings True: every warning is a `WARNING:` paragraph (the saved report, the command line); False: one closing line says how many there are
                                and that the Warnings list of the window shows them (the on-screen report, which sits under that list).
+        @param table False: leave the table out (the window shows it above the report in a table of its own); the warnings part stays.
         @return String.
         """
-        head = f"{'model':9s} {'Tmax °C':>8s} {'Tmean °C':>8s} {'ΔT K':>8s} {'Rθ K/W':>8s} {'P W':>7s} {'balance':>9s} " \
-               f"{'vs ' + RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model):>9s} {'time s':>7s}"
-        lines = [head, "-" * len(head)]
-        for r in self.table():
-            lines.append(f"{RESULT_MODEL_LABELS.get(r['model'], r['model']):9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
-                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
-                         f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
+        lines = []
+        if table:
+            ref_label = RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model)
+            cols, rows, _ = self.summary_grid()
+            heads = [c.header_lines(ref_label) for c in cols]
+            n_head = max(len(h) for h in heads)
+            widths = [max([len(line) for line in h] + [len(row[i]) for row in rows]) for i, h in enumerate(heads)]
+            align = lambda text, i: f"{text:<{widths[i]}s}" if cols[i].left else f"{text:>{widths[i]}s}"      # noqa: E731
+            for k in range(n_head):                    # A column with a one-line header leaves its second line empty
+                lines.append(" ".join(align(h[k] if k < len(h) else "", i) for i, h in enumerate(heads)).rstrip())
+            lines.append("-" * (sum(widths) + len(widths) - 1))
+            for cells in rows:
+                lines.append(" ".join(align(t, i) for i, t in enumerate(cells)))
         if inline_warnings:
             for w in self.warnings:
                 lines += ["", f"WARNING: {w}"]                               # A blank line before each warning keeps the list readable (as the Summary tab and the Markdown report)
         elif self.warnings:
             n = len(self.warnings)
-            lines += ["", f"({n} warning{'s' if n != 1 else ''}: see the Warnings list above; the saved report keeps {'them' if n != 1 else 'it'}.)"]
+            lines += ([""] if lines else []) + [f"({n} warning{'s' if n != 1 else ''}: see the Warnings list above; the saved report keeps {'them' if n != 1 else 'it'}.)"]
         return "\n".join(lines) + "\n"
 
-    def report(self, inline_warnings=True):
+    def report(self, inline_warnings=True, table=True):
         """!
         @brief Plain-text report with the table, hotspots, zones and heaters (reference model).
         @param inline_warnings True (default, the saved report): the warnings follow the table as `WARNING:` paragraphs; False (the on-screen report): one closing line points to the Warnings list.
+        @param table False (the on-screen report): without the models table, which the window shows above the report; the saved report and the command line keep it.
         @return String.
         """
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} × {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} °C, "
-                 f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings)]
+                 f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings, table)]
         if self.h_used:
             b = self.problem.board
             lines.append("")

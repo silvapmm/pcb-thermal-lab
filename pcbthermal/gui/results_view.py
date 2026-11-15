@@ -26,6 +26,7 @@ from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
+from ..api import SUMMARY_COLUMNS
 from ..numfmt import num, signed_fixed
 
 
@@ -56,6 +57,9 @@ def _paint_figure(fig, name):
         ax.set_facecolor(c["alt"])
 
 
+MIN_SECTION = 56   # Logical px: the narrowest column of a results table
+
+
 def _table(headers):
     """!
     @brief Create a read-only table with the given column headers.
@@ -68,7 +72,13 @@ def _table(headers):
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    # Columns as wide as their header or text (at least MIN_SECTION px), only the last one stretches; a narrow window gets a horizontal scroll bar, never a cut header
+    head = t.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     t.setAlternatingRowColors(True)
     return t
 
@@ -101,7 +111,61 @@ def _fit_height(table, min_rows=3, max_rows=12):
     """
     rows = min(max(table.rowCount(), min_rows), max_rows)
     h = table.horizontalHeader().height() + rows * table.verticalHeader().defaultSectionSize() + 2 * table.frameWidth() + 2
+    bar = table.horizontalScrollBar()
+    if bar.maximum() > 0:                                  # A table with a horizontal scroll bar needs its height as well (nothing cut)
+        h += bar.sizeHint().height()
     table.setFixedHeight(h)
+
+
+class _SummaryTable(QTableWidget):
+    """!
+    @brief The models table of the Summary: columns as wide as their content, a horizontal scroll bar when they do not fit, the height of its rows.
+    """
+
+    def resizeEvent(self, event):
+        """!
+        @brief Fit the height again: the horizontal scroll bar appears or goes away with the width.
+        @param event QResizeEvent.
+        """
+        super().resizeEvent(event)
+        _fit_height(self, min_rows=self.rowCount() or 1)
+
+
+def summary_table(ref_label="FVM"):
+    """!
+    @brief Create the models table of the Summary with the headers of the one column definition of the API (api.SUMMARY_COLUMNS).
+    @details Headers in two lines name the read-out; every column is as wide as its header or its longest cell (at least MIN_SECTION px) and only the last one
+             stretches, so that a narrow window shows a horizontal scroll bar instead of a cut header or number.
+    @param ref_label Name of the reference model for the error column.
+    @return QTableWidget.
+    """
+    t = _SummaryTable(0, 0)
+    t.setToolTip(tips.MODEL_TABLE_TIP)
+    t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    t.setSelectionBehavior(QAbstractItemView.SelectRows)
+    t.verticalHeader().setVisible(False)
+    t.setAlternatingRowColors(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+    set_summary_headers(t, list(SUMMARY_COLUMNS), ref_label)
+    return t
+
+
+def set_summary_headers(table, cols, ref_label):
+    """!
+    @brief Put the headers, the tooltips and the resize modes of the models table.
+    @param table QTableWidget of summary_table.
+    @param cols List of api.SummaryColumn.
+    @param ref_label Name of the reference model for the error column.
+    """
+    table.setColumnCount(len(cols))
+    table.setHorizontalHeaderLabels(["\n".join(c.header_lines(ref_label)) for c in cols])
+    head = table.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    for i, c in enumerate(cols):
+        table.horizontalHeaderItem(i).setToolTip(c.tip)
 
 
 def recolour_toolbar(toolbar, theme):
@@ -467,14 +531,14 @@ class PlotTab(QWidget):
                     ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean   "
+                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean\n"
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
-                                     f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
+                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
+                                     f"max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()
@@ -573,11 +637,9 @@ class ResultsView(QWidget):
         # Summary: models table, warnings and the text report
         summary = QWidget()
         sl = QVBoxLayout(summary)
-        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
-                                   "Balance", "Error vs ref", "Time s"])
-        _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
-        # The model names of the Simulation panel ("LPTN") were cut to "LPTN ..." in a column of the same width as the numbers
-        self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        # Headers in two lines name the read-out; the columns come from the one definition of the API (api.SUMMARY_COLUMNS), as wide as their content
+        self.model_table = summary_table()
+        _fit_height(self.model_table, min_rows=1)            # The height follows the rows (as many as there are models), see _fit_height
         self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
@@ -610,9 +672,8 @@ class ResultsView(QWidget):
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"])
         self.block_table = _table(["Metal block", "Face", "Mean °C\n(block)", "Max °C\n(block)", "Heat in W", "Heat to air W"])     # The block read-out: the mean through the block
         self.block_table.setMaximumHeight(110)                 # Two rows (a block on each side) under the two-line header that names the read-out
-        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled)
-        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP),
-                             (self.model_table, (1, 2, 3), tips.MODEL_TABLE_TIP)):
+        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled; the models table has one per column)
+        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP)):
             for c in cols:
                 t.horizontalHeaderItem(c).setToolTip(tip)
         for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
@@ -730,17 +791,19 @@ class ResultsView(QWidget):
         self.sim = sim
         for cover in self._covers:
             cover.cover(False)
-        rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
-                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
-                 "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
-                 f"{r['seconds']:.2f}"] for r in sim.table()]
+        cols, rows, cell_tips = sim.summary_grid(tips.model_label)
+        set_summary_headers(self.model_table, cols, tips.model_label(sim.reference.model))
         _fill(self.model_table, rows)
-        _fit_height(self.model_table)
+        for r, per_cell in enumerate(cell_tips):                # The raw energy balance is in the tooltip of its cell (the cell shows a percentage with a floor)
+            for c, tip in per_cell.items():
+                self.model_table.item(r, c).setToolTip(tip)
+        self.model_table.resizeColumnsToContents()
+        _fit_height(self.model_table, min_rows=len(rows))
         self._anim_warns = []                                   # A new run: the notes of the old animation are gone
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report(inline_warnings=False))      # The warnings are in the box above it
+        self.report.setPlainText(sim.report(inline_warnings=False, table=False))      # The warnings are in the box above it and the models table is the table above
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
@@ -803,6 +866,11 @@ class ResultsView(QWidget):
         _fill(self.heater_table, rows)
         for r, note in enumerate(notes):
             self.heater_table.item(r, len(heads) - 1).setToolTip(note)
+        # The heater table keeps room for two rows AND its horizontal scroll bar (review of the branch: at 1200 x 800 the bar took the height of the second
+        # row of the example board, so U2 was behind a vertical scroll bar)
+        t = self.heater_table
+        t.setMinimumHeight(t.horizontalHeader().sizeHint().height() + min(max(t.rowCount(), 1), 2) * t.verticalHeader().defaultSectionSize()
+                           + t.horizontalScrollBar().sizeHint().height() + 2 * t.frameWidth() + 2)
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
                                  f"{z['t_min']:.1f}"] for z in zones])
@@ -829,7 +897,7 @@ class ResultsView(QWidget):
                           "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean read-out)")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean)")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

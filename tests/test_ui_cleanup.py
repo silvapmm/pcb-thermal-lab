@@ -203,8 +203,8 @@ def test_a_click_on_a_warning_after_an_edit_selects_nothing_until_the_check_runs
     checks.set_warnings([cw])
     win.canvas.set_selection([])
     row = checks.rows[0]
-    row.set_open(True)                                 # The button is in the opened warning
-    assert row.button.text().startswith("Select heater")
+    row.set_open(True)                                 # Opened by the user: it stays open across the refresh
+    assert row.button.accessibleName().startswith("Select heater")      # The label is at the end of the row, open or closed
     win.doc.changed.emit()                             # An edit: the list is stale until the timer runs the check
     assert checks.stale and not row.button.isEnabled()
     checks._selected("heater", 1)

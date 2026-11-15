@@ -40,6 +40,40 @@ def _put(spin, value):
     show_value(spin, value)
 
 
+PLOT_MIN_PX = 220     # Logical px: the smallest height of the waveform plot of the page
+
+
+class _AdaptiveSplitter(QSplitter):
+    """!
+    @brief A splitter that stacks its two panes one above the other when it is too narrow for them side by side (the page was wider than the window at 1200 x 800).
+    """
+
+    NARROW_PX = 800     # Logical px: below this width the panes are stacked
+
+    def resizeEvent(self, event):
+        """!
+        @brief Choose the orientation from the width, then lay out as usual.
+        @param event QResizeEvent.
+        """
+        want = Qt.Vertical if event.size().width() < self.NARROW_PX else Qt.Horizontal
+        if self.orientation() != want:
+            self.setOrientation(want)
+            self.updateGeometry()               # The minimum size changes with the orientation
+        super().resizeEvent(event)
+
+    def minimumSizeHint(self):
+        """!
+        @brief The minimum width is that of the wider pane only (the panes may be stacked), so that the page never forces a horizontal scroll bar.
+        @return QSize.
+        """
+        from PySide6.QtCore import QSize
+        w = max(self.widget(i).minimumSizeHint().width() for i in range(self.count()))
+        heights = [self.widget(i).minimumSizeHint().height() for i in range(self.count())]
+        # Stacked panes need the sum of their heights (the page scrolls vertically instead of squeezing the forms)
+        h = sum(heights) + self.handleWidth() if self.orientation() == Qt.Vertical else max(heights)
+        return QSize(w, h)
+
+
 class ProfilePage(QWidget):
     """!
     @brief Editor of the power profile of every heater, with the regime decision and the run settings.
@@ -136,8 +170,8 @@ class ProfilePage(QWidget):
         self.run_box = QGroupBox("Time simulation")
         rf = QFormLayout(self.run_box)
         self.threshold = QDoubleSpinBox()
-        self._spin(self.threshold, 0, 1000, 2, " °C")
-        self.threshold.setToolTip("Swing, °C, below which a heater runs at its average power; above, it is simulated in time. "
+        self._spin(self.threshold, 0, 1000, 2, " K")
+        self.threshold.setToolTip("Swing, K, below which a heater runs at its average power; above, it is simulated in time. "
                                   "Stretches under 4 s (2 s with 3+ layers): average + ripple.")
         self.start = QComboBox()
         self.start.addItem("Steady state of the average power", "average")
@@ -180,14 +214,17 @@ class ProfilePage(QWidget):
 
         # ---- decision table and waveform
         self.dec_table = QTableWidget(0, 7)
-        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
+        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. K", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (°C, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
+        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (K, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        # A floor for the waveform: with the panes stacked (a window narrower than _AdaptiveSplitter.NARROW_PX) the canvas was squeezed to 10 px at 1200 x 800
+        # (review of the branch; Matplotlib then warned that constrained layout collapsed); the page scrolls vertically instead
+        self.canvas.setMinimumHeight(PLOT_MIN_PX)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
 
         left = QWidget()
@@ -200,7 +237,7 @@ class ProfilePage(QWidget):
         rv.addWidget(self.editor)
         rv.addWidget(self.canvas, 1)
         rv.addWidget(self.dec_table)
-        split = QSplitter(Qt.Horizontal)
+        split = _AdaptiveSplitter(Qt.Horizontal)
         split.addWidget(left)
         split.addWidget(right)
         split.setSizes([420, 760])

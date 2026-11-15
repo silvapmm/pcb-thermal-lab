@@ -156,6 +156,9 @@ class AboutDialog(QDialog):
         self.text.setOpenExternalLinks(True)
         self.text.setWordWrap(True)
         self.text.setToolTip("Program information.")
+        # A word-wrapped rich-text label in a dialog was given less height than its text needs at its final width (the last line was cut): fix the width and ask the height for it
+        self.text.setFixedWidth(480)
+        self.text.setMinimumHeight(self.text.heightForWidth(480))
         top.addWidget(self.text, 1)
         lay.addLayout(top)
         box = QDialogButtonBox(QDialogButtonBox.Close)

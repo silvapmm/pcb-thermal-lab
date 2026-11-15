@@ -1311,6 +1311,16 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
         if w.kind is not None:
             box.warning_clicked.emit(w.kind, w.index)
             assert win.canvas.selected_elements() == [(w.kind, w.index)]
+    # The element label at the end of every row is the real control: click each one (a closed row) and the element is selected; a long name is elided with the full name in the tooltip
+    labelled = [r for r in box.rows if r.button is not None]
+    assert len(labelled) == sum(w.kind is not None for w in box.warnings) and labelled
+    for r in labelled:
+        win.canvas.set_selection([])
+        r.button.click()
+        assert win.canvas.selected_elements() == [(r.kind, r.index)] and r.button.accessibleName().startswith(f"Select {r.kind}")
+        assert r.button.width() <= 200 and not r.is_open()
+    box.set_stale()
+    assert not any(r.button.isEnabled() for r in labelled)                   # a stale list: the labels are greyed
     box.warning_clicked.emit("heater", 999)                                  # A stale index is ignored
     box.warning_clicked.emit("nothing", 0)
     win.doc.stack.undo()

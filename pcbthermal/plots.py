@@ -26,7 +26,7 @@ from scipy import ndimage
 from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
-from .results import model_label
+from .results import model_label, short_name
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -994,6 +994,20 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
 
 
+def _legend_outside(fig, ax, **kw):
+    """!
+    @brief Put the legend of a bar chart beside the axes, so that it never covers a bar or a value label.
+    @param fig Figure of the axes.
+    @param ax Axes whose handles are listed.
+    @param kw Extra keyword arguments of the legend (fontsize).
+    """
+    handles, labels = ax.get_legend_handles_labels()
+    if fig.get_layout_engine() is not None:
+        fig.legend(handles, labels, loc="outside right upper", **kw)       # constrained layout leaves room for it
+    else:
+        ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0, **kw)
+
+
 @_with_engineering_ticks
 def draw_comparison(fig, results):
     """!
@@ -1013,7 +1027,7 @@ def draw_comparison(fig, results):
     ax.set_xticks(x)
     ax.set_xticklabels([model_label(n) for n in names])        # "LPTN", as the tables, not the key `lumped`
     ax.set_ylabel(COLUMN_LABEL)
-    ax.legend()
+    _legend_outside(fig, ax)
     ax.grid(axis="y", alpha=0.3)
 
 
@@ -1040,7 +1054,7 @@ def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=10)
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(fontsize=8)
+    _legend_outside(fig, ax, fontsize=8)
 
 
 @_with_engineering_ticks
@@ -1114,7 +1128,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     ax.set_xlabel("Time in the last window (s)")
     ax.set_ylabel(COLUMN_LABEL)
     ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
-                 f"oscillation {result.oscillation:.1f} °C", fontsize=10)
+                 f"oscillation {result.oscillation:.1f} K", fontsize=10)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
 
