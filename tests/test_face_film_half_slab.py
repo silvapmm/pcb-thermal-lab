@@ -62,8 +62,9 @@ def test_fvm_and_fdm_faces_carry_the_series_film_on_the_outer_copper_only():
     net = fvm.Network(p, 12, 8)
     cell = 2e-3 * 2e-3
     # Every cell is copper in both layers: the conductance is the series film times the cell area
-    assert np.allclose(net.g_top[0], cell * f_top, rtol=1e-12)
-    assert np.allclose(net.g_bottom[1], cell * f_bot, rtol=1e-12)
+    # atol=0: the series factor is 1 - 2e-6 here, below the default absolute tolerance of allclose (1e-8 on values of 5e-5 W/K), which let a plain film pass
+    assert np.allclose(net.g_top[0], cell * f_top, rtol=1e-12, atol=0.0)
+    assert np.allclose(net.g_bottom[1], cell * f_bot, rtol=1e-12, atol=0.0)
     assert net.g_top[1].sum() == 0.0 and net.g_bottom[0].sum() == 0.0      # no film on the faces towards the laminate
     nd = fdm.Network(p, cell_mm=2.0)
     on = nd.g_top[0] > 0
@@ -133,6 +134,24 @@ def test_the_3d_solid_is_not_changed_by_the_film_series():
     finally:
         model_mod.Board.face_film_h = saved
     assert np.isfinite(np.asarray(sim.results["solid3d"].T)).all()
+
+
+def test_a_block_column_needs_the_half_block_in_the_link_and_in_the_film():
+    """!
+    @brief A metal block over the whole bottom face under a source over the whole top is a one-dimensional column: the block node is the column mean only with half the
+           block in the contact link AND in the exposed film (blocks.extra_layers); the FVM then matches the 3D solid (the block cut in 1 mm slabs) within 0.5 %.
+    @details 200 mm board, 8 mm block of 5 W/mK, film 400 W/m2K on the block, 10 mm cell (review of fix/face-film-half-slab, docs/validation.md 55.3): FVM 8.870 K against the
+             3D solid 8.848 K; without the half block in the film 8.235 K (-6.9 %), without it in the link 8.068 K (-8.8 %), without both 7.434 K (-16 %).
+    @return None.
+    """
+    w = 200.0
+    p = Problem.new(w, w, 2, h_top=1e-9, h_bottom=400.0, h_side=None).add_zone(1, rect=(0, 0, w, w)).add_zone(2, rect=(0, 0, w, w))
+    p.add_heater(1, 40.0, rect=(0, 0, w, w), name="U1")
+    p.add_heatsink(2, 0.0, rect=(0, 0, w, w), thickness_mm=8.0, k=5.0, contact_r=1e-4, name="B")
+    sim = simulate(p, SolverOptions(models=("fvm", "solid3d"), cell_mm=10.0))
+    f = float(np.asarray(sim.results["fvm"].T)[0].mean()) - AMB
+    s = float(np.asarray(sim.results["solid3d"].T)[0].mean()) - AMB
+    assert f == pytest.approx(s, rel=5e-3)
 
 
 def test_thick_plate_warning_has_no_film_clause_for_a_plate():
