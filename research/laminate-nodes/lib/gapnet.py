@@ -263,7 +263,7 @@ def apply_ladder(net, problem, rule, fill=None, assemble=True):
             keep_b = np.where(F, s[-1] / 2.0, d / 2.0)
             new_S.append(gd["kxy"] * keep_b * net.cover)
             new_C.append(gd["rcp"] * keep_b * cell)
-            new_gb.append(b.h_bottom * cell)
+            new_gb.append(b.face_film_h(b.h_bottom, 0, net.fill[0]) * cell)       # the faces through the half copper layer of the node, as the program since fix/face-film-half-slab (docs/theory.md 1.2a, validation 55)
             new_gs.append(hs * keep_b * edge)
             new_pin.append(~net.active)
             b_idx = nxt
