@@ -215,7 +215,7 @@ pcbthermal/            physics core, no GUI imports (docs/models.md, docs/theory
   api.py, results.py, analysis.py, jobs.py  SolverOptions, simulate, results, read-outs, jobs of the app process
   project.py, package.py, fileschema.py  .pcbt.json formats 1 and 2 (atomic save, .bak), the .pcbtz package, type checks at loading
   defaults.py, data/   shipped defaults, libraries, stack-ups, CAD profiles; the user's user_defaults.json
-  numfmt.py, uicontext.py, plots.py, cli.py, examples.py  number text, warning context, figures, command line, examples
+  units.py, numfmt.py, uicontext.py, plots.py, cli.py, examples.py  number text, warning context, figures, command line, examples
   gerber/              own Gerber/Excellon reader: parser, macros, outline, raster, layer functions, CAD profiles, safe ZIP, X3 components, parts
   gui/                 PySide 6 application (main window, canvas, panels, results, Display, import window, profile page, theme tokens)
   help/                the user guide (index.html) and the calculator help

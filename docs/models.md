@@ -577,6 +577,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   profile_io.py        power profiles as CSV files (read/write)
   uicontext.py         where the user changes a setting depends on the front end: warning texts name a control of the window ('gui') or an option of the command line ('cli'); thread-local, `using_ui`, default 'cli'
   fileschema.py        type checks of a project file at the loading boundary: ProjectFormatError with the key path, check_problem_dict, guard
+  units.py             the one place of the unit rule (°C absolute, K for every difference, K/W, µm, ×, layer labels, the FORBIDDEN old forms with the reason); no GUI import
   numfmt.py            number to text for the screen, plots and reports: plain decimal for 0.01 <= |x| < 10000, engineering notation (exponent a multiple of three, two decimals) outside; JSON and CSV files keep the float text
   data/cad_profiles.json   markers (weights, status R/D/M) and layer-name rules per CAD program; read by gerber/profiles.py; the project stores only the key, the source (detected/user) and the table version in `ImportRecord.cad_profile`
   defaults.py          defaults and libraries: shipped data/defaults.json + the user's user_defaults.json (only the differences, found at start-up); data/stackups.json for the stack-ups
