@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_via_barrel_and_rim.py
-@brief Tests of the via barrel length (gap plus half the copper thickness) and of the rim uncoupling (research/via-contact-geometry), in the FVM, FDM, Lumped and Analytic.
+@brief Tests of the via barrel length (gap plus half the copper thickness) and of the rim uncoupling (research/via-contact-geometry), in the FVM, FDM, LPTN and Analytic.
 @details The numbers are those of research/via-contact-geometry (README 3.3, 4 and 7.3): the via effect of the partial-copper boards at a 1 mm cell with the barrel rule
          and the rim rule, and the steady-maximum shift of the example board.
 """
@@ -125,7 +125,7 @@ def test_barrel_length_is_the_gap_plus_half_the_mean_copper_thickness():
 
 def test_every_model_reads_the_same_barrel_length():
     """!
-    @brief The point conductance of the FVM (gz_via, read by the Lumped), the constriction set of the Lumped and the Analytic use k A / barrel_length, not k A / d.
+    @brief The point conductance of the FVM (gz_via, read by the LPTN), the constriction set of the LPTN and the Analytic use k A / barrel_length, not k A / d.
     @return None.
     """
     p = _lone()
@@ -378,7 +378,7 @@ def test_a_via_on_bare_laminate_on_every_layer_runs_in_every_model(solver):
     """!
     @brief A via whose rim touches no copper and no heater on any layer (drawn before the zones) is uncoupled everywhere and every model runs.
     @details Found by the final review of 2.6.0: the rim rule set every well to zero, the barrel nodes floated and `kron_barrel` raised a singular-matrix error in the FVM,
-             FDM and Lumped (2.5.2 ran the board). The via must couple nothing: the board equals the same board without it.
+             FDM and LPTN (2.5.2 ran the board). The via must couple nothing: the board equals the same board without it.
     @param solver FVM linear solver.
     @return None.
     """

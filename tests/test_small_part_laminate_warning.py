@@ -69,7 +69,7 @@ def test_options_move_the_threshold():
 
 def test_silent_where_the_gap_is_not_cut():
     """!
-    @brief Copper on both layers (a plane under the part), a Lumped or Analytic run alone, and a large part are silent; a copper pad over a bare bottom layer still warns.
+    @brief Copper on both layers (a plane under the part), a LPTN or Analytic run alone, and a large part are silent; a copper pad over a bare bottom layer still warns.
     @return None.
     """
     assert check_small_part_laminate(board(2.0, 3.2, plane=True), ("fvm", "fdm")) == []

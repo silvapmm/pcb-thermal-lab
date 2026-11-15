@@ -29,7 +29,7 @@ from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_
 @pytest.fixture(scope="module")
 def sim():
     """!
-    @brief One FVM and Lumped run of the example board (2 mm cell).
+    @brief One FVM and LPTN run of the example board (2 mm cell).
     @return Simulation.
     """
     return simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
@@ -75,9 +75,9 @@ def _go(win, tab):
 # ------------------------------------------------------------------------------------------------------------------ the model (no window)
 def test_lists_per_context():
     assert [d for _t, d in lc.items("single", 4)] == [0, 1, 2, 3]
-    assert [t for t, _d in lc.items("single", 4)] == ["1 top", "2", "3", "4 bottom"]
+    assert [t for t, _d in lc.items("single", 4)] == ["1 (top)", "2", "3", "4 (bottom)"]
     ext = lc.items(lc.EXTENDED_CONTEXT, 2, (0, 1))
-    assert [t for t, _d in ext] == ["All layers", "All (2 x 2)", "1 top", "2 bottom", "Metal block (top)", "Metal block (bottom)"]
+    assert [t for t, _d in ext] == ["All layers", "All (2 x 2)", "1 (top)", "2 (bottom)", "Metal block (top)", "Metal block (bottom)"]
     assert [d for _t, d in ext][-2:] == [100, 101]
     assert [d for _t, d in lc.items(lc.EXTENDED_CONTEXT, 2)] == [-1, -2, 0, 1]      # No result block: no entry
 
@@ -257,7 +257,7 @@ def test_the_menu_changes_the_same_model_control(qtbot, tmp_path, sim):
     assert [a.isChecked() for a in menu.actions()] == [True, False]
     menu.actions()[1].trigger()
     assert t.model.currentData() == "lumped"                                       # No second list: the Temperature tab's own control
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
     menu.close()
 
 

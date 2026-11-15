@@ -892,7 +892,7 @@ def override_fill(fill, source, ny, nx, width, height):
 def problem_fill(problem, nx, ny, dx, dy, samples=4, source=None):
     """!
     @brief The copper fraction of every cell of every layer: the union of the zones, with the imported layers taken from their masks.
-    @details Every model that reads the copper of a problem and does not build a network of its own (the 3D solid, the Lumped and Analytic, the checks) goes through this
+    @details Every model that reads the copper of a problem and does not build a network of its own (the 3D solid, the LPTN and Analytic, the checks) goes through this
              function, so a problem without imported copper gets exactly `geometry.zone_fill`.
     @param problem A Problem.
     @param nx Cell columns.
@@ -1186,9 +1186,9 @@ def coarse_cell_warning(ui=None):
 
 
 SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
-REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models read the copper only as its average over a cell of 0.5 to 1 mm (the fill of the cell), so the pad of "
+REDUCED_MODEL_WARNING = ("imported copper on the LPTN / Analytic model: these models read the copper only as its average over a cell of 0.5 to 1 mm (the fill of the cell), so the pad of "
                          "a part and the narrow tracks that feed it, smaller than the cell, are invisible to them, and they set most of the temperature rise of a small part; on 82 parts "
-                         "of three imported boards, with 1 W in one part at a time, the Lumped model read 23 to 76 % and the Analytic 19 to 77 % too cool against the finite-volume "
+                         "of three imported boards, with 1 W in one part at a time, the LPTN model read 23 to 76 % and the Analytic 19 to 77 % too cool against the finite-volume "
                          "model at a 0.5 mm cell, the most on the smallest parts (33 to 76 % and 30 to 77 % for passives with a side below 1.5 mm, 0402 and 0603 size); these figures are a sample, not a bound, and their reference is "
                          "not converged: the finite-volume model itself reads a small part 15 to 30 % hotter from 0.5 to 0.25 mm (an 0402), so the true deficit is larger; the FVM, FDM and 3D solid do read the copper (the 3D solid as the fill of the cell); "
                          "use the finite-volume model for the result")

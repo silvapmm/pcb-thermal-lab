@@ -35,7 +35,7 @@ from pcbthermal.model import ImportRecord
 @pytest.fixture(scope="module")
 def sim():
     """!
-    @brief One run of the FVM and the Lumped model on the example board (2 mm cell).
+    @brief One run of the FVM and the LPTN model on the example board (2 mm cell).
     @return Simulation.
     """
     return simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
@@ -202,7 +202,7 @@ def test_the_gradients_tab_keeps_its_own_model_and_the_board_follows_the_tempera
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay_card["title"] == "FVM" and r.grad.model.currentData() == "lumped"
     r.temp.model.setCurrentIndex(r.temp.model.findData("lumped"))
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
 
 
 def test_the_dot_badge_marks_an_active_underlay(qtbot, tmp_path):
@@ -268,7 +268,7 @@ def test_a_refused_model_shows_only_the_title_in_the_alert_colour(qtbot, tmp_pat
     win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
     win.a_overlay.setChecked(True)
     card = win.canvas._overlay_card
-    assert card["title"] == "Lumped: not drawn on an outline board (stretched map)" and card["tmax"] is None
+    assert card["title"] == "LPTN: not drawn on an outline board (stretched map)" and card["tmax"] is None
     assert win.canvas._overlay is None and win.canvas.colourbar_geometry() is None
     win.canvas.resize(600, 450)
     win.canvas.show()

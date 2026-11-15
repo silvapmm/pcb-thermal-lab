@@ -55,7 +55,7 @@ def test_via_with_no_board_under_it_changes_nothing(model):
 
 @pytest.mark.parametrize("name", ["lumped", "analytic"])
 def test_off_outline_via_changes_nothing_in_the_reduced_models(name):
-    # The Lumped and Analytic models run on the rectangle of the same area; a via off the outline must be dropped before the positions are scaled
+    # The LPTN and Analytic models run on the rectangle of the same area; a via off the outline must be dropped before the positions are scaled
     o = api.SolverOptions(cell_mm=1.0, models=(name,))
     a = api.simulate(small_t(BAR + [OFF]), o).results[name]
     b = api.simulate(small_t(BAR), o).results[name]
@@ -145,7 +145,7 @@ def mid_cell_t(vias):
 @pytest.mark.parametrize("name", ["fvm", "fdm", "solid3d", "lumped", "analytic"])
 def test_via_off_the_outline_in_a_cut_cell_is_ignored_by_every_model(name):
     # The disc (10.1 to 10.4 mm) is off the stem (10.5 mm) but inside a cut cell (10 to 11 mm, half board): the grid models must follow the same
-    # geometric rule as the warning and the Lumped and Analytic runs (a cover test alone kept it: -0.15 K in the FVM, -0.13 K in the 3D solid)
+    # geometric rule as the warning and the LPTN and Analytic runs (a cover test alone kept it: -0.15 K in the FVM, -0.13 K in the 3D solid)
     off = (10.25, 11.0, 0.3)
     p = mid_cell_t(BAR + [off])
     assert p.via_board_shares()[-1] == 0.0
@@ -181,7 +181,7 @@ def test_off_board_via_gets_no_edge_warning():
 
 @pytest.mark.parametrize("name", ["lumped", "analytic"])
 def test_off_board_via_changes_nothing_in_the_reduced_transients(name):
-    # The step responses (power profiles) and the Analytic animation must drop a via outside the box like the steady run (the Lumped read it through its
+    # The step responses (power profiles) and the Analytic animation must drop a via outside the box like the steady run (the LPTN read it through its
     # via constriction: 0.28 K/W on the response of the small board)
     from pcbthermal import analytic, lumped
     def board(extra):

@@ -11,6 +11,8 @@
 
 from PySide6.QtCore import QObject, Signal
 
+from .. import units
+
 ALL_LAYERS, ALL_GRID, BLOCK_BASE, SURFACE_BASE = -1, -2, 100, 200      # Data of the entries that are not one copper layer (block: 100 top, 101 bottom; surface of the outer copper: 200 top, 201 bottom)
 EXTENDED_CONTEXT = "temperature"                    # The only context whose list has the extra entries
 
@@ -46,9 +48,9 @@ def layer_label(layer, n):
     @brief Text of a layer entry of the toolbar box.
     @param layer Layer index (0-based).
     @param n Number of copper layers of the board.
-    @return str, for example "1 top", "2" or "4 bottom".
+    @return str, for example "1 (top)", "2" or "4 (bottom)" (as the Properties panel writes them).
     """
-    return f"{layer + 1}" + (" top" if layer == 0 else " bottom" if layer == n - 1 else "")
+    return units.layer_label(layer, n)
 
 
 def items(context, n, block_faces=(), surface_faces=()):

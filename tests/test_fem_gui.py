@@ -60,7 +60,7 @@ def test_the_fem_checkbox_is_off_by_default_and_exposed_like_the_3d_solid(win):
     from pcbthermal.gui import panels, preferences
     sp = win.solver_panel
     box = sp.cb["fem"]
-    assert box.text() == "Finite elements (FEM), comparison"
+    assert box.text() == "Finite elements (FEM)"
     assert not box.isChecked() and box.isEnabled() and "fem" not in win.doc.options.models
     tip = box.toolTip()
     assert "0.4 to 0.9 %" in tip and "no surface" in tip and "steady" in tip.lower() and "0.2 %" not in tip
@@ -129,7 +129,7 @@ def test_fem_refusals_do_not_stop_the_other_models(win, qtbot):
     assert "0 unknowns" not in sp.cells_label.text() and "FEM:" in sp.cells_label.text() and "left out" in sp.cells_label.text()
     assert sp.run.isEnabled() and not sp.blocked
     run(win, qtbot, ("fvm", "fem"), cell=2.0)
-    assert set(win.sim.results) == {"fvm"} and any("FEM was not run" in w or "FEM) was not run" in w for w in win.sim.warnings)
+    assert set(win.sim.results) == {"fvm"} and any("the FEM was not run" in w for w in win.sim.warnings)
     win.doc.set_options(models=("fem",), cell_mm=2.0)
     sp.refresh()
     assert not sp.run.isEnabled()                                          # alone: nothing else to answer

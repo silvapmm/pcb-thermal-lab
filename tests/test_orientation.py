@@ -58,12 +58,12 @@ def test_horizontal_board_matches_the_textbook_formulas_written_out_by_hand():
 def _nu_down(ra):
     """!
     @brief Nusselt number of the face turned down at a given Rayleigh number, through the program's function.
-    @param ra Rayleigh number (dimensionless) of the face, at air near 40 degC.
-    @return tuple (Nu = h L / k, the Rayleigh number the program computed, the air properties at 40 degC).
+    @param ra Rayleigh number (dimensionless) of the face, at air near 40 °C.
+    @return tuple (Nu = h L / k, the Rayleigh number the program computed, the air properties at 40 °C).
     """
     length, ambient = 0.02, 25.0
     props = air_properties(40.0)
-    # Choose the surface excess that gives the Rayleigh number asked for at the film temperature of about 40 degC
+    # Choose the surface excess that gives the Rayleigh number asked for at the film temperature of about 40 °C
     dt = 30.0
     scale = ra / rayleigh(dt, length, air_properties(0.5 * (ambient + dt + ambient)))
     length = length * scale ** (1.0 / 3.0)

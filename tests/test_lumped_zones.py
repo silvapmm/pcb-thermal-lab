@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_zones.py
-@brief The zone model of the Lumped heater network (a footprint cut into the rest A and the core C of a dense via group): closed forms, the branch decision, bit-identity of the
+@brief The zone model of the LPTN heater network (a footprint cut into the rest A and the core C of a dense via group): closed forms, the branch decision, bit-identity of the
        one-node network, the steady state, the profile adapter, the raster rule and the warnings.
 @details Design: research/lumped-zones-adoption/INTEGRATION.md 11 as corrected by the second review (README 10). References that do not use the program: radial integrals of the
          Krogh cell and of the annulus, and the layered 3D solver of tests/helpers is not needed here (the research folder holds those comparisons).
@@ -58,7 +58,7 @@ def test_rim_minus_mean_against_the_radial_integral():
 
 def _ring_inputs():
     """!
-    @brief The inputs of ring_couplings for a 3 x 3 array under a source: the Lumped network pieces of the first heater at 0.5 mm.
+    @brief The inputs of ring_couplings for a 3 x 3 array under a source: the thermal network pieces of the first heater at 0.5 mm.
     @return Tuple (ViaSet, net, idx, R, cnt, S, g_top, g_bot, gz_diel, nb).
     """
     p = array(3, 3.5)
@@ -117,9 +117,9 @@ ZONED = [(3, 2.0, 24.0, 12.0), (5, 1.5, 24.0, 14.0), (4, 2.5, 24.0, 16.0)]      
 
 def _network(p, cell_mm=0.5):
     """!
-    @brief The Lumped network of the first heater of a problem, built as solve_steady builds it.
+    @brief The thermal network of the first heater of a problem, built as solve_steady builds it.
     @param p A Problem.
-    @param cell_mm Lumped raster in mm.
+    @param cell_mm LPTN raster in mm.
     @return Tuple (net, cov, system dict).
     """
     b = p.board
@@ -158,7 +158,7 @@ def test_a_dense_group_under_a_larger_footprint_is_zoned(spec):
 @pytest.mark.parametrize("spec", ZONED)
 def test_zones_read_the_hottest_temperature_nearer_the_fvm_than_one_node(spec):
     """!
-    @brief Against the FVM at 0.25 mm the zoned Lumped hottest temperature is within 4 % of the rise and not more than 2 % too cool (the criterion of the research folder), and closer than one node.
+    @brief Against the FVM at 0.25 mm the zoned LPTN hottest temperature is within 4 % of the rise and not more than 2 % too cool (the criterion of the research folder), and closer than one node.
     @param spec (vias a side, pitch, board side, source side) of the board.
     @return None.
     """
@@ -268,7 +268,7 @@ def test_dead_vias_move_the_maximum_by_less_than_6_5_percent_of_the_rise():
 
 def test_mirror_symmetry_of_a_zoned_part():
     """!
-    @brief A zoned board and its mirror image (x -> width - x) give the same Lumped maximum and heat paths.
+    @brief A zoned board and its mirror image (x -> width - x) give the same LPTN maximum and heat paths.
     @return None.
     """
     shift = 3.1e-3
@@ -315,7 +315,7 @@ from pcbthermal.model import SquareWave, TableProfile                 # noqa: E4
 
 def _constant_power_end(p, n_steps=60, dt=1.0e4):
     """!
-    @brief Run the Lumped adapter at constant power (implicit Euler, long steps, from the ambient) and return the end rise and the steady rise of the hottest point.
+    @brief Run the LPTN adapter at constant power (implicit Euler, long steps, from the ambient) and return the end rise and the steady rise of the hottest point.
     @param p A Problem with one heater.
     @param n_steps Number of steps.
     @param dt Step in s (long: the end state is the steady state).
@@ -366,7 +366,7 @@ def test_the_step_response_of_a_zoned_part_ends_on_the_steady_rise():
 @pytest.mark.parametrize("spec", ZONED)
 def test_a_square_wave_with_zones_agrees_with_the_fvm(spec):
     """!
-    @brief A 1 s square wave: the peak and the valley of the zoned Lumped model are within 8 % of the FVM's average steady rise (the unpatched source gives 9 to 17 % on the research boards).
+    @brief A 1 s square wave: the peak and the valley of the zoned LPTN model are within 8 % of the FVM's average steady rise (the unpatched source gives 9 to 17 % on the research boards).
     @param spec (vias a side, pitch, board side, source side) of the board.
     @return None.
     """
@@ -430,7 +430,7 @@ from pcbthermal.checks import check_lumped_zones, check_model_limits      # noqa
 
 def test_cell_for_gives_half_a_millimetre_only_to_a_board_with_a_zoned_part():
     """!
-    @brief A zoned heater moves the Lumped raster to 0.5 mm whatever the requested cell; a core that fills the footprint (the example board's nine vias), no vias and one via keep the clip of 0.5 to 1.0 mm.
+    @brief A zoned heater moves the LPTN raster to 0.5 mm whatever the requested cell; a core that fills the footprint (the example board's nine vias), no vias and one via keep the clip of 0.5 to 1.0 mm.
     @return None.
     """
     z = array(3, 2.0, side=24.0, source=12.0)
@@ -447,7 +447,7 @@ def test_cell_for_gives_half_a_millimetre_only_to_a_board_with_a_zoned_part():
 
 def test_the_run_uses_the_zone_raster_in_steady_state_and_in_the_step_response():
     """!
-    @brief simulate() runs the Lumped model of a zoned board at 0.5 mm even when the options ask for 2 mm; a board with a core that fills the footprint stays at 1.0 mm.
+    @brief simulate() runs the LPTN model of a zoned board at 0.5 mm even when the options ask for 2 mm; a board with a core that fills the footprint stays at 1.0 mm.
     @return None.
     """
     z = array(3, 2.0, side=24.0, source=12.0)
@@ -473,7 +473,7 @@ def _rect(p, x0, y0, x1, y1):
 
 def _zone_texts(p):
     """!
-    @brief The post-run zone warnings of the first heater after a Lumped run at 0.5 mm.
+    @brief The post-run zone warnings of the first heater after a LPTN run at 0.5 mm.
     @param p A Problem.
     @return List of str.
     """
@@ -575,7 +575,7 @@ def test_a_part_predicted_zoned_that_the_raster_keeps_one_node_gets_the_note_aft
 
 def test_an_outline_board_is_decided_on_its_equivalent_rectangle():
     """!
-    @brief The Lumped model solves the rectangle of the same area of a board with an outline, whose via positions are scaled: will_be_zoned decides on that rectangle, so the
+    @brief The LPTN model solves the rectangle of the same area of a board with an outline, whose via positions are scaled: will_be_zoned decides on that rectangle, so the
            pre-run warnings, the raster and the network agree.
     @return None.
     """

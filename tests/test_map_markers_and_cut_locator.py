@@ -89,7 +89,7 @@ def test_every_panel_of_all_layers_is_marked(sim):
 
 def test_outline_board_marks_only_samples_on_the_board():
     """!
-    @brief On a board with an outline the marks are taken over the samples that are drawn (cells off the outline are NaN), also in the solved view of the Lumped.
+    @brief On a board with an outline the marks are taken over the samples that are drawn (cells off the outline are NaN), also in the solved view of the LPTN.
     """
     from pcbthermal.model import Problem
 
@@ -163,7 +163,7 @@ def test_hot_ring_stays_at_the_model_tmax_point_and_only_the_cold_one_is_compute
 
 def test_lumped_hot_mark_is_the_reported_peak_point_on_every_layer_grid():
     """!
-    @brief The Lumped map keeps its hot ring at `t_max_location` (the part's peak), in the all-layers view too.
+    @brief The LPTN map keeps its hot ring at `t_max_location` (the part's peak), in the all-layers view too.
     """
     from pcbthermal.model import Problem
 
@@ -256,7 +256,7 @@ def test_cut_picture_follows_the_picture_argument_and_the_cut_line_colour(sim):
 
 def test_cut_picture_on_a_stretched_model_of_an_outline_board_is_plain_with_a_note():
     """!
-    @brief A Lumped reference on an outline board has no map (it would be stretched) and the title says why.
+    @brief A LPTN reference on an outline board has no map (it would be stretched) and the title says why.
     """
     pr = example_board()
     pr.board.outline = np.array([[0, 0], [0.1, 0], [0.1, 0.05], [0.05, 0.08], [0, 0.08]])

@@ -133,7 +133,8 @@ def test_refusals_say_why():
         simulate(p, SolverOptions(models=("fem",), cell_mm=2.0))                       # alone: raised
     sim = simulate(p, SolverOptions(models=("fvm", "fem"), cell_mm=2.0))                # with another model: skipped with the reason
     assert "fvm" in sim.results and "fem" not in sim.results
-    assert any("finite elements (FEM) was not run" in str(w) and "axis-aligned" in str(w) for w in sim.warnings)
+    assert any("the FEM was not run" in str(w) and "axis-aligned" in str(w) for w in sim.warnings)
+    assert sum("FEM" in str(w) and ("not run" in str(w) or "left out" in str(w)) for w in sim.warnings) == 1       # said once (the live check is replaced by the run's statement)
 
 
 def test_a_mesh_over_the_memory_limit_is_refused_by_the_guard(monkeypatch):
@@ -155,7 +156,8 @@ def test_without_pyamg_a_large_mesh_is_a_clean_unavailable_and_a_skipped_model(m
     with pytest.raises(ValueError, match="pyamg"):
         simulate(p, SolverOptions(models=("fem",), cell_mm=1.0))
     sim = simulate(p, SolverOptions(models=("fvm", "fem"), cell_mm=1.0))
-    assert "fem" not in sim.results and any("pyamg" in str(w) and "was not run" in str(w) for w in sim.warnings)
+    assert "fem" not in sim.results and any("pyamg" in str(w) and "the FEM was not run" in str(w) for w in sim.warnings)
+    assert sum("FEM" in str(w) and ("not run" in str(w) or "left out" in str(w)) for w in sim.warnings) == 1
 
 
 def test_a_cancel_stops_the_assembly():

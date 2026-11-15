@@ -218,18 +218,18 @@ def test_the_edge_warning_names_the_via_effect_and_has_no_stackup_clause():
 
 
 def test_a_warning_for_the_lumped_and_analytic_when_the_edge_is_cooled_strongly_for_the_thickness():
-    # check_reduced_edge_laminate (review): the Lumped and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
+    # check_reduced_edge_laminate (review): the LPTN and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
     # 1.6 mm board with a corner part -5.2 % (Analytic) at 200 W/m2K against a converged independent 3D solver (77.66 K), where the FVM with the band is -0.6 %
     w = checks.check_reduced_edge_laminate(plate(1.6, 100.0, "corner"), ("analytic",))
     assert len(w) == 1 and "Analytic model keeps" in w[0] and "FVM or the FDM" in w[0]
-    assert "Lumped and Analytic models" in checks.check_reduced_edge_laminate(plate(3.2, 50.0, "corner"), ("fvm", "lumped", "analytic"))[0]
+    assert "LPTN and Analytic models" in checks.check_reduced_edge_laminate(plate(3.2, 50.0, "corner"), ("fvm", "lumped", "analytic"))[0]
     assert not checks.check_reduced_edge_laminate(plate(1.6, 50.0, "corner"), ("analytic",))              # 80 W/m2K mm: about -1 %, silent
     assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("fvm", "fdm", "solid3d"))
     assert not checks.check_reduced_edge_laminate(plate(3.2, None, "corner"), ("analytic",))
     assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner", layers=1), ("analytic",))
     text = checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("lumped",))[0]
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
-    assert any("Lumped model keeps" in str(x) for x in checks.check_model_limits(plate(3.2, 200.0, "corner"), ("lumped",)))
+    assert any("LPTN model keeps" in str(x) for x in checks.check_model_limits(plate(3.2, 200.0, "corner"), ("lumped",)))
 
 
 def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_reference():

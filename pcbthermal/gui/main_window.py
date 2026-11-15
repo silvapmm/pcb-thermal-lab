@@ -522,8 +522,8 @@ class MainWindow(QMainWindow):
                                 tip="Find a part's power from a measured temperature")
         self.a_import = self._act("Import Gerber board…", self.show_import,
                                   tip="New project from Gerber, drill and placement files")
-        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
-        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Cancel calculation, F5 to Run)
+        self.a_cancel = self._act("Stop calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
+        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Stop calculation, F5 to Run)
         self.a_stop = self._act("Stop", self.cancel_simulation, tip="Stop the calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
@@ -819,7 +819,7 @@ class MainWindow(QMainWindow):
         @brief Paint or remove the temperature result on the board.
         @details The map is the one the Temperature tab shows (same model, colour limits and colour map, so both show the same numbers) on the layer chosen in the
                  toolbar, with the cells off the outline transparent, a colour bar and the card of the model with the hottest and coolest point. A model that cannot
-                 be drawn on this board (the stretched map of the Lumped or Analytic on an outline board) leaves only the card with that note. It is not drawn while
+                 be drawn on this board (the stretched map of the LPTN or Analytic on an outline board) leaves only the card with that note. It is not drawn while
                  the result is outdated.
         @param on True to paint.
         """
@@ -1324,6 +1324,8 @@ class MainWindow(QMainWindow):
         """
         self.sim, self._stale = None, False
         self.tabs.setTabText(TAB_RESULTS, "Results")
+        self.results.clear()                                 # The results of the board that was open do not belong to this one
+        self.solver_panel.set_running(False, "")             # ... nor the 'Done: Tmax ...' line
         self.canvas.clear_overlay()
         self.a_overlay.setChecked(False)
         self._update_map_button()
@@ -1492,6 +1494,7 @@ class MainWindow(QMainWindow):
         @param busy True while any calculation runs or waits.
         """
         self.solver_panel.set_busy(busy)
+        self.statusBar().showMessage("Calculating: Stop with Ctrl+." if busy else "Ready.")     # The bar said 'Ready.' during a run
         # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
         # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
         hold = (not busy) and time.monotonic() < getattr(self, "_run_hold_until", 0.0)
@@ -1540,8 +1543,6 @@ class MainWindow(QMainWindow):
             return
         low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
         self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
-        if low:
-            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -1549,6 +1550,9 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
+        if low:
+            # After the start: the busy signal (synchronous) writes 'Calculating' in the bar, which would hide this warning at once
+            self.statusBar().showMessage(low[0], 10000)
 
     def cancel_simulation(self):
         """!

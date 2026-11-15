@@ -5,7 +5,7 @@
 @brief The imported-copper texts: the reduced-model warning quotes the measured sample and its cause, the cell warning of a small part never recommends a cell that Auto cannot give,
        and check_input works with live and ui together.
 @details The numbers quoted are those re-measured by the final review of 2.8.0 (`releases/2.8.0/final-review/REMEASURE.md` 3, the parts of the study
-         `research/reduced-models-imported-passives` and every other heat source of its boards): 82 parts of three boards, Lumped 23 to 76 % and Analytic 19 to 77 % too cool at
+         `research/reduced-models-imported-passives` and every other heat source of its boards): 82 parts of three boards, LPTN 23 to 76 % and Analytic 19 to 77 % too cool at
          0.5 mm, 33 to 76 % and 30 to 77 % for passives with a side below 1.5 mm (0402 and 0603); the earlier 42-part sample gave 25 to 82 % and 17 to 77 % (39 to 81 % for the
          0402 class); a 0402 reads 84.6 K at a 1 mm cell and 201.2 K at 0.25 mm (2.4 times).
 """

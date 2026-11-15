@@ -109,7 +109,7 @@ LABELS = {
     "design_coverage_pct": "Design: copper coverage (± %)", "design_weight_pct": "Design: copper weight (± %)", "design_planes_pct": "Design: inner planes (± %)",
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
-    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
+    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "LPTN rings", "analytic_modes": "Analytic modes",
     "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)", "max_mb": "Largest package (MB)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
@@ -149,7 +149,7 @@ TIPS = {
     "design_scale_hand": "Design multiplier for a board drawn by hand (0 to 1; assumed).",
     "design_scale_estimated": "Design multiplier for an estimated board (normally 1).",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
-    "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Hotspot limit, °C.",
+    "lumped_rings": "Rings of the LPTN model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Hotspot limit, °C.",
     "max_file_mb": "Largest Gerber, drill or ZIP member read, MB (16 to 4096, shipped 256; real files 0.01 to 2 MB). Decoding takes about twice the file in memory. "
                    "This machine only: not saved in project files.",
     "max_mb": "Largest .pcbtz package read or written, MB uncompressed (64 to 4096, shipped 512; real ones under 10 MB). It is held in memory whole. "

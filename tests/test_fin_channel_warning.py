@@ -51,9 +51,9 @@ def test_channel_fraction_function_values_of_the_study():
 
 
 def test_rayleigh_of_the_table_cases_at_a_stated_excess():
-    # Ra_b at 20 degC ambient for the block excess named in the INTEGRATION table: 40 K gives 70.4 at 5.5 mm, not the "about 62" written there
+    # Ra_b at 20 °C ambient for the block excess named in the INTEGRATION table: 40 K gives 70.4 at 5.5 mm, not the "about 62" written there
     assert fin_channel_rayleigh(5.5e-3, 40e-3, 40.0, 20.0) == pytest.approx(70.4, rel=0.01)
-    # The 62.4 and 11.9 of research/fin-channel README 5 table A are at the board's 25 degC ambient and the mean wall excess of the channel run
+    # The 62.4 and 11.9 of research/fin-channel README 5 table A are at the board's 25 °C ambient and the mean wall excess of the channel run
     # (37.4 K at 5.5 mm, 46.6 K at 3.5 mm, convection-only plate coefficient): the same function reproduces them
     assert fin_channel_rayleigh(5.5e-3, 40e-3, 37.37, 25.0) == pytest.approx(62.4, rel=0.005)
     assert fin_channel_rayleigh(3.5e-3, 40e-3, 46.6, 25.0) == pytest.approx(11.9, rel=0.005)
@@ -65,7 +65,7 @@ def test_rayleigh_of_the_table_cases_at_a_stated_excess():
 
 @pytest.mark.parametrize("model", ["fvm", "fdm", "solid3d", "lumped", "analytic"])
 def test_table_cases_in_every_model(model):
-    # Gap 5.5 mm warns, 6.5 mm at 3 W (Ra_b about 100) and 20 mm do not, 3.5 mm warns with a strong loss; Lumped and Analytic through the auxiliary FVM run
+    # Gap 5.5 mm warns, 6.5 mm at 3 W (Ra_b about 100) and 20 mm do not, 3.5 mm warns with a strong loss; LPTN and Analytic through the auxiliary FVM run
     w = channel_warnings(run(5.5, model=model))
     assert len(w) == 1 and "0.79 of its coefficient" in w[0] and "21 % less" in w[0] and "27 K above the air" in w[0]
     assert channel_warnings(run(6.5, model=model)) == []
@@ -118,7 +118,7 @@ def test_a_block_cut_at_the_outline_reads_the_excess_of_the_block_on_the_board()
 
 
 def test_the_3d_solid_uses_its_own_block_temperature():
-    # The FVM, FDM and 3D solid give the check their own block temperatures; only the Lumped and Analytic use the auxiliary FVM run
+    # The FVM, FDM and 3D solid give the check their own block temperatures; only the LPTN and Analytic use the auxiliary FVM run
     import pcbthermal.api as api
     seen = []
     saved = api.check_fin_channels

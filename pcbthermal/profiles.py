@@ -416,7 +416,7 @@ def decide(problem, resp, threshold_c):
         osc = max(pk - vl, 0.0)
         # The floor of the fast waves (docs/theory.md 10.5, eq. 10.6): the node structure of the layered models understates the swing of a short stretch (the capacity of half a
         # laminate gap sits on the copper node), the closed form of the stack does not. It needs a repeating profile (square wave or table), copper under the part and a swing of
-        # the power; it is applied whatever the model of the step response (FVM, FDM, Lumped, Analytic), since all of them share the node structure or are tuned on it
+        # the power; it is applied whatever the model of the step response (FVM, FDM, LPTN, Analytic), since all of them share the node structure or are tuned on it
         fast = _fast_swing(problem, i, w) if w.repeat else 0.0
         if fast > osc:
             osc = fast
@@ -826,7 +826,7 @@ def _ripple_only(problem, decisions, options, adapter, rip, result, t_begin, pro
     result.t_max, result.t_heaters = _add_ripple(result, problem, rip, times, gmax, hmax, dt)
     field0 = adapter.frame(state).astype(np.float32)
     result.frames, result.frame_times = field0[None], np.array([window])
-    # The FVM and FDM give the field of the state as peak values; the Lumped and Analytic adapters give none (their peak map is the maximum of the frames), so the one frame is it
+    # The FVM and FDM give the field of the state as peak values; the LPTN and Analytic adapters give none (their peak map is the maximum of the frames), so the one frame is it
     values = adapter.peak_values(state)
     result.peak_map = field0 if values is None else adapter.shape_field(values)
     result.history_t, result.history_max = times, result.t_max

@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_edge_first_link.py
-@brief The first footprint-to-ring link of the Lumped network sees the mirror images of the board sides (fix/lumped-edge-first-link, research/lumped-edge-link INTEGRATION.md 2 and 3).
+@brief The first footprint-to-ring link of the thermal network sees the mirror images of the board sides (fix/lumped-edge-first-link, research/lumped-edge-link INTEGRATION.md 2 and 3).
 
 @details Held here: the logarithmic potential of the footprint with its images against a brute-force sum and a closed form (one source and its images), the mirror symmetry of the
          board, a 6 mm part touching a side and in a corner of a 40 x 40 mm board against the independent 3D layered solver (before the images -9.9 % and -15.9 % of the rise, now about
@@ -46,7 +46,7 @@ def board(w_mm, h_mm, side_mm, centre, h_side=None):
 
 def lumped_rise(p, cell_mm=0.5):
     """!
-    @brief Hottest rise of the Lumped model.
+    @brief Hottest rise of the LPTN model.
     @param p Problem.
     @param cell_mm Cell in mm.
     @return float Rise in K.
@@ -156,7 +156,7 @@ def test_centred_part_moves_a_few_points_hot_only():
 
 def test_a_30_mm_part_stays_fast():
     """!
-    @brief The cell-resolved potentials of a 30 mm part (3600 cells at 0.5 mm, the limit) cost under 2 s of the whole Lumped run.
+    @brief The cell-resolved potentials of a 30 mm part (3600 cells at 0.5 mm, the limit) cost under 2 s of the whole LPTN run.
     @return None.
     """
     p = board(100, 80, 30, (50.0, 40.0), h_side=10.0)

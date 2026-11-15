@@ -118,7 +118,7 @@ def test_solid3d_in_the_api_and_with_profiles():
 
 
 def test_a_one_layer_board_keeps_its_laminate():
-    # The 3D solid built no dielectric slab for a one-layer board, so the board was only its copper: a 20 mm pad read 120 degC against about 74
+    # The 3D solid built no dielectric slab for a one-layer board, so the board was only its copper: a 20 mm pad read 120 °C against about 74
     p = Problem.new(60.0, 60.0, layers=1, thickness_mm=1.6, copper_um=35)
     p.add_zone(1, rect=(20, 20, 40, 40))
     p.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")

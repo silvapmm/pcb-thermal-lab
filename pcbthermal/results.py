@@ -10,8 +10,12 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-# Names of the models shown to the user (tables, lists, plots); the keys (fvm, lumped, ...) stay in the files, the reports and the API
-MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
+# ONE name per model, in two lengths, used by every view (the Simulation panel, the cards, tabs, tables, plot legends, the reports, the guide); the keys (fvm,
+# lumped, ...) stay in the files and the API and are never shown. The short name is for a card, a tab, a table cell or a legend; the full name for the Models box,
+# a list that has room, a sentence. Nothing else spells a model: tests/test_model_names.py scans the labels of the window against these two tables.
+MODEL_LABELS = {"fvm": "FVM", "lumped": "LPTN", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
+MODEL_FULL = {"fvm": "Finite volume (FVM)", "lumped": "Thermal network (LPTN)", "analytic": "Analytical (Fourier series)", "fdm": "Finite difference (FDM)",
+              "solid3d": "3D solid (finite volumes)", "fem": "Finite elements (FEM)"}
 
 # The one disclaimer line of every report the program writes (text and Markdown reports, the on-screen Results summary, the CLI output, the JSON summary,
 # the Power Calculator result): a design aid, never compared with a measured board. Reports import this constant; none words it again.
@@ -26,6 +30,15 @@ def model_label(key):
     @return The display name, or the key itself when it is not a known model.
     """
     return MODEL_LABELS.get(key, key)
+
+
+def model_full_label(key):
+    """!
+    @brief Full name of a model (the one of the Models box without its role words).
+    @param key Model key (fvm, lumped, analytic, fdm, solid3d, fem).
+    @return The full name, or the key itself when it is not a known model.
+    """
+    return MODEL_FULL.get(key, key)
 
 
 @dataclass

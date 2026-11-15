@@ -50,7 +50,7 @@ def _t_problem():
 @pytest.fixture(scope="module")
 def sim_t():
     """!
-    @brief One run of the FVM and the Lumped model on the T board (2 mm cell).
+    @brief One run of the FVM and the LPTN model on the T board (2 mm cell).
     @return Simulation.
     """
     return simulate(_t_problem(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
@@ -192,7 +192,7 @@ def test_the_overlay_follows_the_controls_of_the_temperature_tab(qtbot, tmp_path
     assert (win.canvas._overlay_args["vmin"], win.canvas._overlay_args["vmax"]) == (40.0, 90.0)
     t.model.setCurrentIndex(t.model.findData("lumped"))                 # the stretched map of the outline board: refused at once
     assert win.canvas._overlay is None and "stretched" in win.statusBar().currentMessage()
-    assert win.canvas._overlay_card["tmax"] is None and "Lumped" in win.canvas._overlay_card["title"]          # only the card says so
+    assert win.canvas._overlay_card["tmax"] is None and "LPTN" in win.canvas._overlay_card["title"]          # only the card says so
 
 
 def test_switching_on_an_outdated_result_says_so_and_leaves_the_button_off(qtbot, tmp_path, sim_rect):
@@ -221,7 +221,7 @@ def test_a_stretched_map_on_an_outline_board_is_refused_with_a_note(qtbot, tmp_p
     assert sim_t.results["lumped"].equivalent_scale is not None
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay is None and "stretched" in win.statusBar().currentMessage()
-    assert win.canvas._overlay_card["tmax"] is None and win.canvas._overlay_card["title"].startswith("Lumped: not drawn")
+    assert win.canvas._overlay_card["tmax"] is None and win.canvas._overlay_card["title"].startswith("LPTN: not drawn")
     t.model.setCurrentIndex(t.model.findData("fvm"))
     win.a_overlay.setChecked(True)
     assert win.canvas._overlay is not None
