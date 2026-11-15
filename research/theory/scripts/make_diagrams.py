@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47 and fig_49 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47, fig_49 and fig_50 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1434,6 +1434,46 @@ def fem_mesh_section(path):
     dk.save(fig, path, "The element and the mesh through the thickness")
 
 
+def surface_readout(path):
+    """!
+    @brief Draw the section through a thick plate under a source (theory 1.2): the heat entering the top face, the film leaving the bottom face, the parabolic temperature profile through the thickness, and the three levels the program can read (surface, column mean = node, bottom face). Schematic, the profile is the parabola with illustrative fluxes.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(12, 5.0, 1, 2, ratios=[1.2, 1.0])
+    a = axs[0]
+    a.set_xlim(0, 10); a.set_ylim(-1.6, 5.2)
+    dk.layer(a, 0.5, 0.0, 9.0, 3.0, "#b8bec6")
+    a.text(5.0, 0.55, "plate: thickness t, conductivity k", ha="center", fontsize=8.5)
+    dk.layer(a, 3.5, 3.0, 3.0, 0.2, dk.HEAT)
+    a.text(5.0, 4.75, "part: heat q_top enters the top face", ha="center", fontsize=8.5, color=dk.HEAT)
+    for x in (3.9, 4.5, 5.0, 5.5, 6.1):
+        dk.arrow(a, x, 4.5, x, 3.3, color=dk.HEAT, width=1.2)
+    for x in (1.5, 3.0, 5.0, 7.0, 8.5):
+        dk.arrow(a, x, 0.0, x, -0.9, color=dk.BLUE, width=1.2)
+    a.text(5.0, -1.35, "film h: q_bot leaves the bottom face", ha="center", fontsize=8.5, color=dk.BLUE)
+    a.plot([0.5, 9.5], [1.5, 1.5], "k--", lw=1)
+    a.text(9.6, 1.5, "node =\ncolumn mean", fontsize=8, va="center")
+    a.text(9.6, 3.0, "surface", fontsize=8, va="center", color=dk.HEAT)
+    a = axs[1]
+    z = np.linspace(0, 1, 200)
+    q_top, q_bot = 1.0, -0.4                                       # Illustrative, in units of q t / k
+    T = 0.0 - q_top * z + (q_top + q_bot) * z * z / 2.0
+    T = T - T.mean() + 0.0
+    a.plot(T, 1 - z, color=dk.HEAT, lw=2)
+    a.axhline(0.5, color="k", ls="--", lw=1)
+    a.axvline(0.0, color="grey", lw=0.8)
+    d = float(T[0])
+    a.annotate("", xy=(d, 1.0), xytext=(0.0, 1.0), arrowprops=dict(arrowstyle="<->", color=dk.HEAT))
+    a.text(d / 2, 1.04, "t (2 q_top - q_bot) / 6k", ha="center", fontsize=8, color=dk.HEAT)
+    a.text(0.02, 0.5, "column mean (the node)", fontsize=8, va="bottom")
+    a.set_xlabel("temperature through the thickness (illustrative)")
+    a.set_ylabel("height in the plate (top = 1)")
+    a.set_title("surface = node + t (2 q_top - q_bot) / (6 k)", fontsize=9)
+    a.set_xticks([]); a.set_ylim(-0.05, 1.15)
+    dk.save(fig, path, "The surface read-out of a thick plate")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1456,7 +1496,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section), (50, "surface_readout", surface_readout)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 
