@@ -8,7 +8,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ## Features
 
 **Modelling**
-- **Five models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
+- **Six models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series and, as a comparison, finite elements `--model fem`: resolved surface of thick copper, hollow vias; pyamg optional), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
 - **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **all five models**, with a **cross-section diagram** in µm and mm and typical stack-ups of 1 to 12 layers with inner copper of 0.5 oz (default) or 1 oz.
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
@@ -88,6 +88,7 @@ What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary
 | **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.5 % (within about 1 % on a one-sided pad no larger than the heater, against converged finite elements) | 0.13 s (1 mm) |
 | **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.5 to 1.1 % (up to 1.8 % with a metal block) | 0.12 s |
 | **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0.1 to 1.6 % (+2.3 to +4.9 % on one-sided pads at a 1 mm cell, too hot) | 0.1 to 10 s |
+| **FEM** (finite elements, comparison, `--model fem`) | several elements through thick copper (the resolved surface), conforming hollow vias, the film on the real face; no "one node per layer" assumption | thick plates and blocks, hollow vias under a part, checking the other models; steady state only; needs pyamg above 30 000 unknowns | 0.4 to 0.9 % below the FVM and the 3D solid on plain boards (same cell); surface of case 2 of Muzychka et al. to the printed digit | seconds (5 s at 92 000 unknowns) |
 | **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other; a part over a dense group of vias has the footprint in two zones (core and rest), on a 0.5 mm cell | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % (−4.5 % on a 20 mm one-sided pad, within 2.2 % on the other three boards) | about 10 ms |
 | **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms without vias, a few tenths of a second with vias |
 
@@ -110,7 +111,7 @@ python3 -m venv .venv
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
 .venv/bin/python -m pcbthermal convert board.pcbt.json board.pcbtz         # project package (a ZIP: project, image and, on request, the Gerber and placement files); every command reads a .pcbtz
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM and the 3D solid)
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM, the 3D solid and the finite elements)
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
