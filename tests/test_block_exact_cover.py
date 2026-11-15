@@ -115,3 +115,58 @@ def test_the_coarse_cell_follows_the_fine_cell_more_closely_than_the_sampled_cov
     # 0.61 K with the exact area (the cell error is not the block's): a bound of 0.8 K keeps it from growing back (the rest of it is the cut-cell treatment of the board, not the block)
     hot = {c: simulate(board(20.0, True), SolverOptions(models=(model,), cell_mm=c)).results[model].t_max for c in (2.0, 0.5)}
     assert abs(hot[2.0] - hot[0.5]) < 0.8
+
+
+def ellipse_board(deg, cut):
+    """!
+    @brief The block of `board` on an elliptic outline (a 96-gon), which either holds the block or cuts it, so that cells of a slanted edge carry slivers below the board-cover floor.
+    @param deg Angle of the block in degrees.
+    @param cut True to move the block so that the ellipse cuts it.
+    @return Problem.
+    """
+    t = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
+    p = Problem.new(60, 40, 2).add_full_copper()
+    p.set_outline(np.c_[30.0 + 27.0 * np.cos(t), 20.0 + 17.3 * np.sin(t)].tolist())
+    p.add_heater(1, 3.0, rect=(45, 15, 50, 20), name="U")
+    p.add_heatsink(2, 15.0, polygon=turned_rect(40.3 if cut else 30.3, 20.1, 29.8, 23.7, deg), thickness_mm=3.0, k=205.0, name="Al")
+    return p
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm", "solid3d"])
+@pytest.mark.parametrize("cut", [False, True])
+def test_energy_balance_closes_with_a_block_on_a_curved_outline(model, cut):
+    # A cell whose board share is below the floor of Board.cover is pinned to the ambient: a block node there drained 0.13 to 0.20 W of 3 W through the pin
+    # (outside the balance, and 7 to 9 K too cool) before the block cover was limited to the board cover of the model
+    r = simulate(ellipse_board(20.0, cut), SolverOptions(models=(model,), cell_mm=1.0)).results[model]
+    assert abs(r.balance_error) < 1e-6
+
+
+@pytest.mark.parametrize("deg", [0.0, 20.0])
+def test_contact_capacity_and_faces_of_a_block_cut_by_the_outline_are_exact(deg):
+    # The board share of a cut cell was counted twice (the block cover times the board area of the cell): the contact and the capacity were 1.3 to 1.6 % low and the
+    # board face under the block stayed partly exposed. Full copper, so the contact is the exact block area over R''
+    p = board(deg, True)
+    for cell in (2.0, 1.0):
+        nx, ny = int(round(60 / cell)), int(round(40 / cell))
+        net = fvm.Network(p, nx, ny)
+        a = p.heatsinks[0]
+        exact = area_right_of(a.polygon * 1e3, 20.4) * 1e-6
+        info = net.block_info[0]
+        assert info["g_link"].sum() == pytest.approx(exact / max(a.interface_resistance(), 1e-7), rel=1e-9)
+        assert net.C[info["layer"]].sum() == pytest.approx(a.rho_cp * a.thickness * exact, rel=1e-9)
+        # The board face left exposed plus the block is the board area: the face under the block exchanges nothing
+        bottom = net.g_bottom[info["board_layer"]].sum() / p.board.h_bottom
+        assert bottom == pytest.approx(net.cover.sum() * net.dx * net.dy - exact, rel=1e-9)
+
+
+def test_the_fdm_block_area_on_the_control_volumes_is_the_exact_area():
+    # The node cover is the mean of the four cells around a node; times the control volume it gives back the exact area of the block on the board
+    p = board(20.0, True)
+    net = fdm.Network(p, 1.0)
+    wx = np.full(net.nx, net.dx); wx[[0, -1]] *= 0.5
+    wy = np.full(net.ny, net.dy); wy[[0, -1]] *= 0.5
+    layer = net.nl - 1
+    a = p.heatsinks[0]
+    exact = area_right_of(a.polygon * 1e3, 20.4) * 1e-6
+    got = net.C[layer].sum() / (a.rho_cp * a.thickness)
+    assert got == pytest.approx(exact, rel=1e-9)

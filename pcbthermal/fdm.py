@@ -233,7 +233,7 @@ class Network:
                 return cover(poly, n) * ncov
             c = blocks.block_cover(poly, b.outline if b.has_outline() else None, cells_x, cells_y, dx, dy)
             return np.minimum(_node_average(c), ncov) if b.has_outline() else _node_average(c)
-        ex = blocks.extra_layers(problem, block_cov, area, fill, dx, dy)
+        ex = blocks.extra_layers(problem, block_cov, area, fill, dx, dy, board_cover=ncov)      # `area` is already the board part of the control volume
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:

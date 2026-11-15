@@ -262,7 +262,8 @@ class Network:
         if with_blocks:
             area = cell.copy()
             # The block is cut at the board outline: a cell off the board carries no block (it would be pinned to the ambient and drain the block)
-            layers = blocks.extra_layers(problem, lambda poly, n: blocks.block_cover(poly, b.outline if b.has_outline() else None, nx, ny, dx, dy, self.cover), area, f, dx, dy)
+            layers = blocks.extra_layers(problem, lambda poly, n: blocks.block_cover(poly, b.outline if b.has_outline() else None, nx, ny, dx, dy, self.cover), area, f, dx, dy,
+                                         board_cover=self.cover)
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
