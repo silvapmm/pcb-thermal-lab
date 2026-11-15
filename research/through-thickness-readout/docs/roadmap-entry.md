@@ -1,0 +1,3 @@
+# Entry for `docs/versions.md` ('Planned')
+
+* **Through-thickness read-out of thick layers and blocks** (after `research/through-thickness-readout`): (1) `fix/thick-plate-surface-estimate`: surface arrays and a 'Surface' read-out choice from the face fluxes (parabolic term, capped at the bound for `t/a > 0.5`), no solve change, no frozen number moves; (2) `feature/solid3d-copper-slabs`: several slabs through a thick copper layer in the 3D solid, bit-identical up to 0.25 mm; (3) the finite-element model reads the surface natively (its own branches); (4) sub-layers in the layered models only on the maintainer's word (size L).
