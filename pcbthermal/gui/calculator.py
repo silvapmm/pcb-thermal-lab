@@ -22,6 +22,7 @@ from ..inverse import power_from_theta
 from ..results import DISCLAIMER
 from .compute import ProcessWorker
 from .spinfit import fit_range
+from . import a11y
 from . import theme as th
 from .help import set_themed_page
 
@@ -129,6 +130,8 @@ class PowerCalculator(QDialog):
         self._point_changed()
         # The window keeps one size for every point: the parameters a point does not use are greyed, not removed
         self.setMinimumSize(self.sizeHint())
+        a11y.name_fields(self)                              # Screen readers read the label of each field
+        self.case.setAccessibleName("Power to use")
 
     # ------------------------------------------------------------------ route 1
     def _board_tab(self):

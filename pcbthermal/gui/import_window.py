@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
+from . import a11y
 from . import theme as th
 from .elided import ElidedLabel, clamp_to_screen
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
@@ -580,6 +581,8 @@ class Step1Page(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Folder, ZIP or files"))
         self.source = QLineEdit()
+        self.source.setAccessibleName("Folder, ZIP or files")
+        self.source.setToolTip("The folder, ZIP file or files to import: type or paste a path and press Enter, or use the buttons beside it.")
         self.source.returnPressed.connect(lambda: self.win.open_path(self.source.text()))
         row.addWidget(self.source, 1)
         for text, fn in (("Folder…", self._folder), ("ZIP…", self._zip), ("Files…", self._files)):
@@ -648,6 +651,7 @@ class Step1Page(QWidget):
         bar = QHBoxLayout()
         self.preview = Preview(self.session)
         self.layer_pick = QComboBox()
+        self.layer_pick.setAccessibleName("Layer of the preview")
         self.layer_pick.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.layer_pick.setMinimumContentsLength(14)
         self.layer_pick.currentTextChanged.connect(self._layer_picked)
@@ -1904,6 +1908,7 @@ class ImportBoardWindow(QDialog):
         for btn in self.findChildren(QPushButton):
             btn.setAutoDefault(False)
             btn.setDefault(False)
+        a11y.name_fields(self)                              # Screen readers read the label of each field (form rows and grids)
         self.update_nav()
 
     def _in_thread(self, fn):

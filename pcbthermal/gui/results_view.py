@@ -252,6 +252,7 @@ class PlotTab(QWidget):
         recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
+        self.model.setAccessibleName("Model")                  # Screen readers: the boxes of this row have a text label beside them, not a buddy
         self.layer_value = 0                            # The layer of the toolbar choice (see layerchoice): -1 / -2 all layers, 100 + face a metal block
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
@@ -261,14 +262,17 @@ class PlotTab(QWidget):
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
+        self.vmin.setAccessibleName("Lowest temperature of the colour scale"); self.vmax.setAccessibleName("Highest temperature of the colour scale")
         for s in (self.vmin, self.vmax):
             s.setRange(-100, 2000)
             s.setDecimals(1)
             s.setKeyboardTracking(False)
         self.axis = QComboBox()
+        self.axis.setAccessibleName("Cut direction")
         self.axis.addItem("Along x", "x")
         self.axis.addItem("Along y", "y")
         self.pos = QSlider(Qt.Horizontal)
+        self.pos.setAccessibleName("Cut position")
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
         self.cut_overlay = QCheckBox("Cut overlay")      # Profiles: the board picture over the curves (content: toolbar Layer, Display, Map button); session only

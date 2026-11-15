@@ -38,7 +38,7 @@ from . import compute
 from .compute import ProcessWorker
 from . import package_actions
 from .document import Document
-from . import boxes
+from . import a11y, boxes
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
 from .stackup import StackupPage
@@ -315,8 +315,13 @@ class MainWindow(QMainWindow):
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
-        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (off = free).")
+        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (Off = free).")
         tips.apply(self)
+        a11y.name_fields(self)                                 # Every field read by a screen reader with the label of its row (grids included)
+        # The value boxes of the tool bars have a text label beside them but are not in a form: they are named here
+        self.layer_combo.setAccessibleName("Layer")
+        self.snap_combo.setAccessibleName("Snap")
+        self.canvas.setAccessibleName("Board")
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction

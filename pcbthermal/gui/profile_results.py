@@ -29,12 +29,15 @@ class ProfileResultsTab(QWidget):
         super().__init__(parent)
         self.theme, self.sim, self._updating = theme, None, False
         self.model = QComboBox()
+        self.model.setAccessibleName("Model")                  # Screen readers: the labels of this row are not buddies
         self.view = QComboBox()
+        self.view.setAccessibleName("View")
         self.view.addItem("Temperature versus time", "series")
         self.view.addItem("Peak temperature map", "peak")
         self.view.addItem("Last window, frame by frame", "frames")
         self.layer_value = 0                            # The layer of the toolbar choice (a single layer here)
         self.slider = QSlider(Qt.Horizontal)
+        self.slider.setAccessibleName("Time")
         self.model.setToolTip("Model whose time simulation is shown.")
         self.view.setToolTip("Temperature against time, the peak map, or the last window frame by frame.")
         self.slider.setToolTip("Drag to a moment of the simulation.")

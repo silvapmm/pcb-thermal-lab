@@ -22,7 +22,7 @@ from .. import defaults
 from ..api import SKIPPABLE_MODELS, suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
-from . import tips
+from . import a11y, tips
 from .document import KINDS
 from . import theme as th
 from ..checks import fem_cell_for_direct, fem_needs_pyamg, line
@@ -142,6 +142,7 @@ class BoardPanel(QWidget):
         self.outline_label.setWordWrap(True)
         self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; LPTN, Analytic: the rectangle of the same area.")
         self.preset = QComboBox()
+        self.preset.setAccessibleName("Preset shape")
         self.preset.addItem("Preset shape…", None)
         for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
             self.preset.addItem(label, label)
@@ -1196,12 +1197,14 @@ class Inspector(QWidget):
         # horizontal scroll bar in the 340 px dock (the open list still shows every entry in full)
         compact_combos(self.form_host, chars=12)
         tips.apply(self.form_host)
+        a11y.name_fields(self.form_host)                       # Screen readers read the label of each field, not only its value
         self._form_selection = list(self.selection)
         # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as
         # empty and the scroll area of the dock kept the old height; the rows of a taller form were drawn on top of each other (README screenshots)
         self.form_host.show()
         self.form_host.layout().activate()
         self.lay.activate()
+        a11y.chain_after(self, self._focus_chain())            # Tab goes through the new fields right after the dock, not after the tool bar
         if focus_at is not None:
             chain = self._focus_chain()
             if focus_at < len(chain):
