@@ -43,7 +43,8 @@ def run_one(case, variant, cell=None):
     t0 = time.perf_counter()
     c = cases.build(case, cell)
     out = {"case": case, "variant": variant, "n": c["n"], "cell_mm": c["cell_mm"], "assemble_s": time.perf_counter() - t0}
-    M, info = variants.make_preconditioner(c["A"], variant)
+    cols = variants.column_ids(c["model"]) if variant in variants.COLUMN_VARIANTS else None
+    M, info = variants.make_preconditioner(c["A"], variant, cols)
     if M is None:
         out.update(info)
         return out

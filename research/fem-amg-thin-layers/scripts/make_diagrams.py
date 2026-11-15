@@ -37,7 +37,7 @@ def fig_01():
         ax.set_ylim(-0.3, z + 0.3)
         ax.set_aspect("equal")
         ax.axis("off")
-        ax.set_title(title, fontsize=9)
+        ax.set_title(title, fontsize=8)
         axes_z = z
     for i in range(0, nx, 3):                                       # (a) square aggregates
         axes[0].add_patch(Rectangle((i, 0), 3, 3.0, fc="none", ec="#c0392b", lw=1.6))
@@ -45,10 +45,43 @@ def fig_01():
         axes[1].add_patch(Rectangle((i + 0.05, 0.02), 0.9, axes_z - 0.04, fc="none", ec="#1f4e79", lw=0.8))
     for i in range(0, nx, 4):
         axes[1].add_patch(Rectangle((i, -0.2), 4, axes_z + 0.4, fc="none", ec="#c0392b", lw=1.6, ls="--"))
-    axes[0].text(0.1, axes_z + 0.1, "strong coupling: through the thin slab (large conductance k A / dz)\nweak coupling: in plane (k dz / dx)", fontsize=7, va="bottom")
+    fig.text(0.5, -0.04, "strong coupling: through the thin slab (large conductance k A / dz); weak coupling: in plane (k dz / dx). Sketch, not to scale.", fontsize=8, ha="center")
     os.makedirs(os.path.join(FOLDER, "figures"), exist_ok=True)
     fig.savefig(os.path.join(FOLDER, "figures", "fig_01_thin_layer_coarsening.png"), dpi=140, bbox_inches="tight")
 
 
+def fig_02():
+    """!
+    @brief Flow chart of the two column-solve preconditioners measured in README section 7.4: 'colblock' (exact solve of every vertical column) and 'colblock_amg' (that plus the program's V cycle, added).
+    @return None.
+    """
+    fig, ax = plt.subplots(figsize=(10, 3.4))
+    ax.axis("off")
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 3.4)
+
+    def box(x, y, w, h, text, fc):
+        ax.add_patch(Rectangle((x, y), w, h, fc=fc, ec="#333333", lw=1.0))
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=8)
+
+    def arrow(x0, y0, x1, y1):
+        ax.annotate("", xy=(x1, y1), xytext=(x0, y0), arrowprops=dict(arrowstyle="->", lw=1.2))
+
+    box(0.1, 1.3, 1.4, 0.8, "residual r\n(CG step)", "#eeeeee")
+    box(3.0, 2.2, 2.6, 0.8, "colblock: solve K_col z1 = r\n(K_col = couplings inside each\nvertical column, sparse LU once)", "#cfe3f5")
+    box(3.0, 0.3, 2.6, 0.8, "program default: one V cycle z2\n(smoothed aggregation, theta 0)", "#f5dcb5")
+    box(6.6, 1.3, 1.5, 0.8, "z = z1 + z2\n(sum of two SPD\noperators: SPD)", "#d6ecd0")
+    box(8.5, 1.3, 1.3, 0.8, "CG update", "#eeeeee")
+    arrow(1.5, 1.7, 3.0, 2.6)
+    arrow(1.5, 1.7, 3.0, 0.7)
+    arrow(5.6, 2.6, 6.6, 1.9)
+    arrow(5.6, 0.7, 6.6, 1.5)
+    arrow(8.1, 1.7, 8.5, 1.7)
+    ax.text(4.3, 1.55, "'colblock' uses only the upper path;\n'colblock_amg' uses both", fontsize=7.5, ha="center")
+    ax.set_title("Fig. 2: the two column-solve preconditioners (flow chart, no data)", fontsize=9)
+    fig.savefig(os.path.join(FOLDER, "figures", "fig_02_column_preconditioner.png"), dpi=140, bbox_inches="tight")
+
+
 if __name__ == "__main__":
     fig_01()
+    fig_02()

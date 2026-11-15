@@ -45,10 +45,10 @@ def main():
             except ValueError as exc:                              # the program's own refusal of a mesh: recorded, not hidden
                 rows.append({"board": board, "cell": cell, "skipped": str(exc)[:120]})
                 continue
-            A, rhs = A_rhs
+            A, rhs, cols = A_rhs
             Mb, ib = variants.make_preconditioner(A, "base")
             xb, cb = variants.timed_cg(A, rhs, Mb)
-            Mv, iv = variants.make_preconditioner(A, a.variant)
+            Mv, iv = variants.make_preconditioner(A, a.variant, cols)
             if Mv is None:
                 rows.append({"board": board, "cell": cell, "refused": iv["refused"]})
                 bad += 1
@@ -75,7 +75,7 @@ def _assemble(board, cell, max_unknowns):
     @param board Board name of tests/regression/regress_boards.py.
     @param cell Plan cell in mm.
     @param max_unknowns Refuse above this many unknowns (memory).
-    @return (A, rhs).
+    @return (A, rhs, cols) with cols the vertical column of every unknown.
     @throws ValueError If the mesh is too big or the program refuses it.
     """
     import cases
@@ -83,8 +83,10 @@ def _assemble(board, cell, max_unknowns):
     p = cases.problem_of("frozen:" + board)
     if femmesh.unknowns(p, cell)[0] > max_unknowns:
         raise ValueError("above max-unknowns")
-    a = femmesh.build(p, cell, 6, 2.0).model.assemble()
-    return a["A"].tocsr(), np.asarray(a["rhs"], float)
+    import variants
+    model = femmesh.build(p, cell, 6, 2.0).model
+    a = model.assemble()
+    return a["A"].tocsr(), np.asarray(a["rhs"], float), variants.column_ids(model)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,8 @@ CASES = {
     "plate_vias_1mm": ("frozen:plate_vias", 1.0),
     "case2_plate_1mm": ("case2_plate", 1.0),
     "thin4_1mm": ("thin4", 1.0),
+    "case2_plate_0.5mm": ("case2_plate", 0.5),    # 315 375 unknowns: the largest case 2 that fits the 4 GB ceiling of this study
+    "big_487k": ("example_board", 0.732),         # 487 048 unknowns: the largest example board that fits the 4 GB ceiling (800 000 would need about 5.5 GB at 6.8 KB per unknown, measured at 276 000)
     "big_cap": ("example_board", None),          # cell chosen by `cell_for_unknowns` to sit near the target unknown count
 }
 

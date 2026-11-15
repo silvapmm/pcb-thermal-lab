@@ -10,6 +10,7 @@
 import time
 
 import numpy as np
+import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 GS = ("gauss_seidel", {"sweep": "symmetric", "iterations": 1})        # pyamg's default smoother; symmetric sweep keeps the V-cycle SPD for CG
@@ -47,16 +48,71 @@ VARIANTS = {
 }
 
 
-def make_preconditioner(A, name):
+#: Names handled by `make_preconditioner` outside the pyamg table: vertical-column solves (README section 7.4).
+COLUMN_VARIANTS = ("colblock", "colblock_amg")
+
+
+def column_ids(model):
+    """!
+    @brief The vertical column (same x, y) of every unknown, in the unknown order of `Model.assemble` (unused nodes dropped).
+    @param model femcore.Model.
+    @return numpy.ndarray int (n,) column index.
+    """
+    used = np.zeros(model.nodes.shape[0], bool)
+    used[model.elems.ravel()] = True
+    xy = np.round(model.nodes[used][:, :2] / 1e-9).astype(np.int64)         # nm, so equal columns match exactly
+    _, inv = np.unique(xy, axis=0, return_inverse=True)
+    return inv.ravel()
+
+
+def column_matrix(A, cols):
+    """!
+    @brief The part of A that couples unknowns of the same vertical column (block-diagonal by column; a principal submatrix of an SPD matrix, hence SPD).
+    @param A SPD scipy sparse matrix.
+    @param cols Column index of every unknown (n,).
+    @return scipy CSC matrix.
+    """
+    coo = A.tocoo()
+    keep = cols[coo.row] == cols[coo.col]
+    return sp.csc_matrix((coo.data[keep], (coo.row[keep], coo.col[keep])), shape=A.shape)
+
+
+def vertical_share(A, cols):
+    """!
+    @brief Share of the off-diagonal coupling (sum of |a_ij|, i != j) that stays inside a vertical column: near 1 for a thin stack under a coarse cell, small for a thick plate.
+    @param A SPD scipy sparse matrix.
+    @param cols Column index of every unknown (n,).
+    @return float in [0, 1].
+    """
+    coo = A.tocoo()
+    off = coo.row != coo.col
+    same = cols[coo.row] == cols[coo.col]
+    w = np.abs(coo.data)
+    return float(w[off & same].sum() / w[off].sum())
+
+
+def make_preconditioner(A, name, cols=None):
     """!
     @brief Build the hierarchy of a variant and time the setup.
     @param A SPD scipy CSR matrix.
-    @param name Key of VARIANTS.
+    @param name Key of VARIANTS, or one of COLUMN_VARIANTS ('colblock': exact solve of every vertical column; 'colblock_amg': that plus the program's smoothed aggregation, added).
+    @param cols Column index of every unknown, required for COLUMN_VARIANTS (`column_ids`).
     @return (M, info) with M the LinearOperator for `spla.cg(M=...)`, info a dict with setup_s, levels, op_complexity, grid_complexity; M is None and info['refused'] holds the message when pyamg refuses.
     """
     import pyamg
-    spec = VARIANTS[name]
     t0 = time.perf_counter()
+    if name in COLUMN_VARIANTS:
+        lu = spla.splu(column_matrix(A, cols))
+        Mb = spla.LinearOperator(A.shape, lu.solve)
+        info = {"levels": 1, "op_complexity": 1.0, "grid_complexity": 1.0}
+        if name == "colblock":
+            info["setup_s"] = time.perf_counter() - t0
+            return Mb, info
+        ml = pyamg.smoothed_aggregation_solver(A, **VARIANTS["base"]["kw"])
+        Ma = ml.aspreconditioner(cycle="V")
+        info.update(setup_s=time.perf_counter() - t0, levels=len(ml.levels) + 1, op_complexity=float(ml.operator_complexity()), grid_complexity=float(ml.grid_complexity()))
+        return spla.LinearOperator(A.shape, lambda r: Ma.matvec(r) + Mb.matvec(r)), info     # sum of two SPD operators is SPD
+    spec = VARIANTS[name]
     try:
         if spec["builder"] == "sa":
             ml = pyamg.smoothed_aggregation_solver(A, **spec["kw"])

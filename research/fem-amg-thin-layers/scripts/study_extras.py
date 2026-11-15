@@ -30,19 +30,6 @@ LOG = os.path.join(OUT, "extras.jsonl")
 EXTRAS = ["rtol1e-8", "rtol1e-9", "scaled", "scaled_rtol1e-9", "cand_none", "ilu", "colblock", "colblock_amg", "colblock_amg_mult"]
 
 
-def column_ids(model):
-    """!
-    @brief The vertical column (same x, y) of every unknown, in the unknown order of `Model.assemble` (unused nodes dropped).
-    @param model femcore.Model.
-    @return numpy.ndarray int (n,) column index.
-    """
-    used = np.zeros(model.nodes.shape[0], bool)
-    used[model.elems.ravel()] = True
-    xy = np.round(model.nodes[used][:, :2] / 1e-9).astype(np.int64)         # nm, so equal columns match exactly
-    _, inv = np.unique(xy, axis=0, return_inverse=True)
-    return inv.ravel()
-
-
 def run_one(case, extra):
     """!
     @brief Solve one case with one extra and measure it.
@@ -72,7 +59,7 @@ def run_one(case, extra):
         ilu = spla.spilu(A.tocsc(), drop_tol=1e-4, fill_factor=10)
         M = spla.LinearOperator(A.shape, ilu.solve)
     elif extra in ("colblock", "colblock_amg", "colblock_amg_mult"):
-        col = column_ids(c["model"])
+        col = variants.column_ids(c["model"])
         coo = A.tocoo()
         keep = col[coo.row] == col[coo.col]
         P = sp.csc_matrix((coo.data[keep], (coo.row[keep], coo.col[keep])), shape=A.shape)

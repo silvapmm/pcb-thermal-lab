@@ -36,7 +36,35 @@ def thin_system():
     q[0, 10:14, 10:14] = 4.0 / (16 * 1e-6 * 35e-6)
     m = femcore.structured_model(xn, yn, zn, k=k, q=q, films={"bottom": 10.0, "top": 10.0})
     a = m.assemble()
+    thin_system.model = m                                           # kept for the column tests
     return a["A"].tocsr(), np.asarray(a["rhs"], float), a["rhs"].size
+
+
+@pytest.mark.parametrize("name", variants.COLUMN_VARIANTS)
+def test_column_variants_reach_the_direct_solution_and_repeat(name):
+    A, rhs, n = thin_system()
+    cols = variants.column_ids(thin_system.model)
+    assert cols.size == n and np.unique(cols).size == 25 * 25         # one column per plan node
+    ref = spla.spsolve(A.tocsc(), rhs)
+    fields = []
+    for _ in range(2):
+        M, _ = variants.make_preconditioner(A, name, cols)
+        x, cg = variants.timed_cg(A, rhs, M)
+        assert cg["converged"]
+        assert np.max(np.abs(x - ref)) < 1e-8 * max(1.0, np.max(np.abs(ref)))
+        fields.append(x)
+    assert np.max(np.abs(fields[0] - fields[1])) < 1e-8
+
+
+def test_the_column_matrix_is_block_diagonal_and_spd():
+    A, _, _ = thin_system()
+    cols = variants.column_ids(thin_system.model)
+    P = variants.column_matrix(A, cols).tocoo()
+    assert np.all(cols[P.row] == cols[P.col])
+    assert 0.0 < variants.vertical_share(A, cols) < 1.0
+    # a principal submatrix of an SPD matrix is SPD: its smallest eigenvalue of a small block is positive
+    block = np.flatnonzero(cols == cols[0])
+    assert np.linalg.eigvalsh(A[block][:, block].toarray()).min() > 0
 
 
 @pytest.mark.parametrize("name", sorted(variants.VARIANTS))

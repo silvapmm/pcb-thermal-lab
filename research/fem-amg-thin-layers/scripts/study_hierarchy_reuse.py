@@ -44,7 +44,8 @@ def main():
     try:
         c = cases.build(a.case)
         A, rhs, model = c["A"], c["rhs"], c["model"]
-        M, info = variants.make_preconditioner(A, a.variant)
+        cols = variants.column_ids(model) if a.variant in variants.COLUMN_VARIANTS else None
+        M, info = variants.make_preconditioner(A, a.variant, cols)
         if M is None:
             print("refused:", info)
             return 1
@@ -66,7 +67,7 @@ def main():
             asm = model.assemble()
             A2, b2 = asm["A"].tocsr(), np.asarray(asm["rhs"], float)
             _, stale = variants.timed_cg(A2, b2, M)
-            M2, i2 = variants.make_preconditioner(A2, a.variant)
+            M2, i2 = variants.make_preconditioner(A2, a.variant, cols)
             _, fresh = variants.timed_cg(A2, b2, M2)
             rows.append({"what": f"films x{s}: stale hierarchy", **stale})
             rows.append({"what": f"films x{s}: fresh hierarchy", "setup_s": i2["setup_s"], **fresh})
