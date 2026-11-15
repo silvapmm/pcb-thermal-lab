@@ -1,0 +1,3 @@
+# Text proposed for docs/validation.md
+
+Surface against mean: the series `research/readout-conventions/lib/plate_series.py` matches the independent 3D solver within 1 % (surface) and 5 % (surface minus mean) on a 10 mm plate under a 5 mm source; the program's FVM node equals the 3D column mean within 0.04 K on six plates (2 mm Cu, 1.5 mm Al, 3 mm Cu in air, 10 mm Al, case 2, 10 mm k 50) and the base node of a copper-core board to 0.001 K at 0.25 mm; the harness copper (35 um, 20 boards) has surface minus mean 0.6 to 3.8 mK (0.0009 to 0.0049 % of the rise). Numbers: `research/readout-conventions/README.md` 4.
