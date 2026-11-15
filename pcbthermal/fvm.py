@@ -1146,8 +1146,8 @@ def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, sta
     @param per_stage Steps per stage.
     @param stages Number of stages.
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
-    @return Tuple (times, z, rth): times (nt,) in s without t = 0, z (n_heaters, nt) in degC/W and rth (n_heaters,)
-            in degC/W (steady state).
+    @return Tuple (times, z, rth): times (nt,) in s without t = 0, z (n_heaters, nt) in K/W and rth (n_heaters,)
+            in K/W (steady state).
     @throws ValueError If the problem has no heater.
     """
     if not problem.heaters:

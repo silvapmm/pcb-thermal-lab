@@ -145,8 +145,8 @@ class StepResponse:
     """
     model: str                                  # Model that produced them
     times: np.ndarray                           # Sample times in s (increasing, without t = 0)
-    z: np.ndarray                               # Responses (n_heaters, n_times) in degC/W
-    rth: np.ndarray                             # Steady-state resistances (n_heaters,) in degC/W
+    z: np.ndarray                               # Responses (n_heaters, n_times) in K/W
+    rth: np.ndarray                             # Steady-state resistances (n_heaters,) in K/W
     face_rth: Optional[np.ndarray] = None       # Largest face term of every heater per watt of its own power (n_heaters,) in K/W (parts over absent copper); None: no part has one
 
     def z_at(self, i, t):
@@ -155,7 +155,7 @@ class StepResponse:
                sample (heat-capacity limited) and Rth above the last.
         @param i Heater index.
         @param t Time or array of times in seconds (values <= 0 give 0).
-        @return Response in degC/W with the shape of t.
+        @return Response in K/W with the shape of t.
         """
         t = np.asarray(t, dtype=float)
         scalar = t.ndim == 0
@@ -298,7 +298,7 @@ def _cumulative_response(resp, i, period, sigma, terms):
     @param period Period T in seconds.
     @param sigma Array of values in [0, T].
     @param terms Number of exact terms.
-    @return Array like sigma, in degC/W.
+    @return Array like sigma, in K/W.
     """
     sigma = np.atleast_1d(np.asarray(sigma, dtype=float))
     m = np.arange(terms)
