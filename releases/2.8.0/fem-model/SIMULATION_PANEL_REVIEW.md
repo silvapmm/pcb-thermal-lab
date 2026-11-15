@@ -3,7 +3,7 @@
 Review of the Simulation dock (`pcbthermal/gui/panels.py`, class `SolverPanel`) on `development` at `6c225276`, for two requests of the maintainer:
 (1) group the settings by the models they influence, with a frame around each group; (2) show the memory lines ('FVM: 1793 unknowns, about 0.2 GB of ...') in a smaller font.
 
-Nothing in the program was changed. The layouts below were built as a throwaway prototype on `tmp/settings-layout-proto` (not for merge): first round A, B, C (commit `a1522a3d`, `PCBT_PANEL_LAYOUT=A|B|C`, sections 2 to 5); second round P1 to P8 after the maintainer's answer (commits `db90e857` and `ca481f1f`, new file `pcbthermal/gui/panel_variants.py`, `PCBT_PANEL_LAYOUT=P1..P8`, `PCBT_PANEL_SP` for the room around the Settings toggle; section 7). **Section 7 supersedes the recommendation of section 5.**
+Nothing in the program was changed. The layouts below were built as a throwaway prototype on `tmp/settings-layout-proto` (not for merge): first round A, B, C (commit `a1522a3d`, `PCBT_PANEL_LAYOUT=A|B|C`, sections 2 to 5); second round P1 to P8 after the maintainer's answer (commits `db90e857` and `ca481f1f`, new file `pcbthermal/gui/panel_variants.py`, `PCBT_PANEL_LAYOUT=P1..P8`, `PCBT_PANEL_SP` for the room around the Settings toggle; section 7). Third round P2a to P2h after the maintainer chose P2 (commit `35eee250`, `PCBT_PANEL_LAYOUT=P2A..P2H`; section 8). **Section 8 supersedes the recommendations of sections 5 and 7.**
 
 ## 1. What each control of the dock really feeds
 
@@ -80,7 +80,7 @@ What changes with A:
 
 ## 6. Open decisions for the maintainer
 
-1. The layout: P8 recommended, P1 if frames are wanted (section 7).
+1. The layout: P2 chosen by the maintainer; the design of its group titles: P2e recommended, P2a the plain fallback (section 8).
 2. The memory lines: taken as in the prototype (dot in the verdict colour, compact form, hint style), the maintainer's answer.
 3. Whether to fix the two small points of section 1 (Auto ignoring the FEM mesh numbers; the local-corrections tooltip) in the same branch.
 
@@ -132,3 +132,53 @@ The recommended variant at full size (whole dock, 340 px):
 **P8**, with 10 px around the Settings toggle and the memory lines of section 3. It answers both objections: every label and every field starts at one x in every group (one grid), the group titles start at the same x as the labels, and the toggle has room. It needs no frame, so it is the narrowest variant (308 px, against 331 for P1) and the shortest of those that show every setting; each group says which models it serves (the tag at the right), a group not ticked is greyed, not hidden, as the guide's 'Greyed fields' rule says, and nothing moves when a model is ticked. If the maintainer wants boxes, **P1** is the aligned framed version.
 
 Effort: **S** (half a day) on a `feature/` branch: the prototype's P8 code (`panel_variants.py`) folds into `SolverPanel` with docstrings; one regression test for the alignment (every visible label at one x, every field at one x, the code of the screenshot script) and one for the greying of a group with its models and of the laminate group with a metal block; a stress scenario; the documents and pictures of section 5 ('What changes'), the same list.
+
+## 8. Third round: the design of the group titles of P2 (P2a to P2h)
+
+The maintainer chose P2 (no frames, a group title and a thin separator, the two-column form of one grid). Eight designs of its title and separator were built on the same grid: every one keeps the memory lines of section 3 and the alignment of section 7 (labels at x 8, fields at x 134 in every group, both themes, both cases; P2h at 8 and 146 because its rows are indented), the minimum width (308 px, P2h 320 px; dock 340 px) and the tooltips (both prototype tests pass). In every one a group whose models are not ticked has its title in the `muted` colour, its rows greyed **and its tag says so in words** ('LPTN · not ticked'), so the state never rests on colour alone. The tag at the right names the models the group serves (All, FVM, FVM·FDM, LPTN, Analytic, FEM), 11 px in the `hint` colour.
+
+| | Title | Marker / bar | Separator | Remarks |
+| :-- | :-- | :-- | :-- | :-- |
+| P2a | Bold (700), text colour, dock size | none | full-width hairline (`border`) under the title | The plainest; looks like a smaller copy of the box header |
+| P2b | Capitals, 11 px, 600, letter spacing 0.8 px, `muted` colour | none | hairline after the title, on its line | The classic settings caption; small, and `muted` misses AA on the light window |
+| P2c | Bold, `accent` colour | none | `accent` hairline under the title | Strong, but `accent` text misses AA on the light window |
+| P2d | 600, text colour | round dot in `accent` before the title | none | Close to the memory lines, but a dot means a verdict or a warning elsewhere |
+| P2e | Bold, text colour | short `accent` bar (3 x 14 px) before the title | full-width hairline | Echoes the accent underline of the box header one level down |
+| P2f | 600, text colour | square in a colour per model (Matplotlib default cycle) | full-width hairline | The program has no colour per model (results use the default cycle in plot order): invents a mapping; orange and brown fail 3:1 |
+| P2g | 600, text colour | `ok` green dot when ticked, `muted` when not | hairline after the title | Green means 'fits in memory' two lines above: a second meaning for the same mark |
+| P2h | 12 px (one point below the dock font), 600, `hint` colour | none | none; rows indented 12 px | The quietest; ticked (`hint`) and not ticked (`muted`) titles are almost the same grey, the tag carries the state |
+
+![P2a to P2h, FVM and FEM ticked](figures-panel/p2_variants.png)
+*p2_variants.png: P2a to P2h with the FVM and the FEM ticked, light theme on top and dark below, cut at the Settings box.*
+
+![P2a to P2h, only Lumped and Analytic ticked](figures-panel/p2_variants_lumped.png)
+*p2_variants_lumped.png: the same with only the Lumped and the Analytic ticked (FVM, laminate and FEM groups not ticked).*
+
+### Contrast (WCAG 2.1, against the dock background `window`: #f3f4f6 light, #1e2127 dark; `theme.contrast`)
+
+| Colour (token) | Light | Dark | Use here | Verdict |
+| :-- | --: | --: | :-- | :-- |
+| `text` #1f2328 / #e6e8eb | 14.35 | 13.14 | titles of P2a, P2d to P2g | AA and AAA |
+| `hint` #5f6570 / #9aa3ad | 5.33 | 6.31 | tags, title of P2h | AA (4.5:1) |
+| `muted` #6b7280 / #8b949e | 4.39 | 5.24 | title of P2b; every title not ticked | below AA on light for P2b; a title not ticked is a disabled control, exempt |
+| `accent` #5a7fb0 / #6a90c0 | 3.74 | 4.89 | title of P2c; dot of P2d, bar of P2e (marks) | text below AA on light (bold 13 px is not 'large text', which starts at 18.7 px bold); as a mark above the 3:1 of non-text contrast |
+| `ok` #2e7d32 / #66bb6a | 4.66 | 6.82 | dot of P2g | above 3:1 |
+| Matplotlib cycle: blue, orange, green, red, brown | 4.38, 2.30, 3.09, 4.56, 5.38 | 3.35, 6.37, 4.74, 3.21, 2.72 | squares of P2f | orange (light) and brown (dark) below 3:1 |
+| `border` #d0d5dd / #343a43 | 1.34 | 1.41 | hairlines | decorative (no contrast requirement); the title carries the grouping |
+
+### Design opinion and recommendation
+
+- **Hierarchy and consistency.** The dock already has three levels: the dock title (600 on `alt`), the box headers Models and Settings (bold, text colour, a 2 px `accent` underline, `boxes.CollapsibleBox`) and the field labels (regular). A group title is a fourth level between the box header and the labels: it should be bold text but visibly lighter than the box header. P2e does that by taking the box header's accent in a small dose (a 3 px bar instead of a 2 px full underline) and a neutral hairline; P2a does it with weight alone and reads almost like a second box header; P2c repeats the accent on text and fails contrast.
+- **Marks with a meaning.** In this window a round dot already means something: the verdict of the memory lines (green, amber, red) and the badges of the Warnings box (amber triangle, grey circle). A dot before a group title (P2d, P2g) would be a third meaning; P2g's green dot directly under green memory dots is the worst case. A bar (P2e) is not used elsewhere, so it means only 'a group starts here'. Model colours (P2f) would need a mapping the results do not have.
+- **Colour-blind safety.** No variant relies on colour: the state 'not ticked' is in the tag text and in the greyed fields; P2e's bar turns from `accent` to `border` but is redundant with those.
+- **Contrast.** The recommended title is `text` on `window`: 14.35:1 light, 13.14:1 dark; its bar (`accent`) 3.74:1 and 4.89:1, above the 3:1 of a non-text mark; the tags (`hint`) 5.33:1 and 6.31:1.
+- **Density.** P2e costs no width (308 px, as P2) and about 6 px of height per group more than P2b; P2h is the quietest but its active and inactive titles are almost the same grey (5.33 against 4.39 on light), so the tag alone carries the state; P2b's capitals are compact but at 11 px in `muted` they miss AA on the light theme (with `hint` instead they would pass, 5.33).
+
+**I would ship P2e** (bold title in the text colour, a short accent bar before it, a full-width hairline under it, the models as a small tag at the right, 'not ticked' in words; 10 px around the Settings toggle). If the maintainer finds the bar too much, **P2a** is the same without the bar. Effort unchanged: **S** (the title is one small widget per group; the colours come from theme tokens and follow a theme switch in `update()`).
+
+The recommended design at full size:
+
+| | Light | Dark |
+| :-- | :-- | :-- |
+| P2e, FVM + FEM | ![](figures-panel/p2e_light_fvm_fem.png) | ![](figures-panel/p2e_dark_fvm_fem.png) |
+| P2e, Lumped + Analytic | ![](figures-panel/p2e_light_lumped_analytic.png) | ![](figures-panel/p2e_dark_lumped_analytic.png) |
