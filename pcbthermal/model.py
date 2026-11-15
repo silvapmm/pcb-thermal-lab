@@ -323,7 +323,7 @@ class Board:
                  the copper (`t_cu / (2 k_cu)`, m2K/W) to reach the face. Where the layer has copper (a fraction `fill` of the cell) the coefficient is
                  `h_eff = h / (1 + h t_cu / (2 k_cu))` = `1 / (1 / h + t_cu / (2 k_cu))`; where it has none the face is bare laminate and `h` is kept (the half laminate over a bare
                  face is the face term of `laminate.face_terms` and the series film of a one-layer board, not this one). The cell coefficient is `f h_eff + (1 - f) h`.
-                 For 35 um of copper at 10 W/m2K the change is 5e-7 of `h`. The 3D solid already resolves the slab (`solid3d.face_g`) and does not use this.
+                 For 35 um of copper at 10 W/m2K the change is 5e-7 of `h`. The 3D solid does not use this: it keeps one cell through each copper slab and already puts half of it in series with the film (`solid3d.face_g`).
                  `docs/theory.md` 1.2.
         @param h Film coefficient of the face in W/m2K (scalar, 0 gives 0).
         @param layer Index of the copper layer that carries the face (0 top, layers - 1 bottom).
