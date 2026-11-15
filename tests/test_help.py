@@ -94,6 +94,7 @@ def test_guide_window_about_and_menu(qtbot, tmp_path, monkeypatch):
     txt = about.text.text()
     assert __version__ in txt and __author__ in txt and __project_url__ in txt
     assert "Gerber" in txt and "not against a measured board" in txt          # The import and the honest note about the validation
+    assert "pyamg" in txt and "optional" in txt                              # The optional library of the finite-element model
     # The tab shortcuts exist (Ctrl+1 to Ctrl+4) and switch the tab
     from PySide6.QtGui import QKeySequence
     by_key = {a.shortcut().toString(): a for a in win.actions()}

@@ -9,14 +9,12 @@
 """
 
 import math
-import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "releases" / "regression-harness" / "lib"))
 
 from pcbthermal import api, copper, femcore, femmesh  # noqa: E402
 from pcbthermal.model import Problem, Zone  # noqa: E402
@@ -358,12 +356,12 @@ def test_a_via_on_a_break_line_is_a_rod_and_a_free_one_a_patch():
     assert (m.n_patches, m.n_rods) == (1, 1)
     assert any("rod" in w for w in m.warnings)
     a = p.vias[0].thermal_area(p.board.via_plating, p.board.materials.k_copper)
-    # the rod's copper area times the sample share is in the kz of the quads under the drill: the added kz area equals a_via
-    sel = (m.elem_slab == m.copper_slabs[0][0])
-    added = (m.model.k[sel, 2] - 385.0 * 1.0)                              # not used: see the area check below
+    # the barrel area is conserved: the area fractions of the quads under the drill add up to the copper-equivalent area of the barrel
     ids, frac = femmesh._rod_fraction(p, m.plan, 0, a)
     assert float((frac * m.plan.area[ids]).sum()) == pytest.approx(a, rel=1e-9)
-    assert added.shape[0] == sel.sum()
+    # and it raises kz of the board slabs there above the plain copper-free value
+    sel = (m.elem_slab == m.copper_slabs[1][0]) & np.isin(m.elem_quad, ids)
+    assert (m.model.k[sel, 2] > 0.3).all()
 
 
 def test_via_windows_with_the_same_interval_share_the_lines():

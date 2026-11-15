@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47 and fig_49 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47, fig_49 and fig_51 (the diagrams of the rewrite of the theory; fig_50 is drawn from the program's own mesh by make_fig_fem_mesh.py).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1434,6 +1434,66 @@ def fem_mesh_section(path):
     dk.save(fig, path, "The element and the mesh through the thickness")
 
 
+def fem_slabs(path):
+    """!
+    @brief Draw the through-the-thickness layout of the mesh of the finite-element model (theory 4a, figure D3 of the design): a thin copper layer is one element, a thick copper plane several, a dielectric gap a graded stack (finest at the copper), a metal block on the top face a pad slab and block slabs over its own polygon only (partial slabs) with the films on the exposed face and on the walls, and a via barrel through the board slabs only. Schematic, not to scale.
+    @param path Output file.
+    @return None.
+    """
+    fig, a = dk.canvas(15.5, 6.8)
+    a.set_xlim(-5.0, 17.5); a.set_ylim(-3.6, 11.5); a.axis("off")
+    x0, x1 = 1.0, 15.0
+    y = 7.0
+    rows = []
+    # (kind, thickness in drawing units, elements): thin copper 1, a thick inner plane 4, graded gaps 5
+    spec = (("cu", 0.18, 1), ("gap", 1.6, 5), ("cu", 0.18, 1), ("gap", 1.0, 5), ("cu", 1.1, 4), ("gap", 1.6, 5), ("cu", 0.18, 1))
+    for kind, th, n in spec:
+        if kind == "cu":
+            for _ in range(n):
+                rows.append(("cu", y, th / n)); y -= th / n
+        else:
+            w = 1.4 ** np.minimum(np.arange(n), n - 1 - np.arange(n))
+            w = w / w.sum() * th
+            for hh in w:
+                rows.append(("gap", y, hh)); y -= hh
+    for kind, ytop, hh in rows:
+        a.add_patch(Rectangle((x0, ytop - hh), x1 - x0, hh, fc=CU if kind == "cu" else "#d8e6c8", ec="k", lw=0.5))
+    y_bot, y_top = y, 7.0
+    # top block: a pad slab and block slabs over its own polygon only
+    bx0, bx1 = 3.5, 8.5
+    a.add_patch(Rectangle((bx0, y_top), bx1 - bx0, 0.12, fc="#f6c85f", ec="k", lw=0.6))
+    for i in range(3):
+        a.add_patch(Rectangle((bx0, y_top + 0.12 + i * 0.5), bx1 - bx0, 0.5, fc="#a9b8c8", ec="k", lw=0.6))
+    a.text((bx0 + bx1) / 2, y_top + 3.0, "metal block: pad slab + block slabs\nover its polygon only (partial slabs)", ha="center", fontsize=8)
+    # bottom block
+    cx0, cx1 = 10.0, 13.5
+    a.add_patch(Rectangle((cx0, y_bot - 0.12), cx1 - cx0, 0.12, fc="#f6c85f", ec="k", lw=0.6))
+    for i in range(2):
+        a.add_patch(Rectangle((cx0, y_bot - 0.12 - (i + 1) * 0.5), cx1 - cx0, 0.5, fc="#a9b8c8", ec="k", lw=0.6))
+    # via barrel through the board slabs only
+    a.add_patch(Rectangle((6.2, y_bot), 0.5, y_top - y_bot, fc="#a05a18", ec="k", lw=0.8, alpha=0.85))
+    a.text(6.45, y_bot - 1.0, "barrel: board slabs only", ha="center", va="top", fontsize=7.5, bbox=dict(fc="white", ec="none", alpha=0.9))
+    # films: free top face, exposed face of the block, walls, free bottom face, exposed face of the bottom block
+    for xv in list(np.linspace(1.4, 3.1, 3)) + list(np.linspace(9.0, 14.6, 5)):
+        dk.arrow(a, xv, y_top + 0.02, xv, y_top + 0.9, color="#1f77b4", width=1.1)
+    for xv in np.linspace(4.0, 8.0, 4):
+        dk.arrow(a, xv, y_top + 1.65, xv, y_top + 2.3, color="#1f77b4", width=1.1)
+    a.text(12.0, y_top + 1.15, "film h_top on the free face\n(none under a block)", ha="center", fontsize=8, color="#1f77b4")
+    for xv in np.linspace(1.6, 9.5, 5):
+        dk.arrow(a, xv, y_bot - 0.02, xv, y_bot - 0.9, color="#1f77b4", width=1.1)
+    for xv in np.linspace(10.3, 13.2, 3):
+        dk.arrow(a, xv, y_bot - 1.15, xv, y_bot - 1.9, color="#1f77b4", width=1.1)
+    a.text(11.75, y_bot - 2.5, "exposed face of the bottom block:\nh_face x fin ratio + h_extra", ha="center", fontsize=7.5, color="#1f77b4")
+    for ym in np.linspace(y_bot + 0.2, y_top - 0.2, 7):
+        dk.arrow(a, x1, ym, x1 + 0.7, ym, color="#1f77b4", width=1.1)
+    a.text(x1 + 0.7, (y_bot + y_top) / 2, "h_side on\nevery wall\nslab", ha="left", va="center", fontsize=8, color="#1f77b4")
+    a.annotate("copper up to 105 um:\none element", (1.6, 6.91), (-4.8, 8.6), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.annotate("a thick copper plane: several\nelements (up to 8 in 70 um steps)", (1.6, 3.5), (-4.8, 1.2), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.annotate("dielectric gap: graded elements,\nfinest next to the copper", (1.6, 6.0), (-4.8, 5.2), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.text(-4.8, -2.7, "the face nodes of the outer copper ARE the surface;\nthe film term is inherent (no half-cell film in series)", fontsize=8)
+    dk.save(fig, path, "Through the thickness: copper, dielectric and block slabs")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1456,7 +1516,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section), (51, "fem_slabs", fem_slabs)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

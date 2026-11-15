@@ -189,6 +189,7 @@ The results are a design aid and have not been validated against measurements of
 | :-- | :-- | :-- |
 | NumPy 2.5 | physics core | BSD-3-Clause (the wheel also carries 0BSD, MIT, Zlib and CC0 parts) |
 | SciPy 1.18 | sparse solvers, physics | BSD-3-Clause |
+| pyamg 5.4 | the multigrid preconditioner of the finite-element comparison model on large meshes (**optional at run time**: the model is limited to small meshes without it) | MIT (the `License` field and the classifier of the metadata of the package installed from PyPI in a scratch folder outside the repository, 2026-11-15; it requires only NumPy and SciPy) |
 | Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |
