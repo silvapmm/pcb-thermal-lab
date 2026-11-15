@@ -1,0 +1,59 @@
+# Documentation review of 2.8.0: checklist for step 6b (prepared, nothing run)
+
+Who: the `maintainer`, with the `reviewer` for every number. When: after the reproduction pass and the final opinion, on the final tree of step 1 (all GUI branches merged), **before** the maintainer's word for `main` (`RELEASE_GATE.md` 7). Output: `releases/2.8.0/doc-review/README.md`, the table of 2.7.0 (`# | Document | Checked | Changed | Stale on purpose`), one row per line of this list; a row with an empty 'Checked' is not done. Rule behind it: `CLAUDE.md` section 10 (no commit without updating what the change touches) and section 12 step 6b.
+
+How to work: each item names what to compare with what. A number quoted in a document is compared with the program or with the study that made it (the reviewer for the numbers of `docs/theory.md`, `docs/validation.md`, `docs/calculators.md`, the guide's limits table); a picture is **looked at** after it is regenerated, never judged from a pixel diff alone.
+
+## A. Documents
+
+| # | Document | Check (against what) | Specific to this cycle |
+| --: | :-- | :-- | :-- |
+| 1 | `README.md` | features list, usage example, installation, the version badge, the **tests badge** (the count of `RELEASE_GATE.md` 6, `3748 passed` is the 2.7.1 figure), the versions list, every image link and caption, the licence table of the libraries (pyamg MIT is in it) | the FEM comparison model, the surface read-out, the grouped Simulation panel, the Summary table, the units rule; the usage example prints the new Markdown table (`ΔT K`, `Balance` in percent, the surface column): run `python -m pcbthermal run examples/example_board.pcbt.json` and compare |
+| 2 | `pcbthermal/help/index.html` (user guide) | every chapter against the window; `tests/test_help.py` words; the limits table (chapter 18) and 'Validated' (chapter 20) against `docs/validation.md`; the picture links | the chapters of the Simulation panel (groups, the plain model names, 'Stop calculation'), the FEM checkbox and memory line, Results Summary table columns, the Warnings rows and their dot, 'Surface temperature and column mean', the unit rule (`K` for differences, `°C` for temperatures, `Rθ`), the oscillation threshold default in K, Filter box above the element tree, the Board settings dock write-back fix |
+| 3 | `pcbthermal/help/calculator.html` | the 'How good is it?' table against `docs/calculators.md` 2.1 and `calculator_validation.py`; JEDEC row (31.6 K/W, indication not verification), the datasheet rows after the drawn-copper change (about one point hotter per watt: CSD17308Q3, JEDEC) | numbers moved by `fix/drawn-copper-faces` and `fix/calculator-audit-items`: re-read, do not assume |
+| 4 | `docs/theory.md` | the sections changed since 2.7.1 against the code (`RELEASE_GATE.md` 3): 1.2 (face film, 1.2c surface), 1.7 and 2.7 (drawn copper), 4a (finite elements), 5 (Lumped first link), 8 (h laws); a picture per section; sources by key with status | the reviewer's verdict of step 2 is the input; here the check is that nothing was edited after it |
+| 5 | `docs/models.md` | the module map appendix (`fem.py`, `femcore.py`, `femmesh.py`, `thickness.py`, `units.py` if A made it, `dots.py` if kept), the CLI options (`--model fem`, `--model compare`), the API (`COMPARISON_MODELS`), the CLI output example | the output example of `to_markdown` |
+| 6 | `docs/validation.md` | numbered sections 48 to 55 once each, the tree and reference named for each number; sections 56 and 57 (FEM comparison) **do not exist**: the plan reserves them (`COMPARE_PLAN.md`); say so or write them | the FEM numbers of 49 and 56 quoted by the warnings (`checks.py`); `docs/validation-history.md` pointers |
+| 7 | `docs/calculators.md` | 2.1 against the program | none expected beyond item 3 |
+| 8 | `docs/versions.md` | the summary, the 2.8.0 chapter (every bullet has its module and its test), 'How 2.8.0 was tested' (battery lines of `RELEASE_GATE.md` 6 and 7a), 'Planned' (what is done leaves; the FEM transient, the comparison campaign and the copper slabs of the 3D solid stay if not done) | the 'Unreleased (2.8.0, in progress)' heading becomes the released one at the bump |
+| 9 | `docs/version-comparison.md` | still says 17 boards and ends at v2.7.0 (regenerate with `releases/regression-harness/scripts/regen_version_comparison.sh` after the refreeze, which needs the 2.8.0 label list and notes) or say 'stale on purpose' | open decision 3 of `REFREEZE_PLAN.md` |
+| 10 | `docs/research.md`, `docs/decisions-log.md` | `research.md` is the empty template when nothing is waiting; the log has an entry for every decision of the cycle, newest first | decisions of the GUI review (unit rule, model names, summary table a+), the FEM scope, the surface always shown |
+| 11 | `CHANGELOG.md` | the `[2.8.0] - <date>` section against the code, grouped Added, Changed, Fixed, Tests, Docs; every entry says whether a number moves; `tests/test_version.py` | the entries of branches A, B and C are added by their branches: check they were |
+| 12 | `CLAUDE.md` | section 13 structure (new modules), section 14 'Current state of the battery', section 15 'Where to continue' (rewritten for 2.9.0), under 350 lines and 40 KB | the test counts it quotes |
+| 13 | `research/README.md` (index), `research/REVIEW.md`, `research/ROADMAP.md` | one row per folder including `fem-amg-thin-layers` and `readout-conventions`; 'Which folder is current'; the review register's 'program version of the last run' updated by the reproduction pass | the folders whose README numbers shifted (reproduction report) are marked stale or refreshed |
+| 14 | `releases/README.md` | the table lists `2.8.0/` folders (reproduction, final-opinion, battery, doc-review, reviews, audit, final-review, refreeze) | add the rows |
+| 15 | Tooltips (`pcbthermal/gui/tips.py`, own texts) | `tests/test_tooltips.py`; every new control has one (the FEM checkbox, the group boxes, the Summary headers, the balance cell, the filter box) and says meaning, unit, typical range | the unit rule in the hints (`K`, `°C`) |
+| 16 | Keyboard list (`SHORTCUTS_HTML` in `gui/main_window.py`) | `tests/test_shortcuts.py`; the guide's keyboard section | `Ctrl+F` (filter), `Ctrl+.` 'Stop calculation' (was Cancel), Ctrl+D duplicate |
+| 17 | About box (`gui/help.py`) | prints `pcbthermal.__version__` (2.8.0 after the bump), author, licence statement identical to `LICENSE`, README and `CLAUDE.md` section 5; the libraries table with pyamg | A touches `help.py` |
+| 18 | `tools/ocr/README.md`, `research/theory/BIBLIOGRAPHY.md` | statuses (R, S, M, N) after the OCR verification; the third-party guard `tests/test_third_party_text.py` | none expected |
+| 19 | `releases/2.8.0/*/README.md` of this gate | every claim of the reports checked against the printed outputs | done by the reviewer |
+
+## B. Pictures (each changed one is LOOKED at)
+
+Regeneration: `examples/make_screenshots.py` in its three modes, into a scratch folder first (it asserts neutral paths: no personal path in a committed picture); compare with the tracked ones; copy what changed to `docs/images/` and, for the ones the guide shows, to `pcbthermal/help/` (the pictures of the guide are copies: `tests/test_help.py` checks the links). One GUI job at a time, on a quiet machine, `QT_QPA_PLATFORM=offscreen`:
+
+```sh
+.venv/bin/python examples/make_screenshots.py <scratch>/shots                                # default set
+.venv/bin/python examples/make_screenshots.py --import <rp2040 gerber folder of pcb-library> <scratch>/shots-import   # the import window, imported board, Preferences, dark theme
+.venv/bin/python examples/make_screenshots.py --views <rp2040 gerber folder of pcb-library> <scratch>/shots-views     # layer grid, Smooth, Terrain, copper underlay, background image, re-import warning
+```
+
+(The folder of the RP2040 set is in the local `pcb-library/`, loaded by `link_env.sh`; its pictures are ours, the board stays local. Third-party renders are never committed.)
+
+| Group | Pictures (`docs/images/`, those with a copy in `pcbthermal/help/` marked h) | Why they change in 2.8.0 |
+| :-- | :-- | :-- |
+| Window with the Simulation dock | `editor`, `editor_overlay`, `editor_background` (h), `stackup`, `stackup_inner_copper`, `calculator_design`, `power_profile`, `animation` (h underlay), `outline`, `outline_temperature`, `environment_natural_form`, `simulation_fem` (h) | the grouped Simulation panel (branch A), plain model names (LPTN), no 'comparison', `units.py` labels, the FEM checkbox |
+| Warnings | `editor_warnings` (h) | severity dot and element label at the end of the row, order by severity (branch B regenerates it) |
+| Results | `results_summary`, `results_summary_imported`, `results_components`, `results_temperature`, `results_temperature_imported`, `results_temperature_imported_dark`, `results_gradient` (h), `results_power_profile`, `results_profile_cut` (h), `results_terrain` (h), `results_views` (h), `results_views_dark` (h) | the Summary table (headers naming the read-out, `ΔT K`, balance in percent, surface column), titles in `°C` and short model names, Components tables without cuts, legends outside the bars |
+| Surface and FEM | `results_surface` (h), `results_surface_table` (h), `results_fem_surface` (h), `fig_50_surface_readout`, `fig_49_fem_mesh_section`, `fig_50_fem_plan_mesh`, `fig_51_fem_slabs`, `fig_52_fem_flow` | new in this cycle; check that the numbers drawn in them are numbers the README or `docs/validation.md` holds |
+| Import | `import_step1`, `import_step2`, `import_step2_dark`, `import_step3`, `import_reimport`, `import_reimport_different`, `editor_imported`, `editor_imported_dark`, `heater_shapes_rp2040`, `preferences_solver_gerber` (all h where listed in the guide), `display_popover`, `background_dialog` | dock and unit text; Preferences labels |
+| Theory and study figures (not screens) | the 60 or so `fig_NN_*`, `analytic_*`, `cut_cell_*`, `fast_wave_*`, `lumped_*`, `via_*`, `laminate_*`, `imported_copper_*`, `exact_board_cover`, `fin_channel_boundary_layers`, `outline_equivalent_rectangle`, `sor_sweeps_against_omega` | drawn once by the research folders (`research/theory/docs/theory-figures.md`); not regenerated by the screenshot script. Check the ones whose section changed: `fig_48_h_laws`, `fig_23_orientation` (changed since 2.7.1), `lumped_near_edge_rings` and `lumped_first_ring_board_size` (first-link change), and the picture of the face film (theory 1.2) if one was added; a picture quotes only numbers that the README holds |
+
+For each picture: opened and looked at (text not cut at 1200 x 800 and 1500 x 900, no personal path, theme tokens readable in both light and dark, the quoted numbers equal the program's), then 'regenerated, looked at, changed / unchanged' in the review table. The pictures that illustrate a situation (CLAUDE.md section 9, rule 7) exist for every explained section: a section without one is a finding.
+
+## C. Things the maintainer's checklist must not forget
+
+* The count of pictures in the guide and README is checked by a link test: `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_help.py tests/test_docs.py tests/test_license_header.py tests/test_third_party_text.py`.
+* Only the documents of the integration branch are edited here; a research folder's own README is a record of its run and is not rewritten (stale on purpose, listed).
+* The GUI is tested offscreen only: the real-screen checklist `releases/2.8.0/fem-model/GUI_TEST_CHECKLIST.md` (about one hour with the maintainer's hands) is listed in the review as done or not done.
+* English everywhere; no dates in an investigation's documents; the licence statement is the same in `LICENSE`, README, About and `CLAUDE.md` section 5.
