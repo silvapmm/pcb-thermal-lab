@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_edge_link.py
-@brief Tests of the first-link prototype of research/lumped-edge-link: the copy of lumped.py is built, leaves the program untouched, is mirror symmetric, and the ring-1 potential equals a brute-force field.
+@brief Tests of the first-link prototype of research/lumped-edge-link on the frozen pre-fix copy: it is built, leaves the program untouched, is mirror symmetric, the ring-1 potential equals a brute-force field, and the prototype equals the adopted program to rounding.
 @details Run from the repository root: QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/lumped-edge-link/tests
 """
 
@@ -42,28 +42,43 @@ def _rise(p, v):
     return m, x
 
 
-def test_program_variant_is_the_program():
+def test_shipped_module_is_untouched_by_the_variants():
     """!
-    @brief The "program" copy gives bit-identical numbers to the module in the tree, and the program module is not edited.
+    @brief Installing a variant never writes into pcbthermal.lumped (the prototypes are exec'd copies of the frozen pre-fix text).
     @return None.
     """
-    import pcbthermal.api as api
     import pcbthermal.lumped as orig
     p = B.board(60, 40, 6, (8, 20), h_side=10)
     before = B.part_read(p, "lumped", 0.5)
-    assert api.lumped is orig
-    m, x = _rise(p, "program")
-    assert (m, x) == (before[0], before[1])
-    assert not hasattr(orig, "_ring1_potential")           # the prototype never writes into pcbthermal.lumped
+    _rise(p, "first:zone")
+    assert V.load("first:zone") is not orig
+    assert hasattr(orig, "_ring1_potential")               # the adopted fix lives in the program
+    import pcbthermal.api as api
+    api.lumped = orig
+    assert B.part_read(p, "lumped", 0.5) == before
+
+
+@pytest.mark.parametrize("pos,side,h_side", [((3, 40), 6, 10), ((50, 40), 6, 10), ((6, 6), 8, 50), ((8, 20), 6, 0)])
+def test_adoption_prototype_equals_shipped_program(pos, side, h_side):
+    """!
+    @brief Adoption check: the prototype "first:zone" built on the frozen pre-fix copy and the Lumped module shipped in the tree agree to rounding (mean and peak of the part).
+    @param pos Part centre in mm.
+    @param side Part side in mm.
+    @param h_side Edge coefficient in W/m2K.
+    @return None.
+    """
+    p = B.board(100, 80, side, pos, h_side=h_side)
+    ra, rb = _rise(p, "first:zone"), _rise(p, "shipped")
+    assert ra[0] == pytest.approx(rb[0], rel=1e-9, abs=1e-9)
+    assert ra[1] == pytest.approx(rb[1], rel=1e-9, abs=1e-9)
 
 
 def test_every_variant_builds():
     """!
-    @brief Every anchor of lib/variants.py exists in the current lumped.py (a changed program fails here, not silently).
+    @brief Every anchor of lib/variants.py exists in the frozen pre-fix text (a changed frozen copy fails here, not silently).
     @return None.
     """
-    import pcbthermal.lumped as orig
-    text = Path(orig.__file__).read_text()
+    text = V.FROZEN.read_text()
     for name in ("expo", "expo_peak", "img", "pot", "pot_first", "pot_rings", "delta", "first", "first:zone"):
         compile(V.source(name, text), name, "exec")
 
