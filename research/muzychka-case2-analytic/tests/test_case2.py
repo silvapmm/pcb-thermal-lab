@@ -36,31 +36,32 @@ def test_independent_solver_reproduces_the_paper_centroids(ref):
     assert np.abs(np.array(ref["surf_c"]) - C.PAPER_CENTROID).max() < 0.05
 
 
-def test_models_sit_below_the_surface_by_through_thickness_plus_film(ref):
+def test_models_read_the_column_mean_with_the_film_in_series(ref):
     """!
-    @brief FVM, FDM and Analytic read the layer temperature: 3D layer mean minus 0.84 K (the film term, Q t / (2 k A) = 0.93 K for the mean flux), and the 3D solid reads the layer mean itself.
+    @brief FVM, FDM and Analytic read the 3D layer (column) mean within 0.1 K (+0.04 to +0.09 K), and the 3D solid reads it too: since fix/face-film-half-slab the film is
+           in series with the half plate in the program (Board.face_film_h); before it they read 0.84 K below (the film term, README 3).
     @param ref Fixture.
     @return None.
     """
     lay = np.array(ref["lay_c"])
-    for m in ("fvm", "fdm", "analytic"):
+    for m in ("fvm", "fdm", "analytic", "solid3d"):
         r, _ = C.run(m, 1.0)
-        d = lay - np.array(r["cen"])
-        assert d.min() > 0.7 and d.max() < 1.05, (m, d)
-    r, _ = C.run("solid3d", 1.0)
-    assert np.abs(np.array(r["cen"]) - lay).max() < 0.15
+        d = np.array(r["cen"]) - lay
+        assert d.min() > 0.0 and d.max() < 0.10, (m, d)
 
 
-def test_half_layer_film_in_series_closes_the_film_term(ref):
+def test_typing_the_series_film_again_counts_it_twice(ref):
     """!
-    @brief With h_bottom replaced by 1 / (1/h + t/(2k)) (an input change) the layered models read the 3D layer mean within 0.15 K.
+    @brief The input change of README 3 (h_bottom typed as 1 / (1/h + t/(2k))) is now inside the program: typed again it counts the half plate twice and the layered models
+           read about 1 K above the column mean (0.97 to 1.03 K), so the user must type the plain film.
     @param ref Fixture.
     @return None.
     """
     h_eff = 1.0 / (1.0 / C.H_PAPER + C.T_MM * 1e-3 / (2 * C.K_PLATE))
     for m in ("fvm", "fdm", "analytic"):
         r, _ = C.run(m, 1.0, h=h_eff)
-        assert np.abs(np.array(r["cen"]) - ref["lay_c"]).max() < 0.15, m
+        d = np.array(r["cen"]) - np.array(ref["lay_c"])
+        assert d.min() > 0.85 and d.max() < 1.15, (m, d)
 
 
 def test_error_in_kelvin_does_not_depend_on_h():
@@ -76,19 +77,20 @@ def test_error_in_kelvin_does_not_depend_on_h():
     assert abs(e[0] - e[1]) < 0.1
 
 
-def test_thick_plate_warning_is_shown_for_all_four_sources_with_the_film_term():
+def test_thick_plate_warning_names_the_three_sources_above_the_limit():
     """!
-    @brief The warning of checks.check_thick_plates names all four sources: S0 (4.3 K, 6 % of its rise) now exceeds the 5 % limit because the film term was added; S1, S2 and S3 read 9.3, 7.6 and 5.9 K.
-    @details Guards the fix of the thick-plate bound (branch fix/thick-plate-film-term and its documents, docs/validation.md 22.1): before it the text held only the through-thickness
-             term (8.3, 6.7, 5.0 and 3.3 K) and S0 stayed silent; the text also says 'upper estimate', not 'bound'.
+    @brief The warning of checks.check_thick_plates names S1, S2 and S3 with the through-thickness bound only (8.3, 6.7 and 5.0 K) and not S0 (3.3 K, 4.7 % of its rise,
+           under the 5 % limit): since fix/face-film-half-slab the ambient film passes the half plate in the model, so the film term left the bound of a one-layer plate.
+    @details Before that branch (fix/thick-plate-warning-bound) the bound added the film term (4.3, 9.3, 7.6, 5.9 K) and all four warned; the real gap of S0 between the 3D surface
+             and the FVM is now 2.0 K, under its 3.3 K bound.
     @return None.
     """
     _, sim = C.run("fvm", 1.0)
     text = " ".join(w for w in sim.warnings if "thick and poorly" in w)
-    assert all(f"S{i}:" in text for i in (0, 1, 2, 3))
-    assert text.count("from the face film") == 4 and "upper estimate" in text
-    for i, total in ((0, 4.3), (1, 9.3), (2, 7.6), (3, 5.9)):
-        assert f"S{i}:" in text and f"up to {total} K" in text
+    assert "S0:" not in text and all(f"S{i}:" in text for i in (1, 2, 3))
+    assert "from the face film" not in text and "upper estimate" in text
+    for i, total in ((1, 8.3), (2, 6.7), (3, 5.0)):
+        assert f"up to {total} K" in text
 
 
 def test_the_board_dock_holds_the_plate():
@@ -110,17 +112,16 @@ def test_the_board_dock_holds_the_plate():
     assert app is not None
 
 
-def test_warning_bound_is_exceeded_by_a_column():
+def test_warning_bound_holds_for_a_column():
     """!
-    @brief Review 8.2: with one source over the whole top face (a column), the gap between the 3D surface and the FVM (1.77 K) exceeds the 'up to' q'' t / (2 k) of the
-           thick-plate warning (0.93 K) and is close to q'' t / k (1.87 K): the stated number bounds the through-thickness term only, not the film term.
+    @brief Review 8.2, after fix/face-film-half-slab: with one source over the whole top face (a column) the gap between the 3D surface and the FVM is the through-thickness
+           term alone (0.84 K), under the 'up to' q'' t / (2 k) of the warning (0.93 K); before the film entered the model the gap was 1.77 K and the bound did not hold.
     @return None.
     """
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
     import study_case2_review as R
     col = [r for r in R.bound_check() if r["side"] == 50.0][0]
-    assert col["gap"] > 1.5 * col["bound_half"]
-    assert abs(col["gap"] - col["bound_full"]) < 0.15
+    assert 0.8 * col["bound_half"] < col["gap"] <= col["bound_half"]
     assert not col["warned"]
 
 
