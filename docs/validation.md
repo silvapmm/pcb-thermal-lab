@@ -2805,43 +2805,45 @@ The links between rings and a reflection factor for a cooled side are not change
 
 ## 54. The metal block takes the exact area on the board
 
-Evidence: the block of `docs/theory.md` 7.1; branch `fix/block-exact-cover`. Tests: `tests/test_block_exact_cover.py`. Method: the cover of a block in every cell is the exact area of the block polygon on the board (`blocks.block_cover`: `geometry.exact_coverage`, or `geometry.part_weights` with an outline, the rule of the board cover and of the parts), instead of a 4 x 4 sampling times the board cover.
+Evidence: the block of `docs/theory.md` 7.1; branch `fix/block-exact-cover`. Tests: `tests/test_block_exact_cover.py`. Script: `research/rotated-square-3d/scripts/study_block_exact_cover.py` (`run` on each tree, `diff` for the table). Method: the cover of a block in every cell is the exact area of the block polygon on the board (`blocks.block_cover`: `geometry.exact_coverage`, or `geometry.part_weights` with an outline, the rule of the board cover and of the parts), limited to the board cover of the model, instead of a 4 x 4 sampling times the board cover; and the contact, the heat capacity and the exposed face of the block take that area once (`blocks.extra_layers(board_cover=)`, the z links and films of the 3D solid), where the earlier code multiplied the cover by the board area of the cell and so counted the board share of a cut cell twice.
 
 ### 54.1 What was measured before the change
 
-A 3 mm aluminium block of 29.8 x 23.7 mm (706.26 mm2) on the bottom of a 60 x 40 mm two-layer full-copper board with a 3 W part on top, 15 W/m2K extra on the block, turned 0 and 20 degrees, on three boards (no outline, cut at x = 20.4 mm, an ellipse of 54 x 34.6 mm that holds the block), cells of 2, 1 and 0.5 mm. Block area on the FVM grid against the exact area (the clip of the polygon to the board, computed in the script outside the grid): +0.25 / +0.04 / -0.07 % without outline at 2 / 1 / 0.5 mm; turned 20 degrees 0.07 % at 2 mm and under 0.03 % at 1 and 0.5 mm, +0.78 / -0.27 / -0.20 % on the cut board (not turned), at most 0.8 % in all 18 cases; the sampled rule is not biased but its error does not fall monotonically with the cell. The error comes from the 1/32 of a cell that a 4 x 4 lattice can not resolve on every cell the block edge cuts.
+A 3 mm aluminium block of 29.8 x 23.7 mm centred at (25, 19.6) mm on the bottom of a 60 x 40 mm two-layer full-copper board with a 3 W part (35, 15) to (45, 25) mm on top, 15 W/m2K extra on the block, turned 0 and 20 degrees, on three boards (no outline, cut at x = 20.4 mm, an ellipse of 54 x 34.6 mm centred on the board, a 96-gon, that cuts a corner of the block), cells of 2, 1 and 0.5 mm. Block area on the FVM grid against the exact area (an own Sutherland-Hodgman clip of the polygon to the board in the script; the same areas with shapely to 1e-14 in the review): the sampled rule was off by -0.34 to +0.88 % (the largest, +0.88 %, without outline at 1 mm, not turned); it is not biased and its error does not fall monotonically with the cell, because it comes from the 1/32 of a cell that a 4 x 4 lattice can not resolve in every cell the block edge cuts. On a board cut by the outline the contact, the capacity and the exposed face of the block were also low by the board share counted twice (1.3 to 1.6 % of the contact on a cut at x = 20.4 mm or an ellipse at a 2 mm cell, 0.5 % at 0.5 mm on a slanted side), and the board face under the block in a cut cell stayed partly exposed to the air.
 
 ### 54.2 After the change
 
-The area on the grid equals the exact area to 1e-12 in every case (the FVM network, with and without the cut-cell links; `test_the_block_area_on_the_grid_is_the_exact_area_across_an_outline`, three angles, three cells). Change of the hottest point of the board (K, after minus before; the two reads are the program's own, not a reference):
+The area on the grid equals the exact area to 1e-15 in every case (the FVM network, with and without the cut-cell links; `test_the_block_area_on_the_grid_is_the_exact_area_across_an_outline`, three angles, three cells), and the contact over full copper and the heat capacity are the exact area over `R''` and times `ρc t` also across the outline (`test_contact_capacity_and_faces_of_a_block_cut_by_the_outline_are_exact`, 1e-9). Change of the hottest point of the board (K, after minus before; the two reads are the program's own, not a reference):
 
 | outline | angle (deg) | cell (mm) | block area error before (%) | FVM | FDM |
 | :-- | --: | --: | --: | --: | --: |
-| none | 0 | 2.0 | +0.2464% | -0.022 | -0.017 |
-| none | 0 | 1.0 | +0.0428% | -0.034 | -0.030 |
-| none | 0 | 0.5 | -0.0656% | +0.005 | +0.006 |
-| none | 20 | 2.0 | +0.0694% | +0.005 | +0.007 |
-| none | 20 | 1.0 | +0.0251% | -0.002 | -0.001 |
-| none | 20 | 0.5 | +0.0008% | +0.000 | -0.000 |
-| cut at x = 20.4 mm | 0 | 2.0 | +0.7766% | +0.056 | +0.059 |
-| cut at x = 20.4 mm | 0 | 1.0 | -0.2731% | -0.046 | -0.043 |
-| cut at x = 20.4 mm | 0 | 0.5 | -0.1961% | -0.014 | -0.015 |
-| cut at x = 20.4 mm | 20 | 2.0 | +0.0577% | +0.008 | +0.015 |
-| cut at x = 20.4 mm | 20 | 1.0 | +0.0227% | +0.007 | +0.013 |
-| cut at x = 20.4 mm | 20 | 0.5 | +0.0064% | +0.008 | +0.003 |
-| ellipse | 0 | 2.0 | +0.1675% | -0.025 | -0.034 |
-| ellipse | 0 | 1.0 | +0.0311% | -0.055 | -0.059 |
-| ellipse | 0 | 0.5 | -0.0670% | +0.006 | +0.005 |
-| ellipse | 20 | 2.0 | +0.0008% | +0.001 | -0.066 |
-| ellipse | 20 | 1.0 | -0.0033% | -0.015 | -0.027 |
-| ellipse | 20 | 0.5 | -0.0092% | -0.006 | -0.012 |
+| none | 0 | 2.0 | -0.1784 | +0.012 | +0.013 |
+| none | 0 | 1.0 | +0.8835 | +0.089 | +0.089 |
+| none | 0 | 0.5 | +0.0428 | -0.006 | -0.006 |
+| none | 20 | 2.0 | +0.1048 | +0.020 | +0.014 |
+| none | 20 | 1.0 | -0.0545 | -0.011 | -0.008 |
+| none | 20 | 0.5 | +0.0008 | +0.001 | +0.000 |
+| cut at x = 20.4 mm | 0 | 2.0 | -0.3354 | -0.110 | -0.211 |
+| cut at x = 20.4 mm | 0 | 1.0 | +0.7249 | +0.013 | -0.026 |
+| cut at x = 20.4 mm | 0 | 0.5 | +0.0825 | -0.020 | -0.044 |
+| cut at x = 20.4 mm | 20 | 2.0 | +0.0647 | -0.069 | -0.168 |
+| cut at x = 20.4 mm | 20 | 1.0 | -0.0872 | -0.081 | -0.111 |
+| cut at x = 20.4 mm | 20 | 0.5 | +0.0094 | -0.018 | -0.043 |
+| ellipse | 0 | 2.0 | -0.1722 | +0.013 | -0.037 |
+| ellipse | 0 | 1.0 | +0.8459 | +0.145 | +0.134 |
+| ellipse | 0 | 0.5 | +0.0356 | -0.009 | -0.012 |
+| ellipse | 20 | 2.0 | -0.0032 | -0.001 | -0.111 |
+| ellipse | 20 | 1.0 | -0.0993 | -0.042 | -0.060 |
+| ellipse | 20 | 0.5 | -0.0040 | -0.002 | -0.018 |
 
-The effect on the temperature is small (at most 0.06 K in the FVM and 0.07 K in the FDM, on a rise of 75 to 90 K) and has no fixed sign: it removes a scatter of the cell, not a bias. The difference between the 2 mm and the 0.5 mm cell is the same as before (0.70 K FVM, 0.61 K FDM for the turned block on the cut board): that part of the cell error belongs to the board's cut cell, not to the block. Heat balance closes (below 1e-6) with a turned block across the outline in the FVM, FDM and 3D solid. Over full copper the contact conductance of the block is its exact area over the interface resistance (closed form, 1e-9).
+The effect on the temperature is small (at most 0.15 K in the FVM and 0.21 K in the FDM, on a rise of 72 to 90 K) and has no fixed sign without an outline (it removes a scatter of the cell, not a bias); with an outline it is mostly negative, because the contact and the exposed face of the block in the cut cells are no longer counted short. Heat balance closes (below 1e-10 W) in all 36 runs, with a turned block across a straight, slanted or curved outline in the FVM, FDM and 3D solid (`test_energy_balance_closes_with_a_block_on_a_curved_outline`), and the heat that enters a block equals the heat its faces lose to 3e-11 W in the FVM and FDM (six cases of the review: blocks cut by a vertical, a slanted and an elliptic outline, inside an ellipse and without outline, turned 0, 20 and 45 degrees, cells 2, 1 and 0.5 mm; review scripts not committed, like the other numbers marked 'review cases' below).
+
+**Corrections of the review** (the first version of this section was wrong in three places). (1) The first version of `blocks.block_cover` did not limit the cover to the board cover of the model: a cell whose board share is below the floor of `Board.cover` (0.01) is pinned to the ambient, and a block node in such a sliver cell was pinned too, so on an ellipse or a slanted side 0.13 to 0.33 W of 3 W left through the pin, outside the heat balance, and the hottest point read 7 to 15 K too cool (FVM and 3D solid); the earlier tests used a vertical cut, which has no sliver, and passed. (2) The double count of the board share in the contact, the capacity and the exposed face was older than the branch and was kept by its first version; it is corrected now in the FVM, FDM and 3D solid. (3) The first table of this section (block area errors -0.27 to +0.78 %, temperature changes at most 0.06 / 0.07 K) did not come from a committed script and was not reproduced on the board it described; the table above is the output of the script.
 
 ### 54.3 Frozen numbers
 
-Of the 317 records at 2, 1 and 0.5 mm, only the Analytic records of the finned block of the harness move (the tiles of 3.3 mm do not lie on the block edges): `t_max` 129.700 to 129.786 K at 2 mm (+0.09 K, +0.07 % of the rise), pending file `block-exact-cover.json`. The FVM, FDM, 3D solid and Lumped records do not move (the block edges of the harness boards are on the cell lines at those cells).
+Of the 317 records at 2, 1 and 0.5 mm, only the Analytic records of the finned block of the harness move: the Analytic tiles of that board are 5 mm, and the block (8, 6) to (52, 34) mm does not lie on their lines, so the 4 x 4 sampling gave the block 1237.5 mm2 on the tiles against 1232 mm2 (+0.45 %); `t_max` 129.700 to 129.786 K at 2 and 1 mm (+0.09 K, +0.08 % of the rise), pending file `block-exact-cover.json`. Without the pending file exactly these three records fail. The FVM, FDM, 3D solid and Lumped records do not move (the block of the harness has no outline and its edges are on the cell lines at those cells). The Lumped and the Analytic solve a board with an outline on the equivalent rectangle, so the corrections of the cut cells do not reach them; a block across the outline gives finite numbers and a closed balance in both (review cases).
 
 ### 54.4 Limits
 
-A block polygon that crosses itself, or with so many long edges that the exact cover refuses it, keeps the sampled rule (times the board cover). The FDM averages the cell cover over the four cells around a node, as it does for the board. The extra coefficient of a plain heatsink without thickness (`h_extra` over a polygon) still uses the sampled cover; the Lumped reads the FVM network, so it follows. The 3D solid takes the cell cover for the block slabs: its sliver cells are those of `docs/validation.md` 33. Not compared against a physical block.
+A block polygon that crosses itself, or with so many long edges that the exact cover refuses it, keeps the sampled rule (times the board cover). The part of a block over a cell whose board share is below 0.01 is dropped with that cell, as the board is (1e-5 to 3e-5 of the block area in the review cases). The FDM averages the cell cover over the four cells around a node, as it does for the board. The extra coefficient of a plain heatsink without thickness (`h_extra` over a polygon) still uses the 4 x 4 sampled cover of the whole cell times the board area of the cell (no double count there): its area is off by -0.6 to +0.2 % in the six review cases and the hottest point by at most 0.09 K at 30 W/m2K (an ellipse cutting the heatsink at a 2 mm cell, on a rise of 121 K). The 3D solid takes the cell cover for the block slabs: its sliver cells are those of `docs/validation.md` 33. Not compared against a physical block.
