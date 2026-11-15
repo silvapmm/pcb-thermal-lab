@@ -26,26 +26,34 @@ ROOT = os.path.dirname(HERE)
 RESEARCH_LIBS = [os.path.join(ROOT, "research", "independent-fem-edge", "lib"), os.path.join(ROOT, "research", "independent-fem-extensions", "lib")]
 
 
+RESEARCH_NAMES = ("fem", "board", "cases", "hollow", "mesh2d", "stack_ext", "sheets", "cluster", "transient", "exact", "refine")
+
+
 @contextlib.contextmanager
 def research_modules():
     """!
-    @brief Import the research libraries under their own names for one block and remove them again (their module names `fem`, `board`... must not stay).
-    @return Context manager yielding a dict name -> module, or skipping the test when the research folder is absent.
+    @brief Import the research libraries under their own names for one block, independent of the test order: other tests leave modules of the same names (`cases`, `board`...)
+           from other research folders in sys.modules, so those entries are removed first, the research lib paths go FIRST on sys.path, and everything is restored afterwards.
+    @return Context manager yielding a dict name -> module; skips the test when the research folders are absent or a module does not come from them.
     """
     if not all(os.path.isdir(p) for p in RESEARCH_LIBS):
-        pytest.skip("research folders not present")
-    before = set(sys.modules)
-    for p in reversed(RESEARCH_LIBS):
-        sys.path.insert(0, p)
+        pytest.skip("research folders independent-fem-edge / independent-fem-extensions not present")
+    saved_mods = {n: sys.modules.pop(n) for n in RESEARCH_NAMES if n in sys.modules}
+    saved_path = list(sys.path)
+    sys.path[:0] = RESEARCH_LIBS
+    importlib.invalidate_caches()
     try:
-        yield {n: importlib.import_module(n) for n in ("fem", "board", "cases", "hollow", "mesh2d")}
+        mods = {n: importlib.import_module(n) for n in ("fem", "board", "cases", "hollow", "mesh2d")}
+        for n, m in mods.items():
+            f = os.path.abspath(getattr(m, "__file__", "") or "")
+            if not any(f.startswith(os.path.abspath(p) + os.sep) for p in RESEARCH_LIBS):
+                pytest.skip(f"module {n} did not come from the research lib folders ({f})")
+        yield mods
     finally:
-        for p in RESEARCH_LIBS:
-            if p in sys.path:
-                sys.path.remove(p)
-        for n in set(sys.modules) - before:
-            if n in ("fem", "board", "cases", "hollow", "mesh2d", "stack_ext", "sheets", "cluster", "transient", "exact", "refine"):
-                del sys.modules[n]
+        for n in RESEARCH_NAMES:
+            sys.modules.pop(n, None)
+        sys.modules.update(saved_mods)
+        sys.path[:] = saved_path
 
 
 def _copy_into_core(m_ref):
