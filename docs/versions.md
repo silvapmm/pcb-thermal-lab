@@ -396,16 +396,16 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 | Item | Type | Size | Frozen | Depends on |
 | :-- | :-- | :-- | :-- | :-- |
 | Profiles tab in a narrow window (merged) | X | S | no | - |
-| First Enter in Properties after a layer change goes to the tab bar ('Planned: 2.7.0' item 20) | X | S | no | - |
+| DONE in 2.7.1 (`fix/enter-focus-and-calculator-test`): first Enter in Properties after a layer change goes to the tab bar ('Planned: 2.7.0' item 20) | X | S | no | - |
 | Shorter hints pass ('Planned: 2.7.0' item 13) | X (text) | S | no | - |
-| Guard against third-party text in git (`tests/test_third_party_text.py`: no `papers/`, no OCR markers; optional licence and URL columns in the bibliography; converted papers stay local only) | D + test | S | no | first of the wave |
-| pypdfium2 line of `tools/ocr/README.md` (install in `.venv-research`, run the tool with that Python) | D | S | no | - |
-| Version-comparison notes v2.5.0 to v2.7.0 | D | S | no | - |
+| DONE in 2.7.1: guard against third-party text in git (`tests/test_third_party_text.py`: no `papers/`, no OCR markers; optional licence and URL columns in the bibliography; converted papers stay local only) | D + test | S | no | first of the wave |
+| DONE in 2.7.1 (the OCR environment): pypdfium2 line of `tools/ocr/README.md` (install in `.venv-research`, run the tool with that Python) | D | S | no | - |
+| DONE (item 7 below): version-comparison notes v2.5.0 to v2.7.0 | D | S | no | - |
 | Stale READMEs of the research folders `point-via-convergence`, `effective-conductivity`, `solid3d-verification`, `gap-subdivision`, `block-and-fins`, `via-edge-image` (one branch per folder, research only) | D | M | no | - |
-| Disclaimer in every report (a design aid, to be validated by measurement) | F (text) | S | no | - |
+| DONE in 2.7.1 (`fix/report-disclaimer`): disclaimer in every report (a design aid, to be validated by measurement) | F (text) | S | no | - |
 | DONE on `fix/board-dock-write-back`: the Board and Simulation docks (and the Power profile page) wrote every box back on any edit, so a loaded copper of 10 000 um became 210 um (box maximum), h above 500 or a thickness above 10 mm were clamped and a period or a duty was rounded to the box decimals; boxes now widen to hold a loaded value (`gui/spinfit.py`), only edited boxes are written, and the Simulation dock and the profile run settings reload after an undo (`tests/test_dock_writeback.py`) | X | S | no | - |
-| Edge-laminate warning: re-measure the first clause against the finite-element solution and fix the wording of `_edge_laminate_uncut` | X (text) | S | no | the finite-element tool |
-| `tests/test_calculator_dialog.py` (the dialog is not held by the battery) | V | S | no | - |
+| DONE on `fix/convection-warnings` (`releases/2.8.0/final-review/PART_2C.md` 2): edge-laminate warning: re-measure the first clause against the finite-element solution and fix the wording of `_edge_laminate_uncut` | X (text) | S | no | the finite-element tool |
+| DONE in 2.7.1 (`fix/enter-focus-and-calculator-test`): `tests/test_calculator_dialog.py` (the dialog is not held by the battery) | V | S | no | - |
 | Real-screen checklist (import window, Preferences, docks, popover; the maintainer's hands, about 1 hour) | V | S | no | maintainer |
 | Housekeeping (the unused screenshots, the unused `active` argument of `viawell.build` and the `factor_reuse` docstring are done): node indices in `component-heatsink/scripts/package_prototype.py` | H | S | no | - |
 
@@ -416,7 +416,7 @@ Rules for every wave: branches that touch `fvm.py`, `fdm.py`, `laminate.py`, `vi
 | FEM extensions (A43): hollow plated barrel against `d + 0.5 t_cu` and the rim rule, stripes and imported masks, the L outline, the FDM via effect 4 to 16 % low | V | M | no | - (enables E13, 5a, A30 and B5) |
 | DONE: Transient reference (`research/transient-reference-boards`, reviewed: GO): the reference tool of `independent-fem-edge` steps in time; the 2.7.0 slab rule is confirmed by an independent solver (time to 63 % of the 4-layer board +18.5 % with the old rule against +2.2 %); the first seconds read cold in every model (a stated limit of the single node per layer); the coarse-cell time to 63 % +28 % comes from a source with edges at mid-cell and is covered by the existing 'only 3.0 cells wide' warning (numbers to add: text only) | - | - | - | - |
 | A48: the Analytic transient with vias reads the hot point of the board WITHOUT vias, 2 mm from the real hot point (`analytic._local_dynamics` keeps the points of the base system): a defect of the program. Reading at the steady hot point moves the 0.3 s error from -21.7 % to -7.9 %, the 20 s wave swing from -11.2 % to -1.9 % and the plateau from -0.62 % to -0.04 %; U1 of the example board moves +0.7 % at the plateau and -1.0 % at the time to 63 %. Evidence `research/transient-reference-boards` (INTEGRATION.md 3); check on that branch whether the 'heatsink transient 5 to 7 % low' warning is the same defect | X (fix) | S to M | yes: the Analytic transient records of boards with vias or a heatsink (a pending file) | - |
-| First seconds of the step responses read cold in every model (one node per layer): a stated limit, text only (A49) | X (text) | S | no | - |
+| DONE (the user guide, 'The first seconds of a step'): first seconds of the step responses read cold in every model (one node per layer): a stated limit, text only (A49) | X (text) | S | no | - |
 | Coarse-cell time to 63 % (+28 % from a source with edges at mid-cell): add the numbers to the 'only 3.0 cells wide' warning, text only | X (text) | S | no | - |
 | E13: converged reference of small imported parts (the re-measure of the reduced-model warning numbers is done, `REMEASURE.md` section 3, against the FVM at 0.5 mm) | I then X (text) | M, memory-heavy, alone on the machine | no (warning text) | FEM extensions help |
 | DONE: 5a: drawn copper, exact zone fill and flow-based faces as for imported copper (`fix/drawn-copper-faces`) | - | - | - | - |
