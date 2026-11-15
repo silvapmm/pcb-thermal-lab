@@ -1316,6 +1316,8 @@ class BoardView(QGraphicsView):
                 painter.drawText(0, 0, text)
                 painter.restore()
             k += 1
+        # The corner square holds only the unit: the ticks of both rulers that fall in it are covered first (they crossed the letters of 'mm')
+        painter.fillRect(0, 0, size, size, QColor(c["canvas"]))
         painter.drawText(2, 12, "mm")
         # Scale bar at the bottom left
         bar = step * scale
