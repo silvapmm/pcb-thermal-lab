@@ -366,3 +366,27 @@ def test_the_run_button_shows_where_the_keyboard_is(win):
     ring = run.grab().toImage()
     edge = [(x, 1) for x in range(4, plain.width() - 4, 7)] + [(1, y) for y in range(4, plain.height() - 4, 3)]
     assert any(plain.pixel(x, y) != ring.pixel(x, y) for x, y in edge)
+
+
+def test_map_titles_use_the_short_model_name_and_the_cut_title_says_where_it_is():
+    """!
+    @brief Every map title names the model by its short name (the key upper-cased gave 'LUMPED', 'SOLID3D'), and the profile title says when the plotted row is
+           the cell centre nearest to the slider position (the slider read 40.0 mm, the title 39.5 mm).
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+
+    from pcbthermal import SolverOptions, plots, simulate
+    from pcbthermal.examples import example_board
+
+    sim = simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
+    fig = Figure()
+    plots.draw_fields(fig, sim.results["lumped"], sim.problem)
+    assert fig._suptitle is not None and fig._suptitle.get_text().startswith("LPTN - column mean")
+    fig = Figure()
+    plots.draw_profile(fig, {k: r for k, r in sim.results.items() if r.T is not None}, sim.problem, layer=0, axis="x", position_mm=40.0)
+    title = fig.axes[0].get_title()
+    assert "y = 39.0 mm" in title or "y = 41.0 mm" in title or "y = 40.0 mm" in title
+    assert ("nearest to 40.0 mm" in title) == ("y = 40.0 mm" not in title)

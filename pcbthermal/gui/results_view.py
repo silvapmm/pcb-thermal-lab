@@ -535,13 +535,13 @@ class PlotTab(QWidget):
                     ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean\n"
+                                          title=f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
+                        ax.set_title(f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
                                      f"max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
@@ -549,7 +549,7 @@ class PlotTab(QWidget):
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.display.cmap, layer=layer,
                                  label="|∇T| (K/mm)", **eq_args, view=view,
-                                 title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
+                                 title=f"{tips.model_label(r.model)} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
                 axis = self.axis.currentData()
                 b = prob.board
