@@ -140,7 +140,7 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 
 #### 1.3.1 Rasterisation
 
-A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for a heater on a rectangular board and for the sampled fallback of 1.3.2 (on a board with an outline the heater weights are exact areas), 4 for zones, heatsinks and blocks on the plan grid, 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
+A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for a heater on a rectangular board and for the sampled fallback of 1.3.2 (on a board with an outline the heater weights are exact areas), 4 for zones and heatsinks on the plan grid (a metal block is exact, 7.1), 8 for a plain heatsink on the tiles of the Analytic correction; the Lumped finds the footprint of ring 0 with 4), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell. A heater's source vector is
 
     Q_i = P c_i / Σ c                                                            (1.5)
 
@@ -797,7 +797,7 @@ The Analytic model carries the mean temperature of a tile of its Green-function 
 
 ### 7.1 The plate in the layered models
 
-A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capacity `ρc`, thickness `t`) pressed on the top or bottom face through an interface of resistance per area `R''`. In the layered models it adds **one extra layer of nodes** (one per cell) on that face, with the coverage `c` of the cell by the block:
+A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capacity `ρc`, thickness `t`) pressed on the top or bottom face through an interface of resistance per area `R''`. In the layered models it adds **one extra layer of nodes** (one per cell) on that face, with the coverage `c` of the cell by the block: the **exact area of the block polygon on the board** in the cell over the cell area (`blocks.block_cover`: `geometry.exact_coverage`, and the polygon clipped to the outline with `geometry.part_weights` when the board has one, the rule of the board cover (1.3.2); it was a 4 x 4 sampling times the board cover, wrong by up to 0.8 % of the block area in the cases of `validation.md` 54 and wrong in a cell that the block edge and the outline both cut). A polygon that crosses itself, or one the exact cover refuses, keeps the 4 x 4 sampling times the board cover. In the FDM the cell cover is averaged on the four cells around a node, in the Analytic it is the cover of the tile:
 
     lateral sheet conductance   S = k t c                                (joined by the harmonic mean, as the board)
     heat capacity               C = ρc t Δx Δy c

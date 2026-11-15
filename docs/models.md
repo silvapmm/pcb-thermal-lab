@@ -119,7 +119,7 @@ Workflow: explore with Analytic/Lumped, refine with the FVM at the **Auto** cell
 
 ### 2.6 Metal block (heat spreader) (theory §7)
 
-A **Heatsink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it:
+A **Heatsink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it (the coverage of a cell by the block is the exact area of the block on the board, as the board cover; `validation.md` 54):
 lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation), a **contact to the board layer** `G = A [ f/R'' + (1−f)/(R'' + d/k_FR4) ]` where `f` is the copper fill of that layer, `R''` the interface resistance (m²K/W; K cm²/W in the application) and `d` half a layer slab,
 and an exposed surface to the air `G = h_exp·A` plus the side walls `G = h_wall·t·L_edge`, with `h_exp = h_face·(fin ratio) + h_extra` and `h_wall = h_face + h_extra` (top or bottom coefficient of the board plus the heatsink's extra h; the fin ratio is 1 without fins and applies to the exposed face only, never to the sides). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
 over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
