@@ -3,7 +3,7 @@
 Review of the Simulation dock (`pcbthermal/gui/panels.py`, class `SolverPanel`) on `development` at `6c225276`, for two requests of the maintainer:
 (1) group the settings by the models they influence, with a frame around each group; (2) show the memory lines ('FVM: 1793 unknowns, about 0.2 GB of ...') in a smaller font.
 
-Nothing in the program was changed. The layouts below were built as a throwaway prototype on `tmp/settings-layout-proto` (not for merge): first round A, B, C (commit `a1522a3d`, `PCBT_PANEL_LAYOUT=A|B|C`, sections 2 to 5); second round P1 to P8 after the maintainer's answer (commits `db90e857` and `ca481f1f`, new file `pcbthermal/gui/panel_variants.py`, `PCBT_PANEL_LAYOUT=P1..P8`, `PCBT_PANEL_SP` for the room around the Settings toggle; section 7). Third round P2a to P2h after the maintainer chose P2 (commit `35eee250`, `PCBT_PANEL_LAYOUT=P2A..P2H`; section 8). **Section 8 supersedes the recommendations of sections 5 and 7.**
+Nothing in the program was changed. The layouts below were built as a throwaway prototype on `tmp/settings-layout-proto` (not for merge): first round A, B, C (commit `a1522a3d`, `PCBT_PANEL_LAYOUT=A|B|C`, sections 2 to 5); second round P1 to P8 after the maintainer's answer (commits `db90e857` and `ca481f1f`, new file `pcbthermal/gui/panel_variants.py`, `PCBT_PANEL_LAYOUT=P1..P8`, `PCBT_PANEL_SP` for the room around the Settings toggle; section 7). Third round P2a to P2h after the maintainer chose P2 (commit `35eee250`, `PCBT_PANEL_LAYOUT=P2A..P2H`; section 8). **Section 8 supersedes the recommendations of sections 5 and 7; section 9 is the final decision and the implementation spec** (prototype of the final colour: commit `a2de3304`, `PCBT_PANEL_LAYOUT=P2C PCBT_ACCENT_TEXT=1`).
 
 ## 1. What each control of the dock really feeds
 
@@ -80,7 +80,7 @@ What changes with A:
 
 ## 6. Open decisions for the maintainer
 
-1. The layout: P2 chosen by the maintainer; the design of its group titles: P2e recommended, P2a the plain fallback (section 8).
+1. Decided: P2c, with the title text on the light theme in a darker accent (section 9).
 2. The memory lines: taken as in the prototype (dot in the verdict colour, compact form, hint style), the maintainer's answer.
 3. Whether to fix the two small points of section 1 (Auto ignoring the FEM mesh numbers; the local-corrections tooltip) in the same branch.
 
@@ -182,3 +182,55 @@ The recommended design at full size:
 | :-- | :-- | :-- |
 | P2e, FVM + FEM | ![](figures-panel/p2e_light_fvm_fem.png) | ![](figures-panel/p2e_dark_fvm_fem.png) |
 | P2e, Lumped + Analytic | ![](figures-panel/p2e_light_lumped_analytic.png) | ![](figures-panel/p2e_dark_lumped_analytic.png) |
+
+## 9. Final: P2c with an accessible title colour, and the implementation spec
+
+### 9.1 Review of the maintainer's choice (P2c)
+
+The maintainer chose P2c (title and hairline in the accent blue). **Agreed, with one adjustment.** The accent text on the light window reaches 3.74:1, below the 4.5:1 of WCAG 2.1 AA for normal text. The 3:1 threshold of 'large text' does not apply: large means 18 pt regular or 14 pt bold (18.7 px bold), and the group title is the dock font in bold (9 pt, 12 px on the offscreen platform of the screenshots; 13 px on macOS), well below. On the dark window the accent passes (4.89:1).
+
+Adjustment that keeps the look: the **title text** takes a darker blue on the light theme only, the theme's own pressed accent `#4a6a96` (**5.03:1** against `window` #f3f4f6, 5.54:1 on `base` white); on the dark theme it stays the accent `#6a90c0` (**4.89:1** against #1e2127). The hairline keeps the accent in both themes (a line is decorative, no minimum). The hue difference between #4a6a96 and #5a7fb0 is barely visible next to each other, so the title and its line still read as one accent element. A title not ticked takes `muted` (4.39:1 light, 5.24:1 dark; a disabled control is exempt) and says 'not ticked' in its tag.
+
+![P2c final, light and dark, both cases](figures-panel/p2c_final.png)
+*p2c_final.png: P2c final at the 340 px dock: light with the FVM and the FEM ticked, light with only the Lumped and the Analytic ticked, then the same in dark. Labels at x 8 and fields at x 134 in every group, both themes, both cases; minimum width 308 px.*
+
+### 9.2 Implementation spec for `feature/simulation-panel-groups`
+
+Branch from `development`; a GUI feature (minor item, it can ride with 2.8.0); executor, then reviewer, then maintainer with the whole battery. Option keys, project format, field labels and the per-control 'Greyed: ...' tooltips do not change.
+
+**Layout** (`pcbthermal/gui/panels.py`, `SolverPanel.__init__`):
+- The Settings box body holds ONE `QGridLayout` (two columns: labels, fields; horizontal spacing 8, vertical 6, column 1 stretches) for every group, so every label starts at one x and every field at one x. Label column: a fixed width, the advance of the longest label ('Laminate sub-gaps') plus 6 px, labels left-aligned.
+- Groups in this order, each a header row (spanning both columns) and its rows:
+  1. 'All models', tag 'All': Cell size (spin box + Auto), the memory lines (full width), Hotspot limit.
+  2. 'Finite volume (FVM)', tag 'FVM': FVM solver.
+  3. 'Laminate (FVM, FDM)', tag 'FVM·FDM': Laminate sub-gap, Laminate sub-gaps.
+  4. 'Thermal network (LPTN)', tag 'LPTN': Lumped rings.
+  5. 'Analytical', tag 'Analytic': Analytic modes, Local via and heatsink corrections (full width).
+  6. 'Finite elements (FEM)', tag 'FEM': FEM gap elements, FEM refinement.
+- Header row: the title (`font-weight: 700`, dock size, colour `accent_text`), a stretch, the tag (11 px, colour `hint`), and under them a 1 px line (a `QFrame` with a fixed height of 1 and a style-sheet background; an `HLine` frame with a style sheet drew nothing) in `accent`. 8 px above every header except the first, 3 px between the title and its line.
+- Spacing: 10 px above the Settings toggle (between the Models box and it) and 10 px between the toggle and the first header.
+- New theme token `accent_text` in `theme.THEMES`: light `#4a6a96`, dark `#6a90c0`, with a comment giving the ratios (5.03:1 and 4.89:1 on `window`); colours are applied in `_update_availability` (called by `refresh`), so they follow a theme switch.
+
+**Not ticked state** (`_update_availability`): a group whose models are none ticked (the laminate group also on a board with a metal block, `laminate.uses_rule`) has its title and line in `muted` (line in `border`), its tag reading '<tag> · not ticked', and its controls disabled with the existing 'Greyed: ...' tooltip. The 'All models' group is never greyed.
+
+**Memory lines** (`_update_cells`), as in the prototype: the label in the `theme.hint` style (11 px, `hint`); each row a dot in the verdict colour; an 'ok' row in the hint colour, 'slow' and 'refuse' rows wholly in the verdict colour; compact text `FVM: 39052 unknowns · 0.3 of 10.3 GB` ('at least' becomes '≥'); no thousands separator; the refusal and pyamg sentences unchanged; the label hidden when no guarded model is ticked.
+
+**Tooltips**: `tips.apply` reads `QFormLayout` rows only, so a grid row gets its label's tooltip from `tips.TIPS` when the panel builds it (label and field, unless the field has its own), or `tips.apply` learns `QGridLayout` label/field pairs; the header titles and tags get a short tooltip ('Settings used by: FVM, FDM'); `tests/test_tooltips.py` must pass unchanged.
+
+**The three small fixes** (same branch):
+1. Auto respects the FEM mesh numbers: `api.suggest_cell_mm` gains `fem_params=None`, passed to `memory.check`; `SolverPanel._auto_cell` passes `self.doc.options.fem_params()` (and `cli.py`'s automatic cell passes the `--fem-gap-elements` and refinement options, and the laminate ones it also omits today). No number of a solve moves; regression test: with 24 gap elements and the FEM ticked, Auto gives a cell whose FEM verdict is not 'refuse'.
+2. The tooltip of 'Local via and heatsink corrections' ends with 'Steady run only: the time run (power profiles) always treats vias and heatsinks locally.' (and the same sentence in the guide row).
+3. The greyed laminate tooltip on a board with a metal block reads 'Greyed: not used on a board with a metal block (the laminate rule does not apply there).' instead of 'used only by a board with a metal block, where the rule does not apply': the 'why' becomes a whole sentence per case in `_update_availability`.
+
+**Tests to add**:
+- `tests/test_simulation_panel_groups.py` (offscreen): alignment, for both themes and with the FVM + FEM and the Lumped + Analytic sets: every visible label at one x and every visible field at one x (`QWidget.mapTo(panel, ...)`; a field that is a layout is measured by its first widget), header titles at the label x; the minimum width at most 340 px; a group greys with its models (title colour `muted`, tag contains 'not ticked', its controls disabled) and comes back when ticked; the laminate group greyed on a board with a metal block; the memory line format (a dot, '·', no '\d,\d{3}', the verdict hex colours of `tests/test_gui_stress.py`); fix 1 and the tooltips of fixes 2 and 3.
+- `tests/test_theme_coherence.py`: `accent_text` at least 4.5:1 against `window` and `base` in both themes.
+- `tests/test_gui_stress.py`: a scenario ticking and unticking every model quickly with a theme switch in between (the headers recoloured, no exception).
+- Unchanged and to be re-run: `tests/test_gui.py::test_docks_open_wide_enough_and_keep_the_run_button_in_sight`, `tests/test_fem_gui.py`, `tests/test_gui_stress.py` 1183-1217, `tests/test_theme_coherence.py` 211-214, `tests/test_warning_context.py`, `tests/test_laminate_edge_band.py` (field names quoted by warnings).
+
+**Documents and pictures**:
+- Guide `pcbthermal/help/index.html` section 8: a sentence before the table ('The settings are grouped by the models they serve; the tag at the right of a group names them; a group is greyed and marked "not ticked" when none of its models is ticked'); the Cell size row describes the compact memory line; the local-corrections row says 'steady run only'; `tests/test_help.py` if a new word is checked.
+- Screenshots regenerated with `examples/make_screenshots.py` and LOOKED at: `simulation_fem.png` (the FEM pictures function), `editor.png`, `editor_warnings.png` and their dark variants, in `docs/images/` and `pcbthermal/help/`; `README.md` uses the same files.
+- `CHANGELOG.md` (Unreleased), `docs/versions.md` (implemented, how tested; 'Planned' unchanged), `docs/decisions-log.md` (the layout and the `accent_text` token, with this review as evidence), the battery result at the top of 'How each version was tested'.
+
+Effort: **S to M** (about a day with the tests and the screenshots).
