@@ -3,6 +3,8 @@
 # Physics core
 numpy>=1.24
 scipy>=1.11
+# Multigrid preconditioner of the finite-element model on large meshes (MIT; optional at run time: without it the FEM is limited to small meshes)
+pyamg>=5.4
 # Figures (command line and GUI)
 matplotlib>=3.7
 # Desktop application

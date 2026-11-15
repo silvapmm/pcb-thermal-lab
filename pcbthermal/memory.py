@@ -33,6 +33,8 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
+from .femcore import FEM_DIRECT_MAX
+
 log = logging.getLogger(__name__)
 
 GB = 1.0e9                          # Bytes in the unit of the messages (decimal, as the measurements were quoted)
@@ -51,22 +53,34 @@ VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the al
 VIA_CELLS_REF = 500.0               # Footprint cells at which the via term reaches 63 % of its gain (25 vias of 0.3 mm at 0.5 mm are 100 cells and measured nothing; CO60 is 2 500 to 5 400)
 MEMORY_ENV = "PCBTHERMAL_MEMORY_BYTES"   # Environment variable that states the physical memory in bytes (tests, containers whose limit is not visible)
 
+# FEM (releases/2.8.0/fem-model/scripts/measure_fem_law.py, 21 runs of 10 boards of the harness at 2, 1 and 0.5 mm, each in a fresh process, growth of the resident size over the build and the solve):
+# conjugate gradients with pyamg 6410 to 6961 bytes per unknown (mean 6692, no trend with the size from 40 000 to 215 000 unknowns, vias, a block, an outline and one layer included),
+# the direct solve 9552 to 12313 bytes per unknown at 10 000 to 19 000. The safety factor makes safety x k1 the largest measured growth times 1.1 (7657).
+# The direct figure grows with the size (the fill of a 3D factor is superlinear): the review measured 11 388 to 14 402 bytes per unknown at 26 900 to 29 800 unknowns, just under
+# FEM_DIRECT_MAX (the example board at 26 910 and the finned block at 29 413 above the first fit of 13 600), so the direct figure is 1.1 x 14 402.
+FEM_K1 = 6700.0
+FEM_SAFETY = 1.15
+FEM_DIRECT_BYTES = 15900.0
 # CONTINUOUS law of the review: model -> (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety factor)
 CONTINUOUS = {
     "fvm": (1469.0, 1.24, 0.79, 1.40),
     "fdm": (1228.0, 1.34, 1.03, 1.24),
     "solid3d": (1063.0, 1.30, 0.98, 1.30),
+    # The FEM with conjugate gradients and an AMG preconditioner is linear in the unknowns (p = 1) and does not grow with the thickness of the graph (a = 0): bytes per unknown
+    # (FEM_K1) and the safety factor that makes safety x k1 the largest measured growth times 1.1 (measure_fem_law.py, 21 runs of 10 boards); `FEM_DIRECT` is the direct solve
+    "fem": (FEM_K1, 1.0, 0.0, FEM_SAFETY),
 }
 
 # Solve time law of the classes of README 5.4 (model -> list of (largest t, seconds at N_REF, exponent q)); the last row has no upper edge. Times of the
 # measuring machine shared with other work, so lower bounds for a loaded one; only the "slow" mark uses them.
 TIME_LAWS = {
     "fvm": [(3.5, 1.5, 1.32), (4.5, 5.4, 1.31), (math.inf, 9.2, 1.50)],
+    "fem": [(math.inf, 15.7, 0.69)],             # build and CG + AMG solve of 13 runs (40 000 to 215 000 unknowns), measured with another job running: a lower bound
     "fdm": [(math.inf, 11.5, 1.47)],
     "solid3d": [(6.5, 11.2, 1.70), (12.0, 14.8, 1.52), (math.inf, 44.1, 1.50)],
 }
 
-MODEL_LABELS = {"fvm": "finite volume (FVM)", "fdm": "finite difference (FDM)", "solid3d": "3D solid"}
+MODEL_LABELS = {"fvm": "finite volume (FVM)", "fdm": "finite difference (FDM)", "solid3d": "3D solid", "fem": "finite elements (FEM)"}
 
 
 class MemoryGuardError(ValueError):
@@ -317,7 +331,7 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     @details peak = base + safety * factor * k1 t_eff^a N (N / N_REF)^(p - 1). The safety and time factors multiply the part that the solve allocates, not the
              resident size the process already has: the base is measured, and a process that already holds memory (the test battery, a script after a large run)
              would otherwise see it counted 1.4 to 2.8 times (the research prototype multiplied a fixed base of 0.08 GB, where the difference was 0.03 to 0.14 GB).
-    @param model "fvm", "fdm" or "solid3d".
+    @param model "fvm", "fdm", "solid3d" or "fem".
     @param unknowns Unknowns the model builds (count, not bytes).
     @param cells Cells of the plan grid, nx * ny (the nodes of one layer for the FDM), count.
     @param base Resident bytes of the process (None: baseline_bytes(), the size read once for the process).
@@ -328,10 +342,18 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     """
     k1, p, a, safety = CONTINUOUS[model]
     n = max(float(unknowns), 1.0)
+    if model == "fem" and n <= FEM_DIRECT_MAX:
+        # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth
+        return (baseline_bytes() if base is None else base) + FEM_DIRECT_BYTES * n * factor
     t = n / max(float(cells), 1.0)
     t_eff = max(min(t, float(cells) / t), 1.0)
     b = baseline_bytes() if base is None else base
-    return b + k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0) * safety * factor * via_gain(model, via_footprint_cells)
+    grown = k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0) * safety * factor * via_gain(model, via_footprint_cells)
+    if model == "fem":
+        # The conjugate gradients take fewer bytes per unknown than the factorisation below FEM_DIRECT_MAX, but a mesh that has just crossed the limit is not estimated as
+        # smaller than the one just under it: the estimate never decreases with the unknowns (the bisection of largest_unknowns relies on it)
+        grown = max(grown, FEM_DIRECT_BYTES * FEM_DIRECT_MAX * factor)
+    return b + grown
 
 
 def via_gain(model: str, via_footprint_cells: float) -> float:
@@ -344,7 +366,7 @@ def via_gain(model: str, via_footprint_cells: float) -> float:
     @param via_footprint_cells Cells of the via footprints, count.
     @return Multiplier, at least 1.
     """
-    if model == "solid3d" or via_footprint_cells <= 0.0:
+    if model in ("solid3d", "fem") or via_footprint_cells <= 0.0:
         return 1.0
     return 1.0 + VIA_GAIN * (1.0 - math.exp(-float(via_footprint_cells) / VIA_CELLS_REF))
 
@@ -483,11 +505,19 @@ def cell_that_fits(count: Callable[[float], Tuple[int, int]], model: str, limit:
     c = max(cell_mm, 0.05)
     while c <= cell_max:
         if bound is not None:
-            n0, cells0 = bound(c)
+            try:
+                n0, cells0 = bound(c)
+            except ValueError:
+                c = math.ceil(c * 1.1 * 10.0) / 10.0
+                continue
             if estimate_bytes(model, n0, cells0, b, factor) > limit or (max_unknowns is not None and n0 > max_unknowns):
                 c = math.ceil(c * 1.1 * 10.0) / 10.0
                 continue
-        n, cells = count(c)
+        try:
+            n, cells = count(c)
+        except ValueError:                                  # a cell for which the model has no mesh (the FEM refusals): try a coarser one
+            c = math.ceil(c * 1.1 * 10.0) / 10.0
+            continue
         b_c = b + (extra(c) if extra is not None else 0.0)
         if estimate_bytes(model, n, cells, b_c, factor, vias(c) if vias is not None else 0.0) <= limit and (max_unknowns is None or n <= max_unknowns):
             return c
@@ -677,15 +707,19 @@ def check_import(rows: int, cols: int, n_layers: int, cell_mm: float, fraction: 
     return peak
 
 
-def _counter(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int]]:
+def _counter(problem, model: str, n_diel=None, fem_params=None) -> Callable[[float], Tuple[int, int]]:
     """!
     @brief Function cell_mm -> (unknowns, plan cells) of a model, from the model's own counter.
     @param problem A Problem.
-    @param model "fvm", "fdm" or "solid3d".
+    @param model "fvm", "fdm", "solid3d" or "fem".
     @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
-    @return Callable.
+    @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM, or None for the defaults (6, 2).
+    @return Callable (the FEM one raises ValueError, with the reason, for a problem that has no mesh).
     """
-    from . import fdm, fvm, solid3d
+    from . import fdm, femmesh, fvm, solid3d
+    if model == "fem":
+        gap, ref = fem_params or (6, 2.0)
+        return lambda c: (lambda r: (int(r[0]), int(r[2]) * int(r[3])))(femmesh.unknowns(problem, c, gap, ref))
     if model == "fvm":
         return lambda c: (lambda r: (int(r[0]), int(r[2]) * int(r[3])))(fvm.unknowns(problem, c))
     if model == "fdm":
@@ -693,7 +727,7 @@ def _counter(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, i
     return lambda c: (lambda r: (int(r[0]), int(r[2]) * int(r[3])))(solid3d.unknowns(problem, c, n_diel))
 
 
-def _bound(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int]]:
+def _bound(problem, model: str, n_diel=None, fem_params=None) -> Callable[[float], Tuple[int, int]]:
     """!
     @brief Function cell_mm -> (lower bound of the unknowns, plan cells) of a model, without sampling the copper: one node per copper layer and plan cell
            (FVM), per corner node (FDM), or the exact slab count (3D solid, already cheap).
@@ -702,6 +736,7 @@ def _bound(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int
     @param problem A Problem.
     @param model "fvm", "fdm" or "solid3d".
     @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
+    @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM, or None for the defaults.
     @return Callable.
     """
     b = problem.board
@@ -719,14 +754,14 @@ def _bound(problem, model: str, n_diel=None) -> Callable[[float], Tuple[int, int
         return lambda c: (lambda g: (b.layers * g[0] * g[1], g[0] * g[1]))(grid(c))
     if model == "fdm":
         return lambda c: (lambda g: (b.layers * (g[0] + 1) * (g[1] + 1), (g[0] + 1) * (g[1] + 1)))(grid(c))
-    return _counter(problem, model, n_diel)
+    return _counter(problem, model, n_diel, fem_params)       # the exact 3D and FEM counts are cheap (slabs and the 2D plan, no 3D arrays)
 
 
 def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[int], fraction: float, cell_fit: Optional[float], cell_mm: float, why: str,
              exact: bool = True) -> str:
     """!
     @brief Text of a refusal or a warning, in GB of 10^9 bytes, naming the cell that fits.
-    @param model "fvm", "fdm" or "solid3d".
+    @param model "fvm", "fdm", "solid3d" or "fem".
     @param n Unknowns, count.
     @param estimate Estimated peak in bytes.
     @param limit Limit in bytes.
@@ -758,7 +793,7 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
           base: Optional[float] = None, n_diel=None, quiet: bool = False,
-          laminate_params: Optional[Tuple[float, int]] = None) -> List[Verdict]:
+          laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
     @details The Lumped and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the Lumped) and the Analytic has its own guard of
@@ -766,7 +801,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
              (it may still be "slow") and always refused above it. The layered models are first estimated from a lower bound of their unknowns (one node per
              copper layer and plan cell): a bound above the limit refuses without the exact count, which samples the copper of every plan cell.
     @param problem A Problem.
-    @param models Model keys of the run; only "fvm", "fdm" and "solid3d" are estimated.
+    @param models Model keys of the run; only "fvm", "fdm", "solid3d" and "fem" are estimated.
     @param cell_mm Cell size in mm that the run will use.
     @param fraction Share of the physical memory allowed (None: default_fraction()).
     @param transient True for a time simulation or an animation (factor TRANSIENT_FACTOR).
@@ -780,15 +815,16 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param quiet True for a check that is not a run (the solver panel at every edit, the Auto cell): no log lines, so that the log holds the estimates of the runs only.
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule the run will use (SolverOptions.laminate_params()), or None for the values in force: the sub-gaps add
                            node layers, so they change the unknowns that are counted.
-    @return List of Verdict, one per checked model.
+    @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM mesh (SolverOptions.fem_gap_elements, fem_refine), or None for the defaults (6, 2).
+    @return List of Verdict, one per checked model. A problem that has no FEM mesh (a slanted outline, too many break lines) is a "refuse" verdict of the FEM whose message is the reason.
     @throws MemoryGuardError If refuse is "raise" and a model is refused.
     """
     from . import laminate
     with laminate.using(*(laminate_params or (None, None))):
-        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet)
+        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params)
 
 
-def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet) -> List[Verdict]:
+def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params=None) -> List[Verdict]:
     """!
     @brief Body of check(), run with the laminate numbers in force.
     @param problem A Problem.
@@ -803,6 +839,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     @param base Resident bytes of the solving process (None: baseline_bytes()).
     @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @param quiet True: no log lines.
+    @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM, or None.
     @return List of Verdict.
     """
     f = default_fraction() if fraction is None else fraction
@@ -815,16 +852,22 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     for model in models:
         if model not in CONTINUOUS:
             continue
-        count, bound = _counter(problem, model, n_diel), _bound(problem, model, n_diel)
+        count, bound = _counter(problem, model, n_diel, fem_params), _bound(problem, model, n_diel, fem_params)
         accepted = _accept_unknowns.get(model)
-        n, cells = bound(cell_mm)
-        exact = model == "solid3d"                                              # The 3D count is exact and cheap; the layered ones sample the copper
+        try:
+            n, cells = bound(cell_mm)
+        except ValueError as exc:
+            # The FEM has no mesh for this problem (a slanted outline, too many break lines, a cell that is too fine): a refusal of that model with the reason
+            out.append(Verdict(model, 0, 0.0, limit, "refuse", 0.0, None, str(exc), False, True))
+            continue
+        exact = model in ("solid3d", "fem")                                     # The 3D and FEM counts are exact and cheap; the layered ones sample the copper
         if accepted is not None or estimate_bytes(model, n, cells, base, mult) <= limit:
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
-        vc = via_cells(problem, cell_mm) if model != "solid3d" and exact else 0.0         # The via term goes with the exact count; the bound stays a lower bound
+        layered = model in ("fvm", "fdm")
+        vc = via_cells(problem, cell_mm) if layered and exact else 0.0                   # The via term goes with the exact count; the bound stays a lower bound
         # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only; the search for the cell that fits adds it at every cell it tries)
-        drawn = drawn_run_bytes(problem, cell_mm) if model != "solid3d" and exact else 0.0
+        drawn = drawn_run_bytes(problem, cell_mm) if layered and exact else 0.0
         est = estimate_bytes(model, n, cells, base + drawn, mult, vc)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
@@ -837,8 +880,8 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             why = v
         fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, mult, max_unknowns=accepted if accepted is not None else
                               (CEILING_3D if model == "solid3d" else None), bound=bound,
-                              vias=(lambda c, _p=problem: via_cells(_p, c)) if model != "solid3d" else None,
-                              extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if model != "solid3d" else None)
+                              vias=(lambda c, _p=problem: via_cells(_p, c)) if layered else None,
+                              extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if layered else None)
                if v == "refuse" else None)
         msg = "" if v == "ok" else _message(model, n, est, limit, r, f, fit, cell_mm, why, exact)
         low = avail is not None and est > avail and v != "refuse"
