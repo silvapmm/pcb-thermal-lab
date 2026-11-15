@@ -15,29 +15,39 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox, QFormLayo
 from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names live in the core, the plots use them too)
 
 # The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
-SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, an estimate from the layer mean and the heat flowing in and out; it is what a thermocouple or an IR camera "
-                     "on the metal reads. Always available for the FVM and the FDM in steady state: milli-kelvins from the layer mean on 35 um copper, tenths of a kelvin to "
-                     "percent of the rise on thick metal. The title gives the difference in K and in % of the rise. Maps, tables, Tj and margins use the layer mean. "
-                     "On patterned copper the difference includes the rise across the bare laminate under a source.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom)
+SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, what a thermocouple or an IR camera on the metal reads, in steady state: an estimate from the layer "
+                     "mean and the heat flowing in and out for the FVM and the FDM, resolved by the elements for the FEM. Milli-kelvins from the layer mean on 35 um copper, "
+                     "tenths of a kelvin to percent of the rise on thick metal. The title gives the difference in K and in % of the rise. Maps, tables, Tj and margins use the "
+                     "layer mean. On patterned copper the difference includes the rise across the bare laminate under a source.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom)
 
 SURFACE_TRAP_TIP = ("On a board with patterned copper the difference includes the rise across the bare laminate under a source; the part's column maximum already includes it, "
                     "so for a part the difference is the copper term only.")
 
 # Tooltips of the columns of the Components table (docs: user guide 'Surface temperature and column mean')
 COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of the copper through its thickness (plus the laminate face term under a source over absent copper). "
-                     "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is an estimate of the outer face, hotter under a "
-                     "source on thick copper.")
-SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in degC, estimated from the layer mean and the heat fluxes through the faces "
-                   "(layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); the face is the one the part sits on. Always shown for the "
-                   "FVM and the FDM in steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise "
-                   "and for the surface mean. '(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at "
-                   "t/a = 1. Junction, margin and power limit stay on the column. n/a: the Lumped, the Analytic, the 3D solid, a time simulation, or a part on an inner layer.")
+                     "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is the outer face (an estimate for the FVM and "
+                     "the FDM, resolved for the FEM), hotter under a source on thick copper.")
+SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in degC; the face is the one the part sits on. FVM and FDM: an estimate from the "
+                   "layer mean and the heat fluxes through the faces (layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); "
+                   "'(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at t/a = 1. FEM: resolved by "
+                   "the elements (the element mean on the face, not an estimate); the tooltip of a cell also gives the hottest mesh node under the part (a node value, not a "
+                   "cell mean). Steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise and "
+                   "for the surface mean. Junction, margin and power limit stay on the column. n/a: the Lumped, the Analytic, the 3D solid, a time simulation, or a part "
+                   "on an inner layer.")
+# Tooltips of the other tables of the Components tab and of the Summary table: they name the read-out of their temperatures (every number names its read-out)
+COLUMN_TABLE_TIP = ("Column read-out: the temperature of the copper layer in each cell, the mean through its thickness (the layer mean), the read-out of the maps and of the "
+                    "part table. The surface of the outer copper is in the Layer box (Surface entries) and in the last column of the part table.")
+BLOCK_TABLE_TIP = ("Metal block read-out: the block temperature, the mean through its thickness in each cell (every model, the FEM too: a block has no surface "
+                   "read-out); Mean and Max are over the plan of the blocks on that side of the board (Face: top or bottom).")
+MODEL_TABLE_TIP = ("Column read-out of each model: Tmax is its hottest layer-mean value (cell or node), Tmean the mean over the board, ΔT = Tmax - ambient. "
+                   "The surface and, for the FEM, the hottest mesh node are in the report below.")
 
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",
     "profile page": "Copper layer; the same choice as in the editor and the Results maps.",
-    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer, the metal block, or (thick copper) Surface (top) / Surface (bottom), "
-                   "an estimate of the outer face of the copper (a view of the map only: the tables keep the layer mean). A single layer is also the drawing layer.",
+    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer, the metal block, or Surface (top) / Surface (bottom), the outer face of "
+                   "the copper (an estimate for the FVM and the FDM, resolved for the FEM; a view of the map only: the tables keep the layer mean). A single layer is also "
+                   "the drawing layer.",
     "gradient": "Copper layer of the gradient map, shared with the editor. All layers and the block: Temperature tab only.",
     "animation": "Copper layer of the animation, shared with the editor. All layers and the block: Temperature tab only.",
     "profiles": "Copper layer of the cut or the time maps, shared with the editor. All layers and the block: Temperature tab only.",

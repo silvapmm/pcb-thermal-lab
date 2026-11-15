@@ -8,7 +8,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ## Features
 
 **Modelling**
-- **Six models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series and, as a comparison, finite elements `--model fem`: resolved surface of thick copper, hollow vias; pyamg optional), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
+- **Six models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series and, as a comparison, finite elements, a checkbox of the Models box or `--model fem`: resolved surface of thick copper, hollow vias; pyamg optional), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
 - **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **all five models**, with a **cross-section diagram** in µm and mm and typical stack-ups of 1 to 12 layers with inner copper of 0.5 oz (default) or 1 oz.
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).

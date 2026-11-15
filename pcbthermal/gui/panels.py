@@ -19,13 +19,13 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
 
 from .. import copper, fdm, fvm, laminate, memory, solid3d
 from .. import defaults
-from ..api import suggest_cell_mm
+from ..api import SKIPPABLE_MODELS, suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
-from ..checks import line
+from ..checks import fem_needs_pyamg, line
 from .boxes import CollapsibleBox
 from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
@@ -44,6 +44,8 @@ def _is_rect(pts):
     return len(xs) == 2 and len(ys) == 2 and len({(round(x, 9), round(y, 9)) for x, y in pts}) == 4
 
 
+# The models whose size the memory guard estimates (the window shows one verdict row for each ticked one); one tuple for the rows, the Auto cell and the checks
+GUARDED_MODELS = ("fvm", "fdm", "solid3d", "fem")
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
 
 
@@ -1557,14 +1559,18 @@ class SolverPanel(QWidget):
                    "lumped": QCheckBox("Thermal network (LPTN)"),
                    "analytic": QCheckBox("Analytical (Fourier series)"),
                    "fdm": QCheckBox("Finite difference (FDM), comparison"),
-                   "solid3d": QCheckBox("3D solid (finite volumes), comparison")}
+                   "solid3d": QCheckBox("3D solid (finite volumes), comparison"),
+                   "fem": QCheckBox("Finite elements (FEM), comparison")}
         tips = {"fvm": "Reference model: any geometry, exact energy balance. Use it for final answers and when a warning appears. Cost grows with the cells.",
                 "lumped": "Fast network (milliseconds), within about 4 % in most cases. Weak where a copper edge crosses a heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, a few percent with vias, heatsinks and partial copper; "
                             "unreliable where a copper edge crosses a heater.",
                 "solid3d": "The board as a real 3D solid (a slab per layer and gap). Steady state only; within about 1 % of the FVM on ordinary boards; "
                            "slower and larger (example board: 15 s, 3.5 GB). Skipped above the memory limit.",
-                "fdm": "Node-centred finite differences of the same model, for comparison (steady, animation, profiles); within about 1 % of the FVM."}
+                "fdm": "Node-centred finite differences of the same model, for comparison (steady, animation, profiles); within about 1 % of the FVM.",
+                "fem": "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap). Steady state only. On plain boards it reads 0.4 to 0.9 % "
+                       "below the FVM at the same cell (mostly the finite volumes' own error). The surface of thick copper is resolved, not estimated; a metal block is "
+                       "reported as its mean, with no surface. Slower than the 3D solid; left out above the memory limit, or when a large mesh needs the package pyamg."}
         for k, c in self.cb.items():
             c.setToolTip(tips[k])
             v.addWidget(c)
@@ -1602,6 +1608,14 @@ class SolverPanel(QWidget):
         self.lam_n = QSpinBox()
         self.lam_n.setRange(1, 16)
         self.lam_n.setValue(4)
+        self.fem_gap = QSpinBox()
+        self.fem_gap.setRange(2, 24)
+        self.fem_gap.setValue(6)
+        self.fem_ref = _spin(1, 4, 2.0, 1, 0.5, "")
+        self.fem_gap.setToolTip("FEM: elements across every dielectric gap (2 to 24, default 6). Six or twelve give the same temperature to 0.1 mK; each one adds unknowns, "
+                                "so memory and time.")
+        self.fem_ref.setToolTip("FEM: ratio of the cell to the fine element near the parts and via patches (1 to 4, default 2). 1 = no refinement. The default is enough: "
+                                "1 to 4 moves a peak by less than 0.01 K; a larger ratio adds unknowns.")
         self.lam_s.setToolTip("Longest laminate sub-gap between copper nodes, mm (0.05 to 5, default 0.40), where copper is absent and along a cooled edge (FVM, FDM). "
                               "Smaller: closer to a 3D solid, slower.")
         self.lam_n.setToolTip("Most sub-gaps per laminate gap (1 to 16, default 4; 1 = off): min(this, d / sub-gap rounded up). Error falls as 1/n; each one costs memory. "
@@ -1619,6 +1633,8 @@ class SolverPanel(QWidget):
         f.addRow("Hotspot limit", self.hot)
         f.addRow("Laminate sub-gap", self.lam_s)
         f.addRow("Laminate sub-gaps", self.lam_n)
+        f.addRow("FEM gap elements", self.fem_gap)
+        f.addRow("FEM refinement", self.fem_ref)
         lay.addWidget(g)
 
         self.run = QPushButton(self.RUN_TEXT)
@@ -1642,7 +1658,7 @@ class SolverPanel(QWidget):
         lay.addWidget(self.checks)
         lay.addStretch(1)
 
-        for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n):
+        for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n, self.fem_gap, self.fem_ref):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
@@ -1665,7 +1681,8 @@ class SolverPanel(QWidget):
         lam_on = (on("fvm") or on("fdm")) and not blocked
         lam_why = "a board with a metal block, where the rule does not apply" if blocked else "the FVM or the FDM"
         for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), "the Lumped model"),
-                                    (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
+                                    (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model"),
+                                    (self.fem_gap, on("fem"), "the FEM"), (self.fem_ref, on("fem"), "the FEM")):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had
                 base = widget.toolTip()
@@ -1690,6 +1707,8 @@ class SolverPanel(QWidget):
         self._put(self.hot, o.hotspot_c)
         self._put(self.lam_s, o.laminate_s_max_mm)
         self._put(self.lam_n, o.laminate_n_max)
+        self._put(self.fem_gap, o.fem_gap_elements)
+        self._put(self.fem_ref, o.fem_refine)
         self._updating = False
         self._update_cells()
         self._update_availability()
@@ -1705,14 +1724,14 @@ class SolverPanel(QWidget):
 
     def verdicts(self):
         """!
-        @brief The memory verdicts of the selected models that the guard estimates (FVM, FDM, 3D solid) at the current cell.
+        @brief The memory verdicts of the selected models that the guard estimates (FVM, FDM, 3D solid, FEM) at the current cell.
         @details The estimate starts from the cheap lower bound of the unknowns; the exact count (which samples the copper) is made only when the bound fits. The base
                  is that of the calculation process, where the solve runs.
         @return List of memory.Verdict.
         """
-        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        models = tuple(k for k in GUARDED_MODELS if self.cb[k].isChecked())
         return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
-                            quiet=True, laminate_params=self.doc.options.laminate_params())
+                            quiet=True, laminate_params=self.doc.options.laminate_params(), fem_params=self.doc.options.fem_params())
 
     def _update_cells(self):
         """!
@@ -1722,7 +1741,7 @@ class SolverPanel(QWidget):
         # Darker tones on a light window, lighter ones on a dark window (the theme's ok, warn and bad entries), each 4.5:1 or more on its window
         tone = th.colors(th.current_name())
         colours = {"ok": tone["ok"], "slow": tone["warn"], "refuse": tone["bad"]}
-        names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
+        names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
         try:
             verdicts = self.verdicts()
         except ValueError as exc:
@@ -1736,7 +1755,11 @@ class SolverPanel(QWidget):
             gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
             least = "" if v.exact else "at least "
             text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)
-            if v.verdict == "slow":
+            if v.verdict == "refuse" and v.unknowns == 0 and v.message:
+                text = f"{names[v.model]}: {v.message}"           # No mesh can be built (a slanted outline): the reason, not a memory sentence about 0 unknowns
+                if v.model in SKIPPABLE_MODELS and len(self.doc.options.models) > 1:
+                    text += "; it will be left out"
+            elif v.verdict == "slow":
                 text += "; slow"
             elif v.verdict == "refuse":
                 text += (f"; above the memory limit, it will not run: use a cell of {v.cell_fit:.1f} mm or more" if v.cell_fit
@@ -1744,9 +1767,21 @@ class SolverPanel(QWidget):
             elif v.exceeds_available:
                 text += "; more than the memory available now"
             rows.append(f'<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
-            # The 3D solid is only skipped when other models run next to it; any other refusal stops the run (api.simulate)
-            if v.verdict == "refuse" and (v.model != "solid3d" or len(self.doc.options.models) == 1):
+            # The 3D solid and the FEM are only skipped when other models run next to them (api.SKIPPABLE_MODELS, the rule of api.simulate); any other refusal stops the run
+            if v.verdict == "refuse" and (v.model not in SKIPPABLE_MODELS or len(self.doc.options.models) == 1):
                 blocked = blocked or v.message
+            # A mesh above what the direct solver takes needs pyamg: the box stays usable (a small board works without it), the row says what will happen
+            if v.model == "fem" and v.verdict != "refuse":
+                o = self.doc.options
+                n_fem, need = fem_needs_pyamg(self.doc.problem, self.cell.value(), o.fem_gap_elements, o.fem_refine)
+                if need:
+                    # Next to other models the run leaves the FEM out (api.simulate); alone, the run would fail with that reason, so Run is blocked like a refusal
+                    alone = len(self.doc.options.models) == 1
+                    why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
+                           + ("will not run: install it or use a coarser cell" if alone else "will be left out"))
+                    rows.append(f'<span style="color:{colours["refuse"]}">' + html.escape(why) + "</span>")
+                    if alone:
+                        blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
         self.blocked = blocked
         self._style_run_button()
@@ -1755,7 +1790,7 @@ class SolverPanel(QWidget):
         """!
         @brief Set the cell from the heaters, enlarged to the smallest cell the memory guard accepts for the selected models, and say so.
         """
-        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        models = tuple(k for k in GUARDED_MODELS if self.cb[k].isChecked())
         base = suggest_cell_mm(self.doc.problem)
         cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
         self.cell.setValue(cell)
@@ -1781,7 +1816,7 @@ class SolverPanel(QWidget):
         # Only the boxes the user changed are written (a stored value that a box shows rounded or could not hold is never written back by another edit)
         changed = {}
         for box, key in ((self.cell, "cell_mm"), (self.rings, "lumped_rings"), (self.modes, "analytic_modes"), (self.hot, "hotspot_c"),
-                         (self.lam_s, "laminate_s_max_mm"), (self.lam_n, "laminate_n_max")):
+                         (self.lam_s, "laminate_s_max_mm"), (self.lam_n, "laminate_n_max"), (self.fem_gap, "fem_gap_elements"), (self.fem_ref, "fem_refine")):
             if box.value() != self._shown.get(box):
                 changed[key] = box.value()
         self.doc.set_options(models=models, linear_solver=self.solver.currentData(), analytic_local_corrections=self.local.isChecked(), **changed)
