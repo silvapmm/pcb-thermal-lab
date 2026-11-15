@@ -866,6 +866,11 @@ class Step1Page(QWidget):
             self.preview.update()
 
 
+# The words of the parts counter of step 2 for the source keys of the session (the keys, such as 'to.c+placement', are not for the reader)
+SOURCE_WORDS = {"x3": "from the X3 component layer", "to.c+placement": "from paste and placement", "placement by position": "matched by position",
+                "paste only": "from paste only", "placement only": "from placement only"}
+
+
 def _spin(lo, hi, value, decimals, suffix, tip):
     """!
     @brief A spin box with a unit and a tooltip.
@@ -1045,6 +1050,7 @@ class Step2Page(QWidget):
             t.setCellWidget(k, 7, sp)
             tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Datasheet Tj max, °C (0: none); the result gives the margin.")
             tj.setSuffix("")
+            tj.setSpecialValueText("none")                # 0 means no limit (the Properties panel writes "no limit"; a short word keeps the column narrow), not a limit of 0 °C
             tj.setFixedWidth(tj.minimumSizeHint().width())
             tj.valueChanged.connect(lambda v, d=p.designator: self._set(d, tj_max=v))
             t.setCellWidget(k, 8, tj)
@@ -1066,7 +1072,7 @@ class Step2Page(QWidget):
         self._building = False
         counts = sx.parts_info().get("counts", {})
         n_open = len(sx.openings())
-        self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {k}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
+        self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {SOURCE_WORDS.get(k, k)}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
                           + (f"<span style='color:{c['bad']}'>{len(sx.unmatched())} match no part (red in the preview).</span>" if sx.unmatched() else "0 match no part."))
         fr = sx.frame_proposal()
         self.frame_box.setVisible(bool(fr))

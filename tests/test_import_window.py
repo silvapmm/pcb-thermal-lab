@@ -420,7 +420,7 @@ def test_the_window_reads_the_folder_and_fills_the_file_list(window):
     assert "Step 1 is complete" in window.page1.problem.text()
     assert window.page1.layers_label.text().startswith("4:")
     assert "2 vias, 1 component holes" in window.page1.drill_label.text()
-    assert "40.00 x 30.00 mm" in window.page1.outline_label.text()
+    assert "40.00 × 30.00 mm" in window.page1.outline_label.text()
     assert window.page1.layer_pick.count() == 4
 
 

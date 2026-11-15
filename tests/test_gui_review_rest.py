@@ -237,3 +237,41 @@ def test_open_recent_lists_the_projects_newest_first_and_drops_missing_files(win
     os_remove = __import__("os").remove
     os_remove(paths[0])
     assert paths[0] not in win.recent_files()
+
+
+def test_the_import_parts_step_reads_in_words_and_tj_max_zero_is_no_limit(win, tmp_path):
+    """!
+    @brief Step 2 of the import window: the parts counter uses words, not the session keys ('to.c+placement'), and an empty Tj max reads 'none' (no limit, as in
+           the Properties panel; it read 0).
+    @param win Main window fixture.
+    @param tmp_path pytest fixture.
+    """
+    import os
+    import shutil
+
+    from PySide6.QtWidgets import QDoubleSpinBox
+
+    from pcbthermal.gui.import_window import ImportBoardWindow, SOURCE_WORDS
+
+    import pathlib
+
+    # The local boards library (never tracked) sits in the main checkout: look upwards from this file (a worktree is inside it)
+    here = pathlib.Path(__file__).resolve()
+    found = [d / "pcb-library" / "generated" / "synthetic" / "paste-board" / "files" for d in here.parents]
+    src = next((str(d) for d in found if d.is_dir()), "")
+    if not src:
+        pytest.skip("the synthetic paste board of the local library is not here")
+    work = tmp_path / "paste-board"
+    shutil.copytree(src, work, ignore=shutil.ignore_patterns("variants"))
+    dlg = ImportBoardWindow(win)
+    dlg.confirm = lambda *a: True
+    dlg.notify = lambda *a: None
+    dlg.open_path(str(work))
+    dlg.go(1)
+    QApplication.processEvents()
+    text = dlg.page2.info.text()
+    assert "to.c" not in text and any(w in text for w in SOURCE_WORDS.values()), text
+    spins = [w for w in dlg.page2.table.findChildren(QDoubleSpinBox) if w.specialValueText()]
+    assert spins and all(s.specialValueText() == "none" for s in spins)
+    assert any(s.value() == 0 and s.text() == "none" for s in spins)
+    dlg.close()
