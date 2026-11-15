@@ -29,19 +29,19 @@
         "name": "Aluminium",
         "k_w_per_mk": 204.0,
         "rho_cp_j_per_m3k": 2440000.0,
-        "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK. NOTE: 204 W/mK is an alloy value from that table, not pure aluminium (237) nor 6061-T6 (167); typical value, check your alloy."
+        "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK. 204 W/mK is the value of that table: neither pure aluminium (237 W/mK) nor the alloy 6061-T6 (167 W/mK) of Lienhard Table A.1; check your alloy."
       },
       {
         "name": "Copper",
         "k_w_per_mk": 386.0,
         "rho_cp_j_per_m3k": 3450000.0,
-        "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK. NOTE: the board copper of a new project is 385 W/mK (Materials); the 1 W/mK difference (0.3 %) is not harmonised on purpose, no number moves."
+        "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK. The board copper of a new project is 385 W/mK (Materials), a separate typical value without a source; the two differ by 0.3 % and are left as they are so that no number moves."
       },
       {
         "name": "Brass",
         "k_w_per_mk": 111.0,
         "rho_cp_j_per_m3k": 2910000.0,
-        "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK. NOTE: rho cp is stored as 2.91e6 J/m3K (the note's own figures give 2.89e6); the difference is under 1 %."
+        "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK. rho cp is stored as 2.91e6 J/m3K (the note's own figures give 2.89e6); the difference is under 1 %."
       },
       {
         "name": "Carbon steel",
@@ -61,7 +61,7 @@
         "name": "Thermal paste, good (measured 0.3 K·cm²/W)",
         "k_w_per_mk": 1.5,
         "thickness_mm": 0.05,
-        "note": "Apparent conductivity including the two contact resistances (ASTM D5470 measured totals: Arctic Silver 5 0.31 K cm2/W at 23.5 um). Typical value, no source for the preset as a whole."
+        "note": "Apparent conductivity including the two contact resistances (ASTM D5470 measured totals: Arctic Silver 5 0.31 K cm2/W at 23.5 um)."
       },
       {
         "name": "Paste, typical default (2 W/mK, 100 µm)",

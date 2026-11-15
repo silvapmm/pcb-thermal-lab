@@ -20,8 +20,10 @@ def test_unsourced_library_entries_carry_the_mark_and_the_values_are_unchanged()
     fr4 = lib["dielectrics"][0]
     assert (fr4["k_through"], fr4["k_inplane"]) == (0.3, 0.9) and "Azar and Graebner" in fr4["note"]
     for e in lib["interfaces"]:
-        if e["name"].startswith(("Paste, typical", "Gap pad", "Hard gap pad")):
+        if e["name"].startswith(("Paste, typical", "Soft gap pad", "Gap pad", "Hard gap pad")):
             assert "no source" in e["note"].lower(), e["name"]
+        elif e["name"].startswith("Thermal paste, good"):
+            assert "no source" not in e["note"].lower(), e["name"]   # it rests on a measured ASTM D5470 total
     bga = next(e for e in lib["heatsinks"] if e["name"] == "BGA 40×40×18, natural")
     assert bga["theta_sa_k_per_w"] == 7.68 and bga["note"].startswith("Catalogue value at a 75 K rise")
     assert next(e for e in lib["metals"] if e["name"] == "Copper")["k_w_per_mk"] == 386.0

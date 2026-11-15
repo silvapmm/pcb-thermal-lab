@@ -67,7 +67,7 @@ Only the symbols used in more than one section are listed; the others are define
 | air properties | fits of `convection.air_properties` | [Lienhard2024] Table A.6 (section 8; checked in audit L1/L5) | R |
 | metals of the blocks (`libraries.metals`) | Al 204, Cu 386, brass 111, carbon steel 54, stainless 304 14.4 W/mK | web tables [MetalTables] (addresses not recorded). Against [Lienhard2024] Table A.1 (PDF 753 to 754, text layer): pure aluminium 237 and alloy 6061-T6 167 (204 is neither), brass 109, AISI 1010 64, AISI 304 13.8; the copper of a block (386) and of the board (385) differ by 0.3 % | R as recorded, S |
 
-The dielectric presets other than FR-4, two of the interface presets and the 'typical default' paste carry no source in their notes; the package and heatsink libraries carry their own (catalogue, datasheet or 'assumed').
+The dielectric presets other than FR-4, the soft gap pad, the two gap pads and the 'typical default' paste carry no source in their notes (marked 'no source'; the 'good' paste rests on its measured ASTM D5470 total); the package and heatsink libraries carry their own (catalogue, datasheet or 'assumed').
 
 ## 1. The physical description
 
