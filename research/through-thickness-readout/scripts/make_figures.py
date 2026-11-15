@@ -70,7 +70,7 @@ def fig_04():
         for a, col in ((4.0, "#1f77b4"), (10.0, "#2ca02c"), (20.0, "#d62728")):
             r = [x for x in rows if x["k"] == k and x["a_mm"] == a]
             ta = [x["t_mm"] / a for x in r]
-            a1.plot(ta, [x["d3"] / x["bound"] for x in r], mk + "-", color=col, ms=4, lw=0.7, label=f"k {k:.0f}, a {a:.0f} mm" if k == 385.0 else None)
+            a1.plot(ta, [x["d3"] / x["bound"] for x in r], mk + "-", color=col, ms=4, lw=0.7, label=None)
             a2.plot(ta, [x["parabola"] / x["d3"] for x in r], mk + "-", color=col, ms=4, lw=0.7)
     a1.axhline(2.0 / 3.0, color="gray", ls=":")
     a1.text(0.0012, 0.68, "2/3: heat spreads inside the plate", fontsize=7)
@@ -80,14 +80,18 @@ def fig_04():
     a1.set_xlabel("t / a  (thickness over source side)")
     a1.set_ylabel("3D (surface - column mean) / bound q'' t / 2k")
     a1.set_ylim(0, 1.15)
-    a1.legend(fontsize=7, title="colour = source side; marker = k", title_fontsize=7)
+    # Proxy handles: one entry per source side (colour) and one per conductivity (marker), so that every marker of the plot is explained
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color=c, lw=1.5, label=f"a {a:.0f} mm") for a, c in ((4.0, "#1f77b4"), (10.0, "#2ca02c"), (20.0, "#d62728"))]
+    handles += [Line2D([], [], color="gray", marker=m, ls="none", label=f"k {k:.0f} W/mK") for k, m in ((385.0, "o"), (150.0, "s"), (50.0, "^"))]
+    a1.legend(handles=handles, fontsize=7, title="colour = source side; marker = k", title_fontsize=7, ncol=2)
     a2.axhline(1.0, color="k", lw=0.8)
     a2.axvline(0.5, color="gray", ls=":")
     a2.text(0.52, 2.5, "t/a = 0.5", fontsize=7)
     a2.set_xscale("log")
     a2.set_xlabel("t / a")
     a2.set_ylabel("parabolic read-out / 3D difference")
-    a2.set_title("the parabola is exact to 6 % up to t/a = 0.5 and overshoots beyond", fontsize=8.5)
+    a2.set_title("the parabola is within 7 % up to t/a = 0.5 and overshoots beyond", fontsize=8.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIG, "fig_04_thickness_sweep.png"), dpi=105)
     plt.close(fig)

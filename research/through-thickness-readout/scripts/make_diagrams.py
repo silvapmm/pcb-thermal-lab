@@ -133,13 +133,13 @@ def fig_06_design():
     fig, ax = D.canvas(11.5, 3.6)
     ax.set_xlim(0, 12)
     ax.set_ylim(0, 4)
-    steps = [(0.1, "Problem\n(thick layers\nas drawn)", "#cfe3f5"), (2.2, "expand\n(new module):\nN sub-layers,\nmetal links,\nheater to sub-layer 1", "#f9e0b0"),
-             (4.5, "solver\nFVM / FDM /\nAnalytic / Lumped\n(unchanged)", "#d9ead3"), (6.8, "collapse:\nlayer mean = mean\nof sub-layers;\nsurface = sub-layer 1\n+ q t / 2Nk", "#f9e0b0"),
-             (9.1, "SteadyResult\n(L layers as before;\nnew array\n'surface')", "#cfe3f5")]
+    steps = [(0.05, "Problem\n(thick layers\nas drawn)", "#cfe3f5"), (2.45, "expand\n(new module):\nN sub-layers,\nmetal links,\nheater to sub-layer 1", "#f9e0b0"),
+             (4.85, "solver\nFVM / FDM /\nAnalytic\n(unchanged;\nnot the Lumped)", "#d9ead3"), (7.25, "collapse:\nlayer mean = mean\nof sub-layers;\nsurface = sub-layer 1\n+ q t / 2Nk", "#f9e0b0"),
+             (9.65, "SteadyResult\n(L layers as before;\nnew array\n'T_surface')", "#cfe3f5")]
     for x, text, col in steps:
         D.box(ax, x, 1.2, 2.0, 1.9, text, color=col, size=7.5)
-    for x in (2.1, 4.4, 6.7, 9.0):
-        D.arrow(ax, x, 2.15, x + 0.1, 2.15)
+    for x in (2.05, 4.45, 6.85, 9.25):                           # from the right side of a box to the left side of the next (0.4 apart)
+        D.arrow(ax, x + 0.03, 2.15, x + 0.37, 2.15)
     ax.text(6.0, 0.55, "rules: only layers with fill = 1 and thickness above a limit are expanded; the rest of the program sees L layers as before", ha="center", fontsize=8)
     D.save(fig, os.path.join(FIG, "fig_06_expand_collapse.png"))
 
