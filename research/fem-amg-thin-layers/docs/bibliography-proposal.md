@@ -1,7 +1,7 @@
 # Proposed entries for research/theory/BIBLIOGRAPHY.md
 
 Proposal only: `research/theory/BIBLIOGRAPHY.md` and the other project documents stay untouched by this branch (CLAUDE.md 9.5). Status keys: R read in full, S summary, M memory, N not obtained.
-**Nothing below was opened for this plan: every status is N or M until the literature step of the investigation is done** (open archives first, then the web; the maintainer's papers library `papers/` is read-only and nothing from it is committed).
+**Nothing below was opened for this plan: every status is N or M until the literature step of the investigation is done** (review: still true at the close; the review did not open them either and relied on a dense eigenvalue check, a direct solve and an independent column solve instead, README 10.2; the column preconditioner is block (line) Jacobi, whose textbook source would be Saad, chapter on block preconditioners, status N) (open archives first, then the web; the maintainer's papers library `papers/` is read-only and nothing from it is committed).
 
 ## In the local papers library (listed by file name, not opened here)
 

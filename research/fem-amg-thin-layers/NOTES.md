@@ -7,3 +7,4 @@
 * example_2mm has 67 229 unknowns (README guessed 40 000).
 * E1..E7 on example_2mm and a subset on example_1mm: no variant gains 10 % (best 0.97 of base). Stopping rule: negative for E1-E6.
 * Unplanned finding: a column (vertical line) block solve as preconditioner (`colblock` in study_extras.py) gives 0.55 of base total at 1mm, 0.16 at 2mm.
+* Review (README 10): the 331 is the old tolerance 1e-12 (REVIEW_SPEED 1.2 gives 280 at 1e-10); column solves reproduced by an independent Thomas solve; SPD checked densely; read-outs within 5.5e-10 K; 13 of 29 records are direct in the program; not adopted (maintainer keeps the pyamg default).

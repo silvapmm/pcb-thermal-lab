@@ -1,11 +1,11 @@
 # fem-amg-thin-layers: a cheap AMG for the thin, anisotropic layers of the FEM
 
-**State: run by the executor, NOT yet reviewed.** Tree: `development` 6c225276 plus this branch; reference: the current default of `femcore.Model.solve` (smoothed aggregation, theta 0, V cycle, CG 1e-10); one machine (the maintainer's, shared, `nice 10`), pyamg 5.4.1. Numbers of sections 1 to 4 that are quoted from `releases/2.8.0/fem-model/REVIEW_SPEED.md` are marked there; section 7 holds what was measured here. The conclusions are the executor's reading, for the reviewer to check.
+**State: reviewed and closed (section 10: GO for closing; the column preconditioner is NOT adopted, by the maintainer's preference: the program keeps its pyamg default).** Tree: `development` 6c225276 plus this branch; reference: the current default of `femcore.Model.solve` (smoothed aggregation, theta 0, V cycle, CG 1e-10); one machine (the maintainer's, shared, `nice 10`), pyamg 5.4.1. Numbers of sections 1 to 4 that are quoted from `releases/2.8.0/fem-model/REVIEW_SPEED.md` are marked there; section 7 holds what was measured here. The conclusions are the executor's reading, for the reviewer to check.
 
 ## 1. Question
 
 The finite-element solve (`pcbthermal/femcore.py`, `Model.solve`) above the direct limit is conjugate gradients preconditioned by pyamg smoothed aggregation with
-`strength=("symmetric", {"theta": 0.0})`, `max_coarse=200`, V cycle. On the example board at 1 mm (276 000 unknowns) it needs **331 iterations** (70 % of a 15 s run; REVIEW_SPEED, D.2). The reviewer
+`strength=("symmetric", {"theta": 0.0})`, `max_coarse=200`, V cycle. On the example board at 1 mm (276 000 unknowns) it needed **331 iterations** (70 % of a 15 s run; REVIEW_SPEED, D.2). **Review correction:** the 331 is the count at the OLD CG tolerance 1e-12; the speed branch set 1e-10, and the same review table (`REVIEW_SPEED.md` 1.2) already gives **280** at 1e-10, which is what this study measures (7.1); the 15 s run is also the tree before the assembly speed-up (16.1 s before, 11.7 s after, REVIEW_SPEED 1.3). The reviewer
 measured that `strength="evolution"` cuts them to **28 to 34** but its setup costs **37 to 45 s** against 14.5 s of solve, so the total gets worse.
 
 **Can a cheap variant (pyamg only, MIT, no new dependency, all platforms) make the whole solve (setup + CG) faster on thin, strongly anisotropic layered meshes, with the same field?** Why it matters: the
@@ -13,7 +13,7 @@ solve is the biggest cost of a FEM run, the memory guard and the 2.8.0 cap are s
 
 ![Section of a thin-layer stack with two ways of aggregating](figures/fig_01_thin_layer_coarsening.png)
 
-*Figure 1 (figures/fig_01_thin_layer_coarsening.png, made by scripts/make_diagrams.py, made by scripts/make_diagrams.py): the thin copper slabs couple strongly through the thickness and weakly in the plane; an aggregation that ignores this (a) mixes the two, columns first (b) respects it. Sketch, not to scale.*
+*Figure 1 (figures/fig_01_thin_layer_coarsening.png, made by scripts/make_diagrams.py): the thin copper slabs couple strongly through the thickness and weakly in the plane; an aggregation that ignores this (a) mixes the two, columns first (b) respects it. Sketch, not to scale.*
 
 ## 2. Hypotheses (to be tested, none is a finding)
 
@@ -94,7 +94,7 @@ All times are wall seconds of one process on a shared machine (load 1.5 to 3.3 d
 
 ### 7.1 E0: the default is NOT reproduced as 331 iterations
 
-`Model.solve(force='cg')` of the program on `example_1mm` (275 724 unknowns, not 276 000): **280 CG iterations**, 9.67 s in CG, 11.2 s the whole solve with assembly, balance 1.000000000003, residual 2.3e-10 (this study, script of the session, wrapper counting the calls of `spla.cg`). The study's `base` run: 280 its, 0.51 + 9.64 s. The 331 of the reviewer's table is therefore not reproduced on this tree and machine (cause not investigated: another tree or another mesh option of that measurement is possible). All ratios below are against the 280 / 10.15 s measured here. `example_2mm` has 67 229 unknowns (the plan said about 40 000).
+`Model.solve(force='cg')` of the program on `example_1mm` (275 724 unknowns, not 276 000): **280 CG iterations**, 9.67 s in CG, 11.2 s the whole solve with assembly, balance 1.000000000003, residual 2.3e-10 (this study, script of the session, wrapper counting the calls of `spla.cg`). The study's `base` run: 280 its, 0.51 + 9.64 s. **Cause (found by the review, 10.1):** the 331 was measured at the old CG tolerance 1e-12; at 1e-10, the program's tolerance since the speed branch, the same review table already gives 280 (`releases/2.8.0/fem-model/REVIEW_SPEED.md` 1.2, row `example_board` 1 mm: 331 at 1e-12, 280 at 1e-10). So the baseline IS reproduced; the 'not reproduced' of the first version of this section was wrong. All ratios below are against the 280 / 10.15 s measured here. `example_2mm` has 67 229 unknowns (the plan said about 40 000).
 
 ### 7.2 E1 to E7 on the example board
 
@@ -158,14 +158,16 @@ The gain is large on thin boards of up to about 300 000 unknowns and disappears 
 
 ![Ratio against the default](figures/fig_04_ratio_vs_size.png)
 
-*Figure 4 (figures/fig_04_ratio_vs_size.png, scripts/make_figures.py): total time divided by the default's, the 29 frozen records (dots) and the cases of the table above (diamonds).*
+*Figure 4 (figures/fig_04_ratio_vs_size.png, scripts/make_figures.py): total time divided by the default's, the 29 frozen records (dots) and the cases of the table above (diamonds). The dots left of 30 000 unknowns are records the program solves directly (SuperLU), so for them the ratio is a robustness check, not a speed-up the program would see.*
 
 ### 7.5 E12: the 29 frozen finite-element records (`study_frozen_robustness.py`, all of them below 500 000 unknowns, run through CG)
 
 | Candidate | records converged | max dT (K) | ratio of total time: median / min / max | records slower than the default | the 11 records with at least 50 000 unknowns: median ratio |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | colblock | 29 of 29 | 1.09e-9 | 0.14 / 0.04 / 0.85 | 0 | 0.26 |
-| colblock_amg | 29 of 29 | 1.06e-9 | 0.61 / 0.19 / 1.42 | 1 (`part_across_outline` at 0.5 mm, 93 060 unknowns, 2.32 s against 1.63 s) | 0.85 |
+| colblock_amg | 29 of 29 | 1.06e-9 (review: 8.9e-10) | 0.61 / 0.19 / 1.42 (review: worst 1.46) | 1 (`part_across_outline` at 0.5 mm, 93 060 unknowns, 2.32 s against 1.63 s) | 0.85 |
+
+**Review note:** 13 of the 29 records have 30 000 unknowns or fewer, which the program solves with SuperLU, not CG (`FEM_DIRECT_MAX`); they test the robustness of the preconditioners only. On the 16 records the program does solve by CG (36 864 to 93 060 unknowns) the median ratios are **0.23** (`colblock`, worst 0.85) and **0.80** (`colblock_amg`, worst 1.42) (10.4).
 
 Repeatability (`study_repeat.py`, example 2 mm, two hierarchies each): `base` 525 and 525 its, the two fields differ by **4.05e-10 K**; `colblock_amg` 127 and 127 its, 2.43e-10 K; `colblock` **0.00 K** (no random vector: a sparse LU). So the default itself does not repeat bitwise; both are far below 1e-8 K. The 29 records are all small (6 480 to 93 060 unknowns), where the column solve wins most; they say nothing about 300 000 and more, section 7.4 does.
 
@@ -211,4 +213,60 @@ Iterations of CG with the hierarchy built once (stale) against a fresh one.
 * **Read in full for this plan:** `pcbthermal/femcore.py` `solve` (lines 352 to 408) and `assemble`, `fem.py` header (steady only; the FEM has no mass matrix in this tree), `releases/2.8.0/fem-model/REVIEW_SPEED.md` table D.2 and `DECISIONS_REVIEWER.md` D (quoted in section 1, not re-measured; the 331 is not reproduced, 7.1), the pyamg 5.4.1 signatures and docstrings of `smoothed_aggregation_solver`, `ruge_stuben_solver`, `rootnode_solver` (checked in the installed package: the parameter names used are accepted, only `aggregate='pairwise'` is refused at run time).
 * **Literature: none opened** (status N for all, `docs/bibliography-proposal.md`). The column solve is a line-relaxation idea known for anisotropic problems, but no source was read here for it: its description above is the executor's own, not a published claim. No published case was reproduced; the independent reference of every run is the program's own default (same matrix, same CG), plus the direct solve on the tiny system of the tests.
 * **Run:** sections 7.1 to 7.6 (one run per cell); `research/fem-amg-thin-layers/tests` (with `tests/test_docs.py` and `tests/test_license_header.py`: 874 passed, 1 skipped).
+* **Reviewed:** section 10 (independent column solve, dense SPD check, read-outs of `fem.solve_steady`, re-runs of the baseline, three pyamg variants, the 29 records, repeatability and tolerance).
 * **Not run:** case 2 at 828 000 unknowns; any case above 500 000; a second platform; the surface and column read-outs per variant; the real transient matrix; block Gauss-Seidel by column as a smoother inside the hierarchy (pyamg has no hook for it, would need its own cycle); E11 with extra candidate vectors; the `big_cap` case at 800 000.
+
+## 10. Review
+
+**Verdict: GO for closing the investigation** (negative result for the pyamg variants, confirmed; the column preconditioner is a real but conditional gain, measured, NOT adopted: the maintainer keeps the pyamg default, `INTEGRATION.md` 3). Tree of the review: `development` 6c225276 plus this branch, pyamg 5.4.1, the same shared machine (load 2.6 to 4.3), every run `nice 10`, the 1 mm and 0.5 mm runs alone under the heavy-job lock, every peak below 2.0 GB except the dense check (3.9 GB footprint, about 2 minutes). The scratch script of the review (`rev_check.py`, outside the repository) imports the program and changes nothing; it does not use `lib/variants.py` for the column solve.
+
+### 10.1 The baseline of 331 iterations (claim of 7.1)
+
+The cause is the CG tolerance, not the tree or the machine: `releases/2.8.0/fem-model/REVIEW_SPEED.md` 1.2 gives, for the example board at 1 mm (275 724 unknowns), **331 iterations at 1e-12** (the default before the speed branch) and **280 at 1e-10** (the default since). The review re-ran the default at 1e-10: **280** iterations, true residual 2.27e-10 (setup 0.33 s, CG 9.69 s). Section 1 and 7.1 are corrected: the baseline is reproduced, the earlier "not reproduced" was wrong. The 15 s of section 1 is the run time before the assembly speed-up (16.1 s, REVIEW_SPEED 1.3).
+
+### 10.2 The column preconditioners, by an independent implementation
+
+* **Independent column solve**: own grouping of the unknowns by a lexicographic sort of (x, y) rounded to 0.1 um (the study rounds to 1 nm with `np.unique`), own batched Thomas (tridiagonal) solve of every column, no sparse LU. On every mesh tried the coupling inside a column is **tridiagonal** in z (band 1) and every Thomas pivot is positive. Its inverse equals the dense inverse of the column matrix to 1e-12 (relative).
+* **Symmetric positive definite (dense check)** on three small meshes (thin4 at 10 mm, 3 864 unknowns; example at 10 mm; case 2 at 5 mm, 4 335 unknowns): the column matrix P is symmetric (1e-13) with a positive smallest eigenvalue; the operators of the default V cycle, `colblock` and `colblock_amg`, built column by column, are symmetric to 1e-12 and positive definite (smallest eigenvalue 4.5e-4 to 2.7e-2). CG with them is legitimate.
+* **Condition number of the preconditioned matrix** (same meshes), the reason of the gain: default V cycle **30 757 / 25 367 / 84** (thin4, example, case 2), `colblock` 257 / 264 / 2 458, `colblock_amg` **17.3 / 17.2 / 23.3**; CG iterations 475 / 900 / 98, 69 / 73 / 85, 50 / 50 / 45. The default V cycle (theta 0, huge aggregates, operator complexity 1.04) is weak on thin copper slabs and good on the thick plate; the column solve is the reverse; their sum is good on both.
+* **Iteration counts with the independent solve** (the program's matrices, CG at 1e-10), against the study (7.4):
+
+| Case (unknowns) | default its / total s | Thomas `colblock` its / total s | Thomas `colblock_amg` its / total s | study (its) | largest difference to the default, K |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| example 2 mm (67 229) | 525 / 5.21 | 436 / 0.84 | 127 / 1.45 | 525, 436, 127 | 2.7e-10, 1.6e-10 |
+| thin4 2 mm (64 032) | 511 / 4.41 | 303 / 0.59 | 116 / 1.23 | not run | 2.8e-10, 1.5e-10 |
+| case 2 plate 1 mm (84 375) | 56 / 0.76 | 386 / 0.96 | 47 / 0.75 | 56, 386, 47 | 1.8e-10, 1.9e-10 |
+| example 1 mm (275 724) | 280 / 10.03 | 969 / 6.56 (0.65) | 155 / 6.42 (0.64) | 280, 969, 155 | 3.6e-10, 8.6e-11 |
+| case 2 plate 0.5 mm (315 375) | 46 / 2.26 | 725 / 5.71 (2.53) | 52 / 2.89 (1.28) | 46, 725, 52 | 2.8e-10, 1.9e-10 |
+
+Every iteration count of the study is reproduced exactly by a solve that shares nothing with `lib/variants.py` but the matrix. The times agree within the noise of the shared machine except `colblock_amg` on case 2 at 0.5 mm (1.28 here, 1.40 in the study), and the Thomas `colblock` at 1 mm (0.65) is slower than the study's sparse LU (0.55): the LU is the faster column solve.
+* **Memory of the block LU** (not priced by the study): the L and U factors of the column matrix hold **1 078 922** non-zeros against **7 125 718** in A at 275 724 unknowns (15 %; 263 072 against 1 716 741 at 67 229): about 13 MB at 1 mm, invisible in the peaks of 1.9 to 3.0 GB. The claim that the peak does not change is plausible on this count.
+* **Read-outs, not only the unknown vector** (the gap of 7.7): the full `fem.solve_steady` was run with the program's pyamg replaced by the Thomas `colblock` and `colblock_amg` (the program is not edited: the import of pyamg is substituted in the scratch process), and every read-out of the result was compared with the default run: the field T (column read-out), `T_surface`, `T_surface_mean`, `T_point`, `t_max`, `t_min`, `t_mean`, the hottest point and the two face maxima, the layer means, the heat paths and the balance. Largest difference over all read-outs: example 4 mm **5.5e-10 K** (both), example 2 mm 2.9e-10 / 2.7e-10 K, case 2 at 1 mm 1.1e-10 / 9.9e-11 K. The direct solve (SuperLU) of the example at 4 mm differs from the default CG by **1.2e-9 K**: the default itself sits about 1e-9 K from the exact solution, so the column variants are as close to it as the default is.
+
+### 10.3 The pyamg variants (claim b), re-run with own calls
+
+Own `pyamg.smoothed_aggregation_solver` calls (not `lib/variants.py`), example board: at 2 mm default 525 its / 4.32 s, energy 523 / 4.34, theta 0.25 372 / 29.96 (operator complexity 4.41), evolution k 2 epsilon 4 46 / 18.06 (setup 12.49 s, complexity 6.37), coarse level 2000 525 / 4.27; at 1 mm default 280 / 10.03, energy 275 / 9.79 (0.98), coarse 2000 280 / 9.85 (0.98). Iterations equal to the study's; no variant gains 10 % at 1 mm. Confirmed. The evolution run at 1 mm (52.9 s) and the refusals (`pairwise` TypeError, the Ruge-Stueben message) were not re-run.
+
+### 10.4 The 29 frozen records (claim d), re-run
+
+`study_frozen_robustness.py` re-run for both candidates: **29 of 29** converge for each, largest field difference **1.10e-9 K** (`colblock`) and **8.9e-10 K** (`colblock_amg`); `colblock` iteration counts identical to the first run on all 29 (sparse LU, deterministic); the default and `colblock_amg` differ by one iteration on 8 records (three on one), the non-repeatability of pyamg that 7.5 records. Ratios of the total: `colblock` median 0.14, worst 0.83; `colblock_amg` median 0.61, worst **1.46** (`part_across_outline` at 0.5 mm, 93 060 unknowns, 2.33 s against 1.59 s; the first run said 1.42). **Correction of the reading:** 13 of the 29 records have at most 30 000 unknowns and the program solves them with SuperLU, not CG; on the 16 the program solves by CG (36 864 to 93 060 unknowns) the medians are **0.22** (`colblock`, worst 0.83) and **0.81** (`colblock_amg`, worst 1.46). The "2 to 25 times faster on every record" of the first INTEGRATION.md overstated the gain the program would see.
+
+### 10.5 Repeatability, tolerance and the acceptance rule (claims e and f)
+
+* `study_repeat.py` re-run (example 2 mm): default 525 and 525 its, two fields **3.5e-10 K** apart (first run 4.05e-10); `colblock` 436 and 436, **0.0 K**; `colblock_amg` 127 and 127, 1.7e-10 K. Confirmed.
+* CG tolerance, own run on the example at 2 mm: 1e-10 525 its, 1e-9 476 its (field 1.29e-9 K from 1e-10, 1.26e-9 K from 1e-12), 1e-8 424 its (**1.52e-8 K**: rejected, confirmed), 1e-12 625 its with the same true residual 3.0e-10 as 1e-10 (the docstring's point that asking for less than 1e-10 buys nothing holds here too).
+* The acceptance arithmetic of 7.7 is right: example 1 mm 0.55 and 0.64 pass; case 2 at 1 mm 1.09 and 1.01 fail; the example at 487 048 unknowns 1.07 and 0.84 (16 %) fail. Case 2 at 828 375 unknowns, the mesh on which the default's first CG pass stops at a true residual of 1.1e-8 and the restart fires (REVIEW_SPEED 1.2), was not run (more than 4 GB): whether `colblock_amg` drifts the same way is unknown. The restart logic of `Model.solve` does not depend on the preconditioner and stays the acceptance of the result (true residual at most 1e-8), so a column preconditioner cannot return a wrong field silently; it can only be slower or fail to converge (the latter raises).
+
+### 10.6 Claims not confirmed or not testable
+
+* **'colblock wins when the vertical coupling dominates'**: not found, as 7.4 already says (the vertical share is 0.24 to 0.29 everywhere). What separates the cases in 10.2 is the condition number of the default V cycle (25 000 to 31 000 on the thin boards, 84 on the plate), which costs a few CG iterations to estimate (the Lanczos coefficients of CG give it for free after about 20 iterations). A selection rule would need a cheap set of about ten boards (thin 2, 4, 8 layers, a thick plate, a block on a board, a dense via field) at three cells between 100 000 and the cap; not done.
+* **A fall-back to the default after N iterations** is safe for correctness (any SPD preconditioner, any start vector, the true-residual check unchanged) but does not cure the 1.28 to 1.46 slow-down measured, since those runs converge well before any sensible N; it protects only against non-convergence (INTEGRATION.md 4).
+* **E8 (c), the transient**: confirmed to be an assumption: `femcore.py` and `fem.py` hold no mass or capacity matrix on this tree (`grep`), so K + s x (mean diagonal) is not the program's K + M/dt.
+
+### 10.7 Figures (looked at)
+
+Figure 1 (aggregation sketch) and 2 (flow chart) are correct and readable; figure 2 draws the sum for both variants and says in the middle that `colblock` takes only the upper path. Figure 3 matches the table of 7.2 (bars and labels). Figure 4 holds the 29 records and the named cases; its caption now says that the records left of 30 000 unknowns are direct solves in the program. Not redrawn: no number in them moved beyond the noise.
+
+### 10.8 Limits and what the review did not verify
+
+Not run by the review: case 2 at 828 375 unknowns and anything above 487 048 unknowns (memory), the evolution run at 1 mm, the reuse study (E8, accepted from the logs and the reading of the script), `lloyd`, `rs`, `root`, `gs2`, `jac`, the W cycle, ILU and the scaling extras, a second platform. The literature (status N for every entry, `docs/bibliography-proposal.md`) was not opened by the review either: the column solve is a line (block) Jacobi preconditioner, a textbook idea for anisotropic problems, but no published case was reproduced; the independent references of this review are the dense eigenvalue check, the direct solve and the independent Thomas implementation. Research tests: `research/fem-amg-thin-layers/tests` 21 passed, 1 skipped.
