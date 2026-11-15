@@ -1,5 +1,5 @@
 {
-  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure.",
+  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure. Typical values without a recorded source (marked in the notes and tooltips): copper 385 W/mK (pure copper is 398 at 20 °C; kept, 1.5 % on the hot side), FR-4 in the plane 0.9 W/mK, emissivity 0.9, the films 10 / 15 / 10 W/m2K of a new board (top / bottom / edges; program defaults of the original program) and the presets of the dielectric and interface libraries.",
   "version": 1,
   "libraries": {
     "via_fills": [
@@ -21,7 +21,7 @@
       {
         "name": "Copper",
         "k_w_per_mk": 385.0,
-        "note": "Electroplated copper fill (plated shut): a real heat path, 3.3 times the plating of a 0.3 mm via."
+        "note": "Electroplated copper fill (plated shut): a real heat path, 3.3 times the plating of a 0.3 mm via. The conductivity 385 W/mK is a typical value, no source (pure copper is 398 at 20 °C)."
       }
     ],
     "metals": [
@@ -29,19 +29,19 @@
         "name": "Aluminium",
         "k_w_per_mk": 204.0,
         "rho_cp_j_per_m3k": 2440000.0,
-        "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK."
+        "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK. 204 W/mK is the value of that table: neither pure aluminium (237 W/mK) nor the alloy 6061-T6 (167 W/mK) of Lienhard Table A.1; check your alloy."
       },
       {
         "name": "Copper",
         "k_w_per_mk": 386.0,
         "rho_cp_j_per_m3k": 3450000.0,
-        "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK."
+        "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK. The board copper of a new project is 385 W/mK (Materials), a separate typical value without a source; the two differ by 0.3 % and are left as they are so that no number moves."
       },
       {
         "name": "Brass",
         "k_w_per_mk": 111.0,
         "rho_cp_j_per_m3k": 2910000.0,
-        "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK."
+        "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK. rho cp is stored as 2.91e6 J/m3K (the note's own figures give 2.89e6); the difference is under 1 %."
       },
       {
         "name": "Carbon steel",
@@ -67,25 +67,25 @@
         "name": "Paste, typical default (2 W/mK, 100 µm)",
         "k_w_per_mk": 2.0,
         "thickness_mm": 0.1,
-        "note": "A typical joint on a real heatsink."
+        "note": "Typical value, no source. A typical joint on a real heatsink."
       },
       {
         "name": "Soft gap pad (3 W/mK, 0.5 mm)",
         "k_w_per_mk": 3.0,
         "thickness_mm": 0.5,
-        "note": "Gap pads are 1 to 6 W/mK and 0.5 to 1.2 mm."
+        "note": "Gap pads are 1 to 6 W/mK and 0.5 to 1.2 mm. Typical value, no source for the preset as a whole."
       },
       {
         "name": "Gap pad (1 W/mK, 0.5 mm)",
         "k_w_per_mk": 1.0,
         "thickness_mm": 0.5,
-        "note": ""
+        "note": "Typical value, no source."
       },
       {
         "name": "Hard gap pad (1 W/mK, 1 mm)",
         "k_w_per_mk": 1.0,
         "thickness_mm": 1.0,
-        "note": ""
+        "note": "Typical value, no source."
       }
     ],
     "dielectrics": [
@@ -95,7 +95,7 @@
         "k_inplane": 0.9,
         "rho": 1850.0,
         "cp": 900.0,
-        "note": "Glass-reinforced epoxy: 0.29 to 0.34 W/mK across, about 0.9 in the plane."
+        "note": "Typical value, no source for the in-plane 0.9 W/mK, density 1850 and specific heat 900 (a part on bare laminate reads about +25 % / -15 % of the rise with 0.6 / 1.2 W/mK in plane). Through the board 0.3 W/mK has second-hand support: 0.29 measured by Azar and Graebner, quoted in a thesis; 'typical 0.3' in the literature."
       },
       {
         "name": "FR-4 high Tg / filled",
@@ -103,7 +103,7 @@
         "k_inplane": 1.0,
         "rho": 1900.0,
         "cp": 900.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       },
       {
         "name": "Polyimide (flex)",
@@ -111,7 +111,7 @@
         "k_inplane": 0.15,
         "rho": 1420.0,
         "cp": 1090.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       },
       {
         "name": "PTFE ceramic (RO4350B type)",
@@ -119,7 +119,7 @@
         "k_inplane": 0.69,
         "rho": 1860.0,
         "cp": 830.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       },
       {
         "name": "Metal-core dielectric (2 W/mK)",
@@ -127,7 +127,7 @@
         "k_inplane": 2.0,
         "rho": 2300.0,
         "cp": 900.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       },
       {
         "name": "Alumina ceramic (96 %)",
@@ -135,7 +135,7 @@
         "k_inplane": 24.0,
         "rho": 3750.0,
         "cp": 800.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       },
       {
         "name": "Aluminium nitride",
@@ -143,7 +143,7 @@
         "k_inplane": 170.0,
         "rho": 3260.0,
         "cp": 740.0,
-        "note": ""
+        "note": "Typical value, no source. A starting value for this material, check your datasheet."
       }
     ],
     "package_theta": [
@@ -266,7 +266,7 @@
         "heatsink": "BGA 40×40×18",
         "flow": "natural",
         "theta_sa_k_per_w": 7.68,
-        "note": "SAME Sky HSB16-404018 (adhesive): 7.68 K/W at 75 K rise, 10.8 K/W at 1 W; 2.5 K/W at 200 LFM (about 1 m/s) and 1.5 K/W at 400 LFM (about 2 m/s). Natural convection resistance falls as the rise grows (Boyd/Aavid quote it at a 75 K rise). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+        "note": "Catalogue value at a 75 K rise (10.8 K/W at 1 W): at a small rise the heatsink is worse than this. SAME Sky HSB16-404018 (adhesive): 2.5 K/W at 200 LFM (about 1 m/s) and 1.5 K/W at 400 LFM (about 2 m/s). Natural convection resistance falls as the rise grows (Boyd/Aavid quote it at a 75 K rise). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
       },
       {
         "name": "BGA 40×40×18, 1 m/s",

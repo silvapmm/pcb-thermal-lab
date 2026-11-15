@@ -71,10 +71,10 @@ LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)"
                   "package_theta": "Package families (typical θ)", "heatsinks": "Package heatsinks (typical θSA)"}
 LIBRARY_TIPS = {"via_fills": "Via barrel fills: the name is listed in the via's Fill box, k (W/mK) is its typical value.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
-                "interfaces": "Pastes and gap pads: apparent k (W/mK) and thickness (mm); R = thickness / k.",
-                "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK).",
+                "interfaces": "Pastes and gap pads: apparent k (W/mK) and thickness (mm); R = thickness / k. Typical values, several without a source (see the notes).",
+                "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK). Typical values, no source (see each note): check your datasheet.",
                 "package_theta": "Typical θ junction-pad, θJC(top) (K/W) and Tj max (°C) per package family: a starting value, not the datasheet.",
-                "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting."}
+                "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting. Natural-convection catalogue values are quoted at a large rise (75 K for the BGA 40×40×18): at a small rise the heatsink is worse."}
 SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
 SECTION_HINTS = {"new_board": "Values of a board from File - New board (and at start-up).",
                  "new_elements": "Values of an element drawn or added from the right-click menu.",
@@ -119,11 +119,11 @@ COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_p
            "flow": "Air flow", "theta_sa_k_per_w": "θSA (K/W)"}
 TIPS = {
     "width_mm": "Width of a new board, mm.", "height_mm": "Height of a new board, mm.", "layers": "Copper layers of a new board.",
-    "ambient_c": "Ambient temperature of a new board, °C.", "h_top": "Typed top-face h, W/m²K.",
-    "h_bottom": "Typed bottom-face h, W/m²K.", "edges_lose_heat": "Whether the edges exchange heat with the air.",
-    "h_side": "Edge h, W/m²K.", "via_plating_um": "Via barrel plating, µm.",
-    "h_mode": "Face h typed, or computed (convection and radiation).", "emissivity_top": "Emissivity of the top face (0 to 1).",
-    "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
+    "ambient_c": "Ambient temperature of a new board, °C.", "h_top": "Typed top-face h, W/m²K. Default 10: program default of the original program, no source; kept.",
+    "h_bottom": "Typed bottom-face h, W/m²K. Default 15: program default of the original program, no source; kept.", "edges_lose_heat": "Whether the edges exchange heat with the air.",
+    "h_side": "Edge h, W/m²K. Default 10: program default of the original program, no source; kept.", "via_plating_um": "Via barrel plating, µm.",
+    "h_mode": "Face h typed, or computed (convection and radiation).", "emissivity_top": "Emissivity of the top face (0 to 1). Typical value 0.9, no source (it depends on the solder mask and finish): the example board reads +6.5 % / +15 % of the rise at 0.6 / 0.3 (computed h).",
+    "emissivity_bottom": "Emissivity of the bottom face (0 to 1). Typical value 0.9, no source: the example board reads +6.5 % / +15 % of the rise at 0.6 / 0.3 (computed h).", "orientation": "Mounting of the board for the computed coefficients.",
     "natural_form": "Vertical-board natural convection: general (Churchill and Chu) or laminar (Ra below 1.00E9); under 1 % on the example.",
     "air_speed": "Air speed along the board, m/s (computed h).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "A new heater: heat source (power only) or component (junction, package, top path).", "heater_size_mm": "Side of a heater added from the right-click menu, mm.",
@@ -132,9 +132,9 @@ TIPS = {
     "heatsink_h_extra": "Extra h of a new heatsink, W/m²K.", "heatsink_size_mm": "Side of a heatsink added from the right-click menu, mm.",
     "block_thickness_mm": "Thickness of a new metal block, mm.", "block_metal": "Metal of a new block (from the metals library).",
     "block_interface": "Interface of a new block (from the interface library).",
-    "k_copper": "Conductivity of copper (W/mK).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
-    "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK.", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK.",
-    "rho_fr4": "Simple-stack-up dielectric density, kg/m³.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK.",
+    "k_copper": "Conductivity of copper (W/mK). Typical value 385, no recorded source: pure copper is 398 at 20 °C; 385 is kept (about 1.5 % on the hot side).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
+    "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK. Typical value 0.3 (0.29 measured by Azar and Graebner, quoted second hand).", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK. Typical value 0.9, no source: a 6 mm part on a bare 60 × 40 mm two-layer board reads +25 % / -15 % of the rise with 0.6 / 1.2.",
+    "rho_fr4": "Simple-stack-up dielectric density, kg/m³. Typical value, no source.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK. Typical value, no source.",
     "copper_uncertainty_pct": "Uncertainty of the copper thickness of every layer, % (at most 99).",
     "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (published plate laws: about 20 vertical, 50 horizontal face up).",
     "theta_uncertainty_pct": "Uncertainty of θ junction-pad, %.",
