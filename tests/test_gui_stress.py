@@ -31,6 +31,9 @@ from pcbthermal.model import Problem, reference_problem
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALL_MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+# The FEM is not in ALL_MODELS (decision: the 1 mm tests would add 15 s and 2 GB each); it has dedicated scenarios (tests/test_fem_gui.py), the model loop of the profile
+# test below, the live checks and the random actions (only at the default mesh options, at a cell of 2 mm or more)
+MODELS_WITH_FEM = ALL_MODELS + ("fem",)
 
 
 @pytest.fixture
@@ -317,11 +320,13 @@ def test_profile_run_with_each_kind_and_model_subset(win, qtbot):
     pr.heaters[0].set_profile(SquareWave(13.3, 0.01, 0.3))
     pr.heaters[1].set_profile(TableProfile([0, 2, 5, 9, 20], [6, 1, 3, 0], True))
     win.doc.changed.emit()
-    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ("solid3d",), ("fvm", "solid3d"), ALL_MODELS):
+    from pcbthermal import femcore
+    fem_sets = (("fem",), ("fvm", "fem")) if femcore.available() else (("fvm", "fem"),)       # The example board's FEM mesh needs pyamg when alone
+    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ("solid3d",), ("fvm", "solid3d"), ALL_MODELS) + fem_sets:
         run(win, qtbot, models)
         walk_results(win, qtbot)
-        if models == ("solid3d",):
-            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid has no time simulation
+        if models in (("solid3d",), ("fem",)):
+            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid and the FEM have no time simulation
     # One-shot table, a step limit that is too small, a computed h
     pr.heaters[1].set_profile(TableProfile([0, 0.01, 20], [0.0, 5.0], False))   # A 10 ms stretch in 20 s: 20,000 steps
     win.doc.options.profile.max_steps = 200
@@ -605,7 +610,9 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
             cells = b.width * b.height / (2e-3 * 2e-3) * b.layers
             if win.doc.problem.heaters and win.doc.problem.total_power() > 0 and cells < 3e5 \
                     and win.doc.options.analytic_modes <= 400 and win.doc.options.profile.max_steps <= 300000:
-                run(win, qtbot, tuple(rng.sample(ALL_MODELS, rng.randint(1, 5))), cell=max(win.doc.options.cell_mm, 2.0),
+                o = win.doc.options
+                pool = MODELS_WITH_FEM if (o.fem_gap_elements <= 6 and o.fem_refine >= 2.0) else ALL_MODELS       # a fine FEM mesh is a long solve: not in a monkey run
+                run(win, qtbot, tuple(rng.sample(pool, rng.randint(1, len(pool)))), cell=max(o.cell_mm, 2.0),
                     expect_ok=False)
         else:
             qtbot.wait(2)
@@ -1362,7 +1369,7 @@ def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
         for x, y in rng.uniform(1, 79, (1500, 2)):
             pr.add_via(float(x) + 10.0, float(y), 0.3)
     win.doc.edit("Vias", build)
-    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d")):
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d"), ("fvm", "fem")):
         for cell in (2.0, 1.0):
             win.doc.set_options(models=models, cell_mm=cell)
             t0 = time.time()

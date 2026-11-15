@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **FEM branch 5 (`feature/fem-gui`), the window, follows the reviewer's decisions** (`releases/2.8.0/fem-model/DECISIONS_REVIEWER.md` A1 to A8): the checkbox is exposed like the 3D solid and never greyed for lack of pyamg; a short tooltip with the measured 0.4 to 0.9 % below the FVM; the two mesh options only in the Settings box, not in Preferences; the hottest node only in the report and a tooltip; only the progress message ('Solving FEM'), real progress in 2.9.0; the surface CSV from the window in 2.9.0, the '(column)' tags on the zone and hotspot tables now; dedicated stress scenarios, the FEM not in `ALL_MODELS`; the Run block follows `api.SKIPPABLE_MODELS` and a mesh refusal prints its own reason.
+
 - **Maintainer, 2026-11-15: version 2.8.0 carries the steady FEM and the surface read-out; the FEM transient, the compare-differences views, the full comparison campaign and non-rectangular outlines move to 2.9.0** (`releases/2.9.0/PLAN.md`); every open decision of the maintainer goes to a reviewer and his answer is taken (standing rule).
 
 - **FEM branch 4 merged** (`feature/fem-model`, reviewer GO, whole battery on the merged tree 3903 passed + 4 stale tests fixed, frozen 346 = 317 intact + 29 added fem records): steady FEM as a comparison model (key `fem`, off by default, optional pyamg), project key `comparison_models`, parts on thick outer copper inject heat as a face flux (reviewer decision), CG failure drops only the FEM.

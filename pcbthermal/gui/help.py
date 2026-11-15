@@ -144,7 +144,7 @@ class AboutDialog(QDialog):
             top.addWidget(logo)
         self.text = QLabel(
             f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"
-            "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series and a 3D solid, "
+            "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series, a 3D solid and finite elements, "
             "with power profiles, computed convection, parts with junction temperature, any board shape and the import of a board from Gerber files.</p>"
             "<p>pyamg (MIT) is an optional library: the finite-element comparison model uses it on large meshes, and without it only small meshes are solved.</p>"
             "<p>The models are checked against independent solutions (a resolved 3D solid, finite elements, closed forms, published cases and one datasheet board), not against a measured board.</p>"
