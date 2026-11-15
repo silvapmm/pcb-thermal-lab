@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from .. import analysis, plots, thickness
+from .. import analysis, plots
 from . import layerchoice
 from . import theme as th
 from . import tips
@@ -26,7 +26,7 @@ from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
-from ..numfmt import num
+from ..numfmt import num, signed_fixed
 
 
 @contextlib.contextmanager
@@ -359,15 +359,15 @@ class PlotTab(QWidget):
     def surface_faces(self):
         """!
         @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
-        @details Only the FVM and FDM of a board with an outer copper layer above 105 um have one, and only when it differs from the column mean enough to matter
-                 (thickness.significant); it is a view of the map, never a mode: no number of any table changes with it.
+        @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
+                 a view of the map, never a mode: no number of any table changes with it. Models without it (Lumped, Analytic, 3D solid) give no entry.
         @return Sorted list of 0 (top) and 1 (bottom).
         """
         if self.sim is None:
             return []
         out = set()
         for r in self.sim.results.values():
-            if thickness.significant(r):
+            if "T_surface" in r.arrays:
                 out |= {f for f in (0, 1) if np.isfinite(r.arrays["T_surface"][f]).any()}
         return sorted(out)
 
@@ -464,16 +464,16 @@ class PlotTab(QWidget):
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
+                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}   "
+                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean   "
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
+                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
                                      f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
@@ -699,31 +699,44 @@ class ResultsView(QWidget):
         if ref.T is None:
             return
         heaters = sim.heater_rows()
-        # The surface read-out beside the column one, only when a part has it (thick outer copper): then every temperature column names its read-out; an ordinary board
-        # keeps the headers it always had. Junction, margin and power limit stay on the column.
-        # Gated by the same threshold as the report and the Layer box (thickness.significant): 140 um copper has the arrays but differs by milli-kelvin
-        both = thickness.significant(ref) and any("t_max_surface" in h for h in heaters)
-        heads = ["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"]
-        if both:
-            heads[3], heads[4] = "Mean °C (column)", "Max °C (column)"
-            heads += ["Mean °C (surface, estimate)", "Max °C (surface, estimate)"]
+        # Every temperature column names its read-out and ONE surface column always follows (decision: the surface is always shown beside the column mean, no threshold):
+        # the hottest point of the outer face under the part, in the face of its source. The difference to the column in K and in % of the rise is in the tooltip of the
+        # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
+        # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
+        heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W", "Max °C\n(surface,\nestimate)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
-        if both:
-            self.heater_table.horizontalHeaderItem(len(heads) - 1).setToolTip(
-                "Hottest temperature of the outer face of the copper under the part, estimated from the layer mean and the heat fluxes (upper side when the part is small against the plate). "
-                "Junction, margin and power limit use the column.")
-        rows = []
+        hi = self.heater_table.horizontalHeaderItem
+        hi(3).setToolTip(tips.COLUMN_HEADER_TIP)
+        hi(4).setToolTip(tips.COLUMN_HEADER_TIP)
+        hi(len(heads) - 1).setToolTip(tips.SURFACE_MAX_TIP)
+        rows, notes = [], []
+        n_layers = sim.problem.board.layers
+        rise = max(ref.t_max - ref.ambient, 1e-9)
         for h in heaters:
             row = [h["name"], str(h["layer"]), f"{h['power_w']:.2f}", f"{h['t_mean']:.1f}", f"{h['t_max']:.1f}",
                    f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-",
                    f"{h['margin_k']:.1f}" if h["margin_k"] is not None else "-",
                    f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-",
                    f"{h['power_top_w']:.2f}" if h["power_top_w"] > 0 else "-"]
-            if both:
-                row += [f"{h['t_mean_surface']:.1f}", f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else "")] if "t_max_surface" in h else ["n/a", "n/a"]
+            if "t_max_surface" in h:
+                d = h["t_max_surface"] - h["t_max"]
+                face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
+                row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
+                notes.append(f"{face}: {h['t_max_surface']:.3f} °C, {signed_fixed(d, 3)} K ({signed_fixed(100 * d / rise, 3)} % of the rise) from the column max {h['t_max']:.3f} °C. "
+                             "Surface mean " + f"{h['t_mean_surface']:.3f} °C. " + tips.SURFACE_TRAP_TIP)
+            else:
+                row.append("n/a")
+                if ref.model not in ("fvm", "fdm"):
+                    notes.append(f"The {ref.model.upper()} model has no surface read-out (steady FVM and FDM only); the column is the only read-out.")
+                elif 1 < h["layer"] < n_layers:
+                    notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
+                else:
+                    notes.append("No surface value under this part.")
             rows.append(row)
         _fill(self.heater_table, rows)
+        for r, note in enumerate(notes):
+            self.heater_table.item(r, len(heads) - 1).setToolTip(note)
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
                                  f"{z['t_min']:.1f}"] for z in zones])
@@ -745,11 +758,12 @@ class ResultsView(QWidget):
         heaters = self.sim.heater_rows()
         with _mpl_theme(self.theme):
             if heaters:
-                series = {"mean under footprint": [h["t_mean"] for h in heaters],
-                          "max under footprint": [h["t_max"] for h in heaters]}
+                # The bars are the column read-out, like the table (the surface is the last column of the table and its tooltip)
+                series = {"mean under footprint (column)": [h["t_mean"] for h in heaters],
+                          "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean read-out)")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

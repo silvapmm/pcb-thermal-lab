@@ -121,3 +121,13 @@ def test_tick_labels_of_a_narrow_range_differ(lo, hi):
     fig.canvas.draw()
     labels = [t.get_text() for t in ax.get_yticklabels()]
     assert len(set(labels)) == len(labels) and all("e" not in t for t in labels)
+
+
+def test_signed_fixed_never_prints_a_negative_zero():
+    """!
+    @brief A difference that rounds to zero prints "+0.000", not "-0.000" (review of the surface read-out: the part rows printed '-0.000 K').
+    """
+    from pcbthermal.numfmt import signed_fixed
+    assert signed_fixed(-1e-5) == "+0.000" and signed_fixed(-0.0) == "+0.000" and signed_fixed(-0.0004) == "+0.000"
+    assert signed_fixed(-0.0006) == "-0.001" and signed_fixed(0.0031) == "+0.003" and signed_fixed(-1.25, 2) == "-1.25"
+    assert signed_fixed(-1e-4, 2) == "+0.00"

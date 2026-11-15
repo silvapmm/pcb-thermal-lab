@@ -82,12 +82,119 @@ def test_case_2_of_muzychka_the_surface_is_within_the_stated_range_of_the_3d_sur
     assert r.arrays["T_surface_flag"][0].any()   # t / a = 1: an upper estimate
 
 
-def test_thin_copper_has_no_surface_and_the_results_are_unchanged():
+def test_thin_copper_has_the_surface_tiny_but_present_and_nothing_else_moves(monkeypatch):
+    # Decision: no thickness threshold. 35 um copper has the arrays; the difference is milli-kelvin; every non-surface number is bit-identical with the arrays switched off
     p = example_board()
-    r = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
+    on = simulate(copy.deepcopy(p), SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
+    for k in ("fvm", "fdm"):
+        m = on.results[k]
+        assert "T_surface" in m.arrays and "t_max_surface_top" in m.extras and "t_max_surface_bottom" in m.extras
+        d = float(m.extras["t_max_surface_top"]) - float(np.nanmax(m.T[0]))
+        print(f"thin copper {k}: surface top minus column max = {d * 1e3:.3f} mK")
+        assert 0 < d < 0.02                                                    # tiny, but present (and positive on a heated face)
+    for k in ("lumped", "analytic"):
+        assert "T_surface" not in on.results[k].arrays
+    monkeypatch.setattr(thickness, "attach", lambda *a, **k: None)
+    off = simulate(copy.deepcopy(p), SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
+    for k in on.results:
+        assert on.results[k].t_max == off.results[k].t_max and np.array_equal(on.results[k].T, off.results[k].T)
+    assert all("t_max_surface" in row for row in on.heater_rows()) and not any("t_max_surface" in row for row in off.heater_rows())
+
+
+def test_the_surface_exists_for_every_outer_face_and_every_thickness_and_the_inner_layer_is_the_column():
+    # Outer faces of 4-layer example: top and bottom both finite; an inner layer has no outer face (the arrays are the two outer faces only)
+    r = simulate(example_board(), SolverOptions(models=("fvm", "fdm"), cell_mm=2.0))
     for m in r.results.values():
-        assert "T_surface" not in m.arrays and "t_max_surface_top" not in m.extras
-    assert all("t_max_surface" not in row for row in r.heater_rows())
+        assert m.arrays["T_surface"].shape[0] == 2 and np.isfinite(m.arrays["T_surface"][0]).any() and np.isfinite(m.arrays["T_surface"][1]).any()
+        assert m.T.shape[0] == 4
+    for t_um in (18.0, 35.0, 70.0, 105.0, 140.0, 400.0):
+        p = plate(t_mm=1.6, src=(20, 20, 30, 30))
+        p.board.copper_thickness = [t_um * 1e-6]
+        m = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"]
+        assert "T_surface" in m.arrays, t_um
+    # a part on an inner layer: no surface, 'n/a' (the surface is the column there)
+    p = example_board()
+    p.heaters[0].layer = 1
+    rows = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).heater_rows()
+    assert "t_max_surface" not in rows[0] and "t_max_surface" in rows[1]
+
+
+def test_the_patterned_thin_copper_trap_the_board_difference_is_the_bare_laminate_and_the_part_rows_agree():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent / "regression"))
+    import regress_boards as rb
+    for name, floor in (("hatched_copper", 1.0), ("drawn_ell", 3.0)):
+        p = rb.build(name, str(Path(__file__).parent.parent / "examples"))
+        sim = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=1.0))
+        for k in ("fvm", "fdm"):
+            m = sim.results[k]
+            board_diff = float(m.extras["t_max_surface_top"]) - float(np.nanmax(m.T[0]))
+            part = [r["t_max_surface"] - r["t_max"] for r in sim.heater_rows() if "t_max_surface" in r][0]
+            print(f"{name} {k}: board-level surface minus column max {board_diff:+.4f} K; part row {part:+.5f} K")
+            assert board_diff > floor                                           # the trap: a K, not milli-kelvin, on 35 um copper
+            assert abs(part) < 1e-3                                             # the part's column already holds the laminate face term: the rows agree
+        rep = sim.report()
+        assert "bare laminate" in rep                                           # the line says what the difference is
+
+
+def test_the_face_fluxes_close_the_energy_balance_exactly():
+    # The offsets of the two faces add to (q_top + q_bot) t / (6 k) per cell; summed over the plate (insulated edge) the net heat through the two faces is zero: the source
+    # power in the top face equals what leaves by the films, so the sum of the face fluxes vanishes (to 1e-6 W) and the sum of the cell offsets with it
+    for t_mm in (0.035, 3.0, 10.0):
+        p = plate(t_mm=t_mm, k=150.0, h=50.0, src=(20, 20, 30, 30), power=5.0)
+        m = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=1.0)).results["fvm"]
+        net_w = float(((m.arrays["T_surface"][0] - m.T[0]) + (m.arrays["T_surface"][1] - m.T[0])).sum()) * 6.0 * 150.0 / (t_mm * 1e-3) * m.dx * m.dy
+        print(f"t = {t_mm} mm: net face flux of the plate {net_w:.3e} W for {m.power_in:.1f} W in")
+        assert abs(net_w) < 1e-6
+    d_top, d_bot = thickness.offsets(3e-3, 150.0, 1000.0, -1000.0)
+    assert d_top == pytest.approx(1000.0 * 3e-3 / (2 * 150.0)) and d_bot == pytest.approx(-d_top)
+
+
+def test_a_saved_project_is_byte_identical_whatever_the_surface(tmp_path):
+    from pcbthermal import project
+    proj = project.Project(problem=example_board())
+    a, b = tmp_path / "a.pcbt.json", tmp_path / "b.pcbt.json"
+    project.save_project(str(a), proj)
+    simulate(proj.problem, SolverOptions(models=("fvm", "fdm"), cell_mm=2.0))                # runs with the surface arrays; they are never stored in the problem
+    project.save_project(str(b), proj)
+    assert a.read_bytes() == b.read_bytes()
+
+
+def test_surface_files_are_written_only_on_request(tmp_path):
+    sim = simulate(example_board(), SolverOptions(models=("fvm", "fdm"), cell_mm=2.0))
+    plain = {f.rsplit("/", 1)[-1] for f in sim.save(str(tmp_path / "a"), plots=False)}
+    assert not any(n.startswith("surface_") for n in plain) and "field_fvm.csv" in plain
+    asked = {f.rsplit("/", 1)[-1] for f in sim.save(str(tmp_path / "b"), plots=True, surface_files=True)}
+    assert {"surface_fvm.csv", "surface_fdm.csv", "surface_fvm_top.png", "surface_fvm_bottom.png"} <= asked
+    head = (tmp_path / "b" / "surface_fvm.csv").read_text().splitlines()[0]
+    assert head == "face,x_mm,y_mm,T_surface_c,T_surface_mean_c,T_column_c,upper_estimate"
+
+
+def test_every_map_names_its_read_out():
+    from matplotlib.figure import Figure
+    from pcbthermal import plots
+    p = example_board()
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    r = sim.results["fvm"]
+    fig = Figure()
+    plots.draw_fields(fig, r, p)
+    assert "column mean" in fig._suptitle.get_text() and fig.axes[-1].get_ylabel() == plots.COLUMN_LABEL
+    fig = Figure()
+    plots.draw_surface(fig, r, p, 0)
+    assert "estimate" in fig.axes[0].get_title() and "column max" in fig.axes[0].get_title() and "% of the rise" in fig.axes[0].get_title()
+    assert "Surface" in fig.axes[-1].get_ylabel()
+
+
+def test_the_cost_of_the_surface_is_milliseconds():
+    import time
+    p = example_board()
+    t0 = time.perf_counter()
+    simulate(copy.deepcopy(p), SolverOptions(models=("fvm",), cell_mm=1.0))
+    total = time.perf_counter() - t0
+    m = simulate(copy.deepcopy(p), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
+    print(f"whole run {total:.3f} s; arrays added: {m.arrays['T_surface'].nbytes + m.arrays['T_surface_mean'].nbytes + m.arrays['T_surface_flag'].nbytes} bytes")
+    assert m.arrays["T_surface"].nbytes < 1e6
 
 
 def test_lumped_analytic_and_the_solid_offer_no_surface():
@@ -158,11 +265,13 @@ def test_the_layer_box_lists_the_surface_only_with_it_and_only_in_temperature():
     assert v == 0 and "Surface (top)" in note                                               # steady only: the page shows the column and says so
 
 
-def test_the_report_names_both_read_outs_only_when_they_exist():
+def test_the_report_names_both_read_outs_always_for_the_fvm_and_the_fdm():
     thick = simulate(plate(), SolverOptions(models=("fvm",), cell_mm=1.0)).report()
     assert "Read-outs: column" in thick and "surface max" in thick and "column max" in thick and "Hottest surface (top)" in thick
     thin = simulate(example_board(), SolverOptions(models=("fvm",), cell_mm=2.0)).report()
-    assert "surface" not in thin.lower().replace("surface of", "")
+    assert "Read-outs: column" in thin and "surface max" in thin and "Hottest surface (top)" in thin and "% of the rise" in thin
+    none = simulate(example_board(), SolverOptions(models=("lumped",), cell_mm=2.0)).report()
+    assert "no surface read-out" in none
 
 
 def test_the_surface_map_draws():
@@ -182,3 +291,23 @@ def test_the_thick_plate_warning_quotes_the_estimate():
     sim = simulate(plate(), SolverOptions(models=("fvm",), cell_mm=1.0))
     w = [x for x in sim.warnings if "thick and poorly conducting" in x]
     assert len(w) == 1 and "surface estimate of this model" in w[0] and "upper side" in w[0]
+
+
+def test_no_surface_text_prints_a_negative_zero():
+    # Review: a part whose surface equals its column (the patterned-copper rows) printed '-0.000 K' from a rounding of -1e-5; every surface difference goes through signed_fixed
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent / "regression"))
+    import regress_boards as rb
+    from matplotlib.figure import Figure
+    from pcbthermal import plots
+    for name in ("hatched_copper", "drawn_ell", "example_board"):
+        p = rb.build(name, str(Path(__file__).parent.parent / "examples"))
+        sim = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=1.0 if name != "example_board" else 2.0))
+        texts = [sim.report()]
+        for r in sim.results.values():
+            for face in (0, 1):
+                fig = Figure()
+                plots.draw_surface(fig, r, p, face)
+                texts.append(fig.axes[0].get_title())
+        assert not any("-0.000" in t or "-0.00 %" in t for t in texts), name

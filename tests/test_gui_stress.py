@@ -703,7 +703,8 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     rv.tabs.setCurrentWidget(rv.temp)
     texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
     assert "Surface (top)" in texts and "Surface (bottom)" in texts
-    assert rv.heater_table.columnCount() == 11 and "(surface, estimate)" in rv.heater_table.horizontalHeaderItem(10).text()
+    assert rv.heater_table.columnCount() == 10 and "(surface," in rv.heater_table.horizontalHeaderItem(9).text() and "estimate)" in rv.heater_table.horizontalHeaderItem(9).text()
+    assert "from the column max" in rv.heater_table.item(0, 9).toolTip() and "% of the rise" in rv.heater_table.item(0, 9).toolTip()   # the difference is in the cell tooltip
     sbox = win.layer_combo
     assert "estimate" in sbox.itemData(sbox.findData(200), Qt.ToolTipRole)          # The entry carries its own tooltip
     for model in ("fvm", "fdm", "lumped", "analytic"):
@@ -716,19 +717,21 @@ def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
     assert "Surface" not in [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
 
 
-def test_surface_columns_wait_for_a_difference_that_matters(win, qtbot):
-    """Review: 140 um outer copper has the surface arrays but differs from the column by milli-kelvin: the part table keeps its nine columns and the Layer box no surface entry."""
-    p = example_board()
-    ct = list(p.board.copper_thickness)
-    ct[0] = ct[-1] = 140e-6
-    p.board.copper_thickness = ct
-    load(win, p)
-    run(win, qtbot, ("fvm",), cell=2.0)
+def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_none(win, qtbot):
+    """Decision (always computed, always shown, no threshold): 35 um copper has the surface arrays, the Layer box entries and the ONE surface column; the Lumped says n/a with a reason."""
+    load(win, example_board())
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
     rv = win.results
     assert "T_surface" in win.sim.results["fvm"].arrays
-    assert rv.heater_table.columnCount() == 9
+    assert rv.heater_table.columnCount() == 10
     rv.tabs.setCurrentWidget(rv.temp)
-    assert not any("Surface" in win.layer_combo.itemText(i) for i in range(win.layer_combo.count()))
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert "Surface (top)" in texts and "Surface (bottom)" in texts
+    assert rv.heater_table.item(0, 9).text() not in ("n/a", "")
+    rv.temp.model.setCurrentIndex(rv.temp.model.findData("lumped"))
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
+    qtbot.wait(50)
+    assert "column mean" in rv.temp.fig.axes[0].get_title()
 
 
 def test_component_fields_in_the_application(win, qtbot):
@@ -784,7 +787,7 @@ def test_top_path_in_the_application(win, qtbot):
     assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
     run(win, qtbot, ALL_MODELS, cell=2.0)
     rv = win.results
-    top = rv.heater_table.columnCount() - 1
+    top = 8                                                                  # the Top path column (the surface column follows it)
     assert rv.heater_table.item(0, top).text() != "-" and float(rv.heater_table.item(0, top).text()) > 0
     assert rv.heater_table.item(1, top).text() == "-"                       # U2 has no heatsink
     walk_results(win, qtbot)

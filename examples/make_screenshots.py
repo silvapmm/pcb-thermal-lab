@@ -6,6 +6,7 @@
 
 Usage: python examples/make_screenshots.py [output_folder]   (default: docs/images)
        python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
+       python examples/make_screenshots.py --surface [output_folder]   (the surface read-out of thick copper: the map of Surface (top) and the Components table)
        python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
 """
 
@@ -534,7 +535,56 @@ def main_views(out_dir, board_dir):
     return written
 
 
+def main_surface(out_dir):
+    """!
+    @brief Screenshot of the surface read-out: the 4-layer example board with 2 mm of outer copper, the Components table with its (column) columns and the one (surface) column and the Layer box.
+    @param out_dir Folder that receives results_surface.png and results_surface_table.png (only these two pictures; the other screenshots are not remade).
+    @return List of written file paths.
+    """
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots_surface.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    prob = example_board()
+    prob.board.thickness = 6e-3
+    prob.board.copper_thickness = [2e-3, 35e-6, 35e-6, 2e-3]               # Thick outer copper: the surface read-out exists and is worth showing
+    prob.board.h_top, prob.board.h_bottom = 400.0, 400.0                     # A cooled plate: the surface differs from the layer mean by about 0.3 K, 2 % of the rise (shown on every board now, no threshold)
+    for h in prob.heaters:
+        if h.name == "U1":
+            h.power = 20.0
+    win._load_problem(prob, "example-thick-copper")
+    win.resize(2000, 1200)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    win.canvas.fit()
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)))
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    app.processEvents()
+    from pcbthermal.gui import layerchoice
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(layerchoice.SURFACE_BASE))      # Surface (top)
+    app.processEvents()
+    path = os.path.join(out_dir, "results_surface.png")
+    win.grab().save(path)
+    shrink(path)
+    win.results.tabs.setCurrentWidget(win.results.tabs.widget(4))
+    app.processEvents()
+    path2 = os.path.join(out_dir, "results_surface_table.png")
+    win.grab().save(path2)
+    shrink(path2)
+    win.doc.stack.setClean()
+    win.close()
+    return [path, path2]
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--surface":
+        for f in main_surface(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
     if len(sys.argv) > 2 and sys.argv[1] == "--import":
         for f in main_import(sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images"), sys.argv[2]):
             print(f)

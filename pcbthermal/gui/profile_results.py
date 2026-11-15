@@ -140,7 +140,7 @@ class ProfileResultsTab(QWidget):
                     k = min(self.slider.value(), len(r.frames) - 1)
                     plots.draw_field(self.fig, r.frames[k][layer], self.sim.problem, r.dx, r.dy, layer=layer,
                                      title=f"{r.model.upper()} - layer {layer + 1} at t = {num(r.frame_times[k], 4)} s",
-                                     label="Temperature (°C)")
+                                     label=plots.COLUMN_LABEL)
             self.info.setText(f"Peak {r.peak:.1f} °C, minimum {r.minimum:.1f} °C, oscillation {r.oscillation:.1f} °C; "
                               f"{r.windows} windows of {num(r.window)} s, {r.steps} steps of {num(r.dt, 3)} s, "
                               f"{'the cycle repeats' if r.converged else 'the cycle did not settle'}; "
