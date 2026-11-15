@@ -1193,6 +1193,33 @@ def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
     assert "will not run" not in win.solver_panel.cells_label.text()
 
 
+def test_the_settings_groups_follow_quick_ticks_and_theme_switches(win):
+    """Every model ticked and unticked in a quick sequence with a theme switch in between: the six group headers are recoloured for the theme and the ticked state at
+    every step (a group is 'not ticked' exactly when none of its models is ticked), the board with a block greys the laminate group, and nothing raises."""
+    from pcbthermal.gui import theme as th
+    load(win, example_board())
+    panel = win.solver_panel
+    serves = {h["title"].text(): h["models"] for h in panel._heads}
+    steps = 0
+    for model in ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem") * 2:
+        for ticked in (("fvm", model), (model,), ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")):
+            win.doc.set_options(models=tuple(dict.fromkeys(ticked)))
+            if steps % 5 == 0:
+                win.toggle_theme()
+            steps += 1
+            colours = th.colors(th.current_name())
+            for h in panel._heads:
+                models = serves[h["title"].text()]
+                shown = (not models) or any(m in win.doc.options.models for m in models)
+                assert ("not ticked" not in h["tag"].text()) == shown
+                assert (colours["accent_text"] if shown else colours["muted"]) in h["title"].styleSheet()
+    p = example_board()
+    p.add_heatsink(1, 50.0, rect=(5, 5, 20, 20), name="Block", thickness_mm=3.0)
+    load(win, p)
+    win.doc.set_options(models=("fvm", "fdm"))
+    assert not panel.lam_s.isEnabled()
+
+
 def test_the_memory_verdict_in_the_panel_disables_run_and_auto_fits(win, qtbot, popups, monkeypatch):
     """The panel shows the memory verdict of each selected model; a refused FVM cell disables Run (with the reason as its tooltip) and F5 only shows the message; Auto
     gives a cell the guard accepts and says so; the animation is refused in the window; a low memory limit set in the options (a machine preference) is restored."""

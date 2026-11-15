@@ -38,13 +38,14 @@ MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d", "fem")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid, "fem" the finite elements (all comparison models)
 
 
-def _cell_arg(args, problem, default, transient=False):
+def _cell_arg(args, problem, default, transient=False, fem_params=None):
     """!
     @brief Resolve the --cell-mm argument.
     @param args Parsed arguments.
     @param problem The Problem (used by "auto").
     @param default Value used when the argument is absent.
     @param transient True for a time simulation: "auto" has to fit its larger memory factor (memory.TRANSIENT_FACTOR).
+    @param fem_params Tuple (elements across a gap, refinement) of the FEM mesh that the run will use, so that "auto" counts the FEM as the run does (None: the defaults).
     @return Cell size in millimetres.
     """
     if args.cell_mm is None:
@@ -55,7 +56,7 @@ def _cell_arg(args, problem, default, transient=False):
     # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
     chosen = getattr(args, "model", "fvm")
     models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
-    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None)
+    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None, fem_params=fem_params)
     note = copper.auto_cell_note(problem, cell)          # Imported copper wants 1 mm or less: say so when the memory forced a larger cell
     if note:
         print(note, file=sys.stderr)
@@ -109,7 +110,7 @@ def cmd_run(args):
         options.fem_refine = args.fem_refine
     options.validate()
     with laminate.using(*options.laminate_params()):                  # "auto" counts the unknowns of the laminate rule of the run
-        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
+        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm, fem_params=options.fem_params())
     po = options.profile
     if args.steady_power:
         options.steady_power = args.steady_power
@@ -360,7 +361,7 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
-                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm, solid3d and fem (a comparison model that cannot run, for example "
+                   help="all: fvm, lumped, analytic; compare: those three plus fdm, solid3d and fem (one of the three that cannot run, for example "
                         "the FEM on a slanted outline or without pyamg on a large mesh, is skipped with a warning)")
     r.add_argument("--surface-files", action="store_true", help="also write surface_<model>.csv and the surface maps (the surface numbers are always in the report and summary.json)")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")

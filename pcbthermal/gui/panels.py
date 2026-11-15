@@ -14,7 +14,7 @@ import textwrap
 import math
 
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
-                               QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
+                               QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSizePolicy, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import copper, fdm, fvm, laminate, memory, solid3d
@@ -1558,27 +1558,34 @@ class SolverPanel(QWidget):
         self.cb = {"fvm": QCheckBox("Finite volume (FVM), reference"),
                    "lumped": QCheckBox("Thermal network (LPTN)"),
                    "analytic": QCheckBox("Analytical (Fourier series)"),
-                   "fdm": QCheckBox("Finite difference (FDM), comparison"),
-                   "solid3d": QCheckBox("3D solid (finite volumes), comparison"),
-                   "fem": QCheckBox("Finite elements (FEM), comparison")}
+                   "fdm": QCheckBox("Finite difference (FDM)"),
+                   "solid3d": QCheckBox("3D solid (finite volumes)"),
+                   "fem": QCheckBox("Finite elements (FEM)")}
+        off = "Off by default; a cross-check of the three models above. "
         tips = {"fvm": "Reference model: any geometry, exact energy balance. Use it for final answers and when a warning appears. Cost grows with the cells.",
                 "lumped": "Fast network (milliseconds), within about 4 % in most cases. Weak where a copper edge crosses a heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, a few percent with vias, heatsinks and partial copper; "
                             "unreliable where a copper edge crosses a heater.",
-                "solid3d": "The board as a real 3D solid (a slab per layer and gap). Steady state only; within about 1 % of the FVM on ordinary boards; "
+                "solid3d": off + "The board as a real 3D solid (a slab per layer and gap). Steady state only; within about 1 % of the FVM on ordinary boards; "
                            "slower and larger (example board: 15 s, 3.5 GB). Skipped above the memory limit.",
-                "fdm": "Node-centred finite differences of the same model, for comparison (steady, animation, profiles); within about 1 % of the FVM.",
-                "fem": "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap). Steady state only. On plain boards it reads 0.4 to 0.9 % "
+                "fdm": off + "Node-centred finite differences of the same model (steady, animation, profiles); within about 1 % of the FVM.",
+                "fem": off + "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap). Steady state only. On plain boards it reads 0.4 to 0.9 % "
                        "below the FVM at the same cell (mostly the finite volumes' own error). The surface of thick copper is resolved, not estimated; a metal block is "
                        "reported as its mean, with no surface. Slower than the 3D solid; left out above the memory limit, or when a large mesh needs the package pyamg."}
         for k, c in self.cb.items():
             c.setToolTip(tips[k])
-            v.addWidget(c)
             c.toggled.connect(self._apply)
+            if k == "fdm":
+                # A thin line (the muted tone, set in _update_availability so that it follows a theme switch) separates the three main models from the three
+                # that are off by default and cross-check them
+                self._separator = QFrame()
+                self._separator.setFixedHeight(1)
+                v.addWidget(self._separator)
+            v.addWidget(c)
         lay.addWidget(g)
+        lay.addSpacing(6)                                  # With the 4 px under the Models box and the 4 px above the Settings body: 10 px around the Settings toggle
 
         g = CollapsibleBox("Settings", "simulation")
-        f = QFormLayout(g.body)
         self.cell = _spin(0.1, 20, 1.0, 2, 0.25, "mm")
         self.auto_cell = QPushButton("Auto")
         self.auto_cell.clicked.connect(self._auto_cell)
@@ -1588,6 +1595,7 @@ class SolverPanel(QWidget):
         self.cells_label = QLabel()
         self.cells_label.setWordWrap(True)                 # With the 3D solid selected the count and its note are long
         self.cells_label.setTextFormat(Qt.RichText)        # The verdict of each model is coloured
+        th.hint(self.cells_label)                          # Smaller text in the hint colour (11 px; 5.3:1 light, 6.3:1 dark); the verdict spans keep their colour
         self.cells_label.setToolTip("Unknowns and estimated memory of each model against the limit (Preferences). Green: fits; amber: slow; red: will not run, use the cell shown.")
         self._running = False                              # True while a calculation runs
         self._busy = False                                 # True while any calculation runs or waits: the Run button is then the Stop button
@@ -1623,18 +1631,9 @@ class SolverPanel(QWidget):
         self.solver.setToolTip("Solver of the FVM system: sparse direct (exact, default), conjugate gradients, or SOR (comparison, slow).")
         self.rings.setToolTip("Rings of each heater's thermal network. Rings under one cell are merged: 10 is enough.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more resolve smaller parts).")
-        self.local.setToolTip("Apply vias and heatsinks locally in the analytical model (Green function) instead of smearing them.")
-        f.addRow("Cell size", cell_row)
-        f.addRow(self.cells_label)                         # Full width: in the field column the wrapped text was cut to its first line
-        f.addRow("FVM solver", self.solver)
-        f.addRow("Lumped rings", self.rings)
-        f.addRow("Analytic modes", self.modes)
-        f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
-        f.addRow("Hotspot limit", self.hot)
-        f.addRow("Laminate sub-gap", self.lam_s)
-        f.addRow("Laminate sub-gaps", self.lam_n)
-        f.addRow("FEM gap elements", self.fem_gap)
-        f.addRow("FEM refinement", self.fem_ref)
+        self.local.setToolTip("Apply vias and heatsinks locally in the analytical model (Green function) instead of smearing them. "
+                              "Steady run only: the time run (power profiles) always treats vias and heatsinks locally.")
+        self._build_groups(g, cell_row)
         lay.addWidget(g)
 
         self.run = QPushButton(self.RUN_TEXT)
@@ -1670,25 +1669,125 @@ class SolverPanel(QWidget):
         compact_combos(self)
         self.refresh()
 
+    # The groups of the Settings box: (title, tag shown at the right, models served, rows). A row is (label text or None for a full-width row, attribute of the widget or layout).
+    GROUPS = (("All models", "All", (), (("Cell size", "cell_row"), (None, "cells_label"), ("Hotspot limit", "hot"))),
+              ("Finite volume (FVM)", "FVM", ("fvm",), (("FVM solver", "solver"),)),
+              ("Laminate (FVM, FDM)", "FVM·FDM", ("fvm", "fdm"), (("Laminate sub-gap", "lam_s"), ("Laminate sub-gaps", "lam_n"))),
+              ("Thermal network (LPTN)", "LPTN", ("lumped",), (("Lumped rings", "rings"),)),
+              ("Analytical", "Analytic", ("analytic",), (("Analytic modes", "modes"), (None, "local"))),
+              ("Finite elements (FEM)", "FEM", ("fem",), (("FEM gap elements", "fem_gap"), ("FEM refinement", "fem_ref"))))
+
+    def _build_groups(self, box, cell_row):
+        """!
+        @brief Fill the Settings box: six groups, each a title with the models it serves and a hairline, then its rows, all in ONE grid.
+        @details One grid means one label column and one field column for every group, so the labels start at one x and the fields at another, in every group. The
+                 label column is as wide as the longest label plus 6 px. A group whose models are not ticked is greyed by `_update_availability`.
+        @param box The Settings CollapsibleBox.
+        @param cell_row The QHBoxLayout of the cell spin box and the Auto button.
+        """
+        self.cell_row = cell_row
+        body = QVBoxLayout(box.body)
+        body.setContentsMargins(0, 4, 0, 0)                # With the 6 px above the box: 10 px between the toggle and the first title (the box adds 2 below its header)
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 4, 0, 0)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        body.addLayout(grid)
+        self._heads, self._rows, self._grid_labels, self._grid_fields = [], {}, [], []
+        label_w = max(QLabel().fontMetrics().horizontalAdvance(text) for _t, _g, _m, rows in self.GROUPS for text, _a in rows if text) + 6
+        r = 0
+        for gi, (title, tag, models, rows) in enumerate(self.GROUPS):
+            head = QWidget()
+            hl = QVBoxLayout(head)
+            hl.setContentsMargins(0, 8 if gi else 0, 0, 0)
+            hl.setSpacing(3)
+            top = QHBoxLayout()
+            top.setSpacing(6)
+            t = QLabel(title)
+            chip = QLabel(tag)
+            top.addWidget(t)
+            top.addStretch(1)
+            top.addWidget(chip)
+            line_ = QFrame()                               # A 1 px strip painted by its style sheet (an HLine frame drew nothing with a style sheet)
+            line_.setFixedHeight(1)
+            line_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            hl.addLayout(top)
+            hl.addWidget(line_)
+            served = ", ".join(self.GROUP_TAGS.get(m, m) for m in models) if models else "every model"
+            for w in (t, chip):
+                w.setToolTip(f"Settings used by: {served}.")
+            grid.addWidget(head, r, 0, 1, 2)
+            self._heads.append({"title": t, "tag": chip, "line": line_, "tag_text": tag, "models": models})
+            r += 1
+            for text, attr in rows:
+                item = getattr(self, attr)
+                widgets = [item] if isinstance(item, QWidget) else [item.itemAt(k).widget() for k in range(item.count()) if item.itemAt(k).widget()]
+                if text:
+                    lab = QLabel(text)
+                    lab.setFixedWidth(label_w)
+                    lab.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                    grid.addWidget(lab, r, 0)
+                    grid.addLayout(item, r, 1) if isinstance(item, QHBoxLayout) else grid.addWidget(item, r, 1)
+                    # tips.apply reads QFormLayout rows only: a grid row gets the tooltip of its label (on the label and on the field, unless the field has its own)
+                    tip = tips.TIPS.get(text.lower(), "")
+                    for w in [lab] + widgets:
+                        if tip and not w.toolTip():
+                            w.setToolTip(tip)
+                    self._grid_labels.append(lab)
+                    self._grid_fields.append(item)
+                    for w in widgets:
+                        self._rows[w] = lab
+                else:
+                    grid.addWidget(item, r, 0, 1, 2)       # Full width: in the field column the long text made the panel about 350 px wide
+                r += 1
+
+    GROUP_TAGS = {"fvm": "FVM", "fdm": "FDM", "lumped": "LPTN", "analytic": "Analytic", "fem": "FEM"}
+
+    def _style_groups(self, on, blocked):
+        """!
+        @brief Colour the titles, tags and hairlines of the six groups for the current theme and grey the groups whose models are not ticked.
+        @param on Function model key -> ticked.
+        @param blocked True on a board with a metal block (the laminate rule does not apply there).
+        """
+        c = th.colors(th.current_name())
+        # The title text takes accent_text (the accent reaches only 3.7:1 on the light window); the hairline keeps the accent (a line has no minimum contrast)
+        for info in self._heads:
+            ms = info["models"]
+            active = (not ms) or (any(on(k) for k in ms) and not (ms == ("fvm", "fdm") and blocked))
+            info["title"].setStyleSheet(f"color: {c['accent_text'] if active else c['muted']}; font-weight: 700;")
+            # Not ticked is said in words too, never by colour alone
+            info["tag"].setText(info["tag_text"] if active else f"{info['tag_text']} · not ticked")
+            info["tag"].setStyleSheet(f"color: {c['hint'] if active else c['muted']}; font-size: 11px;")
+            info["line"].setStyleSheet(f"background: {c['accent'] if active else c['border']}; border: none;")
+        self._separator.setStyleSheet(f"background: {c['muted']}; border: none;")
+
     def _update_availability(self, *_):
         """!
-        @brief Grey out the settings of the models that are not selected.
+        @brief Grey out the settings of the models that are not selected, and the titles of their groups.
         @param _ Ignored (extra arguments of the Qt signal).
         """
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
         # The laminate rule is not applied to a board with a metal block (laminate.uses_rule), so its two numbers are greyed there too
         blocked = not laminate.uses_rule(self.doc.problem)
         lam_on = (on("fvm") or on("fdm")) and not blocked
-        lam_why = "a board with a metal block, where the rule does not apply" if blocked else "the FVM or the FDM"
-        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), "the Lumped model"),
-                                    (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model"),
-                                    (self.fem_gap, on("fem"), "the FEM"), (self.fem_ref, on("fem"), "the FEM")):
+        used = lambda who: f"used only by {who}, not selected or not available here."   # noqa: E731
+        lam_why = "not used on a board with a metal block (the laminate rule does not apply there)." if blocked else used("the FVM or the FDM")
+        for widget, active, why in ((self.solver, on("fvm"), used("the FVM")), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), used("the Lumped model")),
+                                    (self.modes, on("analytic"), used("the Analytic model")), (self.local, on("analytic"), used("the Analytic model")),
+                                    (self.fem_gap, on("fem"), used("the FEM")), (self.fem_ref, on("fem"), used("the FEM"))):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had
                 base = widget.toolTip()
                 widget.setProperty("base_tip", base)
+            tip = base if active else (base + "\n\n" if base else "") + f"Greyed: {why}"
             widget.setEnabled(active)
-            widget.setToolTip(base if active else (base + "\n\n" if base else "") + f"Greyed: used only by {why}, not selected or not available here.")
+            widget.setToolTip(tip)
+            label = self._rows.get(widget)                                         # The label of the row greys and explains itself like its field
+            if label is not None:
+                label.setEnabled(active)
+                label.setToolTip(tip)
+        self._style_groups(on, blocked)
 
     def refresh(self):
         """!
@@ -1748,13 +1847,14 @@ class SolverPanel(QWidget):
             # A project that cannot be counted (imported copper whose masks no longer fit the board size) must not raise inside a Qt slot: say it and block Run
             msg = str(exc)
             self.cells_label.setText(f'<span style="color:{colours["refuse"]}">{html.escape(msg)}</span>')
+            self.cells_label.setVisible(True)
             self.blocked = msg
             self._style_run_button()
             return
         for v in verdicts:
-            gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
-            least = "" if v.exact else "at least "
-            text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)
+            gb = f"{v.estimate / memory.GB:.1f} of {v.limit / memory.GB:.1f} GB"
+            least = "" if v.exact else "≥ "
+            text = f"{names[v.model]}: {least}{v.unknowns} unknowns · {gb}"                  # Compact; no thousands separator (the rule of every count shown)
             if v.verdict == "refuse" and v.unknowns == 0 and v.message:
                 text = f"{names[v.model]}: {v.message}"           # No mesh can be built (a slanted outline): the reason, not a memory sentence about 0 unknowns
                 if v.model in SKIPPABLE_MODELS and len(self.doc.options.models) > 1:
@@ -1766,7 +1866,11 @@ class SolverPanel(QWidget):
                          else "; above the memory limit, it will not run")
             elif v.exceeds_available:
                 text += "; more than the memory available now"
-            rows.append(f'<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
+            # A fitting model is a dot in the verdict colour and the text in the hint colour (secondary); a slow or refused model keeps the verdict colour on the whole row
+            if v.verdict == "ok" and not v.exceeds_available:
+                rows.append(f'<span style="color:{colours["ok"]}">●</span>&nbsp;{html.escape(text)}')
+            else:
+                rows.append(f'<span style="color:{colours[v.verdict]}">●&nbsp;{html.escape(text)}</span>')
             # The 3D solid and the FEM are only skipped when other models run next to them (api.SKIPPABLE_MODELS, the rule of api.simulate); any other refusal stops the run
             if v.verdict == "refuse" and (v.model not in SKIPPABLE_MODELS or len(self.doc.options.models) == 1):
                 blocked = blocked or v.message
@@ -1779,10 +1883,11 @@ class SolverPanel(QWidget):
                     alone = len(self.doc.options.models) == 1
                     why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
                            + ("will not run: install it or use a coarser cell" if alone else "will be left out"))
-                    rows.append(f'<span style="color:{colours["refuse"]}">' + html.escape(why) + "</span>")
+                    rows.append(f'<span style="color:{colours["refuse"]}">●&nbsp;' + html.escape(why) + "</span>")
                     if alone:
                         blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
+        self.cells_label.setVisible(bool(rows))            # No empty strip under the cell size when no selected model is guarded (Lumped, Analytic)
         self.blocked = blocked
         self._style_run_button()
 
@@ -1792,7 +1897,8 @@ class SolverPanel(QWidget):
         """
         models = tuple(k for k in GUARDED_MODELS if self.cb[k].isChecked())
         base = suggest_cell_mm(self.doc.problem)
-        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
+        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params(),
+                              fem_params=self.doc.options.fem_params())
         self.cell.setValue(cell)
         # A board with imported copper has its own sentence (Auto is capped at 1 mm there, and above 1.5 mm the result is a screening estimate)
         note = copper.auto_cell_note(self.doc.problem, cell)

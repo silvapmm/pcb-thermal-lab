@@ -34,13 +34,13 @@ from . import __version__, analytic, blocks, convection, copper, fdm, fem, femco
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
-from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
+from .checks import ALERT, check_fin_channels, check_input, is_fem_left_out, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
 from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult
 from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Comparison models: never the reference of the decisions
+COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Models off by default; the reference of the decisions is the first ticked of MODEL_NAMES + COMPARISON_MODELS (a main model when one runs)
 SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
 TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
@@ -525,7 +525,7 @@ class Simulation:
         return written
 
 
-def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT, laminate_params=None):
+def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT, laminate_params=None, fem_params=None):
     """!
     @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
     @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
@@ -541,6 +541,7 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     @param base Resident bytes of the process that will solve: memory.BASE_DEFAULT for the calculation process of the window (default), None for this process
                 (the command line solves in its own process).
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule that the run will use (None: the current values), because they change the unknowns the guard counts.
+    @param fem_params Tuple (elements across a gap, refinement) of the FEM mesh that the run will use (None: the defaults), because they change the unknowns the guard counts for the FEM.
     @return Cell size in millimetres: the heater-based one clipped to [lo, hi], enlarged until the models fit.
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
@@ -548,7 +549,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     # Imported copper wants a cell of 1 mm or less (the faces read 7 to 10 % too hot at 2 mm): Auto stays there unless the memory forces more
     cell = copper.auto_cell_cap(problem, cell)
     if models:
-        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params):
+        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params,
+                                fem_params=fem_params):
             if v.verdict == "refuse" and v.cell_fit:
                 cell = max(cell, v.cell_fit)
     return cell
@@ -1137,7 +1139,7 @@ def _simulate(problem, options, progress):
                 skipped.add(v.model)
             else:
                 raise memory.MemoryGuardError(v.message)
-    guard_warnings = [warn(f"the {memory.MODEL_LABELS[v.model]} was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
+    guard_warnings = [warn(f"the {RESULT_MODEL_LABELS[v.model]} was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
     # The time simulation of a power profile (profiles.run_fvm / run_fdm at the cell of the run) holds a step factor while the next one is built: about twice a
     # steady solve (measured 1.7 times the law on the profile example at 0.5 mm). Checked now, before the steady solves; a refusal leaves the steady results and
     # says why the time simulation was not run (the step responses run on a cell of at least 2 mm and are smaller).
@@ -1168,9 +1170,14 @@ def _simulate(problem, options, progress):
                 if isinstance(exc, femcore.FemUnavailable):
                     raise ValueError(str(exc)) from exc                                          # A refusal like the others: the callers catch ValueError and say the reason
                 raise
-            sim.problem_warnings.append(warn(f"the {memory.MODEL_LABELS[name]} was not run: {exc}", ALERT))   # Too large, no mesh or no pyamg: the other models still answer
+            sim.problem_warnings.append(warn(f"the {RESULT_MODEL_LABELS[name]} was not run: {exc}", ALERT))   # Too large, no mesh or no pyamg: the other models still answer
+            skipped.add(name)
             continue
         sim.seconds[name] = time.time() - t0
+    if "fem" in skipped:
+        # The live input check already said 'the FEM will be left out' (no mesh, or no pyamg for a large mesh): the run's own 'the FEM was not run: ...' replaces it,
+        # so the list says it once
+        sim.problem_warnings = [w for w in sim.problem_warnings if not is_fem_left_out(w)]
     if blocks.has_blocks(problem):
         for name, how, accuracy in (
                 ("lumped", "one more layer of the ring network",

@@ -10,10 +10,12 @@ from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QKeyEvent, QKeySequence, QLinearGradient, QPainter, QPalette, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyStyle, QStyle, QWidget
 
+# accent_text: the accent as TEXT. Dark: the accent itself, 4.89:1 on the window (#1e2127). Light: the pressed accent, 5.03:1 on the window (#f3f4f6) and 5.54:1 on white;
+# the plain light accent (#5a7fb0) reaches only 3.74:1, below the 4.5:1 that normal text needs. Lines and marks keep `accent` (3:1 is enough for a non-text mark).
 THEMES = {
     "dark": {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
-        "accent": "#6a90c0", "accent_hover": "#7a9fcc", "accent_pressed": "#5a7eab", "on_accent": "#ffffff", "link": "#6cb0ff",
+        "accent": "#6a90c0", "accent_text": "#6a90c0", "accent_hover": "#7a9fcc", "accent_pressed": "#5a7eab", "on_accent": "#ffffff", "link": "#6cb0ff",
         # Notes and warnings: the text and the symbol of an entry take the same token (the Run panel list was link blue with a text-coloured symbol)
         "alert": "#e0a030", "alert_note": "#e0a030", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
@@ -29,7 +31,7 @@ THEMES = {
     },
     "light": {
         "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
-        "accent": "#5a7fb0", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "link": "#0000ff",
+        "accent": "#5a7fb0", "accent_text": "#4a6a96", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "link": "#0000ff",
         "alert": "#8a5a00", "alert_note": "#8a5a00", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "map_copper": "#b9bec5", "map_laminate": "#4d4d4d", "map_contour": "#ffffff",

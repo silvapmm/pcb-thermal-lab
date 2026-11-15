@@ -65,7 +65,7 @@ TIPS = {
     "fvm solver": "Solver of the FVM system: sparse direct (exact, default), conjugate gradients, or SOR (comparison, slow).",
     "lumped rings": "Rings of each heater's thermal network. Rings under one cell are merged: 10 is enough.",
     "analytic modes": "Cosine modes per direction of the analytical series (more resolve smaller parts).",
-    "local via and heatsink corrections": "Apply vias and heatsinks locally in the analytical model (Green function) instead of smearing them.",
+    "local via and heatsink corrections": "Apply vias and heatsinks locally in the analytical model (Green function) instead of smearing them. Steady run only: the time run (power profiles) always treats vias and heatsinks locally.",
     "hotspot limit": "Temperature, °C, above which an area is a hotspot (outlined on the map).",
     # Elements
     "name": "Label of the element on the board, in the list and in the reports.",

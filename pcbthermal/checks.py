@@ -387,6 +387,15 @@ def fem_needs_pyamg(problem, cell_mm, gap_elements=6, refine=2.0):
     return n, bool(n > femcore.FEM_DIRECT_MAX and not femcore.available())
 
 
+def is_fem_left_out(text):
+    """!
+    @brief True for the live warning that says the FEM will be left out of the run (no mesh, or a large mesh without pyamg).
+    @param text A warning (str).
+    @return bool.
+    """
+    return "finite-element model (FEM)" in text and "will be left out" in text
+
+
 def check_fem(problem, models, cell_mm):
     """!
     @brief Warnings of the finite-element model that are known before the run: a mesh that cannot be built, the missing pyamg, imported copper and a part below the mesh.
