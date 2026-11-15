@@ -55,10 +55,12 @@ MEMORY_ENV = "PCBTHERMAL_MEMORY_BYTES"   # Environment variable that states the 
 
 # FEM (releases/2.8.0/fem-model/scripts/measure_fem_law.py, 21 runs of 10 boards of the harness at 2, 1 and 0.5 mm, each in a fresh process, growth of the resident size over the build and the solve):
 # conjugate gradients with pyamg 6410 to 6961 bytes per unknown (mean 6692, no trend with the size from 40 000 to 215 000 unknowns, vias, a block, an outline and one layer included),
-# the direct solve 9552 to 12313 bytes per unknown at 10 000 to 19 000. The safety factor makes safety x k1 the largest measured growth times 1.1 (7657) and the direct figure 1.1 x 12313.
+# the direct solve 9552 to 12313 bytes per unknown at 10 000 to 19 000. The safety factor makes safety x k1 the largest measured growth times 1.1 (7657).
+# The direct figure grows with the size (the fill of a 3D factor is superlinear): the review measured 11 388 to 14 402 bytes per unknown at 26 900 to 29 800 unknowns, just under
+# FEM_DIRECT_MAX (the example board at 26 910 and the finned block at 29 413 above the first fit of 13 600), so the direct figure is 1.1 x 14 402.
 FEM_K1 = 6700.0
 FEM_SAFETY = 1.15
-FEM_DIRECT_BYTES = 13600.0
+FEM_DIRECT_BYTES = 15900.0
 # CONTINUOUS law of the review: model -> (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety factor)
 CONTINUOUS = {
     "fvm": (1469.0, 1.24, 0.79, 1.40),

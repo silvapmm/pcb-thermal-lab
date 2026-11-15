@@ -6,7 +6,7 @@
 @details Builds, from any `Problem`, either the `femcore.Model` of a conforming brick mesh or a refusal with the reason in plain text (`ValueError`).
          * **Plan mesh**: a tensor grid whose break lines are the axis-aligned edges of the outline, blocks, heaters, heatsinks and zones (lines closer than a quarter of
            the cell are merged, the feature of higher rank wins), graded from `cell / refine` near the heaters to the cell elsewhere; the elements outside a rectilinear outline
-           are removed. A via with room (no break line and no other via in its window, `PATCH_NSIDE` elements across it) is a conforming hollow cylinder (an O-grid patch: the
+           are removed. A via with room (no break line, no polygon edge and no drill of another via in its window, `PATCH_NSIDE` elements across it) is a conforming hollow cylinder (an O-grid patch: the
            circles at the inner radius, two rings across the plating, the drill); the others are a rod of the barrel area spread over the elements under the drill.
          * **Through the thickness**: a copper layer is one slab up to 105 um and `ceil(t / 70 um)` (at most 8) above; a dielectric gap is `gap_elements` slabs graded
            towards the copper (ratio 1.4); a metal block is a pad slab and `clip(ceil(t / 1 mm), 2, 8)` block slabs, extruded only over the block (partial slabs).
@@ -442,8 +442,8 @@ def _window_half(via, h_fine):
 def _select_windows(problem, bx, by, h_fine, shares):
     """!
     @brief Choose the vias that get a conforming patch (greedy, in the order of the vias).
-    @details A via needs its window on the board, free of break lines, of the windows already chosen and of any window interval that overlaps its own along an axis without being
-             the same (the window lines run across the whole tensor grid). The others are rods.
+    @details A via needs its window on the board, free of break lines, of polygon edges, of the drills of the other vias, of the windows already chosen and of any window interval
+             that overlaps its own along an axis without being the same (the window lines run across the whole tensor grid). The others are rods.
     @param problem A Problem.
     @param bx Interior break lines along x in m (all ranks).
     @param by Interior break lines along y in m.
@@ -481,6 +481,71 @@ def _select_windows(problem, bx, by, h_fine, shares):
         return i1 <= j0 + 1e-9 or j1 <= i0 + 1e-9
 
     outline = np.asarray(b.outline, float) if b.has_outline() else None
+    # The vias on the board, sorted along x: a window must hold no drill of another via (a rod whose drill falls in a patch would find no tensor element there and its
+    # barrel would be lost; the review measured half the barrel copper of a 4 x 4 array at 2 mm gone before this test)
+    on = [k for k, v in enumerate(problem.vias) if shares[k] > 0.0]
+    vx = np.array([problem.vias[k].x for k in on], float)
+    vy = np.array([problem.vias[k].y for k in on], float)
+    vr = np.array([0.5 * problem.vias[k].diameter for k in on], float)
+    order = np.argsort(vx, kind="stable")
+    sx, sy, sr, sk = vx[order], vy[order], vr[order], np.asarray(on, np.int64)[order]
+    r_max = float(vr.max()) if vr.size else 0.0
+
+    def crowded(k, x0, x1, y0, y1):
+        """!
+        @brief Whether the drill of a via other than k reaches into the window [x0, x1] x [y0, y1].
+        @param k Index of the via of the window.
+        @param x0 Window start along x in m.
+        @param x1 Window end along x in m.
+        @param y0 Window start along y in m.
+        @param y1 Window end along y in m.
+        @return bool.
+        """
+        a = int(np.searchsorted(sx, x0 - r_max, side="left"))
+        c = int(np.searchsorted(sx, x1 + r_max, side="right"))
+        if c - a <= 1:
+            return False
+        sel = slice(a, c)
+        hit = (sx[sel] + sr[sel] > x0) & (sx[sel] - sr[sel] < x1) & (sy[sel] + sr[sel] > y0) & (sy[sel] - sr[sel] < y1) & (sk[sel] != k)
+        return bool(hit.any())
+
+    # Every polygon edge (outline, blocks, heatsinks, heaters, zones): a window that one of them crosses is refused, so that every quad of a patch is wholly inside or
+    # outside each polygon and its centroid gives the exact share (a zone edge merged into a near break line, or a slanted one, could otherwise cross the patch, whose
+    # quads read the polygon by their centroid: the review measured 1.2 mm2 of copper lost on a zone edge 0.4 mm from a part edge)
+    segs = []
+    for poly, _ in _polygons(problem):
+        q = np.asarray(poly, float)
+        segs.append(np.hstack([q, np.roll(q, -1, axis=0)]))
+    segs = np.vstack(segs) if segs else np.zeros((0, 4))
+
+    def crossed(x0, x1, y0, y1):
+        """!
+        @brief Whether a polygon edge crosses the open interior of the window [x0, x1] x [y0, y1] (Liang-Barsky against the window shrunk by 1e-9 m).
+        @param x0 Window start along x in m.
+        @param x1 Window end along x in m.
+        @param y0 Window start along y in m.
+        @param y1 Window end along y in m.
+        @return bool.
+        """
+        if segs.shape[0] == 0:
+            return False
+        e = 1e-9
+        xa, ya, xb, yb = segs[:, 0], segs[:, 1], segs[:, 2], segs[:, 3]
+        near = (np.maximum(xa, xb) > x0 + e) & (np.minimum(xa, xb) < x1 - e) & (np.maximum(ya, yb) > y0 + e) & (np.minimum(ya, yb) < y1 - e)
+        if not near.any():
+            return False
+        xa, ya, xb, yb = xa[near], ya[near], xb[near], yb[near]
+        t0, t1 = np.zeros(xa.size), np.ones(xa.size)
+        ok = np.ones(xa.size, bool)
+        for d, a, lo, hi in ((xb - xa, xa, x0 + e, x1 - e), (yb - ya, ya, y0 + e, y1 - e)):
+            flat = d == 0.0
+            ok &= ~flat | ((a > lo) & (a < hi))
+            dd = np.where(flat, 1.0, d)
+            ta, tb = (lo - a) / dd, (hi - a) / dd
+            t0 = np.where(flat, t0, np.maximum(t0, np.minimum(ta, tb)))
+            t1 = np.where(flat, t1, np.minimum(t1, np.maximum(ta, tb)))
+        return bool((ok & (t0 < t1 - 1e-12)).any())
+
     for k, v in enumerate(problem.vias):
         if shares[k] <= 0.0:
             continue
@@ -490,7 +555,8 @@ def _select_windows(problem, bx, by, h_fine, shares):
         half = _window_half(v, h_fine)
         x0, x1, y0, y1 = v.x - half, v.x + half, v.y - half, v.y + half
         ok = x0 > 1e-9 and y0 > 1e-9 and x1 < b.width - 1e-9 and y1 < b.height - 1e-9
-        ok = ok and not has_line(bxs, x0, x1) and not has_line(bys, y0, y1)
+        ok = ok and not crowded(k, x0, x1, y0, y1)
+        ok = ok and not has_line(bxs, x0, x1) and not has_line(bys, y0, y1) and not crossed(x0, x1, y0, y1)
         if ok and outline is not None:
             # The window must lie wholly inside the outline: its centre and corners are inside (no outline line crosses it, tested above)
             px = np.array([v.x, x0, x1, x0, x1])
@@ -904,7 +970,7 @@ def _poly_share(plan, poly):
     """!
     @brief The share of every plan quad that lies inside a polygon.
     @details A quad no polygon edge crosses is 1 or 0 by its centroid; a tensor quad that an edge crosses gets the exact overlap area (`geometry.polygon_overlap_area`); the quads of
-             a via patch are 1 or 0 by their centroid (a polygon edge through a via window is not resolved).
+             a via patch are 1 or 0 by their centroid (exact: no polygon edge crosses a via window, `_select_windows`).
     @param plan A Plan.
     @param poly Polygon vertices (n, 2) in m.
     @return numpy.ndarray (Q,) in [0, 1].
@@ -1085,9 +1151,9 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
         warnings.append("the FEM reads the imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported board it is a different stencil, not a better answer")
     # --- Vias: patch quads carry the barrel; the others add their copper area to kz under the drill
     via_frac = np.zeros(Q)
-    shares = problem.via_board_shares()
     for k in lay.rods:
-        ids, frac = _rod_fraction(problem, plan, k, problem.vias[k].thermal_area(b.via_plating, kcu) * shares[k])
+        # The samples of the drill that fall off the board are dropped by `_rod_fraction`, so they give the board share themselves: multiplying by `shares[k]` too counted it twice
+        ids, frac = _rod_fraction(problem, plan, k, problem.vias[k].thermal_area(b.via_plating, kcu))
         via_frac[ids] += frac
     via_frac = np.minimum(via_frac, 1.0)
     if lay.rods:

@@ -374,9 +374,13 @@ def test_via_windows_with_the_same_interval_share_the_lines():
     p.add_heater(1, 1.0, rect=(2, 2, 4, 4))
     for y in (8.0, 15.0, 24.0):
         p.add_via(15.0, y, diameter=0.3)
-    p.add_via(16.0, 22.0, diameter=0.3)                                    # window overlaps the column's x interval without being it
+    p.add_via(16.0, 20.5, diameter=0.3)                                    # window overlaps the column's x interval without being it
     lay = femmesh._layout(p, 2.0, 3, 2.0)
     assert len(lay.windows) == 3 and len(lay.rods) == 1
+    # a via whose drill reaches into the window of another makes that one a rod too (its barrel would find no tensor element there)
+    p.add_via(15.5, 22.0, diameter=0.3)
+    lay = femmesh._layout(p, 2.0, 3, 2.0)
+    assert len(lay.windows) == 2 and len(lay.rods) == 3
 
 
 def test_a_part_outside_the_board_is_warned_and_does_not_crash():
@@ -418,3 +422,64 @@ def test_end_to_end_the_mesh_solves_and_conserves_energy():
     print(f"example board at {cell:g} mm: {n} unknowns, FEM hottest top-copper element mean {col.max():.3f} K, hottest element of any copper layer {best:.3f} K, "
           f"FEM point max {T.max():.3f} K, FVM {rise_fvm:.3f} K, balance {r['balance']:.12f}")
     assert abs(best - rise_fvm) / rise_fvm < 0.06
+
+
+def _barrel_area_in_a_gap(m, p):
+    """!
+    @brief The copper-equivalent area of the via barrels that the mesh carries through the middle slab of the first gap (rods in k_z, patch rings as copper elements).
+    @param m FemMesh.
+    @param p Problem.
+    @return float in m2.
+    """
+    b = p.board
+    kcu = b.materials.k_copper
+    gaps = [s for s, sl in enumerate(m.slabs) if sl["kind"] == "gap" and sl["region"] == "board"]
+    s = gaps[len(gaps) // 2]
+    sel = m.elem_slab == s
+    g_kz = b.gap_properties()[0][m.slabs[s]["gap"]] if b.layers > 1 else b.materials.k_fr4_through
+    share = (m.model.k[sel, 2] - g_kz) / (kcu - g_kz)
+    return float((share * m.plan.area[m.elem_quad[sel]]).sum())
+
+
+def test_no_via_barrel_is_lost_in_a_dense_array_or_at_the_edge():
+    """!
+    @brief Every via keeps its barrel: the copper-equivalent area in a gap equals the sum of `thermal_area` times the board share, for a 4 x 4 array at a 2 mm pitch, a 7 x 5 array at a
+           1 mm pitch and vias cut by the board edge.
+    @details Regression of the review: a rod whose drill fell in the window of a patched neighbour lost its barrel (half the copper of the first array at 2 mm, 83 % of the second at
+             1 mm), and a rod cut by the edge counted its board share twice.
+    @return None.
+    """
+    arr = _plain(60.0, 60.0)
+    arr.add_via_array((27, 27, 33, 33), 4, 4, diameter=0.3)
+    dense = _plain(30.0, 20.0, layers=4)
+    dense.add_via_array((12, 8, 18, 12), 7, 5, diameter=0.3)
+    edge = _plain(30.0, 20.0, layers=4)
+    edge.add_via(29.95, 15.0, diameter=0.4)
+    edge.add_via(0.6, 10.0, diameter=0.3)
+    for p in (arr, dense, edge):
+        b = p.board
+        exact = sum(v.thermal_area(b.via_plating, b.materials.k_copper) * s for v, s in zip(p.vias, p.via_board_shares()))
+        for cell in (2.0, 1.0):
+            m = femmesh.build(p, cell)
+            assert _barrel_area_in_a_gap(m, p) == pytest.approx(exact, rel=1e-6)
+
+
+def test_no_polygon_edge_crosses_a_via_patch():
+    """!
+    @brief A via whose window a polygon edge crosses (a zone edge merged into a near part edge, or a slanted edge) is a rod, so the copper area stays exact.
+    @details Regression of the review: the quads of a patch read a polygon by their centroid, and a zone edge 0.4 mm from a part edge (merged at a 2 mm cell) crossed a patch: 176.8
+             against 178.0 mm2 of copper.
+    @return None.
+    """
+    p = Problem.new(20.0, 20.0, layers=2)
+    p.add_zone(2, rect=(0, 0, 20, 20))
+    p.add_zone(1, rect=(0, 0, 8.9, 20))
+    p.add_heater(1, 1.0, rect=(2, 2, 8.5, 6))
+    p.add_via(10.6, 14.0, diameter=0.4)                                    # the window 8.6 .. 12.6 holds the merged zone edge x = 8.9
+    p.add_via(15.0, 10.0, diameter=0.4)
+    p.add_zone(1, polygon=[(13, 1), (19, 1), (14, 19)])                    # a slanted edge through the second window
+    lay = femmesh._layout(p, 2.0, 6, 2.0)
+    assert (len(lay.windows), len(lay.rods)) == (0, 2)
+    fill = femmesh._zone_fill(lay.plan, [z for z in p.zones if z.layer == 0])
+    _, ref = copper._zone_union([z for z in p.zones if z.layer == 0], 2000, 2000, 1e-5, 1e-5)
+    assert float((fill * lay.plan.area).sum()) == pytest.approx(float(ref.sum()) * 1e-10, rel=1e-4)

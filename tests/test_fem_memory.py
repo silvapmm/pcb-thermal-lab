@@ -3,7 +3,8 @@
 """!
 @file test_fem_memory.py
 @brief Tests of the memory law of the model key `fem` in `pcbthermal/memory.py`: the law covers the measured growth, is monotone, gives verdicts consistent with the 3D solid, and refuses with the reason.
-@details The measured pairs are the 21 runs of `releases/2.8.0/fem-model/scripts/measure_fem_law.py` (unknowns, growth of the resident size over the build and the solve in bytes, each run in a fresh process).
+@details The measured pairs are the 21 runs of `releases/2.8.0/fem-model/scripts/measure_fem_law.py` (unknowns, growth of the resident size over the build and the solve in bytes, each run in a fresh process)
+         and two direct solves of the review just under the direct limit, where the fill of the factor is larger per unknown.
 """
 
 import numpy as np
@@ -16,7 +17,9 @@ from pcbthermal.model import Problem
 MEASURED = [("d", 14400, 157089792), ("d", 15039, 162611200), ("d", 11007, 105136128), ("d", 15632, 192479232), ("d", 15876, 181469184), ("d", 18720, 217088000),
             ("d", 10368, 100040704), ("d", 8928, 89751552), ("c", 67229, 447201280), ("c", 54671, 380583936), ("c", 53181, 351485952), ("c", 55488, 383811584),
             ("c", 40140, 264765440), ("c", 40328, 263979008), ("c", 72000, 461504512), ("c", 57600, 386154496), ("c", 147456, 1001095168), ("c", 212724, 1422245888),
-            ("c", 215172, 1453752320), ("c", 154568, 1029210112), ("c", 155196, 1040990208)]
+            ("c", 215172, 1453752320), ("c", 154568, 1029210112), ("c", 155196, 1040990208),
+            # the review, direct solves just under FEM_DIRECT_MAX (example board at 3.35 mm, finned block at 1.4 mm): the fill grows with the size
+            ("d", 26910, 387557820), ("d", 29413, 419547032)]
 
 
 def _board(width=60.0, height=40.0, layers=2):
@@ -43,7 +46,7 @@ def test_the_law_covers_every_measured_run_with_the_margin_of_ten_percent():
     worst = max(g / n for s, n, g in MEASURED if s == "c")
     assert memory.estimate_bytes("fem", 200_000, 20_000.0, base=0.0) >= 1.1 * worst * 200_000 - 1.0
     worst_direct = max(g / n for s, n, g in MEASURED if s == "d")
-    assert memory.estimate_bytes("fem", 20_000, 2_000.0, base=0.0) >= 1.1 * worst_direct * 20_000 - 1.0
+    assert memory.estimate_bytes("fem", 29_000, 2_900.0, base=0.0) >= 1.1 * worst_direct * 29_000 - 1.0
 
 
 def test_the_law_never_decreases_with_the_unknowns():
