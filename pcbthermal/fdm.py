@@ -21,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from .geometry import exact_coverage, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
-from . import blocks, copper, fvm, laminate, viawell
+from . import blocks, copper, fvm, laminate, thickness, viawell
 from .results import SteadyResult
 
 FACE_FILL_TOL = 1e-9        # Copper fill difference (0..1) below which the nodal fill is taken to equal the fill of the face: uniform copper keeps the earlier faces bit for bit
@@ -495,6 +495,7 @@ def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area", face_fi
     fvm.attach_laminate_results(out, net, theta_all + b.ambient, area)
     fvm.attach_face_terms(out, net, area, dx)
     fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
+    thickness.attach(out, net, theta_all, area, problem)
     return out
 
 

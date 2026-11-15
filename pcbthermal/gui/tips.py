@@ -18,7 +18,9 @@ from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names l
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",
     "profile page": "Copper layer; the same choice as in the editor and the Results maps.",
-    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer or the metal block. A single layer is also the drawing layer.",
+    "temperature": "Layer of the Temperature map: all side by side, all in 2 x 2, one layer, the metal block, or (thick copper) the surface of the outer copper, "
+                   "estimated from the layer mean and the heat fluxes, upper side when the source is small against the plate; a view of the map only: the tables keep the layer mean. "
+                   "A single layer is also the drawing layer.",
     "gradient": "Copper layer of the gradient map, shared with the editor. All layers and the block: Temperature tab only.",
     "animation": "Copper layer of the animation, shared with the editor. All layers and the block: Temperature tab only.",
     "profiles": "Copper layer of the cut or the time maps, shared with the editor. All layers and the block: Temperature tab only.",

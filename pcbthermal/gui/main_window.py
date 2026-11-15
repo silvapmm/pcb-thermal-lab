@@ -1107,8 +1107,9 @@ class MainWindow(QMainWindow):
         ctx = self._layer_ctx()
         faces = self.results.temp.block_faces() if getattr(self, "sim", None) is not None else []
         kind = layerchoice.EXTENDED_CONTEXT if ctx == "temperature" else "single"
-        value, note = self.layer_choice.effective(kind, n, faces)
-        entries = layerchoice.items(kind, n, faces)
+        sfaces = self.results.temp.surface_faces() if getattr(self, "sim", None) is not None else []
+        value, note = self.layer_choice.effective(kind, n, faces, sfaces)
+        entries = layerchoice.items(kind, n, faces, sfaces)
         box = self.layer_combo
         if [(box.itemText(i), box.itemData(i)) for i in range(box.count())] != entries:
             box.blockSignals(True)
@@ -1125,7 +1126,7 @@ class MainWindow(QMainWindow):
         changed = self.canvas.layer != single
         if changed:
             self.canvas.set_layer(single)                  # The drawing layer and the layer of the map on the board are the same choice
-        self.results.set_layer(self.layer_choice.effective(layerchoice.EXTENDED_CONTEXT, n, faces)[0], single)
+        self.results.set_layer(self.layer_choice.effective(layerchoice.EXTENDED_CONTEXT, n, faces, sfaces)[0], single)
         self.results.set_layer_note(note if ctx in ("gradient", "animation", "profiles") else "")
         if changed and redraw_board and self.a_overlay.isChecked():
             self._toggle_overlay(True)                     # The map follows the layer being edited

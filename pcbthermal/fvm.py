@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
-from . import copper, memory, blocks, laminate, viawell
+from . import copper, memory, blocks, laminate, viawell, thickness
 from .geometry import (cover_centroids, part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill,
                        face_apertures, signed_distance_to_outline)
 from .results import SteadyResult, TransientResult
@@ -913,6 +913,7 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
     attach_face_terms(res, net, net.dx * net.dy * net.cover, net.dx)
+    thickness.attach(res, net, theta, net.dx * net.dy * net.cover, net.problem)      # The surface beside the column, only for thick outer copper
     return res
 
 

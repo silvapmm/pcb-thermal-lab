@@ -143,6 +143,44 @@ def _footprint_stats(result, polygon, layer, outline=None, face=False):
     return float((T_mean * cov).sum() / cov.sum()), float(T_peak[inside].max()), float(T[inside].min())
 
 
+def surface_stats(result, polygon, layer, outline=None):
+    """!
+    @brief Surface read-out under a part: the hottest and the mean temperature of the outer face of its layer, and whether the estimate is an upper one.
+    @details Beside the column read-out of _footprint_stats, never instead of it: nothing that decides a number (Tj, margin, power limit, top path, power coefficient, Power
+             Calculator, calibration) reads these. Only a part on the first layer (top face) or the last (bottom face) has one, and only when the result holds arrays["T_surface"]
+             (thickness.attach: FVM and FDM, an outer copper layer thicker than 105 um).
+    @param result A SteadyResult with a field.
+    @param polygon Footprint vertices (n, 2) in metres.
+    @param layer 0-based layer of the part.
+    @param outline Board outline vertices in metres or None.
+    @return Tuple (t_max_surface, t_mean_surface, estimate_is_upper) or None when the result has no surface for that part.
+    """
+    arr = result.arrays
+    n = result.T.shape[0]
+    if "T_surface" not in arr or result.T is None or layer not in (0, n - 1):
+        return None
+    face = 0 if layer == 0 else 1
+    surf, mean = arr["T_surface"][face], arr["T_surface_mean"][face]
+    if not np.isfinite(surf).any():
+        return None
+    ny, nx = result.T.shape[1:]
+    on_board = _board_mask(result, outline)
+    if result.grid == "nodes":
+        xs, ys = result.coords()
+        X, Y = np.meshgrid(xs, ys)
+        cov = points_in_polygon(X.ravel(), Y.ravel(), polygon).reshape(X.shape).astype(float)
+    else:
+        cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
+    if on_board is not None:
+        cov = cov * on_board
+    cov = cov * np.isfinite(surf)
+    if cov.sum() <= 0:
+        return None
+    inside = cov > 0
+    flag = bool(arr["T_surface_flag"][face][inside].any()) if "T_surface_flag" in arr else False
+    return float(surf[inside].max()), float((np.nan_to_num(mean) * cov).sum() / cov.sum()), flag
+
+
 def zone_stats(result, problem):
     """!
     @brief Mean, maximum and minimum temperature of every copper zone.
@@ -246,6 +284,10 @@ def heater_stats(result, problem, powers=None):
                "power_top_w": p_top, "power_board_w": power - p_top, "r_top": h.top_resistance()}
         if h.tj_max > 0 and power > 0 and device > amb:
             row["p_limit_w"] = power * (h.tj_max - amb) / (device - amb)
+        # The surface read-out BESIDE the column one, only when the result has it (thick outer copper, FVM and FDM); no other key of the row reads it
+        surf = surface_stats(result, h.polygon, h.layer, problem.board.outline)
+        if surf is not None:
+            row["t_max_surface"], row["t_mean_surface"], row["surface_upper"] = surf
         rows.append(row)
     return rows
 

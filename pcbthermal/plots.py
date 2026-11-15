@@ -670,6 +670,30 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
 
 
 @_with_engineering_ticks
+def draw_surface(fig, result, problem, face, cmap="inferno"):
+    """!
+    @brief Temperature of the outer face of the copper (the surface read-out), beside the layer mean (the column) that every other map shows.
+    @param fig Target Figure (cleared first).
+    @param result A SteadyResult; the FVM and FDM of a board with thick outer copper hold arrays["T_surface"].
+    @param problem The Problem.
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @param cmap Colormap name.
+    """
+    fig.clear()
+    ax = fig.add_subplot(111)
+    if "T_surface" not in result.arrays or not np.isfinite(result.arrays["T_surface"][face]).any():
+        ax.text(0.5, 0.5, "This model has no surface read-out", ha="center", va="center", transform=ax.transAxes)
+        return
+    tag = "top" if face == 0 else "bottom"
+    layer = 0 if face == 0 else problem.board.layers - 1
+    field = result.arrays["T_surface"][face]
+    upper = bool(np.asarray(result.arrays["T_surface_flag"])[face].any())
+    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature (°C)",
+               title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C   "
+                     f"(layer mean {result.t_max:.1f} °C)")
+
+
+@_with_engineering_ticks
 def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equivalent_color="#ffb000", view=None, grid=False):
     """!
     @brief All layers side by side (or in a grid of two columns) with a shared colour scale.
