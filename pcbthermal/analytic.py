@@ -418,7 +418,7 @@ def _effective_sheet(problem, cell_mm):
             warnings.append(
                 f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and on a one-layer board the laminate edge is given to the copper: "
                 "the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
-                "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
+                "Use the FVM result for this board (itself a few percent cool at a strongly cooled edge, up to about 16 % on a 3.2 mm board at 2000 W/m2K: then the 3D solid).")
         else:
             # Per-layer edge (research/analytic-edge-and-transient README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
             # idealisation, which the per-layer edge solves exactly (within 0.5 % of an FVM with one link): the FVM with its sub-gaps and the 3D solid both read hotter.

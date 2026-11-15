@@ -153,7 +153,7 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 
 *(Audit 2.8.0 A5: printed by `power_from_top_study.py` on `development` 5fc91430; this table and `docs/validation.md` 19 had two different older sets, now one; the coverage table of 1.1c below keeps the boards of the band study, whose nominal powers 1.686 / 1.521 / 1.766 / 1.297 W were not re-run.)*
 
-**Reading it.** On the CSD17308Q3's own datasheet board the calculator is within 1.4 % (2.2 % at 0.25 mm; table 2.1; the JEDEC rows are an indication, not a check); the large deltas appear only when the drawn board is not the real one. The copper dominates (12 to 48 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
+**Reading it.** On the CSD17308Q3's own datasheet board the calculator is within 2.4 % (0.5 mm; 2.2 % at 0.25 mm on the tree before `fix/drawn-copper-faces`, not re-run; table 2.1; the JEDEC rows are an indication, not a check); the large deltas appear only when the drawn board is not the real one. The copper dominates (12 to 48 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
 
 ### 2.3 Self-consistency (`tests/test_inverse.py`)
 

@@ -304,7 +304,7 @@ def test_warnings_for_bare_laminate_and_for_a_slow_wave_near_a_side():
     edge = Problem.new(60, 40, 2, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0).add_full_copper()
     edge.add_heater(1, 3.0, rect=(1, 1, 6, 6), name="E1", profile=SquareWave(p_on=10.0, period=10.0, duty=0.3))
     w = checks.check_fast_wave(edge)
-    assert len(w) == 1 and "from a side of the board" in w[0] and "0.61" in w[0]
+    assert len(w) == 1 and "from a side of the board" in w[0] and "0.60" in w[0]   # docs/validation.md 37.2 prints 0.60 (the 0.61 of the old text, final review 2c)
     fast_edge = Problem.new(60, 40, 2, 1.6, h_top=10.0, h_bottom=10.0, h_side=0.0).add_full_copper()
     fast_edge.add_heater(1, 3.0, rect=(1, 1, 6, 6), name="E2", profile=SquareWave(p_on=10.0, period=0.01, duty=0.3))
     assert checks.check_fast_wave(fast_edge) == []                            # a fast wave near a side: the closed form holds (1.38 at 20 Hz, on the safe side)
