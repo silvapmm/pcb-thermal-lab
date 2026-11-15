@@ -2,7 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file variants.py
-@brief Variants of the first link of the Lumped ring network near a board edge, built by editing a COPY of pcbthermal/lumped.py in memory (the program is never written).
+@brief Variants of the first link of the Lumped ring network near a board edge, built by editing a FROZEN COPY of the pre-fix pcbthermal/lumped.py (lib/lumped_before_fix.py) in memory (the program is never written).
+@details Adopted in the program as fix/lumped-edge-first-link: the shipped module IS the "first:zone" prototype, so the text patches apply to the frozen copy and not to the tree.
+         "shipped" is the module of the tree (the adopted code); the adoption check compares it with "first:zone" built on the frozen copy.
 @details Variants: "program" the module as it is; "expo" the link from the footprint to ring 1 (and the zone model's A to ring 1) is divided by the open fraction omega of
          ring 1 (area of ring 1 on the board divided by the area of the same ring on an unbounded plane, both by the distance transform): the heat leaves the footprint only
          through the part of the contour that has board outside it, so the 2 pi of the logarithmic potential becomes 2 pi omega (exact for a part on an insulated side: omega 1/2
@@ -286,6 +288,7 @@ def source(name, text, power=1.0):
     return text
 
 
+FROZEN = Path(__file__).with_name("lumped_before_fix.py")       # lumped.py before the first-link fix (development dbe5068e)
 _CACHE = {}
 
 
@@ -300,12 +303,14 @@ def load(name, power=1.0):
     if key in _CACHE:
         return _CACHE[key]
     import pcbthermal.lumped as orig
+    if name == "shipped":
+        return orig
     spec = importlib.util.spec_from_loader(f"pcbthermal.lumped_{name}_{power}", loader=None)
     mod = importlib.util.module_from_spec(spec)
     mod.__package__ = "pcbthermal"
     mod.__file__ = orig.__file__
     sys.modules[spec.name] = mod
-    exec(compile(source(name, Path(orig.__file__).read_text(), power), f"lumped_{name}", "exec"), mod.__dict__)
+    exec(compile(source(name, FROZEN.read_text(), power), f"lumped_{name}", "exec"), mod.__dict__)
     _CACHE[key] = mod
     return mod
 

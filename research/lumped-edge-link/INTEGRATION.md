@@ -1,6 +1,6 @@
 # Integration: the first link of the Lumped model near an edge (A27)
 
-Status: a proposal measured on a copy (`lib/variants.py`, variants `first` and `first:zone`); nothing in `pcbthermal/` was changed. Evidence: README 3. **Reviewed (README 4): GO for the adoption below, with the corrections marked 'Review' in this file.**
+Status: **adopted** in the program as `fix/lumped-edge-first-link` (2.8.0, unreleased; `docs/validation.md` 53); this file is kept as the record of the proposal, measured on a copy (`lib/variants.py`, variants `first` and `first:zone`); nothing in `pcbthermal/` was changed from this branch. Evidence: README 3. **Reviewed (README 4): GO for the adoption below, with the corrections marked 'Review' in this file.**
 
 ## 1. Recommendation
 
@@ -8,7 +8,7 @@ Status: a proposal measured on a copy (`lib/variants.py`, variants `first` and `
 
 * the deficit of the part read-out is real and large (-9.4 % on average over 432 near-edge cases, -22 % worst; against an independent converged 3D -9.9 % on a part touching a side, -15.9 % in a corner), and the FVM reference is right to 0.2 %;
 * the correction takes it to -2.5 % on average (worst cool -8.6 %), the far-from-every-side group from -3.1 to 0.0 %, at no real cost (0.02 to 0.6 s per part);
-* its price is that every Lumped record of the frozen boards moves (51 of 51, -0.47 to +3.13 % of the rise, mean +0.67 %, mostly on the hot side) and 14 times (-19.9 to +1.1 %), because a different first link also shifts a centred part by about 2 points (the interior
+* its price is that every Lumped record of the frozen boards moves (51 of 51, -0.47 to +3.13 % of the rise, mean +0.67 %, mostly on the hot side) and 14 times (-19.9 to +1.1 %), because a different first link also shifts a centred part by about 2 points (closing review, README 3.3 and 4.7: +3.8 points on average at 0.5 mm, +0.5 to +6.4, for parts 10 mm or more from every side; +2.2 at 1 mm) (the interior
   factor and the first-ring cap were fitted with the old link): that is a decided change of a model, so the pending file and the reviewer's go are part of the branch;
 * what remains: 3 to 7 % cool at a gap of 1 to 5 mm and at a corner 2 to 5 mm (ring-to-ring links), up to +9.4 % hot on 5 of 432 cases at a cooled side (200 W/m2K) in a corner at 0.5 to 1 mm: stated in the warning, not corrected.
 
@@ -58,7 +58,7 @@ If the maintainer takes the alternative of adopting `expo_peak` only: 3 records 
 
 ## 6. Risks
 
-* A centred part moves by about +2 points (hot side): the user's Lumped result of any board changes; stated in the changelog, with the frozen table.
+* A centred part moves by about +2 points (hot side; closing review: +3.8 points on average at 0.5 mm, up to +6.4, for parts 10 mm or more from every side, README 4.7): the user's Lumped result of any board changes; stated in the changelog, with the frozen table.
 * The images assume an insulated side: at a cooled side in a corner the result can read up to +9.4 % hot (5 of 432 cases, the safe side). A reflection factor was tried (0.8: worse overall) and the Robin estimate failed (too small); not adopted.
 * The correction does not reach a footprint of more than 3600 cells (the cell-resolved potentials), nor the ring-to-ring links: a part of 1 to 5 mm from a side is still 3 to 7 % cool.
 * The time response of the corrected network (14 times move, -19.9 % for `example_board` U2): Review, against an FVM step response at 0.5 mm, near a side +19.9 to -5.2 % and in a corner +43.4 to +1.7 %, in the interior 5 to 9 % short (centred 6 mm +3.0 to -6.4 %, U2 +12.7 to -9.2 %); the frozen FVM times at 2 mm are not a reference for this.
