@@ -22,11 +22,12 @@ SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, an estimate f
 # Tooltips of the columns of the Components table when the surface read-out is shown beside the column one (docs: user guide 'Surface temperature and column mean')
 COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of the copper through its thickness. Tables, junction temperature, margin, power limit and "
                      "top path all use it. The surface columns on the right are an estimate of the outer face, hotter under a source on thick copper.")
-SURFACE_MEAN_TIP = ("Mean over the footprint of the part of the temperature of the outer face of the copper (an estimate: layer mean + t (2 q_top - q_bot) / (6 k)). "
+SURFACE_MEAN_TIP = ("Mean over the footprint of the part of the temperature of the outer face of the copper, in degC (an estimate: layer mean + t (2 q_in - q_out) / (6 k), "
+                    "q_in the heat flux entering the face of the part, q_out the one entering the other face, in W/m2; t and k the thickness and conductivity of the copper). "
                     "Compare it with a thermocouple, an infrared camera or a paper that reports the surface. Steady state, FVM and FDM, copper above 105 um.")
-SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, estimated from the layer mean and the heat fluxes through the faces. "
+SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in degC, estimated from the layer mean and the heat fluxes through the faces. "
                    "'(upper)' marks a part that is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at t/a = 1. "
-                   "Junction, margin and power limit stay on the column. Not given by the Lumped, the Analytic or in a time simulation.")
+                   "Junction, margin and power limit stay on the column. Not given by the Lumped, the Analytic, the 3D solid or in a time simulation.")
 
 LAYER_TIPS = {
     "editor": "Layer that new zones and heaters go on (others faded); also the layer of the board map and the Results maps.",

@@ -538,7 +538,7 @@ def main_views(out_dir, board_dir):
 def main_surface(out_dir):
     """!
     @brief Screenshot of the surface read-out: the 4-layer example board with 2 mm of outer copper, the Components table with its (column) and (surface) columns and the Layer box.
-    @param out_dir Folder that receives results_surface.png (only this picture; the other screenshots are not remade).
+    @param out_dir Folder that receives results_surface.png and results_surface_table.png (only these two pictures; the other screenshots are not remade).
     @return List of written file paths.
     """
     _assert_neutral(out_dir)
@@ -550,7 +550,7 @@ def main_surface(out_dir):
     prob = example_board()
     prob.board.thickness = 6e-3
     prob.board.copper_thickness = [2e-3, 35e-6, 35e-6, 2e-3]               # Thick outer copper: the surface read-out exists and is worth showing
-    prob.board.h_top, prob.board.h_bottom = 400.0, 400.0                     # A cooled plate: the flux through the copper is large enough for the surface to differ by 1 K or more
+    prob.board.h_top, prob.board.h_bottom = 400.0, 400.0                     # A cooled plate: the surface differs from the layer mean by about 0.3 K, 2 % of the rise, above the display threshold max(0.1 K, 1 %)
     for h in prob.heaters:
         if h.name == "U1":
             h.power = 20.0
