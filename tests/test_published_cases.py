@@ -293,7 +293,7 @@ def test_a2_t1_strong_edge_plate_against_the_stored_finite_element_limit():
 def test_l4l9_t1_the_cut_cell_peak_does_not_depend_on_the_film_floor(monkeypatch):
     """!
     @brief The FVM peak of the recessed turned square at 2000 W/m2K is the same for any value of fvm.EDGE_FILM_FLOOR (audit REVIEW_L4L9 T1).
-    @details Board: tests/helpers/cut_cell_study.recessed_board (a 20 mm square turned 20 degrees, the top copper held 1.2 mm inside the outline), 1 mm cell. Measured: 98.075 degC
+    @details Board: tests/helpers/cut_cell_study.recessed_board (a 20 mm square turned 20 degrees, the top copper held 1.2 mm inside the outline), 1 mm cell. Measured: 99.834 degC (98.075 before the drawn-copper change: drawn copper is now read with the exact fill and flux faces; this square is not a frozen record)
              for floors 0.05, 0.1, 0.25 and 0.5 (the floor is only a safety net since 2.7.0). `docs/theory.md` 2.1.1 states this independence. A failure means the floor binds
              again (a node outside the board by more than S / H), and the theory statement is false.
     @param monkeypatch pytest fixture.
@@ -304,7 +304,7 @@ def test_l4l9_t1_the_cut_cell_peak_does_not_depend_on_the_film_floor(monkeypatch
         monkeypatch.setattr(fvm, "EDGE_FILM_FLOOR", floor)
         peaks.append(fvm.solve_steady(study.recessed_board(2000.0), cell_mm=1.0).t_max)
     assert peaks[0] == pytest.approx(peaks[1], abs=1e-6)
-    assert peaks[0] == pytest.approx(98.075, abs=0.01)
+    assert peaks[0] == pytest.approx(99.834, abs=0.01)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
