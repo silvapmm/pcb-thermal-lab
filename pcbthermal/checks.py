@@ -437,7 +437,7 @@ def is_fem_left_out(text):
     @param text A warning (str).
     @return bool.
     """
-    return "finite-element model (FEM)" in text and "will be left out" in text
+    return "FEM (finite elements)" in text and "will be left out" in text
 
 
 def check_fem(problem, models, cell_mm):
@@ -457,15 +457,15 @@ def check_fem(problem, models, cell_mm):
     try:
         n = femmesh.unknowns(problem, cell_mm)[0]
     except ValueError as exc:
-        _add(out, None, None, f"The finite-element model (FEM) cannot be built for this board and will be left out: {exc}.",
-             "The finite-element model (FEM) cannot be built for this board (see the details).", ALERT)
+        _add(out, None, None, f"The FEM (finite elements) will be left out: it cannot be built for this board; {exc}.",
+             "The FEM cannot be built for this board (see the details).", ALERT)
         return out
     if n > femcore.FEM_DIRECT_MAX and not femcore.available():
-        _add(out, None, None, f"The finite-element model (FEM) mesh has {n} unknowns, more than the {femcore.FEM_DIRECT_MAX} that the direct solver takes, and the package pyamg is not "
+        _add(out, None, None, f"The FEM (finite elements) mesh has {n} unknowns, more than the {femcore.FEM_DIRECT_MAX} that the direct solver takes, and the package pyamg is not "
              f"installed (pip install pyamg), so the FEM will be left out. A coarser cell ({cell_where()}) gives a smaller mesh.",
              "The FEM needs the package pyamg for a mesh this large: it will be left out.", ALERT)
     if copper.CopperSource.of(problem) is not None:
-        _add(out, None, None, "The finite-element model (FEM) reads imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported "
+        _add(out, None, None, "The FEM (finite elements) reads imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported "
              "board it is a different stencil, not a better answer; the FVM and FDM read the copper through the face conductances.",
              "The FEM reads imported copper as an element average (no better than the 3D solid).")
     fine = cell_mm * 1e-3 / 2.0

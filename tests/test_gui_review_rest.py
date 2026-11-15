@@ -73,3 +73,28 @@ def test_the_status_bar_counts_the_seconds_of_a_running_calculation(win):
     msg = win.statusBar().currentMessage()
     assert msg.startswith("Calculating (") and " s): Solving FVM" in msg and "Ctrl+." in msg
     win._on_busy(False)
+
+
+def test_a_fem_mesh_above_the_cap_says_which_cell_to_use_and_that_cell_fits():
+    """!
+    @brief The FEM refusal for too many unknowns names a cell, like the memory lines of the other models, and a mesh at that cell is accepted; the live
+           warning has a whole title (it was cut to 'The finite-element model').
+    """
+    import re
+
+    from pcbthermal import femmesh
+    from pcbthermal.checks import check_input, is_fem_left_out, warning_title
+    from pcbthermal.model import Problem
+
+    p = Problem.new(400, 300, layers=4)
+    p.add_full_copper()
+    p.add_heater(1, 5.0, rect=(190, 140, 210, 160), name="U1")
+    for cell in (0.25, 0.5, 0.7):
+        with pytest.raises(ValueError) as exc:
+            femmesh.unknowns(p, cell)
+        m = re.search(r"use a cell of about (\d+\.\d) mm or more", str(exc.value))
+        assert m, str(exc.value)
+        assert femmesh.unknowns(p, float(m.group(1)))[0] <= femmesh.FEM_MAX_UNKNOWNS
+    w = [str(x) for x in check_input(p, ("fvm", "fem"), cell_mm=0.5, live=True)]
+    fem = [x for x in w if is_fem_left_out(x)]
+    assert fem and warning_title(fem[0]) == "The FEM (finite elements) will be left out" and "use a cell of about" in fem[0]

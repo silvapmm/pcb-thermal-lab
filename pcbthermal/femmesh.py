@@ -598,7 +598,7 @@ def _axes(problem, cell_mm, refine, shares):
     refine = max(float(refine), 1.0)
     h_fine = h_plan / refine
     if h_fine < 1e-5:
-        raise ValueError("the fine element of the FEM would be below 10 um: use a coarser cell or a smaller refinement")
+        raise ValueError("the fine element of the FEM would be below 10 µm: use a coarser cell or a smaller refinement")
     cands_x = [(0.0, 0), (b.width, 0)]
     cands_y = [(0.0, 0), (b.height, 0)]
     zones_x, zones_y = [], []
@@ -748,6 +748,19 @@ def _build_plan(problem, xn, yn, windows):
                 active=np.concatenate(active), qid=qid, xn=xn, yn=yn)
 
 
+def _coarser_cell(cell_mm, ratio):
+    """!
+    @brief The advice of a refusal for too many unknowns: which cell to use, like the memory lines of the other models (review of the window: 'use a coarser cell' gave no number).
+    @details The plan unknowns fall about as 1 / cell^2 and the through-thickness planes do not change with the cell, so the cell is scaled by the square root of the
+             ratio, with 5 % to spare, and rounded up to 0.1 mm; it is an estimate ('about').
+    @param cell_mm Cell of the refused mesh in mm.
+    @param ratio Unknowns of the refused mesh divided by the limit (> 1).
+    @return str, for example 'use a cell of about 1.4 mm or more'.
+    """
+    cell = math.ceil(cell_mm * math.sqrt(max(ratio, 1.0)) * 1.05 * 10.0 - 1e-9) / 10.0
+    return f"use a cell of about {cell:.1f} mm or more"
+
+
 def _layout(problem, cell_mm, gap_elements, refine):
     """!
     @brief The geometry of the mesh: axes, plan, slabs, regions and the exact count of the unknowns.
@@ -775,7 +788,8 @@ def _layout(problem, cell_mm, gap_elements, refine):
     nxy = (xn.size - 1) * (yn.size - 1)
     if nxy * n_planes_est > FEM_MAX_UNKNOWNS * 1.5:
         # The tensor count is an upper bound of the count that the plan would give: refuse without building the plan
-        raise ValueError(f"the FEM mesh would have about {nxy * n_planes_est} unknowns, more than the {FEM_MAX_UNKNOWNS} it accepts: use a coarser cell")
+        raise ValueError(f"the FEM mesh would have about {nxy * n_planes_est} unknowns, more than the {FEM_MAX_UNKNOWNS} it accepts: "
+                         + _coarser_cell(cell_mm, nxy * n_planes_est / FEM_MAX_UNKNOWNS))
     plan = _build_plan(problem, xn, yn, windows)
     Q = plan.quads.shape[0]
     warnings: List[str] = []
@@ -858,7 +872,7 @@ def _layout(problem, cell_mm, gap_elements, refine):
         nid[p, used] = total + np.arange(int(used.sum()))
         total += int(used.sum())
     if total > FEM_MAX_UNKNOWNS:
-        raise ValueError(f"the FEM mesh has {total} unknowns, more than the {FEM_MAX_UNKNOWNS} it accepts: use a coarser cell")
+        raise ValueError(f"the FEM mesh has {total} unknowns, more than the {FEM_MAX_UNKNOWNS} it accepts: " + _coarser_cell(cell_mm, total / FEM_MAX_UNKNOWNS))
     # z of every node of every plane
     z = np.full((n_planes, Np), np.nan)
     zb = np.concatenate([[0.0], np.cumsum([s["dz"] for s in zs[b0:b1]])])
