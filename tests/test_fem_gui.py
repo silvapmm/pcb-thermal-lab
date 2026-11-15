@@ -137,7 +137,7 @@ def test_fem_refusals_do_not_stop_the_other_models(win, qtbot):
 
 def test_the_two_fem_options_change_the_count_and_are_greyed_without_the_fem(win):
     """!
-    @brief 'FEM elements across a gap' and 'FEM refinement': written only when edited, greyed unless the FEM is ticked, they change the unknown count.
+    @brief 'FEM gap elements' and 'FEM refinement': written only when edited, greyed unless the FEM is ticked, they change the unknown count.
     @param win Main window fixture.
     """
     load(win, small_board())

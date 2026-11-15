@@ -1633,7 +1633,7 @@ class SolverPanel(QWidget):
         f.addRow("Hotspot limit", self.hot)
         f.addRow("Laminate sub-gap", self.lam_s)
         f.addRow("Laminate sub-gaps", self.lam_n)
-        f.addRow("FEM elements across a gap", self.fem_gap)
+        f.addRow("FEM gap elements", self.fem_gap)
         f.addRow("FEM refinement", self.fem_ref)
         lay.addWidget(g)
 
