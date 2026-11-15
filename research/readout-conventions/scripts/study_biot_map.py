@@ -27,7 +27,7 @@ CASES = [
     ("105 um Cu on FR-4, 5 mm part", 105e-6, 385.0, 0.3 / 0.2e-3, 5e-3),
     ("2 mm copper core, 1000 W/m2K, 5 mm part", 2e-3, 385.0, 1000.0, 5e-3),
     ("1.5 mm Al MCPCB base, 2000 W/m2K, 5 mm part", 1.5e-3, 150.0, 2000.0, 5e-3),
-    ("Muzychka case 2: 10 mm k150, 400 W/m2K, 10 mm source", 10e-3, 150.0, 400.0, 10e-3),
+    ("case 2 plate (one centred source): 10 mm k150, 400 W/m2K, 10 mm", 10e-3, 150.0, 400.0, 10e-3),
     ("10 mm Al cold plate, 5000 W/m2K, 10 mm source", 10e-3, 200.0, 5000.0, 10e-3),
     ("3 mm Cu spreader, 20 W/m2K (air), 20 mm source", 3e-3, 385.0, 20.0, 20e-3),
     ("10 mm k50 plate, 400 W/m2K, 4 mm source", 10e-3, 50.0, 400.0, 4e-3),
@@ -57,8 +57,10 @@ def main():
     print("t/a \\ Bi " + " ".join(f"{b:8.1e}" for b in BI[::4]))
     for i in range(0, len(TA), 3):
         print(f"{TA[i]:9.3f} " + " ".join(f"{100 * g5[i, j]:7.3f}%" for j in range(0, len(BI), 4)))
-    print("sensitivity: max over the grid of |g(3a) - g(5a)|, |g(10a) - g(5a)|, |source mean - centre| (points of the fraction):",
-          f"{np.abs(g3 - g5).max():.4f}", f"{np.abs(g10 - g5).max():.4f}", f"{np.abs(gm - g5).max():.4f}")
+    # Review: the differences are printed in percentage points (the first version printed the raw fraction, 0.18 and 0.28, which the README read as
+    # 0.18 and 0.28 points: they are 18 and 28 points; the plate width W/a is a third group of the map, not a detail)
+    print("sensitivity: max over the grid of |g(3a) - g(5a)|, |g(10a) - g(5a)|, |source mean - centre| (percentage points):",
+          f"{100 * np.abs(g3 - g5).max():.2f}", f"{100 * np.abs(g10 - g5).max():.2f}", f"{100 * np.abs(gm - g5).max():.2f}")
     print("\ntypical cases (plate 5 a at least; the plate side is 5 a and the film acts on the whole bottom face):")
     print(f"{'case':58s} {'Bi':>9s} {'t/a':>7s} {'centre %':>9s} {'src mean %':>10s}")
     rows = []
@@ -69,6 +71,12 @@ def main():
         rows.append((name, bi, ta, c, m))
         print(f"{name:58s} {bi:9.2e} {ta:7.3f} {100 * c:9.4f} {100 * m:10.4f}")
     np.save(os.path.join(HERE, "..", "out", "cases.npy"), np.array([(r[1], r[2], r[3]) for r in rows]))
+    # Review: the same cases on plates 3, 10 and 12.5 source sides wide (the plates of study_thick_cases.py are 50 mm, 12.5 a for a 4 mm source):
+    # the film rise q0/h of the whole plate is in the denominator, so a wider plate reads a larger share
+    print(f"\nthe same cases, centre %, against the plate width W/a: {'3':>7s} {'5':>7s} {'10':>7s} {'12.5':>7s}")
+    for name, t, k, h, a in CASES:
+        bi, ta = h * t / k, t / a
+        print(f"{name:58s} " + " ".join(f"{100 * ps.delta_fraction(bi, ta, w, 300):7.2f}" for w in (3.0, 5.0, 10.0, 12.5)))
     print("\nJoule-heated bar (busbar, IPC-2152 type conductor), generation g uniform, film h on both faces, 1D through the thickness t:")
     print("  (T_centre - T_surface) / (T_surface - T_amb) = Bi / 4 ;  (T_surface - T_mean) / (T_surface - T_amb) = -Bi / 6 (the mean is above the surface)")
     for name, t, k, h in (("3 mm Cu busbar, 15 W/m2K", 3e-3, 385.0, 15.0), ("2 mm Cu bar, 100 W/m2K", 2e-3, 385.0, 100.0),

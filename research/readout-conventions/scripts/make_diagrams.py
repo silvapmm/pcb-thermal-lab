@@ -52,7 +52,7 @@ def fig_where():
     ax.text(21.0, 1.95, "laminate", fontsize=8, va="center")
     ax.text(21.0, 1.1, "copper 35 um", fontsize=8, va="center")
     marks = [(11, 4.05, "psi_JT: top centre of the package surface (T_T)", "#1b4965", 6.8),
-             (5.2, 2.9, "psi_JB: board temperature on a surface trace\n<= 1 mm from the package edge (T_B)", "#7b2cbf", 8.6),
+             (5.2, 2.9, "psi_JB: board temperature on the centre pin\nor the trace at the package edge (T_B)", "#7b2cbf", 8.6),
              (3.2, 2.9, "thermocouple / IR on the copper:\nthe SURFACE", "#c1121f", 6.0),
              (11, 2.7, "program node: the MEAN over the thickness\nof the copper layer (a thin layer: same value)", "#2a9d8f", -0.6)]
     for x, y, txt, c, ty in marks:
@@ -78,14 +78,14 @@ def fig_decision():
     box(ax, 7.5, 12.2, 7, 1.3, "Which temperature do I need?", "#dde6f0", fs=11)
     box(ax, 0.3, 9.5, 6.4, 1.9, "Junction / case\n(datasheet theta, psi)\n=> board temperature +\npsi x P: psi_JB on the trace,\npsi_JT on the package top")
     box(ax, 7.8, 9.5, 6.4, 1.9, "A probe (thermocouple, IR)\non the copper or a\nmetal base\n=> the SURFACE value")
-    box(ax, 15.3, 9.5, 6.4, 1.9, "Compare with a layered model,\nfin, spreading resistance\n=> the layer MEAN\n(source-area mean for R_spread)")
+    box(ax, 15.3, 9.5, 6.4, 1.9, "Compare with a layered model\nor a fin => the layer MEAN;\nspreading resistance (Muzychka)\n=> SURFACE mean over the source")
     box(ax, 5.5, 6.0, 11, 2.2, "Is the layer thin for the heat?\n  Bi = h t / k  (h = film on the cooled face, t = thickness, k = metal)\n  and t / a (a = source side)", "#fff3d6", fs=10)
     box(ax, 0.3, 2.2, 6.4, 2.5, "Bi < 1e-3 and t / a < 0.1\n(35 to 105 um copper on FR-4,\nbusbars in air)\nsurface = mean within 0.1 %\n=> the choice does not matter", "#d9f0d9")
-    box(ax, 7.8, 2.2, 6.4, 2.5, "t / a 0.1 to 0.5, Bi 1e-3 to 0.03\n(1.5 to 2 mm Cu / Al base,\nMCPCB base, spreader)\nsurface - mean 3 to 8 % of the rise\n=> show both; parabola read-out", "#ffe9b8")
-    box(ax, 15.3, 2.2, 6.4, 2.5, "t / a >= 1 or Bi > 0.03\n(10 mm plate, cold plate,\ncase 2 of Muzychka)\n13 to 41 % of the rise\n=> surface is the headline of the probe;\nuse 3D / sub-layers, parabola over-reads", "#f6c7c0")
+    box(ax, 7.8, 2.2, 6.4, 2.5, "t / a 0.1 to 0.5, Bi 1e-3 to 0.03\n(1.5 to 2 mm Cu / Al base,\nMCPCB base, spreader)\nsurface - mean 3 to 12 % of the rise\n=> show both; parabola read-out", "#ffe9b8")
+    box(ax, 15.3, 2.2, 6.4, 2.5, "t / a >= 1 or Bi > 0.03\n(10 mm plate, cold plate,\ncase 2 plate of Muzychka)\n13 to 54 % of the rise\n=> surface is the headline of the probe;\nuse 3D / sub-layers, parabola over-reads", "#f6c7c0")
     for (x0, y0, x1, y1) in [(11, 12.2, 3.5, 11.4), (11, 12.2, 11, 11.4), (11, 12.2, 18.5, 11.4), (11, 9.5, 11, 8.2), (8, 6.0, 3.5, 4.7), (11, 6.0, 11, 4.7), (14, 6.0, 18.5, 4.7)]:
         ax.annotate("", xy=(x1, y1), xytext=(x0, y0), arrowprops=dict(arrowstyle="->", color="0.3", lw=1.3))
-    ax.text(11, 0.9, "Percentages: (surface - mean) / surface rise at the source centre; series of lib/plate_series.py, plate side 5 a (README 4.2).", ha="center", fontsize=8.5)
+    ax.text(11, 0.9, "Percentages: (surface - mean) / surface rise at the source centre; series of lib/plate_series.py, plates 5 to 12.5 a wide (a wider plate reads more; README 4.2, 4.3).", ha="center", fontsize=8.5)
     fig.savefig(os.path.join(OUT, "fig_02_decision.png"), dpi=140, bbox_inches="tight")
     plt.close(fig)
 

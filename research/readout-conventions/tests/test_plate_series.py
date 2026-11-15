@@ -63,3 +63,15 @@ def test_busbar_closed_form():
     ts = g * t / (2 * h)                                         # surface rise: g t / 2 leaves through each face
     T = ts + g * (t**2 / 4 - z**2) / (2 * k)
     assert abs((T.mean() - T[0]) / T[0] - (h * t / k) / 6) < 1e-6
+
+
+def test_plate_width_is_a_third_group():
+    """!
+    @brief Review: the fraction depends on the plate width W/a, not only on Bi and t/a. The 2 mm copper plate (h 1000, 4 mm source) of study_thick_cases.py,
+           50 mm wide (12.5 a), reads 10.72 % in the independent 3D solver; the series at that width reproduces it, and at 5 a the same Bi and t/a read about a third.
+    @return None.
+    """
+    s, m = ps.rises(0.05, 4e-3, 2e-3, 385.0, 1000.0, 10.0 / 16e-6, modes=400)
+    assert abs(100 * (s - m) / s - 10.72) < 0.2
+    bi, ta = 1000.0 * 2e-3 / 385.0, 0.5
+    assert ps.delta_fraction(bi, ta, 12.5) > 2.5 * ps.delta_fraction(bi, ta, 5.0)

@@ -19,10 +19,10 @@ OUT = os.path.join(HERE, "..", "figures")
 DATA = os.path.join(HERE, "..", "out")
 
 # Printed by study_thick_cases.py part 1 (3D surface, 3D column mean, program node, node + parabola in K above the ambient): kept here so that the figure needs no 1 minute run.
-PLATES = [("2 mm Cu\nh 1000, a 4", 9.581, 8.554, 8.553, 9.643), ("1.5 mm Al\nh 2000, a 4", 17.589, 15.508, 15.476, 17.611), ("3 mm Cu, air\nh 20, a 20", 40.212, 40.198, 40.199, 40.213),
-          ("10 mm Al\nh 5000, a 10", 16.457, 9.645, 9.606, 18.295), ("case 2\n10 mm k150, a 10", 33.434, 28.939, 28.962, 34.645), ("10 mm k50\nh 400, a 4", 37.831, 17.525, 17.495, 59.385)]
+PLATES = [("2 mm Cu\nh 1000\na 4", 9.581, 8.554, 8.553, 9.643), ("1.5 mm Al\nh 2000\na 4", 17.589, 15.508, 15.476, 17.611), ("3 mm Cu\nh 20 (air)\na 20", 40.212, 40.198, 40.199, 40.213),
+          ("10 mm Al\nh 5000\na 10", 16.457, 9.645, 9.606, 18.295), ("case 2 plate\nk150, h 400\na 10", 33.434, 28.939, 28.962, 34.645), ("10 mm k50\nh 400\na 4", 37.831, 17.525, 17.495, 59.385)]
 # Part 3 (K above the ambient): top surface, whole-stack mean, base mean.
-STACKS = [("Al MCPCB\n35um/100um k2/1.5mm Al", 15.41, 6.72, 6.23), ("Al MCPCB\n35um/75um k1/1.5mm Al", 18.68, 6.64, 6.05), ("Al MCPCB\n70um/100um k2/3mm Al", 12.00, 4.00, 3.67), ("FR-4 1.6 mm\n2 layers", 201.16, 158.60, 118.80)]
+STACKS = [("MCPCB\n35um Cu\n100um k2\n1.5mm Al", 15.41, 6.72, 6.23), ("MCPCB\n35um Cu\n75um k1\n1.5mm Al", 18.68, 6.64, 6.05), ("MCPCB\n70um Cu\n100um k2\n3mm Al", 12.00, 4.00, 3.67), ("FR-4 1.6 mm\n2 layers", 201.16, 158.60, 118.80)]
 
 
 def fig_map():
@@ -41,12 +41,16 @@ def fig_map():
     for i, (bi, ta, f) in enumerate(c):
         ax.plot(bi, ta, "o", color="#1b4965", ms=6)
         ax.annotate(str(i + 1), (bi, ta), xytext=(4, 4), textcoords="offset points", fontsize=9, color="#1b4965", weight="bold")
+    # Review: the textbook criterion of Lienhard (Bi <= 0.1, a lumped body within about 3 %) is drawn as a line, not as an accuracy band: under a source
+    # narrower than the plate the surface leaves the mean far earlier (t/a 1 at Bi 0.1: about 30 %), so it is necessary, not sufficient
+    ax.axvline(0.1, color="#1b4965", ls="--", lw=1.0)
+    ax.text(0.105, 0.0065, "Bi = 0.1 (Lienhard: 1D body nearly uniform;\nnot enough under a small source)", fontsize=7, color="#1b4965", rotation=90, va="bottom")
     ax.set_xlabel("Bi = h t / k   (film on the cooled face)")
     ax.set_ylabel("t / a   (thickness over source side)")
     fig.colorbar(cs, label="(surface - column mean) / surface rise, %")
-    names = ["35 um Cu on FR-4", "105 um Cu on FR-4", "2 mm Cu core", "1.5 mm Al MCPCB base", "case 2 (10 mm k150)", "10 mm Al cold plate", "3 mm Cu spreader, air", "10 mm k50, 4 mm source"]
+    names = ["35 um Cu on FR-4", "105 um Cu on FR-4", "2 mm Cu core", "1.5 mm Al MCPCB base", "case 2 plate, one source", "10 mm Al cold plate", "3 mm Cu spreader, air", "10 mm k50, 4 mm source"]
     ax.text(1.02, -0.18, "   ".join(f"{i + 1} {n}" for i, n in enumerate(names[:4])) + "\n" + "   ".join(f"{i + 5} {n}" for i, n in enumerate(names[4:])), transform=ax.transAxes, fontsize=7.5, ha="right")
-    ax.set_title("When the surface differs from the mean: plate 5 a wide, centre of a square source")
+    ax.set_title("When the surface differs from the mean: plate 5 a wide, centre of a square source\n(W/a is a third group: at 12.5 a the same point reads up to 2.5 times more, README 4.2)", fontsize=10)
     fig.savefig(os.path.join(OUT, "fig_03_biot_map.png"), dpi=140, bbox_inches="tight")
     plt.close(fig)
 
@@ -73,7 +77,8 @@ def fig_bars():
     ax.set_xticks(x)
     ax.set_xticklabels([s[0] for s in STACKS], fontsize=7)
     ax.set_ylabel("% of the top surface rise")
-    ax.legend(fontsize=8)
+    ax.set_ylim(0, 135)
+    ax.legend(fontsize=8, loc="upper center", ncol=2)
     ax.set_title("Stacks: a single 'effective board' mean is not the surface")
     fig.savefig(os.path.join(OUT, "fig_04_plates_stacks.png"), dpi=140, bbox_inches="tight")
     plt.close(fig)

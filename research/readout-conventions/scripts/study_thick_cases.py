@@ -122,7 +122,7 @@ def copper_core():
         print(f"  program FVM {cell} mm: top node {centre(T[0]):.3f}  base node {centre(T[1]):.3f}")
     print(f"  3D: top surface {r['surface']:.3f}, top copper mean {r['means'][0]:.3f}, dielectric mean {r['means'][1]:.3f}, base mean {r['means'][2]:.3f}, base bottom {r['bottom']:.3f}, whole-stack mean {r['whole']:.3f}")
     print(f"  top copper: surface - mean {1e3 * (r['surface'] - r['means'][0]):.3f} mK ({100 * (r['surface'] - r['means'][0]) / r['surface']:.4f} % of the surface rise); base: top face - mean "
-          f"{centre(r['T'][4]) - r['means'][2]:.3f} K (slab centre 0.19 mm below the face)")
+          f"{centre(r['T'][4]) - r['means'][2]:.3f} K (centre of the first base sub-slab, 0.09 mm below the face)")
     print(f"  surface minus whole-stack mean {r['surface'] - r['whole']:.3f} K ({100 * (r['surface'] - r['whole']) / r['surface']:.1f} % of the surface rise)")
 
 
