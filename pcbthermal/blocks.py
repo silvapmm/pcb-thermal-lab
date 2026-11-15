@@ -27,6 +27,8 @@ import copy
 
 import numpy as np
 
+from .geometry import coverage_fraction, exact_coverage, part_weights, polygon_is_simple
+
 ISOLATED = 1.0e-9            # W/K of a node without block: keeps the matrix regular, changes nothing
 
 
@@ -80,6 +82,38 @@ def block_faces(problem):
         if s.is_block():
             faces.add(0 if (s.layer == 0 or n == 1) else 1)
     return sorted(faces)
+
+
+def block_cover(poly, outline, nx, ny, dx, dy, board_cover=None):
+    """!
+    @brief Exact fraction of every cell (or control volume) that a metal block covers on the board.
+    @details Same rule as the board cover and the part weights (fix/exact-board-cover): the area of the block polygon, clipped to the board outline
+             when there is one, cut by the cells (`geometry.exact_coverage`, `geometry.part_weights`), divided by the area of the cell. The older rule sampled
+             the block on a 4 x 4 lattice (an error of up to 1/32 of a cell in every cell the block edge cuts) and multiplied it by the board cover, which is
+             wrong in a cell that both the block edge and the outline cut. A polygon that crosses itself, or one with too many long edges for the grid,
+             keeps the sampled rule (4 x 4, times the board cover when it is given, as before). A block edge on the grid lines gives the same 0 or 1
+             as before.
+    @param poly Block polygon vertices (n, 2) in metres.
+    @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board (the caller then limits the cover to the box).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param board_cover Board cover (ny, nx) used only by the sampled fallback, or None.
+    @return numpy.ndarray Cover (ny, nx) in [0, 1]; for a board with an outline it is already limited to the board.
+    """
+    p = np.asarray(poly, dtype=float)
+    def sampled():
+        c = coverage_fraction(p, nx, ny, dx, dy, samples=4)
+        return c if board_cover is None else c * board_cover
+    if len(p) < 3 or not polygon_is_simple(p):
+        return sampled()
+    try:
+        if outline is None:
+            return exact_coverage(p, nx, ny, dx, dy)
+        return part_weights(p, outline, nx, ny, dx, dy)
+    except ValueError:
+        return sampled()
 
 
 def extra_layers(problem, cover, area, fill, dx, dy):

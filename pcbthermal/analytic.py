@@ -479,7 +479,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
     fill_t = copper.problem_fill(problem, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
-    for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
+    for ly in blocks.extra_layers(problem, lambda poly, n: blocks.block_cover(poly, None, ntx, nty, tw, th), area_t, fill_t, tw, th):
         tiles = np.argwhere(ly["cov"] > 0)
         index = -np.ones((nty, ntx), dtype=int)
         index[tuple(tiles.T)] = np.arange(len(tiles))

@@ -32,7 +32,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import copper, laminate, memory, viawell
+from . import blocks, copper, laminate, memory, viawell
 from .fvm import ORDERING
 from .geometry import (part_weights, coverage_fraction, edge_length_on_board, face_apertures, nearest_active_cell, polygon_centroid,
                        signed_distance_to_outline)
@@ -228,7 +228,7 @@ class Solid:
             if not s.is_block():
                 continue
             face = 0 if (s.layer == 0 or L == 1) else 1
-            c = cover(s.polygon, 4) * bcov                     # The block is cut at the board outline (cells off the board are pinned to the ambient)
+            c = blocks.block_cover(s.polygon, b.outline if b.has_outline() else None, nx, ny, dx, dy, bcov)   # Exact area of the block on the board (cut at the outline: cells off the board are pinned to the ambient)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
                                         "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0
