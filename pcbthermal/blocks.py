@@ -133,8 +133,8 @@ def extra_layers(problem, cover, area, fill, dx, dy, board_cover=None):
            cover by `area` counted the board share twice in a cell cut by the outline: the contact, capacity and exposed face of the block 0.5 to 1.6 %
            low on the cases of `docs/validation.md` 54.1, and the board face under the block left partly exposed).
     @return List of dicts, one per face with blocks, with keys face (0 top, 1 bottom), board_layer, cov, S, C, g_link, g_amb,
-            face_scale (factor for the board face coefficient), h_total (the coefficient of the exposed face of every node, with the fin ratio,
-            W/m2K; the sides use h_wall instead), h_wall (the coefficient of the side walls, W/m2K; named so because Board.h_side is the board edge coefficient) and names.
+            face_scale (factor for the board face coefficient), h_total (the coefficient of the exposed face of every node, with the fin ratio and in series with the half
+            block, W/m2K; the sides use h_wall instead), h_wall (the coefficient of the side walls, W/m2K; named so because Board.h_side is the board edge coefficient) and names.
     """
     b = problem.board
     L = b.layers
@@ -168,8 +168,14 @@ def extra_layers(problem, cover, area, fill, dx, dy, board_cover=None):
             # Contact only over the copper (fill) inside the block; a zero resistance is limited to avoid an unbounded conductance
             r_c = max(s.interface_resistance(), 1e-7)
             f = fill[layer]
-            g_link = np.where(take, a * area * (f / r_c + (1.0 - f) / (r_c + r_half)), g_link)
-            h_tot = np.where(take, exposed_h(s, h_face), h_tot)
+            # The block node is the mean over its thickness (theory 1.2): half the block, s.thickness / (2 k), lies between it and the contact face, and half the copper of the
+            # board node (t_cu / (2 k_cu)) between that node and the same face; over bare laminate the half laminate slab is already there (r_half)
+            r_blk = s.thickness / (2.0 * s.k)
+            r_cu = float(b.copper_thickness[layer]) / (2.0 * b.materials.k_copper)
+            g_link = np.where(take, a * area * (f / (r_c + r_blk + r_cu) + (1.0 - f) / (r_c + r_blk + r_half)), g_link)
+            # The exposed film (fin ratio included, per base area) acts on the block node through the same half block
+            h_exp = exposed_h(s, h_face)
+            h_tot = np.where(take, h_exp / (1.0 + h_exp * r_blk), h_tot)
             h_sd = np.where(take, wall_h(s, h_face), h_sd)                    # No fin ratio on the side walls
             side = np.zeros_like(c)                                         # Length of the block edge inside every cell
             pad = np.pad(c, 1)

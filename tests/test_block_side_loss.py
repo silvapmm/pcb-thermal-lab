@@ -61,12 +61,14 @@ def test_side_loss_uses_the_plain_coefficient(h_extra):
     # Edge cells of a 40 x 30 mm rectangle on 1 mm cells (whole cells): one side length dx per exposed side
     g = ly["g_amb"]
     c = ly["cov"]
-    face_part = (h_face * blocks.fin_ratio(h_face, s) + h_extra) * a * c
+    # The exposed film passes the half block (fix/face-film-half-slab): h_exp / (1 + h_exp s_b / (2 k_b)); the side walls do not
+    h_exp = h_face * blocks.fin_ratio(h_face, s) + h_extra
+    face_part = h_exp / (1.0 + h_exp * s.thickness / (2.0 * s.k)) * a * c
     side_part = g - face_part
     # Side walls: perimeter 140 mm x 3 mm thick, at h_face + h_extra
     assert side_part.sum() == pytest.approx((h_face + h_extra) * s.thickness * 0.140, rel=1e-3)          # The cover sampling moves the length by 0.02 %
     assert ly["h_wall"].max() == pytest.approx(h_face + h_extra)
-    assert ly["h_total"].max() == pytest.approx(h_face * blocks.fin_ratio(h_face, s) + h_extra)
+    assert ly["h_total"].max() == pytest.approx(h_exp / (1.0 + h_exp * s.thickness / (2.0 * s.k)))
     # Interior cells (all four neighbours covered) carry no side loss
     assert np.allclose(side_part[19:21, 29:31], 0.0)
 
@@ -76,14 +78,17 @@ def test_plain_block_is_unchanged():
     (ly,), a, dx, _ = layers_of(p)
     s = p.heatsinks[0]
     h = p.board.h_bottom + 5.0
-    assert ly["h_wall"].max() == pytest.approx(ly["h_total"].max()) == pytest.approx(h)
-    # The old formula h_tot (A c + t L_edge) is reproduced exactly when the fin ratio is 1
-    assert ly["g_amb"].sum() == pytest.approx(h * (0.040 * 0.030 + s.thickness * 0.140), rel=1e-3)
+    h_eff = h / (1.0 + h * s.thickness / (2.0 * s.k))                      # The exposed film passes the half block (fix/face-film-half-slab)
+    assert ly["h_wall"].max() == pytest.approx(h)
+    assert ly["h_total"].max() == pytest.approx(h_eff)
+    # The old formula h_tot (A c + t L_edge) is reproduced when the fin ratio is 1, with the half block in the face film and none in the walls
+    assert ly["g_amb"].sum() == pytest.approx(h_eff * 0.040 * 0.030 + h * s.thickness * 0.140, rel=1e-3)
 
 
 def test_energy_balance_closes_and_finned_rise_follows_the_measured_change():
     # FVM rise of the 60 x 40 board of tests/test_heatsink_part.py (10 W/m2K on both faces), 1 mm cells
-    expected = {(15.0, 1.5, 8.0): 65.008, (15.0, 1.5, 12.0): 69.969, (30.0, 1.5, 8.0): 56.553}      # After the correction
+    # After the correction; +0.027 / +0.027 / +0.028 K (0.04 %) with the film through the half block of fix/face-film-half-slab (65.008 / 69.969 / 56.553 before)
+    expected = {(15.0, 1.5, 8.0): 65.0346, (15.0, 1.5, 12.0): 69.9963, (30.0, 1.5, 8.0): 56.5806}
     before = {(15.0, 1.5, 8.0): 61.233, (15.0, 1.5, 12.0): 66.350, (30.0, 1.5, 8.0): 53.171}        # With the fin ratio on the sides
     for fins, rise in expected.items():
         p = board(fins)
@@ -94,7 +99,7 @@ def test_energy_balance_closes_and_finned_rise_follows_the_measured_change():
         assert (r.t_max - 25.0) / before[fins] - 1.0 > 0.05                                # +5.5 to +6.4 % against the old code
     p = board(None)
     p.board.h_bottom = 10.0
-    assert fvm.solve_steady(p, cell_mm=1.0).delta_t == pytest.approx(88.3459, abs=0.01)      # A plain plate does not move by the finned-block change (88.3307 before the edge film of fix/cut-cell-aperture-film moved it by 0.015 K)
+    assert fvm.solve_steady(p, cell_mm=1.0).delta_t == pytest.approx(88.3663, abs=0.01)      # A plain plate does not move by the finned-block change (88.3307 before the edge film of fix/cut-cell-aperture-film moved it by 0.015 K)
 
 
 @pytest.mark.parametrize("h_extra", [0.0, 7.0])

@@ -395,6 +395,11 @@ def _effective_sheet(problem, cell_mm):
                 "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
                 "differed by up to 1.8 times. Use the FVM result for this board.")
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
+    # Face coefficients of the surface problem: each film in series with the half copper layer between the layer node (the column mean) and the face, on the copper fill of
+    # the layer (Board.face_film_h, docs/theory.md 1.2). The fin lengths, the tiles and the time constant above keep the plain h (they are lengths, 5e-7 of them for 35 um).
+    # A one-layer board: the laminate is already in series with the bottom film (laminate.series_bottom_problem); the half copper above it is added here
+    h_top_eff = float(b.face_film_h(b.h_top, 0, fill[0]))
+    h_bottom_eff = float(b.face_film_h(b.h_bottom, L - 1, fill[L - 1]))
     # Edge parameter of the Robin basis (Muzychka, Culham and Yovanovich 2003, Part II eqs. 12 to 21), one for all layers: the sum of the edge conductances per metre of
     # edge over the sum of the sheet conductances. Exact when every layer has the same ratio slab_l / S_l, an approximation otherwise (docs/theory.md 6). h_eff is
     # h_side scaled so that the rectangle has the edge conductance of the real outline. 1/m; zero without h_side (the cosine basis).
@@ -427,7 +432,7 @@ def _effective_sheet(problem, cell_mm):
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
             "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "beta_l": beta_l, "edge_mismatch": edge_mismatch, "h_eff": h_eff, "d_diel": d_diel, "d_barrel": d_barrel, "g_diel": g_diel, "k_lam": k_lam,
-            "rho_cp_lam": rho_cp_lam}
+            "rho_cp_lam": rho_cp_lam, "h_top_eff": h_top_eff, "h_bottom_eff": h_bottom_eff}
 
 
 def _heater_unit_sources(problem, bx, by):
@@ -501,6 +506,8 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
         Dl = np.diag(g_link)
         B = Dl - Dl @ np.linalg.solve(M, Dl)
         h_face = b.h_top if ly["face"] == 0 else b.h_bottom
+        # The board face that the block hides is the film seen through the half copper layer of the node, on the copper fill of the tile
+        h_face = b.face_film_h(h_face, ly["board_layer"], fill_t[ly["board_layer"]][tuple(tiles.T)])
         face = h_face * tw * th * ly["cov"][tuple(tiles.T)]                      # Face conductance that the block hides
         out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "side": ly["face"], "M": M, "g_link": g_link, "g_amb": g_amb})
     return out
@@ -655,8 +662,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom
+    h_l[0] += sh["h_top_eff"]
+    h_l[L - 1] += sh["h_bottom_eff"]
     g = g_diel.copy()                                         # (L-1,) per gap
     if not local_corrections:
         for s in problem.heatsinks:
@@ -783,11 +790,11 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
     # Heat leaving through the faces: the mean of each layer over the plan (for the cosine basis exactly a_00)
     mean = [_plan_mean(bx, by, a_mn[:, :, k]) for k in range(L)]
-    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * mean[0]) - hidden["top"],
-             "bottom": float(b.h_bottom * W * H * mean[L - 1]) - hidden["bottom"],
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(sh["h_top_eff"] * W * H * mean[0]) - hidden["top"],
+             "bottom": float(sh["h_bottom_eff"] * W * H * mean[L - 1]) - hidden["bottom"],
              "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * mean[k] for k in range(L))
-                            - b.h_top * W * H * mean[0] - b.h_bottom * W * H * mean[L - 1])}
+                            - sh["h_top_eff"] * W * H * mean[0] - sh["h_bottom_eff"] * W * H * mean[L - 1])}
     if b.h_side:
         # The edge loss, reported apart under the same key as the FVM: beta S_l times the rise of the layer integrated along the four sides, so the heat balance closes
         # (per layer: beta_l S_l = h_eff s_l; with equal layers the common beta, so the balance of the earlier code is kept bit for bit)
@@ -819,8 +826,8 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     M = N = n_terms
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom
+    h_l[0] += sh["h_top_eff"]
+    h_l[L - 1] += sh["h_bottom_eff"]
     for s in problem.heatsinks:
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"].copy()

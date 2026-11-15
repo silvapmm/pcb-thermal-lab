@@ -88,7 +88,7 @@ def nodes(board, count=None):
     return LaminateNodes(count, g, t_cu + 0.5 * g, slabs, m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4 * m.cp_fr4)
 
 
-def extra_layers(board, lam, area, cover, edge, h_side_cells):
+def extra_layers(board, lam, area, cover, edge, h_side_cells, fill=1.0):
     """!
     @brief The arrays of the laminate node layers of a cell (FVM) or node (FDM) network.
     @param board A Board.
@@ -97,13 +97,14 @@ def extra_layers(board, lam, area, cover, edge, h_side_cells):
     @param cover Board cover of every cell or node (0 to 1), shape (ny, nx).
     @param edge Length of the board edge exposed in every cell or node in m, shape (ny, nx) (zeros without an edge coefficient).
     @param h_side_cells Edge coefficient in W/m2K (0 or None for none).
+    @param fill Copper fill of the copper node (scalar or (ny, nx)): the bottom film passes the half copper layer where there is copper (Board.face_film_h).
     @return List of dicts, one per laminate node top down, with S (lateral conductance k t times the cover, W/K), C (J/K), g_link (W/K to the node above),
             g_bottom (W/K to the ambient through the bottom face, last node only) and g_side (W/K through the edge).
     """
     out = []
     hs = h_side_cells or 0.0
     for j, t in enumerate(lam.slabs):
-        g_bottom = board.h_bottom * area if j == lam.count - 1 else np.zeros_like(area)
+        g_bottom = board.face_film_h(board.h_bottom, 0, fill) * area if j == lam.count - 1 else np.zeros_like(area)
         out.append({"S": lam.k_inplane * t * cover, "C": lam.rho_cp * t * area, "g_link": lam.k_through * area / lam.gap,
                     "g_bottom": g_bottom, "g_side": hs * t * edge})
     return out
@@ -428,7 +429,7 @@ def build(board, fill, cell, cover, active, edge, S, C, gz, g_bottom, g_side, pl
             nxt += 1
         if one:
             keep_b = np.where(F, s[-1] / 2.0, d / 2.0)
-            out.layers.append({"S": kxy * keep_b * cover, "C": rcp * keep_b * cell, "g_bottom": board.h_bottom * cell, "g_side": hs * keep_b * edge, "pin": ~active})
+            out.layers.append({"S": kxy * keep_b * cover, "C": rcp * keep_b * cell, "g_bottom": board.face_film_h(board.h_bottom, 0, fill[0]) * cell, "g_side": hs * keep_b * edge, "pin": ~active})
             drop.append(np.zeros((ny, nx), dtype=bool))
             end = nxt
             bottom_layer = nxt

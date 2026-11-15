@@ -311,8 +311,9 @@ def test_insulated_numbers_are_those_of_the_cosine_code():
     r = analytic.solve_steady(p, cell_mm=1.0)
     # 71.11675482396726 before fix/simple-stackup-physical-layers: the four-layer simple board now has the physical slabs (0.278 / 0.522 mm, not 0.4 mm), so the outer copper
     # nodes hold less laminate (+0.035 K, 0.06 % of the rise)
-    assert r.t_max == pytest.approx(71.15189346002255, abs=1e-9)
-    assert r.power_out["heatsinks"] == pytest.approx(0.5134831826200915, abs=1e-12)     # 0.5136421134196508 before the physical slabs of the simple stack-up
+    # 71.15189346002255 before fix/face-film-half-slab: the face films pass the half copper layer of the outer nodes (+1.06e-5 K, 2e-7 of the rise)
+    assert r.t_max == pytest.approx(71.15190404175038, abs=1e-9)
+    assert r.power_out["heatsinks"] == pytest.approx(0.5134833567753585, abs=1e-12)     # 0.5136421134196508 before the physical slabs of the simple stack-up
     assert sum(r.power_out.values()) == pytest.approx(r.power_in, rel=1e-6)
 
 
@@ -325,13 +326,15 @@ def test_transient_modal_matrix_has_the_basis_wavenumbers():
     sh = analytic._effective_sheet(p, 1.0)
     A = analytic._modal_matrix(p, sh, 4, 1.0)
     bx, by = analytic._bases(sh, 4)
-    expected = 20.0 + sh["S"].sum() * (bx.eig2[0] + by.eig2[0])
+    # The two faces are the films through the half copper layer of the outer nodes (fix/face-film-half-slab); h_tot, the length of the fin, keeps the plain 20
+    expected = sh["h_top_eff"] + sh["h_bottom_eff"] + sh["S"].sum() * (bx.eig2[0] + by.eig2[0])
     assert A[0, 0].sum() == pytest.approx(expected, rel=1e-9)
     assert bx.eig2[0] > 0.0 and sh["beta"] > 0.0
     assert sh["h_tot"] == pytest.approx(20.0 + 10.0 * 2 * (0.040 + 0.030) * 1.6e-3 / (0.040 * 0.030), rel=1e-12)
     p0 = _plate(40, 30, 10, None, layers=2)
     A0 = analytic._modal_matrix(p0, analytic._effective_sheet(p0, 1.0), 4, 1.0)
-    assert A0[0, 0].sum() == pytest.approx(20.0, rel=1e-12)
+    sh0 = analytic._effective_sheet(p0, 1.0)
+    assert A0[0, 0].sum() == pytest.approx(sh0["h_top_eff"] + sh0["h_bottom_eff"], rel=1e-12)      # the two film coefficients through the half copper (not 20 any more)
 
 
 def _t63(sr):

@@ -220,7 +220,7 @@ class Network:
             edge_nodes[:, -1] += wy
             edge_nodes[0, :] += wx
             edge_nodes[-1, :] += wx
-        lam = laminate.extra_layers(b, self.laminate, area, ncov, edge_nodes, b.h_side) if self.laminate is not None else []
+        lam = laminate.extra_layers(b, self.laminate, area, ncov, edge_nodes, b.h_side, fill[0]) if self.laminate is not None else []
         NL = len(lam)
         self.laminate_layers = list(range(L, L + NL))
         if NL:
@@ -251,7 +251,7 @@ class Network:
         if use_rule:
             gz0 = (b.gap_properties()[0][:, None, None] * area[None] / b.gap_thicknesses()[:, None, None]) if L > 1 else np.zeros((0, ny, nx))
             g_bottom0 = np.zeros((L, ny, nx))
-            g_bottom0[L - 1] = b.h_bottom * area
+            g_bottom0[L - 1] = b.face_film_h(b.h_bottom, L - 1, fill[L - 1]) * area   # film through the half copper layer (theory 1.2)
             g_side0 = np.zeros((L, ny, nx))
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
             plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
@@ -324,7 +324,7 @@ class Network:
         # Ambient: faces, heatsinks and edges
         self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
         self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
-        self.g_top[0] = b.h_top * area
+        self.g_top[0] = b.face_film_h(b.h_top, 0, fill[0]) * area                     # film through the half copper layer (Board.face_film_h, theory 1.2)
         if rule is not None:
             # The bottom film and the edge: the copper nodes after the laminate moved out of them, then the new nodes
             self.g_bottom[:L], self.g_side[:L] = rule.g_bottom, rule.g_side
@@ -336,7 +336,7 @@ class Network:
                 self.g_bottom[L + k] = ly["g_bottom"]
                 self.g_side[L + k] = ly["g_side"]
         else:
-            self.g_bottom[L - 1] = b.h_bottom * area
+            self.g_bottom[L - 1] = b.face_film_h(b.h_bottom, L - 1, fill[L - 1]) * area
         for sk in problem.heatsinks:
             if sk.is_block():
                 continue                                       # A metal block is a layer of its own

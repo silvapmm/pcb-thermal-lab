@@ -79,7 +79,11 @@ def test_the_contact_is_the_intersection_of_block_and_copper():
     link = net.extra_links[0][2]
     area_cell = net.dx * net.dy
     # Over the 30 x 30 mm pad the link is A / R'' (copper), outside it much smaller (laminate in series)
-    assert link[40, 50] == pytest.approx(area_cell / 5e-4, rel=1e-6)
+    # (the half block and the half copper are in series with R'' since fix/face-film-half-slab)
+    b0 = board()
+    blk = b0.heatsinks[0]
+    r_series = 5e-4 + blk.thickness / (2.0 * blk.k) + b0.board.copper_thickness[0] / (2.0 * b0.board.materials.k_copper)
+    assert link[40, 50] == pytest.approx(area_cell / r_series, rel=1e-6)
     assert 0 < link[10, 25] < 0.3 * link[40, 50]
     assert link[2, 2] == 0.0                                  # Outside the block: no link
 
