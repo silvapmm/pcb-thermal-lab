@@ -368,6 +368,8 @@ The plan with every open item (R0 leftovers, T trust studies, G gate, F features
 
 ## Decisions Log
 
+- **Maintainer's order: the FEM ships in 2.8.0 with steady AND transient results (branch 8 promoted), the surface read-out (through-thickness study, branch fix/thick-plate-surface-estimate) is implemented before the FEM model branch so both share the read-out vocabulary, and a comparison campaign of all models against the FEM and the 3D solid is planned (releases/2.8.0/fem-model/COMPARE_PLAN.md, validation sections 56 and 57 reserved).**
+
 - **FEM branch 2 merged** (`feature/fem-core`, reviewed GO, whole battery 3780 passed): `pcbthermal/femcore.py`, the port of the independent finite-element solver (structured hexahedra, Robin films, hollow barrel, direct up to 30 000 unknowns, CG with the optional pyamg above), reproduces the research tool at 0.0 on the research cases and the closed forms; NOT selectable yet; nothing user-visible; the battery found one test-order dependence (stale `sys.modules`), fixed.
 
 - **The maintainer decided to implement the independent finite-element tool as a program model in 2.8.0 (reversing the 2.7.0 decision)**; design in `releases/2.8.0/fem-model/DESIGN.md`: a checkbox `Finite elements (FEM), comparison` exactly like the FDM and the 3D solid, off by default, key `fem`, optional dependency pyamg (MIT; scikit-fem only in an optional test), steady state first, column/surface/point read-outs, a `comparison_models` project key that older versions ignore; and the through-thickness study (`research/through-thickness-readout`, reviewed GO) recommends an additive Surface read-out first (parabola `T_surf - T_col = t (2 q_top - q_bot) / (6 k)`), then copper slabs in the 3D solid, no change to frozen numbers.

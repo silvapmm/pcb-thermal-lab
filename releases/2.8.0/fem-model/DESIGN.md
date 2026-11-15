@@ -4,6 +4,17 @@
 
 Every number below is either printed by a script of the repository (named with it) or by `releases/2.8.0/fem-model/scripts/measure_fem_cost.py` (this folder; run it to reproduce section 5.3). Nothing was run on a measured board.
 
+## Decisions taken (maintainer)
+
+1. **Steady AND transient in 2.8.0**: the FEM does not ship steady only; branch 8 `feature/fem-transient` ships in 2.8.0, after branch 7. Branch 9 (slanted and curved outlines) stays later.
+2. **pyamg**: optional at run time (the model is greyed without it), with a line in `requirements.txt` and the README licence table.
+3. **Headline read-out**: the column mean (`t_max`), the surface read-out beside it.
+4. **Name**: 'Finite elements (FEM), comparison', key `fem`, short name `FEM`.
+5. **Outlines in stage 1**: slanted and curved outlines are refused with the reason.
+6. **Compare additions** (difference table, difference map, trust hints): in 2.8.0 for every model.
+7. **Order of work**: the surface read-out of the through-thickness study (`research/through-thickness-readout/INTEGRATION.md`, branch `fix/thick-plate-surface-estimate`, size M) is implemented BEFORE the FEM model branch 4, so that the FEM uses the same vocabulary (column, surface, point; `arrays["T_surface"]`, `SolverOptions` `readout`, CLI `--readout`, the Layer entries 'Surface (top/bottom)'); the 3D solid copper slabs (`feature/solid3d-copper-slabs`, size S) follow, with the FEM slab rule.
+8. **'Test everything and compare'**: a comparison campaign of every model against the FEM and the 3D solid, planned in `COMPARE_PLAN.md` (this folder), run after branches 4 and 8; validation sections 56 and 57 are reserved for it.
+
 ## Contents
 
 1. What the model is for, and what it is not
@@ -250,7 +261,7 @@ The hints are one function with a table of rules and a test per rule (10.2); the
 
 ## 7. Time simulation: a second stage
 
-The research transient (`independent-fem-extensions/lib/transient.py`: consistent mass, Crank-Nicolson with a Rannacher start, implicit Euler as the check, the frequency-domain periodic state) is validated (time to 63 % and plateaus within 0.5 % of independent references; a fast swing of a small source 0.5 to 3.5 % low, 8.3). Bringing it in means a step response, the animation and the profile runner for the FEM, a capacity on every element, a time law in the guard (a factor stored per stage) and the frozen times to 63 %. **It does not ship in 2.8.0** (recommendation; a question in 13): the FEM is steady only in 2.8.0, like the 3D solid, and the transient is a later item of 'Planned' with its own branch. The steady model is designed so that `femcore.Model.assemble` already returns what the transient needs (A, f), so nothing is redone.
+The research transient (`independent-fem-extensions/lib/transient.py`: consistent mass, Crank-Nicolson with a Rannacher start, implicit Euler as the check, the frequency-domain periodic state) is validated (time to 63 % and plateaus within 0.5 % of independent references; a fast swing of a small source 0.5 to 3.5 % low, 8.3). Bringing it in means a step response, the animation and the profile runner for the FEM, a capacity on every element, a time law in the guard (a factor stored per stage) and the frozen times to 63 %. **It ships in 2.8.0 (maintainer's decision)**, as branch 8 `feature/fem-transient`, after the steady model and the compare additions (branch 7); the campaign of `COMPARE_PLAN.md` covers it (validation 57). The steady model is designed so that `femcore.Model.assemble` already returns what the transient needs (A, f), so nothing is redone.
 
 ## 8. Validation plan
 
@@ -342,12 +353,12 @@ Each branch from `development`, executor -> reviewer -> maintainer (documents, t
 | 5 | `feature/fem-gui` | the checkbox (greyed reason), the memory verdicts, the Results combos and card, the Layer entries 'Surface (top/bottom)', Preferences, tooltips, the stress scenarios | M | no | yes |
 | 6 | `docs/fem-validation` (with the reviewer) | the validation section (8.2 and 8.3 tables, Muzychka case 2 against the paper), the published-case tests, models 2.8, the user guide chapter 'Which model to use', diagrams D1 to D7, the tooltip numbers measured | M | no | yes |
 | 7 | `feature/compare-differences` | the differences table, the difference map, the reference-model box, `checks.trust_hint` with its tests, D8 | M | no | yes |
-| 8 | `feature/fem-transient` | section 7 | L | adds times | **no** (later) |
+| 8 | `feature/fem-transient` | section 7 (after branch 7) | L | adds times | **yes (maintainer's decision)** |
 | 9 | `feature/fem-outline-projection` | stage 2 of 3.1: slanted and curved outlines by node projection, rotation-invariance test | L | adds records | later |
 
-**Realistic size**: branches 2 to 7, the 2.8.0 part, are about **20 to 30 agent working days** in series (review rounds and the whole battery included; the mesh builder of branch 3 is the uncertain one). The earlier '5 to 8 weeks' (`fem-worth-it.md` 3) assumed an unstructured mesher; that is avoided here, but the review rounds of this project usually double the first estimate, so plan **4 to 6 weeks of calendar** for the steady model in the program, and do not tie the release date to it (13).
+**Realistic size**: branches 2 to 7 are about **20 to 30 agent working days** in series (review rounds and the whole battery included; the mesh builder of branch 3 is the uncertain one). The earlier '5 to 8 weeks' (`fem-worth-it.md` 3) assumed an unstructured mesher; that is avoided here, but the review rounds of this project usually double the first estimate, so plan **4 to 6 weeks of calendar** for the steady model in the program, and do not tie the release date to it (13).
 
-**Order of delivery, so that something useful lands first**: branch 2 lands a tested solver with no user-visible change; branch 4 (after 3) is the first useful delivery: `--model fem` on the command line for rectangular boards, with the frozen records; branch 5 puts it in the window; branch 7 is useful for every model even without the FEM (it can be done before 2 if the FEM slips). The transient and the outline projection wait.
+**Order of delivery, so that something useful lands first**: branch 2 lands a tested solver with no user-visible change; branch 4 (after 3) is the first useful delivery: `--model fem` on the command line for rectangular boards, with the frozen records; branch 5 puts it in the window; branch 7 is useful for every model even without the FEM (it can be done before 2 if the FEM slips). Branch 8 (the transient) follows branch 7 and ships in 2.8.0; the outline projection (9) waits. Before branch 4 two small branches land: `fix/thick-plate-surface-estimate` (the surface read-out, M) and then `feature/solid3d-copper-slabs` (S), see the decisions above.
 
 ## 12. Risks
 
@@ -363,8 +374,8 @@ Each branch from `development`, executor -> reviewer -> maintainer (documents, t
 
 ## 13. Questions for the maintainer (one block)
 
-1. **Scope of 2.8.0**: the steady FEM only (branches 2 to 7), the transient (8) and slanted or curved outlines (9) later? (Recommended.)
-2. **Release date**: 2.8.0 waits for the FEM (4 to 6 weeks of calendar for the steady model), or 2.8.0 ships the confidence items already planned and the FEM goes into 2.9.0? (The design works either way; the order of 11 lets the difference view ship alone.)
+1. **Scope of 2.8.0**: ANSWERED, steady AND transient in 2.8.0 (maintainer's decision: branches 2 to 8); slanted and curved outlines (9) later.
+2. **Release date** (open; the transient adds branch 8, size L, to the estimate): 2.8.0 waits for the FEM (4 to 6 weeks of calendar for the steady model), or 2.8.0 ships the confidence items already planned and the FEM goes into 2.9.0? (The design works either way; the order of 11 lets the difference view ship alone.)
 3. **pyamg**: a required line of `requirements.txt` (recommended: MIT, small, the model is greyed only on a platform without a wheel), or an optional extra (the checkbox greyed on a default install)?
 4. **Headline read-out of the FEM**: `t_max` = the column mean (recommended: like for like with the other models; the surface shown beside it), or the surface?
 5. **Name**: 'Finite elements (FEM), comparison', key `fem`, short name `FEM`?
