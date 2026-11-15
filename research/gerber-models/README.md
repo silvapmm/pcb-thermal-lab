@@ -1018,6 +1018,10 @@ The sections that run `pcbthermal` were re-run on `develop` at `a6f822b` and rep
 
 `tests/test_conduction.py::test_hashin_shtrikman_and_bruggeman_against_independent_forms`: each 2D Hashin-Shtrikman bound of `conduction.py` equals the 2D Maxwell-Garnett form of circular inclusions derived separately (to 1e-12); the 2D Bruggeman root obeys the Keller-Dykhne duality k(a, b) k(b, a) = a b exactly (its f = 1/2 value sqrt(a b) is Dykhne's); the numerical cell problem of a copper disc in a square cell (80 x 80 pixels, f = 0.05 to 0.2) lies on the lower bound within 0.1 %, as it should for small f, and Bruggeman 0.3 to 4 % above it. The Wiener bounds were re-derived (insulated rows: a lower bound by the complementary-energy principle; equipotential columns: an upper bound by the Dirichlet principle) and match the code. Figure 22's checkerboard lies above the harmonic mean (2.24 against 1.81 laminates) and below the Hashin-Shtrikman lower bound (2.35). No textbook was opened.
 
+### R6. The lib face formula follows the program since the film term was added
+
+The lib face formula follows the program since the film term was added; see `docs/validation.md` 55. The program puts the half copper layer in series with the face film of the outer copper nodes (`h_eff = 1/(1/h + t_cu/(2 k_cu))`, `Board.face_film_h`, `docs/theory.md` 1.2a); `faces.add_film_through_half_copper` gives the face network of this folder the same film on the copper fraction of every cell, so `tests/test_importer.py::test_faces_of_the_programs_own_formula_reproduce_the_programs_run` agrees to 7e-13 K again (it read 3.7e-6 K without it; the 1e-6 K limit is unchanged). The numbers of this folder's README were measured before the film term; it moves them by 1e-7 to 4e-7 of a rise.
+
 ## Update for the program of 2.4.5 (laminate rule)
 
 `lib/faces.py`: the imported face conductances and the pixel reference already hold the laminate in the plane of the copper node, so `solve_faces` and `solve_fine` build the network with `ladder=False`
