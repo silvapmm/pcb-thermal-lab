@@ -580,7 +580,55 @@ def main_surface(out_dir):
     return [path, path2]
 
 
+def main_fem(out_dir):
+    """!
+    @brief Screenshots of the finite-element model in the window: the Simulation panel with the FEM ticked and its mesh boxes, and the Temperature tab of the thick plate of case 2 of Muzychka et al. on the FEM, Surface (top).
+    @param out_dir Folder that receives simulation_fem.png and results_fem_surface.png (only these two pictures).
+    @return List of written file paths.
+    """
+    from pcbthermal import api
+    from pcbthermal.model import Materials, Problem
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots_fem.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    prob = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0), name="plate-case-2")
+    prob.add_full_copper()
+    for i, (c, pw) in enumerate(zip([(12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5)], [10.0, 25.0, 20.0, 15.0])):
+        prob.add_heater(1, pw, rect=(c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5), name=f"S{i + 1}")
+    win._load_problem(prob, "plate-case-2")
+    win.resize(2000, 1200)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    win.canvas.fit()
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
+    app.processEvents()
+    path1 = os.path.join(out_dir, "simulation_fem.png")
+    win.solver_panel.grab().save(path1)
+    shrink(path1)
+    win._on_done(api.simulate(win.doc.problem, win.doc.options))
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("fem"))
+    from pcbthermal.gui import layerchoice
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(layerchoice.SURFACE_BASE))
+    app.processEvents()
+    path2 = os.path.join(out_dir, "results_fem_surface.png")
+    win.grab().save(path2)
+    shrink(path2)
+    win.doc.stack.setClean()
+    win.close()
+    return [path1, path2]
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--fem":
+        for f in main_fem(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "--surface":
         for f in main_surface(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
             print(f)
