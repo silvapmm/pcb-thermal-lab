@@ -16,7 +16,7 @@ import time
 import numpy as np
 from scipy import ndimage
 
-from . import blocks, convection, copper, laminate, lumped, solid3d, stackimpedance, viaconstriction, viawell
+from . import blocks, convection, copper, femcore, femmesh, laminate, lumped, solid3d, stackimpedance, viaconstriction, viawell
 from .geometry import OUTLINE_MAX_CROSSINGS, outline_crossings, coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 from .uicontext import cell_where, laminate_where, using_ui
@@ -368,7 +368,45 @@ def _check_input(problem, models, cell_mm, live=False):
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_lumped_near_edge(problem, models)
             + check_lumped_small_part(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models)
-            + check_fast_wave(problem))
+            + check_fast_wave(problem) + check_fem(problem, models, cell_mm))
+
+
+def check_fem(problem, models, cell_mm):
+    """!
+    @brief Warnings of the finite-element model that are known before the run: a mesh that cannot be built, the missing pyamg, imported copper and a part below the mesh.
+    @details Only when "fem" is in the models. The unknown count is the exact one of femmesh.unknowns (axes and slab layout, no 3D arrays), so the reason of a refusal is the
+             one the run would give; the cell of the run is used with the default mesh options (6 elements across a gap, refinement 2). A mesh above femcore.FEM_DIRECT_MAX
+             unknowns needs the package pyamg: without it the run would stop, so it is said here.
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size in mm of the run.
+    @return List of warnings (CheckWarning), empty when the FEM is not selected.
+    """
+    if "fem" not in models:
+        return []
+    out = []
+    try:
+        n = femmesh.unknowns(problem, cell_mm)[0]
+    except ValueError as exc:
+        _add(out, None, None, f"The finite-element model (FEM) cannot be built for this board and will be left out: {exc}.",
+             "The finite-element model (FEM) cannot be built for this board (see the details).", ALERT)
+        return out
+    if n > femcore.FEM_DIRECT_MAX and not femcore.available():
+        _add(out, None, None, f"The finite-element model (FEM) mesh has {n} unknowns, more than the {femcore.FEM_DIRECT_MAX} that the direct solver takes, and the package pyamg is not "
+             f"installed (pip install pyamg), so the FEM will be left out. A coarser cell ({cell_where()}) gives a smaller mesh.",
+             "The FEM needs the package pyamg for a mesh this large: it will be left out.", ALERT)
+    if copper.CopperSource.of(problem) is not None:
+        _add(out, None, None, "The finite-element model (FEM) reads imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported "
+             "board it is a different stencil, not a better answer; the FVM and FDM read the copper through the face conductances.",
+             "The FEM reads imported copper as an element average (no better than the 3D solid).")
+    fine = cell_mm * 1e-3 / 2.0
+    for k, h in enumerate(problem.heaters):
+        side = min(float(np.ptp(h.polygon[:, 0])), float(np.ptp(h.polygon[:, 1])))
+        if 0.0 < side < 2.0 * fine:
+            _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: the part ({num(side * 1e3, 2)} mm) is narrower than two fine elements of the FEM ({num(2 * fine * 1e3, 2)} mm at this cell): "
+                 f"the source is spread over the elements it touches, so its peak reads low. Use a smaller cell ({cell_where()}).",
+                 f"{h.name or f'Heater {k + 1}'}: smaller than two FEM elements; its peak reads low.")
+    return out
 
 
 # The fast-wave warnings (docs/validation.md 37): the frequency from which a wave on bare laminate is warned about (1 Hz: the review measured 0.73 to 0.78 of the 3D

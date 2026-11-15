@@ -1246,7 +1246,22 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             tot = float(w.sum())
             warnings.append(f"the heater {h.name or ''} has no area on the board: its power goes to the nearest element")
         ids_all = []
-        for s in copper_slabs[h.layer]:
+        # A thick outer copper layer (several slabs) takes the heat of a part through its face, as a prescribed flux over the footprint: the part sits on that face, and the
+        # surface read-out of a thick plate (case 2 of Muzychka, Culham and Yovanovich, docs/validation.md 55) is the point of the model. A thin layer (one slab) keeps the
+        # volumetric source: through 35 um the two differ by micro-kelvin, and the mesh and the frozen numbers of the boards of the harness do not change.
+        slabs_l = copper_slabs[h.layer]
+        if len(slabs_l) > 1 and (h.layer == 0 or h.layer == L - 1):
+            top = h.layer == 0
+            a, c = ranges[slabs_l[0] if top else slabs_l[-1]]
+            q_s = elem_quad[a:c]
+            share_q = w[q_s] / plan.area[q_s]
+            sel = np.nonzero(share_q > 0)[0]
+            nodes_f = elems[a:c][sel][:, :4] if top else elems[a:c][sel][:, 4:]
+            model.add_faces(nodes_f, flux=h.power * share_q[sel] / tot, label="source")
+            ids_all.append(a + sel)
+            heater_elems.append(np.concatenate(ids_all))
+            continue
+        for s in slabs_l:
             a, c = ranges[s]
             ids_s = np.arange(a, c)
             q_s = elem_quad[a:c]
@@ -1270,17 +1285,17 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
     sel = board_q[~covered[0][board_q]]
     hh = ht[sel] + he_top[sel]
     keep = hh > 0
-    model.add_faces(nid[top_plane][plan.quads[sel[keep]]], h=hh[keep])
+    model.add_faces(nid[top_plane][plan.quads[sel[keep]]], h=hh[keep], label="top")
     sel = board_q[~covered[1][board_q]]
     hh = hb[sel] + he_bot[sel]
     keep = hh > 0
-    model.add_faces(nid[bot_plane][plan.quads[sel[keep]]], h=hh[keep])
+    model.add_faces(nid[bot_plane][plan.quads[sel[keep]]], h=hh[keep], label="bottom")
     # The edge film on every wall of the outline, in every board slab
     if b.h_side and b.h_side > 0:
         edges = _boundary_edges(plan.quads, lay.sets["all"])
         for s in range(lay.b0, lay.b1):
             f = np.column_stack([nid[s][edges[:, 0]], nid[s][edges[:, 1]], nid[s + 1][edges[:, 1]], nid[s + 1][edges[:, 0]]])
-            model.add_faces(f, h=b.h_side)
+            model.add_faces(f, h=b.h_side, label="edge")
     # The blocks: the exposed face with the fin ratio, the walls without it, and nothing under the block (the board face is covered)
     for bk in lay.blocks:
         hs = problem.heatsinks[bk["k"]]
@@ -1289,13 +1304,13 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
         h_face = ht[ids] if face == 0 else hb[ids]
         h_exp = np.array([blocks.exposed_h(hs, float(x)) for x in h_face])
         outer = 0 if face == 0 else len(zs)
-        model.add_faces(nid[outer][plan.quads[ids]], h=h_exp)
+        model.add_faces(nid[outer][plan.quads[ids]], h=h_exp, label="block_top" if face == 0 else "block_bottom")
         h_wall = float(blocks.wall_h(hs, float(np.mean(h_face))))
         edges = _boundary_edges(plan.quads, ids)
         slab_ids = [s for s, sl in enumerate(zs) if sl["region"] == "blk" and sl["face"] == face]
         for s in slab_ids:
             f = np.column_stack([nid[s][edges[:, 0]], nid[s][edges[:, 1]], nid[s + 1][edges[:, 1]], nid[s + 1][edges[:, 0]]])
-            model.add_faces(f, h=h_wall)
+            model.add_faces(f, h=h_wall, label="block_top" if face == 0 else "block_bottom")
     vol = float(model.element_volumes()[np.isin(elem_slab, np.arange(lay.b0, lay.b1))].sum())
     return FemMesh(model=model, n_unknowns=lay.n_unknowns, n_elements=E, plan=plan, slabs=zs, planes=lay.n_planes, elem_slab=elem_slab, elem_quad=elem_quad,
                    copper_slabs=copper_slabs, heater_elems=heater_elems, warnings=warnings, n_patches=len(lay.windows), n_rods=len(lay.rods), volume_board=vol)

@@ -1213,7 +1213,7 @@ def model_warnings(problem, model, cell_mm=None):
     """!
     @brief The warnings that a model owes when the board carries imported copper.
     @param problem A Problem.
-    @param model "fvm", "fdm", "lumped", "analytic" or "solid3d".
+    @param model "fvm", "fdm", "lumped", "analytic", "solid3d" or "fem".
     @param cell_mm Cell of the run in mm (None: the pixel-per-cell check is left out).
     @return list of str (empty without imported copper).
     """
@@ -1225,6 +1225,8 @@ def model_warnings(problem, model, cell_mm=None):
         out.append(REDUCED_MODEL_WARNING)
     elif model == "solid3d":
         out.append(SOLID3D_WARNING)
+    elif model == "fem":
+        pass                                                      # femmesh.build already says that the mask is read as the mean over every element (fem result warnings)
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
