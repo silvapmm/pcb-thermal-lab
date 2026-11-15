@@ -705,14 +705,17 @@ class ResultsView(QWidget):
         both = thickness.significant(ref) and any("t_max_surface" in h for h in heaters)
         heads = ["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"]
         if both:
-            heads[3], heads[4] = "Mean °C (column)", "Max °C (column)"
-            heads += ["Mean °C (surface, estimate)", "Max °C (surface, estimate)"]
+            # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
+            heads[3], heads[4] = "Mean °C\n(column)", "Max °C\n(column)"
+            heads += ["Mean °C\n(surface,\nestimate)", "Max °C\n(surface,\nestimate)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         if both:
-            self.heater_table.horizontalHeaderItem(len(heads) - 1).setToolTip(
-                "Hottest temperature of the outer face of the copper under the part, estimated from the layer mean and the heat fluxes (upper side when the part is small against the plate). "
-                "Junction, margin and power limit use the column.")
+            hi = self.heater_table.horizontalHeaderItem
+            hi(3).setToolTip(tips.COLUMN_HEADER_TIP)                         # The renamed column headers and the two surface ones say what each read-out is
+            hi(4).setToolTip(tips.COLUMN_HEADER_TIP)
+            hi(len(heads) - 2).setToolTip(tips.SURFACE_MEAN_TIP)
+            hi(len(heads) - 1).setToolTip(tips.SURFACE_MAX_TIP)
         rows = []
         for h in heaters:
             row = [h["name"], str(h["layer"]), f"{h['power_w']:.2f}", f"{h['t_mean']:.1f}", f"{h['t_max']:.1f}",

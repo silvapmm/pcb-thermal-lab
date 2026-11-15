@@ -1398,10 +1398,22 @@ def check_thick_plates(problem, rows, result=None, h_faces=None):
                               "that face is not in the model)")
                     if across > 0:
                         parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
+                # What to do (text only): read the surface where the model has it; a copper layer gets its surface from the FVM and the FDM, a block only from the 3D solid,
+                # which cuts a block into slabs of about 1 mm (it keeps ONE cell through a copper slab, so it does not resolve a copper plate)
+                if est:
+                    todo = (" What to do: compare the surface estimate, not the layer mean, with a thermocouple or a paper that reports the surface; it is in the Layer box "
+                            "(Surface (top) / Surface (bottom)) and in the surface columns of the Components table when it differs from the layer mean by at least "
+                            "max(0.1 K, 1 % of the rise). Tj, margin and power limit stay on the layer mean.")
+                elif what.startswith("the copper"):
+                    todo = (" What to do: read the bound as the largest surface excess; the FVM and the FDM give an estimate of the surface itself (Layer box, Surface entries) "
+                            "for an outer copper layer thicker than 105 um.")
+                else:
+                    todo = (" What to do: read the bound as the largest surface excess of the block; the 3D solid cuts a block into slabs of about 1 mm and gives the "
+                            "temperature through it.")
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; the models "
                            "keep one temperature through the thickness. The value is an upper estimate from conduction straight through the plate, not added to the results."
-                           f"{shape}{est}"))
+                           f"{shape}{est}{todo}"))
     return out
 
 
