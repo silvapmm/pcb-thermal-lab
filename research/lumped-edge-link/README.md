@@ -262,6 +262,12 @@ no published case of a part near an insulated or cooled side was found or reprod
 * **Conditions on the fix branch**: the tests of `INTEGRATION.md` 3 at 0.5 and 1 mm; the warning numbers re-measured with the program on the branch at both cells; the changelog says that interior parts move by up to a few points hot, that on a board with several
   parts a near-zero reading of an interior part can become +4 % (the superposition of the other part's network), and that the times to 63 % of interior parts get 5 to 9 % shorter; the pending files as in `INTEGRATION.md` 5 (b).
 
+### 4.6 Adopted
+
+The first-link correction (`first:zone`) is in the program as `fix/lumped-edge-first-link` (2.8.0, unreleased; `docs/validation.md` section 53). Measured with the shipped Lumped: 180 cases -7.45 to -1.64 % of the rise, the cases beyond -8 % 70 to 0; against the independent 3D table, a part at a side -9.9 to -3.1 %, in a corner -15.9 to -3.3 %, centred +2.3 to +0.8 %.
+The jump at the footprint limit (a part of more than 3600 cells keeps the old link, so a 30 mm part and a 40 mm part at 0.5 mm are not read on the same footing) is a stated limit, kept in the program.
+**Tests after the adoption**: `lib/variants.py` no longer patches `pcbthermal/lumped.py` (its anchors were the text the fix rewrote); it patches a frozen copy of the pre-fix module, `lib/lumped_before_fix.py` (development `dbe5068e`), and `tests/test_edge_link.py` checks that the prototype `first:zone` built on the copy equals the shipped Lumped to rounding (mean and peak of the part, four boards: at a side, interior, corner, insulated edge). The studies of `scripts/` that name `program` now read the pre-fix copy; the adopted program is the variant `shipped`.
+
 ## 5. What was read and what was not verified
 
 * **Read in full**: `pcbthermal/lumped.py` (`ring_edges`, `_one_node_network`, `_zone_network`, `_footprint_potentials`, `_heater_network`), `docs/validation.md` 35 and 48, `research/lumped-near-edge` README sections 3, 5, 6, 10 and `INTEGRATION.md`,
