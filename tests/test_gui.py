@@ -444,9 +444,9 @@ def test_input_warnings_list_selects_the_element(win, qtbot):
     assert len(box.warnings) >= 2
     tagged = {(w.kind, w.index) for w in box.warnings if w.kind}
     assert ("heater", 0) in tagged and ("via", 0) in tagged
-    # The select button of the opened via warning selects the via
+    # The element label of the via warning (a closed row) selects the via
     row = next(r for r in box.rows if getattr(r.warning, "kind", None) == "via")
-    row.set_open(True)
+    assert not row.is_open()
     row.button.click()
     assert win.canvas.selected_elements() == [("via", 0)]
     # One warning: the count says 1; none: the box is hidden
@@ -577,8 +577,8 @@ def test_warning_links_follow_the_theme(win, qtbot):
     assert lst.warnings
 
     def symbol_colour_is_of_the_theme():
-        # The badge of a row is drawn in the alert token (an alert) or the muted token (a note) of the current theme
-        return lst.rows[0].glyphs.icon_token() in ("alert", "muted")
+        # The dot of a row is drawn in the bad token (a warning) or the warn token (a note) of the current theme
+        return lst.rows[0].glyphs.icon_token() in ("bad", "warn")
 
     for _ in range(2):
         accent = th.colors(win.theme_name)["link"]

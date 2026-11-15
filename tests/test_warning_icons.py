@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_warning_icons.py
-@brief The solid severity badges of the warning rows: shape and colour from the theme tokens, no bullet, the badge centred on the lowercase letters of the first
+@brief The round severity dots and the element labels of the warning rows: shape and colour from the theme tokens, no bullet, the badge centred on the lowercase letters of the first
        line (a measured offset of at most one logical pixel at device pixel ratio 1 and 2, both themes), the accessible names and the redraw on a theme change.
 @details The alignment is measured on a rendered row, never calibrated: a title of letters without ascenders or descenders ("uxv") gives the x-height band, the
          badge ink gives its own centre. The ratio 2 case runs in a subprocess with QT_SCALE_FACTOR=2 (this file is its own script then).
@@ -139,7 +139,7 @@ def _check(cases):
     for key, m in cases.items():
         assert abs(m["offset"]) <= 1.0, f"{key}: the badge centre is {m['offset']:.2f} px from the centre of the lowercase letters (at dpr {m['dpr']})"
         assert m["gap_arrow_badge"] >= 5.0 - 1e-9, f"{key}: only {m['gap_arrow_badge']:.2f} px between the arrow and the badge"
-        assert m["badge_height"] >= 9, f"{key}: badge too small"
+        assert m["badge_height"] >= 6, f"{key}: dot too small"
 
 
 def test_the_badge_is_centred_on_the_lowercase_letters_at_dpr_1():
@@ -163,7 +163,7 @@ def test_the_badge_is_centred_at_dpr_2():
 
 def test_no_bullet_no_warning_sign_in_the_text_and_tokens_colour_the_badges(win):
     """!
-    @brief The title is plain text without the old symbols; the alert badge uses the `alert` token and the note badge the `muted` token, redrawn on a theme change.
+    @brief The title is plain text without the old symbols; the warning dot uses the `bad` token and the note dot the `warn` token (the memory verdict colours), redrawn on a theme change.
     @param win MainWindow fixture.
     """
     from pcbthermal import checks
@@ -174,17 +174,17 @@ def test_no_bullet_no_warning_sign_in_the_text_and_tokens_colour_the_badges(win)
     ra, rn = acc.rows
     for r in (ra, rn):
         assert r.title_label.textFormat().name == "PlainText" and "•" not in r.title_label.text() and "⚠" not in r.title_label.text()
-    assert ra.glyphs.icon_token() == "alert" and rn.glyphs.icon_token() == "muted"
+    assert ra.glyphs.icon_token() == "bad" and rn.glyphs.icon_token() == "warn"
     for theme in ("light", "dark"):
         if win.theme_name != theme:
             win.toggle_theme()
         c = th.colors(theme)
-        for r, token in ((ra, "alert"), (rn, "muted")):
-            pm = wb.badge_pixmap(r.severe, r.glyphs.size_px, r.glyphs.devicePixelRatioF(), c[token])
+        for r, token in ((ra, "bad"), (rn, "warn")):
+            pm = wb.dot_pixmap(r.glyphs.size_px, r.glyphs.devicePixelRatioF(), c[token])
             img = pm.toImage()
             seen = {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height()) if img.pixelColor(x, y).alpha() == 255}
             assert seen == {c[token]}, f"{theme}/{token}: {seen}"
-        assert ra.glyphs.icon_token() == "alert"
+        assert ra.glyphs.icon_token() == "bad"
 
 
 def test_the_severity_is_in_the_accessible_name_and_the_tooltip(win):
@@ -201,6 +201,36 @@ def test_the_severity_is_in_the_accessible_name_and_the_tooltip(win):
     assert ra.head.toolTip().startswith("Warning") and rn.head.toolTip().startswith("Note")
     ra.set_open(True)
     assert ra.head.accessibleDescription() == "open" and ra.glyphs.open
+
+
+def test_the_element_label_names_the_type_and_the_element_and_a_long_name_is_elided(win):
+    """!
+    @brief The label at the end of a row carries the icon of the element type and the name; a long name is elided and the full name is in the tooltip and the accessible name; the Results summary rows have no label.
+    @param win MainWindow fixture.
+    """
+    from pcbthermal import checks
+    acc = win.solver_panel.checks
+    acc.set_warnings([checks.warn("C123: no copper under it", "note", "heater", 0)], names=lambda kind, index: "C123_REGULATOR_3V3_FILTER_CAPACITOR")
+    row = acc.rows[0]
+    full = "C123_REGULATOR_3V3_FILTER_CAPACITOR"
+    assert row.button.text() != full and row.button.text().endswith("…")
+    assert full in row.button.toolTip() and row.button.accessibleName() == f"Select heater {full} on the board"
+    assert not row.button.icon().isNull()
+    # The label is after the title in the row (at the end), and Tab reaches the row head first
+    hl = row.head.layout()
+    assert hl.itemAt(hl.count() - 1).widget() is row.button
+    plain = wb_rows_without_select()
+    assert plain.button is None
+
+
+def wb_rows_without_select():
+    """!
+    @brief A row built for the Results summary (select off) for a warning that names an element.
+    @return The row.
+    """
+    from pcbthermal import checks
+    from pcbthermal.gui import warning_box as wb
+    return wb._TopicRow(checks.warn("U1: outside the board", "alert", "heater", 0), False, False)
 
 
 def test_the_summary_and_the_dock_share_one_component():
