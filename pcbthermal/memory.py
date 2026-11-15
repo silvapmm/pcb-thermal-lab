@@ -48,7 +48,7 @@ PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measu
 SOR_BLOCK_SHARE = 0.25              # Share of the limit that ALL the dense SOR blocks together (the sum of 75 n^2) may take (sor_block_fits)
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
 VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
-VIA_CELLS_REF = 500.0               # Footprint cells at which the via term reaches 63 % of its gain (25 vias of 0.3 mm at 0.5 mm are 100 cells and measured nothing; CO60 is 1 500 to 5 400)
+VIA_CELLS_REF = 500.0               # Footprint cells at which the via term reaches 63 % of its gain (25 vias of 0.3 mm at 0.5 mm are 100 cells and measured nothing; CO60 is 2 500 to 5 400)
 MEMORY_ENV = "PCBTHERMAL_MEMORY_BYTES"   # Environment variable that states the physical memory in bytes (tests, containers whose limit is not visible)
 
 # CONTINUOUS law of the review: model -> (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety factor)
