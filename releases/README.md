@@ -17,6 +17,9 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.7.0/rename/`](2.7.0/rename/README.md) | The text rename of the integration branch `develop` to `development`. |
 | [`2.7.1/final-opinion/`](2.7.1/final-opinion/README.md) | The reviewer's final opinion on 2.7.1, the patch release of the first wave of the 2.8.0 plan: go, with the list of the release commit and the proposed CHANGELOG text. |
 | [`2.8.0/wave-1/`](2.8.0/wave-1/enter-focus-and-calculator.md) | Reviews of the 2.8.0 wave-1 branches: `enter-focus-and-calculator.md` (the Enter-focus fix, the Duplicate selection, the JEDEC numbers of the calculator). |
+| [`2.8.0/audit/`](2.8.0/audit/FINAL.md) | The fine-comb re-review of 2.8.0: the claims register (`CLAIMS_REGISTER.md`, `claims.csv`), the formula inventory (`formulas.csv`), the assignments, the reviews by topic (`REVIEW_*.md`), the decisions (`DECISIONS.md`, `DECISIONS_2.md`, `DECISIONS_3.md`), the scripts of the reviews (`scripts/`) and the closing document `FINAL.md` (what was wrong, what was corrected, what remains, trust per area). |
+| [`2.8.0/final-review/`](2.8.0/final-review/PART_1A.md) | The final code-against-theory review of 2.8.0: `docs/theory.md`, `docs/models.md`, `docs/validation.md` and every user-facing text against the code (`PART_1A.md` to `PART_2C.md`, `scripts/`). |
+| [`2.8.0/reviews/`](2.8.0/reviews/board-dock-write-back.md) | The reviews of the 2.8.0 fix and feature branches (one file per branch). |
 
 ## Layout rule
 
