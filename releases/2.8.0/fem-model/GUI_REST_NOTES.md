@@ -1,0 +1,14 @@
+# Notes: branch `fix/gui-review-rest` (branch C of `GUI_FIX_PLAN.md`)
+
+Progress notes of the reviewer implementing branch C (not a report). Base: `development` at `b4097cc0` (branches A and B merged).
+
+* Run feedback (A8 rest, A10, A11, A9 muted): status bar mirrors the line under Run (stage and seconds while busy, final line after), Stop in a red `stop` token, focus ring on the primary button, slim progress hidden when idle, status line two lines high; muted light 4.87:1. Commit ce5775be.
+* FEM cap refusal (A6 rest): 'use a cell of about X mm or more' (checked accepted), FEM warning title 'The FEM (finite elements) will be left out'. Also fixed two stale CLI tests on development ('| fem |' became '| FEM |'). Commit fbaa735a.
+* One dot painter (C20): `dots.dot_html` embeds the pixmap in rich text; the memory lines use it. Commit 24104688.
+* Docks (C1, the leftovers): a scroll area never narrower than its content plus the vertical bar (`_FitWidth`); Elements header whole. The start-up sideways bar of the review was a first-paint state (gone after the first event cycles), not a user-visible defect.
+* Ruler corner (C3), typography sweep (C17, `tests/test_typography.py` over the visible strings of gui/, help/ and the core modules that write messages, with `units.FORBIDDEN` and `units.ALLOWED`), × in sizes, ellipsis, 'Off', colour-map names, outline table notation, emissivity line, guide 'lumped network', Holes tooltip. 'Power Calculator' is kept as the proper name of the tool (in about 30 places and the docs): decision for the maintainer.
+* Empty-board hint (C4); Open recent and the tab entries of the View menu (C5, C7); shortcut list test (C8). The tool-bar Open/Save/Undo/Redo (C6) were NOT added: no room at 1200 px (Run would go into the overflow).
+* Import window (C9): parts counter in words, Tj max 0 reads 'none' ('no limit' cost 5 px of the Package column at 1100 px, a test).
+* Compact plot tool bars (C11), empty states of every plot page (C12), failure box with what to do (C13), accessible names and the Properties tab order (C14, C15, `gui/a11y.py`), tooltip test extended to the Display popover and Preferences (C16).
+* Stack-up page at 1200 x 800 (C2): `gui/adaptive.py` (the splitter of the Power profile page, shared), inner copper on its own line, 'Readable' Scale entry, elided note. Docstrings K/W (C21). Field borders at 3:1 NOT done: Fusion draws the edge of a field at 2.0:1 (light) and 1.1:1 (dark) and only a restyle of every input changes it (measured offscreen): a larger design.
+* Documents: user guide (Quick start: hint and Open recent; section 8 status row: red Stop, seconds, final line, failure), CHANGELOG, `docs/versions.md`, `docs/decisions-log.md`, `docs/models.md` module map. Screenshots: `FULL_COLOUR` also keeps `results_summary*` unquantised (the warning dots).
