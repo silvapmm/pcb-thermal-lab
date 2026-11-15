@@ -324,6 +324,29 @@ def _ogrid(cx, cy, s0, radii, n, half, n_blend, n_inner):
     return np.vstack(xy), np.vstack(quads), np.concatenate(ring), ids[-1]
 
 
+def _area_fix(n):
+    """!
+    @brief Radius factor that gives the polygon of the circle levels of an O-grid the area of the circle.
+    @details The nodes of a circle level lie on the rays of the uniform parametrisation of the inner square (4 n rays at unequal angles), so the polygon has the area
+             0.5 r^2 sum(sin(dtheta)), a little under pi r^2; scaled by this factor the plating ring has exactly the area of the annulus (the conduction along the barrel is exact).
+    @param n Intervals per side of the inner square.
+    @return float, a little above 1.
+    """
+    t = np.linspace(-1.0, 1.0, n + 1)
+    nid = np.arange((n + 1) ** 2).reshape(n + 1, n + 1)
+    X, Y = np.meshgrid(t, t)
+    xy = np.column_stack([X.ravel(), Y.ravel()])
+    loop = np.concatenate([nid[0, :-1], nid[:-1, n], nid[n, :0:-1], nid[::-1, 0][:-1]])
+    th = np.arctan2(xy[loop, 1], xy[loop, 0])
+    dth = np.diff(np.concatenate([th, [th[0] + 2.0 * math.pi]]))
+    dth = np.mod(dth, 2.0 * math.pi)
+    return math.sqrt(math.pi / (0.5 * np.sin(dth).sum()))
+
+
+## The circles of a via patch are polygons of 4 PATCH_NSIDE nodes; their radius is scaled by this so that the polygon has the area of the circle (a ring then has the exact area of the plating).
+AREA_FIX = _area_fix(PATCH_NSIDE)
+
+
 # ----------------------------------------------------------------------------------------------------------------------------------------
 # The layout: axes, windows, plan, slabs. Everything that does not need the 3D arrays.
 
@@ -622,6 +645,7 @@ def _build_plan(problem, xn, yn, windows):
     for w in windows:
         v = problem.vias[w["via"]]
         radii, n_barrel, kind = _ring_radii(v, plating)
+        radii = [r * AREA_FIX for r in radii]                      # equal-area polygons: the plating ring has the area of the annulus
         s0 = 0.55 * radii[0] / math.sqrt(2.0)
         n_inner = 1                                              # one blended level between the inner square and the first circle
         pxy, pq, ring, outer = _ogrid(w["cx"], w["cy"], s0, radii, PATCH_NSIDE, w["half"], 2, n_inner)
