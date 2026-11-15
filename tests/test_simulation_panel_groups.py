@@ -145,7 +145,7 @@ def test_the_memory_lines_are_compact_with_a_dot_and_no_thousands_separator(win)
     win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
     QApplication.processEvents()
     text = re.sub(r"<[^>]+>", "", sp.cells_label.text()).replace("&nbsp;", " ")
-    assert re.search(r"● FVM: \d+ unknowns · \d+\.\d of \d+\.\d GB", text), text
+    assert re.search(r"^ ?FVM: \d+ unknowns · \d+\.\d of \d+\.\d GB", text) and "data:image/png" in sp.cells_label.text(), text   # the dot is the picture of gui/dots.py
     assert "about" not in text and not re.search(r"\d,\d{3}", text)
     assert th.colors(th.current_name())["ok"] in sp.cells_label.text() and sp.cells_label.isVisible()
     win.doc.set_options(models=("lumped", "analytic"))
@@ -228,7 +228,7 @@ def test_the_dot_is_drawn_once_and_the_reason_for_a_grey_run_is_next_to_the_butt
     load(win, example_board())
     sp = win.solver_panel
     win.doc.set_options(models=("fvm",), cell_mm=1.0)
-    assert th.VERDICT_DOT in sp.cells_label.text()
+    assert 'src="data:image/png;base64,' in sp.cells_label.text()             # The picture of gui/dots.py, the one painter of the dots
     monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
     win.doc.options.memory_fraction = 0.1
     win.doc.set_options(models=("fvm",), cell_mm=0.3)

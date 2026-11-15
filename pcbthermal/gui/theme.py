@@ -353,16 +353,17 @@ def apply_theme(app, name):
     """)
 
 
-VERDICT_DOT = "●"                                   # The one dot of every verdict line (memory lines of the Simulation panel, rows of the warnings)
 
 
 def verdict_dot(colour):
     """!
-    @brief The dot that opens a verdict line, as rich text in a colour of the theme; drawn once here so that every list uses the same mark.
+    @brief The dot that opens a verdict line, as rich text in a colour of the theme: the picture of gui/dots.py, the one painter of every dot of the window.
     @param colour Colour string (a theme token value such as colors(name)["ok"]).
-    @return str HTML span with the dot.
+    @return str HTML <img> tag of the dot.
     """
-    return f'<span style="color:{colour}">{VERDICT_DOT}</span>'
+    from .dots import dot_html                       # Imported here: dots.py stays free of the theme
+
+    return dot_html(colour)
 
 
 def hint(label):

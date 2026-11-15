@@ -98,3 +98,24 @@ def test_a_fem_mesh_above_the_cap_says_which_cell_to_use_and_that_cell_fits():
     w = [str(x) for x in check_input(p, ("fvm", "fem"), cell_mm=0.5, live=True)]
     fem = [x for x in w if is_fem_left_out(x)]
     assert fem and warning_title(fem[0]) == "The FEM (finite elements) will be left out" and "use a cell of about" in fem[0]
+
+
+def test_the_memory_lines_and_the_warning_rows_use_one_dot_painter(win, monkeypatch):
+    """!
+    @brief Every dot of the window comes from gui/dots.py: the memory lines (rich text) embed the picture of dots.dot_pixmap, as the warning rows draw it.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui import dots
+
+    calls = []
+    real = dots.dot_pixmap
+    monkeypatch.setattr(dots, "dot_pixmap", lambda *a: calls.append(a) or real(*a))
+    monkeypatch.setattr(dots, "_HTML_CACHE", {})
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
+    QApplication.processEvents()
+    text = win.solver_panel.cells_label.text()
+    assert text.count('src="data:image/png;base64,') >= 2 and calls
+    assert "●" not in text

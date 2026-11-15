@@ -2,16 +2,18 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file dots.py
-@brief The round verdict dot, drawn once for every place that shows one (the warning rows; the memory lines may use it too): the same two tokens as the memory verdicts.
+@brief The round verdict dot, drawn once for every place that shows one (the warning rows and the memory lines of the Simulation panel): the same tokens as the memory verdicts.
 @details Colours are the theme tokens `bad` (a warning, the colour of 'refuse') and `warn` (a note, the colour of 'slow'); the dot is never the only carrier of
          the severity (the rows also say 'Warning:' or 'Note:' in their accessible name and tooltip).
 """
 
+import base64
 import math
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 
+_HTML_CACHE = {}      # (logical size, colour) -> the <img> tag of the dot for rich text
 _ICON_CACHE = {}      # (logical size, device pixel ratio, colour) -> QPixmap of the dot, drawn once
 
 
@@ -49,3 +51,26 @@ def dot_pixmap(size, dpr, colour):
     p.end()
     _ICON_CACHE[key] = pm
     return pm
+
+
+def dot_html(colour, size=12):
+    """!
+    @brief The same dot as rich text, for a QLabel that shows lines of HTML (the memory lines of the Simulation panel): an <img> of the pixmap of dot_pixmap.
+    @details One painter for every dot of the window (review of the window: the memory lines drew a text glyph, the warning rows a pixmap). The picture is drawn at
+             twice the size and shown at `size` px, so it stays round on a screen with a device pixel ratio of 2; Qt's rich text reads the data URL.
+    @param colour Fill colour as '#rrggbb' (a theme token value).
+    @param size Logical edge in px of the square of the dot (the height of a line of small text).
+    @return str HTML <img> tag.
+    """
+    key = (size, colour)
+    tag = _HTML_CACHE.get(key)
+    if tag is None:
+        pm = dot_pixmap(size, 2.0, colour)
+        data = QByteArray()
+        buf = QBuffer(data)
+        buf.open(QIODevice.WriteOnly)
+        pm.save(buf, "PNG")
+        uri = "data:image/png;base64," + base64.b64encode(bytes(data)).decode("ascii")
+        tag = f'<img src="{uri}" alt="{colour}" width="{size}" height="{size}" style="vertical-align: middle">'   # alt: the colour, readable in the text
+        _HTML_CACHE[key] = tag
+    return tag

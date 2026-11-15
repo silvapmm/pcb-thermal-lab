@@ -1879,7 +1879,7 @@ class SolverPanel(QWidget):
             if v.verdict == "ok" and not v.exceeds_available:
                 rows.append(f'{th.verdict_dot(colours["ok"])}&nbsp;{html.escape(text)}')
             else:
-                rows.append(f'<span style="color:{colours[v.verdict]}">{th.VERDICT_DOT}&nbsp;{html.escape(text)}</span>')
+                rows.append(f'{th.verdict_dot(colours[v.verdict])}&nbsp;<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
             # The 3D solid and the FEM are only skipped when other models run next to them (api.SKIPPABLE_MODELS, the rule of api.simulate); any other refusal stops the run
             if v.verdict == "refuse" and (v.model not in SKIPPABLE_MODELS or len(self.doc.options.models) == 1):
                 blocked = blocked or v.message
@@ -1894,7 +1894,7 @@ class SolverPanel(QWidget):
                     use = f"use a cell of {fit:.1f} mm or more" if fit else "use a coarser cell"            # Like the other models: say which cell to use
                     why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
                            + (f"will not run: install it or {use}" if alone else f"will be left out ({use} to keep it)"))
-                    rows.append(f'<span style="color:{colours["refuse"]}">{th.VERDICT_DOT}&nbsp;' + html.escape(why) + "</span>")
+                    rows.append(f'{th.verdict_dot(colours["refuse"])}&nbsp;<span style="color:{colours["refuse"]}">' + html.escape(why) + "</span>")
                     if alone:
                         blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
