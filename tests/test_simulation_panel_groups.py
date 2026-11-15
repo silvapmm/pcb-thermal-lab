@@ -288,3 +288,71 @@ def test_results_of_a_board_do_not_stay_when_another_board_is_opened_created_or_
         assert win.solver_panel.status.text() == "" and win.tabs.tabText(mw.TAB_RESULTS) == "Results"
     run(win, qtbot, ("fvm",), cell=2.0)
     assert not any(shown(win)) and win.results.sim is win.sim
+
+
+def test_a_project_opened_after_a_run_saves_the_same_bytes(win, qtbot, tmp_path):
+    """!
+    @brief Clearing the results on Open touches only the views: a project saved before a run, after it and after reopening it holds the same bytes.
+    @param win Main window fixture.
+    @param qtbot Fixture.
+    @param tmp_path pytest fixture.
+    """
+    load(win, example_board())
+    path = str(tmp_path / "a.pcbt.json")
+    win.doc.set_options(models=("lumped",), cell_mm=2.0)
+    win.doc.save(path)
+    win.doc.save(path)                                                         # the first save names the project after its file
+    before = open(path, "rb").read()
+    run(win, qtbot, ("lumped",), cell=2.0)
+    win.doc.save(path)
+    assert open(path, "rb").read() == before
+    assert not win.doc.modified                                                # saved: Open asks nothing
+    win.open_file(path)
+    assert win.sim is None and not win.solver_panel.status.text().startswith("Done")
+    again = str(tmp_path / "b.pcbt.json")
+    win.doc.save(again)
+    assert open(again, "rb").read() == before
+
+
+def test_the_fem_cell_for_the_direct_solver_is_the_smallest_that_fits(monkeypatch):
+    """!
+    @brief The cell quoted by 'use a cell of c mm or more' fits the direct solver and 0.1 mm less does not (review: the first guess said 3.5 mm where 3.4 mm fits).
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal import checks, femcore, femmesh
+    p = example_board()
+    for cell in (0.5, 1.0):
+        fit = checks.fem_cell_for_direct(p, cell)
+        assert femmesh.unknowns(p, fit, 6, 2.0)[0] <= femcore.FEM_DIRECT_MAX
+        assert femmesh.unknowns(p, round(fit - 0.1, 1), 6, 2.0)[0] > femcore.FEM_DIRECT_MAX, (cell, fit)
+
+
+def test_the_properties_of_a_heat_source_fit_a_narrow_dock(win):
+    """!
+    @brief The 'Direct contact' line of a heat source wraps: the Properties panel needs no horizontal scroll bar in the 340 px dock (it asked 354 px before).
+    @param win Main window fixture.
+    """
+    load(win, example_board())
+    win.doc.set_props("heater", 1, role="source")
+    win._select_from_warning("heater", 1)
+    QApplication.processEvents()
+    info = [lab for lab in win.inspector.findChildren(type(win.solver_panel.status)) if lab.text().startswith("Direct contact")]
+    assert info and all(lab.wordWrap() for lab in info)
+    # At the dock width the window opens with (340 px) the panel scrolls only vertically; it asked 354 px before the wrap (a 30 px horizontal bar at 340 px)
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+    win.resizeDocks([win.dock_inspector], [340], Qt.Horizontal)
+    QApplication.processEvents()
+    bars = [sa.horizontalScrollBar() for sa in win.dock_inspector.findChildren(QScrollArea)]
+    assert bars and not any(b.isVisible() and b.maximum() > 0 for b in bars)
+
+
+def test_the_report_names_the_models_not_their_keys():
+    """!
+    @brief The text report says 'Reference model: LPTN' and the summary table uses the short names, never the key 'lumped'.
+    """
+    from pcbthermal.api import SolverOptions, simulate
+    sim = simulate(example_board(), SolverOptions(models=("lumped",), cell_mm=2.0))
+    text = sim.report()
+    assert "Reference model: LPTN" in text
+    assert not any(line.split()[:1] == ["lumped"] for line in text.splitlines()), text

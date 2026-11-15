@@ -884,6 +884,7 @@ class Inspector(QWidget):
                     self._pad_rows(base_form, kind, i, el, heater=True, base=True)
                     theta_now = el.junction_theta()
                     info = QLabel(f"Resistance over the footprint: {theta_now:.2f} K/W" if theta_now > 0 else "Direct contact: the source is at the board temperature.")
+                    info.setWordWrap(True)                 # Unwrapped, this sentence made the Properties panel 354 px wide: a horizontal scroll bar in a 322 to 340 px dock
                     info.setToolTip("Interface resistance over the footprint: source temperature = hottest board point under it + this × power.")
                     base_form.addRow(info)
                 else:
@@ -1185,7 +1186,9 @@ class Inspector(QWidget):
                 lay.addRow(typical)
             if kind != "via":
                 self._geometry_rows(box("Position and size"), kind, i, el)
-        compact_combos(self.form_host)
+        # 12 characters, not 14: with the 'Interface conductivity' label column a 14-character list made a heat source or a heatsink need 334 to 337 px, a
+        # horizontal scroll bar in the 340 px dock (the open list still shows every entry in full)
+        compact_combos(self.form_host, chars=12)
         tips.apply(self.form_host)
         self._form_selection = list(self.selection)
         # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as

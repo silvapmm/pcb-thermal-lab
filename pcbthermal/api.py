@@ -229,7 +229,7 @@ class Simulation:
         for name, r in self.results.items():
             out += [warn(f"{RESULT_MODEL_LABELS.get(name, name)}: {w}", warning_severity(w)) for w in r.warnings]
         for name, r in self.profile_results.items():
-            out += [warn(f"{name} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
+            out += [warn(f"{RESULT_MODEL_LABELS.get(name, name)} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
         if self.profile_error:
             out.append(warn(f"time simulation not run: {self.profile_error}", ALERT))
         return out
@@ -351,7 +351,7 @@ class Simulation:
         """
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
-                 f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
+                 f"Board {self.problem.board.width * 1000:.1f} × {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} °C, "
                  f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings)]
         if self.h_used:
@@ -395,7 +395,7 @@ class Simulation:
                          "".join(f", surface {n} {f.extras[k]:.2f} °C" for n, k in (("top", "t_max_surface_top"), ("bottom", "t_max_surface_bottom")) if k in f.extras) +
                          f"; {int(f.extras['unknowns'])} unknowns, energy balance {num(f.balance_error, sign=True)}")
         if ref.T is not None:
-            lines.append(f"Reference model: {ref.model}")
+            lines.append(f"Reference model: {RESULT_MODEL_LABELS.get(ref.model, ref.model)}")
             hs = hotspots(ref, self.options.hotspot_c)
             lines.append(f"Hotspots above {num(self.options.hotspot_c)} °C: {len(hs)}")
             for h in hs[:10]:
@@ -406,7 +406,7 @@ class Simulation:
                 lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM and FDM, resolved by the elements for the FEM)")
                 lines += surf_lines
             else:
-                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {ref.model} model has no surface read-out here (steady FVM, FDM and FEM only)")
+                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here (steady FVM, FDM and FEM only)")
             for h in self.heater_rows():
                 extra = f", junction {h['t_junction']:.1f} °C" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
@@ -1052,7 +1052,7 @@ def _run_profiles(sim, progress, start):
     usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and (p.board.has_outline() or blocks.has_blocks(p))))
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
-        sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)"))
+        sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(RESULT_MODEL_LABELS.get(m, m) for m in left_out) + " (no time simulation with a metal block or an outline)"))
     ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
         sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"

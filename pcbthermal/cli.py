@@ -33,6 +33,7 @@ from .profile_io import read_profile_csv
 from . import package as pkg
 from .project import Project, ProjectFormatError, save_project
 from .numfmt import num
+from .results import model_label
 
 MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d", "fem")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid, "fem" the finite elements (all comparison models)
@@ -157,7 +158,7 @@ def cmd_run(args):
         # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
         if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
             bottom = r.extras.get("t_max_surface_bottom")
-            print(f"{name.upper()} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+            print(f"{model_label(name)} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
                   + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
     files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
@@ -215,7 +216,7 @@ def cmd_calibrate(args):
     multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
     what = f"heater {args.heater}" if args.heater else "the board maximum"
     print(f"Measured {num(args.measured)} °C at {what}: convection multiplier {multiplier:.3f} "
-          f"(the {args.model} model then gives {predicted:.2f} °C).")
+          f"(the {model_label(args.model)} model then gives {predicted:.2f} °C).")
     print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
     return 0
 

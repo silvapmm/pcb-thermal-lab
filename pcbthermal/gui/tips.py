@@ -16,7 +16,7 @@ from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names l
 
 # The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
 SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, what a thermocouple or an IR camera on the metal reads, in steady state: an estimate from the layer "
-                     "mean and the heat flowing in and out for the FVM and the FDM, resolved by the elements for the FEM. Milli-kelvins from the layer mean on 35 um copper, "
+                     "mean and the heat flowing in and out for the FVM and the FDM, resolved by the elements for the FEM. Milli-kelvins from the layer mean on 35 µm copper, "
                      "tenths of a kelvin to percent of the rise on thick metal. The title gives the difference in K and in % of the rise. Maps, tables, Tj and margins use the "
                      "layer mean. On patterned copper the difference includes the rise across the bare laminate under a source.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom)
 

@@ -1543,8 +1543,6 @@ class MainWindow(QMainWindow):
             return
         low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
         self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
-        if low:
-            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -1552,6 +1550,9 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
+        if low:
+            # After the start: the busy signal (synchronous) writes 'Calculating' in the bar, which would hide this warning at once
+            self.statusBar().showMessage(low[0], 10000)
 
     def cancel_simulation(self):
         """!

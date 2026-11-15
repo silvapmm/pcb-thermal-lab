@@ -390,13 +390,26 @@ def fem_needs_pyamg(problem, cell_mm, gap_elements=6, refine=2.0):
 def fem_cell_for_direct(problem, cell_mm, gap_elements=6, refine=2.0):
     """!
     @brief The smallest cell, near `cell_mm` or coarser, whose FEM mesh the direct solver takes (no pyamg needed).
-    @details The unknowns fall about as 1 / cell^2, so the first guess scales the cell by sqrt(n / limit) and a few 5 % steps settle it.
+    @details The unknowns fall about as 1 / cell^2, so the first guess scales the cell by sqrt(n / limit) and a few 5 % steps settle it; then the cell is lowered in
+             0.1 mm steps while the mesh still fits, because the through-thickness planes do not scale with the cell and the first guess overshoots (review: 3.5 mm
+             instead of 3.4 mm on the example board, 11.4 instead of 11.0 mm on a 400 x 300 mm board).
     @param problem A Problem (structurally valid).
     @param cell_mm Cell size in mm of the run (its mesh is too large).
     @param gap_elements Elements across every dielectric gap, count.
     @param refine Ratio of the cell to the fine element near the parts, dimensionless.
-    @return Cell size in mm (rounded up to 0.1 mm), or None when no cell up to 50 mm gives a mesh the direct solver takes.
+    @return Cell size in mm (a multiple of 0.1 mm), or None when no cell up to 50 mm gives a mesh the direct solver takes.
     """
+    def fits(c):
+        """!
+        @brief True when the FEM mesh at cell c is small enough for the direct solver.
+        @param c Cell size in mm.
+        @return bool (False when no mesh can be built).
+        """
+        try:
+            return femmesh.unknowns(problem, c, gap_elements, refine)[0] <= femcore.FEM_DIRECT_MAX
+        except ValueError:
+            return False
+
     try:
         n = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
     except ValueError:
@@ -405,11 +418,15 @@ def fem_cell_for_direct(problem, cell_mm, gap_elements=6, refine=2.0):
     for _ in range(40):
         if cell > 50.0:
             return None
-        try:
-            if femmesh.unknowns(problem, cell, gap_elements, refine)[0] <= femcore.FEM_DIRECT_MAX:
-                return math.ceil(cell * 10.0 - 1e-9) / 10.0
-        except ValueError:
-            return None
+        best = math.ceil(cell * 10.0 - 1e-9) / 10.0
+        if fits(best):                                     # The rounded cell is the one quoted, so it is the one tested (the count is not monotone in the cell)
+            # Step down while the next 0.1 mm still fits (at most 20 steps; never below the cell of the run)
+            for _ in range(20):
+                lower = round(best - 0.1, 1)
+                if lower <= cell_mm or not fits(lower):
+                    break
+                best = lower
+            return best
         cell *= 1.05
     return None
 
