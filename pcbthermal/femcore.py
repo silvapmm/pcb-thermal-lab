@@ -354,8 +354,9 @@ class Model:
         @brief Assemble and solve.
         @param direct_max Largest unknown count solved by SuperLU (its fill-in for the 27-point stencil is large); above it conjugate gradients with a
                           pyamg smoothed-aggregation preconditioner.
-        @param tol Relative residual of the iterative solve (dimensionless). The default 1e-10 is what the recursive residual of CG can honestly deliver on this matrix: the true residual
-                stops near 1e-10 to 2e-10 whatever is asked below it (measured 2.2e-10 at 1e-12 and 2.3e-10 at 1e-10), so 1e-12 only added iterations; the field changes by about 1e-10 K.
+        @param tol Relative residual of the iterative solve (dimensionless). The default 1e-10 is what the recursive residual of CG can honestly deliver on these matrices: the true
+                residual hardly moves when less is asked (example board at 1 mm: 2.2e-10 at 1e-12 and 2.3e-10 at 1e-10; the worst conditioned plate measured, 828 375 unknowns,
+                needs the restart below at either tolerance), so 1e-12 only added iterations; the field changes by about 1e-10 K (docs/theory.md 4a).
         @param cancel Optional callable checked between assembly chunks; True raises FemCancelled.
         @param force None (by size), 'direct' or 'cg' (for tests and studies).
         @return dict with T (node field (N,) in the units of T_amb, NaN on unused nodes), n (unknowns), E (elements), balance (heat leaving through the films

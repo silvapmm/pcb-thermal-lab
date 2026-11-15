@@ -92,6 +92,9 @@
    "class": "new",
    "metrics": {
     "balance_error": 8.895106873296757e-13,
+    "block:block:bottom:t_max": 65.09681926655827,
+    "block:block:bottom:t_mean": 64.77009259977955,
+    "block:block:bottom:w_to_block": 3.9561975458115572,
     "layer_mean[0]": 75.65613783816876,
     "layer_mean[1]": 65.62954658861813,
     "part:U:power_top_w": 0.0,
@@ -122,6 +125,9 @@
    "class": "new",
    "metrics": {
     "balance_error": 5.765166122273513e-12,
+    "block:block:bottom:t_max": 65.0898227486721,
+    "block:block:bottom:t_mean": 64.76951680258945,
+    "block:block:bottom:w_to_block": 3.9561398722011027,
     "layer_mean[0]": 75.65531267291908,
     "layer_mean[1]": 65.62877180462424,
     "part:U:power_top_w": 0.0,
@@ -908,5 +914,5 @@
   }
  },
  "transients": {},
- "why": "A new comparison model adds records and moves none: the 2, 1 and 0.5 mm runs of the boards that the mesh builder accepts and the cap of the harness lets finish; the records also hold the surface read-out and the hottest node"
+ "why": "A new comparison model adds records and moves none: the 2, 1 and 0.5 mm runs of the boards that the mesh builder accepts and the cap of the harness lets finish; the records also hold the surface read-out, the hottest node and the metal block (its mean, maximum and heat, as the FVM and FDM)"
 }

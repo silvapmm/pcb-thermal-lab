@@ -115,14 +115,15 @@ def with_pending(data):
     out["pending"] = []
     loaded = [(path, json.loads(path.read_text(encoding="utf-8"))) for path in _pending_files()]
     # A file with "new_readouts" ADDS metrics (a read-out that no frozen record has, such as the surface) to records that exist: it is merged after the shifts, into the
-    # record as the shifts left it, and changes no number that the frozen file or a shift holds
+    # record as the shifts left it, and changes no number that the frozen file or a shift holds: a metric the record already has keeps its value (a shift file made
+    # with the newer harness may hold the same read-out, measured on the tree of its own change, and that number must win over the older addition)
     for path, pend in sorted(loaded, key=lambda x: bool(x[1].get("new_readouts"))):
         if pend.get("base_version") != data["version"]:
             continue
         if pend.get("new_readouts"):
             for k, rec in pend.get("records", {}).items():
                 if k in out["records"]:
-                    out["records"][k]["metrics"] = {**out["records"][k]["metrics"], **rec["metrics"]}
+                    out["records"][k]["metrics"] = {**rec["metrics"], **out["records"][k]["metrics"]}
             out["pending"].append(path.name)
             continue
         out["records"].update(pend.get("records", {}))
@@ -240,6 +241,31 @@ def test_a_pending_skip_moves_the_record_out_of_the_checked_set(tmp_path, monkey
     still_runs = [{"board": "a", "model": "solid3d", "cell_mm": 1.0, "status": "ok"}]
     now_skipped = [{"board": "a", "model": "solid3d", "cell_mm": 1.0, "status": "skipped", "reason": "too many unknowns"}]
     assert F.compare(out, now_skipped) == [] and F.compare(out, still_runs)
+
+
+def test_a_new_readouts_file_only_adds_metrics_and_cannot_hide_a_shift(tmp_path, monkeypatch):
+    """!
+    @brief A pending file with "new_readouts" adds metrics to the record as the shifts left it, whatever the order of the file names; a metric the record already holds
+           (frozen or shifted) keeps its value, and a run that moves an old metric is still reported.
+    @param tmp_path Folder of the synthetic pending files (pytest fixture).
+    @param monkeypatch Pytest fixture that points the module at that folder.
+    @return None.
+    """
+    data = {"version": "9.9.9", "records": {"b|fvm|1": {"class": "bit", "metrics": {"t_max": 2.0, "t_mean": 1.5}}}, "transients": {}, "skipped": {}}
+    # "a.json" sorts before the shift "x.json": the addition must still be merged after it; its stale "t_max" must not replace the shifted value
+    (tmp_path / "a.json").write_text(json.dumps({"base_version": "9.9.9", "new_readouts": True,
+                                                 "records": {"b|fvm|1": {"class": "added", "metrics": {"surface:top:t_max": 2.5, "t_max": 99.0}}}}), encoding="utf-8")
+    (tmp_path / "x.json").write_text(json.dumps({"base_version": "9.9.9", "records": {"b|fvm|1": {"class": "moved", "metrics": {"t_max": 3.0, "t_mean": 1.5}}}}),
+                                     encoding="utf-8")
+    monkeypatch.setitem(globals(), "PENDING_DIR", tmp_path)
+    out = with_pending(data)
+    assert out["records"]["b|fvm|1"]["metrics"] == {"t_max": 3.0, "t_mean": 1.5, "surface:top:t_max": 2.5}
+    assert out["pending"] == ["x.json", "a.json"]
+    base = {"board": "b", "model": "fvm", "cell_mm": 1.0, "status": "ok", "t_mean": 1.5, "surface": {"top": {"t_max": 2.5}}}
+    assert F.compare(out, [dict(base, t_max=3.0)]) == []
+    assert F.compare(out, [dict(base, t_max=3.1)]), "a shift of an old metric must be reported with a read-out file present"
+    assert F.compare(out, [dict(base, t_max=3.0, surface={"top": {"t_max": 2.6}})]), "a shift of the added read-out must be reported"
+    assert F.compare(out, [dict(base, t_max=3.0, surface=None)]), "a read-out that disappears must be reported"
 
 
 def test_the_frozen_file_is_present_and_complete():

@@ -134,13 +134,13 @@ def _parts(sim, model, problem):
 
 def _blocks(sim, model, problem):
     """!
-    @brief Temperature of the metal blocks (FVM and FDM only).
+    @brief Temperature of the metal blocks (FVM, FDM and FEM; the FEM reports a block as its mean, decision B of releases/2.8.0/fem-model/DECISIONS_REVIEWER.md).
     @param sim Simulation.
     @param model Model key.
     @param problem The Problem that was solved.
     @return List of dicts or None.
     """
-    if model not in ("fvm", "fdm"):
+    if model not in ("fvm", "fdm", "fem"):
         return None
     from pcbthermal.analysis import block_stats
     try:
