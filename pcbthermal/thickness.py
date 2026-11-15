@@ -2,15 +2,16 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file thickness.py
-@brief The surface read-out of a thick copper layer or metal block: the temperature of a face from the node (the column mean) and the heat fluxes that enter through the faces.
+@brief The surface read-out of the outer copper faces: the temperature of a face from the node (the column mean) and the heat fluxes that enter through the faces. Always computed, for every steady FVM/FDM result.
 @details The layered models keep ONE temperature per copper layer, the mean through the thickness (the COLUMN read-out, docs/theory.md 1.2). Where a flux crosses a layer of
          thickness t and conductivity k the face is hotter or cooler than that mean. A layer whose temperature varies slowly in the plane satisfies k t laplace(T_m) = -(q_top + q_bot)
          (q_top and q_bot the heat flux ENTERING through the two faces, z downwards), so the profile through the thickness is a parabola with T_z(0) = -q_top / k and T_z(t) = q_bot / k:
              T_top - T_m = t (2 q_top - q_bot) / (6 k),    T_bottom - T_m = t (2 q_bot - q_top) / (6 k).
          A column fed at the top and cooled at the bottom (q_bot = -q_top) gives the familiar q t / (2 k); heat that spreads sideways (q_bot = 0) gives q t / (3 k). The parabola is
          within 7 % of an independent 3D solution up to t/a = 0.5 (a the side of the source) and an UPPER estimate beyond (research/through-thickness-readout 4.2, validation 55.6).
-         The surface is ALWAYS a second number beside the column, never a mode: no option, no project key. `attach` is called by the FVM and the FDM when an outer copper layer is
-         thicker than THICK_MIN_M (105 um); then the result holds (absolute temperatures in degC, NaN off the board and on a face that is not computed)
+         The surface is ALWAYS a second number beside the column, never a mode: no option, no project key (decision of the maintainer, releases/2.8.0/fem-model/SURFACE_DECISIONS.md).
+         `attach` is called by the FVM and the FDM for EVERY steady result, with NO thickness or size threshold (the former 105 um limit and the 'worth showing' test are gone:
+         the cost is 0 to 3 ms and no number of any model sees the arrays); the result holds (absolute temperatures in degC, NaN off the board and on a face that is not computed)
              arrays["T_surface"] (2, ny, nx)       top face of layer 1 and bottom face of the last layer, the HOTTEST value in the cell;
              arrays["T_surface_mean"] (2, ny, nx)  the same with the area mean of a partly filled cell;
              arrays["T_surface_flag"] (2, ny, nx)  bool, true under a part with t/a above UPPER_RATIO (the value is an upper estimate);
@@ -20,6 +21,13 @@
          laminate face term of laminate.face_terms (already weighted by the bare share), the PEAK the larger of c and the laminate peak, never their sum (research README 7.1).
          Nothing here is read by the part rows' t_max, Tj, the margin, the power limit, the top-path split, the power coefficient, the Power Calculator or the calibration: they stay on the
          column (tests/test_thickness.py holds them bit-identical with and without the arrays).
+         VALIDITY PER LAYER TYPE. Outer copper (top of layer 1, bottom of the last layer; both faces of a one-layer board): the formula applies at every thickness; on 35 um copper it is
+         correct and tiny (0.4 to 5.6 mK on the harness boards). Inner copper: no outer face and no flux to define one (its faces are interfaces with the laminate, where the temperature is
+         continuous), so the surface IS the column ('equal'); no array is made for it. Laminate: resolved through its thickness by the sub-gap nodes, so its face is a node (nothing to
+         estimate). Metal blocks: the face is a node of the block (resolved), not computed here.
+         THE THIN-COPPER TRAP: on a patterned board the surface under a source over ABSENT copper includes the rise across the bare laminate (the face term of laminate.face_terms):
+         the surface can be 1 to 4 K above the node maximum on 35 um copper although the copper term is milli-kelvin. The part rows already include that term in their 'column' maximum,
+         so there surface minus column is the copper term only. Never gate anything on the board-level difference (surface_excess_k).
          NOT modelled: the Lumped and the Analytic (no per-cell face flux and no face term today), the 3D solid (its own branch), blocks, the transient and the profiles (steady state only).
 """
 
@@ -27,10 +35,7 @@ import numpy as np
 
 from .geometry import points_in_polygon, polygon_area
 
-THICK_MIN_M = 105e-6                       # An outer copper layer at or below this thickness gets no surface (the term is milli-kelvin; the 35 to 105 um boards are unchanged)
 UPPER_RATIO = 0.5                          # t / a above this: the parabola overshoots, the surface is an upper estimate (research README 4.2)
-SHOW_ABS_K = 0.1                           # The surface is worth showing when it differs from the column mean by at least this many kelvin ...
-SHOW_REL = 0.01                            # ... AND by at least this share of the rise of the board (max of the two: research/readout-conventions, 1 % of the rise)
 
 
 def offsets(t, k, q_top, q_bot):
@@ -153,7 +158,7 @@ def _finish(res, problem, d, fill, faces, area):
 
 def attach(res, net, theta, cell, problem):
     """!
-    @brief Add the surface arrays of the outer copper faces and of the blocks to the result of the FVM or the FDM.
+    @brief Add the surface arrays of the outer copper faces to the result of the FVM or the FDM (every board, every thickness).
     @details Called with the solved rise of ALL node layers; nothing that exists is changed. The face fluxes are those of the module docstring; the heat of a part enters the
              face it sits on (layer 1: top, the last layer: bottom, a one-layer board: top).
     @param res SteadyResult of the board (T on the board layers, arrays face_peak and face_mean when the laminate rule made them).
@@ -170,9 +175,6 @@ def attach(res, net, theta, cell, problem):
     d, faces = {}, []
     # (layer, face of its heat source and of its outer film); a one-layer board has both faces on layer 0
     plan = [(0, 0)] if L == 1 else [(0, 0), (L - 1, 1)]
-    plan = [(layer, face) for layer, face in plan if t_cu[layer] > THICK_MIN_M]      # Only thick outer copper: ordinary boards keep their results as they were
-    if not plan:
-        return
     for layer, face in plan:
         inner, blk_top, blk_bot = _couplings_out(net, theta, layer)
         th = theta[layer]
@@ -197,15 +199,3 @@ def attach(res, net, theta, cell, problem):
             d[1] = d_bot
             faces.append((1, 0))
     _finish(res, problem, d, net.fill, faces, cell)
-
-
-def significant(res):
-    """!
-    @brief True when the surface of a result differs from the column mean enough to be shown with the numbers: by at least max(SHOW_ABS_K, SHOW_REL of the rise).
-    @param res A SteadyResult.
-    @return Boolean; False for a result without the arrays.
-    """
-    if "T_surface" not in res.arrays:
-        return False
-    ex = float(res.extras.get("surface_excess_k", 0.0))
-    return ex >= max(SHOW_ABS_K, SHOW_REL * max(res.t_max - res.ambient, 1e-9))

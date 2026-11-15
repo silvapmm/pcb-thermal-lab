@@ -30,7 +30,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d, thickness
+from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
@@ -137,21 +137,28 @@ class SolverOptions:
 
 def surface_report_lines(res):
     """!
-    @brief The lines of the report and of the Results summary that give the surface read-out beside the column one (empty without a surface).
+    @brief The lines of the report and of the Results summary that give the surface read-out beside the column one (always, for every steady FVM or FDM result).
+    @details No threshold: a thin-copper board prints the same two numbers at one decimal and the difference in K and in % of the rise ('+0.003 K, +0.005 %'), which tells the reader
+             that a thermocouple on the copper and the column agree there. On a patterned board the difference of the whole face includes the rise across the bare laminate under a
+             source (the laminate face term), so it can be 1 to 4 K on 35 um copper; the line says so.
     @param res A SteadyResult.
-    @return List of strings, one per face that has a surface; each names both read-outs when the two differ by at least max(0.1 K, 1 % of the rise), and gives that share.
+    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: Lumped, Analytic, 3D solid, transient).
     """
     out = []
-    if not thickness.significant(res):
-        return out                                          # Within the threshold the two read-outs are the same number: nothing is added to an ordinary report
     for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
-        if key not in res.extras:
+        if key not in res.extras or "T_surface" not in res.arrays:
             continue
         surf = float(res.extras[key])
         flagged = bool(np.asarray(res.arrays["T_surface_flag"])[face].any())
+        # The face is compared with the column of ITS layer (top: layer 1, bottom: the last layer), not with the board maximum
+        layer = 0 if face == 0 else res.T.shape[0] - 1
+        col = float(np.nanmax(res.T[layer]))
         rise = max(res.t_max - res.ambient, 1e-9)
+        diff = surf - col
+        patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
         out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}; "
-                   f"the column mean read-out is {res.t_max:.1f} degC; the surface is {surf - res.t_max:+.1f} K, {100 * (surf - res.t_max) / rise:+.1f} % of the rise)")
+                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} degC; the surface is {diff:+.3f} K, {100 * diff / rise:+.3f} % of the rise"
+                   + ("; the difference includes the rise across the bare laminate under a source where copper is absent" if patterned else "") + ")")
     return out
 
 
@@ -356,6 +363,8 @@ class Simulation:
             if surf_lines:
                 lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper, an estimate from the heat fluxes)")
                 lines += surf_lines
+            else:
+                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {ref.model} model has no surface read-out here (steady FVM and FDM only)")
             for h in self.heater_rows():
                 extra = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
@@ -367,13 +376,13 @@ class Simulation:
                 if h["margin_k"] is not None:
                     extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
-                if "t_max_surface" in h and abs(h["t_max_surface"] - h["t_max"]) >= max(thickness.SHOW_ABS_K, thickness.SHOW_REL * max(h["t_max"] - ref.ambient, 1e-9)) \
-                        and abs(h["t_max_surface"] - h["t_max"]) >= 1e-3:
-                    # Both read-outs exist: every number names its own
+                if "t_max_surface" in h:
+                    # Both read-outs exist (always, for the FVM and the FDM): every number names its own
                     note = "estimate, upper side" if h["surface_upper"] else "estimate"
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} degC{extra}; "
-                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note})")
+                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note}; "
+                                 f"surface minus column max {h['t_max_surface'] - h['t_max']:+.3f} K)")
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
@@ -397,13 +406,15 @@ class Simulation:
                             "models": {k: r.summary() for k, r in self.profile_results.items()}}
         return d
 
-    def save(self, directory, plots=True, view=None, cmap="inferno"):
+    def save(self, directory, plots=True, view=None, cmap="inferno", surface_files=False):
         """!
         @brief Write summary.json, report.txt, one CSV per field and, optionally, the figures.
         @param directory Output directory (created if needed).
         @param plots If True, also write PNG figures (needs matplotlib).
         @param view Optional plots.MapView for the temperature maps (View, underlay such as the copper or the image, opacity: what the Display panel of the window says); None draws them as always.
         @param cmap Colour map name of the temperature maps.
+        @param surface_files False (default): no surface files (the report and summary.json always carry the surface numbers); True: also surface_<model>.csv (and, with plots,
+               surface_<model>_top.png and _bottom.png) for every model that holds the surface read-out. On request only: the field_<model>.csv and fields_<model>.png stay the column.
         @return List of written file paths.
         """
         os.makedirs(directory, exist_ok=True)
@@ -429,6 +440,19 @@ class Simulation:
                         for j in range(r.T.shape[2]):
                             w.writerow([l + 1, round((j + 0.5) * r.dx * 1000, 4),
                                         round((i + 0.5) * r.dy * 1000, 4), round(float(r.T[l, i, j]), 4)])
+        if surface_files:
+            for name, r in self.results.items():
+                if r.T is None or "T_surface" not in r.arrays:
+                    continue
+                with open(path(f"surface_{name}.csv"), "w", newline="") as fh:
+                    w = csv.writer(fh)
+                    w.writerow(["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate"])
+                    for face, tag, layer in ((0, "top", 0), (1, "bottom", r.T.shape[0] - 1)):
+                        for i in range(r.T.shape[1]):
+                            for j in range(r.T.shape[2]):
+                                if np.isfinite(r.arrays["T_surface"][face, i, j]):
+                                    w.writerow([tag, round((j + 0.5) * r.dx * 1000, 4), round((i + 0.5) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
+                                                round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j])])
         for name, r in self.profile_results.items():
             if not r.resolved:
                 continue
@@ -447,6 +471,12 @@ class Simulation:
             for name, r in self.results.items():
                 if r.T is not None:
                     plots.plot_fields(r, self.problem, path(f"fields_{name}.png"), view=view, cmap=cmap)
+            if surface_files:
+                for name, r in self.results.items():
+                    if r.T is not None and "T_surface" in r.arrays:
+                        for face, tag in ((0, "top"), (1, "bottom")):
+                            if np.isfinite(r.arrays["T_surface"][face]).any():
+                                plots.plot_surface(r, self.problem, path(f"surface_{name}_{tag}.png"), face, cmap=cmap)
             if len(self.results) > 1:
                 plots.plot_comparison(self.results, path("comparison.png"))
             plots.plot_profiles(self.results, self.problem, path("profiles.png"))

@@ -148,7 +148,13 @@ def cmd_run(args):
           f"{project.problem.board.height * 1000:.0f} mm, {project.problem.board.layers} layers, "
           f"{project.problem.total_power():.3f} W")
     print(sim.to_markdown())
-    files = sim.save(args.out, plots=not args.no_plots)
+    for name, r in sim.results.items():
+        # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
+        if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
+            bottom = r.extras.get("t_max_surface_bottom")
+            print(f"{name.upper()} surface (estimate): top {r.extras['t_max_surface_top']:.1f} degC"
+                  + (f", bottom {bottom:.1f} degC" if bottom is not None else "") + f"; column max {r.t_max:.1f} degC")
+    files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
     return 0
 
@@ -351,6 +357,7 @@ def build_parser():
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
                    help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
+    r.add_argument("--surface-files", action="store_true", help="also write surface_<model>.csv and the surface maps (the surface numbers are always in the report and summary.json)")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
                    help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")

@@ -148,7 +148,7 @@ def surface_stats(result, polygon, layer, outline=None):
     @brief Surface read-out under a part: the hottest and the mean temperature of the outer face of its layer, and whether the estimate is an upper one.
     @details Beside the column read-out of _footprint_stats, never instead of it: nothing that decides a number (Tj, margin, power limit, top path, power coefficient, Power
              Calculator, calibration) reads these. Only a part on the first layer (top face) or the last (bottom face) has one, and only when the result holds arrays["T_surface"]
-             (thickness.attach: FVM and FDM, an outer copper layer thicker than 105 um).
+             (thickness.attach: every steady FVM and FDM result, no threshold).
     @param result A SteadyResult with a field.
     @param polygon Footprint vertices (n, 2) in metres.
     @param layer 0-based layer of the part.

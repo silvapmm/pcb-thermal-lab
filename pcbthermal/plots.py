@@ -581,6 +581,9 @@ def _draw_copper(ax, problem, layer, view, solved_view):
     ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
 
 
+COLUMN_LABEL = "Temperature, column mean (°C)"   # Colour-bar name of every steady layer map: the solved value, one per copper layer (the surface read-out has its own name)
+
+
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
                layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None, extremes=False):
@@ -674,7 +677,7 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     """!
     @brief Temperature of the outer face of the copper (the surface read-out), beside the layer mean (the column) that every other map shows.
     @param fig Target Figure (cleared first).
-    @param result A SteadyResult; the FVM and FDM of a board with thick outer copper hold arrays["T_surface"].
+    @param result A SteadyResult; every steady FVM and FDM result holds arrays["T_surface"] (no thickness threshold).
     @param problem The Problem.
     @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
     @param cmap Colormap name.
@@ -690,9 +693,18 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     layer = 0 if face == 0 else problem.board.layers - 1
     field = result.arrays["T_surface"][face]
     upper = bool(np.asarray(result.arrays["T_surface_flag"])[face].any())
-    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, estimate (°C)",
-               title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C   "
-                     f"(layer mean {result.t_max:.1f} °C)")
+    rise = max(result.t_max - result.ambient, 1e-9)
+    col = float(np.nanmax(result.T[layer]))                    # The column of the layer that owns the face, not the board maximum
+    diff = float(np.nanmax(field)) - col
+    # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold)
+    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, estimate (°C)",
+                    title=f"{result.model.upper()} - surface ({tag}), {'estimate, upper side' if upper else 'estimate'}   max {np.nanmax(field):.1f} °C   "
+                          f"(column max {col:.1f} °C, {diff:+.3f} K, {100 * diff / rise:+.2f} % of the rise)")
+    face_peak = result.arrays.get("face_peak")
+    if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:
+        # The trap of the patterned thin copper: over bare laminate under a source the surface includes the rise across the laminate, which the column node does not
+        ax.text(0.01, 0.01, "difference includes the rise across bare laminate under a source (copper absent)", transform=ax.transAxes, fontsize=6,
+                color="white", va="bottom", zorder=7, bbox={"facecolor": "black", "alpha": 0.5, "pad": 1.5, "edgecolor": "none"})
 
 
 @_with_engineering_ticks
@@ -748,11 +760,11 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_aspect("equal")
         if l % ncol == 0:
             ax.set_ylabel("y (mm)")
-    fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
+    fig.colorbar(im, ax=list(axes), label=COLUMN_LABEL, shrink=0.9)
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
         fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
-    fig.suptitle(f"{result.model.upper()}: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
+    fig.suptitle(f"{result.model.upper()} - column mean, all layers: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
                  f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
 
 
@@ -1209,6 +1221,20 @@ def plot_fields(result, problem, path, view=None, cmap="inferno"):
     """
     fig = new_figure(4.6 * result.T.shape[0] + 1.2, 4.6)
     draw_fields(fig, result, problem, cmap=cmap, view=view)
+    _save(fig, path)
+
+
+def plot_surface(result, problem, path, face, cmap="inferno"):
+    """!
+    @brief Save the surface-temperature map of one outer face (only on request: Simulation.save(surface_files=True), CLI `--surface-files`).
+    @param result A SteadyResult with arrays["T_surface"] (FVM or FDM).
+    @param problem The Problem.
+    @param path Output PNG path.
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @param cmap Colormap name.
+    """
+    fig = new_figure(6.4, 4.8)
+    draw_surface(fig, result, problem, face, cmap=cmap)
     _save(fig, path)
 
 

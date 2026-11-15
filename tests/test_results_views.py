@@ -33,10 +33,11 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # fix/drawn-copper-faces: the partial copper of the example board is read as an import (exact fill, flow-based faces), so the FVM field moved (hottest 85.29380 -> 85.29256 K at 2 mm);
 # the 'field' hash (a32414ed -> 3cea24b0), the 'fields' hash (07e40550 -> 5be14198) and the 'gradient' hash (f3c6d4e3 -> b8cdc541) follow the field, the drawing code is unchanged.
 # fix/face-film-half-slab: the film passes the half copper layer, the example board's field moves by about 2e-5 K (hottest +1e-5 K); only the 'fields' hash (5be14198 -> c86e8a40) changes, the drawing code is unchanged.
+# feature/surface-always-both: the all-layers picture names its read-out (suptitle 'column mean, all layers', colour bar 'Temperature, column mean (°C)'); only the 'fields' hash (c86e8a40 -> c29d267c) changes, the field is untouched.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
     "field": "3cea24b0d404096e174db97d0ceb290266fcbb94c0a9a57d2ec12602d1532a91",
-    "fields": "c86e8a40e94c3ddc497d5d567b756dd8d7f3b42d15947f3ecfcd7d4eaf5cdcc5",
+    "fields": "c29d267ca53754db860be160943f4ae15499590a4478799d4ef5df1355897bae",
     "gradient": "b8cdc5413c1f54a0cfb4055c716bb3ab2bfbbfb928487dfa972ea1e35387dfe6",
 }
 

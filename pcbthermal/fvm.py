@@ -913,7 +913,7 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
     attach_face_terms(res, net, net.dx * net.dy * net.cover, net.dx)
-    thickness.attach(res, net, theta, net.dx * net.dy * net.cover, net.problem)      # The surface beside the column, only for thick outer copper
+    thickness.attach(res, net, theta, net.dx * net.dy * net.cover, net.problem)      # The surface beside the column, for every board (no threshold)
     return res
 
 
