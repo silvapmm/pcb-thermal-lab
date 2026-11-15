@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47, fig_49, fig_50 and fig_51 (the diagrams of the rewrite of the theory; the mesh picture of the FEM is drawn from the program's own mesh by make_fig_fem_mesh.py).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47, fig_49 to fig_52 (the diagrams of the rewrite of the theory; the mesh picture of the FEM is drawn from the program's own mesh by make_fig_fem_mesh.py).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1534,6 +1534,41 @@ def surface_readout(path):
     dk.save(fig, path, "The surface read-out of a thick plate")
 
 
+def fem_flow(path):
+    """!
+    @brief Draw the path of a project through the finite-element model (theory 4a, figure D4 of the design): the Problem and the memory guard, the refusals, the plan mesh, the extrusion through the slabs, the sources and films, the solve, the three read-outs and the results in the layout of the other models. Schematic, no numbers.
+    @param path Output file.
+    @return None.
+    """
+    fig, a = dk.canvas(15.5, 6.4)
+    a.set_xlim(0, 31.4); a.set_ylim(0, 13); a.axis("off")
+    w, h = 4.6, 2.2
+    top = [(0.4, "Problem\n(board, zones, heaters,\nvias, blocks, h)", "#cfe3f5"), (5.6, "memory guard\nfemmesh.unknowns:\nexact count, verdict", "#f6e7b4"),
+           (10.8, "plan mesh\nbreak lines, refined\nnear parts, via patches", "#cfe3f5"), (16.0, "extrusion\ncopper slabs, graded\ngaps, partial blocks", "#cfe3f5"),
+           (21.2, "sources and films\nvolume source or face flux,\nplain h on every face", "#cfe3f5"), (26.4, "solve\ndirect (<= 30 000)\nor CG + pyamg", "#cfe3f5")]
+    for x, t, c in top:
+        dk.box(a, x, 8.4, w, h * 1.25, t, c, size=7.5)
+    for i in range(len(top) - 1):
+        dk.arrow(a, top[i][0] + w, 9.5, top[i + 1][0], 9.5, color="k")
+    a.text(8.0, 12.3, "refused with the reason (ValueError):\nslanted or curved outline, block with a slanted side,\ntoo many break lines, cell below 0.02 mm, over the memory limit",
+           ha="center", fontsize=7.5, color="#b02020", bbox=dict(fc="#fbe3e3", ec="#b02020", lw=0.8))
+    dk.arrow(a, 8.0, 11.55, 8.0, 11.2, color="#b02020")
+    a.text(26.4 + w / 2, 12.3, "pyamg missing and a mesh above the direct limit:\nthe model is skipped, the others answer", ha="center", fontsize=7.5, color="#b02020", bbox=dict(fc="#fbe3e3", ec="#b02020", lw=0.8))
+    dk.arrow(a, 28.7, 11.85, 28.7, 11.2, color="#b02020")
+    dk.arrow(a, 28.7, 8.4, 28.7, 6.6, color="k")
+    reads = [(3.0, "column\nvolume mean of the field through each copper layer per cell:\nthe headline (t_max, T, part rows)", "#ffe9a8"),
+             (12.0, "surface\narea mean on the outer faces of the outer copper:\narrays T_surface (resolved)", "#ffd9d9"),
+             (21.0, "point\nhottest node of the mesh:\nextras t_max_point, T_point", "#e8e8e8")]
+    for x, t, c in reads:
+        dk.box(a, x, 3.6, 7.6, 2.8, t, c, size=7.5)
+        dk.arrow(a, x + 3.8, 6.6, x + 3.8, 6.4, color="k")
+    a.plot([3.0 + 3.8, 28.7], [6.6, 6.6], color="k", lw=1.0)
+    dk.box(a, 5.0, 0.4, 21.0, 1.8, "SteadyResult of the program: T per layer on the run grid, heat by path (top, bottom, edge, blocks), energy balance,\nblock_T, warnings: the same layout as the 3D solid, so the tables, reports, the computed-h loop and the top-path split work unchanged", "#d9efd9", size=7.5)
+    for x in (6.8, 15.8, 24.5):
+        dk.arrow(a, x, 3.6, x, 2.2, color="k")
+    dk.save(fig, path, "From a project to a finite-element solution")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1556,7 +1591,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section), (50, "surface_readout", surface_readout), (51, "fem_slabs", fem_slabs)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section), (50, "surface_readout", surface_readout), (51, "fem_slabs", fem_slabs), (52, "fem_flow", fem_flow)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

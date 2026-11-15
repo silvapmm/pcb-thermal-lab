@@ -35,7 +35,7 @@ from .project import Project, ProjectFormatError, save_project
 from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
-RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
+RUN_MODELS = MODELS + ("fdm", "solid3d", "fem")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid, "fem" the finite elements (all comparison models)
 
 
 def _cell_arg(args, problem, default, transient=False):
@@ -66,7 +66,7 @@ def _guard(problem, models, cells, transient=False):
     """!
     @brief Ask the memory guard about every cell a command will try, before anything is allocated.
     @param problem The Problem.
-    @param models Model keys that will be solved (the guard estimates fvm, fdm and solid3d).
+    @param models Model keys that will be solved (the guard estimates fvm, fdm, solid3d and fem).
     @param cells Cell sizes in mm that the command will use.
     @param transient True for a time simulation (a larger factor).
     @return None.
@@ -103,6 +103,10 @@ def cmd_run(args):
         options.laminate_s_max_mm = args.laminate_s_max_mm
     if args.laminate_n_max is not None:
         options.laminate_n_max = args.laminate_n_max
+    if args.fem_gap_elements is not None:
+        options.fem_gap_elements = args.fem_gap_elements
+    if args.fem_refine is not None:
+        options.fem_refine = args.fem_refine
     options.validate()
     with laminate.using(*options.laminate_params()):                  # "auto" counts the unknowns of the laminate rule of the run
         options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
@@ -350,13 +354,18 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
-                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
+                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm, solid3d and fem (a comparison model that cannot run, for example "
+                        "the FEM on a slanted outline or without pyamg on a large mesh, is skipped with a warning)")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
                    help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")
     r.add_argument("--laminate-n-max", type=int, default=None, metavar="N",
                    help="most sub-gaps in one gap, 1 to 16 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid). A gap of "
                         "thickness d gets min(N, ceil(d / S)) sub-gaps: on a 1.6 mm board N above 4 needs a smaller --laminate-s-max-mm too")
+    r.add_argument("--fem-gap-elements", type=int, default=None, metavar="N",
+                   help="finite-element model (fem): elements across every dielectric gap, 2 to 24 (default 6)")
+    r.add_argument("--fem-refine", type=float, default=None, metavar="R",
+                   help="finite-element model (fem): ratio of the cell to the fine element near the heaters and via patches, 1 to 4 (default 2)")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")

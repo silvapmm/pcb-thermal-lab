@@ -29,9 +29,11 @@ import regress_boards as B                                                      
 
 FORMAT = 1
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+OPTIONAL_MODELS = ("fem",)       # models that an older revision does not have: recorded as skipped there ("model absent in this version"), never as a failure; run_suite adds them only when asked
 CELLS = (2.0, 1.0, 0.5)
 MAX_UNKNOWNS = 400_000          # FVM and FDM above this are skipped (memory light; about 7 GB per million unknowns for the layered models)
 SOLID_CAP = 150_000             # the 3D solid only below this many unknowns (the program's own limit is 250 000)
+FEM_CAP = 130_000               # the finite-element model only below this many unknowns (about 1 GB and 20 s with pyamg; the guard would refuse far more)
 TRANSIENT_CELL = 1.0            # one short transient per board and model (the FVM and FDM step responses use at least 2 mm)
 SOR_BOARDS = ("plate_uniform", "plate_vias", "plate_lone_via", "two_layer_partial", "example_board")
 SOR_CELL = 2.0
@@ -104,6 +106,9 @@ def unknowns_of(problem, model, cell):
         if model == "solid3d":
             from pcbthermal import solid3d
             return int(solid3d.unknowns(problem, cell)[0])
+        if model == "fem":
+            from pcbthermal import femmesh
+            return int(femmesh.unknowns(problem, cell)[0])
     except Exception:                                                         # a count that cannot be made is not a failure of the run
         return None
     return None
@@ -144,7 +149,7 @@ def _blocks(sim, model, problem):
         return None
 
 
-def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SOLID_CAP, linear_solver="direct"):
+def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SOLID_CAP, linear_solver="direct", fem_cap=FEM_CAP):
     """!
     @brief One steady-state run of one model at one cell size, as a record of the result set.
     @param problem A Problem (it is copied without profiles; the original is not modified).
@@ -154,13 +159,26 @@ def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SO
     @param max_unknowns FVM and FDM above this many unknowns are skipped.
     @param solid_cap The 3D solid above this many unknowns is skipped.
     @param linear_solver FVM solver: "direct" or "sor".
+    @param fem_cap The finite-element model above this many unknowns is skipped (and a board it cannot mesh, or a revision that has no such model, is skipped with the reason).
     @return dict: board, model, cell_mm, status ("ok", "skipped" or "error"), reason, unknowns, seconds and, when ok, the temperatures, the parts, the balance and the warnings.
     """
     import numpy as np
     from pcbthermal import SolverOptions, simulate
     p = steady_problem(problem)
     rec = {"board": board, "model": model, "cell_mm": cell, "solver": linear_solver, "status": "ok", "reason": "", "unknowns": unknowns_of(p, model, cell)}
-    cap = {"fvm": max_unknowns, "fdm": max_unknowns, "solid3d": solid_cap}.get(model)
+    if model == "fem":
+        # A model of a later revision: an older tree has no module (skipped, not an error); a board the FEM refuses to mesh (a slanted outline, ...) is skipped with the reason
+        import importlib.util
+        if importlib.util.find_spec("pcbthermal.fem") is None:
+            rec.update(status="skipped", reason="model absent in this version")
+            return rec
+        from pcbthermal import femmesh
+        try:
+            femmesh.unknowns(p, cell)
+        except ValueError as exc:
+            rec.update(status="skipped", reason=f"no finite-element mesh: {exc}"[:300])
+            return rec
+    cap = {"fvm": max_unknowns, "fdm": max_unknowns, "solid3d": solid_cap, "fem": fem_cap}.get(model)
     if cap is not None and rec["unknowns"] is not None and rec["unknowns"] > cap:
         rec.update(status="skipped", reason=f"{rec['unknowns']} unknowns, more than {cap}")
         return rec

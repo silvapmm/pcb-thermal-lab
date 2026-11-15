@@ -15,6 +15,10 @@
                  --item "Zonal Lumped model" --branch feature/lumped-zones --why "..."
 
          `--no-times` writes only the steady records and `--times-only` only the times to 63 % (a change that moves one kind and not the other).
+
+         A NEW model (one that no frozen record has, a comparison model added by a feature) adds records and moves none: `--new-model fem --cell 2 --cell 1` runs it on the named boards
+         at those cells, keeps what finishes (a board it refuses or a run above the cap of the harness is left out, not recorded) and writes the pending file with `"new_models"`
+         naming it, so that the test knows the records are additions and not shifts.
 """
 
 import argparse
@@ -25,6 +29,16 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
+
+
+def s_cap(name, frozen):
+    """!
+    @brief A cap of the harness as the frozen file recorded it.
+    @param name Key of frozen["settings"] ("max_unknowns" or "solid_cap").
+    @param frozen Content of the frozen file.
+    @return int.
+    """
+    return frozen["settings"][name]
 
 
 def main(argv=None):
@@ -49,7 +63,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("@details")[0])
     ap.add_argument("name", help="file name without extension (the topic of the branch)")
     ap.add_argument("--board", action="append", required=True, help="board name (repeat for several)")
-    ap.add_argument("--model", action="append", required=True, help="model key (repeat for several)")
+    ap.add_argument("--model", action="append", default=[], help="model key (repeat for several)")
+    ap.add_argument("--new-model", action="append", default=[], help="a model that the frozen file does not hold: its records are ADDED (needs --cell)")
+    ap.add_argument("--cell", action="append", type=float, default=[], help="cell in mm of the added records (repeat); a record is added only when it finishes")
     ap.add_argument("--item", required=True, help="the change that moves the records")
     ap.add_argument("--branch", required=True, help="branch of the change")
     ap.add_argument("--why", required=True, help="why the records move (one or two sentences)")
@@ -60,6 +76,28 @@ def main(argv=None):
     frozen = F.load(T.FROZEN_FILE)
     s = frozen["settings"]
     records, transients, skipped = {}, {}, {}
+    if not a.model and not a.new_model:
+        print("refused: name --model (existing records) or --new-model with --cell")
+        return 2
+    for board in a.board if a.new_model else []:
+        if board not in frozen["boards"]:
+            print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
+            return 2
+        p = B.build(board)
+        for model in a.new_model:
+            for cell in a.cell:
+                k = F.key(board, model, cell)
+                if k in frozen["records"]:
+                    print(f"refused: {k} is already in {T.FROZEN_FILE.name}: it is not a new record")
+                    return 2
+                rec = H.run_one(p, board, model, cell, s_cap("max_unknowns", frozen), s_cap("solid_cap", frozen))
+                if rec["status"] == "skipped":
+                    print(f"left out: {k}: {rec.get('reason', '')}")
+                    continue
+                if rec["status"] != "ok":
+                    print(f"refused: {k} did not run ({rec['status']}: {rec.get('reason', '')})")
+                    return 2
+                records[k] = {"class": "new", "metrics": C.metrics_of(rec)}
     for board in a.board:
         if board not in frozen["boards"]:
             print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
@@ -87,6 +125,8 @@ def main(argv=None):
                     transients[tk] = {"class": "moved", "t63": {q["name"]: q["t63_s"] for q in t["parts"] if q["t63_s"] is not None}}
     out = {"format": F.FORMAT, "base_version": frozen["version"], "item": a.item, "branch": a.branch, "why": a.why, "evidence": a.evidence,
            "records": records, "transients": transients}
+    if a.new_model:
+        out["new_models"] = sorted(a.new_model)
     if skipped:
         out["skipped"] = skipped
     path = HERE / "data" / "pending" / f"{a.name}.json"

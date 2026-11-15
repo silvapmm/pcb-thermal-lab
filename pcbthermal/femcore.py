@@ -134,13 +134,14 @@ class Model:
         self.q = np.zeros(E)                                       # volumetric source of every element, W/m3
         self.faces = []                                            # list of dicts: nodes (F, 4), h (F,), t_amb (F, 4), flux (F,)
 
-    def add_faces(self, face_nodes, h=0.0, t_amb=0.0, flux=0.0):
+    def add_faces(self, face_nodes, h=0.0, t_amb=0.0, flux=0.0, label=""):
         """!
         @brief Add boundary faces with a film and/or a prescribed flux.
         @param face_nodes Node ids (F, 4) of every face, in cyclic order (the area is taken positive).
         @param h Film coefficient in W/m2K, a number or an array (F,).
         @param t_amb Ambient temperature of the film in K (or degC: only differences matter), a number, an array (F,) or (F, 4) per face node.
         @param flux Prescribed heat flux INTO the body in W/m2, a number or an array (F,).
+        @param label Name of the group ("top", "bottom", "edge", "block", ...): only a tag for the read-outs that split the heat by path, never used by the solver.
         @return None.
         """
         fn = np.asarray(face_nodes, np.int64).reshape(-1, 4)
@@ -150,7 +151,7 @@ class Model:
         ta = np.asarray(t_amb, float)
         ta = np.broadcast_to(ta[:, None] if ta.ndim == 1 else ta, (F, 4)).copy()
         self.faces.append({"nodes": fn, "h": np.broadcast_to(np.asarray(h, float), (F,)).copy(), "t_amb": ta,
-                           "flux": np.broadcast_to(np.asarray(flux, float), (F,)).copy()})
+                           "flux": np.broadcast_to(np.asarray(flux, float), (F,)).copy(), "label": label})
 
     def validate(self):
         """!
@@ -349,6 +350,11 @@ class Model:
             ml = pyamg.smoothed_aggregation_solver(A.tocsr(), symmetry="symmetric", strength=("symmetric", {"theta": 0.0}), max_coarse=200)
             M = ml.aspreconditioner(cycle="V")
             t, info = spla.cg(A, rhs, rtol=tol, maxiter=5000, M=M)
+            bnorm0 = float(np.linalg.norm(rhs))
+            if info == 0 and bnorm0 > 0 and float(np.linalg.norm(A @ t - rhs)) / bnorm0 > max(1e-8, 100 * tol):
+                # The recursive residual of CG drifts from the true one on a matrix with a strong conductivity contrast (review of branch 4: the case-2 plate with a
+                # conductive film at 828 000 unknowns stopped at a true residual of 1.1e-8): one restart from the solution recomputes the true residual and reduces it
+                t, info = spla.cg(A, rhs, x0=t, rtol=tol, maxiter=5000, M=M)
             if info != 0:
                 raise RuntimeError(f"conjugate gradients did not converge (info {info})")
             how = "cg"

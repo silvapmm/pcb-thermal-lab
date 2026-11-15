@@ -30,7 +30,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d, thickness
+from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d, thickness
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
@@ -40,9 +40,10 @@ from .results import DISCLAIMER, SteadyResult
 from .numfmt import num
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
+COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Comparison models: never the reference of the decisions
+SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
-TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
 
 
 @dataclass
@@ -60,6 +61,8 @@ class SolverOptions:
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     laminate_s_max_mm: float = 0.4               # Longest sub-gap of the laminate between two copper nodes in mm (FVM and FDM; laminate.py)
     laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n); a gap gets min(n_max, ceil(d / s_max)), so a larger n_max needs a smaller s_max
+    fem_gap_elements: int = 6                    # Finite-element mesh: elements across every dielectric gap, count (2 to 24; femmesh.py)
+    fem_refine: float = 2.0                      # Finite-element mesh: ratio of the cell to the fine element near the heaters and via patches (1 to 4)
     # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
     memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
@@ -90,7 +93,18 @@ class SolverOptions:
             raise ValueError("laminate_s_max_mm must be between 0.05 and 5")
         if not isinstance(self.laminate_n_max, int) or isinstance(self.laminate_n_max, bool) or not 1 <= self.laminate_n_max <= 16:
             raise ValueError("laminate_n_max must be an integer between 1 and 16")
+        if not isinstance(self.fem_gap_elements, int) or isinstance(self.fem_gap_elements, bool) or not 2 <= self.fem_gap_elements <= 24:
+            raise ValueError("fem_gap_elements must be an integer between 2 and 24")
+        if isinstance(self.fem_refine, bool) or not isinstance(self.fem_refine, (int, float)) or not 1.0 <= self.fem_refine <= 4.0:
+            raise ValueError("fem_refine must be a number between 1 and 4")
         self.profile.validate()
+
+    def fem_params(self):
+        """!
+        @brief The two numbers of the finite-element mesh, for femmesh and memory.check.
+        @return Tuple (elements across a dielectric gap, refinement ratio).
+        """
+        return self.fem_gap_elements, float(self.fem_refine)
 
     def laminate_params(self):
         """!
@@ -108,10 +122,18 @@ class SolverOptions:
         d.pop("memory_fraction", None)                  # The memory limit belongs to the machine, not to the project
         d.pop("ui", None)                               # The front end belongs to the session, not to the project
         # The laminate numbers are saved only when they are not the default, so that projects of the earlier versions are written as before
-        for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4)):
+        for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4), ("fem_gap_elements", 6), ("fem_refine", 2.0)):
             if d.get(key) == default:
                 d.pop(key, None)
-        d["models"] = list(self.models)
+        # The FEM is a comparison model that the v2.7.1 reader does not know: a "models" list that names it is refused there (the whole project does not open), so it is saved
+        # under a key that older readers drop ("comparison_models"), and "comparison_only" says that it was the only model (the older reader then runs the FVM).
+        models = [m for m in self.models if m != "fem"]
+        if "fem" in self.models:
+            d["comparison_models"] = ["fem"]
+            if not models:
+                d["comparison_only"] = True
+                models = ["fvm"]
+        d["models"] = models
         d["profile"] = self.profile.to_dict()
         return d
 
@@ -125,11 +147,23 @@ class SolverOptions:
         known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__ and k not in ("memory_fraction", "ui")}   # Old files may hold the key: ignored
         if "models" in known:
             known["models"] = tuple(known["models"])
+        comp = (data or {}).get("comparison_models")
+        if comp is not None:
+            # The key of the FEM (see to_dict): a list of the comparison models that the v2.7.1 reader does not know; anything else is a malformed file
+            if not isinstance(comp, (list, tuple)) or any(not isinstance(m, str) or m not in ("fem",) for m in comp):
+                raise ValueError("comparison_models must be a list whose items are 'fem'")
+            only = (data or {}).get("comparison_only", False)
+            if not isinstance(only, bool):
+                raise ValueError("comparison_only must be true or false")
+            if "fem" in comp:
+                base = tuple(known.get("models", MODEL_NAMES))
+                known["models"] = ("fem",) if only else tuple(m for m in base if m != "fem") + ("fem",)
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
         # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
-        n = known.get("laminate_n_max")
-        if isinstance(n, float) and n.is_integer():
-            known["laminate_n_max"] = int(n)
+        for key in ("laminate_n_max", "fem_gap_elements"):
+            n = known.get(key)
+            if isinstance(n, float) and n.is_integer():
+                known[key] = int(n)
         o = cls(**known)
         o.validate()
         return o
@@ -150,7 +184,8 @@ def surface_report_lines(res):
         surf = float(res.extras[key])
         flagged = bool(np.asarray(res.arrays["T_surface_flag"])[face].any())
         rise = max(res.t_max - res.ambient, 1e-9)
-        out.append(f"Hottest surface ({name}): {surf:.1f} degC (estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}; "
+        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}"
+        out.append(f"Hottest surface ({name}): {surf:.1f} degC ({how}; "
                    f"the column mean read-out is {res.t_max:.1f} degC; the surface is {surf - res.t_max:+.1f} K, {100 * (surf - res.t_max) / rise:+.1f} % of the rise)")
     return out
 
@@ -345,6 +380,12 @@ class Simulation:
                 for x in r.ripple:
                     lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} C peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} C about its mean, closed form of the stack), "
                                  "in the peak and the minimum, not in the maps")
+        if "fem" in self.results:
+            f = self.results["fem"]
+            lines.append(f"FEM read-outs (finite elements, steady state): column mean {f.t_max:.2f} degC (the headline, like for like with the other models), "
+                         f"hottest node {f.extras['t_max_point']:.2f} degC" +
+                         "".join(f", surface {n} {f.extras[k]:.2f} degC" for n, k in (("top", "t_max_surface_top"), ("bottom", "t_max_surface_bottom")) if k in f.extras) +
+                         f"; {int(f.extras['unknowns'])} unknowns, energy balance {num(f.balance_error, sign=True)}")
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
@@ -370,7 +411,7 @@ class Simulation:
                 if "t_max_surface" in h and abs(h["t_max_surface"] - h["t_max"]) >= max(thickness.SHOW_ABS_K, thickness.SHOW_REL * max(h["t_max"] - ref.ambient, 1e-9)) \
                         and abs(h["t_max_surface"] - h["t_max"]) >= 1e-3:
                     # Both read-outs exist: every number names its own
-                    note = "estimate, upper side" if h["surface_upper"] else "estimate"
+                    note = "resolved" if ref.model == "fem" else ("estimate, upper side" if h["surface_upper"] else "estimate")
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} degC{extra}; "
                                  f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} degC ({note})")
@@ -756,6 +797,8 @@ def _run_model(problem, name, o):
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "solid3d":
         return solid3d.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction)
+    if name == "fem":
+        return fem.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction, gap_elements=o.fem_gap_elements, refine=float(o.fem_refine))
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=lumped.cell_for(problem, o.cell_mm))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -990,7 +1033,7 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in usable:
-            if name == "solid3d":
+            if name in SKIPPABLE_MODELS:
                 continue
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
@@ -1055,15 +1098,15 @@ def _simulate(problem, options, progress):
     problem.validate()
     # The memory guard: before any array of the size of a model is made. A refused 3D solid next to other models is skipped with a warning (the others still
     # answer); any other refusal raises MemoryGuardError with the cell that fits.
-    verdicts = memory.check(problem, options.models, options.cell_mm, fraction=options.memory_fraction, refuse="return")
+    verdicts = memory.check(problem, options.models, options.cell_mm, fraction=options.memory_fraction, refuse="return", fem_params=options.fem_params())
     skipped = set()
     for v in verdicts:
         if v.verdict == "refuse":
-            if v.model == "solid3d" and len(options.models) > 1:
+            if v.model in SKIPPABLE_MODELS and len(options.models) > 1:
                 skipped.add(v.model)
             else:
                 raise memory.MemoryGuardError(v.message)
-    guard_warnings = [warn(f"the 3D solid was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
+    guard_warnings = [warn(f"the {memory.MODEL_LABELS[v.model]} was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
     # The time simulation of a power profile (profiles.run_fvm / run_fdm at the cell of the run) holds a step factor while the next one is built: about twice a
     # steady solve (measured 1.7 times the law on the profile example at 0.5 mm). Checked now, before the steady solves; a refusal leaves the steady results and
     # says why the time simulation was not run (the step responses run on a cell of at least 2 mm and are smaller).
@@ -1088,10 +1131,12 @@ def _simulate(problem, options, progress):
                 sim.h_used[name] = hh
             if powers is not None:
                 sim.power_used[name] = powers
-        except ValueError as exc:
-            if name != "solid3d" or len(options.models) == 1:
+        except (ValueError, femcore.FemUnavailable) as exc:
+            if name not in SKIPPABLE_MODELS or len(options.models) == 1:
+                if isinstance(exc, femcore.FemUnavailable):
+                    raise ValueError(str(exc)) from exc                                          # A refusal like the others: the callers catch ValueError and say the reason
                 raise
-            sim.problem_warnings.append(warn(f"the 3D solid was not run: {exc}", ALERT))        # Too large: the other models still answer
+            sim.problem_warnings.append(warn(f"the {memory.MODEL_LABELS[name]} was not run: {exc}", ALERT))   # Too large, no mesh or no pyamg: the other models still answer
             continue
         sim.seconds[name] = time.time() - t0
     if blocks.has_blocks(problem):

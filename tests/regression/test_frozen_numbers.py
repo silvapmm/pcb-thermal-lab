@@ -67,7 +67,8 @@ def _cases():
     """
     if MISSING:
         return []
-    data = F.load(FROZEN_FILE)
+    frozen = F.load(FROZEN_FILE)
+    data = {"records": {**frozen["records"], **with_pending(frozen)["records"]}}   # the records that a pending file ADDS (a new model) are run too; a skipped one still runs
     cells, boards, models = [float(x) for x in _csv("PCBT_FROZEN_CELLS", "2")], _csv("PCBT_FROZEN_BOARDS", ""), _csv("PCBT_FROZEN_MODELS", "")
     out = []
     for k in data["records"]:
@@ -85,7 +86,7 @@ def _transient_keys():
     if MISSING or os.environ.get("PCBT_FROZEN_TRANSIENTS", "1") != "1":
         return []
     boards, models = _csv("PCBT_FROZEN_BOARDS", ""), _csv("PCBT_FROZEN_MODELS", "")
-    return sorted(k for k in F.load(FROZEN_FILE)["transients"]
+    return sorted(k for k in with_pending(F.load(FROZEN_FILE))["transients"]
                   if (not boards or k.split("|")[0] in boards) and (not models or k.split("|")[1] in models))
 
 
@@ -189,7 +190,12 @@ def test_pending_shifts_belong_to_the_frozen_release():
         assert pend.get("base_version") == data["version"], (f"{path.name} shifts the numbers of {pend.get('base_version')}, the newest frozen file is "
                                                              f"{data['version']}: fold it into the refreeze of the release and delete it")
         assert pend.get("item") and pend.get("branch") and pend.get("why"), f"{path.name}: the item, the branch and the reason are required"
-        assert set(pend.get("records", {})) <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
+        # A pending file may ADD the records of a model that the frozen file does not hold ("new_models": a comparison model added by a feature): they are new keys of
+        # that model only; every other record must be one the frozen file holds
+        new = set(pend.get("new_models", []))
+        added = {k for k in pend.get("records", {}) if k.split("|")[1] in new}
+        assert not added & set(data["records"]), f"{path.name}: added records that {FROZEN_FILE.name} already holds"
+        assert set(pend.get("records", {})) - added <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
         assert set(pend.get("skipped", {})) <= set(data["records"]), f"{path.name}: skipped records that are not in {FROZEN_FILE.name}"
         assert not set(pend.get("skipped", {})) & set(pend.get("records", {})), f"{path.name}: a record cannot be both moved and skipped"
         assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
@@ -243,6 +249,12 @@ def test_run_agrees_with_the_frozen_numbers(board, model, cell, frozen_data, boa
     @return None.
     """
     import regress_harness as H
+    if model == "fem":
+        # The finite-element model solves a mesh of more than femcore.FEM_DIRECT_MAX unknowns by conjugate gradients with the optional package pyamg
+        from pcbthermal import femcore
+        n = frozen_data["records"].get(F.key(board, model, cell), {}).get("metrics", {}).get("unknowns", 0)
+        if n > femcore.FEM_DIRECT_MAX and not femcore.available():
+            pytest.skip(f"{board} at {cell} mm: the finite-element mesh has {n} unknowns and needs the package pyamg (pip install pyamg)")
     s = frozen_data["settings"]
     rec = H.run_one(_board(boards_cache, board), board, model, cell, s["max_unknowns"], s["solid_cap"])
     diffs = F.compare(frozen_data, [rec], exact=EXACT)
