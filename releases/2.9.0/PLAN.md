@@ -29,6 +29,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e9 | Audit leftovers (stale docstrings, document notes, warning wording, the Cut slider at 900 x 700) | `fix/audit-leftover-texts`, `fix/cut-slider-narrow-window` | S + S |
 | e10 | Documentation simplification, only the parts not done in 2.8.0 | `docs/simplify-*` (up to six, in series) | M each |
 | e11 | Optional, small: the thermal-capacity inventory of the transient summary | in `feature/fem-transient` | S |
+| e12 | Small: `lumped.solve_steady`, `step_responses` and `run_profile` refuse `rings` below 3 or not an integer, as `SolverOptions` does (a study passed the cell as the positional `rings` and ran a one-ring network unnoticed; `releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md` 4, finding 3); moves no number | `fix/lumped-rings-guard` | S |
 
 ### 1.2 NOT in 2.9.0, with the reason
 
