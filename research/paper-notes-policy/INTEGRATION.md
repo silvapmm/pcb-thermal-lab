@@ -52,10 +52,12 @@ Do NOT make CI compare notes with the papers: `papers/` is absent in a clean clo
 
 ## 7. Decisions for the maintainer
 
-1. **Adopt the principle?** (own-words notes in git, all else local). Recommended: yes, as a documented rule in CLAUDE.md "Licences" and "Papers library", because it is already the practice and makes the line explicit.
-2. **Per-key note files or keep the BIBLIOGRAPHY entries as they are?** The entries already hold the same facts. Files add structure and a place for the checker; they add the risk of more text. Recommended: pilot 20 files, then decide.
-3. **Who signs** "own words": the reviewer (recommended).
-4. **Quotation limit:** 25 words and one per note (house rule), or none. Recommended: 25 words and one per note (no text read gives a number; the pilot needed none).
-5. **Licence column:** read the landing pages for the keys of the pilot (recommended) before any claim of an open licence.
-6. **A lawyer** before a commercial version or a bundle that ships notes.
-7. **Machine drafts:** forbid a model draft that was given the full paper text; allow a model to help format a note written from our findings (recommended).
+Decisions 1 to 5 and 7: **decided by the reviewer, adopted by the maintainer** (his standing rule); reasons in `docs/DECISIONS_REVIEWER.md`. Decision 6 stays **for the maintainer** (money and a commercial choice). Not legal advice.
+
+1. **Adopt the principle?** (own-words notes in git, all else local). **Decided: yes**, as a rule in CLAUDE.md "Licences" and "Papers library" on a `docs/` branch, because it is already the practice and makes the line explicit.
+2. **Per-key note files or keep the BIBLIOGRAPHY entries as they are?** **Decided: pilot 20 files** (section 6.2), then a review of the pilot decides; `BIBLIOGRAPHY.md` stays the index; no note is committed before the checker of section 4 covers it.
+3. **Who signs** "own words": **decided: the reviewer**, against the page images, recorded in `research/REVIEW.md`.
+4. **Quotation limit:** **decided: 25 words and one per note** (house rule, not law), inline quotations tested too; none for standards and vendor documents.
+5. **Licence column:** **decided: read the landing page of each pilot key** before its note; until read, `not checked` counts as `all rights reserved`.
+6. **A lawyer** before a commercial version or a bundle that ships notes: **for the maintainer** (cost and a commercial choice). Reviewer's opinion: not needed for research-only notes under 1 to 5; needed before a commercial version, a bundle that ships notes, or a rightholder notice.
+7. **Machine drafts:** **decided: forbid** a model draft that was given the full paper text or its transcription; allow a model to help format a note written from our findings.
