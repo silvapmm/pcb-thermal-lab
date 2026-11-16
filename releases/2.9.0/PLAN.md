@@ -30,6 +30,8 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e10 | Documentation simplification, only the parts not done in 2.8.0 | `docs/simplify-*` (up to six, in series) | M each |
 | e11 | Optional, small: the thermal-capacity inventory of the transient summary | in `feature/fem-transient` | S |
 | e12 | Small: `lumped.solve_steady`, `step_responses` and `run_profile` refuse `rings` below 3 or not an integer, as `SolverOptions` does (a study passed the cell as the positional `rings` and ran a one-ring network unnoticed; `releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md` 4, finding 3); moves no number | `fix/lumped-rings-guard` | S |
+| e13 | Small: the 'estimate (upper side)' flag of the surface read-out (`T_surface_flag`, `thickness.py` line 116) takes `a = sqrt(A)` of the part, so an elongated part (2 x 20 mm on a 2 mm plate: sqrt(A) = 6.3 mm, t/a = 0.32) is not flagged although its narrow side gives t/a = 1; consider the smaller side, or both (theory review of 2.8.0, `releases/2.8.0/theory-review/README.md`); moves no number, only the flag | `fix/surface-flag-narrow-part` | S |
+| e14 | Small: with only the FEM (or only the 3D solid) ticked, the Power profile message says 'the 3D solid is steady state only' and does not name the FEM (`api.py` 1173; the FEM is left out of the time views, documentation review of 2.8.0); text only | with e9 | S |
 
 ### 1.2 NOT in 2.9.0, with the reason
 
