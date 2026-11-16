@@ -1,6 +1,6 @@
 # Integration: a policy for paper notes (a proposal; nothing is adopted)
 
-Folder of the investigation `research/paper-notes-policy` (reviewed: README 6, GO). If the maintainer adopts it, the rules go to a `docs/` branch (CLAUDE.md, the papers library rules) and the notes to roadmap item F10 (the Thermal Sources Atlas); this folder is the record of the reasoning. No change to `pcbthermal/`, `tests/`, `docs/` or `CLAUDE.md` was made here. Research, not legal advice.
+Folder of the investigation `research/paper-notes-policy` (reviewed: README 6, GO). If the maintainer adopts it, the rules go to a `docs/` branch (CLAUDE.md, the papers library rules) (the notes plan was closed); this folder is the record of the reasoning. No change to `pcbthermal/`, `tests/`, `docs/` or `CLAUDE.md` was made here. Research, not legal advice.
 
 ## 1. Decision in one line
 

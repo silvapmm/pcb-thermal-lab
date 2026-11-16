@@ -136,7 +136,6 @@ Rows keep their numbers because other documents cite them. Rows 1 to 3, 5 to 9b,
 | F3 | the convection originals | partly | `theory-sources` 3.1 to 3.4 | L | - | paywalled |
 | F5 | sources to open | partly | `theory/BIBLIOGRAPHY.md` section 18 | L | ongoing | paywalls |
 | F6 | planned models without a source | partly | `theory-sources` 3.8 to 3.12 | L | d | topic 14 needs the JEDEC registration |
-| F10 | Thermal Sources Atlas (a public reader's compendium of the papers library, one chapter per source, in our own words) | closed: local only (notes in the git-ignored `papers/notes/atlas`; the public compendium was judged not worth its cost and risk by the reviewer; branches `research/thermal-sources-atlas`, `docs/sources-atlas-plan` and `research/paper-notes-policy` stay as the record; reopen only on the maintainer's word) | `papers/notes/atlas` (local); the policy study `research/paper-notes-policy/` | - | - | - |
 | F11 | the influence coefficient method of Muzychka (several sources on a convectively cooled plate): reproduce [Muzychka2003] cases 1 (a) and 3 with an own influence-coefficient series, then a case of the paper, then the five models | blocked for the paper's own case (PDF paywalled, status N); the [Muzychka2003] cases can start | `muzychka-influence-coefficients/` README, INTEGRATION.md | L | d | the PDF |
 
 ### G and H
