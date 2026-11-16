@@ -61,7 +61,7 @@ def test_cli_compare(tmp_path, capsys):
     path = tmp_path / "e.pcbt.json"
     cli.main(["example", str(path), "--which", "example"])
     assert cli.main(["run", str(path), "--model", "compare", "--cell-mm", "2", "--out", str(tmp_path / "o"), "--no-plots"]) == 0
-    assert "fdm" in capsys.readouterr().out
+    assert "FDM" in capsys.readouterr().out                # The table prints the model label (FDM), not the key
 
 
 def test_fdm_results_work_in_the_analysis_and_plots(tmp_path):
