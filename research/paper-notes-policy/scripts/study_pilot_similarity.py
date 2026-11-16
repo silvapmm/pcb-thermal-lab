@@ -4,7 +4,7 @@
 @file study_pilot_similarity.py
 @brief Do the three pilot notes copy words from their papers, and would the checker catch a pasted passage?
 
-Question: for each pilot note of docs/notes-pilot/, the longest run of words shared with the local text of the paper
+Question: for each pilot note (removed from the tree; kept in the git-ignored papers/notes/atlas-pilot/), the longest run of words shared with the local text of the paper
 and the share of the note's word 6-grams found in it (the citation line excluded, then included); then a sensitivity
 probe: a run of 40 words taken from the paper (a seeded random position) is pasted into the summary in memory, and
 the flags of the checker are printed. Nothing of the paper is written to disk or printed beyond the counts.
@@ -23,7 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_note_similarity as c  # noqa: E402
 
 FOLDER = Path(__file__).resolve().parents[1]
-NOTES = FOLDER / "docs" / "notes-pilot"
+# The pilot notes were removed from the tree on the maintainer's order; the copies live in the papers library.
+NOTES_REL = Path("notes") / "atlas-pilot"
 # Note key -> text of the paper inside the library (the arXiv source of Jaffer, the transcriptions of the others).
 PAPERS = {
     "Jaffer2023": "arxiv/2201.02612/2201.02612.md",
@@ -84,7 +85,7 @@ def main(argv=None):
     ok = True
     print(f"{'note':24s} {'words':>5s} {'run':>4s} {'6-gram':>7s} {'run+cit':>7s} {'summary':>7s}  flags / pasted {PASTE_WORDS} words")
     for key, rel in PAPERS.items():
-        r = measure((NOTES / f"{key}.md").read_text(), (lib / rel).read_text(errors="ignore"))
+        r = measure((lib / NOTES_REL / f"{key}.md").read_text(), (lib / rel).read_text(errors="ignore"))
         print(f"{key:24s} {r['words']:5d} {r['run']:4d} {r['share']:7.1%} {r['run_with_citation']:7d} "
               f"{r['summary_words']:7d}  {len(r['flags'])} / {len(r['flags_pasted'])}")
         ok &= not r["flags"] and len(r["flags_pasted"]) > 0
