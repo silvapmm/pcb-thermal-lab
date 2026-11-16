@@ -2096,3 +2096,31 @@ Every essential page that has a Claude transcription was compared with its page 
 * [ShenWang2019Vias] prints `Theta_jc = 44.12` for Theta_jt, a duplicate `psi_ea` after eq. 33 and a flowchart reference '(39)'.
 
 **Not verified**: pages that no progress file lists as compared; [Xu1992] pages 593 to 613; the 2005 published version of [LiSuperLU2005].
+
+## Sources named by the finite-element model and the Lumped self term (final theory review of 2.8.0)
+
+The finite-element section of `docs/theory.md` (4a) and the self term of the Lumped footprint (5) named sources without a key; they get one here, with the status of what was done. Nothing was opened for them in this review.
+
+### [ZienkiewiczTaylor2000]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (a book, not opened).
+
+O. C. Zienkiewicz, R. L. Taylor, *The Finite Element Method*, volume 1, 5th edition, Butterworth-Heinemann, 2000 (edition and year from memory). Named for the trilinear (Q1) isoparametric brick, the 2 x 2 x 2 Gauss rule and the consistent Robin face integral of `pcbthermal/femcore.py`. **Status M** (not opened). The element is checked without it: a patch test on a distorted mesh, scikit-fem on the same mesh to 1e-10 (`research/independent-fem-edge`), the hollow cylinder against the radial closed form, and a one-dimensional column against its series closed form to 1e-5 K (final theory review of 2.8.0).
+
+### [Hughes2000]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (a book, not opened).
+
+T. J. R. Hughes, *The Finite Element Method: Linear Static and Dynamic Finite Element Analysis*, Dover, 2000. Same use as [ZienkiewiczTaylor2000]. **Status M** (not opened).
+
+### [MaxwellGMD]
+
+**Licence:** public domain. **Source URL:** not recorded (not opened).
+
+J. C. Maxwell, the geometric mean distance of a rectangle from itself (Trans. R. Soc. Edinburgh 26, 1872; *A Treatise on Electricity and Magnetism*, 1873; from memory). Used for the self term `ln(0.447 sqrt(dx dy))` of a square cell in the logarithmic potential of the Lumped footprint. **Status M** (not opened); the value `exp(ln 2 / 3 + pi/3 - 25/12)` = 0.4470492 is checked by quadrature (audit L12 to 1e-12, and again in this review: 0.44704915590 by a double integral of the difference density).
+
+### [Pyamg] (version)
+
+**Licence:** MIT. **Source URL:** https://github.com/pyamg/pyamg.
+
+The installed package is pyamg 5.4.1 (metadata read in the environment: licence MIT, authors N. Bell, J. Schroder, B. Southworth; `requirements.txt` asks for 5.4 or later); the entry above recorded 5.3.0 from the package index of an earlier session. **Status R for the metadata, N for the paper.**
