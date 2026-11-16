@@ -58,6 +58,10 @@ MERGE_FRACTION = 0.25
 HARD_MERGE = 1e-6
 ## Interface pad slab of a block: conductivity (W/mK); its thickness is the interface resistance times this (as `solid3d.K_PAD`).
 K_PAD = 1.0
+## In-plane conductivity of the interface pad slab (W/mK): a contact resistance conducts across only. With K_PAD in the plane a tall pad (rc x K_PAD, 50 mm at 5e-2 m2K/W)
+## spread the heat of a part under a top block sideways: 10.7 % of the rise below the 3D solid and the FVM at 5e-2, 2.2 % at 5e-3 (review of fix/fem-interface-pad-film).
+## Not zero, because the core requires a positive conductivity; the lateral conductance per square is then rc x 1e-3 W/K, nothing beside the copper.
+K_PAD_INPLANE = 1.0e-3
 ## Block slabs per face: one per millimetre of the thickest block, at least BLOCK_SLABS[0] and at most BLOCK_SLABS[1].
 BLOCK_SLAB = 1e-3
 BLOCK_SLABS = (2, 8)
@@ -1212,8 +1216,10 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             # A block or pad slab: every block of the face (the node z already holds its own thickness)
             for bk in [x for x in lay.blocks if x["face"] == sl["face"]]:
                 ids = lay.sets[("blk", bk["k"])]
+                # The pad conducts across only (K_PAD_INPLANE in the plane): it stands for a contact resistance, not a body that spreads heat
                 kk = K_PAD if sl["kind"] == "pad" else problem.heatsinks[bk["k"]].k
-                groups.append((ids, np.full(ids.size, kk), np.full(ids.size, kk)))
+                kp = K_PAD_INPLANE if sl["kind"] == "pad" else kk
+                groups.append((ids, np.full(ids.size, kp), np.full(ids.size, kk)))
         first_id = cursor
         for ids, kx, kz in groups:
             elems.append(np.hstack([nid[s][plan.quads[ids]], nid[s + 1][plan.quads[ids]]]))

@@ -358,9 +358,10 @@ def test_the_interface_pad_of_a_block_has_no_wall_film_one_dimensional_column():
 
 
 def test_the_interface_pad_of_a_block_has_no_wall_film_against_the_3d_solid():
-    # The same boards with a small part: measured at the 2 mm cell, rise of the hottest cell: FEM 202.81 and 214.40 K for contact 5e-4 and 5e-3 m2K/W, 3D solid 205.77 and
-    # 217.40 K (the plain-board column read-out of the FEM is 1.5 % below, see the plain-board test), the FVM 204.79 and 216.51 K. With the film on the pad walls the FEM read 199.29
-    # and 186.56 K. The change of the rise with the contact resistance is the clean figure: 11.58 K (FEM), 11.63 K (3D), 11.72 K (FVM); it was -12.7 K
+    # The same boards with a small part: measured at the 2 mm cell, rise of the hottest cell: FEM 202.81 and 214.45 K for contact 5e-4 and 5e-3 m2K/W, 3D solid 205.77 and
+    # 217.40 K, the FVM 204.79 and 216.51 K. The FEM is 1.4 % below the 3D solid, the column read-out bias of the 2 mm cell: the same board without the block reads 1.1 % below,
+    # and both gaps fall together with the cell (0.6 and 0.5 % at 1 mm, 0.14 and 0.12 % at 0.5 mm). With the film on the pad walls the FEM read 199.29 and 186.56 K. The change
+    # of the rise with the contact resistance is the clean figure: 11.63 K (FEM), 11.63 K (3D), 11.72 K (FVM); it was -12.7 K
     rise = {}
     for rc in (5.0e-4, 5.0e-3):
         p = small(layers=2, power=5.0)
@@ -370,3 +371,19 @@ def test_the_interface_pad_of_a_block_has_no_wall_film_against_the_3d_solid():
     d_fem = rise[5.0e-3][0] - rise[5.0e-4][0]
     d_3d = rise[5.0e-3][1] - rise[5.0e-4][1]
     assert d_fem == pytest.approx(d_3d, abs=0.15)
+
+
+def test_the_interface_pad_of_a_block_does_not_spread_heat_sideways():
+    # The pad is a contact resistance: it conducts across only (femmesh.K_PAD_INPLANE). With K_PAD in its plane, a pad of height rc x K_PAD (50 mm at 5e-2 m2K/W) over a part
+    # on the top face spread its heat sideways: the FEM read 151.77 K against 169.59 K in the FVM (no pad slab) and 169.88 K in the 3D solid at 5e-2 (-10.5 %), 150.80 against
+    # 154.64 K at 5e-3. Measured with the fix at the 2 mm cell: 168.26 and 153.49 K, 0.8 % below the FVM (the plain board without the block reads 0.8 % below the FVM too)
+    for rc in (5.0e-3, 5.0e-2):
+        p = small(layers=2, power=3.0)
+        p.add_heatsink(1, 0.0, rect=(12, 9, 28, 21), name="b", thickness_mm=5.0, contact_r=rc)
+        r = fem.solve_steady(p, cell_mm=2.0)
+        ref = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"].delta_t
+        assert abs(r.balance_error) < 1e-9
+        assert r.delta_t == pytest.approx(ref, rel=0.015), rc
+    m = femmesh.build(p, cell_mm=2.0)
+    pad = np.isin(m.elem_slab, [s for s, sl in enumerate(m.slabs) if sl["kind"] == "pad"])
+    assert np.all(m.model.k[pad, 0] == femmesh.K_PAD_INPLANE) and np.all(m.model.k[pad, 2] == femmesh.K_PAD)
