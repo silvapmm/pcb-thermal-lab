@@ -168,4 +168,3 @@ Prepared without running anything (on `research/<topic>` branches that only plan
 ## Leftover research branches
 
 * `research/muzychka-influence-coefficients`: reviewed (README 4: GO) and merged into `development` as a literature note and plan; nothing was run, the article itself was not obtained (F11); the study opens when the PDF is obtained.
-* `research/thermal-sources-atlas`, `docs/sources-atlas-plan` and `research/paper-notes-policy`: the Atlas is closed as local only (F10; notes in the git-ignored `papers/notes/atlas`); the branches stay as the record, nothing of it is planned for 2.9.0; reopen only on the maintainer's word.

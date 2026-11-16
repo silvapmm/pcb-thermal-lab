@@ -14,4 +14,4 @@
 
 **Consequence.** Decisions 1 to 5 and 7 are adopted under the maintainer's standing rule; they enter the project only through a `docs/` branch (the `CLAUDE.md` rules) and the F10 pilot (the notes and the checker extensions of `INTEGRATION.md` 4 on a branch of their own). Decision 6 waits for the maintainer and blocks nothing until a commercial version or a bundle is planned.
 
-> Amended by the reviewer, method B, adopted by the maintainer: the medium of reading (image or transcription) is not the control; the fact sheet, the checker and the reviewer's reading are (`research/thermal-sources-atlas/docs/METHOD_OPINION.md`, section 6).
+> Amended by the reviewer, method B, adopted by the maintainer: the medium of reading (image or transcription) is not the control; the fact sheet, the checker and the reviewer's reading are (the reviewer's method opinion of the closed notes plan, section 6).

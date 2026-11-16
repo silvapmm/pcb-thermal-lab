@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Atlas traces removed from the living documents of development** (the maintainer's order, 2026-11-16, `docs/atlas-traces-removed`; `main` is replaced by `development` at the next release, so it was not edited): the F10 row of `research/ROADMAP.md`, the Atlas lines of `research/README.md`, `research/REVIEW.md`, `releases/2.9.0/PLAN.md`, section 2.6 of `releases/2.8.0/plan-resume/PLAN.md` and the Atlas wording of `research/paper-notes-policy` were removed or reworded; history untouched; the decisions-log entries and the historical reviewer record `releases/2.9.0/leftover-branches/OPINION.md` are kept as the record.
+
 - **CLAUDE.md brought to the state after 2.8.0** (maintainer, 2026-11-16, `docs/claude-state-after-2-8-0`): the Atlas mentions were removed after the maintainer deleted the Atlas remote branches; section 15 was rewritten for the released 2.8.0; the size was reduced (below 40 KB, section 16) by moving detail to `docs/versions.md` ('Appendix: passages moved out of CLAUDE.md', A1 to A12), word for word, leaving the rule in short form and a pointer in `CLAUDE.md`.
 
 - **Pilot notes removed from the tree** (maintainer, 2026-11-16, `docs/remove-pilot-notes`): the three pilot notes of `research/paper-notes-policy` (Jaffer2023, Lienhard2024, YovanovichJafarpur1993) have no use after the Atlas was closed as local-only; kept locally in the git-ignored `papers/notes/atlas-pilot/`; the git history is unchanged. The policy README keeps its pilot numbers as a record of what was done.

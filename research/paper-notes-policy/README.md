@@ -1,6 +1,6 @@
 # Paper notes in git: is it possible, and under what rules?
 
-**Research, not legal advice.** The authors are engineering agents reading public pages; nothing here replaces a lawyer. Branch `research/paper-notes-policy`; roadmap item F10 (the Thermal Sources Atlas) rests on its answer. Nothing here is adopted: the rules of `INTEGRATION.md` enter the project only when the maintainer decides. The three pilot notes (removed from the tree on the maintainer's order, kept locally; they remain in the git history) and the checker were illustrations. Reviewed: section 6.
+**Research, not legal advice.** The authors are engineering agents reading public pages; nothing here replaces a lawyer. Branch `research/paper-notes-policy`; the notes plan that rested on its answer was closed. Nothing here is adopted: the rules of `INTEGRATION.md` enter the project only when the maintainer decides. The three pilot notes (removed from the tree on the maintainer's order, kept locally; they remain in the git history) and the checker were illustrations. Reviewed: section 6.
 
 ## 1. The answer
 
@@ -89,7 +89,7 @@ Open-licence candidates (CC BY / public domain): the 4 entries marked `public do
 
 ## 4. Pilot: three notes (illustration only)
 
-The three pilot notes were removed from the tree on the maintainer's order (kept locally in the git-ignored `papers/notes/atlas-pilot/`); they remain in the git history. The numbers below record what was done on them.
+The three pilot notes were removed from the tree on the maintainer's order (kept locally in the git-ignored `papers/notes/`); they remain in the git history. The numbers below record what was done on them.
 
 Similarity of each note against the local text of its paper (`scripts/study_pilot_similarity.py`, which needs the git-ignored papers library; words of three letters or more, formulas and code removed): the longest run of words shared with the paper, the share of the note's word 6-grams found in it, the same run with the citation line included, the words of the summary, and the number of flags of the checker on the note and on the note with a passage of 40 words of the paper pasted into its summary:
 
