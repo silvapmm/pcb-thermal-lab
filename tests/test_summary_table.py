@@ -172,3 +172,35 @@ def test_warnings_are_ordered_junction_then_warnings_then_notes(qtbot):
     acc.set_warnings([note1, alert, note2, junction, alert2])
     assert [str(r.warning) for r in acc.rows] == [str(w) for w in (junction, alert, alert2, note1, note2)]
     assert "°C" in acc.rows[0].title_label.text() and "degC" not in acc.rows[0].title_label.text()
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+@pytest.mark.parametrize("size", [(1200, 800), (1500, 900)])
+def test_the_warnings_box_does_not_touch_the_report_console(qtbot, tmp_path, size, theme):
+    """!
+    @brief On the Summary page the Warnings box keeps a gap of SUMMARY_WARNINGS_GAP_PX above the report console, which keeps a useful height.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param size Window size (w, h) in px.
+    @param theme Theme name.
+    """
+    from PySide6.QtCore import QPoint
+    from pcbthermal.gui.results_view import SUMMARY_WARNINGS_GAP_PX
+    win = _window(qtbot, tmp_path, *size)
+    if hasattr(win, "set_theme"):
+        win.set_theme(theme)
+    view = win.results
+    run = simulate(example_board(), SolverOptions(models=MODELS, cell_mm=2.0))
+    view.set_simulation(run)
+    view._show_warnings(["Test note: some text of the note that the box lists."])      # Shown whatever the example raises
+    view.warnings.setVisible(True)
+    view.tabs.setCurrentIndex(0)
+    win.tabs.setCurrentIndex([win.tabs.tabText(i) for i in range(win.tabs.count())].index("Results"))
+    qtbot.wait(200)
+    assert view.warnings.isVisible()
+    top = view.report.mapTo(view, QPoint(0, 0)).y()
+    # The accordion's own bottom margin is the gap: its box ends that many px above the console
+    box = view.warnings.box
+    bottom = box.mapTo(view, QPoint(0, box.height())).y()
+    assert top - bottom >= SUMMARY_WARNINGS_GAP_PX
+    assert view.report.height() >= 120

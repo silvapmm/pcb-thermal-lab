@@ -58,6 +58,7 @@ def _paint_figure(fig, name):
 
 
 MIN_SECTION = 56   # Logical px: the narrowest column of a results table
+SUMMARY_WARNINGS_GAP_PX = 8   # Logical px between the Warnings box and the report console on the Summary page (the 8 px the dock leaves between boxes)
 
 
 def _table(headers):
@@ -657,6 +658,8 @@ class ResultsView(QWidget):
         self.report.setPlaceholderText("No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5): "
                                        "the table above compares the models and the report of the run appears here.")
         self.report.setStyleSheet("font-family: Menlo, Consolas, monospace;")
+        # Room under the Warnings box so it is not stuck to the report console; a margin of the (hidden when empty) accordion, so no gap shows without notes
+        self.warnings.layout().setContentsMargins(0, 0, 0, SUMMARY_WARNINGS_GAP_PX)
         sl.addWidget(self.model_table)
         sl.addWidget(self.warnings)
         sl.addWidget(self.report, 1)
