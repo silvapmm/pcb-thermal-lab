@@ -10,8 +10,8 @@
          is the natural boundary integral `h N_i N_j` (2 x 2 Gauss on the bilinear face), so the film term is inherent (no half-cell film in series); a prescribed
          flux is a face load; a heat source is a volumetric load per element. The matrix is symmetric positive definite and is solved by SuperLU in symmetric mode, or,
          above `FEM_DIRECT_MAX` unknowns, by conjugate gradients with a pyamg preconditioner. **pyamg is optional**: it is imported only when needed
-         (`available()` says whether it is importable; without it a mesh above the direct limit raises `FemUnavailable`). Not selectable in the program yet; there is
-         no mesh builder from a Problem here (see `docs/theory.md` 4a). SI units throughout: m, W, K, W/mK, W/m2K. Local node order of an element: the four nodes of
+         (`available()` says whether it is importable; without it a mesh above the direct limit raises `FemUnavailable`). Selectable in the program since 2.8.0 (model `fem`, `fem.py`); there is
+         no mesh builder from a Problem here (that is `femmesh.py`, see `docs/theory.md` 4a). SI units throughout: m, W, K, W/mK, W/m2K. Local node order of an element: the four nodes of
          its bottom quad counter-clockwise in the plan, then the same four at the top; the local coordinates (xi, eta, zeta) in [-1, 1]^3 follow that order.
 """
 
