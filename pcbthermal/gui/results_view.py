@@ -252,6 +252,7 @@ class PlotTab(QWidget):
         recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
+        self.model.setAccessibleName("Model")                  # Screen readers: the boxes of this row have a text label beside them, not a buddy
         self.layer_value = 0                            # The layer of the toolbar choice (see layerchoice): -1 / -2 all layers, 100 + face a metal block
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
@@ -261,14 +262,17 @@ class PlotTab(QWidget):
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
+        self.vmin.setAccessibleName("Lowest temperature of the colour scale"); self.vmax.setAccessibleName("Highest temperature of the colour scale")
         for s in (self.vmin, self.vmax):
             s.setRange(-100, 2000)
             s.setDecimals(1)
             s.setKeyboardTracking(False)
         self.axis = QComboBox()
+        self.axis.setAccessibleName("Cut direction")
         self.axis.addItem("Along x", "x")
         self.axis.addItem("Along y", "y")
         self.pos = QSlider(Qt.Horizontal)
+        self.pos.setAccessibleName("Cut position")
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
         self.cut_overlay = QCheckBox("Cut overlay")      # Profiles: the board picture over the curves (content: toolbar Layer, Display, Map button); session only
@@ -531,13 +535,13 @@ class PlotTab(QWidget):
                     ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}, column mean\n"
+                                          title=f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
+                        ax.set_title(f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
                                      f"max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
@@ -545,7 +549,7 @@ class PlotTab(QWidget):
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.display.cmap, layer=layer,
                                  label="|∇T| (K/mm)", **eq_args, view=view,
-                                 title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
+                                 title=f"{tips.model_label(r.model)} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
                 axis = self.axis.currentData()
                 b = prob.board
@@ -590,7 +594,10 @@ class Cover(QLabel):
         @param event The event.
         @return False (the page handles its own events).
         """
-        if event.type() == QEvent.Resize and self.isVisible():
+        # isHidden, not isVisible: a cover over a page that is not the current tab is not 'visible' while its page is hidden, so it kept the size the page had
+        # when the cover was made (review of branch C: before the first run the note of the Temperature page was cut at 1200 x 800 and was a small grey box
+        # at 1500 x 900); the size is also taken again when the page is shown
+        if event.type() in (QEvent.Resize, QEvent.Show) and not self.isHidden():
             self.setGeometry(obj.rect())
         return False
 
@@ -609,6 +616,9 @@ class ResultsView(QWidget):
     """!
     @brief The whole results area.
     """
+
+    START_NOTE = "No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5)."
+    CLEARED_NOTE = "No results for this board yet. Press Run simulation (F5)."           # The notes over the plot pages: before any run, and after another board was opened
 
     show_on_board = Signal()
 
@@ -696,6 +706,11 @@ class ResultsView(QWidget):
         self.tabs.addTab(self.time_sim, "Power profile")
         # The pages that show a run are covered by a note while the results belong to another board (see clear)
         self._covers = [Cover(page, "No results for this board yet. Press Run simulation (F5).") for page in (summary, self.temp, self.grad, self.profile, comp, self.compare, self.time_sim)]
+        # Before the first run every plot page says what to do (review of the window: only the Summary had an empty state, the maps were blank figures);
+        # the Summary keeps its own note in the report box
+        for cover in self._covers[1:]:
+            cover.setText(self.START_NOTE)
+            cover.cover(True)
         # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
         # sideways in a narrow centre area, also on the Profiles tab. Only the page shown counts: the hidden pages ignore their size hints, so a narrow tab
         # never scrolls and a wide one (Animation) still scrolls to reach its controls instead of clipping them.
@@ -781,6 +796,7 @@ class ResultsView(QWidget):
         """
         self.sim = None
         for cover in self._covers:
+            cover.setText(self.CLEARED_NOTE)
             cover.cover(True)
 
     def set_simulation(self, sim):

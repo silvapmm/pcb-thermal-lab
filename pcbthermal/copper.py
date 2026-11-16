@@ -85,7 +85,7 @@ def _unpack(data, rows, cols, kind):
     if kind not in MASK_KINDS:
         raise ValueError(f"unknown mask kind {kind!r}")
     if not (rows > 0 and cols > 0 and rows * cols <= MAX_MASK_PIXELS):
-        raise ValueError(f"a mask of {rows} x {cols} pixels is not a valid shape (positive, at most {MAX_MASK_PIXELS} pixels)")
+        raise ValueError(f"a mask of {rows} × {cols} pixels is not a valid shape (positive, at most {MAX_MASK_PIXELS} pixels)")
     need = rows * cols if kind == "coverage" else (rows * cols + 7) // 8
     try:
         packed = base64.b64decode(data, validate=True)
@@ -94,7 +94,7 @@ def _unpack(data, rows, cols, kind):
     except (ValueError, zlib.error) as exc:           # (binascii.Error is a ValueError)
         raise ValueError(f"the packed mask is damaged ({exc})") from exc
     if len(raw) != need or z.unconsumed_tail:
-        raise ValueError(f"a {kind} mask of {rows} x {cols} pixels needs {need} bytes, the data hold "
+        raise ValueError(f"a {kind} mask of {rows} × {cols} pixels needs {need} bytes, the data hold "
                          + (f"{len(raw)}" if len(raw) <= need and not z.unconsumed_tail else f"more than {need}"))
     if kind == "binary":
         a = np.unpackbits(np.frombuffer(raw, np.uint8), count=rows * cols).reshape(rows, cols) * np.uint8(255)

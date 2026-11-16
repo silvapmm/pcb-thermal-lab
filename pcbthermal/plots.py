@@ -237,7 +237,7 @@ def _equivalent_lines(ax, problem, solved, color):
     """
     W, H = solved.board.width * 1000.0, solved.board.height * 1000.0
     rect, = ax.plot([0, W, W, 0, 0], [0, 0, H, H, 0], color=color, lw=1.8, ls=(0, (6, 3)), clip_on=False, zorder=5,
-                    label=f"{EQUIVALENT_LABEL}, {W:.1f} x {H:.1f} mm)")
+                    label=f"{EQUIVALENT_LABEL}, {W:.1f} × {H:.1f} mm)")
     o = np.vstack([problem.board.outline, problem.board.outline[:1]]) * 1000.0
     real, = ax.plot(o[:, 0], o[:, 1], color="#9a9a9a", lw=1.0, ls=":", zorder=4, label="real outline")
     return [rect, real]
@@ -668,7 +668,7 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
         return
     field = np.where(result.arrays["block_cov"][which] > 0, result.arrays["block_T"][which], np.nan)
     draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=0 if face == 0 else problem.board.layers - 1,
-               title=f"{result.model.upper()} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
+               title=f"{model_label(result.model)} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
                      f"max {result.extras[f'block_{tag}_max']:.1f} °C", label="Block temperature (°C)")
 
 
@@ -699,7 +699,7 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
     # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
     ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + ("resolved" if result.model == "fem" else "estimate") + " (°C)",
-                    title=f"{result.model.upper()} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
+                    title=f"{model_label(result.model)} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
                           f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
     face_peak = result.arrays.get("face_peak")
     if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:
@@ -765,8 +765,11 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
         fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
-    fig.suptitle(f"{result.model.upper()} - column mean, all layers: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
-                 f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
+    from .api import balance_text                    # Imported here: the API imports this module for its figures
+
+    # The balance as in the Summary table: a percentage with a floor (the raw round-off, '-401.30E-15', read like a number to worry about)
+    fig.suptitle(f"{model_label(result.model)} - column mean, all layers: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
+                 f"power balance {balance_text(result.balance_error)}", fontsize=10)
 
 
 CUT_COLOUR = "#ffb000"        # The amber of the alert token: the cut line on the plain board
@@ -964,7 +967,11 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
         actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
     ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
-    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm", fontsize=10)
+    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5)
+    where = f"{'y' if axis == 'x' else 'x'} = {actual:.1f} mm"
+    if abs(actual - position_mm) >= 0.05:
+        where += f" (the cell centre nearest to {position_mm:.1f} mm)"
+    ax.set_title(f"Cut along {axis} at {where}", fontsize=10)
     ax.grid(alpha=0.3)
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
     if picture == "off" or strip:
@@ -1127,7 +1134,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
         ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {num(limit_c)} °C")
     ax.set_xlabel("Time in the last window (s)")
     ax.set_ylabel(COLUMN_LABEL)
-    ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
+    ax.set_title(f"{model_label(result.model)}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
                  f"oscillation {result.oscillation:.1f} K", fontsize=10)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
@@ -1144,7 +1151,7 @@ def draw_peak_map(fig, result, problem, layer=0, cmap="inferno"):
     @param cmap Colormap name.
     """
     draw_field(fig, result.peak_map[layer], problem, result.dx, result.dy, cmap=cmap, layer=layer,
-               title=f"{result.model.upper()} - layer {layer + 1}: peak temperature during the cycle "
+               title=f"{model_label(result.model)} - layer {layer + 1}: peak temperature during the cycle "
                      f"(max {float(result.peak_map[layer].max()):.1f} °C)", label="Peak temperature (°C)")
 
 

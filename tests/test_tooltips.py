@@ -127,6 +127,12 @@ def test_every_control_has_a_tooltip(qtbot, tmp_path, monkeypatch):
     calc = PowerCalculator(win.doc)
     qtbot.addWidget(calc)
     bad += missing(calc, "calculator")
+    # The Display popover (review of the window: not covered by this test) and the Preferences pages
+    bad += missing(win.display_popover, "display popover")
+    from pcbthermal.gui.preferences import PreferencesDialog
+    prefs = PreferencesDialog(win)
+    qtbot.addWidget(prefs)
+    bad += missing(prefs, "preferences")
     # The Gerber import window with a board read (the file list has a combo and a check box per file) and on every step
     from pcbthermal.gui.import_window import ImportBoardWindow
     from tests.helpers.synthetic_board import make_board

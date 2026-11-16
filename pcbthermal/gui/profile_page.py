@@ -22,6 +22,7 @@ from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
 from .spinfit import show_value
+from .adaptive import AdaptiveSplitter as _AdaptiveSplitter     # Shared with the Stack-up page
 from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 from ..numfmt import num
@@ -41,37 +42,6 @@ def _put(spin, value):
 
 
 PLOT_MIN_PX = 220     # Logical px: the smallest height of the waveform plot of the page
-
-
-class _AdaptiveSplitter(QSplitter):
-    """!
-    @brief A splitter that stacks its two panes one above the other when it is too narrow for them side by side (the page was wider than the window at 1200 x 800).
-    """
-
-    NARROW_PX = 800     # Logical px: below this width the panes are stacked
-
-    def resizeEvent(self, event):
-        """!
-        @brief Choose the orientation from the width, then lay out as usual.
-        @param event QResizeEvent.
-        """
-        want = Qt.Vertical if event.size().width() < self.NARROW_PX else Qt.Horizontal
-        if self.orientation() != want:
-            self.setOrientation(want)
-            self.updateGeometry()               # The minimum size changes with the orientation
-        super().resizeEvent(event)
-
-    def minimumSizeHint(self):
-        """!
-        @brief The minimum width is that of the wider pane only (the panes may be stacked), so that the page never forces a horizontal scroll bar.
-        @return QSize.
-        """
-        from PySide6.QtCore import QSize
-        w = max(self.widget(i).minimumSizeHint().width() for i in range(self.count()))
-        heights = [self.widget(i).minimumSizeHint().height() for i in range(self.count())]
-        # Stacked panes need the sum of their heights (the page scrolls vertically instead of squeezing the forms)
-        h = sum(heights) + self.handleWidth() if self.orientation() == Qt.Vertical else max(heights)
-        return QSize(w, h)
 
 
 class ProfilePage(QWidget):
@@ -109,11 +79,14 @@ class ProfilePage(QWidget):
         self.const_power = QDoubleSpinBox()
         self._spin(self.const_power, 0, 10000, 3, " W")
         self.by = QComboBox()
+        self.by.setAccessibleName("Repeats every: period or frequency")      # Screen readers: the row label names only the first field (review of branch C)
         self.by.addItem("Period", "period")
         self.by.addItem("Frequency", "frequency")
         self.value = QDoubleSpinBox()
+        self.value.setAccessibleName("Period or frequency")
         self._spin(self.value, 1e-6, 1e9, 6, "")
         self.unit = QComboBox()
+        self.unit.setAccessibleName("Unit of the period or frequency")
         self.duty = QDoubleSpinBox()
         self._spin(self.duty, 0.01, 100, 2, " %")
         self.p_on = QDoubleSpinBox()
@@ -249,6 +222,11 @@ class ProfilePage(QWidget):
         doc.changed.connect(self._load_options)
         doc.state_changed.connect(self._load_options)
         compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
+        # The 'Repeats every' row holds two lists and a number: at 16 characters each it asked 531 px and the page scrolled sideways at 1200 x 800 even with the
+        # panes stacked. The two short lists ('Period' / 'Frequency', the unit) need far fewer characters
+        self.by.setMinimumContentsLength(9)
+        self.unit.setMinimumContentsLength(4)
+        self.value.setMinimumWidth(1)
         self.refresh()
         self._load_options()
 

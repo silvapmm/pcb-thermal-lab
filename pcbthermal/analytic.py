@@ -427,7 +427,7 @@ def _effective_sheet(problem, cell_mm):
             warnings.append(
                 f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the sheet conductances of the layers differ by {spread:.1f} times: "
                 "the Analytic model treats the edge of each layer separately, but it keeps one laminate link per gap, and its hottest temperature was measured too cool, "
-                "by up to about 6 % against the 3D solid on 60 x 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
+                "by up to about 6 % against the 3D solid on 60 × 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
                 "Use the FVM or, on a thick board with a large edge coefficient, the 3D solid.")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
@@ -1236,7 +1236,7 @@ def heatsink_transient_warning(scales=""):
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
             "of test boards, from about -9 % to +3 % off the converged finite-volume result (the worst, -9 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K; the +3 % a 2-layer board with vias and a heatsink beside the part; on five other boards the independent finite elements give +1 to +4 % at 0.5 mm); "
-            "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
+            "this is a sample, not a bound (one 60 × 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"
             + (f" (via coupling factors {scales})" if scales else ""))

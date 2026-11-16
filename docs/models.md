@@ -588,6 +588,8 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   help/index.html      the user guide (HTML, shown by Help - User guide and F1)
   gui/display.py       the shared display state (`DisplayState`: underlay, opacity, View, contour steps, colour map), the Display popover (`DisplayPopover`) and its toolbar button (`DisplayButton`), used by the Results maps, the Animation tab and the editor map
   gui/elided.py        ElidedLabel (label with a zero minimum width on at most `max_lines` lines, the last cut with an ellipsis, whole text as tooltip and accessible description) and clamp_to_screen (a window never larger than the screen under it)
+  gui/a11y.py          names for screen readers (`name_fields`: every value control without a name takes the text of the label of its row, form rows and grids, and the label becomes its buddy) and `chain_after` (the keyboard order of a rebuilt form right after its dock)
+  gui/adaptive.py      AdaptiveSplitter: two panes side by side, one above the other below 800 px (the Power profile and Stack-up pages at 1200 x 800); gui/dots.py the one painter of the coloured dots (`dot_pixmap`, `dot_html` for rich text)
   gui/flow.py          FlowLayout (a row that wraps), used by the Results control rows
   gui/toolbar_icons.py ThemedToolbar (the own icons of the Results plot toolbar, drawn in the theme colours)
   gui/boxes.py         the boxes of the docks (a title row that is the button, collapsible, the state remembered between sessions) and `gui/warning_box.py` the Warnings (N) box: one closed row per warning with a short title (`checks.warning_title`), accessible names for a screen reader

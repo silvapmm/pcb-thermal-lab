@@ -145,7 +145,7 @@ def test_the_memory_lines_are_compact_with_a_dot_and_no_thousands_separator(win)
     win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
     QApplication.processEvents()
     text = re.sub(r"<[^>]+>", "", sp.cells_label.text()).replace("&nbsp;", " ")
-    assert re.search(r"● FVM: \d+ unknowns · \d+\.\d of \d+\.\d GB", text), text
+    assert re.search(r"^ ?FVM: \d+ unknowns · \d+\.\d of \d+\.\d GB", text) and "data:image/png" in sp.cells_label.text(), text   # the dot is the picture of gui/dots.py
     assert "about" not in text and not re.search(r"\d,\d{3}", text)
     assert th.colors(th.current_name())["ok"] in sp.cells_label.text() and sp.cells_label.isVisible()
     win.doc.set_options(models=("lumped", "analytic"))
@@ -228,7 +228,7 @@ def test_the_dot_is_drawn_once_and_the_reason_for_a_grey_run_is_next_to_the_butt
     load(win, example_board())
     sp = win.solver_panel
     win.doc.set_options(models=("fvm",), cell_mm=1.0)
-    assert th.VERDICT_DOT in sp.cells_label.text()
+    assert 'src="data:image/png;base64,' in sp.cells_label.text()             # The picture of gui/dots.py, the one painter of the dots
     monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
     win.doc.options.memory_fraction = 0.1
     win.doc.set_options(models=("fvm",), cell_mm=0.3)
@@ -251,7 +251,13 @@ def test_the_progress_is_indeterminate_while_the_fem_solves_and_the_bar_says_sto
     win._on_busy(True)
     assert "Ready" not in win.statusBar().currentMessage()
     win._on_busy(False)
-    assert win.statusBar().currentMessage() == "Ready."
+    assert win.statusBar().currentMessage() == "Ready."                         # No final line under Run: the bar is idle
+    # Review of the window: after a run or a Stop the bar keeps the final line of the dock instead of going back to 'Ready.'
+    sp.set_running(False, "Cancelled.")
+    assert win.statusBar().currentMessage() == "Cancelled."
+    sp.set_running(False, "Done: Tmax 85.5 °C, Rθ 10.99 K/W")
+    win._on_busy(False)
+    assert win.statusBar().currentMessage().startswith("Done: Tmax")
 
 
 def test_results_of_a_board_do_not_stay_when_another_board_is_opened_created_or_imported(win, qtbot, monkeypatch):
@@ -336,7 +342,8 @@ def test_the_properties_of_a_heat_source_fit_a_narrow_dock(win):
     win.doc.set_props("heater", 1, role="source")
     win._select_from_warning("heater", 1)
     QApplication.processEvents()
-    info = [lab for lab in win.inspector.findChildren(type(win.solver_panel.status)) if lab.text().startswith("Direct contact")]
+    from PySide6.QtWidgets import QLabel
+    info = [lab for lab in win.inspector.findChildren(QLabel) if lab.text().startswith("Direct contact")]
     assert info and all(lab.wordWrap() for lab in info)
     # At the dock width the window opens with (340 px) the panel scrolls only vertically; it asked 354 px before the wrap (a 30 px horizontal bar at 340 px)
     from PySide6.QtCore import Qt

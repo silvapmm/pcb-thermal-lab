@@ -12,12 +12,14 @@ from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyS
 
 # primary*: the background of the main buttons (Run, Next, Compute) under the white `on_accent` label: the plain accent gave 4.12:1 (light) and 3.30:1 (dark), these give 4.5:1
 # or more in the three states. warn (light): was #b26a00, 3.85:1 on the window as text (the 'slow' memory lines); #9a5a00 gives 4.97:1.
+# muted (light): #646b78 gives 4.87:1 on the window and 4.70:1 on `alt` (the earlier #6b7280 gave 4.39:1, below the 4.5:1 of small text; review of the window).
+# stop: the fill of the Run button while it is the Stop button (white text 5.62:1), red like the stop square of the tool bar, in both themes.
 # accent_text: the accent as TEXT. Dark: the accent itself, 4.89:1 on the window (#1e2127). Light: the pressed accent, 5.03:1 on the window (#f3f4f6) and 5.54:1 on white;
 # the plain light accent (#5a7fb0) reaches only 3.74:1, below the 4.5:1 that normal text needs. Lines and marks keep `accent` (3:1 is enough for a non-text mark).
 THEMES = {
     "dark": {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
-        "accent": "#6a90c0", "accent_text": "#6a90c0", "primary": "#3a6ba5", "primary_hover": "#3f70aa", "primary_pressed": "#2f5a8f", "accent_hover": "#7a9fcc", "accent_pressed": "#5a7eab", "on_accent": "#ffffff", "link": "#6cb0ff",
+        "accent": "#6a90c0", "accent_text": "#6a90c0", "primary": "#3a6ba5", "primary_hover": "#3f70aa", "primary_pressed": "#2f5a8f", "accent_hover": "#7a9fcc", "accent_pressed": "#5a7eab", "on_accent": "#ffffff", "stop": "#c62828", "stop_hover": "#b3261e", "link": "#6cb0ff",
         # Notes and warnings: the text and the symbol of an entry take the same token (the Run panel list was link blue with a text-coloured symbol)
         "alert": "#e0a030", "alert_note": "#e0a030", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
@@ -32,8 +34,8 @@ THEMES = {
         "doc_bg": "#353b43", "doc_text": "#d8dce1", "doc_head": "#f0f2f4", "doc_link": "#9ccbff",
     },
     "light": {
-        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
-        "accent": "#5a7fb0", "accent_text": "#4a6a96", "primary": "#4a6a96", "primary_hover": "#41608a", "primary_pressed": "#34567f", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "link": "#0000ff",
+        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#646b78", "hint": "#5f6570",
+        "accent": "#5a7fb0", "accent_text": "#4a6a96", "primary": "#4a6a96", "primary_hover": "#41608a", "primary_pressed": "#34567f", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "stop": "#c62828", "stop_hover": "#b3261e", "link": "#0000ff",
         "alert": "#8a5a00", "alert_note": "#8a5a00", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "map_copper": "#b9bec5", "map_laminate": "#4d4d4d", "map_contour": "#ffffff",
@@ -335,26 +337,33 @@ def apply_theme(app, name):
         QPushButton#primary:hover {{ background: {c['primary_hover']}; }}
         QPushButton#primary:pressed {{ background: {c['primary_pressed']}; }}
         QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; }}
+        QPushButton#primary:focus {{ border: 2px solid {c['text']}; }}
+        QPushButton#primary[stop="true"] {{ background: {c['stop']}; border-color: {c['stop']}; color: {c['on_accent']}; }}
+        QPushButton#primary[stop="true"]:hover {{ background: {c['stop_hover']}; }}
+        QPushButton#primary[stop="true"]:focus {{ border: 2px solid {c['text']}; }}
         QStatusBar {{ border-top: 1px solid {c['border']}; }}
         QHeaderView::section {{ background: {c['alt']}; border: none; padding: 4px 8px; }}
         QTableWidget, QTreeWidget {{ border: 1px solid {c['border']}; gridline-color: {c['border']}; }}
         QProgressBar {{ border: 1px solid {c['border']}; border-radius: 4px; text-align: center; height: 14px; }}
         QProgressBar::chunk {{ background: {c['accent']}; border-radius: 3px; }}
+        QProgressBar#runProgress {{ border: none; border-radius: 2px; background: {c['alt']}; max-height: 6px; min-height: 6px; }}
+        QProgressBar#runProgress::chunk {{ background: {c['accent']}; border-radius: 2px; }}
         QLabel[error="true"] {{ color: {c['error']}; }}
         QLabel[hint="true"] {{ font-size: 11px; color: {c['hint']}; }}
     """)
 
 
-VERDICT_DOT = "●"                                   # The one dot of every verdict line (memory lines of the Simulation panel, rows of the warnings)
 
 
 def verdict_dot(colour):
     """!
-    @brief The dot that opens a verdict line, as rich text in a colour of the theme; drawn once here so that every list uses the same mark.
+    @brief The dot that opens a verdict line, as rich text in a colour of the theme: the picture of gui/dots.py, the one painter of every dot of the window.
     @param colour Colour string (a theme token value such as colors(name)["ok"]).
-    @return str HTML span with the dot.
+    @return str HTML <img> tag of the dot.
     """
-    return f'<span style="color:{colour}">{VERDICT_DOT}</span>'
+    from .dots import dot_html                       # Imported here: dots.py stays free of the theme
+
+    return dot_html(colour)
 
 
 def hint(label):

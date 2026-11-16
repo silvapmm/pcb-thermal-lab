@@ -22,11 +22,12 @@ from .. import defaults
 from ..api import SKIPPABLE_MODELS, suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
-from . import tips
+from . import a11y, tips
 from .document import KINDS
 from . import theme as th
 from ..checks import fem_cell_for_direct, fem_needs_pyamg, line
 from .boxes import CollapsibleBox
+from .elided import ElidedLabel
 from .spinfit import fit_range, show_value
 from .warning_box import WarningAccordion
 from ..numfmt import num
@@ -141,13 +142,14 @@ class BoardPanel(QWidget):
         self.outline_label.setWordWrap(True)
         self.outline_label.setToolTip("Board shape inside the width x height box; outside it there is no board. FVM, FDM, 3D solid: any outline; LPTN, Analytic: the rectangle of the same area.")
         self.preset = QComboBox()
-        self.preset.addItem("Preset shape...", None)
+        self.preset.setAccessibleName("Preset shape")
+        self.preset.addItem("Preset shape…", None)
         for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
             self.preset.addItem(label, label)
         self.preset.setToolTip("Replace the outline by a preset that fits the box; edit the vertices below.")
         self.preset.currentIndexChanged.connect(self._pick_outline)
         self.outline_table = QTableWidget(0, 2)
-        self.outline_table.setHorizontalHeaderLabels(["x (mm)", "y (mm)"])
+        self.outline_table.setHorizontalHeaderLabels(["x mm", "y mm"])     # Unit after the name, as every table of the Results
         self.outline_table.setMaximumHeight(140)
         self.outline_table.setToolTip("Outline vertices, mm from the box's lower-left corner. Edit a cell to move one.")
         self.outline_table.itemChanged.connect(self._edit_vertex)
@@ -228,7 +230,7 @@ class BoardPanel(QWidget):
         self.k_ip = _spin(0.01, 1000, 0.9, 2, 0.05, "W/mK")
         self.plating = _spin(1, 1000, 25, 0, 1, "µm")
         self.laminate = QComboBox()
-        self.laminate.addItem("Laminate preset...", None)
+        self.laminate.addItem("Laminate preset…", None)
         for entry in DIELECTRICS:
             self.laminate.addItem(f"{entry[0]}: {num(entry[1])} / {num(entry[2])} W/mK", entry)
         self.laminate.setToolTip("Typical dielectric (indicative): fills k through, k in-plane, density and specific heat of the simple stack-up.")
@@ -709,8 +711,13 @@ class ElementList(QWidget):
                 if (kind, i) in sel:
                     child.setSelected(True)
             top.setExpanded(len(lst) <= 12)
+        head = self.tree.header()
+        fm = head.fontMetrics()
         for c in range(3):
             self.tree.resizeColumnToContents(c)
+            # Never narrower than the header text with the padding of the theme's header style (8 px a side) and the sort arrow: an empty list cut 'Layer' to 'Laye'
+            label = self.tree.headerItem().text(c)
+            head.resizeSection(c, max(head.sectionSize(c), fm.horizontalAdvance(label) + 24))
         self._updating = False
         # A new element made while the filter is on is shown only if it matches (the filter is re-applied after every edit)
         if self.filter.text():
@@ -1190,12 +1197,14 @@ class Inspector(QWidget):
         # horizontal scroll bar in the 340 px dock (the open list still shows every entry in full)
         compact_combos(self.form_host, chars=12)
         tips.apply(self.form_host)
+        a11y.name_fields(self.form_host)                       # Screen readers read the label of each field, not only its value
         self._form_selection = list(self.selection)
         # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as
         # empty and the scroll area of the dock kept the old height; the rows of a taller form were drawn on top of each other (README screenshots)
         self.form_host.show()
         self.form_host.layout().activate()
         self.lay.activate()
+        a11y.chain_after(self, self._focus_chain())            # Tab goes through the new fields right after the dock, not after the tool bar
         if focus_at is not None:
             chain = self._focus_chain()
             if focus_at < len(chain):
@@ -1269,7 +1278,7 @@ class Inspector(QWidget):
             self.doc.set_props(kind, index, merge=False, **fields)
 
         mat = QComboBox()
-        mat.addItem("Interface material preset...", None)
+        mat.addItem("Interface material preset…", None)
         mat.addItem("Direct contact (no material, R = 0)", "direct")
         for label, k_, t_ in INTERFACES:
             mat.addItem(f"{label}: {num(t_)} mm", (k_, t_ * 1e-3))
@@ -1543,6 +1552,7 @@ class SolverPanel(QWidget):
 
     run_requested = Signal()
     cancel_requested = Signal()
+    status_changed = Signal(str)                           # The line under the Run button changed (the main window mirrors it in the status bar)
     RUN_TEXT = "Run simulation   (F5)"
     STOP_TEXT = "Stop   (Ctrl+.)"
     STOP_TIP = "Stop the calculation (Ctrl+.)"
@@ -1640,11 +1650,18 @@ class SolverPanel(QWidget):
         self.run.setObjectName("primary")
         self.run.clicked.connect(self._run_clicked)        # Run when idle, Stop while a calculation runs
         self.progress = QProgressBar()
+        self.progress.setObjectName("runProgress")         # A slim bar (theme style): an empty full-height box was always shown under Run
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
-        self.status = QLabel("")
-        self.status.setWordWrap(True)
+        keep = self.progress.sizePolicy()
+        keep.setRetainSizeWhenHidden(True)                 # Hidden when idle, its place kept: the boxes below do not jump when a run starts
+        self.progress.setSizePolicy(keep)
+        self.progress.setVisible(False)
+        # The status line: up to three lines, the rest elided with the whole text in the tooltip; it always keeps two lines of height so that a
+        # one-line stage and a two-line one ('Solving FEM (assembly and solve: ...)') do not move the Models box while a calculation runs
+        self.status = ElidedLabel("", max_lines=3)
+        self.status.setMinimumHeight(2 * self.status.fontMetrics().lineSpacing() + 2)
         self.checks = WarningAccordion("simulation")          # The 'Warnings (N)' box of the scrolled settings
         # The Run button and the progress are a header of their own: the main window keeps it above the scrolled boxes, so the
         # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
@@ -1870,7 +1887,7 @@ class SolverPanel(QWidget):
             if v.verdict == "ok" and not v.exceeds_available:
                 rows.append(f'{th.verdict_dot(colours["ok"])}&nbsp;{html.escape(text)}')
             else:
-                rows.append(f'<span style="color:{colours[v.verdict]}">{th.VERDICT_DOT}&nbsp;{html.escape(text)}</span>')
+                rows.append(f'{th.verdict_dot(colours[v.verdict])}&nbsp;<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
             # The 3D solid and the FEM are only skipped when other models run next to them (api.SKIPPABLE_MODELS, the rule of api.simulate); any other refusal stops the run
             if v.verdict == "refuse" and (v.model not in SKIPPABLE_MODELS or len(self.doc.options.models) == 1):
                 blocked = blocked or v.message
@@ -1885,7 +1902,7 @@ class SolverPanel(QWidget):
                     use = f"use a cell of {fit:.1f} mm or more" if fit else "use a coarser cell"            # Like the other models: say which cell to use
                     why = (f"FEM: {n_fem} unknowns, more than the direct solver takes; it needs the package pyamg (pip install pyamg) and "
                            + (f"will not run: install it or {use}" if alone else f"will be left out ({use} to keep it)"))
-                    rows.append(f'<span style="color:{colours["refuse"]}">{th.VERDICT_DOT}&nbsp;' + html.escape(why) + "</span>")
+                    rows.append(f'{th.verdict_dot(colours["refuse"])}&nbsp;<span style="color:{colours["refuse"]}">' + html.escape(why) + "</span>")
                     if alone:
                         blocked = blocked or why
         self.cells_label.setText("<br>".join(rows))
@@ -1904,7 +1921,7 @@ class SolverPanel(QWidget):
         self.cell.setValue(cell)
         # A board with imported copper has its own sentence (Auto is capped at 1 mm there, and above 1.5 mm the result is a screening estimate)
         note = copper.auto_cell_note(self.doc.problem, cell)
-        self.status.setText(note or (f"Auto: the cell was enlarged to {num(cell, 2)} mm to fit the memory limit." if cell > base + 1e-9 else ""))
+        self._set_status(note or (f"Auto: the cell was enlarged to {num(cell, 2)} mm to fit the memory limit." if cell > base + 1e-9 else ""))
 
     def _apply(self, *_):
         """!
@@ -1974,6 +1991,11 @@ class SolverPanel(QWidget):
         """!
         @brief Text, tooltip and enabled state of the Run / Stop button: Stop is always usable; Run is off while a model is above the memory limit.
         """
+        # The button is drawn as Stop (the 'stop' fill of the theme, red like the stop square of the tool bar) while a calculation runs
+        if bool(self.run.property("stop")) != self._busy:
+            self.run.setProperty("stop", self._busy)
+            self.run.style().unpolish(self.run)
+            self.run.style().polish(self.run)
         if self._busy:
             self.run.setText(self.STOP_TEXT)
             self.run.setToolTip(self.STOP_TIP)
@@ -1985,12 +2007,20 @@ class SolverPanel(QWidget):
         # Why Run is grey is said next to the button (the status line of the footer, above the scrolled boxes), not only in a tooltip or below the fold
         reason = f"Cannot run: {self.blocked}" if self.blocked else ""
         if reason:
-            self.status.setText(reason)
             self.status.setStyleSheet(f"color: {th.colors(th.current_name())['bad']};")
+            self._set_status(reason)
         elif self.status.text().startswith("Cannot run: "):
-            self.status.setText("")
+            self._set_status("")
         if not reason:
             self.status.setStyleSheet("")
+
+    def _set_status(self, text):
+        """!
+        @brief Write the line under the Run button and tell the main window (which shows the run state in its status bar too).
+        @param text The line, "" for none.
+        """
+        self.status.setText(text)
+        self.status_changed.emit(text)
 
     def set_running(self, running, text=""):
         """!
@@ -2000,7 +2030,8 @@ class SolverPanel(QWidget):
         """
         self._running = running
         self._style_run_button()
-        self.status.setText(text)
+        self._set_status(text)
+        self.progress.setVisible(bool(running))
         if not running:
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
@@ -2011,7 +2042,8 @@ class SolverPanel(QWidget):
         @param text Status text.
         @param fraction Progress between 0 and 1.
         """
-        self.status.setText(text)
+        self._set_status(text)
+        self.progress.setVisible(True)
         # The FEM has no inner progress (one assembly and solve): an indeterminate bar says 'working', a fixed 66 % would say a number it does not know
         indeterminate = text.startswith("Solving FEM")
         self.progress.setRange(0, 0 if indeterminate else 100)

@@ -37,7 +37,7 @@ def entry_name(value):
     if value == ALL_LAYERS:
         return "All layers"
     if value == ALL_GRID:
-        return "All (2 x 2)"
+        return "All (2 × 2)"
     if value >= SURFACE_BASE:
         return f"Surface ({'top' if value == SURFACE_BASE else 'bottom'})"
     return f"Metal block ({'top' if value == BLOCK_BASE else 'bottom'})"
@@ -66,7 +66,7 @@ def items(context, n, block_faces=(), surface_faces=()):
     if context == EXTENDED_CONTEXT:
         out += [("All layers", ALL_LAYERS)]
         if n > 1:
-            out += [("All (2 x 2)", ALL_GRID)]          # A one-layer board has no grid to show (it would show All layers under another name)
+            out += [("All (2 × 2)", ALL_GRID)]          # A one-layer board has no grid to show (it would show All layers under another name)
     out += [(layer_label(l, n), l) for l in range(n)]
     if context == EXTENDED_CONTEXT:
         out += [(entry_name(BLOCK_BASE + f), BLOCK_BASE + f) for f in sorted(block_faces)]

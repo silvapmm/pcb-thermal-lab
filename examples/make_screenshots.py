@@ -46,7 +46,7 @@ def _assert_neutral(path):
         raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
 
 
-FULL_COLOUR = ("editor", "simulation_")          # File-name prefixes saved without the 256-colour quantisation (the verdict dots must stay distinct)
+FULL_COLOUR = ("editor", "simulation_", "results_summary")      # File-name prefixes saved without the 256-colour quantisation (the verdict and warning dots must stay distinct)
 
 
 def shrink(path, max_width=1400):

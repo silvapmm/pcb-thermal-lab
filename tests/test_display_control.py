@@ -168,7 +168,7 @@ def test_the_choices_work_before_a_run_and_are_kept_for_the_first_map(qtbot, tmp
     pop = win.display_popover
     pop.underlay.setCurrentIndex(1)
     pop.view.setCurrentIndex(pop.view.findData("smooth"))
-    pop.cmap.setCurrentIndex(pop.cmap.findText("viridis"))
+    pop.cmap.setCurrentIndex(pop.cmap.findData("viridis"))
     pop.opacity_spin.setValue(40)
     pop.flush()
     _with_result(win, sim)

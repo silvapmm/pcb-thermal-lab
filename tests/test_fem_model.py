@@ -236,7 +236,7 @@ def test_the_command_line_runs_the_fem_on_a_small_project(tmp_path, capsys):
     save_project(path, Project(problem=small()))
     rc = cli.main(["run", str(path), "--model", "fem", "--cell-mm", "2", "--out", str(tmp_path / "out"), "--no-plots", "--fem-gap-elements", "4"])
     out = capsys.readouterr().out
-    assert rc == 0 and "| fem |" in out
+    assert rc == 0 and "| FEM |" in out
     summary = json.loads((tmp_path / "out" / "summary.json").read_text())
     assert "fem" in summary["models"] and summary["options"]["fem_gap_elements"] == 4 and summary["options"]["comparison_models"] == ["fem"]
 
@@ -248,7 +248,7 @@ def test_the_command_line_runs_the_fem_on_the_example_board(tmp_path, capsys):
     path = tmp_path / "ex.pcbt.json"
     save_project(path, Project(problem=example_board()))
     assert cli.main(["run", str(path), "--model", "fem", "--cell-mm", "2", "--out", str(tmp_path / "out"), "--no-plots"]) == 0
-    assert "| fem |" in capsys.readouterr().out
+    assert "| FEM |" in capsys.readouterr().out
 
 
 def test_every_tuple_that_lists_the_3d_solid_as_a_comparison_model_lists_the_fem():

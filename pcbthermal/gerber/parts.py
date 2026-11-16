@@ -1376,7 +1376,7 @@ def diff_parts(old, new, move_mm=MOVED_MM, resize_mm=0.2):
                 detail.append(f"{d:.2f} mm")
             if max(abs(ca[1][0] - cb[1][0]), abs(ca[1][1] - cb[1][1])) > resize_mm:
                 changes.append("resized")
-                detail.append(f"{ca[1][0]:.2f} x {ca[1][1]:.2f} to {cb[1][0]:.2f} x {cb[1][1]:.2f} mm")
+                detail.append(f"{ca[1][0]:.2f} × {ca[1][1]:.2f} to {cb[1][0]:.2f} × {cb[1][1]:.2f} mm")
         # Rotated: the rotation written by the files changed, or (no rotation in the files) the box of the shape swapped its sides; the sorted sides of `resized` do not see a quarter turn
         ra, rb = a.from_file.get("rotation_deg"), b.from_file.get("rotation_deg")
         turn = None

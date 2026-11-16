@@ -472,8 +472,8 @@ class Simulation:
         if self.h_used:
             b = self.problem.board
             lines.append("")
-            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {num(b.emissivity_top)} top, "
-                         f"{num(b.emissivity_bottom)} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
+            lines.append(f"Heat transfer coefficients computed from correlations (emissivity: top {num(b.emissivity_top)}, "
+                         f"bottom {num(b.emissivity_bottom)}; {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
                          f"convection multiplier {num(b.h_calibration)}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
@@ -1297,7 +1297,7 @@ def _simulate(problem, options, progress):
         for name, how, accuracy in (
                 ("lumped", "one more layer of the ring network",
                  "on the cool side of the FVM, within about 5 % with one pad under the block and up to about 7 % with several pads or a block much smaller than the board "
-                 "(tests on 100 x 80 mm two-layer boards)"),
+                 "(tests on 100 × 80 mm two-layer boards)"),
                 ("analytic", "a graph of tiles in the Green-function correction",
                  "within about 5 % of the FVM in the tests (one plate on one to four pads)")):
             if name in sim.results:

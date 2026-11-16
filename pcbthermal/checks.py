@@ -437,7 +437,7 @@ def is_fem_left_out(text):
     @param text A warning (str).
     @return bool.
     """
-    return "finite-element model (FEM)" in text and "will be left out" in text
+    return "FEM (finite elements)" in text and "will be left out" in text
 
 
 def check_fem(problem, models, cell_mm):
@@ -457,15 +457,15 @@ def check_fem(problem, models, cell_mm):
     try:
         n = femmesh.unknowns(problem, cell_mm)[0]
     except ValueError as exc:
-        _add(out, None, None, f"The finite-element model (FEM) cannot be built for this board and will be left out: {exc}.",
-             "The finite-element model (FEM) cannot be built for this board (see the details).", ALERT)
+        _add(out, None, None, f"The FEM (finite elements) will be left out: it cannot be built for this board; {exc}.",
+             "The FEM cannot be built for this board (see the details).", ALERT)
         return out
     if n > femcore.FEM_DIRECT_MAX and not femcore.available():
-        _add(out, None, None, f"The finite-element model (FEM) mesh has {n} unknowns, more than the {femcore.FEM_DIRECT_MAX} that the direct solver takes, and the package pyamg is not "
+        _add(out, None, None, f"The FEM (finite elements) mesh has {n} unknowns, more than the {femcore.FEM_DIRECT_MAX} that the direct solver takes, and the package pyamg is not "
              f"installed (pip install pyamg), so the FEM will be left out. A coarser cell ({cell_where()}) gives a smaller mesh.",
              "The FEM needs the package pyamg for a mesh this large: it will be left out.", ALERT)
     if copper.CopperSource.of(problem) is not None:
-        _add(out, None, None, "The finite-element model (FEM) reads imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported "
+        _add(out, None, None, "The FEM (finite elements) reads imported copper as the mean of the mask over every element, as the 3D solid reads it per cell: on an imported "
              "board it is a different stencil, not a better answer; the FVM and FDM read the copper through the face conductances.",
              "The FEM reads imported copper as an element average (no better than the 3D solid).")
     fine = cell_mm * 1e-3 / 2.0
@@ -648,7 +648,7 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     return ("the LPTN model can read this part too cool, unsafe for a design: its vias form an array that continues past the edge of the footprint, "
             "stands off its centre, or lies under an elongated footprint (side ratio above 1.5), where the rings overstate the via effect (measured up to "
             "3.2 times the reference: the part up to about 11 K, a quarter of its rise, too cool for an array across the edge of a 12 mm footprint; "
-            "6.3 K, 17.5 % of its rise, for a 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part); use the FVM for via design.")
+            "6.3 K, 17.5 % of its rise, for a 5 × 5 array 1.5 mm off the centre of a 12 × 8 mm part); use the FVM for via design.")
 
 
 def check_lumped_zones(problem, result):
@@ -696,7 +696,7 @@ def check_lumped_zones(problem, result):
         if across:
             _add(out, "heater", k, f"{name}: the LPTN model splits this footprint into the vias' core and the rest, but its vias form an array that continues past the edge "
                                    "of the footprint, which the split does not resolve: the part can be read too cool, up to 16 % of its rise (measured 1 to 16 % of the rise "
-                                   "for a 5 x 5 array across the edge, steady state and power profile); use the FVM for via design.")
+                                   "for a 5 × 5 array across the edge, steady state and power profile); use the FVM for via design.")
         elif off_centre or elongated:
             _add(out, "heater", k, f"{name}: the LPTN model splits this footprint into the vias' core and the rest; its vias stand off the centre of the footprint or the "
                                    "footprint is elongated (side ratio above 1.5): the part can be read too cool, measured 1 to 5 % of its rise (off centre) and 2 to 4 % "
@@ -1240,7 +1240,7 @@ EDGE_LAMINATE_H = 200.0
 def _edge_via_clause(problem, models):
     """!
     @brief Extra sentences of the strong-edge warning about the vias of the FDM and of the 3D solid (text only).
-    @details Measured against an independent finite-element solution on a 10 x 10 mm four-layer board with every wall cooled (via 0.16 mm and 3 mm from the wall, a 3 x 3 array):
+    @details Measured against an independent finite-element solution on a 10 × 10 mm four-layer board with every wall cooled (via 0.16 mm and 3 mm from the wall, a 3 x 3 array):
              the FDM with eight sub-gaps (its own part, beyond the laminate at the edge) reads the via effect 1 to 3 % low at 200 W/m2K and 4 to 9 % low at 1000 W/m2K at a 0.25 mm cell (up to 20 % at 1 mm),
              on the safe side (the part reads hotter); the 3D solid reads it
              too large, up to about 26 % at 0.5 mm and 10 % at 0.25 mm for a via 0.16 mm from a 1000 W/m2K edge and 7 to 14 % also 3 mm from it (unsafe side, falling about by half per halving of the cell).
@@ -1311,7 +1311,7 @@ def check_edge_laminate(problem, models):
 def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
     """!
     @brief The edge-laminate warning for a board whose laminate gaps are all thinner than the longest sub-gap, so that no gap is cut into sub-gaps.
-    @details Measured on 10 x 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
+    @details Measured on 10 × 10 mm boards of 4 to 8 copper layers (35 um) and 1.0 to 1.6 mm, a 0.5 W part, full copper or a pad on the outer layers, physical slabs (advanced
              stack-up), at a 0.25 mm cell, against an independent hexahedral finite-element solution (a different METHOD from the program; the cell-centred 3D reference first used for
              this text reads 1 to 9.5 % hot at that cell, so the old figures of -1 to -16 % were about twice the real error; a sample, not a bound): the shipped rule reads the hottest rise
              -0.1 to -1.1 % at 200 W/m2K, -0.9 to -3.2 % at 500, -2.2 to -6.0 % at 1000 and -4.1 to -9.7 % at 2000 (pads on the outer layers up to -1.3 / -2.4 / -3.8 / -5.2 %), and eight
@@ -1326,7 +1326,7 @@ def _edge_laminate_uncut(b, s_max, via_l="", via_s=""):
     out = []
     _add(out, None, None,
          f"The edge coefficient ({num(b.h_side, 2)} W/m2K) is above {EDGE_LAMINATE_H:g} W/m2K and every laminate gap of this board is under the longest sub-gap ({num(s_max * 1e3, 2)} mm), "
-         "so no gap is cut and the laminate along the board edge is one node per gap: the layered FVM and FDM may read the board too cool. Measured on 10 x 10 mm boards of 4 to 8 layers "
+         "so no gap is cut and the laminate along the board edge is one node per gap: the layered FVM and FDM may read the board too cool. Measured on 10 × 10 mm boards of 4 to 8 layers "
          "and 1.0 to 1.6 mm, at a 0.25 mm cell, against an independent finite-element solution: about -0.1 to -1 % of the rise at 200 W/m2K, -1 to -3 % at 500, -2 to -6 % at 1000 and "
          "-4 to -10 % at 2000 (a sample, not a bound). The finite-element solution is a different method from the program; "
          "the cell-centred 3D solver used before reads 1 to 9.5 % hot at that cell, which is why earlier texts quoted about twice these errors. "
@@ -1367,13 +1367,13 @@ def check_reduced_edge_laminate(problem, models):
     via_l, via_s = "", ""
     if "analytic" in reduced and problem.vias:
         via_l = ("The Analytic model also reads the effect of the vias too small near such an edge: 17 to 20 % too small next to an edge of 1000 W/m2K "
-                 "(one via 0.16 or 3 mm from the edge, or a 3 x 3 array, on a 1.6 mm four-layer board, against an independent finite-element solution), within 5 % at 200 W/m2K. ")
+                 "(one via 0.16 or 3 mm from the edge, or a 3 × 3 array, on a 1.6 mm four-layer board, against an independent finite-element solution), within 5 % at 200 W/m2K. ")
         via_s = "; Analytic via effect up to 20 % too small next to a 1000 W/m2K edge"
     _add(out, None, None,
          f"The {names} {'models keep' if len(reduced) > 1 else 'model keeps'} the edge film of the laminate at the copper temperature (no laminate nodes along the edge), so with an "
          f"edge coefficient of {num(hs, 2)} W/m2K on a {num(t_mm, 2)} mm board {'they read' if len(reduced) > 1 else 'it reads'} the board too cool where much of the heat leaves "
          "through the edge (two-layer boards with a 10 mm part, against an independent 3D solver: the Analytic -2.6 to -14.9 % of the rise at 200 W/m2K, the most for a part in a corner "
-         "of a 30 x 20 mm board on 3.2 mm, and within 1.4 % at the default 10 W/m2K; against the FVM -0.8 to -11.4 %; at the threshold of this warning, 100 W/m2K on 1.6 mm or 50 W/m2K "
+         "of a 30 × 20 mm board on 3.2 mm, and within 1.4 % at the default 10 W/m2K; against the FVM -0.8 to -11.4 %; at the threshold of this warning, 100 W/m2K on 1.6 mm or 50 W/m2K "
          "on 3.2 mm, about -3 %; less for a part far from the edge or a large board; the LPTN, since the mirror images of the sides in its first link, -8.0 to +1.2 % against the FVM on the same boards). "
          + via_l + "Use the FVM or the FDM for such a board.",
          f"{names}: edge coefficient {num(hs, 2)} W/m2K on {num(t_mm, 2)} mm, the edge laminate is held at the copper temperature and the board reads cool (-3 to -15 % at 200 W/m2K against an independent 3D solver){via_s}; use the FVM or FDM.")
