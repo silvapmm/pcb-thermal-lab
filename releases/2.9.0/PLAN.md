@@ -165,6 +165,11 @@ Prepared without running anything (on `research/<topic>` branches that only plan
 5. Open wave 0: branch `research/drawn-ell-fvm-fdm` first (size S to M), then `fix/audit-leftover-texts` in an isolated worktree; research branches in parallel; the reviewer is called for every closed investigation and every code branch, two at most at once.
 6. Never edit `pcbthermal/`, `tests/`, `examples/` or the project documents from a research branch; a measured change goes to `INTEGRATION.md`.
 
+## Leftover research branches
+
+* `research/paper-notes-policy`: merge only after (1) the reviewer confirms the three pilot notes are in our own words against the page images; (2) the folder is tidied to the research layout and the 'temporary' wording removed; (3) its tests, `tests/test_docs.py` and `tests/test_license_header.py` pass; (4) the registers `research/REVIEW.md`, `research/README.md` and F10 are updated.
+* `research/muzychka-influence-coefficients`: opens when the PDF of the article is obtained; the folder will be renamed by topic when it opens.
+
 ## 8. What was read and what was not verified
 
 * Read in full: the files of the first paragraph marked 'in full'. The registers `research/ROADMAP.md` and `research/REVIEW.md` were searched, not read end to end; their open rows about the FEM and the surface (A52, A43, A46, A47) are mentioned and may have a later status than I saw.

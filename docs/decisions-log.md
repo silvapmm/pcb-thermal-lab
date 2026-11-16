@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Leftover branches (reviewer's opinion adopted)**: `tmp/merge-280d` deleted; `tmp/article-1319202` and `tmp/paper-notes-policy` promoted to `research/muzychka-influence-coefficients` and `research/paper-notes-policy` without merge; `docs/readout-selector` kept unmerged (it contradicts the final surface behaviour). Opinion: `releases/2.9.0/leftover-branches/OPINION.md`.
+
 - **Release 2.8.0: tree tested whole (4054 passed); merged to `main` and tagged `v2.8.0` with the maintainer's word on 2026-11-16** (the maintainer said to correct, go on and release to `main` if everything had passed; the tester's GO was on the tree of `development` plus `fix/summary-warnings-spacing`).
 
 - **Room between the Warnings box and the report on the Summary page** (`fix/summary-warnings-spacing`; maintainer's one small change after approving the page): the accordion keeps an 8 px bottom margin (`results_view.SUMMARY_WARNINGS_GAP_PX`; hidden with the box when there are no notes, the console keeps its stretch); display only, no number moves; test in `tests/test_summary_table.py`, pictures `results_summary*.png` regenerated.
