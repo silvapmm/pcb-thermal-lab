@@ -13,6 +13,10 @@ Tree: `development` 232ba648 plus the refreeze commit; baseline: tag v2.7.1 (v2.
 * Tests: `PCBT_FROZEN_CELLS=2,1,0.5 pytest tests/regression` 413 passed in 182 s (200 with cell 2 only).
 * Times and resources: baseline run on v2.7.1 about 2 min, final run 192 s; peak resident memory 4.17 GB (above the 4 GB ceiling, finished without trouble); swap 1.77 GB.
 
+## Two FEM records regenerated after the interface-pad correction
+
+After `fix/fem-interface-pad-film` (the FEM interface pad of a metal block carries no film on its side walls and conducts across only) two records of the frozen file were regenerated with `study_run_suite.py --label padfix --models fem --boards finned_block --no-transients --no-sor` (the same harness, options and tree, version 2.8.0) and written with the same function (`regress_classify.metrics_of`, class `moved`) into `tests/regression/data/v2.8.0.json` and its reference copy (the two files stay identical; nothing else in them changed, checked record by record). `finned_block|fem|1`: hottest 129.918 to 130.211 degC (+0.293 K), block bottom mean 64.770 to 65.074 degC. `finned_block|fem|2`: hottest 128.806 to 129.099 degC (+0.293 K), block bottom mean 64.770 to 65.074 degC. The FEM records are additions (no baseline), so the diff report and the table of expected shifts do not change. The count of records stays 332 and the 413 tests of the regression folder stay the same.
+
 ## The version line
 
 `pcbthermal.__version__` is still 2.7.1 on `development`, and the freeze refuses a version other than 2.8.0. The tester put a temporary `2.8.0` line for the final run and the freeze and reverted it. The real bump belongs to the release commit.
