@@ -640,6 +640,34 @@ Implementable as written, with five changes (made in INTEGRATION.md):
 
 **Go for the implementation** on `feature/lumped-zones`, with the conditions of INTEGRATION.md 0.2 as corrected here. The folder is ready to be merged into `develop` after this review (the tests of the folder pass, 20; the program is untouched). Not verified by this review: a 3D solver with the barrel resolved; the profile with a table or one-shot power, two heaters of which one is zoned; a Gerber board; the cost of a 200 mm board at 0.5 mm; the Icepak library value of FR-4 (from memory); the figures 5 to 10 (not redrawn from the rebuilt data, as 9 says); figures 11 to 16 were looked at and agree with the tables.
 
+## 11. The program of 2.8.0: the first link with the mirror images (reproduction pass)
+
+**What changed.** From 2.8.0 (`fix/lumped-edge-first-link`, `docs/validation.md` 53) the program's Lumped reads the link from the footprint to ring 1 as the potential of the footprint and its eight mirror images in the board sides, taken to the mean of ring 1. The copy in `lib/zoned_lumped.py` was made from the program of 2.4.5 and keeps the earlier link (half of ring 1 as a strip after the footprint potentials, without images). On the tree of 2.8.0 the folder's equalities 'zones off, or no vias, equals the program' therefore failed. The reproduction pass found three failing tests (`releases/2.8.0/reproduction/PART-C.md` 1, finding 1). Bisected: they pass on v2.7.1, `e2b3b069` and `ed6d9c99`, and fail from `43aeb1ad`.
+
+**What the folder does now (the honest option chosen).** The copy is the record of the adopted proposal and is not rewritten to the new link: porting the image link into its zoned network would be a new proposal, not a reproduction. Instead the folder states which program it compares against:
+* `lib/zoned_lumped.py` sets `lumped.IMAGE_MAX_CELLS = 0` at import. This is the program's own fallback for a large footprint, and it keeps the plain first link for every footprint, so 'the program' of this folder has the first link of 2.4.5 to 2.7.1.
+* The environment variable `PCBT_ZONES_FIRST_LINK=2.8.0` runs the program as it ships.
+* The test fixture sets the same switch.
+
+With the switch the 20 tests pass on `development` 77ed4822, and the invariants of 4.6 hold again to round-off.
+
+| `study_invariants.py` (77ed4822, max abs dT, K) | first link of 2.7.1 (default) | first link of 2.8.0 (`PCBT_ZONES_FIRST_LINK=2.8.0`) |
+| :-- | --: | --: |
+| no vias, zones on vs program, example board (9 vias) | 1.4e-13 | 1.70 |
+| zones off vs program, example board | 8.5e-14 | 1.69 |
+| zones off vs program, 4 layers, 5 x 5 at 1.2 mm under 10 mm | 1.1e-13 | 0.071 |
+| zones off vs program, 2 layers, 3 x 3 at 2.0 mm under 8 mm | 4.3e-14 | 0.19 |
+| group outside the footprint, zones on vs program | 7.8e-14 | 0.43 |
+| via gain of the 5 x 5 board (zones), K | -1.57 (-3.1 %) | -1.73 (-3.4 %) |
+
+The other studies give the same picture. `study_edge_and_offcentre.py`: the zoned columns (`Z_none`, `Z_cap`) are identical in both settings. The program column `P245` moves by up to 0.8 points (off centre, mean 71.4 against 72.1 %; side ratio 28.9 against 29.4 %; outside the footprint 46.8 against 46.3 %). `study_frozen_impact.py`: with the 2.7.1 link the copy equals the program to about 1e-6 K (at most 1.3e-6 K) on every board that keeps one node. With the 2.8.0 link it differs by the effect of the link, for example -0.69 K on `drawn_ell` at 2 mm.
+
+The face film of `fix/face-film-half-slab` is in both settings (`plate_vias` 136.1294 against 136.1293 °C in 9.8, a film term of 1e-4 K).
+
+**Reading.** The conclusions of sections 4 to 10 are about the zones against the one-node network of the same release, and they stand. The size of the 2.8.0 first link on these boards (0.07 to 1.7 K, the 'zones off' rows) is the item M3 of the 2.8.0 table, not a property of the zones. A zoned network with the 2.8.0 first link is not measured here.
+
+Reproduce (repository root, `development` 77ed4822, each under 1.1 GB and 50 s): `.venv/bin/python -m pytest -q research/lumped-zones-adoption/tests`, then `.venv/bin/python research/lumped-zones-adoption/scripts/study_invariants.py` (likewise `study_edge_and_offcentre.py`, `study_frozen_impact.py`), each with and without `PCBT_ZONES_FIRST_LINK=2.8.0`. The other studies (Lumped columns moved by 0.1 to 0.5 points in the reproduction pass, all explained by M3) were not re-run with the switch.
+
 ## What was read and what was not verified
 
 * **Read for this work (in full, in the repository):** `research/lumped-via-groups/` (README, INTEGRATION.md, libraries and the family, holdout and example scripts), `research/young-omega-tiles/INTEGRATION.md`, `docs/theory.md` sections 5 and 6.1, `pcbthermal/lumped.py` and `pcbthermal/viaconstriction.py` as in `develop` (2.4.5 and the two Lumped fixes after it: `_footprint_potentials_blocks`, the profile runner `_LumpedAdapter`, `step_responses`).
