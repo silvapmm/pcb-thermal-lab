@@ -50,7 +50,8 @@ ID = {"face-film-half-slab": "M1", "drawn-copper-faces": "M2", "lumped-first-lin
 # Items of the table: (id, title, branch, evidence, what it moves)
 ITEMS = [
     ("M1", "Every face film of a copper node passes the half copper layer", "fix/face-film-half-slab", "docs/validation.md 55; CHANGELOG 2.8.0",
-     "FVM, FDM, Lumped and Analytic of every board, at every cell: hotter, median 2e-5 K and at most 0.040 K on the finned block (the heat into the block moves by 1.1e-3 W); the 3D solid moves nowhere"),
+     "FVM, FDM, Lumped and Analytic of every board, at every cell: hotter, median 2e-5 K and at most 0.040 K on the finned block (the heat into the block moves by 1.1e-3 W); the 3D solid moves nowhere. "
+     "Outside the frozen boards (reproduction pass, prose only, no stored tolerance): the shift is the film term itself, about q_f t / (2 k) with q_f = h theta the flux through the film and t / k of the outer layer or block, so it grows with t / k: a 10 mm plate of k 150 W/mK at 400 W/m2K and a 70 K rise moves +0.93 K (400 x 70 x 0.010 / (2 x 150) = 0.93 K, +1 %, FVM, FDM and Analytic alike), a 6 mm stainless block +0.7 K, an aluminium block +0.1 K, a via array resistance +0.34 % (releases/2.8.0/reproduction/PART-C.md 1, finding 2)"),
     ("M2", "Drawn copper read as imported copper (exact fill, flow-based faces) in the FVM and FDM", "fix/drawn-copper-faces", "docs/validation.md 51; research/drawn-copper-faces README 7",
      "FVM and FDM of the boards with a drawn layer that has a cell cut by a zone edge, at 2 mm (their other copper edges lie on cell lines), and their times to 63 %; the three new harness boards drawn_*. "
      "Outside the frozen boards (reproduction pass, prose, no stored tolerance): the calculator's JEDEC board without vias +12.0 % (74.6 to 83.5 K/W at 0.5 mm, the converged value; "
