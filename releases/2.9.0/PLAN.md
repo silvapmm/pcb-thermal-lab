@@ -167,5 +167,4 @@ Prepared without running anything (on `research/<topic>` branches that only plan
 
 ## Leftover research branches
 
-* `research/paper-notes-policy`: reviewed (README 6: GO) and merged into `development`; the rule on paper notes (decisions of its `INTEGRATION.md` 7) is still to be written into `CLAUDE.md` sections 5 and 7 on a `docs/` branch in 2.9.0 (line item); the pilot of 20 notes comes next.
 * `research/muzychka-influence-coefficients`: reviewed (README 4: GO) and merged into `development` as a literature note and plan; nothing was run, the article itself was not obtained (F11); the study opens when the PDF is obtained.
