@@ -33,6 +33,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e13 | Small: the 'estimate (upper side)' flag of the surface read-out (`T_surface_flag`, `thickness.py` line 116) takes `a = sqrt(A)` of the part, so an elongated part (2 x 20 mm on a 2 mm plate: sqrt(A) = 6.3 mm, t/a = 0.32) is not flagged although its narrow side gives t/a = 1; consider the smaller side, or both (theory review of 2.8.0, `releases/2.8.0/theory-review/README.md`); moves no number, only the flag | `fix/surface-flag-narrow-part` | S |
 | e14 | Small: with only the FEM (or only the 3D solid) ticked, the Power profile message says 'the 3D solid is steady state only' and does not name the FEM (`api.py` 1173; the FEM is left out of the time views, documentation review of 2.8.0); text only | with e9 | S |
 | e15 | Regenerate `docs/version-comparison.md` with every version: `regen_version_comparison.sh` needs result sets of v2.0.0 to v2.7.0 and v2.8.0 in `releases/regression-harness/out/` (re-run `study_baseline_release.py` for each tag, `study_run_suite.py --label v2.8.0`), then the label list of the script extended to 2.8.0 and the table `expected_shifts_2.8.0.json`; the `v2.7.0->v2.8.0` entry of `version_notes.json` exists (refreeze of 2.8.0); the document stays marked stale until then | `release/2.9.0-version-comparison` | M (many runs) |
+| e16 | Small: 3D solid interface pad: same in-plane conduction defect as the FEM pad (0.6 % at 5e-3): fix branch after 2.8.0 (moves the frozen 3D numbers: pending file) |
 
 ### 1.2 NOT in 2.9.0, with the reason
 

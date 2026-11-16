@@ -248,7 +248,7 @@ PCBT_COMPAT_V271=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests
 PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   # release gate: key values
 ```
 
-**Current state of the battery**: the last whole battery (merge of `fix/gui-review-rest`) gave `4013 passed` (+ 2 stale tests fixed afterwards), 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, in 54 min, with the real-board environment proven loaded; the final battery of the release tree runs before the tag and replaces this line. Frozen numbers 332 records at 2, 1 and 0.5 mm (`tests/regression/data/v2.8.0.json`), compat 5 (v2.4.5) + 17 (v2.7.1), secrets 4, published 14 + 1 xfailed. Known flakes under load: the timing test `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). The history is in `docs/versions.md` ('How each version was tested').
+**Current state of the battery**: the last whole battery gave 4050 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 1 warning on the final tree of 2.8.0 (whole battery 55 min 12 s, real-board environment proven loaded; frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed, three random-action tests passed). Frozen numbers 332 records at 2, 1 and 0.5 mm (`tests/regression/data/v2.8.0.json`), compat 5 (v2.4.5) + 17 (v2.7.1), secrets 4, published 14 + 1 xfailed. Known flakes under load: the timing test `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). The history is in `docs/versions.md` ('How each version was tested').
 
 ## 15. Where to continue (after 2.8.0)
 
