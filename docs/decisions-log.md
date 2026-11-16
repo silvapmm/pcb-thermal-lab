@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Paper notes rule adopted** (reviewer's decisions of `research/paper-notes-policy` taken by the maintainer, 2026-11-16): notes in our own words, at most one quotation of at most 25 words, similarity checker plus the reviewer's attestation against the page images, licence of the source read first, no model paraphrase of a full text; written into `CLAUDE.md` 5 and 7. Atlas F10 starts with a pilot of 20 notes (`research/thermal-sources-atlas/`).
+
 - **Research folders merged**: `muzychka-influence-coefficients` (literature note and plan; the article itself not obtained) and `paper-notes-policy` (copyright study of paper notes, 7 decisions taken by the reviewer, pilot of 20 notes next); whole battery 4058 passed on the merged tree (throwaway `tmp/merge-research`, program diff empty, research/ only).
 
 - **Leftover branches (reviewer's opinion adopted)**: `tmp/merge-280d` deleted; `tmp/article-1319202` and `tmp/paper-notes-policy` promoted to `research/muzychka-influence-coefficients` and `research/paper-notes-policy` without merge; `docs/readout-selector` kept unmerged (it contradicts the final surface behaviour). Opinion: `releases/2.9.0/leftover-branches/OPINION.md`.
