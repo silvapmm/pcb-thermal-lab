@@ -17,14 +17,14 @@
    "title": "Drawn copper read as imported copper (exact fill, flow-based faces) in the FVM and FDM",
    "branch": "fix/drawn-copper-faces",
    "evidence": "docs/validation.md 51; research/drawn-copper-faces README 7",
-   "moves": "FVM and FDM of the boards with a drawn layer that has a cell cut by a zone edge, at 2 mm (their other copper edges lie on cell lines), and their times to 63 %; the three new harness boards drawn_*"
+   "moves": "FVM and FDM of the boards with a drawn layer that has a cell cut by a zone edge, at 2 mm (their other copper edges lie on cell lines), and their times to 63 %; the three new harness boards drawn_*. Outside the frozen boards (reproduction pass, prose, no stored tolerance): the calculator's JEDEC board without vias +12.0 % (74.6 to 83.5 K/W at 0.5 mm, the converged value; the earlier value was a grid error of the cut land), the other calculator rows +0.9 to +1.1 %; band for the reproduction pass: FVM where a drawn edge cuts a cell up to +12.5 % of a part's rise (releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md 2)"
   },
   {
    "id": "M3",
    "title": "Lumped part rows read the own peak of the part; the first link sees the images of the board sides",
    "branch": "fix/lumped-part-readout + fix/lumped-edge-first-link",
    "evidence": "docs/validation.md 48 and 53; research/lumped-edge-link README 3.6",
-   "moves": "Lumped of every board (51 records at 2, 1 and 0.5 mm, 12 times to 63 %): part rows up (up to 14.9 K on the part peak of a lone part), the board maximum -0.5 to +3.1 % of the rise"
+   "moves": "Lumped of every board (51 records at 2, 1 and 0.5 mm, 12 times to 63 %): part rows up (up to 14.9 K on the part peak of a lone part), the board maximum -0.5 to +3.1 % of the rise. Outside the frozen boards (reproduction pass, prose, no stored tolerance): an isolated part whose copper is only its footprint +7.1 % of the rise on the board maximum, pads of 20 to 80 mm +1.6 to +3.3 % (copper_dissipation, 1 mm); band for the reproduction pass: Lumped board maximum -0.5 to +7.5 % of the rise (releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md 1)"
   },
   {
    "id": "M4",
