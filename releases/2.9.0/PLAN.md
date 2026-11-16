@@ -167,11 +167,5 @@ Prepared without running anything (on `research/<topic>` branches that only plan
 
 ## Leftover research branches
 
-* `research/paper-notes-policy`: merge only after (1) the reviewer confirms the three pilot notes are in our own words against the page images; (2) the folder is tidied to the research layout and the 'temporary' wording removed; (3) its tests, `tests/test_docs.py` and `tests/test_license_header.py` pass; (4) the registers `research/REVIEW.md`, `research/README.md` and F10 are updated.
-* `research/muzychka-influence-coefficients`: opens when the PDF of the article is obtained; the folder will be renamed by topic when it opens.
-
-## 8. What was read and what was not verified
-
-* Read in full: the files of the first paragraph marked 'in full'. The registers `research/ROADMAP.md` and `research/REVIEW.md` were searched, not read end to end; their open rows about the FEM and the surface (A52, A43, A46, A47) are mentioned and may have a later status than I saw.
-* Not verified: that the 2.8.0 branches (`feature/fem-model`, `feature/fem-gui`, `docs/fem-validation`, the surface read-out) are merged as the maintainer decided; the size of the leftovers `e3` to `e7` (the 0.17 K figure and the 99 against 67 K come from the request, I found no record of them in the documents read, only `validation.md` 51 saying the drawn L reads -0.0 % against finite elements); every size and time in this plan is an estimate on the scale of `DESIGN.md` 11, not a measurement. No script was run and no number here is a result.
-* Unknown to me: the content of `SURFACE_DECISIONS.md` (absent) and `ITEMS.md` (absent); if they appear on another branch, their lists replace the corresponding rows of 2.1 and 2.2.
+* `research/paper-notes-policy`: reviewed (README 6: GO) and merged into `development`; the rule on paper notes (decisions of its `INTEGRATION.md` 7) is still to be written into `CLAUDE.md` sections 5 and 7 on a `docs/` branch in 2.9.0 (line item); the pilot of 20 notes comes next.
+* `research/muzychka-influence-coefficients`: reviewed (README 4: GO) and merged into `development` as a literature note and plan; nothing was run, the article itself was not obtained (F11); the study opens when the PDF is obtained.
