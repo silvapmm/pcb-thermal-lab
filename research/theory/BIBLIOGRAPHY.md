@@ -2097,6 +2097,8 @@ Every essential page that has a Claude transcription was compared with its page 
 
 **Not verified**: pages that no progress file lists as compared; [Xu1992] pages 593 to 613; the 2005 published version of [LiSuperLU2005].
 
+**Measured error rate of the machine transcriptions** (four reviewer passes, about 320 whole pages compared with the image; `papers/notes/OCR_QUALITY.md` 2, 7, 8, 9, quoted by the reviewer's method opinion of the closed Atlas): material errors on 7 of 192 equation pages, **about 3.6 %**, all of the scope, symbol or index kind (a root covering one factor too many or too few, `tau` for `t`, a subscript turned into a fraction, `v` for `nu`, `b3` for `b1`) that a comparison of digits does not catch; about 1 300 table cells with no wrong cell; no material error in prose; invented first lines on about 3 % of pages. An equation or number cited from a page still marked `machine` is therefore checked on a crop of the page image.
+
 ## Sources named by the finite-element model and the Lumped self term (final theory review of 2.8.0)
 
 The finite-element section of `docs/theory.md` (4a) and the self term of the Lumped footprint (5) named sources without a key; they get one here, with the status of what was done. Nothing was opened for them in this review.
