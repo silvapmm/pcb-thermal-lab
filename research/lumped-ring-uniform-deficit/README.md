@@ -266,9 +266,9 @@ Status: **reviewed, go** for closing the investigation and for a `fix/` branch w
 * Figure 1: the lower row was labelled "first ring 1.5 cells"; it is the capped ring (equal to 1.5 cells for a 1 mm part); redrawn with that label.
 * Not changed but stated: the claims of section 1 that the cap "takes the 1 mm deficit to +0.3 %" hold at 0.5 mm only and are partly a cancellation (11.2, 11.3).
 
-## Obsolete since 2.8.0 (reproduction pass)
+## Status on 2.8.0 (reproduction pass)
 
-The program changed on purpose in 2.8.0: item M3 of the 2.8.0 table (the Lumped first link with the mirror images of the board sides, `fix/lumped-edge-first-link`, and the part read-out, `fix/lumped-part-readout`; `docs/validation.md` 48 and 53). The recorded results above stay as they were measured; they are not rewritten. One test (`test_defaults_are_the_program`) compares the copy in `lib/lumped_log.py` with the program; the copy has the first link of 2.7.1. **Tests** (`tests/conftest.py`): the conftest sets `lumped.IMAGE_MAX_CELLS = 0`, the program's own fallback to the plain first link of 2.7.1, and the 6 tests pass on 2.8.0; `PCBT_LUMPED_FIRST_LINK=2.8.0` runs the program as it ships (that test then fails by design). Numbers of the studies printed by the Lumped of the program move by M3 (+0.1 to +0.5 points in the reproduction pass); the recorded tables are of their own trees. Measured on `development` 232ba648 (`releases/2.8.0/reproduction/README.md` 3).
+**Test removed in 2.8.0**: `test_defaults_are_the_program` certified that the patched copy of the 2.5.1 Lumped text, with the program's switches, is the program bit for bit; since the 2.8.0 first link (`fix/lumped-edge-first-link`) it no longer is. The other 5 tests check the proposal on its own copy and pass (`development` 232ba648). The record stays: README and `lib/`. Numbers of the studies printed by the program's Lumped move by M3 (+0.1 to +0.5 points in the reproduction pass). (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## 12. What was read and what was not verified
 

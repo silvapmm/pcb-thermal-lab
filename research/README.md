@@ -2,6 +2,8 @@
 
 Studies that are not part of the program, one folder per investigation, named after the question. Nothing here changes `pcbthermal/`; a study imports the program, measures, and proposes. The rules are in `CLAUDE.md`, "Research branches".
 
+**Tests that mirror the program** (2.8.0 reproduction pass, `releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`): a research test that mirrors program source (a copy of a function, a patch of its text, or numbers frozen from an old commit) must be version-aware (a switch that restores the program it copies, stated in the README) or be removed when the program source changes, and a claim worth keeping is re-tested on the program as it ships; the study README stays the record of its run.
+
 ## Which folder is current
 
 A first guide for a new reader: for each topic, the folder that holds today's answer, and the older folders that it replaced or that only add detail. The status of every folder is in the index below.

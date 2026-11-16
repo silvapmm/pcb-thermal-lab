@@ -350,7 +350,7 @@ are not cut by any cap: they stay a limit with a warning. **After the review (3.
 
 ## Status on 2.8.0 (reproduction pass)
 
-The tests pass on 2.8.0 (23 passed, 3 skipped by their own design). The prototype patch of the Analytic (lines of `analytic.solve_steady` that `fix/via-constriction` of 2.4.5 removed) is obsolete since that fix: `study_s4_arrays`, `study_s4_heldout`, `study_s4_rule` and `study_s4_tile` stop because those lines are gone, and `study_s4_example` and `study_s4_lumped` stop with 'anchor not found', on 2.8.0 (reproduction pass, part B; their cause is older than 2.7.1, the v2.7.1 run of these scripts was not compared). They run only on the program they were written for. Not caused by M3; listed here so that a reader does not expect them to run. Measured on `development` 232ba648 (`releases/2.8.0/reproduction/README.md` 3).
+**Tests removed in 2.8.0**: three tests of the prototype patch of the Analytic (installed and removed, bit for bit when switched off, the modes hook) were skipped since `fix/via-constriction` (2.4.5) put the tile rule and the via self-term in the program; the patch has nothing to rewrite. The 23 other tests pass (`development` 232ba648). The studies `study_s4_arrays`, `study_s4_heldout`, `study_s4_rule`, `study_s4_tile`, `study_s4_example` and `study_s4_lumped` use that patch and stop on the current program; they are the record of their run. (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## What was read and what was not verified
 

@@ -247,9 +247,9 @@ On the random boards the rule flags 59 of 120: those read -8.3 % on average (ran
   are cell-resolved up to 3600 footprint cells (a 30 mm part at 0.5 mm) and fall back to the program's block potentials without images above.
 * "Bad" is 8 % of the rise on the hottest node; the rates move with that threshold.
 
-## Obsolete since 2.8.0 (reproduction pass)
+## Status on 2.8.0 (reproduction pass)
 
-The program changed on purpose in 2.8.0: item M3 of the 2.8.0 table (the Lumped first link with the mirror images of the board sides, `fix/lumped-edge-first-link`, and the part read-out, `fix/lumped-part-readout`; `docs/validation.md` 48 and 53). The recorded results above stay as they were measured; they are not rewritten. `lib/variants.py` edits the text of `lumped.py` of 2.7.1. Its `img` and `pot` variants, ported by `research/lumped-edge-link`, became `fix/lumped-edge-first-link`, so the text they edit is gone: this folder's question is answered in the program (`docs/validation.md` 53). **Tests** (`tests/conftest.py`): on the program of 2.8.0 the 4 tests of the variants (one of them the `potlinks` case of a parametrised test) are skipped with the reason, the other 3 pass; with `PCBT_PROGRAM_TREE=<folder>` holding `git archive v2.7.1 pcbthermal` all 7 pass. The studies that use the variants run on that tree only. Measured on `development` 232ba648 (`releases/2.8.0/reproduction/README.md` 3).
+The image potentials of this folder were ported by `research/lumped-edge-link` and became the 2.8.0 first link of the Lumped (`fix/lumped-edge-first-link`). **Tests removed in 2.8.0**: the source-text variants of `lib/variants.py` apply to the program text (gone in 2.8.0) and the large-footprint regression of the variant (the program's own tests, `tests/test_lumped_edge_first_link.py`, cover the images and the footprint limit). The record stays: README and `lib/`, run on `git archive v2.7.1 pcbthermal`. **Tests redone on the program as it ships** (`development` 232ba648): the heat balance and the centred 5 mm part (Lumped 52.483 against FVM 51.981 degC, +1.9 % of the rise, within 6 %), and the headline corner case, a 10 mm part in a corner read 22 % cool on 2.7.1 and **-2.13 %** now (FVM 47.359 K, Lumped 46.349 K, within 8 %). 4 tests pass. (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## 8. What was read and what was not verified
 

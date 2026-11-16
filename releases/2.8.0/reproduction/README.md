@@ -101,15 +101,16 @@ Columns: scripts per class (u = unchanged, e = explained, nb = checked without a
 * `point-via-convergence/study_array_board` is refused by the memory guard at the cell 0.0625 mm only because of the process baseline of the study's own earlier 3D work (about 7.55 GB against 6.0 GB in the old run; 7.55 + 2.82 > 10.3 GB); the FVM/FDM law is identical in both trees (`MEMORY_GUARD_STUDY_ARRAY_BOARD.md`). Not a program change; the study needs about 7 GB.
 * `analytic-partial-copper/study_review` was killed at 3.4 GB; `study_baseline` timed out in both trees (its cache is needed by two more studies).
 * Stale studies and tests (documentation finding, not defects of the program): source copies of the Lumped network (`lumped-via-groups`, `lumped-analytic-vias`, `lumped-near-edge`, `lumped-ring-uniform-deficit`, `lumped-zones-adoption`, `young-omega-tiles` prototypes), `block-and-fins/study_finned_block_all_models` (a wrapper without the new `board_cover` argument), `block-and-fins/study_why_coefficients_fail` (sets the block k to 1e-6: the film now passes the half block, so the column that tests 'no lateral conduction' moved from +28.5 to +58.6 %), the pins of `point-via-convergence` and `lumped-analytic-vias` to commit f2d5c03 (already failing on v2.7.1).
-  **Status after the follow-up on `release/2.8.0-lumped-shifts`** (each folder's README has a section on 2.8.0; tests on `development` 232ba648; `PCBT_PROGRAM_TREE` imports an extracted older program, `PCBT_LUMPED_FIRST_LINK=2.8.0` the program as it ships, `PCBT_RUN_PINNED=1` the pinned tests):
-  * `lumped-via-groups`: **fixed** (marked stale): 9 passed, 7 skipped (source-text patches of the 2.7.1 Lumped; 16 passed on v2.7.1).
-  * `lumped-analytic-vias`: **fixed** (marked stale and pinned): 7 passed, 6 skipped (4 source-text patches, 11 passed on v2.7.1; 2 pinned to f2d5c03).
-  * `lumped-near-edge`: **fixed** (marked stale): 3 passed, 4 skipped (its variants became the 2.8.0 first link; 7 passed on v2.7.1).
-  * `lumped-ring-uniform-deficit`: **fixed** (plain first link of 2.7.1 switched on by the folder's conftest): 6 passed.
-  * `lumped-zones-adoption`: **fixed** (the same switch, README 11): 20 passed.
-  * `young-omega-tiles`: **fixed** (README note; the s4 prototype studies are obsolete since 2.4.5, not M3): 23 passed, 3 skipped by design.
-  * `point-via-convergence`: **fixed** (pinned): 15 passed, 3 skipped.
+  **Status after the follow-ups on `release/2.8.0-lumped-shifts`** (decisions per test group in `STALE_TESTS_DECISIONS.md`; tests on `development` 232ba648, no skipped test left):
+  * `lumped-via-groups`: **fixed**: 5 copy tests deleted, 2 redone on the program; 11 passed.
+  * `lumped-analytic-vias`: **fixed**: 3 deleted (2 pinned to f2d5c03, 1 patch), 3 redone on the program; 10 passed.
+  * `lumped-near-edge`: **fixed**: 2 deleted (the variants became the 2.8.0 first link), 2 redone on the program (the corner now -2.13 %); 4 passed.
+  * `lumped-ring-uniform-deficit`: **fixed**: 1 copy test deleted; 5 passed.
+  * `lumped-zones-adoption`: **fixed**, kept version-aware (its studies need the switch, README 11); 20 passed.
+  * `young-omega-tiles`: **fixed**: 3 prototype-patch tests deleted; 23 passed.
+  * `point-via-convergence`: **fixed**: 2 pinned tests deleted, the gain convergence redone on the program (FVM and FDM); 17 passed.
   * `block-and-fins`: **fixed**: `study_finned_block_all_models` runs again (its wrapper passes `board_cover` on); the premise of `study_why_coefficients_fail` (block k 1e-6) is stale since M1, written in its README.
+  * Rule for the future in `research/README.md`: a research test that mirrors program source is version-aware or removed when the program changes.
 * `gap-subdivision/study_real_boards` overwrites a tracked file (`research/gap-subdivision/baseline/real_boards.csv`); restored, nothing committed.
 
 ## 4. Heavy studies not run, by decision

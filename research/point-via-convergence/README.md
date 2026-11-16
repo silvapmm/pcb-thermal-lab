@@ -260,7 +260,7 @@ Not touched. The Lumped model uses the grid arrays of the FVM network (`lumped.p
 
 ## Status on 2.8.0 (reproduction pass)
 
-Not stale by M3: the folder does not copy the Lumped. Its pinned tests (`test_the_point_patch_is_the_program_of_f2d5c03[fvm]`, `[fdm]` and `test_copper_fill_gain_converges_to_the_resolved_reference`) compare the 'point' copy with values frozen from `f2d5c03` to 1e-9 and already failed on v2.7.1 (the program moved since, 2.6.0 to 2.7.x: -4.7792 against the frozen -4.7803 K). **Tests** (`tests/conftest.py`): they are skipped on every program as 'pinned' with the reason (run with `PCBT_RUN_PINNED=1`); 15 pass on 2.8.0 and on v2.7.1. `study_array_board` needs about 7 GB at the 0.0625 mm cell (`releases/2.8.0/reproduction/MEMORY_GUARD_STUDY_ARRAY_BOARD.md`). Measured on `development` 232ba648 (`releases/2.8.0/reproduction/README.md` 3).
+Not touched by the Lumped items of 2.8.0. **Tests removed in 2.8.0**: the two tests that the 'point' copy gives the values frozen from `f2d5c03` (they failed on v2.7.1 already: the program moved since 2.6.0). **Test redone on the program as it ships** (`development` 232ba648): the copper-fill gain of the via-array board within 0.3 K of the 1/16 mm reference (-4.513 K) at 1, 0.5, 0.25 and 0.125 mm, now in the FVM and the FDM (FVM -4.548 / -4.515 / -4.542 / -4.543 K, FDM -4.465 / -4.560 / -4.538 / -4.541 K). 17 tests pass. `study_array_board` needs about 7 GB at the 0.0625 mm cell (`releases/2.8.0/reproduction/MEMORY_GUARD_STUDY_ARRAY_BOARD.md`). (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## What was read and what was not verified
 
