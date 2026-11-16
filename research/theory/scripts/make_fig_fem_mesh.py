@@ -3,10 +3,10 @@
 """!
 @file make_fig_fem_mesh.py
 @brief Picture for `docs/theory.md` 4a: the plan mesh that `pcbthermal/femmesh.py` builds from a small drawn board, with its break lines, the refined zone around the part, a conforming via patch and a rod via.
-@details fig_50, left: the plan mesh of the whole board as the program builds it (the board of the picture has a rectilinear outline with a notch, a copper zone, a part, a block, one via
+@details fig_53, left: the plan mesh of the whole board as the program builds it (the board of the picture has a rectilinear outline with a notch, a copper zone, a part, a block, one via
          with room, one via on a break line); the tensor quads are drawn in grey, the quads of the via patch in colour by material (open core white, barrel copper, board), the elements removed by the
          outline absent. Right: the via patch zoomed, the circles of the O-grid (inner radius, the two rings across the plating, the drill) drawn over it. The picture is made by the program's own
-         `femmesh._layout`, so it is what the mesh really is. Run: .venv/bin/python research/theory/scripts/make_fig_fem_mesh.py (from the repository root; a few seconds). Writes figures/fig_50_fem_plan_mesh.png.
+         `femmesh._layout`, so it is what the mesh really is. Run: .venv/bin/python research/theory/scripts/make_fig_fem_mesh.py (from the repository root; a few seconds). Writes figures/fig_53_fem_plan_mesh.png.
 """
 
 import math
@@ -111,4 +111,4 @@ def draw(path):
 
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
-    draw(OUT / "fig_50_fem_plan_mesh.png")
+    draw(OUT / "fig_53_fem_plan_mesh.png")
