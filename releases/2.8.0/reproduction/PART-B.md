@@ -25,3 +25,11 @@ ALLDONE
 | power-calculator, solid3d-verification | no tests directory |
 
 Studies (section 2) are running; the table is filled when they end.
+
+## 2. Incident and guards
+
+| folder | script | result |
+| :-- | :-- | :-- |
+| laminate-nodes | study_transient | not run: memory (reached 18 GB; killed by the orchestrator); listed with the heavy studies; its v2.7.1 twin was not run either |
+
+From that point a watchdog (`scratchpad/B/watchdog.py`, a separate process; the running queue was not edited) kills any study child above 4 GB RSS (log `watchdog.log`) and suspends it while swap used is above 2.5 GB. A study that hits the 300 s limit while suspended is recorded as 'not run (timeout or paused)', not as a result.
