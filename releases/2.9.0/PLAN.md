@@ -41,7 +41,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | :-- | :-- |
 | A18 (local laminate rule for small parts), A30 (sector well for a via at a corner), A32 and A40 (node-centred cut cells and the FDM outline wall term), the reduced-model edge-laminate correction | Each moves FVM or FDM records and needs its own investigation. The campaign measures the models as they are; a model change in the middle makes its tables void. They go after the campaign, as the corrections the campaign asks for (2.10). |
 | E13 (converged reference of small imported parts) and A47 (other free FEM solvers) | Memory-heavy references, own investigations, no dependency from the 2.9.0 items. (e6 is the one imported-copper question that touches the FEM and is in.) |
-| B5 (plated holes as vias, vias with a layer span), paint and erase of the copper mask, heater modes for the user, metal-block options (covered face, emissivity), heat source inside a block, the Atlas | Features of the board editor and the import, unrelated to the FEM and the comparison; each has its own evidence chain. |
+| B5 (plated holes as vias, vias with a layer span), paint and erase of the copper mask, heater modes for the user, metal-block options (covered face, emissivity), heat source inside a block | Features of the board editor and the import, unrelated to the FEM and the comparison; each has its own evidence chain. |
 | The physical measurement G1, JESD51 registration, the downloads of the papers not in the library | Maintainer's hands or lead time; they do not block any item. The campaign is against independent solvers and published cases, not measurements. |
 | Solder via fill library entry, 'top of the case' read-out, the hot-spot capacity items other than e11 | Small features with their own sourcing (theta values to find); keep them as a separate small branch when a source exists. |
 | Electro-thermal coupling, vector copper, BOM role | Dropped or wishes without a version (`CLAUDE.md` 15). |
@@ -168,3 +168,4 @@ Prepared without running anything (on `research/<topic>` branches that only plan
 ## Leftover research branches
 
 * `research/muzychka-influence-coefficients`: reviewed (README 4: GO) and merged into `development` as a literature note and plan; nothing was run, the article itself was not obtained (F11); the study opens when the PDF is obtained.
+* `research/thermal-sources-atlas`, `docs/sources-atlas-plan` and `research/paper-notes-policy`: the Atlas is closed as local only (F10; notes in the git-ignored `papers/notes/atlas`); the branches stay as the record, nothing of it is planned for 2.9.0; reopen only on the maintainer's word.
