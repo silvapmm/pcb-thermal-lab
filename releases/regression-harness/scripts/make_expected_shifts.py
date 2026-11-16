@@ -16,6 +16,24 @@ sys.path.insert(0,"releases/regression-harness/lib")
 import regress_classify as C  # noqa: E402
 
 
+def attribute(key, P, ID, section="records", prefix=""):
+    """!
+    @brief Items that moved one record (or one time to 63 %): the pending files that hold it and, through `also_moved_by`, the older files that had moved it before it was taken out of them.
+    @param key     Record key `board|model|cell` (or `board|model` for a time to 63 %).
+    @param P       Pending files by name (parsed JSON).
+    @param ID      Map from a pending-file name to its item id; a name not in the map is its own id.
+    @param section Key of the pending file that holds the entries, `records` or `transients`.
+    @param prefix  Prefix of the key in `also_moved_by` (`t63:` for the times).
+    @return tuple Sorted item ids, without repeats.
+    """
+    its = {ID.get(n, n) for n, p in P.items() if key in p.get(section, {})}
+    # A record that a later file took over keeps the older items in `also_moved_by`, so the table credits every item
+    for n, p in P.items():
+        for m in p.get("also_moved_by", {}).get(prefix + key, []):
+            its.add(ID.get(m, m))
+    return tuple(sorted(its))
+
+
 def main():
     """!
     @brief Builds the rules, the transient rules and the item list, and writes the JSON table.
@@ -38,7 +56,7 @@ def main():
     for (bd,m,c,s),rb in b.items():
         rf=f[(bd,m,c,s)]
         if s!="direct" or rb["status"]!="ok" or rf["status"]!="ok": continue
-        k=f"{bd}|{m}|{c:g}"; its=tuple(sorted({ID[n] for n,p in P.items() if k in p["records"]}))
+        k=f"{bd}|{m}|{c:g}"; its=attribute(k,P,ID)
         mb,mf=C.metrics_of(rb),C.metrics_of(rf)
         t=w=u=0.0
         for n in mf:
@@ -70,7 +88,7 @@ def main():
         if rb["status"]!="ok" or rf["status"]!="ok": continue
         mb,mf=C.metrics_of(rb),C.metrics_of(rf)
         t=max([abs(mf[n]-mb[n]) for n in mf if n in mb and C.metric_group(n)=="temperature"]+[0])
-        its=sorted({ID[n] for n,p in P.items() if f"{bd}|fvm|{c:g}" in p["records"]})
+        its=list(attribute(f"{bd}|fvm|{c:g}",P,ID))
         if t<=1e-8: continue
         rules.append({"id":f"S{len(rules)}","item":"+".join(its) or "??","boards":[bd],"models":["fvm_sor"],"cells":[c],"metrics":"*","direction":"any","abs_k":[0,round(max(1.25*t,1e-6),6)],"abs_w":[0,1e-6],"rel":[0,1],"status":"quantified","note":"the SOR run reaches the direct FVM solution: the same items as the FVM record"})
     rules.append({"id":"R0","item":"L8","boards":"*","models":"*","cells":"*","metrics":"*","direction":"any","abs_k":[0,1e-8],"abs_w":[0,1e-8],"rel":[0,0],"status":"derived","note":"round-off of the order of the sums"})
@@ -80,7 +98,7 @@ def main():
     for key,t in sorted(tf.items()):
         o=tb[key]
         if t["status"]!="ok" or o["status"]!="ok": continue
-        k=f"{key[0]}|{key[1]}"; its=sorted({ID[n] for n,p in P.items() if k in p["transients"]})
+        k=f"{key[0]}|{key[1]}"; its=list(attribute(k,P,ID,"transients","t63:"))
         po={p["name"]:p["t63_s"] for p in o["parts"]}; mxr=0
         for p in t["parts"]:
             if p["t63_s"] is None or po[p["name"]] is None: continue

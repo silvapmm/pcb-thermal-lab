@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
-from . import copper, memory, blocks, laminate, viawell
+from . import copper, memory, blocks, laminate, viawell, thickness
 from .geometry import (cover_centroids, part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill,
                        face_apertures, signed_distance_to_outline)
 from .results import SteadyResult, TransientResult
@@ -51,7 +51,9 @@ log = logging.getLogger(__name__)
 # up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
 
 # Smallest value of the film denominator 1 + H d / S of the edge of a cut cell (see Network._cut_edge_film): the film in series with the conduction from the node to the
-# outline can be made at most 1 / EDGE_FILM_FLOOR = 4 times stiffer than the film alone (a safety net for a node outside the board and a very stiff edge)
+# outline can be made at most 1 / EDGE_FILM_FLOOR = 4 times stiffer than the film alone. With the centroid distance (never negative) of the copper and laminate nodes the
+# denominator is at least 1, so the floor is a safety net that only a node with a negative distance (the layers of a metal block, which keep the cell centre) can reach;
+# the peak of the FVM does not depend on it (audit L4L9)
 EDGE_FILM_FLOOR = 0.25
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
@@ -209,6 +211,11 @@ class Network:
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
         self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
+        if faces is None and ladder and cut_cells:
+            # Drawn copper is read as an import: the exact cell fill and the flow-based faces of its layers that have a cell cut by a zone edge (copper.drawn_source), also on a board
+            # that has imported copper on other layers (one rule on every layer). Not for the network that the Lumped builds (ladder=False, cut_cells=False) nor for the
+            # time-constant helper: their numbers stay as they were
+            self.copper = copper.drawn_source(problem, nx, ny) or self.copper
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
@@ -241,9 +248,11 @@ class Network:
         self.g_bottom = np.zeros((L, ny, nx))
         self.g_heatsink = np.zeros((L, ny, nx))
         self.g_side = np.zeros((L, ny, nx))
-        self.g_top[0] = b.h_top * cell
+        # The films act on the copper node through the half copper layer between the node and the face (Board.face_film_h, theory 1.2): the node is the column mean
+        self.g_top[0] = b.face_film_h(b.h_top, 0, f[0]) * cell
         if self.laminate is None:
-            self.g_bottom[L - 1] = b.h_bottom * cell   # (With laminate nodes the bottom film acts on the last of them, below)
+            # (With laminate nodes the bottom film acts on the last of them, below, and carries the half copper in series there too)
+            self.g_bottom[L - 1] = b.face_film_h(b.h_bottom, L - 1, f[L - 1]) * cell
         for s in problem.heatsinks:
             if s.is_block() and with_blocks:
                 continue                               # A metal block is a layer of its own (below)
@@ -255,7 +264,8 @@ class Network:
         if with_blocks:
             area = cell.copy()
             # The block is cut at the board outline: a cell off the board carries no block (it would be pinned to the ambient and drain the block)
-            layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n) * self.cover, area, f, dx, dy)
+            layers = blocks.extra_layers(problem, lambda poly, n: blocks.block_cover(poly, b.outline if b.has_outline() else None, nx, ny, dx, dy, self.cover), area, f, dx, dy,
+                                         board_cover=self.cover)
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
@@ -339,7 +349,7 @@ class Network:
         @param b The Board.
         @param cell Board area of every cell (m2), shape (ny, nx).
         """
-        layers = laminate.extra_layers(b, self.laminate, cell, self.cover, self._edge_lengths(), b.h_side)
+        layers = laminate.extra_layers(b, self.laminate, cell, self.cover, self._edge_lengths(), b.h_side, self.fill[0])
         zeros = np.zeros((len(layers), self.ny, self.nx))
         base = self.nl
         self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in layers])])
@@ -427,8 +437,8 @@ class Network:
                  physical sheet of the node. For an outline d is the signed distance from the cell centre to the closest outline point (negative for a centre outside the board,
                  which stiffens the film); **for every copper layer and laminate node of a board with an outline, drawn or imported,** d is the distance from the CENTROID of the board part of the cell
                  to the closest outline point, never negative (`geometry.cover_centroids`; research/imported-copper-edge-film, validation 39 and 40), only the layers of a metal block keeping the cell centre; for the border of a rectangle d is half a cell normal to the edge (a corner cell has two edges, each with its own d). The denominator is
-                 floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is reached only where a node lies outside the board by more than S / H (bare-laminate
-                 nodes of a cut cell at about 1000 W/m2K and above, or an edge coefficient beyond any physical film). Nodes with no sheet keep their film unchanged.
+                 floored at EDGE_FILM_FLOOR so that it cannot vanish or turn negative; it is a safety net: with the centroid distance d >= 0 the denominator is at least 1 and the floor is never reached
+                 by the copper and laminate nodes; only a node whose cell centre lies outside the board by more than S / H (the layers of a metal block) can reach it. Nodes with no sheet keep their film unchanged.
                  The ambient term is scaled with the same factor as the conductance (the change goes into g_amb), so a constant field is reproduced to round-off; the unfloored
                  form fails for a node outside the board with a large cell Biot number, which is why the floor is kept (condition 1.21 of Bochkov and Gibou: mu - alpha d > 0).
         @param g0 Edge conductance of every node layer before the series term, W/K, shape (nl, ny, nx).
@@ -903,6 +913,7 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
     attach_face_terms(res, net, net.dx * net.dy * net.cover, net.dx)
+    thickness.attach(res, net, theta, net.dx * net.dy * net.cover, net.problem)      # The surface beside the column, for every board (no threshold)
     return res
 
 
@@ -993,6 +1004,8 @@ def unknowns(problem, cell_mm=2.0):
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
         copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
+        for layer, cell_fill in copper.drawn_layer_cuts(problem, nx, ny).items():      # (the exact fill of the drawn layers with a cut cell, as the network reads it)
+            fill[layer] = cell_fill
         # The band along the edge is counted too (it exists only with an edge coefficient)
         edge = laminate.edge_lengths(b, nx, ny, dx, dy, active) if b.h_side else None
         return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active, edge=edge), nx * ny), nx, ny)
@@ -1133,8 +1146,8 @@ def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, sta
     @param per_stage Steps per stage.
     @param stages Number of stages.
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
-    @return Tuple (times, z, rth): times (nt,) in s without t = 0, z (n_heaters, nt) in degC/W and rth (n_heaters,)
-            in degC/W (steady state).
+    @return Tuple (times, z, rth): times (nt,) in s without t = 0, z (n_heaters, nt) in K/W and rth (n_heaters,)
+            in K/W (steady state).
     @throws ValueError If the problem has no heater.
     """
     if not problem.heaters:

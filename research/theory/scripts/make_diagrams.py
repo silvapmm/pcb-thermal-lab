@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45, fig_46 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 to fig_47, fig_49 to fig_52 (the diagrams of the rewrite of the theory; the mesh picture of the FEM is drawn from the program's own mesh by make_fig_fem_mesh.py).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -800,10 +800,11 @@ def orientation(path):
     a = axs[1]
     Ra = np.logspace(3, 10, 200)
     Pr = 0.71
-    up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.15 * Ra ** (1 / 3))
+    # Face turned up: 0.54 Ra^(1/4) to 1e7, then Lienhard 2024 eq. 8.35 (the law of convection.py since fix/horizontal-face-laws)
+    up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.14 * Ra ** (1 / 3) * (1 + 0.0107 * Pr) / (1 + 0.01 * Pr))
     down = 0.475 * Ra ** 0.2                                                  # Face turned down: the 1/5 law of convection.py (Goldstein-Lau average)
     vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
-    a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
+    a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up, 0.54 Ra^(1/4); Lienhard eq. 8.35 above Ra 1e7")
     a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down, 0.475 Ra^(1/5) (0.62 of face up at Ra 1e3, 0.49 at 1e5)")
     a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu, general form; laminar form optional), Pr = 0.71")
     a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
@@ -1370,6 +1371,204 @@ def gerber_sampling(path):
     dk.save(fig, path, "Gerber coverage sampling and memory")
 
 
+def fem_mesh_section(path):
+    """!
+    @brief Draw the element and the mesh through the thickness of the finite-element comparison model (theory 4a, figure D1 of the design): the trilinear brick with its eight nodes and the 2 x 2 x 2 Gauss points (left), and a section of a four-copper-layer board with thin copper elements, graded laminate elements, a source in the top copper, films on every outer face and wall, and a via rod (right). Schematic, no numbers.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(16, 6.2, 1, 2, ratios=[0.8, 1.5])
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 10); a.set_aspect("equal")
+    # The brick in a simple oblique projection: bottom quad (0..3) counter-clockwise, top quad (4..7) shifted up and right
+    b = np.array([[1.5, 1.5], [6.0, 1.5], [7.5, 3.3], [3.0, 3.3]])
+    t = b + np.array([0.0, 4.0])
+    for q in (b, t):
+        a.add_patch(Polygon(q, closed=True, fc="#f3d9b1" if q is t else "#e8e8e8", ec="k", alpha=0.55))
+    for i in range(4):
+        a.plot([b[i, 0], t[i, 0]], [b[i, 1], t[i, 1]], "k-", lw=1)
+        a.text(b[i, 0], b[i, 1] - 0.45, str(i + 1), ha="center", fontsize=8)
+        a.text(t[i, 0], t[i, 1] + 0.3, str(i + 5), ha="center", fontsize=8)
+    for q in (b, t):
+        a.plot(q[:, 0], q[:, 1], "ko", ms=4)
+    c = (b.mean(axis=0) + t.mean(axis=0)) / 2
+    for dx in (-0.55, 0.55):
+        for dy in (-0.45, 0.45):
+            for dz in (-1.0, 1.0):
+                a.plot(c[0] + dx * 1.6 + 0.3 * dz, c[1] + dy * 1.6 + dz * 0.9, "r+", ms=6)
+    a.text(5, 9.4, "trilinear brick Q1: 8 nodes, one k = (kx, ky, kz) per element,\n2 x 2 x 2 Gauss points (red +), any mapped brick", ha="center", fontsize=8.5, fontweight="bold")
+    a.text(5, 0.3, "T(x) = sum N_i(xi, eta, zeta) T_i, continuous across elements", ha="center", fontsize=8)
+    a = axs[1]; a.set_xlim(0, 16); a.set_ylim(-1.5, 11); a.axis("off")
+    x0, x1 = 1.5, 14.0
+    y = 9.0
+    rows = []
+    gaps = (4, 4, 4)
+    for lay in range(4):
+        rows.append(("cu", y, 0.35)); y -= 0.35
+        if lay < 3:
+            n = gaps[lay]
+            w = np.array([1.0, 1.4, 1.4, 1.0])[:n]
+            w = w / w.sum() * 1.9
+            for hh in w:
+                rows.append(("gap", y, hh)); y -= hh
+    for kind, ytop, hh in rows:
+        a.add_patch(Rectangle((x0, ytop - hh), x1 - x0, hh, fc="#c97a2b" if kind == "cu" else "#d8e6c8", ec="k", lw=0.6))
+    for xv in np.linspace(x0, x1, 15):
+        a.plot([xv, xv], [y, 9.0], color="k", lw=0.3, alpha=0.5)
+    # Source in the top copper, via rod, films
+    a.add_patch(Rectangle((3.0, 8.65), 2.6, 0.35, fc="#e63946", ec="k", lw=0.8))
+    a.text(4.3, 10.55, "source q (W/m3) in the top copper elements", ha="center", fontsize=7.5)
+    a.add_patch(Rectangle((9.0, y), 0.6, 9.0 - y, fc="#a05a18", ec="k", lw=0.8, alpha=0.8))
+    a.text(10.5, y - 0.45, "via rod (barrel copper)", ha="center", fontsize=7.5)
+    a.set_ylim(-2.2, 11)
+    for xv in np.linspace(2.0, 13.2, 8)[[0, 2, 3, 4, 6, 7]] + 0.3:
+        dk.arrow(a, xv, 9.05, xv, 10.0, color="#1f77b4", width=1.1)
+        dk.arrow(a, xv, y, xv, y - 0.9, color="#1f77b4", width=1.1)
+    a.text(x1 - 0.2, 10.2, "film h_top on the face nodes", ha="right", fontsize=8, color="#1f77b4")
+    a.text(x1 - 0.2, y - 1.25, "film h_bottom", ha="right", fontsize=8, color="#1f77b4")
+    for ym in np.linspace(y + 0.4, 8.6, 6):
+        dk.arrow(a, x1, ym, x1 + 0.9, ym, color="#1f77b4", width=1.1)
+    a.text(x1 + 0.9, (y + 9.0) / 2, "h_side\non every\nwall slab", ha="left", va="center", fontsize=8, color="#1f77b4")
+    a.text(x0 - 0.15, 8.8, "copper: thin elements,\nthe face nodes ARE the surface", ha="right", va="top", fontsize=7.5)
+    a.text(x0 - 0.15, 6.5, "laminate: graded elements,\nfinest at the copper", ha="right", va="top", fontsize=7.5)
+    a.set_title("section of a four-layer board: conforming slabs through the thickness (not to scale), film term inherent (no half-cell film in series)", fontsize=8.5)
+    dk.save(fig, path, "The element and the mesh through the thickness")
+
+
+def fem_slabs(path):
+    """!
+    @brief Draw the through-the-thickness layout of the mesh of the finite-element model (theory 4a, figure D3 of the design): a thin copper layer is one element, a thick copper plane several, a dielectric gap a graded stack (finest at the copper), a metal block on the top face a pad slab and block slabs over its own polygon only (partial slabs) with the films on the exposed face and on the walls, and a via barrel through the board slabs only. Schematic, not to scale.
+    @param path Output file.
+    @return None.
+    """
+    fig, a = dk.canvas(15.5, 6.8)
+    a.set_xlim(-5.0, 17.5); a.set_ylim(-3.6, 11.5); a.axis("off")
+    x0, x1 = 1.0, 15.0
+    y = 7.0
+    rows = []
+    # (kind, thickness in drawing units, elements): thin copper 1, a thick inner plane 4, graded gaps 5
+    spec = (("cu", 0.18, 1), ("gap", 1.6, 5), ("cu", 0.18, 1), ("gap", 1.0, 5), ("cu", 1.1, 4), ("gap", 1.6, 5), ("cu", 0.18, 1))
+    for kind, th, n in spec:
+        if kind == "cu":
+            for _ in range(n):
+                rows.append(("cu", y, th / n)); y -= th / n
+        else:
+            w = 1.4 ** np.minimum(np.arange(n), n - 1 - np.arange(n))
+            w = w / w.sum() * th
+            for hh in w:
+                rows.append(("gap", y, hh)); y -= hh
+    for kind, ytop, hh in rows:
+        a.add_patch(Rectangle((x0, ytop - hh), x1 - x0, hh, fc=CU if kind == "cu" else "#d8e6c8", ec="k", lw=0.5))
+    y_bot, y_top = y, 7.0
+    # top block: a pad slab and block slabs over its own polygon only
+    bx0, bx1 = 3.5, 8.5
+    a.add_patch(Rectangle((bx0, y_top), bx1 - bx0, 0.12, fc="#f6c85f", ec="k", lw=0.6))
+    for i in range(3):
+        a.add_patch(Rectangle((bx0, y_top + 0.12 + i * 0.5), bx1 - bx0, 0.5, fc="#a9b8c8", ec="k", lw=0.6))
+    a.text((bx0 + bx1) / 2, y_top + 3.0, "metal block: pad slab + block slabs\nover its polygon only (partial slabs)", ha="center", fontsize=8)
+    # bottom block
+    cx0, cx1 = 10.0, 13.5
+    a.add_patch(Rectangle((cx0, y_bot - 0.12), cx1 - cx0, 0.12, fc="#f6c85f", ec="k", lw=0.6))
+    for i in range(2):
+        a.add_patch(Rectangle((cx0, y_bot - 0.12 - (i + 1) * 0.5), cx1 - cx0, 0.5, fc="#a9b8c8", ec="k", lw=0.6))
+    # via barrel through the board slabs only
+    a.add_patch(Rectangle((6.2, y_bot), 0.5, y_top - y_bot, fc="#a05a18", ec="k", lw=0.8, alpha=0.85))
+    a.text(6.45, y_bot - 1.0, "barrel: board slabs only", ha="center", va="top", fontsize=7.5, bbox=dict(fc="white", ec="none", alpha=0.9))
+    # films: free top face, exposed face of the block, walls, free bottom face, exposed face of the bottom block
+    for xv in list(np.linspace(1.4, 3.1, 3)) + list(np.linspace(9.0, 14.6, 5)):
+        dk.arrow(a, xv, y_top + 0.02, xv, y_top + 0.9, color="#1f77b4", width=1.1)
+    for xv in np.linspace(4.0, 8.0, 4):
+        dk.arrow(a, xv, y_top + 1.65, xv, y_top + 2.3, color="#1f77b4", width=1.1)
+    a.text(12.0, y_top + 1.15, "film h_top on the free face\n(none under a block)", ha="center", fontsize=8, color="#1f77b4")
+    for xv in np.linspace(1.6, 9.5, 5):
+        dk.arrow(a, xv, y_bot - 0.02, xv, y_bot - 0.9, color="#1f77b4", width=1.1)
+    for xv in np.linspace(10.3, 13.2, 3):
+        dk.arrow(a, xv, y_bot - 1.15, xv, y_bot - 1.9, color="#1f77b4", width=1.1)
+    a.text(11.75, y_bot - 2.5, "exposed face of the bottom block:\nh_face x fin ratio + h_extra", ha="center", fontsize=7.5, color="#1f77b4")
+    for ym in np.linspace(y_bot + 0.2, y_top - 0.2, 7):
+        dk.arrow(a, x1, ym, x1 + 0.7, ym, color="#1f77b4", width=1.1)
+    a.text(x1 + 0.7, (y_bot + y_top) / 2, "h_side on\nevery wall\nslab", ha="left", va="center", fontsize=8, color="#1f77b4")
+    a.annotate("copper up to 105 um:\none element", (1.6, 6.91), (-4.8, 8.6), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.annotate("a thick copper plane: several\nelements (up to 8 in 70 um steps)", (1.6, 3.5), (-4.8, 1.2), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.annotate("dielectric gap: graded elements,\nfinest next to the copper", (1.6, 6.0), (-4.8, 5.2), fontsize=8, arrowprops=dict(arrowstyle="->"))
+    a.text(-4.8, -2.7, "the face nodes of the outer copper ARE the surface;\nthe film term is inherent (no half-cell film in series)", fontsize=8)
+    dk.save(fig, path, "Through the thickness: copper, dielectric and block slabs")
+
+
+def surface_readout(path):
+    """!
+    @brief Draw the section through a thick plate under a source (theory 1.2): the heat entering the top face, the film leaving the bottom face, the parabolic temperature profile through the thickness, and the three levels the program can read (surface, column mean = node, bottom face). Schematic, the profile is the parabola with illustrative fluxes.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(12, 5.0, 1, 2, ratios=[1.2, 1.0])
+    a = axs[0]
+    a.set_xlim(0, 10); a.set_ylim(-1.6, 5.2)
+    dk.layer(a, 0.5, 0.0, 9.0, 3.0, "#b8bec6")
+    a.text(5.0, 0.55, "plate: thickness t, conductivity k", ha="center", fontsize=8.5)
+    dk.layer(a, 3.5, 3.0, 3.0, 0.2, dk.HEAT)
+    a.text(5.0, 4.75, "part: heat q_top enters the top face", ha="center", fontsize=8.5, color=dk.HEAT)
+    for x in (3.9, 4.5, 5.0, 5.5, 6.1):
+        dk.arrow(a, x, 4.5, x, 3.3, color=dk.HEAT, width=1.2)
+    for x in (1.5, 3.0, 5.0, 7.0, 8.5):
+        dk.arrow(a, x, 0.0, x, -0.9, color=dk.BLUE, width=1.2)
+    a.text(5.0, -1.35, "film h: q_bot leaves the bottom face", ha="center", fontsize=8.5, color=dk.BLUE)
+    a.plot([0.5, 9.5], [1.5, 1.5], "k--", lw=1)
+    a.text(9.6, 1.5, "node =\ncolumn mean", fontsize=8, va="center")
+    a.text(9.6, 3.0, "surface", fontsize=8, va="center", color=dk.HEAT)
+    a = axs[1]
+    z = np.linspace(0, 1, 200)
+    q_top, q_bot = 1.0, -0.4                                       # Illustrative, in units of q t / k
+    T = 0.0 - q_top * z + (q_top + q_bot) * z * z / 2.0
+    T = T - T.mean() + 0.0
+    a.plot(T, 1 - z, color=dk.HEAT, lw=2)
+    a.axhline(0.5, color="k", ls="--", lw=1)
+    a.axvline(0.0, color="grey", lw=0.8)
+    d = float(T[0])
+    a.annotate("", xy=(d, 1.0), xytext=(0.0, 1.0), arrowprops=dict(arrowstyle="<->", color=dk.HEAT))
+    a.text(d / 2, 1.04, "t (2 q_top - q_bot) / 6k", ha="center", fontsize=8, color=dk.HEAT)
+    a.text(0.02, 0.5, "column mean (the node)", fontsize=8, va="bottom")
+    a.set_xlabel("temperature through the thickness (illustrative)")
+    a.set_ylabel("height in the plate (top = 1)")
+    a.set_title("surface = node + t (2 q_top - q_bot) / (6 k)", fontsize=9)
+    a.set_xticks([]); a.set_ylim(-0.05, 1.15)
+    dk.save(fig, path, "The surface read-out of a thick plate")
+
+
+def fem_flow(path):
+    """!
+    @brief Draw the path of a project through the finite-element model (theory 4a, figure D4 of the design): the Problem and the memory guard, the refusals, the plan mesh, the extrusion through the slabs, the sources and films, the solve, the three read-outs and the results in the layout of the other models. Schematic, no numbers.
+    @param path Output file.
+    @return None.
+    """
+    fig, a = dk.canvas(15.5, 6.4)
+    a.set_xlim(0, 31.4); a.set_ylim(0, 13); a.axis("off")
+    w, h = 4.6, 2.2
+    top = [(0.4, "Problem\n(board, zones, heaters,\nvias, blocks, h)", "#cfe3f5"), (5.6, "memory guard\nfemmesh.unknowns:\nexact count, verdict", "#f6e7b4"),
+           (10.8, "plan mesh\nbreak lines, refined\nnear parts, via patches", "#cfe3f5"), (16.0, "extrusion\ncopper slabs, graded\ngaps, partial blocks", "#cfe3f5"),
+           (21.2, "sources and films\nvolume source or face flux,\nplain h on every face", "#cfe3f5"), (26.4, "solve\ndirect (<= 30 000)\nor CG + pyamg", "#cfe3f5")]
+    for x, t, c in top:
+        dk.box(a, x, 8.4, w, h * 1.25, t, c, size=7.5)
+    for i in range(len(top) - 1):
+        dk.arrow(a, top[i][0] + w, 9.5, top[i + 1][0], 9.5, color="k")
+    a.text(8.0, 12.3, "refused with the reason (ValueError):\nslanted or curved outline, block with a slanted side,\ntoo many break lines, cell below 0.02 mm, over the memory limit",
+           ha="center", fontsize=7.5, color="#b02020", bbox=dict(fc="#fbe3e3", ec="#b02020", lw=0.8))
+    dk.arrow(a, 8.0, 11.55, 8.0, 11.2, color="#b02020")
+    a.text(26.4 + w / 2, 12.3, "pyamg missing and a mesh above the direct limit:\nthe model is skipped, the others answer", ha="center", fontsize=7.5, color="#b02020", bbox=dict(fc="#fbe3e3", ec="#b02020", lw=0.8))
+    dk.arrow(a, 28.7, 11.85, 28.7, 11.2, color="#b02020")
+    dk.arrow(a, 28.7, 8.4, 28.7, 6.6, color="k")
+    reads = [(3.0, "column\nvolume mean of the field through each copper layer per cell:\nthe headline (t_max, T, part rows)", "#ffe9a8"),
+             (12.0, "surface\narea mean on the outer faces of the outer copper:\narrays T_surface (resolved)", "#ffd9d9"),
+             (21.0, "point\nhottest node of the mesh:\nextras t_max_point, T_point", "#e8e8e8")]
+    for x, t, c in reads:
+        dk.box(a, x, 3.6, 7.6, 2.8, t, c, size=7.5)
+        dk.arrow(a, x + 3.8, 6.6, x + 3.8, 6.4, color="k")
+    a.plot([3.0 + 3.8, 28.7], [6.6, 6.6], color="k", lw=1.0)
+    dk.box(a, 5.0, 0.4, 21.0, 1.8, "SteadyResult of the program: T per layer on the run grid, heat by path (top, bottom, edge, blocks), energy balance,\nblock_T, warnings: the same layout as the 3D solid, so the tables, reports, the computed-h loop and the top-path split work unchanged", "#d9efd9", size=7.5)
+    for x in (6.8, 15.8, 24.5):
+        dk.arrow(a, x, 3.6, x, 2.2, color="k")
+    dk.save(fig, path, "From a project to a finite-element solution")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1392,7 +1591,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling), (49, "fem_mesh_section", fem_mesh_section), (50, "surface_readout", surface_readout), (51, "fem_slabs", fem_slabs), (52, "fem_flow", fem_flow)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

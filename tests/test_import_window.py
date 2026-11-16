@@ -250,7 +250,7 @@ def test_the_model_settings_the_memory_verdict_and_the_warnings(board_dir):
     tiny = sx.memory_verdict(pixel_mm=0.0005)                         # a pixel that cannot fit: the guard refuses before anything is drawn
     assert "pixel of" in tiny["import_error"]
     w = " ".join(sx.warnings())
-    assert "No heat source is defined" in w and "Lumped / Analytic" in w and "flow-based face" in w
+    assert "No heat source is defined" in w and "LPTN / Analytic" in w and "flow-based face" in w
     sx.cell_mm, sx.mapping = 2.0, "fill"
     w = " ".join(sx.warnings())
     assert "'fill' mapping" in w
@@ -420,7 +420,7 @@ def test_the_window_reads_the_folder_and_fills_the_file_list(window):
     assert "Step 1 is complete" in window.page1.problem.text()
     assert window.page1.layers_label.text().startswith("4:")
     assert "2 vias, 1 component holes" in window.page1.drill_label.text()
-    assert "40.00 x 30.00 mm" in window.page1.outline_label.text()
+    assert "40.00 × 30.00 mm" in window.page1.outline_label.text()
     assert window.page1.layer_pick.count() == 4
 
 

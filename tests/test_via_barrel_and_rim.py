@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_via_barrel_and_rim.py
-@brief Tests of the via barrel length (gap plus half the copper thickness) and of the rim uncoupling (research/via-contact-geometry), in the FVM, FDM, Lumped and Analytic.
+@brief Tests of the via barrel length (gap plus half the copper thickness) and of the rim uncoupling (research/via-contact-geometry), in the FVM, FDM, LPTN and Analytic.
 @details The numbers are those of research/via-contact-geometry (README 3.3, 4 and 7.3): the via effect of the partial-copper boards at a 1 mm cell with the barrel rule
          and the rim rule, and the steady-maximum shift of the example board.
 """
@@ -125,7 +125,7 @@ def test_barrel_length_is_the_gap_plus_half_the_mean_copper_thickness():
 
 def test_every_model_reads_the_same_barrel_length():
     """!
-    @brief The point conductance of the FVM (gz_via, read by the Lumped), the constriction set of the Lumped and the Analytic use k A / barrel_length, not k A / d.
+    @brief The point conductance of the FVM (gz_via, read by the LPTN), the constriction set of the LPTN and the Analytic use k A / barrel_length, not k A / d.
     @return None.
     """
     p = _lone()
@@ -247,11 +247,13 @@ def test_a_via_outside_a_copper_edge_is_uncoupled_and_never_heats_the_board(g):
 
 def test_partial_copper_via_effects_match_the_investigation_at_1_mm():
     """!
-    @brief Via effect in the FVM at 1 mm with the barrel and the rim rules: quarter 1.223 K, track 1.990 K (research/via-contact-geometry out/contact_b05.json, contact_geo).
+    @brief Via effect in the FVM at 1 mm with the barrel and the rim rules: quarter 1.223 K, track 2.476 K (research/via-contact-geometry out/contact_b05.json, contact_geo gave 1.990 K for the track).
+    @details fix/drawn-copper-faces: the track is a drawn copper edge through the via footprint, now read by the exact fill and the flow-based faces, so the layer couples more of the via
+             (1.990 -> 2.476 K); still far below the resolved 3D reference of the via effect (13.6 K, a safe-side deficit as before); the quarter does not move.
     @return None.
     """
     assert _effect(_quarter) == pytest.approx(1.2230, abs=2e-3)
-    assert _effect(_track) == pytest.approx(1.9903, abs=2e-3)
+    assert _effect(_track) == pytest.approx(2.4765, abs=2e-3)
 
 
 def test_the_cold_spot_board_keeps_its_documented_behaviour():
@@ -295,7 +297,8 @@ def test_the_partial_copper_warning_names_the_corner_case():
     assert msgs, "the corner board must warn"
     text = str(msgs[0])
     assert "corner of a copper region" in text and "not solved" in text
-    assert "22 to 85 %" in text and "up to 11 %" in text and "safe side" in text
+    # The numbers against the committed resolved reference of the 2.8.0 audit (docs/validation.md 34.2), replacing 22 to 85 % / 0 to 76 % / 11 % (final review 2c)
+    assert "55 to 85 %" in text and "22 to 73 %" in text and "up to 11.5 %" in text and "safe side" in text
     assert "research/" not in text and "fix/" not in text and "feature/" not in text
 
 
@@ -375,7 +378,7 @@ def test_a_via_on_bare_laminate_on_every_layer_runs_in_every_model(solver):
     """!
     @brief A via whose rim touches no copper and no heater on any layer (drawn before the zones) is uncoupled everywhere and every model runs.
     @details Found by the final review of 2.6.0: the rim rule set every well to zero, the barrel nodes floated and `kron_barrel` raised a singular-matrix error in the FVM,
-             FDM and Lumped (2.5.2 ran the board). The via must couple nothing: the board equals the same board without it.
+             FDM and LPTN (2.5.2 ran the board). The via must couple nothing: the board equals the same board without it.
     @param solver FVM linear solver.
     @return None.
     """

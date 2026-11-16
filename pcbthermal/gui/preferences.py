@@ -25,6 +25,7 @@ from .. import package
 from ..gerber import limits
 from ..numfmt import eng, num
 from . import theme as th
+from .spinfit import fit_range
 from . import tips
 
 
@@ -70,10 +71,10 @@ LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)"
                   "package_theta": "Package families (typical θ)", "heatsinks": "Package heatsinks (typical θSA)"}
 LIBRARY_TIPS = {"via_fills": "Via barrel fills: the name is listed in the via's Fill box, k (W/mK) is its typical value.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
-                "interfaces": "Pastes and gap pads: apparent k (W/mK) and thickness (mm); R = thickness / k.",
-                "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK).",
+                "interfaces": "Pastes and gap pads: apparent k (W/mK) and thickness (mm); R = thickness / k. Typical values, several without a source (see the notes).",
+                "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK). Typical values, no source (see each note): check your datasheet.",
                 "package_theta": "Typical θ junction-pad, θJC(top) (K/W) and Tj max (°C) per package family: a starting value, not the datasheet.",
-                "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting."}
+                "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting. Natural-convection catalogue values are quoted at a large rise (75 K for the BGA 40×40×18): at a small rise the heatsink is worse."}
 SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
 SECTION_HINTS = {"new_board": "Values of a board from File - New board (and at start-up).",
                  "new_elements": "Values of an element drawn or added from the right-click menu.",
@@ -90,7 +91,7 @@ MACHINE_NOTES = {"solver": "The models and settings a new project starts with, a
 PACKAGE_MEMORY_NOTE = ("Above 512 MB: the whole package is held in memory while it is read and written (the files it holds, their compressed copy and the project), "
                        "so a package of this size needs several times its size in free memory.")
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
-MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
+MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
 LABELS = {
     "width_mm": "Width (mm)", "height_mm": "Height (mm)", "layers": "Copper layers", "ambient_c": "Ambient (°C)", "h_top": "h top (W/m²K)",
@@ -108,7 +109,7 @@ LABELS = {
     "design_coverage_pct": "Design: copper coverage (± %)", "design_weight_pct": "Design: copper weight (± %)", "design_planes_pct": "Design: inner planes (± %)",
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
-    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
+    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "LPTN rings", "analytic_modes": "Analytic modes",
     "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)", "max_mb": "Largest package (MB)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
@@ -118,11 +119,11 @@ COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_p
            "flow": "Air flow", "theta_sa_k_per_w": "θSA (K/W)"}
 TIPS = {
     "width_mm": "Width of a new board, mm.", "height_mm": "Height of a new board, mm.", "layers": "Copper layers of a new board.",
-    "ambient_c": "Ambient temperature of a new board, °C.", "h_top": "Typed top-face h, W/m²K.",
-    "h_bottom": "Typed bottom-face h, W/m²K.", "edges_lose_heat": "Whether the edges exchange heat with the air.",
-    "h_side": "Edge h, W/m²K.", "via_plating_um": "Via barrel plating, µm.",
-    "h_mode": "Face h typed, or computed (convection and radiation).", "emissivity_top": "Emissivity of the top face (0 to 1).",
-    "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
+    "ambient_c": "Ambient temperature of a new board, °C.", "h_top": "Typed top-face h, W/m²K. Default 10: program default of the original program, no source; kept.",
+    "h_bottom": "Typed bottom-face h, W/m²K. Default 15: program default of the original program, no source; kept.", "edges_lose_heat": "Whether the edges exchange heat with the air.",
+    "h_side": "Edge h, W/m²K. Default 10: program default of the original program, no source; kept.", "via_plating_um": "Via barrel plating, µm.",
+    "h_mode": "Face h typed, or computed (convection and radiation).", "emissivity_top": "Emissivity of the top face (0 to 1). Typical value 0.9, no source (it depends on the solder mask and finish): the example board reads +6.5 % / +15 % of the rise at 0.6 / 0.3 (computed h).",
+    "emissivity_bottom": "Emissivity of the bottom face (0 to 1). Typical value 0.9, no source: the example board reads +6.5 % / +15 % of the rise at 0.6 / 0.3 (computed h).", "orientation": "Mounting of the board for the computed coefficients.",
     "natural_form": "Vertical-board natural convection: general (Churchill and Chu) or laminar (Ra below 1.00E9); under 1 % on the example.",
     "air_speed": "Air speed along the board, m/s (computed h).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "A new heater: heat source (power only) or component (junction, package, top path).", "heater_size_mm": "Side of a heater added from the right-click menu, mm.",
@@ -131,24 +132,24 @@ TIPS = {
     "heatsink_h_extra": "Extra h of a new heatsink, W/m²K.", "heatsink_size_mm": "Side of a heatsink added from the right-click menu, mm.",
     "block_thickness_mm": "Thickness of a new metal block, mm.", "block_metal": "Metal of a new block (from the metals library).",
     "block_interface": "Interface of a new block (from the interface library).",
-    "k_copper": "Conductivity of copper (W/mK).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
-    "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK.", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK.",
-    "rho_fr4": "Simple-stack-up dielectric density, kg/m³.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK.",
+    "k_copper": "Conductivity of copper (W/mK). Typical value 385, no recorded source: pure copper is 398 at 20 °C; 385 is kept (about 1.5 % on the hot side).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
+    "k_fr4_through": "Simple-stack-up dielectric k across the board, W/mK. Typical value 0.3 (0.29 measured by Azar and Graebner, quoted second hand).", "k_fr4_inplane": "Simple-stack-up dielectric k along the plane, W/mK. Typical value 0.9, no source: a 6 mm part on a bare 60 × 40 mm two-layer board reads +25 % / -15 % of the rise with 0.6 / 1.2.",
+    "rho_fr4": "Simple-stack-up dielectric density, kg/m³. Typical value, no source.", "cp_fr4": "Simple-stack-up dielectric specific heat, J/kgK. Typical value, no source.",
     "copper_uncertainty_pct": "Uncertainty of the copper thickness of every layer, % (at most 99).",
-    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (correlations: 20 to 30).",
+    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients, % (published plate laws: about 20 vertical, 50 horizontal face up).",
     "theta_uncertainty_pct": "Uncertainty of θ junction-pad, %.",
     "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT, % (it varies with board and air flow).",
     "reading_uncertainty_k": "Error of the temperature reading, K (thermocouple contact, IR emissivity; typically 1 to 3).",
     "design_level": "Default board description in the calculator: none, cad (from fabrication files), hand (from the layout) or estimated.",
-    "design_coverage_pct": "Design uncertainty of the outer-layer copper fill at 'estimated', % (hatched drawn solid: 50). Half the top pad: -13 % of power.",
+    "design_coverage_pct": "Design uncertainty of the outer-layer copper fill at 'estimated', % (hatched drawn solid: 50). Half the top copper (hatched): -16 % of power.",
     "design_weight_pct": "Design uncertainty of the copper weight at 'estimated', % (0.5 oz for 1 oz: 50; at most 99). Half the copper: -24 % of power.",
-    "design_planes_pct": "Design uncertainty of the inner planes at 'estimated', % (smaller or undrawn). No inner planes: -34 % of power.",
-    "design_vias_pct": "Design uncertainty of the via barrel copper at 'estimated', %. No vias under the part: -11 % of power.",
+    "design_planes_pct": "Design uncertainty of the inner planes at 'estimated', % (smaller or undrawn). No inner planes: -36 % of power.",
+    "design_vias_pct": "Design uncertainty of the via barrel copper at 'estimated', %. No vias under the part: -12 % of power.",
     "design_scale_cad": "Design multiplier for a board from fabrication files (0 to 1; assumed).",
     "design_scale_hand": "Design multiplier for a board drawn by hand (0 to 1; assumed).",
     "design_scale_estimated": "Design multiplier for an estimated board (normally 1).",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
-    "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Hotspot limit, °C.",
+    "lumped_rings": "Rings of the LPTN model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Hotspot limit, °C.",
     "max_file_mb": "Largest Gerber, drill or ZIP member read, MB (16 to 4096, shipped 256; real files 0.01 to 2 MB). Decoding takes about twice the file in memory. "
                    "This machine only: not saved in project files.",
     "max_mb": "Largest .pcbtz package read or written, MB uncompressed (64 to 4096, shipped 512; real ones under 10 MB). It is held in memory whole. "
@@ -404,6 +405,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(val, int):
                 wdg = QSpinBox()
                 wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (package.MIN_TOTAL_MB, package.MAX_TOTAL_MB) if key == "max_mb" else (0, 100000)))
+                fit_range(wdg, val)                         # A stored value outside the usual range is shown as stored, not clamped
                 wdg.setValue(val)
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, int(v)))
             else:
@@ -418,6 +420,7 @@ class PreferencesDialog(QDialog):
                 while places < 6 and round(float(val), places) != float(val):
                     places += 1
                 wdg.setDecimals(places)
+                fit_range(wdg, val)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
             tip = f"{TIPS.get(key, key)}\nJSON key: {key}"
@@ -561,6 +564,7 @@ class PreferencesDialog(QDialog):
             elif isinstance(wdg, QCheckBox):
                 wdg.setChecked(bool(val))
             else:
+                fit_range(wdg, val)
                 wdg.setValue(val)
 
     def _after_change(self):

@@ -15,7 +15,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from ..model import DIELECTRICS, Dielectric
 from . import theme as th
+from .adaptive import AdaptiveSplitter
 from .panels import compact_combos
+from .spinfit import fit_range
 from ..numfmt import num
 
 _UNITS = (("µm and mm", "both"), ("µm", "um"), ("mm", "mm"))
@@ -184,7 +186,8 @@ class StackupView(QWidget):
         p.restore()
         if not self.true_scale:
             p.setPen(QColor(c["muted"]))
-            p.drawText(QPointF(8, h - 6), "Not to scale: thin layers enlarged to stay visible (choose 'True proportions' for the real ratios)")
+            note = "Not to scale: thin layers enlarged (Scale: True proportions for the real ratios)"
+            p.drawText(QPointF(8, h - 6), p.fontMetrics().elidedText(note, Qt.ElideRight, max(20, int(w) - 16)))     # Elided, never cut by the edge
         p.end()
 
     def mousePressEvent(self, e):
@@ -248,6 +251,7 @@ class StackupEditor(QTableWidget):
         s = QDoubleSpinBox()
         s.setRange(lo, hi)
         s.setDecimals(decimals)
+        fit_range(s, value)                                # A stored value outside the usual range is shown as it is, not clamped
         s.setValue(value)
         s.setKeyboardTracking(False)
         s.setEnabled(enabled)
@@ -388,21 +392,25 @@ class StackupPage(QWidget):
         lay = QVBoxLayout(self)
         bar = QHBoxLayout()
         self.mode = QComboBox()
+        self.mode.setAccessibleName("Stack-up")                 # Screen readers: the labels of the bar are not buddies (review of branch C)
         self.mode.addItem("Simple: equal layers, one FR-4", False)
         self.mode.addItem("Advanced: each layer on its own", True)
         self.mode.setToolTip("Simple: equal gaps set by the boxes on the right. Advanced: each layer and gap has its own thickness and material. Switching keeps the board.")
         self.unit = QComboBox()
+        self.unit.setAccessibleName("Units")
         for label, key in _UNITS:
             self.unit.addItem(label, key)
         self.unit.setToolTip("Units of the dimensions in the diagram.")
         self.scale = QComboBox()
-        self.scale.addItem("Readable (thin layers enlarged)", False)
+        self.scale.setAccessibleName("Scale")
+        self.scale.addItem("Readable", False)               # Short: the long name was cut in the box; the tooltip says what it does
         self.scale.addItem("True proportions", True)
-        self.scale.setToolTip("True proportions: real thickness ratios (copper becomes a thin line).")
+        self.scale.setToolTip("Readable: thin layers enlarged to stay visible. True proportions: real thickness ratios (copper becomes a thin line).")
         self.typical = QPushButton("Load typical stack-up")
         self.typical.setToolTip("Replace the stack-up by a typical one for this layer count (undoable).")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
+        self.inner_oz.setAccessibleName("Inner copper of the typical stack-up")
         self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
         self.inner_oz.addItem("1 oz (35 µm)", 1.0)
         self.inner_oz.setToolTip("Inner copper of the typical advanced stack-up: 0.5 oz (15.2 µm, default) or 1 oz (35 µm; reloads it, about 0.02 mm thicker per inner layer). "
@@ -410,12 +418,18 @@ class StackupPage(QWidget):
         self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)
         # The bar holds what changes the board; Units and Scale only change the drawing, so they sit above the diagram. In one row the five
         # controls made the page about 1240 px wide, and the tab widget took that width from the side docks of the main window
-        for text, w in (("Stack-up ", self.mode), ("  ", self.typical), ("  Inner copper ", self.inner_oz)):
+        for text, w in (("Stack-up ", self.mode), ("  ", self.typical)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
         lay.addLayout(bar)
-        split = QSplitter(Qt.Horizontal)
+        # The inner copper of the typical stack-up on a line of its own: in one row the bar asked about 700 px, so the page scrolled sideways at 1200 x 800
+        bar2 = QHBoxLayout()
+        bar2.addWidget(QLabel("Inner copper of the typical stack-up "))
+        bar2.addWidget(self.inner_oz)
+        bar2.addStretch(1)
+        lay.addLayout(bar2)
+        split = AdaptiveSplitter(Qt.Horizontal)          # The diagram above the forms in a narrow window (the page scrolled sideways at 1200 x 800)
         self.view = StackupView(theme)
         left = QWidget()
         ll = QVBoxLayout(left)

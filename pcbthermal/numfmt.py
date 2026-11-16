@@ -62,6 +62,20 @@ def eng(value, decimals=ENG_DECIMALS, sign=False):
     return text
 
 
+def signed_fixed(value, decimals=3):
+    """!
+    @brief Write a difference with an explicit sign and a fixed number of decimals, without a negative zero.
+    @details f"{-1e-5:+.3f}" gives "-0.000", which reads as a small negative difference that the number does not show; a value that rounds to zero is written "+0.000".
+    @param value Number to write (a difference in K or in %).
+    @param decimals Number of decimals.
+    @return str Such as "+0.003", "-1.250" or "+0.000".
+    """
+    value = float(value)
+    if math.isfinite(value) and round(value, int(decimals)) == 0.0:
+        value = 0.0                                       # -0.0004 and -0.0 print as +0.000, not -0.000
+    return f"{value:+.{int(decimals)}f}"
+
+
 def num(value, digits=6, sign=False):
     """!
     @brief Write a number as plain decimal inside the window PLAIN_MIN <= |x| < PLAIN_MAX and in engineering notation outside it.

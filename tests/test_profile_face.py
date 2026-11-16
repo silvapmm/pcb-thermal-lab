@@ -100,7 +100,7 @@ def wave_board(bare=True, side=6.0):
 
 @pytest.mark.parametrize("model", ["fvm", "fdm"])
 def test_the_decision_sees_the_swing_of_the_face(model):
-    # The node alone oscillates 0.36 K (below the 1 K threshold, so "average" and 187.60 degC); the face swings by dP * R_face,max = 3.2 K more, so the part is resolved (189.58 degC)
+    # The node alone oscillates 0.36 K (below the 1 K threshold, so "average" and 187.60 °C); the face swings by dP * R_face,max = 3.2 K more, so the part is resolved (189.58 °C)
     p = wave_board()
     resp = getattr(profiles, f"step_response_{model}")(p, 2.0)
     assert resp.face_rth is not None and resp.face_rth[0] > 0.0
@@ -117,7 +117,7 @@ def test_the_resolved_run_of_the_review_example_reaches_the_face_peak():
     resp = profiles.step_response_fvm(p, 2.0)
     dec = profiles.decide(p, resp, 1.0)
     res = profiles.run_fvm(p, dec, ProfileOptions(threshold_c=1.0), cell_mm=1.0)
-    assert res.resolved and res.peak > res.steady_average_max + 1.0                  # 189.58 against 187.60 degC at the time of writing
+    assert res.resolved and res.peak > res.steady_average_max + 1.0                  # 189.58 against 187.60 °C at the time of writing
     assert res.peak == pytest.approx(189.58, abs=0.05)
 
 

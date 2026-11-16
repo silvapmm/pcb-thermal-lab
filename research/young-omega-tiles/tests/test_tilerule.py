@@ -2,8 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_tilerule.py
-@brief Tests of `lib/tilerule.py` (S4): the rules for the tile, the floor and the cap, the coarsening, the mode rule, the cost, that the patch is installed and removed cleanly, and that
-       with the correction switched off it reproduces the program bit for bit.
+@brief Tests of `lib/tilerule.py` (S4): the rules for the tile, the floor and the cap, the coarsening, the mode rule, the cost, and that the patch is removed after an error. The tests that
+       certified the prototype patch against the program's source (installed and removed, bit for bit when switched off, the modes hook) were removed in the 2.8.0
+       reproduction pass: the tile rule and the via self-term are in the program since fix/via-constriction (2.4.5) and the patch has nothing left to rewrite (README).
 @details Run from the repository root: `.venv/bin/python -m pytest -q research/young-omega-tiles/tests/test_tilerule.py`.
 """
 
@@ -134,24 +135,6 @@ def test_cost_counts_unknowns(array3):
     assert c["unknowns"] == c["active"] * 4
 
 
-@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
-def test_patch_is_installed_and_removed(array3):
-    """!
-    @brief Entering the context replaces `analytic.solve_steady` and adds the hooks; leaving it restores the program's function and removes the hooks and the rule.
-    @param array3 Fixture.
-    @return None.
-    """
-    orig = analytic.solve_steady
-    before = dict(tr.RULE)
-    with tr.patched("fixed", t_mm=1.0):
-        assert analytic.solve_steady is not orig
-        assert hasattr(analytic, "_g_modes") and hasattr(analytic, "_tile_grid_vias")
-        assert tr.RULE["kind"] == "fixed"
-    assert analytic.solve_steady is orig
-    assert not hasattr(analytic, "_g_modes") and not hasattr(analytic, "_tile_grid_vias")
-    assert tr.RULE == before
-
-
 def test_patch_removed_after_an_exception(array3):
     """!
     @brief An error inside the context leaves the program's function in place.
@@ -163,36 +146,6 @@ def test_patch_removed_after_an_exception(array3):
         with tr.patched("fixed"):
             raise RuntimeError("boom")
     assert analytic.solve_steady is orig
-
-
-@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
-def test_switched_off_patch_reproduces_the_program_bit_for_bit(array3):
-    """!
-    @brief mode "off", no spread, the program's tile and 64 modes: the maximum temperature equals the program's to the last digit.
-    @param array3 Fixture.
-    @return None.
-    """
-    base = sc.rise(array3, "analytic", 0.5, 300)
-    with tr.patched("program", mode="off", spread="none"):
-        patched = sc.rise(array3, "analytic", 0.5, 300)
-    assert patched == base
-
-
-@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
-def test_modes_hook_changes_the_answer_only_when_asked(array3):
-    """!
-    @brief With c = 0 the fixed 1 mm tile gives the same result as the explicit call without modes; with c = 2 on a board longer than 32 mm the result differs slightly.
-    @param array3 Fixture.
-    @return None.
-    """
-    import cases
-    prob = cases.pad(4, 5, 1.2, 0.3, 385.0, side_mm=60.0, source_mm=6.0)
-    with tr.patched("fixed", t_mm=1.0, modes_c=0.0):
-        a = sc.rise(prob, "analytic", 0.5, 300)
-    with tr.patched("fixed", t_mm=1.0, modes_c=2.0):
-        b = sc.rise(prob, "analytic", 0.5, 300)
-    assert a != b
-    assert abs(a - b) < 0.05 * a
 
 
 def test_reference_parameters_of_a_cell_below_half_a_millimetre():

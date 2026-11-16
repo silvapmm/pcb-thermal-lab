@@ -30,13 +30,15 @@ SMALL = dict(layers=4, n=5, pitch=1.2, dia=0.3, fill=385.0, side=24.0, src=10.0,
 def program_as_released():
     """!
     @brief "The program" of these tests is the one-node network of release 2.4.5: since the adoption (feature/lumped-zones) the program has the zones itself, so its switch
-           `lumped.ZONES` is turned off for every test of this folder and restored after it.
+           `lumped.ZONES` is turned off for every test of this folder and restored after it; since 2.8.0 its first link sees the mirror images of the board sides
+           (fix/lumped-edge-first-link), which the copy in lib/ does not have, so `lumped.IMAGE_MAX_CELLS` is set to 0 (the first link of 2.4.5 to 2.7.1) too (README 11).
     @return None (a generator fixture).
     """
-    saved = lumped.ZONES
+    saved, saved_images = lumped.ZONES, lumped.IMAGE_MAX_CELLS
     lumped.ZONES = False
+    lumped.IMAGE_MAX_CELLS = 0             # 2.8.0 trial: the first link of 2.4.5 to 2.7.1 (no mirror images), the one the copy in lib/ was made from
     yield
-    lumped.ZONES = saved
+    lumped.ZONES, lumped.IMAGE_MAX_CELLS = saved, saved_images
 
 
 def build(spec, cell_mm=0.5):

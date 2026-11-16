@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file regress_boards.py
-@brief The boards of the release regression: the three example files of the program, one derived example and thirteen small canonical boards, each built through the public builder API only.
+@brief The boards of the release regression: the three example files of the program, one derived example and sixteen small canonical boards (three of them with drawn copper that has edges between the cell edges), each built through the public builder API only.
 @details The same builders are run on every revision, so they use only calls that exist in v2.4.4 and in the release candidate (`Problem.new`, `add_zone`, `add_full_copper`,
          `add_heater`, `add_via`, `add_via_array`, `add_heatsink`, `set_outline`, `load_problem`). The module imports the program lazily: the caller puts the program tree to
          test on `sys.path` first (see `regress_harness.use_program`). Dimensions are in mm in the builders (the builder API converts), SI in the program.
@@ -45,6 +45,9 @@ DESCRIPTIONS = {
     "part_top_path": "50 x 50 mm, 2 layers, a component with theta, theta_jc_top and a heatsink on the package (top path) on a 14 mm pad",
     "hatched_copper": "60 x 60 mm, 2 layers, both layers hatched (fill 0.5 and 0.7), one part",
     "part_across_outline": "40 x 40 mm, outline edge at x = 37.3 mm (between the cell edges at 2, 1 and 0.5 mm), a part across the edge",
+    "drawn_inset_square": "20 x 20 mm, 2 layers, copper 1.2 mm inside the wall on both layers (edges between the cell edges), 4 mm part, edge film 200 W/m2K (drawn copper)",
+    "drawn_stripes_pad": "20 x 20 mm, 2 layers, top copper in 1.2 mm stripes every 2.4 mm plus a 7.2 mm pad, bottom 1.2 mm inside the wall, 4 mm part, 200 W/m2K (drawn copper)",
+    "drawn_ell": "20 x 20 mm, 2 layers, top copper an L (the inset square without an 8 mm corner), bottom 1.2 mm inside the wall, 4 mm part, 200 W/m2K (drawn copper)",
 }
 
 EXAMPLE_FILES = ("example_board", "profile_board", "reference_board")
@@ -199,6 +202,32 @@ def _across_outline():
     return p
 
 
+def _drawn(name):
+    """!
+    @brief The three boards whose drawn copper has edges between the cell edges (a layer with cut cells): an inset square, stripes with a pad and an L, 20 mm square.
+    @details The copper edges are 1.2 mm from the wall (not a multiple of 2, 1 or 0.5 mm), the part is 4 mm at the centre of the top layer with 1 W, `h_top = h_bottom = 10`
+             and an edge film of 200 W/m2K. They exist because the other boards have their copper edges on cell lines and do not see the faces of drawn copper.
+    @param name "drawn_inset_square", "drawn_stripes_pad" or "drawn_ell".
+    @return Problem.
+    """
+    p = _new(20, 20, 2, 1.6, 35.0, name, h_top=10.0, h_bottom=10.0, h_side=200.0)
+    if name == "drawn_inset_square":
+        top = [(1.2, 1.2, 18.8, 18.8)]
+    elif name == "drawn_stripes_pad":
+        top, y = [], 1.2
+        while y < 18.8 - 1e-9:
+            top.append((1.2, y, 18.8, min(y + 1.2, 18.8)))
+            y += 2.4
+        top.append((6.4, 6.4, 13.6, 13.6))
+    else:
+        top = [(1.2, 1.2, 18.8, 10.8), (1.2, 10.8, 10.8, 18.8)]
+    for r in top:
+        p.add_zone(1, rect=r)
+    p.add_zone(2, rect=(1.2, 1.2, 18.8, 18.8))
+    p.add_heater(1, 1.0, rect=(8, 8, 12, 12), name="U")
+    return p
+
+
 def load_example(name, examples_dir):
     """!
     @brief Load one example file with the program under test.
@@ -228,7 +257,8 @@ def board_names():
     @return List of str.
     """
     return list(EXAMPLE_FILES) + ["example_cut_to_T", "plate_uniform", "plate_pad", "plate_vias", "plate_lone_via", "round_outline", "t_outline",
-                                  "two_layer_partial", "one_layer_full", "one_layer_pad", "finned_block", "part_top_path", "hatched_copper", "part_across_outline"]
+                                  "two_layer_partial", "one_layer_full", "one_layer_pad", "finned_block", "part_top_path", "hatched_copper", "part_across_outline",
+                                  "drawn_inset_square", "drawn_stripes_pad", "drawn_ell"]
 
 
 def build(name, examples_dir=None):
@@ -248,7 +278,8 @@ def build(name, examples_dir=None):
         return _from_spec(name)
     table = {"plate_vias": lambda: _plate_vias(name, False), "plate_lone_via": lambda: _plate_vias(name, True), "round_outline": _round_outline,
              "t_outline": _t_outline, "two_layer_partial": _two_layer_partial, "hatched_copper": _hatched, "finned_block": _finned_block,
-             "part_top_path": _top_path, "part_across_outline": _across_outline}
+             "part_top_path": _top_path, "part_across_outline": _across_outline, "drawn_inset_square": lambda: _drawn(name),
+             "drawn_stripes_pad": lambda: _drawn(name), "drawn_ell": lambda: _drawn(name)}
     return table[name]()
 
 

@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_part_readout.py
-@brief The part rows of a Lumped run read the part's own peak (node + peak term), the same quantity as the Lumped board maximum, not the footprint node of the drawn field.
+@brief The part rows of a LPTN run read the part's own peak (node + peak term), the same quantity as the LPTN board maximum, not the footprint node of the drawn field.
 """
 
 import numpy as np
@@ -94,8 +94,8 @@ def test_a_neighbour_hotter_than_the_peak_keeps_the_field():
 
 
 def test_an_outline_board_reads_the_peak_of_the_equivalent_rectangle():
-    # simulate() solves the Lumped on the rectangle of the same area and stretches the field back; the own peak is a temperature per part (no frame), so the
-    # single part reads the Lumped board maximum
+    # simulate() solves the LPTN on the rectangle of the same area and stretches the field back; the own peak is a temperature per part (no frame), so the
+    # single part reads the LPTN board maximum
     from pcbthermal import SolverOptions, simulate
     p = Problem.new(100.0, 80.0, 2).add_zone(1, rect=(0, 0, 100, 80)).add_zone(2, rect=(0, 0, 100, 80))
     p.set_outline([[0, 0], [100, 0], [100, 40], [50, 40], [50, 80], [0, 80]])

@@ -12,20 +12,22 @@ import matplotlib
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, plots
+from . import layerchoice
 from . import theme as th
 from . import tips
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
-from ..numfmt import num
+from ..api import SUMMARY_COLUMNS
+from ..numfmt import num, signed_fixed
 
 
 @contextlib.contextmanager
@@ -55,6 +57,10 @@ def _paint_figure(fig, name):
         ax.set_facecolor(c["alt"])
 
 
+MIN_SECTION = 56   # Logical px: the narrowest column of a results table
+SUMMARY_WARNINGS_GAP_PX = 8   # Logical px between the Warnings box and the report console on the Summary page (the 8 px the dock leaves between boxes)
+
+
 def _table(headers):
     """!
     @brief Create a read-only table with the given column headers.
@@ -67,7 +73,13 @@ def _table(headers):
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    # Columns as wide as their header or text (at least MIN_SECTION px), only the last one stretches; a narrow window gets a horizontal scroll bar, never a cut header
+    head = t.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     t.setAlternatingRowColors(True)
     return t
 
@@ -100,7 +112,61 @@ def _fit_height(table, min_rows=3, max_rows=12):
     """
     rows = min(max(table.rowCount(), min_rows), max_rows)
     h = table.horizontalHeader().height() + rows * table.verticalHeader().defaultSectionSize() + 2 * table.frameWidth() + 2
+    bar = table.horizontalScrollBar()
+    if bar.maximum() > 0:                                  # A table with a horizontal scroll bar needs its height as well (nothing cut)
+        h += bar.sizeHint().height()
     table.setFixedHeight(h)
+
+
+class _SummaryTable(QTableWidget):
+    """!
+    @brief The models table of the Summary: columns as wide as their content, a horizontal scroll bar when they do not fit, the height of its rows.
+    """
+
+    def resizeEvent(self, event):
+        """!
+        @brief Fit the height again: the horizontal scroll bar appears or goes away with the width.
+        @param event QResizeEvent.
+        """
+        super().resizeEvent(event)
+        _fit_height(self, min_rows=self.rowCount() or 1)
+
+
+def summary_table(ref_label="FVM"):
+    """!
+    @brief Create the models table of the Summary with the headers of the one column definition of the API (api.SUMMARY_COLUMNS).
+    @details Headers in two lines name the read-out; every column is as wide as its header or its longest cell (at least MIN_SECTION px) and only the last one
+             stretches, so that a narrow window shows a horizontal scroll bar instead of a cut header or number.
+    @param ref_label Name of the reference model for the error column.
+    @return QTableWidget.
+    """
+    t = _SummaryTable(0, 0)
+    t.setToolTip(tips.MODEL_TABLE_TIP)
+    t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    t.setSelectionBehavior(QAbstractItemView.SelectRows)
+    t.verticalHeader().setVisible(False)
+    t.setAlternatingRowColors(True)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+    set_summary_headers(t, list(SUMMARY_COLUMNS), ref_label)
+    return t
+
+
+def set_summary_headers(table, cols, ref_label):
+    """!
+    @brief Put the headers, the tooltips and the resize modes of the models table.
+    @param table QTableWidget of summary_table.
+    @param cols List of api.SummaryColumn.
+    @param ref_label Name of the reference model for the error column.
+    """
+    table.setColumnCount(len(cols))
+    table.setHorizontalHeaderLabels(["\n".join(c.header_lines(ref_label)) for c in cols])
+    head = table.horizontalHeader()
+    head.setMinimumSectionSize(MIN_SECTION)
+    head.setSectionResizeMode(QHeaderView.ResizeToContents)
+    head.setStretchLastSection(True)
+    for i, c in enumerate(cols):
+        table.horizontalHeaderItem(i).setToolTip(c.tip)
 
 
 def recolour_toolbar(toolbar, theme):
@@ -187,30 +253,34 @@ class PlotTab(QWidget):
         recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
+        self.model.setAccessibleName("Model")                  # Screen readers: the boxes of this row have a text label beside them, not a buddy
         self.layer_value = 0                            # The layer of the toolbar choice (see layerchoice): -1 / -2 all layers, 100 + face a metal block
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
         self.equiv = QCheckBox("Equiv. rect.")
         self.equiv.setChecked(True)
-        self.equiv.setVisible(False)                    # Shown only for a Lumped or Analytic result of a board with an outline
+        self.equiv.setVisible(False)                    # Shown only for a LPTN or Analytic result of a board with an outline
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
+        self.vmin.setAccessibleName("Lowest temperature of the colour scale"); self.vmax.setAccessibleName("Highest temperature of the colour scale")
         for s in (self.vmin, self.vmax):
             s.setRange(-100, 2000)
             s.setDecimals(1)
             s.setKeyboardTracking(False)
         self.axis = QComboBox()
+        self.axis.setAccessibleName("Cut direction")
         self.axis.addItem("Along x", "x")
         self.axis.addItem("Along y", "y")
         self.pos = QSlider(Qt.Horizontal)
+        self.pos.setAccessibleName("Cut position")
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
         self.cut_overlay = QCheckBox("Cut overlay")      # Profiles: the board picture over the curves (content: toolbar Layer, Display, Map button); session only
         self.cut_overlay.setChecked(True)
         self.map_on = lambda: False                      # The main window says whether the Map button (T) is on
         self.model.setToolTip("Model whose result is drawn.")
-        self.equiv.setToolTip("Lumped and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
+        self.equiv.setToolTip("LPTN and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
                               "Unticked: the field stretched back onto the box (parts look larger).")
         self.vmin.setToolTip("Lowest temperature of the colour scale, °C (Auto range off).")
         self.vmax.setToolTip("Highest temperature of the colour scale, °C (Auto range off).")
@@ -355,6 +425,21 @@ class PlotTab(QWidget):
         # The metal blocks of the finite-volume and finite-difference models are views of their own (data 100 and 101)
         return sorted({f for r in self.sim.results.values() for f in (0, 1) if f"block_{'top' if f == 0 else 'bottom'}_max" in r.extras})
 
+    def surface_faces(self):
+        """!
+        @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
+        @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
+                 a view of the map, never a mode: no number of any table changes with it. Models without it (LPTN, Analytic, 3D solid) give no entry.
+        @return Sorted list of 0 (top) and 1 (bottom).
+        """
+        if self.sim is None:
+            return []
+        out = set()
+        for r in self.sim.results.values():
+            if "T_surface" in r.arrays:
+                out |= {f for f in (0, 1) if np.isfinite(r.arrays["T_surface"][f]).any()}
+        return sorted(out)
+
     def set_layer(self, value):
         """!
         @brief Show the layer chosen in the toolbar (or the fallback for this tab).
@@ -440,30 +525,32 @@ class PlotTab(QWidget):
                 if layer in (-1, -2):
                     plots.draw_fields(self.fig, r, prob, cmap=cmap, show_equivalent=self.equiv.isChecked(), equivalent_color=eq_args["equivalent_color"],
                                       view=view, grid=layer == -2)
+                elif layer >= layerchoice.SURFACE_BASE:
+                    plots.draw_surface(self.fig, r, prob, layer - layerchoice.SURFACE_BASE, cmap=cmap)
                 elif layer >= 100:
                     plots.draw_block(self.fig, r, prob, layer - 100, cmap=cmap)
                 else:
                     layer = self._layer_index()
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
-                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
+                    ax = plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax, label=plots.COLUMN_LABEL,
                                           layer=layer, extremes=True, marker=self._model_hot_point(r, layer),
                                           hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
-                                          title=f"{r.model.upper()} - layer {layer + 1}   "
+                                          title=f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"
                                                 f"Tmax {r.t_max:.1f} °C   Tmin {r.t_min:.1f} °C   Tmean {r.t_mean:.1f} °C", view=view)
                     ext = getattr(ax, "extreme_marks", None)
                     if ext is not None:
                         # The title quotes the two ringed values of THIS layer (the board Tmax, Tmin and Tmean are in the Summary): on a layer that does not hold
                         # the model's Tmax or the coolest point of the board, the board numbers contradicted the rings (0.2 to 0.5 K on the example board)
-                        ax.set_title(f"{r.model.upper()} - layer {layer + 1}   max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   "
-                                     f"mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
+                        ax.set_title(f"{tips.model_label(r.model)} - layer {layer + 1}, column mean\n"        # Two lines: one line was cut at both ends in a 1200 px window
+                                     f"max {ext['tmax']:.1f} °C   min {ext['tmin']:.1f} °C   mean {r.layer_mean[layer]:.1f} °C", fontsize=10)
             elif self.kind == "gradient" and self._result() is not None:
                 r = self._result()
                 layer = self._layer_index()
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.display.cmap, layer=layer,
                                  label="|∇T| (K/mm)", **eq_args, view=view,
-                                 title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
+                                 title=f"{tips.model_label(r.model)} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
                 axis = self.axis.currentData()
                 b = prob.board
@@ -483,10 +570,56 @@ class PlotTab(QWidget):
         self.canvas.draw_idle()
 
 
+class Cover(QLabel):
+    """!
+    @brief An opaque note laid over a results page (the page keeps its widgets): used when the results belong to another board than the one now open.
+    """
+
+    def __init__(self, page, text):
+        """!
+        @param page The page (QWidget) the note covers.
+        @param text The note.
+        """
+        super().__init__(text, page)
+        self.setAlignment(Qt.AlignCenter)
+        self.setWordWrap(True)
+        self.setMargin(24)
+        self.setAutoFillBackground(True)                # The page below must not show through
+        page.installEventFilter(self)                   # Follow the size of the page
+        self.hide()
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Keep the note the size of its page.
+        @param obj The page.
+        @param event The event.
+        @return False (the page handles its own events).
+        """
+        # isHidden, not isVisible: a cover over a page that is not the current tab is not 'visible' while its page is hidden, so it kept the size the page had
+        # when the cover was made (review of branch C: before the first run the note of the Temperature page was cut at 1200 x 800 and was a small grey box
+        # at 1500 x 900); the size is also taken again when the page is shown
+        if event.type() in (QEvent.Resize, QEvent.Show) and not self.isHidden():
+            self.setGeometry(obj.rect())
+        return False
+
+    def cover(self, on):
+        """!
+        @brief Show or hide the note.
+        @param on True to cover the page.
+        """
+        if on:
+            self.setGeometry(self.parentWidget().rect())
+            self.raise_()
+        self.setVisible(on)
+
+
 class ResultsView(QWidget):
     """!
     @brief The whole results area.
     """
+
+    START_NOTE = "No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5)."
+    CLEARED_NOTE = "No results for this board yet. Press Run simulation (F5)."           # The notes over the plot pages: before any run, and after another board was opened
 
     show_on_board = Signal()
 
@@ -515,11 +648,9 @@ class ResultsView(QWidget):
         # Summary: models table, warnings and the text report
         summary = QWidget()
         sl = QVBoxLayout(summary)
-        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
-                                   "Balance", "Error vs ref", "Time s"])
-        _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
-        # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
-        self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        # Headers in two lines name the read-out; the columns come from the one definition of the API (api.SUMMARY_COLUMNS), as wide as their content
+        self.model_table = summary_table()
+        _fit_height(self.model_table, min_rows=1)            # The height follows the rows (as many as there are models), see _fit_height
         self.warnings = WarningAccordion("summary", select=False)       # The notes of the run: 'Warnings (N)' with closed rows
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
@@ -527,6 +658,8 @@ class ResultsView(QWidget):
         self.report.setPlaceholderText("No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5): "
                                        "the table above compares the models and the report of the run appears here.")
         self.report.setStyleSheet("font-family: Menlo, Consolas, monospace;")
+        # Room under the Warnings box so it is not stuck to the report console; a margin of the (hidden when empty) accordion, so no gap shows without notes
+        self.warnings.layout().setContentsMargins(0, 0, 0, SUMMARY_WARNINGS_GAP_PX)
         sl.addWidget(self.model_table)
         sl.addWidget(self.warnings)
         sl.addWidget(self.report, 1)
@@ -547,10 +680,15 @@ class ResultsView(QWidget):
         tables = QWidget()
         tl = QVBoxLayout(tables)
         self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"])
-        self.zone_table = _table(["Zone", "Layer", "Mean °C", "Max °C", "Min °C"])
-        self.hot_table = _table(["Hotspot", "Layer", "Tmax °C", "x mm", "y mm", "Area mm²"])
-        self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
-        self.block_table.setMaximumHeight(90)
+        # Every temperature the user sees names its read-out: these tables are all column values (the layer mean through the copper thickness), like the part table
+        self.zone_table = _table(["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"])
+        self.hot_table = _table(["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"])
+        self.block_table = _table(["Metal block", "Face", "Mean °C\n(block)", "Max °C\n(block)", "Heat in W", "Heat to air W"])     # The block read-out: the mean through the block
+        self.block_table.setMaximumHeight(110)                 # Two rows (a block on each side) under the two-line header that names the read-out
+        # The headers name the read-out; their tooltips say what it is (the part table sets its own when it is filled; the models table has one per column)
+        for t, cols, tip in ((self.zone_table, (2, 3, 4), tips.COLUMN_TABLE_TIP), (self.hot_table, (2,), tips.COLUMN_TABLE_TIP), (self.block_table, (2, 3), tips.BLOCK_TABLE_TIP)):
+            for c in cols:
+                t.horizontalHeaderItem(c).setToolTip(tip)
         for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
             tl.addWidget(t)
         split.addWidget(tables)
@@ -569,6 +707,13 @@ class ResultsView(QWidget):
         from .profile_results import ProfileResultsTab
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
+        # The pages that show a run are covered by a note while the results belong to another board (see clear)
+        self._covers = [Cover(page, "No results for this board yet. Press Run simulation (F5).") for page in (summary, self.temp, self.grad, self.profile, comp, self.compare, self.time_sim)]
+        # Before the first run every plot page says what to do (review of the window: only the Summary had an empty state, the maps were blank figures);
+        # the Summary keeps its own note in the report box
+        for cover in self._covers[1:]:
+            cover.setText(self.START_NOTE)
+            cover.cover(True)
         # The stack takes the largest minimum width of its pages: the Animation and Power profile controls (about 530 px) made the whole Results page scroll
         # sideways in a narrow centre area, also on the Profiles tab. Only the page shown counts: the hidden pages ignore their size hints, so a narrow tab
         # never scrolls and a wide one (Animation) still scrolls to reach its controls instead of clipping them.
@@ -648,23 +793,36 @@ class ResultsView(QWidget):
         self.time_sim.set_theme(theme)
         self._draw_components()
 
+    def clear(self):
+        """!
+        @brief Forget the run: another board was opened or created, so the pages that show a run say there are no results for it yet.
+        """
+        self.sim = None
+        for cover in self._covers:
+            cover.setText(self.CLEARED_NOTE)
+            cover.cover(True)
+
     def set_simulation(self, sim):
         """!
         @brief Display a finished simulation.
         @param sim Simulation.
         """
         self.sim = sim
-        rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
-                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
-                 "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
-                 f"{r['seconds']:.2f}"] for r in sim.table()]
+        for cover in self._covers:
+            cover.cover(False)
+        cols, rows, cell_tips = sim.summary_grid(tips.model_label)
+        set_summary_headers(self.model_table, cols, tips.model_label(sim.reference.model))
         _fill(self.model_table, rows)
-        _fit_height(self.model_table)
+        for r, per_cell in enumerate(cell_tips):                # The raw energy balance is in the tooltip of its cell (the cell shows a percentage with a floor)
+            for c, tip in per_cell.items():
+                self.model_table.item(r, c).setToolTip(tip)
+        self.model_table.resizeColumnsToContents()
+        _fit_height(self.model_table, min_rows=len(rows))
         self._anim_warns = []                                   # A new run: the notes of the old animation are gone
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report(inline_warnings=False))      # The warnings are in the box above it
+        self.report.setPlainText(sim.report(inline_warnings=False, table=False))      # The warnings are in the box above it and the models table is the table above
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
@@ -681,13 +839,57 @@ class ResultsView(QWidget):
         if ref.T is None:
             return
         heaters = sim.heater_rows()
-        _fill(self.heater_table, [[h["name"], str(h["layer"]), f"{h['power_w']:.2f}", f"{h['t_mean']:.1f}",
-                                   f"{h['t_max']:.1f}",
-                                   f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-",
-                                   f"{h['margin_k']:.1f}" if h["margin_k"] is not None else "-",
-                                   f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-",
-                                   f"{h['power_top_w']:.2f}" if h["power_top_w"] > 0 else "-"]
-                                  for h in heaters])
+        # Every temperature column names its read-out and ONE surface column always follows (decision: the surface is always shown beside the column mean, no threshold):
+        # the hottest point of the outer face under the part, in the face of its source. The difference to the column in K and in % of the rise is in the tooltip of the
+        # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
+        # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
+        heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W",
+                 "Max °C\n(surface,\nresolved)" if ref.model == "fem" else "Max °C\n(surface,\nestimate)"]
+        self.heater_table.setColumnCount(len(heads))
+        self.heater_table.setHorizontalHeaderLabels(heads)
+        hi = self.heater_table.horizontalHeaderItem
+        hi(3).setToolTip(tips.COLUMN_HEADER_TIP)
+        hi(4).setToolTip(tips.COLUMN_HEADER_TIP)
+        hi(len(heads) - 1).setToolTip(tips.SURFACE_MAX_TIP)
+        rows, notes = [], []
+        n_layers = sim.problem.board.layers
+        rise = max(ref.t_max - ref.ambient, 1e-9)
+        for h in heaters:
+            row = [h["name"], str(h["layer"]), f"{h['power_w']:.2f}", f"{h['t_mean']:.1f}", f"{h['t_max']:.1f}",
+                   f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-",
+                   f"{h['margin_k']:.1f}" if h["margin_k"] is not None else "-",
+                   f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-",
+                   f"{h['power_top_w']:.2f}" if h["power_top_w"] > 0 else "-"]
+            if "t_max_surface" in h:
+                d = h["t_max_surface"] - h["t_max"]
+                face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
+                row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
+                how = "Resolved by the finite elements (not an estimate). " if ref.model == "fem" else ""
+                hot_node = ""
+                if ref.model == "fem" and "T_point" in ref.arrays:
+                    # The hottest mesh node under the part, a read-out of its own (the element mean is what the maps and tables show)
+                    pt = analysis.point_max(ref, sim.problem.heaters[len(rows)].polygon, sim.problem.heaters[len(rows)].layer, sim.problem.board.outline)
+                    if pt is not None:
+                        hot_node = f" Hottest node under the part: {pt:.3f} °C."
+                notes.append(how + f"{face}: {h['t_max_surface']:.3f} °C, {signed_fixed(d, 3)} K ({signed_fixed(100 * d / rise, 3)} % of the rise) from the column max {h['t_max']:.3f} °C. "
+                             "Surface mean " + f"{h['t_mean_surface']:.3f} °C." + hot_node + " " + tips.SURFACE_TRAP_TIP)
+            else:
+                row.append("n/a")
+                if ref.model not in ("fvm", "fdm", "fem"):
+                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM and FEM only); the column is the only read-out.")
+                elif 1 < h["layer"] < n_layers:
+                    notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
+                else:
+                    notes.append("No surface value under this part.")
+            rows.append(row)
+        _fill(self.heater_table, rows)
+        for r, note in enumerate(notes):
+            self.heater_table.item(r, len(heads) - 1).setToolTip(note)
+        # The heater table keeps room for two rows AND its horizontal scroll bar (review of the branch: at 1200 x 800 the bar took the height of the second
+        # row of the example board, so U2 was behind a vertical scroll bar)
+        t = self.heater_table
+        t.setMinimumHeight(t.horizontalHeader().sizeHint().height() + min(max(t.rowCount(), 1), 2) * t.verticalHeader().defaultSectionSize()
+                           + t.horizontalScrollBar().sizeHint().height() + 2 * t.frameWidth() + 2)
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
                                  f"{z['t_min']:.1f}"] for z in zones])
@@ -709,11 +911,12 @@ class ResultsView(QWidget):
         heaters = self.sim.heater_rows()
         with _mpl_theme(self.theme):
             if heaters:
-                series = {"mean under footprint": [h["t_mean"] for h in heaters],
-                          "max under footprint": [h["t_max"] for h in heaters]}
+                # The bars are the column read-out, like the table (the surface is the last column of the table and its tooltip)
+                series = {"mean under footprint (column)": [h["t_mean"] for h in heaters],
+                          "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean)")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

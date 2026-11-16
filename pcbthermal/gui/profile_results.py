@@ -29,12 +29,15 @@ class ProfileResultsTab(QWidget):
         super().__init__(parent)
         self.theme, self.sim, self._updating = theme, None, False
         self.model = QComboBox()
+        self.model.setAccessibleName("Model")                  # Screen readers: the labels of this row are not buddies
         self.view = QComboBox()
+        self.view.setAccessibleName("View")
         self.view.addItem("Temperature versus time", "series")
         self.view.addItem("Peak temperature map", "peak")
         self.view.addItem("Last window, frame by frame", "frames")
         self.layer_value = 0                            # The layer of the toolbar choice (a single layer here)
         self.slider = QSlider(Qt.Horizontal)
+        self.slider.setAccessibleName("Time")
         self.model.setToolTip("Model whose time simulation is shown.")
         self.view.setToolTip("Temperature against time, the peak map, or the last window frame by frame.")
         self.slider.setToolTip("Drag to a moment of the simulation.")
@@ -139,9 +142,9 @@ class ProfileResultsTab(QWidget):
                     self.slider.setRange(0, len(r.frames) - 1)
                     k = min(self.slider.value(), len(r.frames) - 1)
                     plots.draw_field(self.fig, r.frames[k][layer], self.sim.problem, r.dx, r.dy, layer=layer,
-                                     title=f"{r.model.upper()} - layer {layer + 1} at t = {num(r.frame_times[k], 4)} s",
-                                     label="Temperature (°C)")
-            self.info.setText(f"Peak {r.peak:.1f} °C, minimum {r.minimum:.1f} °C, oscillation {r.oscillation:.1f} °C; "
+                                     title=f"{tips.model_label(r.model)} - layer {layer + 1} at t = {num(r.frame_times[k], 4)} s",
+                                     label=plots.COLUMN_LABEL)
+            self.info.setText(f"Peak {r.peak:.1f} °C, minimum {r.minimum:.1f} °C, oscillation {r.oscillation:.1f} K; "
                               f"{r.windows} windows of {num(r.window)} s, {r.steps} steps of {num(r.dt, 3)} s, "
                               f"{'the cycle repeats' if r.converged else 'the cycle did not settle'}; "
                               f"steady (hottest at the face of a part) with the average power {r.steady_average_max:.1f} °C, with the peak power "

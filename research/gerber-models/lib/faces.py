@@ -176,18 +176,45 @@ class FaceNetwork(fvm.Network):
         return sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr()
 
 
-def solve_faces(ib, problem, faces):
+def add_film_through_half_copper(net, ib, problem, kind="binary"):
+    """!
+    @brief Put the face films of the outer copper layers through the half copper layer, as the program does since fix/face-film-half-slab (docs/theory.md 1.2a).
+    @details The face network is built from a problem with no zones, so the program's own constructor sees no copper and keeps the plain h. The program's film of a cell is
+             `f h_eff + (1 - f) h` with `h_eff = 1/(1/h + t_cu/(2 k_cu))` (`Board.face_film_h`) and `f` the copper fraction of the cell of the outer layer; this adds the
+             difference to `g_top`, `g_bottom` and `g_amb` of the network with the fraction of the mask, which is the fill that the program run with one zone per cell has.
+    @param net FaceNetwork (modified in place).
+    @param ib Imported board.
+    @param problem Problem.
+    @param kind "binary" or "coverage" mask the fraction is taken from.
+    @return None.
+    """
+    b = problem.board
+    n = int(round(ib.cell / ib.pix))
+    nb = len(ib.layers)
+    # (layer whose copper fraction is read, coefficient, array, row of the array): the top film on layer 0, the bottom film on the last copper layer; a one-layer board has the
+    # bottom film on its last laminate node (laminate.py), with the half copper of its layer in series, so the row is the last of the network and the fraction is that of layer 0
+    for layer, h, arr, row in ((0, b.h_top, net.g_top, 0), (nb - 1, b.h_bottom, net.g_bottom, nb - 1 if nb > 1 else net.g_bottom.shape[0] - 1)):
+        f = cd.cell_blocks(ib.layers[layer][kind].astype(float)[::-1], n).mean(axis=(2, 3))
+        f = np.where(f > 1e-6, f, 0.0)                 # the zones of solve_today are added only above 1e-6
+        delta = (b.face_film_h(h, layer, f) - h) * net.dx * net.dy * net.cover
+        arr[row] += delta
+        net.g_amb[row] += delta
+
+
+def solve_faces(ib, problem, faces, kind="binary"):
     """!
     @brief Solve the program's network on the cells of the board with the given faces.
     @param ib Imported board.
     @param problem Problem.
     @param faces List of (gx, gy) per layer.
+    @param kind "binary" or "coverage" mask that the face films take the copper fraction from (add_film_through_half_copper).
     @return Temperature rise (layers, ny, nx) in K, rows from the bottom.
     """
     ny, nx = int(round(ib.height / ib.cell)), int(round(ib.width / ib.cell))
     # ladder=False: the face conductances carry the whole laminate in the plane of the copper node (layer_faces); the laminate nodes that the program has built since fix/laminate-nodes
     # would count it twice in the cells with absent copper, and the faces would not see the sheet it moves to them. The earlier network is the one the faces were designed for.
     net = FaceNetwork(problem, nx, ny, assemble=False, ladder=False)
+    add_film_through_half_copper(net, ib, problem, kind)
     net.set_faces(faces)
     return net.solve_steady()[0]
 

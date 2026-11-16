@@ -311,7 +311,7 @@ def rasterize(layer, window, pixel_mm, supersample=DEFAULT_SUPERSAMPLE, nets=Non
     if not (isinstance(supersample, numbers.Integral) and supersample >= 1):
         raise GerberError(f"supersampling {supersample!r} is not a positive integer")
     if rows * cols > max_pixels:
-        raise GerberError(f"the raster window of {cols} x {rows} pixels ({window.width:.6g} x {window.height:.6g} mm at {pixel_mm} mm) is larger than the limit of "
+        raise GerberError(f"the raster window of {cols} × {rows} pixels ({window.width:.6g} × {window.height:.6g} mm at {pixel_mm} mm) is larger than the limit of "
                           f"{max_pixels} pixels: choose the window from the board outline or a coarser pixel")
     out = np.zeros((rows, cols), np.uint8)
     if not layer.ops:

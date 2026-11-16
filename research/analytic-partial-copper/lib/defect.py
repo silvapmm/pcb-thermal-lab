@@ -67,7 +67,8 @@ def stack(board, n_sub=1):
                 for _ in range(1, n_sub):
                     nodes.append(("lam", None, gaps[l] / n_sub, 0.0, float(kxy[l]), float(kz[l] * n_sub / gaps[l])))
     return {"kind": [(n[0], n[1]) for n in nodes], "slab": np.array([n[2] for n in nodes]), "tc": np.array([n[3] for n in nodes]), "k_xy": np.array([n[4] for n in nodes]),
-            "g_up": np.array([n[5] for n in nodes]), "h_top": float(board.h_top), "h_bottom": float(board.h_bottom)}
+            "g_up": np.array([n[5] for n in nodes]), "h_top": float(board.face_film_h(board.h_top, 0, 1.0)),
+            "h_bottom": float(board.face_film_h(board.h_bottom, board.layers - 1, 1.0))}   # the films through the half copper layer on full copper, as the program since fix/face-film-half-slab (theory 1.2a)
 
 
 def solve(problem, n_sub=1, tile_mm=1.0, cell_mm=0.5, n_terms=300, n_green=None, base="min", max_unknowns=6000):

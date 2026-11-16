@@ -28,7 +28,9 @@ def test_uniform_plate_matches_closed_form():
     r = fvm.solve_steady(p, cell_mm=5.0)
     b = p.board
     t_lam = b.thickness - b.copper_thickness[0]
-    expected = b.ambient + 10.0 / ((b.h_top + 1.0 / (1.0 / b.h_bottom + t_lam / b.materials.k_fr4_through)) * 0.1 * 0.1)
+    # Both films pass the half copper layer of the node (fix/face-film-half-slab, theory 1.2a): the top one directly, the bottom one in series with the laminate
+    r_cu = b.copper_thickness[0] / (2.0 * b.materials.k_copper)
+    expected = b.ambient + 10.0 / ((1.0 / (1.0 / b.h_top + r_cu) + 1.0 / (1.0 / b.h_bottom + t_lam / b.materials.k_fr4_through + r_cu)) * 0.1 * 0.1)
     assert r.t_max == pytest.approx(expected, abs=1e-6)
     assert r.t_min == pytest.approx(expected, abs=1e-6)
 

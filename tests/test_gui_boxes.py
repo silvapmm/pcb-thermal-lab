@@ -82,14 +82,14 @@ def test_warning_titles_are_short_and_clean():
     """!
     @brief The title is the first clause of the warning; a designator prefix stays; a long clause is cut at a word.
     """
-    assert checks.warning_title("U1: 9 vias under the footprint; the Lumped model is approximate here.") == "U1: 9 vias under the footprint"
+    assert checks.warning_title("U1: 9 vias under the footprint; the LPTN model is approximate here.") == "U1: 9 vias under the footprint"
     assert checks.warning_title("Imported copper at a cell above 1 mm: on 24 mm windows the faces read hot.") == "Imported copper at a cell above 1 mm"
     # A short text before a colon is a prefix and keeps the clause that follows (the review found titles that were only the prefix)
     assert checks.warning_title("Analytic model: one or two vias beside a part were measured 16 % too small; use the FVM.") \
         == "Analytic model: one or two vias beside a part were measured 16…"
-    assert checks.warning_title("Via 3 and 1 more vias: outside the footprint of every part; the Lumped model ...") \
+    assert checks.warning_title("Via 3 and 1 more vias: outside the footprint of every part; the LPTN model ...") \
         == "Via 3 and 1 more vias: outside the footprint of every part"
-    assert checks.warning_title("lumped: the board has an outline: computed on a rectangle of the same area") == "Lumped: the board has an outline"
+    assert checks.warning_title("LPTN: the board has an outline: computed on a rectangle of the same area") == "LPTN: the board has an outline"
     assert checks.warning_title("analytic (time simulation): the transient keeps the heatsinks local").startswith("Analytic (time simulation): the transient")
     long = checks.warning_title("word " * 40)
     assert len(long) <= checks.TITLE_MAX + 1 and long.endswith("…")
@@ -98,7 +98,7 @@ def test_warning_titles_are_short_and_clean():
 
 def test_the_accordion_lists_closed_rows_and_the_select_button_names_the_element(win, qtbot):
     """!
-    @brief Rows start closed; an opened row shows its full text and 'Select heater U1'; the button selects the element; a stale list disables it.
+    @brief Rows start closed; an opened row shows its full text; the label at the end of the row (icon and name) selects the element, even from a closed row, by mouse and by Enter; a stale list disables it.
     @param win MainWindow fixture.
     @param qtbot pytest-qt fixture.
     """
@@ -110,10 +110,18 @@ def test_the_accordion_lists_closed_rows_and_the_select_button_names_the_element
     assert not row.is_open() and not row.text.isVisibleTo(row) and row.title == "U1: first clause"
     QTest.mouseClick(row.head, Qt.LeftButton)
     assert row.is_open() and row.text.isVisibleTo(row) and row.text.text() == str(cw)
-    assert row.button.text() == f"Select heater {win.doc.problem.heaters[0].name}"
+    name = win.doc.problem.heaters[0].name
+    assert row.button.text() == name and row.button.accessibleName() == f"Select heater {name} on the board"
+    assert row.button.toolTip().startswith(f"Select heater {name} on the board") and not row.button.icon().isNull()
     win.canvas.set_selection([])
     row.button.click()
     assert win.canvas.selected_elements() == [("heater", 0)]
+    # The label works from a closed row too and answers Enter (a plain button would ignore it)
+    row.set_open(False)
+    win.canvas.set_selection([])
+    QTest.keyClick(row.button, Qt.Key_Return)
+    assert win.canvas.selected_elements() == [("heater", 0)]
+    assert row.head.focusPolicy() == Qt.StrongFocus and row.button.focusPolicy() == Qt.StrongFocus
     acc.set_stale()
     assert not row.button.isEnabled()
 

@@ -1,0 +1,365 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file test_simulation_panel_groups.py
+@brief The grouped Simulation settings: one label column and one field column in every group, a group greyed with its models, the memory lines, the model labels
+       and the Auto button with the FEM mesh numbers.
+"""
+
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import re
+
+import pytest
+
+pytest.importorskip("pytestqt")
+
+from PySide6.QtWidgets import QApplication
+
+from pcbthermal import memory
+from pcbthermal.api import suggest_cell_mm
+from pcbthermal.examples import example_board
+from pcbthermal.gui import theme as th
+from pcbthermal.model import Problem
+from tests.test_gui_stress import load, popups, run, win  # noqa: F401  (fixtures and helpers)
+
+SETS = {"fvm_fem": ("fvm", "fem"), "lumped_analytic": ("lumped", "analytic")}
+
+
+def _x(widget, panel):
+    """!
+    @brief The x of the left edge of a widget, in the coordinates of the panel.
+    @param widget QWidget.
+    @param panel The SolverPanel.
+    @return int x in pixels.
+    """
+    return widget.mapTo(panel, widget.rect().topLeft()).x()
+
+
+def _first_widget(item):
+    """!
+    @brief The widget of a grid field, or the first widget of a layout (the cell spin box of the Auto row).
+    @param item QWidget or QLayout.
+    @return QWidget.
+    """
+    return item if hasattr(item, "mapTo") else item.itemAt(0).widget()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("case", sorted(SETS))
+def test_labels_and_fields_start_at_one_x_in_every_group(win, theme, case):
+    """!
+    @brief Every visible label at one x, every field of a row with a label at another, the titles at the label x; the panel is no wider than the dock.
+    @param win Main window fixture.
+    @param theme "light" or "dark".
+    @param case Key of SETS.
+    """
+    if th.current_name() != theme:
+        win.toggle_theme()
+    load(win, example_board())
+    win.doc.set_options(models=SETS[case], cell_mm=1.0)
+    QApplication.processEvents()
+    sp = win.solver_panel
+    labels = {_x(lab, sp) for lab in sp._grid_labels if lab.isVisible()}
+    fields = {_x(_first_widget(f), sp) for f, lab in zip(sp._grid_fields, sp._grid_labels) if lab.isVisible()}      # one field per label: the full-width rows are not in the list
+    titles = {_x(h["title"], sp) for h in sp._heads}
+    assert len(labels) == 1 and len(fields) == 1, (labels, fields)
+    assert titles == labels
+    assert min(fields) > max(labels)
+    assert sp.minimumSizeHint().width() <= 340
+
+
+def test_a_group_greys_with_its_models_and_says_so_in_words(win):
+    """!
+    @brief Each group follows its models: title in the muted tone, 'not ticked' in the tag, controls and labels disabled; it comes back when ticked.
+    @param win Main window fixture.
+    """
+    load(win, example_board())
+    sp = win.solver_panel
+    heads = {h["title"].text(): h for h in sp._heads}
+    muted = th.colors(th.current_name())["muted"]
+    # (group title, model keys that serve it, controls)
+    groups = (("Finite volume (FVM)", ("fvm",), (sp.solver,)), ("Thermal network (LPTN)", ("lumped",), (sp.rings,)), ("Analytical", ("analytic",), (sp.modes, sp.local)),
+              ("Finite elements (FEM)", ("fem",), (sp.fem_gap, sp.fem_ref)))
+    win.doc.set_options(models=("fdm",))
+    QApplication.processEvents()
+    for title, _models, controls in groups:
+        assert "not ticked" in heads[title]["tag"].text() and muted in heads[title]["title"].styleSheet()
+        assert not any(c.isEnabled() for c in controls)
+    assert "not ticked" not in heads["Laminate (FVM, FDM)"]["tag"].text() and sp.lam_s.isEnabled() and sp.lam_n.isEnabled()   # the FDM serves the laminate group
+    assert "not ticked" not in heads["All models"]["tag"].text()
+    for title, models, controls in groups:
+        win.doc.set_options(models=models)
+        QApplication.processEvents()
+        assert "not ticked" not in heads[title]["tag"].text() and all(c.isEnabled() for c in controls)
+        assert muted not in heads[title]["title"].styleSheet()
+        for other, _m, others in groups:
+            if other != title:
+                assert "not ticked" in heads[other]["tag"].text() and not any(c.isEnabled() for c in others)
+        # the labels of the greyed rows are greyed with them
+        assert sp._rows[sp.solver].isEnabled() == (models == ("fvm",))
+
+
+def test_the_laminate_group_greys_on_a_board_with_a_metal_block_and_the_tooltip_reads_right(win):
+    """!
+    @brief A board with a metal block does not use the laminate rule: the group is greyed even with the FVM ticked, and the tooltip says it plainly.
+    @param win Main window fixture.
+    """
+    p = example_board()
+    p.add_heatsink(1, 50.0, rect=(5, 5, 20, 20), name="Block", thickness_mm=3.0)
+    load(win, p)
+    win.doc.set_options(models=("fvm",))
+    QApplication.processEvents()
+    sp = win.solver_panel
+    head = next(h for h in sp._heads if h["title"].text().startswith("Laminate"))
+    assert "not ticked" in head["tag"].text() and not sp.lam_s.isEnabled() and not sp.lam_n.isEnabled()
+    tip = sp.lam_s.toolTip()
+    assert "Greyed: not used on a board with a metal block" in tip and "used only by a board with a metal block" not in tip
+    load(win, example_board())
+    win.doc.set_options(models=("fvm",))
+    QApplication.processEvents()
+    assert sp.lam_s.isEnabled() and "not ticked" not in head["tag"].text()
+
+
+def test_accent_text_reaches_4_5_to_1_on_the_dock_and_the_boxes_in_both_themes():
+    """!
+    @brief The title colour is text: 4.5:1 or more against the dock background and against the white of a box.
+    """
+    for name in ("light", "dark"):
+        c = th.colors(name)
+        for ground in ("window", "base"):
+            ratio = th.contrast(th.qcolor(c["accent_text"]), th.qcolor(c[ground]))
+            assert ratio >= 4.5, (name, ground, ratio)
+    assert th.colors("light")["accent_text"] == th.colors("light")["accent_pressed"] and th.colors("dark")["accent_text"] == th.colors("dark")["accent"]
+
+
+def test_the_memory_lines_are_compact_with_a_dot_and_no_thousands_separator(win):
+    """!
+    @brief 'FVM: 39052 unknowns · 0.3 of 10.3 GB' with a coloured dot; the label is hidden when no guarded model is ticked.
+    @param win Main window fixture.
+    """
+    load(win, example_board())
+    sp = win.solver_panel
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
+    QApplication.processEvents()
+    text = re.sub(r"<[^>]+>", "", sp.cells_label.text()).replace("&nbsp;", " ")
+    assert re.search(r"^ ?FVM: \d+ unknowns · \d+\.\d of \d+\.\d GB", text) and "data:image/png" in sp.cells_label.text(), text   # the dot is the picture of gui/dots.py
+    assert "about" not in text and not re.search(r"\d,\d{3}", text)
+    assert th.colors(th.current_name())["ok"] in sp.cells_label.text() and sp.cells_label.isVisible()
+    win.doc.set_options(models=("lumped", "analytic"))
+    QApplication.processEvents()
+    assert not sp.cells_label.isVisible()
+
+
+def test_the_model_labels_have_no_comparison_suffix_and_a_line_separates_the_main_three(win):
+    """!
+    @brief Labels, order and the separator of the Models box; the three lower tooltips open with the same sentence.
+    @param win Main window fixture.
+    """
+    sp = win.solver_panel
+    assert [c.text() for c in sp.cb.values()] == ["Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)", "Finite difference (FDM)",
+                                                  "3D solid (finite volumes)", "Finite elements (FEM)"]
+    lay = sp.cb["fvm"].parentWidget().layout()
+    order = [lay.itemAt(i).widget() for i in range(lay.count())]
+    assert order.index(sp._separator) == order.index(sp.cb["analytic"]) + 1 and order.index(sp.cb["fdm"]) == order.index(sp._separator) + 1
+    assert sp._separator.height() == 1
+    for k in ("fdm", "solid3d", "fem"):
+        assert sp.cb[k].toolTip().startswith("Off by default; a cross-check of the three models above.")
+    assert "comparison" not in " ".join(c.text() + c.toolTip() for c in sp.cb.values()).lower()
+
+
+def test_auto_counts_the_fem_mesh_numbers(win, monkeypatch):
+    """!
+    @brief With 24 gap elements and the FEM ticked, Auto proposes a cell whose FEM verdict is not 'refuse' (it used the default mesh numbers before).
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
+    load(win, example_board())
+    win.doc.options.memory_fraction = 0.5
+    win.doc.set_options(models=("fem",), fem_gap_elements=24, cell_mm=1.0)
+    sp = win.solver_panel
+    default = suggest_cell_mm(win.doc.problem, models=("fem",), fraction=0.5)
+    sp._auto_cell()
+    assert sp.cell.value() > default + 0.3                                   # 24 gap elements need a coarser cell than the default mesh
+    win.doc.set_options(cell_mm=sp.cell.value())
+    assert [v.verdict for v in sp.verdicts()] != ["refuse"]
+
+
+def test_the_local_corrections_tooltip_says_steady_only(win):
+    """!
+    @brief The option does not reach the time run, and the tooltip says it.
+    @param win Main window fixture.
+    """
+    assert "Steady run only" in win.solver_panel.local.toolTip()
+
+
+def _ratio(a, b):
+    """!
+    @brief WCAG contrast ratio of two theme colour strings.
+    @param a Colour string.
+    @param b Colour string.
+    @return float.
+    """
+    return th.contrast(th.qcolor(a), th.qcolor(b))
+
+
+def test_text_tokens_reach_4_5_to_1_in_both_themes():
+    """!
+    @brief The label of the main buttons (on_accent on the three primary states) and the warn and bad tones used as text, against the window and the boxes.
+    """
+    for name in ("light", "dark"):
+        c = th.colors(name)
+        for state in ("primary", "primary_hover", "primary_pressed"):
+            assert _ratio(c["on_accent"], c[state]) >= 4.5, (name, state)
+        for tone in ("ok", "warn", "bad", "alert", "hint"):
+            for ground in ("window", "base"):
+                assert _ratio(c[tone], c[ground]) >= 4.5, (name, tone, ground)
+
+
+def test_the_dot_is_drawn_once_and_the_reason_for_a_grey_run_is_next_to_the_button(win, monkeypatch):
+    """!
+    @brief The memory lines use the shared dot; a refused model greys Run and the footer status (beside the button) says why, and clears when it fits again.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    load(win, example_board())
+    sp = win.solver_panel
+    win.doc.set_options(models=("fvm",), cell_mm=1.0)
+    assert 'src="data:image/png;base64,' in sp.cells_label.text()             # The picture of gui/dots.py, the one painter of the dots
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
+    win.doc.options.memory_fraction = 0.1
+    win.doc.set_options(models=("fvm",), cell_mm=0.3)
+    assert not sp.run.isEnabled() and sp.status.text().startswith("Cannot run: ") and "use a cell of" in sp.status.text()
+    assert sp.status.isVisibleTo(sp.footer)
+    win.doc.set_options(cell_mm=2.0)
+    assert sp.run.isEnabled() and sp.status.text() == ""
+
+
+def test_the_progress_is_indeterminate_while_the_fem_solves_and_the_bar_says_stop(win):
+    """!
+    @brief The FEM has no inner progress: the bar is a busy bar, then a normal one; the status bar does not say 'Ready.' while busy.
+    @param win Main window fixture.
+    """
+    sp = win.solver_panel
+    sp.set_progress("Solving FEM (assembly and solve: a large board can take minutes)", 0.66)
+    assert sp.progress.maximum() == 0
+    sp.set_progress("Solving FVM", 0.5)
+    assert sp.progress.maximum() == 100 and sp.progress.value() == 50
+    win._on_busy(True)
+    assert "Ready" not in win.statusBar().currentMessage()
+    win._on_busy(False)
+    assert win.statusBar().currentMessage() == "Ready."                         # No final line under Run: the bar is idle
+    # Review of the window: after a run or a Stop the bar keeps the final line of the dock instead of going back to 'Ready.'
+    sp.set_running(False, "Cancelled.")
+    assert win.statusBar().currentMessage() == "Cancelled."
+    sp.set_running(False, "Done: Tmax 85.5 °C, Rθ 10.99 K/W")
+    win._on_busy(False)
+    assert win.statusBar().currentMessage().startswith("Done: Tmax")
+
+
+def test_results_of_a_board_do_not_stay_when_another_board_is_opened_created_or_imported(win, qtbot, monkeypatch):
+    """!
+    @brief Open, new and import all go through _after_load: the run is forgotten, the Results pages say there are none, the 'Done: Tmax' line is gone; a run shows them again.
+    @param win Main window fixture.
+    @param qtbot Fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal.gui import main_window as mw
+
+    def shown(window):
+        return [c.isVisibleTo(c.parentWidget()) for c in window.results._covers]
+
+    load(win, example_board())
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.sim is not None and not any(shown(win)) and win.solver_panel.status.text().startswith("Done")
+    other = Problem.new(30, 20, layers=2, name="other")
+    other.add_full_copper([1, 2])
+    other.add_heater(1, 1.0, rect=(10, 8, 14, 12), name="Q9")
+    # open (a project file) and the ready-made problem path
+    for how in ("problem", "new", "import"):
+        win.doc.open_problem(other, "other")                                   # a board with a heater, without the load path under test
+        run(win, qtbot, ("fvm",), cell=2.0)
+        assert win.sim is not None
+        if how == "problem":
+            win._load_problem(other, "other")
+        elif how == "new":
+            monkeypatch.setattr(mw.NewBoardDialog, "exec", lambda self: True)
+            win.new_board()
+        else:
+            win._after_load()                                                  # open_import and open_file end in this call, as do the two above
+        assert win.sim is None and all(shown(win)) and win.results.sim is None
+        assert win.solver_panel.status.text() == "" and win.tabs.tabText(mw.TAB_RESULTS) == "Results"
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert not any(shown(win)) and win.results.sim is win.sim
+
+
+def test_a_project_opened_after_a_run_saves_the_same_bytes(win, qtbot, tmp_path):
+    """!
+    @brief Clearing the results on Open touches only the views: a project saved before a run, after it and after reopening it holds the same bytes.
+    @param win Main window fixture.
+    @param qtbot Fixture.
+    @param tmp_path pytest fixture.
+    """
+    load(win, example_board())
+    path = str(tmp_path / "a.pcbt.json")
+    win.doc.set_options(models=("lumped",), cell_mm=2.0)
+    win.doc.save(path)
+    win.doc.save(path)                                                         # the first save names the project after its file
+    before = open(path, "rb").read()
+    run(win, qtbot, ("lumped",), cell=2.0)
+    win.doc.save(path)
+    assert open(path, "rb").read() == before
+    assert not win.doc.modified                                                # saved: Open asks nothing
+    win.open_file(path)
+    assert win.sim is None and not win.solver_panel.status.text().startswith("Done")
+    again = str(tmp_path / "b.pcbt.json")
+    win.doc.save(again)
+    assert open(again, "rb").read() == before
+
+
+def test_the_fem_cell_for_the_direct_solver_is_the_smallest_that_fits(monkeypatch):
+    """!
+    @brief The cell quoted by 'use a cell of c mm or more' fits the direct solver and 0.1 mm less does not (review: the first guess said 3.5 mm where 3.4 mm fits).
+    @param monkeypatch pytest fixture.
+    """
+    from pcbthermal import checks, femcore, femmesh
+    p = example_board()
+    for cell in (0.5, 1.0):
+        fit = checks.fem_cell_for_direct(p, cell)
+        assert femmesh.unknowns(p, fit, 6, 2.0)[0] <= femcore.FEM_DIRECT_MAX
+        assert femmesh.unknowns(p, round(fit - 0.1, 1), 6, 2.0)[0] > femcore.FEM_DIRECT_MAX, (cell, fit)
+
+
+def test_the_properties_of_a_heat_source_fit_a_narrow_dock(win):
+    """!
+    @brief The 'Direct contact' line of a heat source wraps: the Properties panel needs no horizontal scroll bar in the 340 px dock (it asked 354 px before).
+    @param win Main window fixture.
+    """
+    load(win, example_board())
+    win.doc.set_props("heater", 1, role="source")
+    win._select_from_warning("heater", 1)
+    QApplication.processEvents()
+    from PySide6.QtWidgets import QLabel
+    info = [lab for lab in win.inspector.findChildren(QLabel) if lab.text().startswith("Direct contact")]
+    assert info and all(lab.wordWrap() for lab in info)
+    # At the dock width the window opens with (340 px) the panel scrolls only vertically; it asked 354 px before the wrap (a 30 px horizontal bar at 340 px)
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+    win.resizeDocks([win.dock_inspector], [340], Qt.Horizontal)
+    QApplication.processEvents()
+    bars = [sa.horizontalScrollBar() for sa in win.dock_inspector.findChildren(QScrollArea)]
+    assert bars and not any(b.isVisible() and b.maximum() > 0 for b in bars)
+
+
+def test_the_report_names_the_models_not_their_keys():
+    """!
+    @brief The text report says 'Reference model: LPTN' and the summary table uses the short names, never the key 'lumped'.
+    """
+    from pcbthermal.api import SolverOptions, simulate
+    sim = simulate(example_board(), SolverOptions(models=("lumped",), cell_mm=2.0))
+    text = sim.report()
+    assert "Reference model: LPTN" in text
+    assert not any(line.split()[:1] == ["lumped"] for line in text.splitlines()), text

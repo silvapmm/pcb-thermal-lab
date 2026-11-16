@@ -248,6 +248,7 @@ class DisplayPopover(QFrame):
         self.opacity.setValue(DEFAULT_OPACITY)
         self.opacity.setFixedWidth(120)
         self.opacity_spin = QSpinBox()
+        self.opacity_spin.setAccessibleName("Map opacity, percent")      # The row label names the slider only (review of branch C)
         self.opacity_spin.setRange(0, 100)
         self.opacity_spin.setValue(DEFAULT_OPACITY)
         self.opacity_spin.setSuffix(" %")
@@ -259,7 +260,8 @@ class DisplayPopover(QFrame):
         self.contour.setKeyboardTracking(False)
         self.contour_label = QLabel("Contour every")
         self.cmap = QComboBox()
-        self.cmap.addItems(plots.CMAPS)
+        for name in plots.CMAPS:
+            self.cmap.addItem(name.capitalize(), name)          # Shown in sentence case ('Inferno'), the Matplotlib name kept as the data
         self.note = QLabel()
         self.note.setWordWrap(True)
         self.note.setStyleSheet("")                                # Colour from the palette: set in refresh()
@@ -340,7 +342,7 @@ class DisplayPopover(QFrame):
         for w in (self.view, self.cmap):
             w.blockSignals(True)
         self.view.setCurrentIndex(max(self.view.findData(s.view), 0))
-        self.cmap.setCurrentIndex(max(self.cmap.findText(s.cmap), 0))
+        self.cmap.setCurrentIndex(max(self.cmap.findData(s.cmap), 0))
         for w in (self.view, self.cmap):
             w.blockSignals(False)
         # The contour step of the kind of map of the tab one is in; the label names it
@@ -436,7 +438,7 @@ class DisplayPopover(QFrame):
         @param _ Ignored (extra arguments of the Qt signal).
         """
         if not self._busy:
-            self.state.set_cmap(self.cmap.currentText())
+            self.state.set_cmap(self.cmap.currentData())
 
     def flush(self):
         """!

@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.7.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-3502%20passed-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.8.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-4054%20passed-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -8,27 +8,29 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ## Features
 
 **Modelling**
-- **Five models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
-- **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **all five models**, with a **cross-section diagram** in µm and mm and typical stack-ups of 1 to 12 layers with inner copper of 0.5 oz (default) or 1 oz.
+- **Six models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series and finite elements, off by default and **steady state only** in 2.8.0, a checkbox of the Models box or `--model fem`: resolved surface of thick copper, hollow vias; pyamg optional), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
+- **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **every model**, with a **cross-section diagram** in µm and mm and typical stack-ups of 1 to 12 layers with inner copper of 0.5 oz (default) or 1 oz.
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
-- **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
+- **Metal blocks** (heat spreaders with an interface resistance, optional fins) in every model (the LPTN and Analytic have them in steady state only; the FEM is steady only), plated vias (hollow or filled), heatsinks.
 - **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general and a laminar form (`Board.natural_form`; the laminar form is the default of new projects, old files keep the general one, and a low face Rayleigh number is warned).
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face; a fast wave on a part with copper under it is held at its average power with its temperature wave, computed in closed form from the layers, added at the heater); animation of the heat evolution with GIF export.
 
 **Tools**
-- **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
-- **Interface of 2.7.0**: the dock panels are **boxes** whose title row is the button (collapsible, remembered between sessions); the live input warnings are a **Warnings (N)** accordion with one closed row and a short title per warning, with a severity icon; the **layer keys** `L` / `Shift+L` and `0` to `9` choose the layer in every context; the hot and the **coldest** point are ringed on the temperature maps; the Profiles tab draws a **cut overlay** (the board with the cut line); component and non-plated **holes** are shown on the editor board.
-- **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
-- **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
+- **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); checked on one datasheet's own board (TI CSD17308Q3, within 2.4 % of the power), the JEDEC 2s2p row an indication only (`docs/calculators.md`).
+- **Interface of 2.8.0**: the Simulation settings grouped by the models they serve, one name per model in every view (FVM, FDM, 3D solid, FEM, LPTN, Analytic), °C for temperatures and K for differences everywhere, a Summary table that names its read-outs (`Tmax °C (column)`, `Tmax °C (surface)`, `ΔT K`, the balance in percent), the run state in the status bar, a first-step hint on an empty board and a note on every Results page before the first run.
+- **Interface of 2.7.0**: the dock panels are **boxes** whose title row is the button (collapsible, remembered between sessions); the live input warnings are a **Warnings (N)** accordion with one closed row and a short title per warning, with a severity dot (since 2.8.0 also the label of the element at the end of the row, which selects it); the **layer keys** `L` / `Shift+L` and `0` to `9` choose the layer in every context; the hot and the **coldest** point are ringed on the temperature maps; the Profiles tab draws a **cut overlay** (the board with the cut line); component and non-plated **holes** are shown on the editor board.
+- **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, a **Filter elements** box above the element tree (`Ctrl+F`), undo/redo, background photo, dark and light themes, a tooltip on every field.
+- **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment (the Run button turns red and reads Stop; the status bar gives the stage and the seconds, then keeps the result line) and nothing is left running when you close the program. **File - Open recent** lists the last eight projects; every field has a name for screen readers.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
-- **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
+- **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid, FEM) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
 - **Gerber reader** (`pcbthermal.gerber`, used by **File - Import Gerber board**, `docs/models.md` 19.4): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6). It also recognises which CAD program wrote a set of files (KiCad, Altium, EAGLE, Allegro and others) from their headers, only to propose layer names, never to decide (`docs/models.md` 19.3).
 - **Gerber import window** (**File - Import Gerber board**, three steps: files and layers, parts, model): parts from the paste layers, the placement file and X3 component layers, with the heat source shaped as the exposed pad or tab (proposed for QFN, DFN, SOT-223, DPAK), the convex hull or the bounding box; plated holes become vias; re-import with Replace, Update or Add files keeps what you did in the editor; a project with imports is saved in **project format 2** (needs 2.5.0 or later; older programs refuse it, `.bak` copies are kept). The user guide has a walkthrough, a glossary of the warnings and a table of what is validated and what is not.
-- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models read the copper only as the average of a cell, so the pads and narrow tracks of small parts are invisible to them, and they warn that they read too cool (on 42 parts of three imported boards 25 to 82 % and 17 to 77 % at a 0.5 mm cell; a sample, not a bound).
+- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the LPTN and Analytic models read the copper only as the average of a cell, so the pads and narrow tracks of small parts are invisible to them, and they warn that they read too cool (on 42 parts of three imported boards 25 to 82 % and 17 to 77 % at a 0.5 mm cell; a sample, not a bound).
 - **Views of the result maps**: Current, Smooth and Terrain (relief with contour lines), the copper of the layer under the map with an adjustable opacity, and all layers in a 2 x 2 grid (display only). One **Layer** box in the main tool bar is the drawing layer, the layer of the map on the board and the layer of every Results map (Temperature adds All layers, All (2 x 2) and the metal block); the model name in the card of the map on the board opens a menu of the models.
 - **Display control** (display only): the **Map** button (key `T`) shows the temperature map on the board (a card with the model, the maximum and the minimum, and a ring on each point), and the **Display** button of the tool bar sets how every map is drawn: Underlay (nothing, the copper or the background image; only the entries valid for the project), Map opacity (default 70 %), View (Current, Smooth, Terrain), Contour every and Colour map. One choice for the Temperature and Gradients maps, the Animation and the board.
-- **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
+- **Surface read-out beside the column mean (always)**: the outer-face temperature (an estimate) is always computed and always shown beside the layer mean for every steady FVM and FDM result, on any board and any copper thickness, with no threshold and no switch (on 35 um copper the difference is milli-kelvin and is written out in K and % of the rise); graphs and maps draw the column mean, the surface is one click away in the Layer box (Surface (top) and Surface (bottom), always listed); the part table has one surface column; surface files only on request (`run --surface-files`); Tj, margins and every table stay on the layer mean; the models without it say n/a. Explained in the user guide ('Surface temperature and column mean'), `docs/models.md` 4b.1 and 4b.2, `docs/theory.md` 1.2c and the decisions in `releases/2.8.0/fem-model/SURFACE_DECISIONS.md`; numbers in `docs/validation.md` 55.6.
+- **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the LPTN zone model) is added to the Results summary.
 - **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
 
@@ -36,7 +38,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
 
-![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning and the first one opened](docs/images/editor_warnings.png)
+![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning with a severity dot and the label of its element at the end, and the first one opened](docs/images/editor_warnings.png)
 
 ![The imported board in the dark theme](docs/images/editor_imported_dark.png)
 
@@ -76,18 +78,19 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![A hand-drawn board over a background image (a generated test sketch)](docs/images/editor_background.png)
 
-Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its checks against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
 What is new in each version: see [`docs/versions.md`](docs/versions.md) (summary at the top) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Which model should I use?
 
-| Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
+| Model | Advantage | Apply it to | Error on the rise vs an independent finite-element solid (`docs/validation.md` 3) | Time (example board) |
 | :-- | :-- | :-- | :-- | :-- |
-| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.7 % (up to 3 % on a one-sided pad no larger than the heater) | 0.13 s (1 mm) |
-| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.4 to 2.4 % | 0.12 s |
-| **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0 to 1.6 % | 0.1 to 10 s |
-| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other; a part over a dense group of vias has the footprint in two zones (core and rest), on a 0.5 mm cell | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.6 % | about 10 ms |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.5 % (within about 1 % on a one-sided pad no larger than the heater, against converged finite elements) | 0.13 s (1 mm) |
+| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.5 to 1.1 % (up to 1.8 % with a metal block) | 0.12 s |
+| **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0.1 to 1.6 % (+2.3 to +4.9 % on one-sided pads at a 1 mm cell, too hot) | 0.1 to 10 s |
+| **FEM** (finite elements, off by default, `--model fem`) | several elements through thick copper (the resolved surface), conforming hollow vias, the film on the real face; no "one node per layer" assumption | thick plates and blocks, hollow vias under a part, checking the other models; steady state only; needs pyamg above 30 000 unknowns | 0.4 to 0.9 % below the FVM and the 3D solid on plain boards (same cell); surface of case 2 of Muzychka et al. within 0.05 K | seconds (2 s at 84 000 unknowns, 8 s at 315 000, with pyamg) |
+| **LPTN** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other; a part over a dense group of vias has the footprint in two zones (core and rest), on a 0.5 mm cell | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % (−4.5 % on a 20 mm one-sided pad, within 2.2 % on the other three boards) | about 10 ms |
 | **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms without vias, a few tenths of a second with vias |
 
 The lumped network and the analytic series need a rectangular board: on a board with an outline they run on the rectangle of the same area (the Results summary says so with a warning); every model reads the advanced stack-up.
@@ -101,7 +104,7 @@ Rule of thumb: run them all (`--model compare`); if they agree within about 5 % 
 git clone https://github.com/silvapmm/pcb-thermal-lab.git
 cd pcb-thermal-lab
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt     # numpy, scipy, matplotlib, PySide6, pytest
+.venv/bin/pip install -r requirements.txt     # numpy, scipy, matplotlib, PySide6, pyamg, pytest
 ```
 
 ## Use
@@ -109,7 +112,7 @@ python3 -m venv .venv
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
 .venv/bin/python -m pcbthermal convert board.pcbt.json board.pcbtz         # project package (a ZIP: project, image and, on request, the Gerber and placement files); every command reads a .pcbtz
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM and the 3D solid)
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM, the 3D solid and the finite elements)
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
@@ -158,6 +161,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.8.0** (2026-11-16): the finite-element model (FEM, steady state only, its transient planned for 2.9.0; a comparison model off by default, pyamg optional), the surface read-out always shown beside the column mean, the grouped Simulation settings with one name per model (LPTN for the thermal network) and the unit rule (°C for temperatures, K for differences), the Summary table that names its read-outs, warning rows with a severity dot and the element label, File - Open recent; four model corrections that move numbers on purpose: the face film through the half copper layer (negligible on PCB copper, about 1 K on a 10 mm plate), drawn copper read as imported copper (FVM and FDM where an edge cuts a cell), the LPTN part rows and first link, the exact cover of a metal block. Board by board: [`releases/2.8.0/WHAT_MOVED.md`](releases/2.8.0/WHAT_MOVED.md).
 - **2.7.1** (2026-11-13): a patch release: the Results page no longer scrolls sideways in a narrow window, the Properties focus and Duplicate fixes, a disclaimer line in every report, tests and documents; no result changes.
 - **2.7.0** (2026-11-13): the GUI redesign (boxes, a collapsible Warnings list, layer keys), the cut overlay of the profile plots, the coldest-point marker, the edge film from the centroid for drawn and imported copper, the physical slabs of the simple stack-up, the harmonic FDM face and the FDM copper-edge faces, the ray rule of the via rim on imported copper, the Lumped lone via, the hole categories, edge warnings quoting an independent finite-element solution (`research/independent-fem-edge`), and the five small bug fixes; the frozen numbers refrozen once (details in [`CHANGELOG.md`](CHANGELOG.md)).
 - **2.6.0** (2026-11-07): model corrections after the independent reviews (cut cells, laminate edge band, via barrel, Analytic per-layer edge, 3D solid slabs, face-down convection, fast square waves), the project package `.pcbtz`, a single Layer box, the Display views on the board; the frozen numbers refrozen once.
@@ -189,6 +193,7 @@ The results are a design aid and have not been validated against measurements of
 | :-- | :-- | :-- |
 | NumPy 2.5 | physics core | BSD-3-Clause (the wheel also carries 0BSD, MIT, Zlib and CC0 parts) |
 | SciPy 1.18 | sparse solvers, physics | BSD-3-Clause |
+| pyamg 5.4 | the multigrid preconditioner of the finite-element model on large meshes (**optional at run time**: the model is limited to small meshes without it) | MIT (the `License` field and the classifier of the metadata of the package installed from PyPI in a scratch folder outside the repository, 2026-11-15; it requires only NumPy and SciPy) |
 | Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |

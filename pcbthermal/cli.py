@@ -33,18 +33,20 @@ from .profile_io import read_profile_csv
 from . import package as pkg
 from .project import Project, ProjectFormatError, save_project
 from .numfmt import num
+from .results import model_label
 
 MODELS = ("fvm", "lumped", "analytic")
-RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
+RUN_MODELS = MODELS + ("fdm", "solid3d", "fem")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid, "fem" the finite elements (all comparison models)
 
 
-def _cell_arg(args, problem, default, transient=False):
+def _cell_arg(args, problem, default, transient=False, fem_params=None):
     """!
     @brief Resolve the --cell-mm argument.
     @param args Parsed arguments.
     @param problem The Problem (used by "auto").
     @param default Value used when the argument is absent.
     @param transient True for a time simulation: "auto" has to fit its larger memory factor (memory.TRANSIENT_FACTOR).
+    @param fem_params Tuple (elements across a gap, refinement) of the FEM mesh that the run will use, so that "auto" counts the FEM as the run does (None: the defaults).
     @return Cell size in millimetres.
     """
     if args.cell_mm is None:
@@ -55,7 +57,7 @@ def _cell_arg(args, problem, default, transient=False):
     # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
     chosen = getattr(args, "model", "fvm")
     models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
-    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None)
+    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None, fem_params=fem_params)
     note = copper.auto_cell_note(problem, cell)          # Imported copper wants 1 mm or less: say so when the memory forced a larger cell
     if note:
         print(note, file=sys.stderr)
@@ -66,7 +68,7 @@ def _guard(problem, models, cells, transient=False):
     """!
     @brief Ask the memory guard about every cell a command will try, before anything is allocated.
     @param problem The Problem.
-    @param models Model keys that will be solved (the guard estimates fvm, fdm and solid3d).
+    @param models Model keys that will be solved (the guard estimates fvm, fdm, solid3d and fem).
     @param cells Cell sizes in mm that the command will use.
     @param transient True for a time simulation (a larger factor).
     @return None.
@@ -103,9 +105,13 @@ def cmd_run(args):
         options.laminate_s_max_mm = args.laminate_s_max_mm
     if args.laminate_n_max is not None:
         options.laminate_n_max = args.laminate_n_max
+    if args.fem_gap_elements is not None:
+        options.fem_gap_elements = args.fem_gap_elements
+    if args.fem_refine is not None:
+        options.fem_refine = args.fem_refine
     options.validate()
     with laminate.using(*options.laminate_params()):                  # "auto" counts the unknowns of the laminate rule of the run
-        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
+        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm, fem_params=options.fem_params())
     po = options.profile
     if args.steady_power:
         options.steady_power = args.steady_power
@@ -144,11 +150,17 @@ def cmd_run(args):
     if args.h_multiplier is not None:
         b.h_mode, b.h_calibration = "computed", args.h_multiplier
     sim = simulate(project.problem, options)
-    print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} x "
+    print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} × "
           f"{project.problem.board.height * 1000:.0f} mm, {project.problem.board.layers} layers, "
           f"{project.problem.total_power():.3f} W")
     print(sim.to_markdown())
-    files = sim.save(args.out, plots=not args.no_plots)
+    for name, r in sim.results.items():
+        # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
+        if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
+            bottom = r.extras.get("t_max_surface_bottom")
+            print(f"{model_label(name)} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+                  + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
+    files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
     return 0
 
@@ -171,8 +183,8 @@ def cmd_transient(args):
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
         tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
-    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
-          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
+    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C, "
+          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C")
     for w in tr.warnings:
         print(f"Warning: {w}")                                            # Limits of the model met by the run (the Analytic with a heatsink), as `run` prints its warnings
     os.makedirs(args.out, exist_ok=True)
@@ -203,8 +215,8 @@ def cmd_calibrate(args):
         options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
     what = f"heater {args.heater}" if args.heater else "the board maximum"
-    print(f"Measured {num(args.measured)} degC at {what}: convection multiplier {multiplier:.3f} "
-          f"(the {args.model} model then gives {predicted:.2f} degC).")
+    print(f"Measured {num(args.measured)} °C at {what}: convection multiplier {multiplier:.3f} "
+          f"(the {model_label(args.model)} model then gives {predicted:.2f} °C).")
     print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
     return 0
 
@@ -350,13 +362,19 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
-                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
+                   help="all: fvm, lumped, analytic; compare: those three plus fdm, solid3d and fem (one of the three that cannot run, for example "
+                        "the FEM on a slanted outline or without pyamg on a large mesh, is skipped with a warning)")
+    r.add_argument("--surface-files", action="store_true", help="also write surface_<model>.csv and the surface maps (the surface numbers are always in the report and summary.json)")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
                    help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")
     r.add_argument("--laminate-n-max", type=int, default=None, metavar="N",
                    help="most sub-gaps in one gap, 1 to 16 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid). A gap of "
                         "thickness d gets min(N, ceil(d / S)) sub-gaps: on a 1.6 mm board N above 4 needs a smaller --laminate-s-max-mm too")
+    r.add_argument("--fem-gap-elements", type=int, default=None, metavar="N",
+                   help="finite-element model (fem): elements across every dielectric gap, 2 to 24 (default 6)")
+    r.add_argument("--fem-refine", type=float, default=None, metavar="R",
+                   help="finite-element model (fem): ratio of the cell to the fine element near the heaters and via patches, 1 to 4 (default 2)")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
@@ -371,13 +389,13 @@ def build_parser():
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
     pg.add_argument("--threshold-c", type=float, default=None,
-                    help="oscillation in degC below which a heater is replaced by its average power (default: 1)")
+                    help="oscillation in K below which a heater is replaced by its average power (default: 1)")
     pg.add_argument("--duration", choices=("stable", "cycles", "time"), default=None,
                     help="simulate until the cycle repeats, for a number of cycles, or for a fixed time")
     pg.add_argument("--cycles", type=int, default=None, help="number of cycles of the longest resolved period")
     pg.add_argument("--time-s", type=float, default=None, help="simulated time in seconds (with --duration time)")
     pg.add_argument("--initial-c", type=float, default=None,
-                    help="start from this uniform temperature in degC (default: steady state of the average power)")
+                    help="start from this uniform temperature in °C (default: steady state of the average power)")
     r.set_defaults(func=cmd_run)
 
     t = sub.add_parser("transient", help="power-step response (FVM)")
@@ -391,7 +409,7 @@ def build_parser():
 
     k = sub.add_parser("calibrate", help="fit the convection multiplier to a measured steady temperature")
     k.add_argument("config", help="board JSON file")
-    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in degC")
+    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in °C")
     k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
     k.add_argument("--model", choices=MODELS, default="fvm")
     k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")

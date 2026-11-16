@@ -49,7 +49,7 @@ def test_vertical_coupling_matters():
 
 
 def test_lumped_does_not_depend_on_the_ring_count_or_jump_with_the_source_size():
-    # Rings thinner than a cell used to make the Lumped hotter with more rings (40 rings: +3 to +13 % against the FVM) and to jump by 1 % from one
+    # Rings thinner than a cell used to make the LPTN hotter with more rings (40 rings: +3 to +13 % against the FVM) and to jump by 1 % from one
     # millimetre of source size to the next; rings narrower than a cell are now merged (lumped.RING_MIN_WIDTH)
     from pcbthermal.model import Materials
     cu, gap = 35.6e-6, 1.5789e-3

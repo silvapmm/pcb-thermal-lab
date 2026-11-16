@@ -169,7 +169,7 @@ def stackup_template(layers, path=None, inner_oz=0.5):
     # The dielectrics are kept as they are (what fabricators do: they pick another build, they do not thin the dielectrics in proportion),
     # so the board grows by the extra copper
     out["total_thickness_um"] = out["total_thickness_um"] + added
-    out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (typical values, check your fabricator's stack-up)"
+    out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} µm) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (typical values, check your fabricator's stack-up)"
     out["derived"] = True
     return out
 
@@ -315,6 +315,24 @@ class Board:
                     np.array([d.rho * d.cp for d in self.dielectrics], dtype=float))
         m = self.materials
         return np.full(n, m.k_fr4_through), np.full(n, m.k_fr4_inplane), np.full(n, m.rho_fr4 * m.cp_fr4)
+
+    def face_film_h(self, h, layer, fill=1.0):
+        """!
+        @brief Face coefficient seen by the copper node of an outer layer: the film in series with the half copper layer between the node and the face.
+        @details The layered models keep ONE temperature per copper layer, the mean over the thickness, so the flux that leaves through the face film must also cross half
+                 the copper (`t_cu / (2 k_cu)`, m2K/W) to reach the face. Where the layer has copper (a fraction `fill` of the cell) the coefficient is
+                 `h_eff = h / (1 + h t_cu / (2 k_cu))` = `1 / (1 / h + t_cu / (2 k_cu))`; where it has none the face is bare laminate and `h` is kept (the half laminate over a bare
+                 face is the face term of `laminate.face_terms` and the series film of a one-layer board, not this one). The cell coefficient is `f h_eff + (1 - f) h`.
+                 For 35 um of copper at 10 W/m2K the change is 5e-7 of `h`. The 3D solid does not use this: it keeps one cell through each copper slab and already puts half of it in series with the film (`solid3d.face_g`).
+                 `docs/theory.md` 1.2.
+        @param h Film coefficient of the face in W/m2K (scalar, 0 gives 0).
+        @param layer Index of the copper layer that carries the face (0 top, layers - 1 bottom).
+        @param fill Copper fill of the layer, in [0, 1] (scalar or array); 1 for a full plane.
+        @return numpy.ndarray or float in W/m2K, shaped like `fill`.
+        """
+        r_half = float(np.asarray(self.copper_thickness, dtype=float)[layer]) / (2.0 * self.materials.k_copper)
+        h = float(h)
+        return h * (fill / (1.0 + h * r_half) + (1.0 - fill))
 
     def slab_thicknesses(self):
         """!
@@ -947,7 +965,7 @@ class Problem:
                  their size (so their power density is unchanged) and are pushed back inside the new box if needed. The outline is dropped.
                  Measured against the FVM on the real shape: the area-equivalent box is within 0.6 to 2.2 % of the temperature rise on an
                  ellipse or a T with parts away from the edge, against 6 to 10 % too low with the bounding box on the ellipse; a part near the edge of
-                 the real board or in the arm of a T is 6 to 11 % too cool in the Lumped and 1.5 to 15 % in the Analytic (`docs/validation.md` section 13).
+                 the real board or in the arm of a T is 6 to 11 % too cool in the LPTN and 1.5 to 15 % in the Analytic (`docs/validation.md` section 13).
                  The copy carries `board.edge_perimeter`, the perimeter of the real outline in m, for the edge loss of the Analytic model.
         @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
         """

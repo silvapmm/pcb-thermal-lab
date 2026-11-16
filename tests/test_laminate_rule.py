@@ -305,7 +305,7 @@ def test_a_metal_block_keeps_the_earlier_treatment_and_the_lumped_the_earlier_ne
     net = fvm.Network(p, 30, 30)
     assert net.ladder is None and net.drop is None and net.nl == 3    # two copper layers and the block
     q = window_board()
-    # The Lumped reads the earlier network (one link per gap): its answer does not depend on the rule
+    # The LPTN reads the earlier network (one link per gap): its answer does not depend on the rule
     base = lumped.solve_steady(q).t_max
     monkeypatch.setattr(laminate, "uses_rule", lambda problem: False)
     assert lumped.solve_steady(q).t_max == base

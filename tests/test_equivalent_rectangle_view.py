@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_equivalent_rectangle_view.py
-@brief The maps draw the rectangle of the same area that the Lumped and Analytic models solved, only for those models and only on a board with an outline.
+@brief The maps draw the rectangle of the same area that the LPTN and Analytic models solved, only for those models and only on a board with an outline.
 """
 
 import numpy as np
@@ -75,7 +75,7 @@ def test_draw_field_adds_the_rectangle_only_when_asked(sim):
     assert len(lines) == 1 and fig.legends
     W, H = eq.board.width * 1000.0, eq.board.height * 1000.0
     assert max(lines[0].get_xdata()) == pytest.approx(W) and max(lines[0].get_ydata()) == pytest.approx(H)
-    assert f"{W:.1f} x {H:.1f} mm" in lines[0].get_label()
+    assert f"{W:.1f} × {H:.1f} mm" in lines[0].get_label()
     ext = ax.get_images()[0].get_extent()                                   # The field fills the solved rectangle, not the real box
     assert ext[1] == pytest.approx(W, rel=1e-6) and ext[3] == pytest.approx(H, rel=1e-6)
     assert not np.ma.getmaskarray(ax.get_images()[0].get_array()).any()              # Nothing blanked: the rectangle is the board that was solved
@@ -95,7 +95,7 @@ def test_draw_field_adds_the_rectangle_only_when_asked(sim):
 
 def test_gradient_uses_the_solved_spacing(sim):
     """!
-    @brief The gradient of a Lumped or Analytic result on an outline board is taken on the spacing that was solved, not the stretched one.
+    @brief The gradient of a LPTN or Analytic result on an outline board is taken on the spacing that was solved, not the stretched one.
     @param sim Simulation fixture.
     """
     from pcbthermal import analysis
@@ -142,7 +142,7 @@ def test_rectangular_board_is_unchanged():
 
 def test_gui_checkbox(qtbot, tmp_path, sim):
     """!
-    @brief The Temperature and Gradient tabs show the checkbox for Lumped and Analytic only; the board overlay stays the stretched map without a
+    @brief The Temperature and Gradient tabs show the checkbox for LPTN and Analytic only; the board overlay stays the stretched map without a
            rectangle (the editor's parts are on the real board, so the solved frame cannot be drawn there).
     @param qtbot pytest-qt fixture.
     @param tmp_path pytest folder.

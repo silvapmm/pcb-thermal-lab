@@ -25,8 +25,8 @@ from scipy import ndimage
 
 from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
-from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
-from .results import model_label
+from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
+from .results import model_label, short_name
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -180,7 +180,7 @@ FLAT_FIELD_K = 1e-9           # A field flatter than this has no hottest or cool
 def _mark_extremes(ax, field, problem, dx, dy, hot_mm=None):
     """!
     @brief Mark the hottest (red ring) and the coolest (blue ring) sample of the field AS DRAWN, like the map on the board.
-    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a Lumped or Analytic outline board), so the marks sit on the
+    @details The field is the one handed to the map (cells off the outline already NaN, in the solved frame of a LPTN or Analytic outline board), so the marks sit on the
              samples that the colour bar's ends belong to. The first sample wins a tie; a field flatter than `FLAT_FIELD_K` marks nothing.
     @param ax Matplotlib axis (coordinates in mm).
     @param field Array (ny, nx) of temperatures, NaN off the board.
@@ -211,7 +211,7 @@ EQUIVALENT_LABEL = "rectangle solved (same area as the outline"
 
 def _solved_view(problem, dx, dy, scale):
     """!
-    @brief The geometry that the Lumped and Analytic models really solved for a board with an outline.
+    @brief The geometry that the LPTN and Analytic models really solved for a board with an outline.
     @details They solve `Problem.equivalent_rectangle` (box, positions, zones, vias and heatsinks scaled by s about the origin, parts of the
              same size moved to the scaled centre) and the result is stretched back by 1/s onto the real box (`api._run_model`). Drawing the
              field on its solved spacing (dx s, dy s) with the elements of that rectangle puts the field, the parts and the dashed edge in one
@@ -237,7 +237,7 @@ def _equivalent_lines(ax, problem, solved, color):
     """
     W, H = solved.board.width * 1000.0, solved.board.height * 1000.0
     rect, = ax.plot([0, W, W, 0, 0], [0, 0, H, H, 0], color=color, lw=1.8, ls=(0, (6, 3)), clip_on=False, zorder=5,
-                    label=f"{EQUIVALENT_LABEL}, {W:.1f} x {H:.1f} mm)")
+                    label=f"{EQUIVALENT_LABEL}, {W:.1f} × {H:.1f} mm)")
     o = np.vstack([problem.board.outline, problem.board.outline[:1]]) * 1000.0
     real, = ax.plot(o[:, 0], o[:, 1], color="#9a9a9a", lw=1.0, ls=":", zorder=4, label="real outline")
     return [rect, real]
@@ -454,7 +454,7 @@ def _draw_map(ax, field, problem, dx, dy, layer, cmap, vmin, vmax, view, solved_
              contour lines, or the field at `view.opacity` over the copper of the layer. No mode changes the data or the colour limits.
     @param ax Matplotlib axis (coordinates in mm).
     @param field Array (ny, nx) already blanked off the outline.
-    @param problem The Problem that gives the frame of the field (the rectangle as solved for a Lumped or Analytic result on an outline).
+    @param problem The Problem that gives the frame of the field (the rectangle as solved for a LPTN or Analytic result on an outline).
     @param dx Cell width in metres.
     @param dy Cell height in metres.
     @param layer 0-based layer (copper under the map).
@@ -512,7 +512,7 @@ def _draw_underlay(ax, problem, layer, view, solved_view):
     @param problem The Problem.
     @param layer 0-based layer.
     @param view MapView.
-    @param solved_view True for the equivalent rectangle of a Lumped or Analytic result on an outline.
+    @param solved_view True for the equivalent rectangle of a LPTN or Analytic result on an outline.
     @return None.
     """
     if view.underlay == "image" and view.image is not None:
@@ -558,7 +558,7 @@ def _draw_copper(ax, problem, layer, view, solved_view):
     @param problem The Problem.
     @param layer 0-based layer.
     @param view MapView (colours and the picture cache).
-    @param solved_view True for the equivalent rectangle of a Lumped or Analytic result on an outline: plain laminate and a note.
+    @param solved_view True for the equivalent rectangle of a LPTN or Analytic result on an outline: plain laminate and a note.
     @return None.
     """
     b = problem.board
@@ -581,6 +581,9 @@ def _draw_copper(ax, problem, layer, view, solved_view):
     ax.imshow(base, origin="lower", extent=box, interpolation="nearest")
 
 
+COLUMN_LABEL = "Temperature, column mean (°C)"   # Colour-bar and axis name of every map and graph of the solved value, one per copper layer (the surface read-out has its own name)
+
+
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
                layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000", view=None, extremes=False):
@@ -600,7 +603,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.
-    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) of a Lumped or Analytic result on a board with
+    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) of a LPTN or Analytic result on a board with
            an outline: the field is drawn as solved, on the rectangle of the same area with its parts, the rectangle dashed and the real outline
            dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
     @param equivalent_color Colour of that dashed line.
@@ -665,8 +668,44 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
         return
     field = np.where(result.arrays["block_cov"][which] > 0, result.arrays["block_T"][which], np.nan)
     draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=0 if face == 0 else problem.board.layers - 1,
-               title=f"{result.model.upper()} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
+               title=f"{model_label(result.model)} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
                      f"max {result.extras[f'block_{tag}_max']:.1f} °C", label="Block temperature (°C)")
+
+
+@_with_engineering_ticks
+def draw_surface(fig, result, problem, face, cmap="inferno"):
+    """!
+    @brief Temperature of the outer face of the copper (the surface read-out), beside the layer mean (the column) that every other map shows.
+    @param fig Target Figure (cleared first).
+    @param result A SteadyResult; every steady FVM and FDM result holds arrays["T_surface"] (no thickness threshold).
+    @param problem The Problem.
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @param cmap Colormap name.
+    """
+    fig.clear()
+    ax = fig.add_subplot(111)
+    if "T_surface" not in result.arrays or not np.isfinite(result.arrays["T_surface"][face]).any():
+        ax.text(0.5, 0.5, "This model has no surface read-out", ha="center", va="center", transform=ax.transAxes)
+        return
+    tag = "top" if face == 0 else "bottom"
+    if face == 1 and problem.board.layers == 1:
+        tag = "bottom of the copper, on the laminate"     # A one-layer board: the lower face of its copper is the interface with the laminate, not the board's bottom face
+    layer = 0 if face == 0 else problem.board.layers - 1
+    field = result.arrays["T_surface"][face]
+    upper = bool(np.asarray(result.arrays["T_surface_flag"])[face].any())
+    rise = max(result.t_max - result.ambient, 1e-9)
+    col = float(np.nanmax(result.T[layer]))                    # The column of the layer that owns the face, not the board maximum
+    diff = float(np.nanmax(field)) - col
+    # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
+    # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
+    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + ("resolved" if result.model == "fem" else "estimate") + " (°C)",
+                    title=f"{model_label(result.model)} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
+                          f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
+    face_peak = result.arrays.get("face_peak")
+    if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:
+        # The trap of the patterned thin copper: over bare laminate under a source the surface includes the rise across the laminate, which the column node does not
+        ax.text(0.01, 0.01, "difference includes the rise across bare laminate under a source (copper absent)", transform=ax.transAxes, fontsize=6,
+                color="white", va="bottom", zorder=7, bbox={"facecolor": "black", "alpha": 0.5, "pad": 1.5, "edgecolor": "none"})
 
 
 @_with_engineering_ticks
@@ -722,12 +761,15 @@ def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equi
         ax.set_aspect("equal")
         if l % ncol == 0:
             ax.set_ylabel("y (mm)")
-    fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
+    fig.colorbar(im, ax=list(axes), label=COLUMN_LABEL, shrink=0.9)
     if lines:
         # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
         fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
-    fig.suptitle(f"{result.model.upper()}: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
-                 f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
+    from .api import balance_text                    # Imported here: the API imports this module for its figures
+
+    # The balance as in the Summary table: a percentage with a floor (the raw round-off, '-401.30E-15', read like a number to worry about)
+    fig.suptitle(f"{model_label(result.model)} - column mean, all layers: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
+                 f"power balance {balance_text(result.balance_error)}", fontsize=10)
 
 
 CUT_COLOUR = "#ffb000"        # The amber of the alert token: the cut line on the plain board
@@ -801,7 +843,7 @@ def _cut_map_source(results, problem):
     @param results Dict {model: SteadyResult}.
     @param problem The Problem.
     @return (SteadyResult or None, note): the reference model (the finite-volume one when present) when its map is drawn as solved, else None and a short note
-            (a Lumped or Analytic map of an outline board is stretched onto the box, which the board picture would contradict).
+            (a LPTN or Analytic map of an outline board is stretched onto the box, which the board picture would contradict).
     """
     ref = results.get("fvm") or next(iter(results.values()))
     if ref.T is None:
@@ -915,7 +957,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
         else:
             j = int(np.argmin(np.abs(xs * 1000.0 - position_mm)))
             xd, yd, pos = ys * 1000, T[:, j], float(xs[j]) * 1000.0
-        ax.plot(xd, yd, label=name)
+        ax.plot(xd, yd, label=model_label(name))                # The name of the window, not the key (`fvm`, `lumped`)
         curves.append((xd, yd))
         if r is ref:
             ref_curve = (xd, yd)
@@ -924,8 +966,12 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     if actual is None:
         actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
-    ax.set_ylabel(f"Layer {layer + 1} temperature (°C)")
-    ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm", fontsize=10)
+    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
+    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5)
+    where = f"{'y' if axis == 'x' else 'x'} = {actual:.1f} mm"
+    if abs(actual - position_mm) >= 0.05:
+        where += f" (the cell centre nearest to {position_mm:.1f} mm)"
+    ax.set_title(f"Cut along {axis} at {where}", fontsize=10)
     ax.grid(alpha=0.3)
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
     if picture == "off" or strip:
@@ -955,6 +1001,20 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
 
 
+def _legend_outside(fig, ax, **kw):
+    """!
+    @brief Put the legend of a bar chart beside the axes, so that it never covers a bar or a value label.
+    @param fig Figure of the axes.
+    @param ax Axes whose handles are listed.
+    @param kw Extra keyword arguments of the legend (fontsize).
+    """
+    handles, labels = ax.get_legend_handles_labels()
+    if fig.get_layout_engine() is not None:
+        fig.legend(handles, labels, loc="outside right upper", **kw)       # constrained layout leaves room for it
+    else:
+        ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0, **kw)
+
+
 @_with_engineering_ticks
 def draw_comparison(fig, results):
     """!
@@ -972,9 +1032,9 @@ def draw_comparison(fig, results):
         ax.text(k - 0.2, results[n].t_max + 0.5, f"{results[n].t_max:.1f}", ha="center", fontsize=8)
         ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
     ax.set_xticks(x)
-    ax.set_xticklabels([model_label(n) for n in names])        # "Lumped (LPTN)", as the tables, not the key `lumped`
-    ax.set_ylabel("Temperature (°C)")
-    ax.legend()
+    ax.set_xticklabels([model_label(n) for n in names])        # "LPTN", as the tables, not the key `lumped`
+    ax.set_ylabel(COLUMN_LABEL)
+    _legend_outside(fig, ax)
     ax.grid(axis="y", alpha=0.3)
 
 
@@ -1001,7 +1061,7 @@ def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=10)
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(fontsize=8)
+    _legend_outside(fig, ax, fontsize=8)
 
 
 @_with_engineering_ticks
@@ -1039,7 +1099,7 @@ def draw_transient(fig, tr):
     if np.isfinite(tau):
         ax.axvline(tau, color="C3", ls=":", label=f"63 % at {tau:.1f} s")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Temperature (°C)")
+    ax.set_ylabel(COLUMN_LABEL)
     ax.grid(alpha=0.3, which="both")
     ax.legend()
 
@@ -1073,9 +1133,9 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     if limit_c is not None:
         ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {num(limit_c)} °C")
     ax.set_xlabel("Time in the last window (s)")
-    ax.set_ylabel("Temperature (°C)")
-    ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
-                 f"oscillation {result.oscillation:.1f} °C", fontsize=10)
+    ax.set_ylabel(COLUMN_LABEL)
+    ax.set_title(f"{model_label(result.model)}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
+                 f"oscillation {result.oscillation:.1f} K", fontsize=10)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
 
@@ -1091,7 +1151,7 @@ def draw_peak_map(fig, result, problem, layer=0, cmap="inferno"):
     @param cmap Colormap name.
     """
     draw_field(fig, result.peak_map[layer], problem, result.dx, result.dy, cmap=cmap, layer=layer,
-               title=f"{result.model.upper()} - layer {layer + 1}: peak temperature during the cycle "
+               title=f"{model_label(result.model)} - layer {layer + 1}: peak temperature during the cycle "
                      f"(max {float(result.peak_map[layer].max()):.1f} °C)", label="Peak temperature (°C)")
 
 
@@ -1186,6 +1246,20 @@ def plot_fields(result, problem, path, view=None, cmap="inferno"):
     _save(fig, path)
 
 
+def plot_surface(result, problem, path, face, cmap="inferno"):
+    """!
+    @brief Save the surface-temperature map of one outer face (only on request: Simulation.save(surface_files=True), CLI `--surface-files`).
+    @param result A SteadyResult with arrays["T_surface"] (FVM or FDM).
+    @param problem The Problem.
+    @param path Output PNG path.
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @param cmap Colormap name.
+    """
+    fig = new_figure(6.4, 4.8)
+    draw_surface(fig, result, problem, face, cmap=cmap)
+    _save(fig, path)
+
+
 def plot_profiles(results, problem, path, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
     @brief Save the temperature profile through the hottest row of the top layer, with the cut picture over the curves.
@@ -1270,7 +1344,7 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno", view=N
     writer = PillowWriter(fps=fps)
     with writer.saving(fig, path, dpi=90):
         for k in range(len(tr.times)):
-            draw_field(fig, tr.frames[k, layer], problem, dx, dy, cmap=cmap, vmin=vmin, vmax=vmax,
+            draw_field(fig, tr.frames[k, layer], problem, dx, dy, cmap=cmap, vmin=vmin, vmax=vmax, label=COLUMN_LABEL,
                        layer=layer, title=f"Layer {layer + 1}  t = {tr.times[k]:.2f} s  "
                                           f"Tmax = {tr.t_max[k]:.1f} °C", view=view)
             writer.grab_frame()

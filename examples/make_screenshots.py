@@ -6,6 +6,7 @@
 
 Usage: python examples/make_screenshots.py [output_folder]   (default: docs/images)
        python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
+       python examples/make_screenshots.py --surface [output_folder]   (the surface read-out of thick copper: the map of Surface (top) and the Components table)
        python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
 """
 
@@ -45,9 +46,12 @@ def _assert_neutral(path):
         raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
 
 
+FULL_COLOUR = ("editor", "simulation_", "results_summary")      # File-name prefixes saved without the 256-colour quantisation (the verdict and warning dots must stay distinct)
+
+
 def shrink(path, max_width=1400):
     """!
-    @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth).
+    @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth), except the window pictures of FULL_COLOUR.
     @param path PNG file, rewritten in place.
     @param max_width Largest width in pixels.
     @return None
@@ -59,6 +63,10 @@ def shrink(path, max_width=1400):
     im = Image.open(path).convert("RGB")
     if im.width > max_width:
         im = im.resize((max_width, round(im.height * max_width / im.width)), Image.LANCZOS)
+    # The pictures of the windows (the Simulation panel with its red, amber and green dots) stay full colour: 256 colours merged the three dots into one tone
+    if os.path.basename(path).startswith(FULL_COLOUR):
+        im.save(path, optimize=True)
+        return
     im.quantize(256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG).save(path, optimize=True)
 
 
@@ -534,7 +542,104 @@ def main_views(out_dir, board_dir):
     return written
 
 
+def main_surface(out_dir):
+    """!
+    @brief Screenshot of the surface read-out: the 4-layer example board with 2 mm of outer copper, the Components table with its (column) columns and the one (surface) column and the Layer box.
+    @param out_dir Folder that receives results_surface.png and results_surface_table.png (only these two pictures; the other screenshots are not remade).
+    @return List of written file paths.
+    """
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots_surface.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    prob = example_board()
+    prob.board.thickness = 6e-3
+    prob.board.copper_thickness = [2e-3, 35e-6, 35e-6, 2e-3]               # Thick outer copper: the surface read-out exists and is worth showing
+    prob.board.h_top, prob.board.h_bottom = 400.0, 400.0                     # A cooled plate: the surface differs from the layer mean by about 0.3 K, 2 % of the rise (shown on every board now, no threshold)
+    for h in prob.heaters:
+        if h.name == "U1":
+            h.power = 20.0
+    win._load_problem(prob, "example-thick-copper")
+    win.resize(2000, 1200)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    win.canvas.fit()
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)))
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    app.processEvents()
+    from pcbthermal.gui import layerchoice
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(layerchoice.SURFACE_BASE))      # Surface (top)
+    app.processEvents()
+    path = os.path.join(out_dir, "results_surface.png")
+    win.grab().save(path)
+    shrink(path)
+    win.results.tabs.setCurrentWidget(win.results.tabs.widget(4))
+    app.processEvents()
+    path2 = os.path.join(out_dir, "results_surface_table.png")
+    win.grab().save(path2)
+    shrink(path2)
+    win.doc.stack.setClean()
+    win.close()
+    return [path, path2]
+
+
+def main_fem(out_dir):
+    """!
+    @brief Screenshots of the finite-element model in the window: the Simulation panel with the FEM ticked and its mesh boxes, and the Temperature tab of the thick plate of case 2 of Muzychka et al. on the FEM, Surface (top).
+    @param out_dir Folder that receives simulation_fem.png and results_fem_surface.png (only these two pictures).
+    @return List of written file paths.
+    """
+    from pcbthermal import api
+    from pcbthermal.model import Materials, Problem
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots_fem.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    prob = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0), name="plate-case-2")
+    prob.add_full_copper()
+    for i, (c, pw) in enumerate(zip([(12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5)], [10.0, 25.0, 20.0, 15.0])):
+        prob.add_heater(1, pw, rect=(c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5), name=f"S{i + 1}")
+    win._load_problem(prob, "plate-case-2")
+    win.resize(2000, 1200)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    win.canvas.fit()
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=1.0)
+    app.processEvents()
+    path1 = os.path.join(out_dir, "simulation_fem.png")
+    win.solver_panel.grab().save(path1)
+    shrink(path1)
+    win._on_done(api.simulate(win.doc.problem, win.doc.options))
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("fem"))
+    from pcbthermal.gui import layerchoice
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(layerchoice.SURFACE_BASE))
+    app.processEvents()
+    path2 = os.path.join(out_dir, "results_fem_surface.png")
+    win.grab().save(path2)
+    shrink(path2)
+    win.doc.stack.setClean()
+    win.close()
+    return [path1, path2]
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--fem":
+        for f in main_fem(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] == "--surface":
+        for f in main_surface(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
     if len(sys.argv) > 2 and sys.argv[1] == "--import":
         for f in main_import(sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images"), sys.argv[2]):
             print(f)

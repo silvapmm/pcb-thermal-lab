@@ -19,6 +19,7 @@ plot them:
 
 import csv
 import json
+import math
 
 import numpy as np
 import os
@@ -29,19 +30,20 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
-from .checks import ALERT, check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
+from .checks import ALERT, check_fin_channels, check_input, is_fem_left_out, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
-from .results import DISCLAIMER, SteadyResult
-from .numfmt import num
+from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult
+from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
+COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Models off by default; the reference of the decisions is the first ticked of MODEL_NAMES + COMPARISON_MODELS (a main model when one runs)
+SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
-TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
 
 
 @dataclass
@@ -55,10 +57,12 @@ class SolverOptions:
     lumped_rings: int = 10                       # Rings per heater network in the lumped model
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
     analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
-    hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
+    hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (°C)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     laminate_s_max_mm: float = 0.4               # Longest sub-gap of the laminate between two copper nodes in mm (FVM and FDM; laminate.py)
     laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n); a gap gets min(n_max, ceil(d / s_max)), so a larger n_max needs a smaller s_max
+    fem_gap_elements: int = 6                    # Finite-element mesh: elements across every dielectric gap, count (2 to 24; femmesh.py)
+    fem_refine: float = 2.0                      # Finite-element mesh: ratio of the cell to the fine element near the heaters and via patches (1 to 4)
     # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
     memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
@@ -89,7 +93,18 @@ class SolverOptions:
             raise ValueError("laminate_s_max_mm must be between 0.05 and 5")
         if not isinstance(self.laminate_n_max, int) or isinstance(self.laminate_n_max, bool) or not 1 <= self.laminate_n_max <= 16:
             raise ValueError("laminate_n_max must be an integer between 1 and 16")
+        if not isinstance(self.fem_gap_elements, int) or isinstance(self.fem_gap_elements, bool) or not 2 <= self.fem_gap_elements <= 24:
+            raise ValueError("fem_gap_elements must be an integer between 2 and 24")
+        if isinstance(self.fem_refine, bool) or not isinstance(self.fem_refine, (int, float)) or not 1.0 <= self.fem_refine <= 4.0:
+            raise ValueError("fem_refine must be a number between 1 and 4")
         self.profile.validate()
+
+    def fem_params(self):
+        """!
+        @brief The two numbers of the finite-element mesh, for femmesh and memory.check.
+        @return Tuple (elements across a dielectric gap, refinement ratio).
+        """
+        return self.fem_gap_elements, float(self.fem_refine)
 
     def laminate_params(self):
         """!
@@ -107,10 +122,18 @@ class SolverOptions:
         d.pop("memory_fraction", None)                  # The memory limit belongs to the machine, not to the project
         d.pop("ui", None)                               # The front end belongs to the session, not to the project
         # The laminate numbers are saved only when they are not the default, so that projects of the earlier versions are written as before
-        for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4)):
+        for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4), ("fem_gap_elements", 6), ("fem_refine", 2.0)):
             if d.get(key) == default:
                 d.pop(key, None)
-        d["models"] = list(self.models)
+        # The FEM is a comparison model that the v2.7.1 reader does not know: a "models" list that names it is refused there (the whole project does not open), so it is saved
+        # under a key that older readers drop ("comparison_models"), and "comparison_only" says that it was the only model (the older reader then runs the FVM).
+        models = [m for m in self.models if m != "fem"]
+        if "fem" in self.models:
+            d["comparison_models"] = ["fem"]
+            if not models:
+                d["comparison_only"] = True
+                models = ["fvm"]
+        d["models"] = models
         d["profile"] = self.profile.to_dict()
         return d
 
@@ -124,14 +147,137 @@ class SolverOptions:
         known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__ and k not in ("memory_fraction", "ui")}   # Old files may hold the key: ignored
         if "models" in known:
             known["models"] = tuple(known["models"])
+        comp = (data or {}).get("comparison_models")
+        if comp is not None:
+            # The key of the FEM (see to_dict): a list of the comparison models that the v2.7.1 reader does not know; anything else is a malformed file
+            if not isinstance(comp, (list, tuple)) or any(not isinstance(m, str) or m not in ("fem",) for m in comp):
+                raise ValueError("comparison_models must be a list whose items are 'fem'")
+            only = (data or {}).get("comparison_only", False)
+            if not isinstance(only, bool):
+                raise ValueError("comparison_only must be true or false")
+            if "fem" in comp:
+                base = tuple(known.get("models", MODEL_NAMES))
+                known["models"] = ("fem",) if only else tuple(m for m in base if m != "fem") + ("fem",)
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
         # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
-        n = known.get("laminate_n_max")
-        if isinstance(n, float) and n.is_integer():
-            known["laminate_n_max"] = int(n)
+        for key in ("laminate_n_max", "fem_gap_elements"):
+            n = known.get(key)
+            if isinstance(n, float) and n.is_integer():
+                known[key] = int(n)
         o = cls(**known)
         o.validate()
         return o
+
+
+def surface_report_lines(res):
+    """!
+    @brief The lines of the report and of the Results summary that give the surface read-out beside the column one (always, for every steady FVM or FDM result).
+    @details No threshold: a thin-copper board prints the same two numbers at one decimal and the difference in K and in % of the rise ('+0.003 K, +0.005 %'), which tells the reader
+             that a thermocouple on the copper and the column agree there. On a patterned board the difference of the whole face includes the rise across the bare laminate under a
+             source (the laminate face term), so it can be 1 to 4 K on 35 um copper; the line says so.
+    @param res A SteadyResult.
+    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: LPTN, Analytic, 3D solid, transient).
+    """
+    out = []
+    for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
+        if key not in res.extras or "T_surface" not in res.arrays:
+            continue
+        surf = float(res.extras[key])
+        flagged = bool(np.asarray(res.arrays["T_surface_flag"])[face].any())
+        # The face is compared with the column of ITS layer (top: layer 1, bottom: the last layer), not with the board maximum
+        layer = 0 if face == 0 else res.T.shape[0] - 1
+        col = float(np.nanmax(res.T[layer]))
+        rise = max(res.t_max - res.ambient, 1e-9)
+        diff = surf - col
+        # The FEM resolves the surface with its elements; the FVM and FDM estimate it from the heat fluxes
+        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}"
+        patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
+        out.append(f"Hottest surface ({name}): {surf:.1f} °C ({how}; "
+                   f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} °C; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
+                   + ("; the difference includes the rise across the bare laminate under a source where copper is absent" if patterned else "") + ")")
+    return out
+
+
+BALANCE_FLOOR_PERCENT = 0.005    # Below this the energy balance reads "0.00 %": round-off noise of the solver (1e-13 and the like) is not a result
+
+
+def balance_text(value):
+    """!
+    @brief The energy balance of a model as a percentage with a floor, so that round-off noise reads as zero.
+    @param value Relative balance (power out - power in) / power in, dimensionless.
+    @return str Such as "0.00 %", "+0.31 %" or "-1.25 %".
+    """
+    pc = 100.0 * float(value)
+    if not math.isfinite(pc):
+        return "n/a"
+    return "0.00 %" if abs(pc) < BALANCE_FLOOR_PERCENT else f"{pc:+.2f} %"
+
+
+@dataclass(frozen=True)
+class SummaryColumn:
+    """!
+    @brief One column of the models table: the single definition behind the window, the text report and the Markdown report.
+    @details `title`, `unit` and `readout` build the header: two lines in the window and the text report ("Tmax °C" over "(column)"), one line in Markdown
+             ("Tmax [°C] (column)"). `{ref}` in the title is replaced by the name of the reference model.
+    """
+    key: str                                  # Key of the row dict of Simulation.table()
+    title: str                                # Quantity, for example "Tmax"; "{ref}" stands for the reference model
+    unit: str                                 # Unit, for example "°C" (empty for a quantity written with its own unit)
+    readout: str                              # Read-out the number is taken from, for example "column" (empty when not a temperature of a field)
+    fmt: Callable                             # (row dict, reference model key) -> str
+    tip: str                                  # Tooltip of the header in the window
+    left: bool = False                        # True: left-aligned (the model name)
+
+    def header_lines(self, ref_label):
+        """!
+        @brief The header as the lines of the window and of the text report.
+        @param ref_label Name of the reference model (for example "FVM").
+        @return List of one or two str.
+        """
+        first = (self.title.format(ref=ref_label) + (f" {self.unit}" if self.unit else "")).strip()
+        return [first] + ([f"({self.readout})"] if self.readout else [])
+
+    def header_markdown(self, ref_label):
+        """!
+        @brief The header on one line, with the unit in brackets.
+        @param ref_label Name of the reference model.
+        @return str.
+        """
+        return self.title.format(ref=ref_label) + (f" [{self.unit}]" if self.unit else "") + (f" ({self.readout})" if self.readout else "")
+
+
+def _err_text(r, ref):
+    """!
+    @brief Cell of the error column: the reference model reads "reference", the others the error of the rise in percent.
+    @param r Row dict of Simulation.table().
+    @param ref Key of the reference model.
+    @return str.
+    """
+    return "reference" if r["model"] == ref else f"{r['error_vs_reference'] * 100:+.1f} %"
+
+
+SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM). "
+               "It is a view of the same solution, not another model; the LPTN, Analytic and 3D solid models have no surface read-out (n/a). The bottom face and the "
+               "hottest mesh node of the FEM are in the report.")
+SUMMARY_COLUMNS = (
+    SummaryColumn("model", "Model", "", "", lambda r, ref: r["model"], "The model; the reference model (FVM when it runs) is the one the errors are measured against.", left=True),
+    SummaryColumn("t_max_c", "Tmax", "°C", "column", lambda r, ref: f"{r['t_max_c']:.2f}",
+                  "Column read-out: the hottest layer-mean value (the copper layer averaged through its thickness) over every copper layer and every cell inside the outline; "
+                  "metal blocks are not counted. For the LPTN model it is the peak of the ring network at the heater (a column value, not the maximum of a map)."),
+    SummaryColumn("t_max_surface_c", "Tmax", "°C", "surface", lambda r, ref: "n/a" if r.get("t_max_surface_c") is None else f"{r['t_max_surface_c']:.2f}", SURFACE_TIP),
+    SummaryColumn("t_mean_c", "Tmean", "°C", "all layers", lambda r, ref: f"{r['t_mean_c']:.2f}",
+                  "Column read-out: the mean over all copper layers together (every layer counts equally; inside a layer the cells are weighted by the area inside the outline); "
+                  "metal blocks are not counted. On a board with inner planes it mixes the hot outer layer with the cool planes."),
+    SummaryColumn("delta_t_k", "ΔT", "K", "", lambda r, ref: f"{r['delta_t_k']:.2f}", "Rise of the column Tmax above the ambient: Tmax - ambient, a difference, in kelvin."),
+    SummaryColumn("r_theta_k_per_w", "Rθ", "K/W", "", lambda r, ref: f"{r['r_theta_k_per_w']:.3f}",
+                  "Board resistance, ΔT / power: from the hottest column value to the air. It is not a junction value (junction temperatures are in the Components tab)."),
+    SummaryColumn("power_in_w", "Power", "W", "", lambda r, ref: f"{r['power_in_w']:.3f}", "Power injected by the heaters in this run."),
+    SummaryColumn("energy_balance", "Balance", "", "", lambda r, ref: balance_text(r["energy_balance"]),
+                  "Energy balance, (power out - power in) / power in, in percent; below 0.005 % it reads 0.00 % (round-off). The raw value is in the tooltip of the cell and in summary.json."),
+    SummaryColumn("error_vs_reference", "Error vs {ref}", "", "of ΔT", _err_text,
+                  "Error of the rise ΔT of this model against the reference model: ΔT / ΔT(reference) - 1, in percent. It is the error of the rise, not of Tmax."),
+    SummaryColumn("seconds", "Time", "s", "", lambda r, ref: f"{r['seconds']:.2f}", "Wall-clock time of the solve."),
+)
 
 
 @dataclass
@@ -163,9 +309,9 @@ class Simulation:
         # A plain string (the notes of the models, the guard messages) gets its severity here, so that every line of the summary has one
         out = [w if getattr(w, "severity", None) else warn(str(w), warning_severity(w)) for w in list(self.problem_warnings) + list(self.part_warnings)]
         for name, r in self.results.items():
-            out += [warn(f"{name}: {w}", warning_severity(w)) for w in r.warnings]
+            out += [warn(f"{RESULT_MODEL_LABELS.get(name, name)}: {w}", warning_severity(w)) for w in r.warnings]
         for name, r in self.profile_results.items():
-            out += [warn(f"{name} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
+            out += [warn(f"{RESULT_MODEL_LABELS.get(name, name)} (time simulation): {w}", warning_severity(w)) for w in r.warnings]
         if self.profile_error:
             out.append(warn(f"time simulation not run: {self.profile_error}", ALERT))
         return out
@@ -197,25 +343,50 @@ class Simulation:
         rows = []
         for name, r in self.results.items():
             err = (r.delta_t / ref.delta_t - 1.0) if ref.delta_t > 0 else 0.0
-            rows.append({"model": name, "t_max_c": r.t_max, "t_mean_c": r.t_mean, "delta_t_k": r.delta_t,
+            # The top-face peak of the surface read-out (FVM, FDM and FEM); None for the models that have none
+            surf = float(r.extras["t_max_surface_top"]) if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None else None
+            rows.append({"model": name, "t_max_c": r.t_max, "t_max_surface_c": surf, "t_mean_c": r.t_mean, "delta_t_k": r.delta_t,
                          "r_theta_k_per_w": r.r_theta, "power_in_w": r.power_in,
                          "energy_balance": r.balance_error, "error_vs_reference": err,
                          "seconds": self.seconds.get(name, 0.0), "warnings": len(r.warnings)})
         return rows
+
+    def summary_columns(self):
+        """!
+        @brief The columns of the models table that carry a value in this run (the surface column is left out when no model has a surface read-out).
+        @return List of SummaryColumn.
+        """
+        rows = self.table()
+        return [c for c in SUMMARY_COLUMNS if c.key != "t_max_surface_c" or any(r["t_max_surface_c"] is not None for r in rows)]
+
+    def summary_grid(self, model_name=None):
+        """!
+        @brief The models table as strings: the one place that formats it, used by the window, the text report and the Markdown report.
+        @param model_name Optional function key -> text for the first column (the window passes the labels of the Simulation panel); the short name of the model (results.MODEL_LABELS) when None, never the key.
+        @return tuple (columns, rows, tips): the SummaryColumn list, one list of cell texts per model, and per row a dict {column index: tooltip} (the raw balance).
+        """
+        cols = self.summary_columns()
+        ref = self.reference.model
+        rows, tips = [], []
+        for r in self.table():
+            cells = [c.fmt(r, ref) for c in cols]
+            cells[0] = model_name(r["model"]) if model_name is not None else RESULT_MODEL_LABELS.get(r["model"], r["model"])
+            rows.append(cells)
+            tips.append({i: f"Raw value (out - in) / in = {num(r['energy_balance'], sign=True)}" for i, c in enumerate(cols) if c.key == "energy_balance"})
+        return cols, rows, tips
 
     def to_markdown(self):
         """!
         @brief The comparison table as Markdown, headed by the disclaimer and followed by the warnings.
         @return String.
         """
+        ref_label = RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model)
+        cols, rows, _ = self.summary_grid()
         lines = [f"> {DISCLAIMER}", "",
-                 "| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [K/W] | Power [W] | Balance | Error vs " +
-                 self.reference.model + " | Time [s] |",
-                 "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
-        for r in self.table():
-            lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
-                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {num(r['energy_balance'], sign=True)} | "
-                         f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
+                 "| " + " | ".join(c.header_markdown(ref_label) for c in cols) + " |",
+                 "| " + " | ".join(":--" if c.left else "--:" for c in cols) + " |"]
+        for cells in rows:
+            lines.append("| " + " | ".join(cells) + " |")
         lines += self._profile_markdown()
         for w in self.warnings:
             lines.append(f"\n> **Warning**: {w}")
@@ -228,9 +399,9 @@ class Simulation:
         """
         if not self.decisions:
             return []
-        lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
-                     f"threshold {num(self.options.profile.threshold_c)} °C):", "",
-                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
+        lines = ["", f"Power profiles (decision from the {RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, "
+                     f"threshold {num(self.options.profile.threshold_c)} K):", "",
+                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [K] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
             if d.kind != "constant":
@@ -239,116 +410,144 @@ class Simulation:
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
         if self.profile_results:
-            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [°C] | Steady, average power [°C] | "
+            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [K] | Steady, average power [°C] | "
                           "Steady, peak power (bound) [°C] | Windows | Steps | Time [s] |",
                       "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
             for name, r in self.profile_results.items():
                 if r.resolved:
-                    lines.append(f"| {name} | {r.peak:.2f} | {r.minimum:.2f} | {r.oscillation:.2f} | "
+                    lines.append(f"| {RESULT_MODEL_LABELS.get(name, name)} | {r.peak:.2f} | {r.minimum:.2f} | {r.oscillation:.2f} | "
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | {r.windows} | {r.steps} | "
                                  f"{r.seconds:.2f} |")
                 else:
-                    lines.append(f"| {name} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
+                    lines.append(f"| {RESULT_MODEL_LABELS.get(name, name)} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
                                  f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | - | - | {r.seconds:.2f} |")
             for name, r in self.profile_results.items():
                 for x in r.ripple:
-                    lines.append(f"\n> **Ripple ({name})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} °C peak to peak "
-                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} °C about its mean, from the closed-form impedance of the stack) is added at the heater, "
+                    lines.append(f"\n> **Ripple ({RESULT_MODEL_LABELS.get(name, name)})**: {x['name']} is held at its average power in the board run and its wave of {num(x['swing_c'], 3)} K peak to peak "
+                                 f"({num(x['minus_c'], 3)} to +{num(x['plus_c'], 3)} K about its mean, from the closed-form impedance of the stack) is added at the heater, "
                                  "in the peak and the minimum above and not in the maps.")
         return lines
 
-    def to_text(self, inline_warnings=True):
+    def to_text(self, inline_warnings=True, table=True):
         """!
-        @brief The comparison table as aligned plain text, followed by the warnings.
+        @brief The comparison table as aligned plain text (two header lines, widths from the longest cell), followed by the warnings.
         @param inline_warnings True: every warning is a `WARNING:` paragraph (the saved report, the command line); False: one closing line says how many there are
                                and that the Warnings list of the window shows them (the on-screen report, which sits under that list).
+        @param table False: leave the table out (the window shows it above the report in a table of its own); the warnings part stays.
         @return String.
         """
-        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT C':>8s} {'Rth K/W':>8s} {'P W':>7s} {'balance':>9s} " \
-               f"{'vs ' + self.reference.model:>9s} {'time s':>7s}"
-        lines = [head, "-" * len(head)]
-        for r in self.table():
-            lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
-                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
-                         f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
+        lines = []
+        if table:
+            ref_label = RESULT_MODEL_LABELS.get(self.reference.model, self.reference.model)
+            cols, rows, _ = self.summary_grid()
+            heads = [c.header_lines(ref_label) for c in cols]
+            n_head = max(len(h) for h in heads)
+            widths = [max([len(line) for line in h] + [len(row[i]) for row in rows]) for i, h in enumerate(heads)]
+            align = lambda text, i: f"{text:<{widths[i]}s}" if cols[i].left else f"{text:>{widths[i]}s}"      # noqa: E731
+            for k in range(n_head):                    # A column with a one-line header leaves its second line empty
+                lines.append(" ".join(align(h[k] if k < len(h) else "", i) for i, h in enumerate(heads)).rstrip())
+            lines.append("-" * (sum(widths) + len(widths) - 1))
+            for cells in rows:
+                lines.append(" ".join(align(t, i) for i, t in enumerate(cells)))
         if inline_warnings:
             for w in self.warnings:
                 lines += ["", f"WARNING: {w}"]                               # A blank line before each warning keeps the list readable (as the Summary tab and the Markdown report)
         elif self.warnings:
             n = len(self.warnings)
-            lines += ["", f"({n} warning{'s' if n != 1 else ''}: see the Warnings list above; the saved report keeps {'them' if n != 1 else 'it'}.)"]
+            lines += ([""] if lines else []) + [f"({n} warning{'s' if n != 1 else ''}: see the Warnings list above; the saved report keeps {'them' if n != 1 else 'it'}.)"]
         return "\n".join(lines) + "\n"
 
-    def report(self, inline_warnings=True):
+    def report(self, inline_warnings=True, table=True):
         """!
         @brief Plain-text report with the table, hotspots, zones and heaters (reference model).
         @param inline_warnings True (default, the saved report): the warnings follow the table as `WARNING:` paragraphs; False (the on-screen report): one closing line points to the Warnings list.
+        @param table False (the on-screen report): without the models table, which the window shows above the report; the saved report and the command line keep it.
         @return String.
         """
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
-                 f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
-                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} degC, "
-                 f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings)]
+                 f"Board {self.problem.board.width * 1000:.1f} × {self.problem.board.height * 1000:.1f} mm, "
+                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} °C, "
+                 f"total power {self.problem.total_power():.3f} W", "", f"Disclaimer: {DISCLAIMER}", "", self.to_text(inline_warnings, table)]
         if self.h_used:
             b = self.problem.board
             lines.append("")
-            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {num(b.emissivity_top)} top, "
-                         f"{num(b.emissivity_bottom)} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
+            lines.append(f"Heat transfer coefficients computed from correlations (emissivity: top {num(b.emissivity_top)}, "
+                         f"bottom {num(b.emissivity_bottom)}; {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
                          f"convection multiplier {num(b.h_calibration)}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
-                lines.append(f"  {name}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
+                lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
                              f"{e['h_top_radiation']:.2f}), bottom {hb:.2f} W/m2K (convection {e['h_bottom_convection']:.2f} + "
                              f"radiation {e['h_bottom_radiation']:.2f}), {int(e['h_iterations'])} iterations")
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} C):")
+                         f"{RESULT_MODEL_LABELS.get(self.profile_reference, self.profile_reference)} step response, threshold {num(self.options.profile.threshold_c)} K):")
             for d in self.decisions:
                 if d.kind != "constant":
                     lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
                                  f"average {d.average_power:.3f} W, "
-                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
+                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} K "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
                 else:
                     lines.append(f"  {d.name}: constant {d.average_power:.3f} W")
             for name, r in self.profile_results.items():
                 if r.resolved:
-                    lines.append(f"  {name}: peak {r.peak:.2f} C, minimum {r.minimum:.2f} C, oscillation {r.oscillation:.2f} C "
-                                 f"(steady with the average power {r.steady_average_max:.2f} C, with the peak power "
-                                 f"{r.steady_peak_max:.2f} C); {r.windows} windows, {r.steps} steps, "
+                    lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: peak {r.peak:.2f} °C, minimum {r.minimum:.2f} °C, oscillation {r.oscillation:.2f} K "
+                                 f"(steady with the average power {r.steady_average_max:.2f} °C, with the peak power "
+                                 f"{r.steady_peak_max:.2f} °C); {r.windows} windows, {r.steps} steps, "
                                  f"{'stable' if r.converged else 'not stable'}")
                 else:
-                    lines.append(f"  {name}: every heater averaged; steady {r.steady_average_max:.2f} C")
+                    lines.append(f"  {RESULT_MODEL_LABELS.get(name, name)}: every heater averaged; steady {r.steady_average_max:.2f} °C")
                 for x in r.ripple:
-                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} C peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} C about its mean, closed form of the stack), "
+                    lines.append(f"    {x['name']}: ripple {x['swing_c']:.3f} K peak to peak at the heater ({x['minus_c']:+.3f} to {x['plus_c']:+.3f} K about its mean, closed form of the stack), "
                                  "in the peak and the minimum, not in the maps")
+        if "fem" in self.results:
+            f = self.results["fem"]
+            lines.append(f"FEM read-outs (finite elements, steady state): column mean {f.t_max:.2f} °C (the headline, like for like with the other models), "
+                         f"hottest node {f.extras['t_max_point']:.2f} °C" +
+                         "".join(f", surface {n} {f.extras[k]:.2f} °C" for n, k in (("top", "t_max_surface_top"), ("bottom", "t_max_surface_bottom")) if k in f.extras) +
+                         f"; {int(f.extras['unknowns'])} unknowns, energy balance {num(f.balance_error, sign=True)}")
         if ref.T is not None:
-            lines.append(f"Reference model: {ref.model}")
+            lines.append(f"Reference model: {RESULT_MODEL_LABELS.get(ref.model, ref.model)}")
             hs = hotspots(ref, self.options.hotspot_c)
-            lines.append(f"Hotspots above {num(self.options.hotspot_c)} degC: {len(hs)}")
+            lines.append(f"Hotspots above {num(self.options.hotspot_c)} °C: {len(hs)}")
             for h in hs[:10]:
-                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
+                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} °C at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
+            surf_lines = surface_report_lines(ref)
+            if surf_lines:
+                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM and FDM, resolved by the elements for the FEM)")
+                lines += surf_lines
+            else:
+                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here (steady FVM, FDM and FEM only)")
             for h in self.heater_rows():
-                extra = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
+                extra = f", junction {h['t_junction']:.1f} °C" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
-                    extra += f", board ring {h['t_ring']:.1f} degC"
+                    extra += f", board ring {h['t_ring']:.1f} °C"
                 if h["t_junction_psi"] is not None:
-                    extra += f", junction by psi_JB {h['t_junction_psi']:.1f} degC"
+                    extra += f", junction by psi_JB {h['t_junction_psi']:.1f} °C"
                 if h["power_top_w"] > 0:
                     extra += f", top path {h['power_top_w']:.2f} W ({100.0 * h['power_top_w'] / h['power_w']:.0f} % of the power, {h['r_top']:.1f} K/W)"
                 if h["margin_k"] is not None:
-                    extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
+                    extra += f", limit {num(h['tj_max'])} °C (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
-                lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
-                             f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
+                if "t_max_surface" in h:
+                    # Both read-outs exist (always, for the FVM and the FDM): every number names its own
+                    note = "resolved" if ref.model == "fem" else ("estimate, upper side" if h["surface_upper"] else "estimate")
+                    lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
+                                 f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} °C{extra}; "
+                                 f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} °C ({note}; "
+                                 f"surface minus column max {signed_fixed(h['t_max_surface'] - h['t_max'], 3)} K)")
+                else:
+                    lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
+                                 f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} °C{extra}")
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
-                             f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")
+                             f"max {z['t_max']:.1f}, min {z['t_min']:.1f} °C")
             for k in block_stats(ref, self.problem):
-                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} degC; "
+                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} °C; "
                              f"{k['w_to_block']:.2f} W enter it through the interface, {k['w_to_air']:.2f} W leave by its surface")
         return "\n".join(lines) + "\n"
 
@@ -364,13 +563,15 @@ class Simulation:
                             "models": {k: r.summary() for k, r in self.profile_results.items()}}
         return d
 
-    def save(self, directory, plots=True, view=None, cmap="inferno"):
+    def save(self, directory, plots=True, view=None, cmap="inferno", surface_files=False):
         """!
         @brief Write summary.json, report.txt, one CSV per field and, optionally, the figures.
         @param directory Output directory (created if needed).
         @param plots If True, also write PNG figures (needs matplotlib).
         @param view Optional plots.MapView for the temperature maps (View, underlay such as the copper or the image, opacity: what the Display panel of the window says); None draws them as always.
         @param cmap Colour map name of the temperature maps.
+        @param surface_files False (default): no surface files (the report and summary.json always carry the surface numbers); True: also surface_<model>.csv (and, with plots,
+               surface_<model>_top.png and _bottom.png) for every model that holds the surface read-out. On request only: the field_<model>.csv and fields_<model>.png stay the column.
         @return List of written file paths.
         """
         os.makedirs(directory, exist_ok=True)
@@ -396,6 +597,19 @@ class Simulation:
                         for j in range(r.T.shape[2]):
                             w.writerow([l + 1, round((j + 0.5) * r.dx * 1000, 4),
                                         round((i + 0.5) * r.dy * 1000, 4), round(float(r.T[l, i, j]), 4)])
+        if surface_files:
+            for name, r in self.results.items():
+                if r.T is None or "T_surface" not in r.arrays:
+                    continue
+                with open(path(f"surface_{name}.csv"), "w", newline="") as fh:
+                    w = csv.writer(fh)
+                    w.writerow(["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate"])
+                    for face, tag, layer in ((0, "top", 0), (1, "bottom", r.T.shape[0] - 1)):
+                        for i in range(r.T.shape[1]):
+                            for j in range(r.T.shape[2]):
+                                if np.isfinite(r.arrays["T_surface"][face, i, j]):
+                                    w.writerow([tag, round((j + 0.5) * r.dx * 1000, 4), round((i + 0.5) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
+                                                round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j])])
         for name, r in self.profile_results.items():
             if not r.resolved:
                 continue
@@ -414,13 +628,19 @@ class Simulation:
             for name, r in self.results.items():
                 if r.T is not None:
                     plots.plot_fields(r, self.problem, path(f"fields_{name}.png"), view=view, cmap=cmap)
+            if surface_files:
+                for name, r in self.results.items():
+                    if r.T is not None and "T_surface" in r.arrays:
+                        for face, tag in ((0, "top"), (1, "bottom")):
+                            if np.isfinite(r.arrays["T_surface"][face]).any():
+                                plots.plot_surface(r, self.problem, path(f"surface_{name}_{tag}.png"), face, cmap=cmap)
             if len(self.results) > 1:
                 plots.plot_comparison(self.results, path("comparison.png"))
             plots.plot_profiles(self.results, self.problem, path("profiles.png"))
         return written
 
 
-def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT, laminate_params=None):
+def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT, laminate_params=None, fem_params=None):
     """!
     @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
     @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
@@ -436,6 +656,7 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     @param base Resident bytes of the process that will solve: memory.BASE_DEFAULT for the calculation process of the window (default), None for this process
                 (the command line solves in its own process).
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule that the run will use (None: the current values), because they change the unknowns the guard counts.
+    @param fem_params Tuple (elements across a gap, refinement) of the FEM mesh that the run will use (None: the defaults), because they change the unknowns the guard counts for the FEM.
     @return Cell size in millimetres: the heater-based one clipped to [lo, hi], enlarged until the models fit.
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
@@ -443,7 +664,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     # Imported copper wants a cell of 1 mm or less (the faces read 7 to 10 % too hot at 2 mm): Auto stays there unless the memory forces more
     cell = copper.auto_cell_cap(problem, cell)
     if models:
-        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params):
+        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params,
+                                fem_params=fem_params):
             if v.verdict == "refuse" and v.cell_fit:
                 cell = max(cell, v.cell_fit)
     return cell
@@ -559,10 +781,10 @@ def _top_path_split(problem, pr, totals, once, active):
 def _solve_with_tc(problem, name, options, computed):
     """!
     @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient or a top path.
-    @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
+    @details P = P0 (1 + tc (Tj - 25 °C)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
              part of P to the ambient through the top and only the rest enters the board (analysis.part_split).
              The power coefficient is a fixed-point loop around the solve, like the computed heat transfer coefficients: it stops when the powers change by less than
-             1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point; the slope of the loop
+             1e-5 (relative), or reports a thermal runaway when the device passes 1500 °C or the power grows 50 times (no stable operating point; the slope of the loop
              alpha P0 R is the physical runaway condition); after 80 iterations without either it warns that the powers did not settle.
              The split of a part with a top path is not a fixed-point loop: for the powers of the parts it is the root of a monotone scalar equation per part, solved
              by _top_path_split (secant / quasi-Newton), because the fixed-point iteration diverges when the board under the part resists more than the top path.
@@ -633,7 +855,7 @@ def _solve_with_tc(problem, name, options, computed):
 def _block_flux_result(sim):
     """!
     @brief The result that carries the heat flux into the metal blocks, for the thick-plate warning.
-    @details The reference result of the FVM or FDM has it. For the other models (Lumped, Analytic, 3D solid) a quiet auxiliary FVM run of the same
+    @details The reference result of the FVM or FDM has it. For the other models (LPTN, Analytic, 3D solid) a quiet auxiliary FVM run of the same
              problem (steady power, cell of at least 2 mm, no other model, its own warnings dropped) gives it, so the warning rests on a simulation and
              not on the flux of the footprint, which overstates a block under the board 5 to 70 times. Nothing is run without a metal block.
     @param sim Simulation with its results.
@@ -660,7 +882,7 @@ CONVECTION_NOT_MEASURED_NOTE = ("the computed heat transfer coefficients are pub
 def _part_warnings(sim):
     """!
     @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
-           the plate, channel and Lumped-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
+           the plate, channel and LPTN-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
     @param sim Simulation with its results.
     @return List of strings.
     """
@@ -668,15 +890,18 @@ def _part_warnings(sim):
     runaway = any(r.extras.get("thermal_runaway") for r in sim.results.values())
     for row, h in zip(sim.heater_rows(), sim.problem.heaters):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
-            out.append(warn(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
-                            f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)", ALERT))
+            out.append(warn(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} °C, "
+                            f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} °C (power limit {row['p_limit_w']:.2f} W with this board)", ALERT))
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
     out += check_lumped_zones(sim.problem, sim.results.get("lumped"))
     flux_result = _block_flux_result(sim)
-    out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
-    # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
+    # With computed coefficients the film term of the bound uses those of the reference solve (its last Picard step), not the typed starting guess
+    ex = sim.reference.extras
+    h_faces = (ex["h_top"], ex["h_bottom"]) if sim.problem.board.h_mode == "computed" and "h_top" in ex and "h_bottom" in ex else None
+    out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result, h_faces, model=sim.reference.model)
+    # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the LPTN and Analytic
     out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
     if sim.problem.board.h_mode == "computed":
         # Once per simulation, from the face means of the reference model (the coefficients of its last Picard step, within 0.01 W/m2K), so that the
@@ -720,6 +945,8 @@ def _run_model(problem, name, o):
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "solid3d":
         return solid3d.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction)
+    if name == "fem":
+        return fem.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction, gap_elements=o.fem_gap_elements, refine=float(o.fem_refine))
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=lumped.cell_for(problem, o.cell_mm))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -763,9 +990,20 @@ def _solve_computed_h(problem, name, o):
     res.extras.update({"h_top": ht, "h_bottom": hb, "h_iterations": float(it),
                        "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
                        "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
-    if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
-        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 10.00E3 to 100.00E9, "
-                            "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if problem.board.orientation == "horizontal" and not 1e2 <= info["top"]["rayleigh"] <= 1e7:
+        # The face-up law (0.54 Ra^(1/4), Lloyd and Moran) is compared with the Raithby-Hollands form printed by Lienhard: they agree within about 15 to 22 % from 1e2 to 1e7
+        # (the program is lower below about 2e3, higher above); typical boards have a top-face Ra of 1e2 to 1e5, so the old band 1e4 to 1e11 warned where the law reads hot
+        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 100.00 to 10.00E6, "
+                            "the range where the face-up law and the law printed by Lienhard (Raithby-Hollands) agree within about 15 to 22 %; "
+                            "the face-up coefficient is uncertain by more than that")
+    # The two faces differ only by the film temperature; the one farthest from the laminar range is quoted
+    res_out = [r for r in (info["top"].get("reynolds", 0.0), info["bottom"].get("reynolds", 0.0)) if not 1e2 <= r <= 1e5]
+    if problem.board.air_speed > 0.0 and res_out:
+        re_max = max(res_out, key=lambda r: abs(math.log10(max(r, 1e-9) / 1e3)))
+        # Laminar flat-plate law (Lienhard p 309; Yovanovich and Teertstra eq. 12): below about 100 the conduction term it omits raises h, above about 1e5 a board with parts is
+        # likely turbulent; both make the result hot, so this is a note on the safe side
+        res.warnings.append(f"the Reynolds number {num(re_max, 2)} of the forced air is outside 100.00 to 100.00E3, the laminar flat-plate range of the forced-air law: "
+                            "the coefficient is on the low side and the result is on the hot side")
     if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
         # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
         # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
@@ -785,15 +1023,15 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
     @brief Fit the convection multiplier (Board.h_calibration) so that the model reproduces a measured temperature.
     @details The board is put in computed mode and the multiplier is found by bisection on its logarithm (the temperature falls
              as the multiplier grows). The measured quantity is the hottest point of the board, or the hottest point under a
-             named heater. The correlations are for isothermal plates and uncertain by 20 to 30 % on a board with hot spots;
+             named heater. The correlations are for isothermal plates; the published plate results differ by about +-20 % (vertical) and +-50 % (horizontal, face up) (audit L1L5 finding 3);
              this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
              and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
     @param problem A Problem (it is not modified).
-    @param measured_c Measured steady temperature in degC.
+    @param measured_c Measured steady temperature in °C.
     @param options SolverOptions (default: 1 mm cell); only the chosen model is run.
     @param model "fvm" (default), "lumped" or "analytic".
     @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
-    @return Tuple (multiplier, model temperature with it in degC).
+    @return Tuple (multiplier, model temperature with it in °C).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
     options = copy.deepcopy(options) if options else SolverOptions()
@@ -806,10 +1044,10 @@ def _calibrate_convection(problem, measured_c, options, heater):
     """!
     @brief Body of calibrate_convection(), run with the laminate numbers of the options in force.
     @param problem A Problem (it is not modified).
-    @param measured_c Measured steady temperature in degC.
+    @param measured_c Measured steady temperature in °C.
     @param options SolverOptions (a private copy) with the one model to run in models.
     @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
-    @return Tuple (multiplier, model temperature with it in degC).
+    @return Tuple (multiplier, model temperature with it in °C).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
     from .analysis import heater_stats
@@ -830,8 +1068,8 @@ def _calibrate_convection(problem, measured_c, options, heater):
 
     lo, hi = math.log(0.1), math.log(10.0)
     if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
-        raise ValueError(f"the measured {num(measured_c)} degC is outside what a multiplier between 0.1 and 10 can give "
-                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
+        raise ValueError(f"the measured {num(measured_c)} °C is outside what a multiplier between 0.1 and 10 can give "
+                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} °C): check the powers, the ambient "
                          "temperature and where the measurement was taken")
     for _ in range(40):
         mid = 0.5 * (lo + hi)
@@ -925,14 +1163,14 @@ def _run_profiles(sim, progress, start):
     o = sim.options
     p = sim.effective_problem or sim.problem
     # The lumped and analytic models have no time simulation on a board with an outline (the rectangle of the same area is a steady-state device)
-    # Lumped and Analytic have no time simulation with a metal block either (the block layer is a steady-state aggregation)
+    # LPTN and Analytic have no time simulation with a metal block either (the block layer is a steady-state aggregation)
     usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and (p.board.has_outline() or blocks.has_blocks(p))))
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
-        sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)"))
+        sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(RESULT_MODEL_LABELS.get(m, m) for m in left_out) + " (no time simulation with a metal block or an outline)"))
     ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
-        sim.profile_error = "select the FVM or the FDM (or Lumped/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
         return
     sim.profile_reference = ref
     if progress:
@@ -943,7 +1181,7 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in usable:
-            if name == "solid3d":
+            if name in SKIPPABLE_MODELS:
                 continue
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
@@ -1008,15 +1246,15 @@ def _simulate(problem, options, progress):
     problem.validate()
     # The memory guard: before any array of the size of a model is made. A refused 3D solid next to other models is skipped with a warning (the others still
     # answer); any other refusal raises MemoryGuardError with the cell that fits.
-    verdicts = memory.check(problem, options.models, options.cell_mm, fraction=options.memory_fraction, refuse="return")
+    verdicts = memory.check(problem, options.models, options.cell_mm, fraction=options.memory_fraction, refuse="return", fem_params=options.fem_params())
     skipped = set()
     for v in verdicts:
         if v.verdict == "refuse":
-            if v.model == "solid3d" and len(options.models) > 1:
+            if v.model in SKIPPABLE_MODELS and len(options.models) > 1:
                 skipped.add(v.model)
             else:
                 raise memory.MemoryGuardError(v.message)
-    guard_warnings = [warn(f"the 3D solid was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
+    guard_warnings = [warn(f"the {RESULT_MODEL_LABELS[v.model]} was not run: {v.message}", ALERT) if v.verdict == "refuse" else warn(v.message) for v in verdicts if v.message]
     # The time simulation of a power profile (profiles.run_fvm / run_fdm at the cell of the run) holds a step factor while the next one is built: about twice a
     # steady solve (measured 1.7 times the law on the profile example at 0.5 mm). Checked now, before the steady solves; a refusal leaves the steady results and
     # says why the time simulation was not run (the step responses run on a cell of at least 2 mm and are smaller).
@@ -1033,7 +1271,8 @@ def _simulate(problem, options, progress):
         if name in skipped:
             continue                                      # Refused by the memory guard (warning already in the list)
         if progress:
-            progress(f"Solving {name}", k / n)
+            # The model's display name, not its key ('Solving FEM', not 'Solving fem'); the FEM has no inner progress, so say that a large board takes minutes
+            progress(f"Solving {RESULT_MODEL_LABELS.get(name, name)}" + (" (assembly and solve: a large board can take minutes)" if name == "fem" else ""), k / n)
         t0 = time.time()
         try:
             sim.results[name], hh, powers = _solve_with_tc(steady_problem, name, options, computed)
@@ -1041,23 +1280,30 @@ def _simulate(problem, options, progress):
                 sim.h_used[name] = hh
             if powers is not None:
                 sim.power_used[name] = powers
-        except ValueError as exc:
-            if name != "solid3d" or len(options.models) == 1:
+        except (ValueError, femcore.FemUnavailable) as exc:
+            if name not in SKIPPABLE_MODELS or len(options.models) == 1:
+                if isinstance(exc, femcore.FemUnavailable):
+                    raise ValueError(str(exc)) from exc                                          # A refusal like the others: the callers catch ValueError and say the reason
                 raise
-            sim.problem_warnings.append(warn(f"the 3D solid was not run: {exc}", ALERT))        # Too large: the other models still answer
+            sim.problem_warnings.append(warn(f"the {RESULT_MODEL_LABELS[name]} was not run: {exc}", ALERT))   # Too large, no mesh or no pyamg: the other models still answer
+            skipped.add(name)
             continue
         sim.seconds[name] = time.time() - t0
+    if "fem" in skipped:
+        # The live input check already said 'the FEM will be left out' (no mesh, or no pyamg for a large mesh): the run's own 'the FEM was not run: ...' replaces it,
+        # so the list says it once
+        sim.problem_warnings = [w for w in sim.problem_warnings if not is_fem_left_out(w)]
     if blocks.has_blocks(problem):
         for name, how, accuracy in (
                 ("lumped", "one more layer of the ring network",
                  "on the cool side of the FVM, within about 5 % with one pad under the block and up to about 7 % with several pads or a block much smaller than the board "
-                 "(tests on 100 x 80 mm two-layer boards)"),
+                 "(tests on 100 × 80 mm two-layer boards)"),
                 ("analytic", "a graph of tiles in the Green-function correction",
                  "within about 5 % of the FVM in the tests (one plate on one to four pads)")):
             if name in sim.results:
                 sim.results[name].warnings.append(f"the metal block is represented as {how}: {accuracy} (docs/validation.md section 17); steady state only")
     for name, r in sim.results.items():
-        # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
+        # Imported copper (copper.py): the LPTN, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
         r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:

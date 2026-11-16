@@ -48,8 +48,8 @@ def solve(problem, sh, S=None, n_terms=300, h_bottom=None):
     b, W, H, L = sh["b"], sh["W"], sh["H"], sh["L"]
     S = sh["S"] if S is None else np.asarray(S, dtype=float)
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom if h_bottom is None else h_bottom
+    h_l[0] += sh["h_top_eff"]       # the faces through the half copper layer of the node, as the program since fix/face-film-half-slab (docs/theory.md 1.2a, validation 55)
+    h_l[L - 1] += sh["h_bottom_eff"] if h_bottom is None else h_bottom
     g = sh["g_diel"]
     M = N = n_terms
     q = np.zeros((M, N, L))

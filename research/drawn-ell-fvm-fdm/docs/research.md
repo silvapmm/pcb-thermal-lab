@@ -1,0 +1,1 @@
+For `docs/validation.md` (laminate rule): the board maximum of a part that overlaps the end of a copper area is a point value on a feature smaller than 0.3 mm; the FVM and the FDM read it 5 to 36 % low at 1 mm with a scatter of 30 K between cell sizes, while the heater mean stays within 4 % of the finite elements. Source: `research/drawn-ell-fvm-fdm/README.md` sections 2 to 4.

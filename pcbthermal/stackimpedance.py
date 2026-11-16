@@ -4,7 +4,7 @@
 @file stackimpedance.py
 @brief Closed-form thermal impedance of the layered stack under a part, and the swing and waveform of a repeating power profile from it (the ripple of a fast power wave).
 
-@details **Why.** The layered models (FVM, FDM, and the Lumped and Analytic tuned on them) keep one temperature per copper layer, with half of each adjacent laminate gap on it
+@details **Why.** The layered models (FVM, FDM, and the LPTN and Analytic tuned on them) keep one temperature per copper layer, with half of each adjacent laminate gap on it
 (about 0.77 mm of FR-4 on a 1.6 mm two-layer board, twelve times the capacity of 35 um of copper). A wave whose shortest stretch is below a few seconds heats only the copper
 and a thin skin of laminate, so the node swing is 2 to 3 times too small at 1 to 3 Hz and 8 to 12 times from 50 Hz to 1 kHz (docs/theory.md 10.5, docs/validation.md 37.1).
 This module computes the swing from the real stack instead (docs/theory.md eqs. 10.2 to 10.5):
@@ -79,7 +79,7 @@ class HeaterColumn:
     """
     radius: float                               # Radius of the disc of the same area as the part (m)
     sheet: float                                # Conductance of the heater layer's copper, f k_cu t_cu (W/K)
-    capacity: float = 0.0                       # Lumped heat capacity per unit area at the heater's plane (J/m2K); column_for_heater puts the heater's copper in up/down as a slab and leaves 0
+    capacity: float = 0.0                       # LPTN heat capacity per unit area at the heater's plane (J/m2K); column_for_heater puts the heater's copper in up/down as a slab and leaves 0
     up: List[Tuple[float, float, float]] = field(default_factory=list)      # Layers above (toward layer 1): (d m, k W/mK, rho c J/m3K), nearest first
     down: List[Tuple[float, float, float]] = field(default_factory=list)    # Layers below, nearest first
     h_top: float = 10.0                         # Convection coefficient of the top face (W/m2K)

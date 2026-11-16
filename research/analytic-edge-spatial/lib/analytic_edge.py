@@ -99,8 +99,8 @@ def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=
     xs, ys, nx, ny = sh["xs"], sh["ys"], sh["nx"], sh["ny"]
     M = N = n_terms
     h_surf = np.zeros(L)
-    h_surf[0] += b.h_top
-    h_surf[L - 1] += b.h_bottom
+    h_surf[0] += sh["h_top_eff"]       # the faces through the half copper layer of the node, as the program since fix/face-film-half-slab (docs/theory.md 1.2a, validation 55)
+    h_surf[L - 1] += sh["h_bottom_eff"]
     robin = edge in ("robin", "robin_res")
     beta, h_eff = (edge_beta(sh, problem, beta_rule) if robin else (0.0, 0.0))
     res = np.zeros(L)
@@ -212,7 +212,7 @@ def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=
     # --- heat out of the board
     ix, iy = bx.project(0.0, W), by.project(0.0, H)
     mean_rise = np.array([ix @ a_mn[:, :, l] @ iy for l in range(L)])              # integral of theta over the plan (K m2)
-    p_faces = b.h_top * mean_rise[0] + b.h_bottom * mean_rise[L - 1]
+    p_faces = sh["h_top_eff"] * mean_rise[0] + sh["h_bottom_eff"] * mean_rise[L - 1]
     p_edge = 0.0
     if edge == "faces":
         p_edge = float(sum(sh["h_edge"][l] * mean_rise[l] for l in range(L)))
@@ -250,8 +250,8 @@ def step_response(problem, edge="faces", n_terms=300, cell_mm=1.0, times=None):
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     M = N = n_terms
     h_surf = np.zeros(L)
-    h_surf[0] += b.h_top
-    h_surf[L - 1] += b.h_bottom
+    h_surf[0] += sh["h_top_eff"]       # the faces through the half copper layer of the node, as the program since fix/face-film-half-slab (docs/theory.md 1.2a, validation 55)
+    h_surf[L - 1] += sh["h_bottom_eff"]
     beta = 0.0
     if edge == "robin":
         beta, _ = edge_beta(sh, problem)

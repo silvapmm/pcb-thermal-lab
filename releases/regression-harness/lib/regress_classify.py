@@ -61,7 +61,7 @@ def metric_group(name):
     """
     if name == "status":
         return "status"
-    if name in ("t_sum", "t_sumsq"):
+    if name in ("t_sum", "t_sumsq") or name.endswith(":t_sum"):
         return "field"
     if name == "unknowns":
         return "count"
@@ -88,9 +88,16 @@ def metrics_of(rec):
         if v is not None:
             m[f"layer_mean[{i}]"] = v
     for p in rec.get("parts") or []:
-        for k in ("t_max", "t_mean", "t_junction", "power_w", "power_top_w"):
+        for k in ("t_max", "t_mean", "t_junction", "power_w", "power_top_w", "t_max_surface", "t_mean_surface"):
             if p.get(k) is not None:
                 m[f"part:{p['name']}:{k}"] = p[k]
+    # The surface read-out (a view of the solved field: top and bottom face) and the hottest node of the FEM
+    for face, d in (rec.get("surface") or {}).items():
+        for k, v in d.items():
+            if v is not None:
+                m[f"surface:{face}:{k}"] = v
+    if (rec.get("extras") or {}).get("t_max_point") is not None:
+        m["point:t_max"] = rec["extras"]["t_max_point"]
     for b in rec.get("blocks") or []:
         for k in ("t_mean", "t_max", "w_to_block"):
             if b.get(k) is not None:
@@ -279,6 +286,15 @@ def diff_sets(base, new, table, key="records"):
             va, vb = ma.get(name), mb.get(name)
             if va == vb:
                 continue
+            if va is None and vb is not None:
+                # A read-out that the earlier revision did not have (the surface of 2.8.0): an addition, not a shift, when an "added_metrics" scope of the table names it
+                # by its metric name; otherwise it falls to the status rules below as before (a rule on "status" would also excuse a run that failed)
+                added = [r for r in table.get("added_metrics", []) if scope_matches(r, board, mname, cell, name)]
+                if added:
+                    entry["metrics"].append({"name": name, "old": None, "new": vb, "delta": None, "class": "expected", "rules": [r["id"] for r in added],
+                                             "note": "; ".join(r.get("note", "") for r in added if r.get("note")) or "metric added"})
+                    counts["expected"] += 1
+                    continue
             if va is None or vb is None:
                 cls, rules, note = classify_shift(table, board, mname, cell, "status", 0.0, 1.0, rise)
                 entry["metrics"].append({"name": name, "old": va, "new": vb, "delta": None, "class": cls if cls != "unexplained" else "unexplained", "rules": rules, "note": "present in one set only"})

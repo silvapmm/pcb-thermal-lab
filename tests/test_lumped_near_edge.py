@@ -2,9 +2,9 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_near_edge.py
-@brief The Lumped near-edge warning (checks.check_lumped_near_edge) and the finer Lumped raster for a heat source under two cells (lumped.small_part_cell, cell_for).
+@brief The LPTN near-edge warning (checks.check_lumped_near_edge) and the finer LPTN raster for a heat source under two cells (lumped.small_part_cell, cell_for).
 @details The rule is held to the cases of research/lumped-near-edge (tests/data/lumped_near_edge_cases.json: the 180 sweep cases and the 120 random boards, with the error of the
-         Lumped against the FVM measured there): 57 of the 58 cases more than 8 % too cool are flagged on the sweep and 35 of 37 on the random boards, and the 17 frozen boards flag
+         LPTN against the FVM measured there): 57 of the 58 cases more than 8 % too cool are flagged on the sweep and 35 of 37 on the random boards, and the 17 frozen boards flag
          exactly three. The raster rule is held to the FVM at 0.0625 mm on the 24 mm board of the study, to the memory bound, and to bit-identical rasters for boards without small parts.
 """
 
@@ -57,7 +57,7 @@ def _sweep_problem(row):
 
 def _near(p):
     """!
-    @brief The near-edge warnings of a problem for the Lumped model.
+    @brief The near-edge warnings of a problem for the LPTN model.
     @param p Problem.
     @return List of warnings.
     """
@@ -95,7 +95,7 @@ def test_the_threshold_is_one_side_with_a_five_millimetre_floor():
 
 def test_only_the_lumped_and_only_powered_parts():
     """!
-    @brief The warning belongs to the Lumped model alone, and a part with no power is not flagged.
+    @brief The warning belongs to the LPTN model alone, and a part with no power is not flagged.
     @return None.
     """
     p = _board(100, 80, 5, (4.0, 40.0))
@@ -117,7 +117,7 @@ def test_text_is_plain_tagged_and_aggregated():
     assert w.kind == "heater" and w.index == 0
     text, short = str(w), checks.line(w)
     assert "U: the part is 1.5 mm from a side of the board" in text
-    assert "8 to 9.5 %" in text and "22 %" in text and "sample, not a bound" in text and "FVM or the FDM" in text
+    assert "2.7 %" in text and "7.5 %" in text and "9 % too hot" in text and "sample, not a bound" in text and "FVM or the FDM" in text
     assert not NAMES.search(text) and not NAMES.search(short) and len(short) < len(text)
     p.heaters[1].polygon = [(5e-3, 5e-3), (9e-3, 5e-3), (9e-3, 9e-3), (5e-3, 9e-3)]                 # a second flagged part
     (w2,) = _near(p)
@@ -299,7 +299,7 @@ def test_a_zoned_board_keeps_its_raster_and_the_check_says_so():
 
 def _rise_errors(side, shift):
     """!
-    @brief Error of the hottest rise of the Lumped, through the API (refined raster) and at the 0.5 mm raster of the earlier releases, against the FVM at 0.0625 mm.
+    @brief Error of the hottest rise of the LPTN, through the API (refined raster) and at the 0.5 mm raster of the earlier releases, against the FVM at 0.0625 mm.
     @param side Side of the source in mm.
     @param shift Shift of the centre from (12, 12) mm, in both directions, in mm.
     @return tuple (refined error, 0.5 mm error) as fractions of the rise.
@@ -314,7 +314,7 @@ def _rise_errors(side, shift):
 @pytest.mark.parametrize("side, limit", [(0.2, 0.08), (0.5, 0.03), (1.0, 0.03)])
 def test_the_finer_raster_follows_the_resolved_fvm(side, limit):
     """!
-    @brief 24 x 24 mm board, 1 W, source centred on a cell corner and in a cell of the 0.5 mm raster: the refined Lumped is within the limit of the FVM at 0.0625 mm
+    @brief 24 x 24 mm board, 1 W, source centred on a cell corner and in a cell of the 0.5 mm raster: the refined LPTN is within the limit of the FVM at 0.0625 mm
            (measured on this program: 0.2 mm -6.0 and -6.7 %, 0.5 mm +0.1 and +0.7 %, 1.0 mm +1.6 and -0.3 %; the 0.2 mm level is the deficit of the rings of a tiny
            footprint, which the capped first ring of the next version removes, the position dependence is gone).
     @param side Side of the source in mm.
@@ -334,3 +334,19 @@ def test_the_position_in_the_cell_no_longer_moves_a_tiny_part():
     (n0, o0), (n1, o1) = _rise_errors(0.2, 0.0), _rise_errors(0.2, 0.25)
     assert abs(o0 - o1) > 0.08
     assert abs(n0 - n1) < 0.02
+
+
+def test_the_sweep_with_the_images_of_the_sides_in_the_first_link():
+    """!
+    @brief The same 180 cases re-run on the tree of fix/lumped-edge-first-link (DATA sweep_before_edge_link, sweep_edge_link; hottest node against the FVM at 0.5 mm, % of the rise):
+           before, -7.4 % on average, 70 cases beyond -8 % of which the rule flags 69, worst -22.2 %; with the images, -1.6 % on average (-2.7 % over the flagged, +0.5 % over the others),
+           none beyond -8 %, worst -7.5 % cool and +4.0 % hot. These are the numbers the text of the warning quotes.
+    @return None.
+    """
+    fl = np.array([bool(_near(_sweep_problem(r))) for r in DATA["sweep"]])
+    before, after = np.array(DATA["sweep_before_edge_link"]), np.array(DATA["sweep_edge_link"])
+    assert int((before < BAD).sum()) == 70 and int(((before < BAD) & fl).sum()) == 69
+    assert before.mean() == pytest.approx(-7.45, abs=0.05) and before.min() == pytest.approx(-22.2, abs=0.1) and before[fl].mean() == pytest.approx(-9.4, abs=0.05)
+    assert int((after < BAD).sum()) == 0
+    assert after.mean() == pytest.approx(-1.6, abs=0.05) and after[fl].mean() == pytest.approx(-2.7, abs=0.05) and after[~fl].mean() == pytest.approx(0.5, abs=0.05)
+    assert after.min() == pytest.approx(-7.5, abs=0.05) and after.max() == pytest.approx(4.0, abs=0.05)

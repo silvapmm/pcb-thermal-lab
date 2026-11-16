@@ -266,6 +266,10 @@ Status: **reviewed, go** for closing the investigation and for a `fix/` branch w
 * Figure 1: the lower row was labelled "first ring 1.5 cells"; it is the capped ring (equal to 1.5 cells for a 1 mm part); redrawn with that label.
 * Not changed but stated: the claims of section 1 that the cap "takes the 1 mm deficit to +0.3 %" hold at 0.5 mm only and are partly a cancellation (11.2, 11.3).
 
+## Status on 2.8.0 (reproduction pass)
+
+**Test removed in 2.8.0**: `test_defaults_are_the_program` certified that the patched copy of the 2.5.1 Lumped text, with the program's switches, is the program bit for bit; since the 2.8.0 first link (`fix/lumped-edge-first-link`) it no longer is. The other 5 tests check the proposal on its own copy and pass (`development` 232ba648). The record stays: README and `lib/`. Numbers of the studies printed by the program's Lumped move by M3 (+0.1 to +0.5 points in the reproduction pass). (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
+
 ## 12. What was read and what was not verified
 
 * **No new source was opened.** The comparison uses the independent 3D layered solver of `research/effective-conductivity/lib/layered3d.py` (its own checks against Seri Lee's plate, the coupon of Culham and Yovanovich and an energy balance are in that folder's README, which was not re-run here: the solver was used as it is, with its source-edge alignment check). The closed form of section 4 (strip against annulus) is my own derivation, not a published case; no published numerical case about the ring construction exists in the bibliography of the program (`docs/theory.md` 5 cites the program's own derivation), so there is no reproduction of a publication in this folder, only of the program's own earlier numbers (section 2) and of the independent 3D solver (section 3.1). `research/theory/BIBLIOGRAPHY.md` needs no change.

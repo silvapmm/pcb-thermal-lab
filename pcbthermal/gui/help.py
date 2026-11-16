@@ -144,9 +144,10 @@ class AboutDialog(QDialog):
             top.addWidget(logo)
         self.text = QLabel(
             f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"
-            "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series and a 3D solid, "
+            "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series, a 3D solid and finite elements, "
             "with power profiles, computed convection, parts with junction temperature, any board shape and the import of a board from Gerber files.</p>"
-            "<p>The models are validated against independent models (a resolved 3D solid, closed forms, datasheet cases), not against a measured board.</p>"
+            "<p>pyamg (MIT) is an optional library: the finite-element model uses it on large meshes, and without it only small meshes are solved.</p>"
+            "<p>The models are checked against independent solutions (a resolved 3D solid, finite elements, closed forms, published cases and one datasheet board), not against a measured board.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
@@ -155,6 +156,9 @@ class AboutDialog(QDialog):
         self.text.setOpenExternalLinks(True)
         self.text.setWordWrap(True)
         self.text.setToolTip("Program information.")
+        # A word-wrapped rich-text label in a dialog was given less height than its text needs at its final width (the last line was cut): fix the width and ask the height for it
+        self.text.setFixedWidth(480)
+        self.text.setMinimumHeight(self.text.heightForWidth(480))
         top.addWidget(self.text, 1)
         lay.addLayout(top)
         box = QDialogButtonBox(QDialogButtonBox.Close)
