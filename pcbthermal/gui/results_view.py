@@ -594,7 +594,10 @@ class Cover(QLabel):
         @param event The event.
         @return False (the page handles its own events).
         """
-        if event.type() == QEvent.Resize and self.isVisible():
+        # isHidden, not isVisible: a cover over a page that is not the current tab is not 'visible' while its page is hidden, so it kept the size the page had
+        # when the cover was made (review of branch C: before the first run the note of the Temperature page was cut at 1200 x 800 and was a small grey box
+        # at 1500 x 900); the size is also taken again when the page is shown
+        if event.type() in (QEvent.Resize, QEvent.Show) and not self.isHidden():
             self.setGeometry(obj.rect())
         return False
 

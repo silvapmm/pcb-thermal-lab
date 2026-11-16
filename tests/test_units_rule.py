@@ -33,6 +33,6 @@ def test_forbidden_forms_are_listed_with_a_reason_and_match_what_they_name():
     @brief Every FORBIDDEN entry is a valid pattern with a replacement and a reason, and it matches the old form it names.
     """
     assert len(units.FORBIDDEN) >= 8
-    samples = ["degC", "dT C", "ΔT °C", "Osc. °C", "35 um", "100 x 80", "Rth K/W", "Cancel calculation", "1 top", "a rise of 12.5 °C", "Preset shape..."]
+    samples = ["degC", "dT C", "ΔT °C", "Osc. °C", "35 um", "100 x 80", "Rth K/W", "Cancel calculation", "1 top", "a rise of 12.5 °C", "Preset shape...", "zoom 1.0x"]
     for (pattern, instead, why), sample in zip(units.FORBIDDEN, samples):
         assert instead and why and re.search(pattern, sample), (pattern, sample)

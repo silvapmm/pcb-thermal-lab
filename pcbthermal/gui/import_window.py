@@ -149,7 +149,7 @@ class Preview(QWidget):
         f = QFont(self.font())
         f.setPixelSize(11)
         fm = QFontMetricsF(f)
-        items = [(k, f"{d:.2f} mm {k} x{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
+        items = [(k, f"{d:.2f} mm {k} ×{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
         rows, row, used = [], [], 0.0
         for kind, text in items:
             w = fm.horizontalAdvance(text) + 24
@@ -239,7 +239,7 @@ class Preview(QWidget):
             if self.show_layers["holes"]:
                 self._paint_legend(p, c)
         p.setPen(QColor(c["muted"]))
-        p.drawText(10, self.height() - 8, f"{b.width:.1f} × {b.height:.1f} mm   zoom {self.zoom:.1f}x")
+        p.drawText(10, self.height() - 8, f"{b.width:.1f} × {b.height:.1f} mm   zoom {self.zoom:.1f}×")
         p.end()
 
     def _paint_parts(self, p, c):

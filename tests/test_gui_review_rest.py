@@ -431,3 +431,101 @@ def test_the_power_profile_page_has_no_sideways_bar_at_1200_by_800(win):
     while not isinstance(area, QScrollArea):
         area = area.parentWidget()
     assert area.horizontalScrollBar().maximum() == 0, (area.viewport().width(), win.profile_page.minimumSizeHint().width())
+
+
+@pytest.mark.parametrize("size", [(1200, 800), (1500, 900)])
+def test_the_note_before_the_first_run_covers_the_whole_page(win, size):
+    """!
+    @brief Independent review of branch C: the note over a Results page that is not the current tab kept the size of the page when it was made, so before the
+           first run the Temperature note was cut at 1200 x 800 and was a small grey box at 1500 x 900. Each note now fills its page when the page is shown.
+    @param win Main window fixture.
+    @param size Window size in px.
+    """
+    from pcbthermal.gui.main_window import TAB_RESULTS
+
+    win.resize(*size)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    rv = win.results
+    for k in range(1, rv.tabs.count()):
+        rv.tabs.setCurrentIndex(k)
+        for _ in range(3):
+            QApplication.processEvents()
+        page = rv.tabs.currentWidget()
+        covers = [c for c in rv._covers if c.parentWidget() is page or page.isAncestorOf(c)]
+        for c in covers:
+            if c.isVisibleTo(c.parentWidget()):
+                assert c.geometry() == c.parentWidget().rect(), (rv.tabs.tabText(k), c.geometry(), c.parentWidget().rect())
+
+
+def test_open_recent_keeps_eight_and_forgets_a_project_that_is_gone(win, tmp_path, popups):
+    """!
+    @brief Independent review of branch C: the list holds the eight newest projects; a project deleted after it was listed leaves the menu the next time the menu
+           opens, and a click on an entry whose file is gone says so in words (it showed the raw system error) and removes it.
+    @param win Main window fixture.
+    @param tmp_path pytest fixture.
+    @param popups Recorder of the message boxes.
+    """
+    import hashlib
+    import os
+
+    from pcbthermal.examples import example_board
+    from pcbthermal.project import Project, save_project
+
+    win.settings.setValue("recent_files", [])
+    paths = []
+    for i in range(10):
+        path = str(tmp_path / f"p{i}.pcbt.json")
+        save_project(path, Project(problem=example_board()))
+        paths.append(path)
+    before = {p: hashlib.sha256(open(p, "rb").read()).hexdigest() for p in paths}
+    for p in paths:
+        win.open_file(p)
+    assert win.recent_files() == paths[::-1][:8]
+    assert all(hashlib.sha256(open(p, "rb").read()).hexdigest() == before[p] for p in paths)     # The list lives in the settings, never in a project
+    stale = [a for a in win.recent_menu.actions() if a.text().endswith("p8.pcbt.json")]
+    os.remove(paths[8])
+    win.recent_menu.aboutToShow.emit()
+    assert not any(a.text().endswith("p8.pcbt.json") for a in win.recent_menu.actions())
+    os.remove(paths[7])
+    win._open_recent(paths[7])
+    assert popups and popups[-1][1] == "Cannot open file" and "no longer there" in popups[-1][2]
+    assert paths[7] not in (win.settings.value("recent_files") or []) and stale
+
+
+def test_the_status_bar_does_not_double_the_stop_of_a_stage_ending_with_an_ellipsis(win):
+    """!
+    @brief Independent review of branch C: 'Starting…' gave 'Calculating (0 s): Starting…. Stop with Ctrl+.'.
+    @param win Main window fixture.
+    """
+    win._on_busy(True)
+    win.solver_panel.set_progress("Starting…", 0.0)
+    msg = win.statusBar().currentMessage()
+    win._on_busy(False)
+    assert "…. " not in msg and msg.endswith("Starting… Stop with Ctrl+.")
+
+
+def test_the_memory_note_of_a_run_stays_in_the_status_bar_while_it_runs(win, monkeypatch):
+    """!
+    @brief Independent review of branch C: a run that needs more memory than is free now shows that note in the status bar, and the one-second refresh of the
+           elapsed time overwrote it at once; the note now stays in the busy line until the run ends.
+    @param win Main window fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from types import SimpleNamespace
+
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui import main_window as mw
+
+    load(win, example_board())
+    note = "the estimate of 9.0 GB is above the 4.0 GB available now, the machine may swap"
+    win.solver_panel.refresh()
+    monkeypatch.setattr(win.solver_panel, "refresh", lambda *a: None)                # The panel keeps its real memory lines
+    monkeypatch.setattr(win.solver_panel, "verdicts", lambda: [SimpleNamespace(exceeds_available=True, message=note)])
+    monkeypatch.setattr(mw.compute, "start", lambda worker: win._on_busy(True))       # No process: only the window's side of a start
+    win.run_simulation()
+    win.solver_panel.set_progress("Solving FVM", 0.3)
+    win._show_run_state()                                                           # What the timer does every second
+    msg = win.statusBar().currentMessage()
+    win._on_busy(False)
+    assert msg.startswith("Calculating (") and "Solving FVM" in msg and "may swap" in msg
+    assert not win._run_note

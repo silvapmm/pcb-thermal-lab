@@ -594,6 +594,9 @@ class MainWindow(QMainWindow):
             m.addAction(a)
         self.recent_menu = m.addMenu("Open recent")
         self.recent_menu.setToolTipsVisible(True)               # The full path of each project in its tooltip
+        # Rebuilt each time it opens, so a project deleted or moved since the last open or save is not listed (review of branch C: it stayed listed and a
+        # click gave 'Cannot open file' with the raw system error)
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         self._fill_recent_menu()
         for a in (self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
@@ -1401,12 +1404,24 @@ class MainWindow(QMainWindow):
             a = menu.addAction(f"{i + 1}  {os.path.basename(p)}")
             a.setToolTip(p)
             a.setStatusTip(p)
-            a.triggered.connect(lambda _=False, path=p: self.open_file(path))
+            a.triggered.connect(lambda _=False, path=p: self._open_recent(path))
         if paths:
             menu.addSeparator()
             clear = menu.addAction("Clear the list")
             clear.triggered.connect(lambda: (self.settings.setValue("recent_files", []), self._fill_recent_menu()))
         menu.setEnabled(bool(paths))
+
+    def _open_recent(self, path):
+        """!
+        @brief Open a project of File - Open recent; a file that is gone since the menu was filled is said in plain words and leaves the list.
+        @param path Path of the project file.
+        """
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "Cannot open file", f"The project is no longer there (moved, renamed or deleted):\n{path}\n\nIt is removed from the list.")
+            self.settings.setValue("recent_files", self.recent_files())     # recent_files() drops the missing file
+            self._fill_recent_menu()
+            return
+        self.open_file(path)
 
     # ------------------------------------------------------------------ files
     def _confirm_discard(self):
@@ -1613,7 +1628,9 @@ class MainWindow(QMainWindow):
         if getattr(self, "_is_busy", False):
             seconds = int(time.monotonic() - self._busy_since)
             stage = f": {line}" if line else ""
-            self.statusBar().showMessage(f"Calculating ({seconds} s){stage}. Stop with Ctrl+.")
+            stop = " " if stage.endswith((".", "…")) else ". "        # 'Starting…' read 'Starting…. Stop' (review of branch C)
+            note = getattr(self, "_run_note", "")
+            self.statusBar().showMessage(f"Calculating ({seconds} s){stage}{stop}Stop with Ctrl+." + (f" Memory: {note}" if note and note not in line else ""))
         elif line.startswith(self.FINAL_RUN_STATES):
             self.statusBar().showMessage(line)
         else:
@@ -1635,6 +1652,7 @@ class MainWindow(QMainWindow):
                 self._busy_timer.start()
         else:
             self._busy_timer.stop()
+            self._run_note = ""                               # The memory note belongs to the run that ended
         self._show_run_state()
         # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
         # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
@@ -1691,9 +1709,10 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
-        if low:
-            # After the start: the busy signal (synchronous) writes 'Calculating' in the bar, which would hide this warning at once
-            self.statusBar().showMessage(low[0], 10000)
+        # The memory note of this run stays in the status bar while it runs: the one-second refresh of the elapsed time overwrote a message shown once
+        # (review of branch C: 'the machine may swap' was visible for less than a second)
+        self._run_note = low[0] if low else ""
+        self._show_run_state()
 
     def cancel_simulation(self):
         """!
@@ -1776,7 +1795,7 @@ class MainWindow(QMainWindow):
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
         # The numbers first: copper layers replaced, files and parts, holes (never an empty text)
         lines = [reimport_summary(old, dlg.record, dlg.mode)] + lines
-        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("…" if len(lines) > 4 else ""))
 
     def show_calculator(self):
         """!
@@ -1896,6 +1915,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / stop the calculation (the Run button is Stop while one runs)</td></tr>
 <tr><td><b>Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs (also in the View menu)</td></tr>
+<tr><td><b>Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S, Ctrl+Q</b></td><td>New board, open, save, save as, quit</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr>
 <tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""

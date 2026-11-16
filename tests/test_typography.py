@@ -106,9 +106,10 @@ def test_the_sweep_finds_what_it_must_find(tmp_path):
     @param tmp_path pytest fixture.
     """
     mod = tmp_path / "sample.py"
-    mod.write_text('"""!\n@brief Docstring with degC is fine.\n"""\nA = "35 um copper"\nB = f"{1} x {2} mm"\nC = "Preset shape..."\nD = "rise of 3.0 °C"\n',
-                   encoding="utf-8")
-    assert len(_breaks(mod, _module_texts(mod))) == 4
+    mod.write_text('"""!\n@brief Docstring with degC is fine.\n"""\nA = "35 um copper"\nB = f"{1} x {2} mm"\nC = "Preset shape..."\nD = "rise of 3.0 °C"\n'
+                   'E = " ..."\nF = f"zoom {2.0:.1f}x"\nH = "ΔT [°C]"\nI = "Cancel calculation"\nJ = "layer 1 top"\n', encoding="utf-8")
+    # Each old form once: um, x between numbers, the three dots, a rise in °C, a cut list, a zoom factor, ΔT in °C, Cancel, a layer without brackets
+    assert len(_breaks(mod, _module_texts(mod))) == 9
     page = tmp_path / "page.html"
     page.write_text("<p>ΔT °C and 20 degC</p>\n<p width='10 x 10'>ok</p>\n", encoding="utf-8")
     assert len(_breaks(page, _page_texts(page))) == 2

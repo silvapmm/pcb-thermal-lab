@@ -392,14 +392,17 @@ class StackupPage(QWidget):
         lay = QVBoxLayout(self)
         bar = QHBoxLayout()
         self.mode = QComboBox()
+        self.mode.setAccessibleName("Stack-up")                 # Screen readers: the labels of the bar are not buddies (review of branch C)
         self.mode.addItem("Simple: equal layers, one FR-4", False)
         self.mode.addItem("Advanced: each layer on its own", True)
         self.mode.setToolTip("Simple: equal gaps set by the boxes on the right. Advanced: each layer and gap has its own thickness and material. Switching keeps the board.")
         self.unit = QComboBox()
+        self.unit.setAccessibleName("Units")
         for label, key in _UNITS:
             self.unit.addItem(label, key)
         self.unit.setToolTip("Units of the dimensions in the diagram.")
         self.scale = QComboBox()
+        self.scale.setAccessibleName("Scale")
         self.scale.addItem("Readable", False)               # Short: the long name was cut in the box; the tooltip says what it does
         self.scale.addItem("True proportions", True)
         self.scale.setToolTip("Readable: thin layers enlarged to stay visible. True proportions: real thickness ratios (copper becomes a thin line).")
@@ -407,6 +410,7 @@ class StackupPage(QWidget):
         self.typical.setToolTip("Replace the stack-up by a typical one for this layer count (undoable).")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
+        self.inner_oz.setAccessibleName("Inner copper of the typical stack-up")
         self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
         self.inner_oz.addItem("1 oz (35 µm)", 1.0)
         self.inner_oz.setToolTip("Inner copper of the typical advanced stack-up: 0.5 oz (15.2 µm, default) or 1 oz (35 µm; reloads it, about 0.02 mm thicker per inner layer). "

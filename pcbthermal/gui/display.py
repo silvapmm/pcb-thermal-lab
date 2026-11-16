@@ -248,6 +248,7 @@ class DisplayPopover(QFrame):
         self.opacity.setValue(DEFAULT_OPACITY)
         self.opacity.setFixedWidth(120)
         self.opacity_spin = QSpinBox()
+        self.opacity_spin.setAccessibleName("Map opacity, percent")      # The row label names the slider only (review of branch C)
         self.opacity_spin.setRange(0, 100)
         self.opacity_spin.setValue(DEFAULT_OPACITY)
         self.opacity_spin.setSuffix(" %")

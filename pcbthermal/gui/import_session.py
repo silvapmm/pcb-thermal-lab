@@ -1760,9 +1760,9 @@ def sync_add_heaters(session, problem: Problem, old_record: ImportRecord, new_re
                 if q.edits.get("role") in ("Source", "Component"):
                     h.role = q.edits["role"].lower()
     if moved:
-        out.append(f"moved the heater of {len(moved)} part(s) with the new files: {', '.join(moved[:8])}" + (" ..." if len(moved) > 8 else ""))
+        out.append(f"moved the heater of {len(moved)} part(s) with the new files: {', '.join(moved[:8])}" + (" …" if len(moved) > 8 else ""))
     if left:
-        out.append(f"not moved: the heater of {', '.join(left[:8])} was changed in the editor" + (" ..." if len(left) > 8 else ""))
+        out.append(f"not moved: the heater of {', '.join(left[:8])} was changed in the editor" + (" …" if len(left) > 8 else ""))
     return out
 
 
@@ -1862,9 +1862,9 @@ def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Prob
                 rec_parts[d].edits["use"] = False
         out.append(f"kept deleted: no heater for {', '.join(deleted)} (deleted in the editor)")
     if edited:
-        out.append(f"kept the editor's values of {len(edited)} imported part(s): {', '.join(edited[:8])}" + (" ..." if len(edited) > 8 else ""))
+        out.append(f"kept the editor's values of {len(edited)} imported part(s): {', '.join(edited[:8])}" + (" …" if len(edited) > 8 else ""))
     if drawn:
-        out.append(f"kept {len(drawn)} heater(s) drawn by hand: {', '.join(drawn[:8])}" + (" ..." if len(drawn) > 8 else ""))
+        out.append(f"kept {len(drawn)} heater(s) drawn by hand: {', '.join(drawn[:8])}" + (" …" if len(drawn) > 8 else ""))
     # 3. Zones and heatsinks are never made by the import: all are the user's
     for z in old_problem.zones:
         q = copy.deepcopy(z)

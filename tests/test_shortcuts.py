@@ -269,8 +269,7 @@ def test_every_key_of_every_menu_is_in_the_keyboard_list(win):
             for k in a.shortcuts():
                 key = k.toString(QKeySequence.PortableText)
                 ok = _mentions(shown, key)
-                if not ok and key in ("Ctrl+Shift+S", "Ctrl+N", "Ctrl+O", "Ctrl+S", "Ctrl+Q", "Del"):
-                    ok = True                                                           # the standard keys of the File and Edit menus (written in the menus)
+                # No exemption: the File keys were missing from the list (review of branch C); Del is written 'Del or Backspace'
                 if not ok:
                     missing.append((a.text(), key))
     assert not missing, missing

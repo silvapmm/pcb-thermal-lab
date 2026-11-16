@@ -56,6 +56,25 @@ def test_every_value_control_of_the_window_has_a_name(win):
     assert not missing, "\n".join(sorted(set(missing)))
 
 
+def test_the_stack_up_and_power_profile_pages_and_the_display_panel_name_their_fields(win):
+    """!
+    @brief The pages of the other main tabs and the Display popover are walked too (review of branch C: the Stack-up bar, the 'Repeats every' row and the
+           opacity box had no name, and the test above did not visit them).
+    @param win Main window fixture.
+    """
+    from pcbthermal.examples import example_profile_board
+    from pcbthermal.gui.main_window import TAB_PROFILE, TAB_STACKUP
+
+    load(win, example_profile_board())
+    missing = []
+    for tab, page in ((TAB_STACKUP, win.stackup_page), (TAB_PROFILE, win.profile_page)):
+        win.tabs.setCurrentIndex(tab)
+        QApplication.processEvents()
+        missing += [f"{win.tabs.tabText(tab)}: {m}" for m in _unnamed(page)]
+    missing += [f"Display: {m}" for m in _unnamed(win.display_popover)]
+    assert not missing, "\n".join(sorted(set(missing)))
+
+
 def test_tab_goes_through_the_properties_fields_before_the_tool_bar(win):
     """!
     @brief With a heater selected, the first fields after the Properties dock in the keyboard order are its own fields, not the tool bar boxes.
