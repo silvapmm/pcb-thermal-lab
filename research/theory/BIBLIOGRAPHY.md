@@ -2124,3 +2124,17 @@ J. C. Maxwell, the geometric mean distance of a rectangle from itself (Trans. R.
 **Licence:** MIT. **Source URL:** https://github.com/pyamg/pyamg.
 
 The installed package is pyamg 5.4.1 (metadata read in the environment: licence MIT, authors N. Bell, J. Schroder, B. Southworth; `requirements.txt` asks for 5.4 or later); the entry above recorded 5.3.0 from the package index of an earlier session. **Status R for the metadata, N for the paper.**
+
+## Sources of `research/muzychka-influence-coefficients/` (reviewed)
+
+### [Muzychka2004Influence]
+
+**Licence:** all rights reserved. **Source URL:** https://doi.org/10.1109/ITHERM.2004.1319202 (conference), https://doi.org/10.1109/TCAPT.2006.880477 (journal); no open copy found.
+
+Y. S. Muzychka, *Influence coefficient method for calculating discrete heat source temperature on finite convectively cooled substrates*, Proc. ITherm 2004, pp. 394-402; journal version IEEE Trans. Components and Packaging Technologies 29 (3) (2006) 636-643 (both from Crossref). Superposition of the single-source solution of an eccentric rectangular source on a finite convectively cooled substrate, with influence coefficients for the other sources; isotropic, orthotropic and compound substrates; source-plane convection (abstract). **Status N** (not obtained; paywalled); the abstract and the records are S; the form of the coefficients is known only through [Razavi2016Thesis]. No case or number of the paper is known.
+
+### [Razavi2016Thesis]
+
+**Licence:** not checked. **Source URL:** https://hdl.handle.net/20.500.14783/9133 (the repository lists the thesis as open access; the licence terms were not checked).
+
+S. M. Razavi, *Advanced thermal analysis of microelectronics using spreading resistance models*, PhD thesis, Memorial University of Newfoundland (2016), supervisors S. Kocabiyik and Y. S. Muzychka. **Status R for section 2.4, printed pages 55 and 56 (PDF 78 and 79), compared with the page image**: eq. 2.71 (mean excess of source `j` = sum of `Q_i f_ij`), eq. 2.72 (`f_ij`, the mean over source `j` of the series solution of source `i`: constant, two single cosine series and a double series), eq. 2.73 (`theta = F Q`) and eq. 2.74 (reciprocity `f_ij = f_ji`). The coefficients `B^i` are defined elsewhere in the thesis (not read); the rest of the thesis not read. Its reference list pairs the 2006 journal citation with the 2004 conference DOI once. Used by `research/muzychka-influence-coefficients/` README 2.
