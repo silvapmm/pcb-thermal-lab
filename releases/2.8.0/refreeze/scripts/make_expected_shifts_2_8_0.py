@@ -50,12 +50,19 @@ ID = {"face-film-half-slab": "M1", "drawn-copper-faces": "M2", "lumped-first-lin
 # Items of the table: (id, title, branch, evidence, what it moves)
 ITEMS = [
     ("M1", "Every face film of a copper node passes the half copper layer", "fix/face-film-half-slab", "docs/validation.md 55; CHANGELOG 2.8.0",
-     "FVM, FDM, Lumped and Analytic of every board, at every cell: hotter, median 2e-5 K and at most 0.040 K on the finned block (the heat into the block moves by 1.1e-3 W); the 3D solid moves nowhere"),
+     "FVM, FDM, Lumped and Analytic of every board, at every cell: hotter, median 2e-5 K and at most 0.040 K on the finned block (the heat into the block moves by 1.1e-3 W); the 3D solid moves nowhere. "
+     "Outside the frozen boards (reproduction pass, prose only, no stored tolerance): the shift is the film term itself, about q_f t / (2 k) with q_f = h theta the flux through the film and t / k of the outer layer or block, so it grows with t / k: a 10 mm plate of k 150 W/mK at 400 W/m2K and a 70 K rise moves +0.93 K (400 x 70 x 0.010 / (2 x 150) = 0.93 K, +1 %, FVM, FDM and Analytic alike), a 6 mm stainless block +0.7 K, an aluminium block +0.1 K, a via array resistance +0.34 % (releases/2.8.0/reproduction/PART-C.md 1, finding 2)"),
     ("M2", "Drawn copper read as imported copper (exact fill, flow-based faces) in the FVM and FDM", "fix/drawn-copper-faces", "docs/validation.md 51; research/drawn-copper-faces README 7",
-     "FVM and FDM of the boards with a drawn layer that has a cell cut by a zone edge, at 2 mm (their other copper edges lie on cell lines), and their times to 63 %; the three new harness boards drawn_*"),
+     "FVM and FDM of the boards with a drawn layer that has a cell cut by a zone edge, at 2 mm (their other copper edges lie on cell lines), and their times to 63 %; the three new harness boards drawn_*. "
+     "Outside the frozen boards (reproduction pass, prose, no stored tolerance): the calculator's JEDEC board without vias +12.0 % (74.6 to 83.5 K/W at 0.5 mm, the converged value; "
+     "the earlier value was a grid error of the cut land), the other calculator rows +0.9 to +1.1 %; band for the reproduction pass: FVM where a drawn edge cuts a cell up to +12.5 % of a part's rise "
+     "(releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md 2)"),
     ("M3", "Lumped part rows read the own peak of the part; the first link sees the images of the board sides", "fix/lumped-part-readout + fix/lumped-edge-first-link",
      "docs/validation.md 48 and 53; research/lumped-edge-link README 3.6",
-     "Lumped of every board (51 records at 2, 1 and 0.5 mm, 12 times to 63 %): part rows up (up to 14.9 K on the part peak of a lone part), the board maximum -0.5 to +3.1 % of the rise"),
+     "Lumped of every board (51 records at 2, 1 and 0.5 mm, 12 times to 63 %): part rows up (up to 14.9 K on the part peak of a lone part), the board maximum -0.5 to +3.1 % of the rise. "
+     "Outside the frozen boards (reproduction pass, prose, no stored tolerance): an isolated part whose copper is only its footprint +7.1 % of the rise on the board maximum, "
+     "pads of 20 to 80 mm +1.6 to +3.3 % (copper_dissipation, 1 mm); band for the reproduction pass: Lumped board maximum -0.5 to +7.5 % of the rise "
+     "(releases/2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md 1)"),
     ("M4", "Exact cover of a metal block (Analytic tiles)", "fix/block-exact-cover", "docs/validation.md 54", "Analytic of finned_block at 1 and 0.5 mm (+0.09 K); no other record moves"),
     ("A1", "Finite-element comparison model (key fem): ADDED records", "feature/fem-model", "docs/validation.md 56 and 57; releases/2.8.0/fem-model/DESIGN.md",
      "none: the records exist only in the 2.8.0 run (and in fem-records.json); they are additions, not shifts"),
