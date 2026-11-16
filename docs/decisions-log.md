@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Atlas method B adopted** (reviewer's opinion `research/thermal-sources-atlas/docs/METHOD_OPINION.md`, taken by the maintainer, 2026-11-16): notes written from a facts sheet read from the verified transcription, equations and numbers checked on the transcription (image crop for machine pages), reviewer reads all notes and re-checks images by sample (1 in 3 plus machine pages and alerts); reason: same text risk, a third of the tokens; the pilot errors were reading errors, not transcription errors. `CLAUDE.md` 7 and the policy study amended.
+
 - **Paper notes rule adopted** (reviewer's decisions of `research/paper-notes-policy` taken by the maintainer, 2026-11-16): notes in our own words, at most one quotation of at most 25 words, similarity checker plus the reviewer's attestation against the page images, licence of the source read first, no model paraphrase of a full text; written into `CLAUDE.md` 5 and 7. Atlas F10 starts with a pilot of 20 notes (`research/thermal-sources-atlas/`).
 
 - **Research folders merged**: `muzychka-influence-coefficients` (literature note and plan; the article itself not obtained) and `paper-notes-policy` (copyright study of paper notes, 7 decisions taken by the reviewer, pilot of 20 notes next); whole battery 4058 passed on the merged tree (throwaway `tmp/merge-research`, program diff empty, research/ only).
