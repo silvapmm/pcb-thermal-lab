@@ -2,8 +2,8 @@
  "format": 1,
  "baseline": "v2.7.1",
  "target": "2.8.0",
- "provisional": true,
- "how_to_read": "PROVISIONAL (made by --preview from tests/regression/data/v2.7.0.json and the pending files, no solver run; the drawn_* boards have derived bounds). Regenerate it from the two result sets of the harness before study_diff.py. Same reading as expected_shifts_2.7.0.json. Baseline: the tag v2.7.1 (it moved no frozen number: its numbers are those of v2.7.0.json). Items M1 to M4 come from the four pending files of 2.8.0 that hold records (one record in one file; `also_moved_by` credits the older items); the finite-element records and the surface read-out are ADDITIONS (`added_metrics`, records only in the new set), not shifts; the 3D solid is `must_not_move` (no item of the cycle reaches it). The numeric limits are 1.25 times the shifts of the run that made the table: the table does not predict the sizes, it holds the next version to them.",
+ "provisional": false,
+ "how_to_read": "Same reading as expected_shifts_2.7.0.json. Baseline: the tag v2.7.1 (it moved no frozen number: its numbers are those of v2.7.0.json). Items M1 to M4 come from the four pending files of 2.8.0 that hold records (one record in one file; `also_moved_by` credits the older items); the finite-element records and the surface read-out are ADDITIONS (`added_metrics`, records only in the new set), not shifts; the 3D solid is `must_not_move` (no item of the cycle reaches it). The numeric limits are 1.25 times the shifts of the run that made the table: the table does not predict the sizes, it holds the next version to them.",
  "items": [
   {
    "id": "M1",
@@ -74,6 +74,9 @@
    "id": "R1",
    "item": "M1",
    "boards": [
+    "drawn_ell",
+    "drawn_inset_square",
+    "drawn_stripes_pad",
     "example_board",
     "example_cut_to_T",
     "hatched_copper",
@@ -116,7 +119,7 @@
    "status": "quantified",
    "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
    "limits": {
-    "example_board|analytic|0.5": {
+    "example_board|analytic|2": {
      "abs_k": [
       0,
       1.7e-05
@@ -128,13 +131,49 @@
       1.7e-05
      ]
     },
-    "example_board|analytic|2": {
+    "example_board|analytic|0.5": {
      "abs_k": [
       0,
       1.7e-05
      ]
     },
-    "example_cut_to_T|analytic|0.5": {
+    "profile_board|analytic|2": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "profile_board|analytic|1": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "profile_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|analytic|2": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|analytic|1": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "example_cut_to_T|analytic|2": {
      "abs_k": [
       0,
       2.2e-05
@@ -146,31 +185,139 @@
       2.2e-05
      ]
     },
-    "example_cut_to_T|analytic|2": {
+    "example_cut_to_T|analytic|0.5": {
      "abs_k": [
       0,
       2.2e-05
      ]
     },
-    "hatched_copper|analytic|0.5": {
+    "plate_uniform|analytic|2": {
      "abs_k": [
       0,
-      1.5e-05
+      4.2e-05
      ]
     },
-    "hatched_copper|analytic|1": {
+    "plate_uniform|analytic|1": {
      "abs_k": [
       0,
-      1.5e-05
+      4.2e-05
      ]
     },
-    "hatched_copper|analytic|2": {
+    "plate_uniform|analytic|0.5": {
      "abs_k": [
       0,
-      1.5e-05
+      4.2e-05
      ]
     },
-    "one_layer_full|analytic|0.5": {
+    "plate_pad|analytic|2": {
+     "abs_k": [
+      0,
+      2.5e-05
+     ]
+    },
+    "plate_pad|analytic|1": {
+     "abs_k": [
+      0,
+      2.5e-05
+     ]
+    },
+    "plate_pad|analytic|0.5": {
+     "abs_k": [
+      0,
+      2.5e-05
+     ]
+    },
+    "plate_vias|analytic|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|analytic|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|analytic|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|analytic|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|analytic|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|analytic|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "round_outline|analytic|2": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|analytic|1": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "t_outline|analytic|2": {
+     "abs_k": [
+      0,
+      4.4e-05
+     ]
+    },
+    "t_outline|analytic|1": {
+     "abs_k": [
+      0,
+      4.4e-05
+     ]
+    },
+    "t_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      4.4e-05
+     ]
+    },
+    "two_layer_partial|analytic|2": {
+     "abs_k": [
+      0,
+      2.9e-05
+     ]
+    },
+    "two_layer_partial|analytic|1": {
+     "abs_k": [
+      0,
+      2.9e-05
+     ]
+    },
+    "two_layer_partial|analytic|0.5": {
+     "abs_k": [
+      0,
+      2.9e-05
+     ]
+    },
+    "one_layer_full|analytic|2": {
      "abs_k": [
       0,
       9e-06
@@ -182,13 +329,13 @@
       9e-06
      ]
     },
-    "one_layer_full|analytic|2": {
+    "one_layer_full|analytic|0.5": {
      "abs_k": [
       0,
       9e-06
      ]
     },
-    "one_layer_pad|analytic|0.5": {
+    "one_layer_pad|analytic|2": {
      "abs_k": [
       0,
       5e-06
@@ -200,48 +347,10 @@
       5e-06
      ]
     },
-    "one_layer_pad|analytic|2": {
+    "one_layer_pad|analytic|0.5": {
      "abs_k": [
       0,
       5e-06
-     ]
-    },
-    "part_across_outline|analytic|0.5": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|analytic|1": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|analytic|2": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_top_path|analytic|0.5": {
-     "abs_k": [
-      0,
-      1e-05
-     ],
-     "abs_w": [
-      0,
-      1.9181497584730423e-07
-     ]
-    },
-    "part_top_path|analytic|1": {
-     "abs_k": [
-      0,
-      1e-05
-     ],
-     "abs_w": [
-      0,
-      1.9310757576329607e-07
      ]
     },
     "part_top_path|analytic|2": {
@@ -254,166 +363,114 @@
       1.9310757576329607e-07
      ]
     },
-    "plate_lone_via|analytic|0.5": {
+    "part_top_path|analytic|1": {
      "abs_k": [
       0,
-      3.9e-05
+      1e-05
+     ],
+     "abs_w": [
+      0,
+      1.9310757576329607e-07
      ]
     },
-    "plate_lone_via|analytic|1": {
+    "part_top_path|analytic|0.5": {
      "abs_k": [
       0,
-      3.9e-05
+      1e-05
+     ],
+     "abs_w": [
+      0,
+      1.9181497584730423e-07
      ]
     },
-    "plate_lone_via|analytic|2": {
+    "hatched_copper|analytic|2": {
      "abs_k": [
       0,
-      3.9e-05
+      1.5e-05
      ]
     },
-    "plate_pad|analytic|0.5": {
+    "hatched_copper|analytic|1": {
      "abs_k": [
       0,
-      2.5e-05
+      1.5e-05
      ]
     },
-    "plate_pad|analytic|1": {
+    "hatched_copper|analytic|0.5": {
      "abs_k": [
       0,
-      2.5e-05
+      1.5e-05
      ]
     },
-    "plate_pad|analytic|2": {
+    "part_across_outline|analytic|2": {
      "abs_k": [
       0,
-      2.5e-05
+      7.1e-05
      ]
     },
-    "plate_uniform|analytic|0.5": {
+    "part_across_outline|analytic|1": {
      "abs_k": [
       0,
-      4.2e-05
+      7.1e-05
      ]
     },
-    "plate_uniform|analytic|1": {
+    "part_across_outline|analytic|0.5": {
      "abs_k": [
       0,
-      4.2e-05
+      7.1e-05
      ]
     },
-    "plate_uniform|analytic|2": {
+    "drawn_inset_square|analytic|2": {
      "abs_k": [
       0,
-      4.2e-05
+      4e-06
      ]
     },
-    "plate_vias|analytic|0.5": {
+    "drawn_inset_square|analytic|1": {
      "abs_k": [
       0,
-      3.9e-05
+      4e-06
      ]
     },
-    "plate_vias|analytic|1": {
+    "drawn_inset_square|analytic|0.5": {
      "abs_k": [
       0,
-      3.9e-05
+      4e-06
      ]
     },
-    "plate_vias|analytic|2": {
+    "drawn_stripes_pad|analytic|2": {
      "abs_k": [
       0,
-      3.9e-05
+      4e-06
      ]
     },
-    "profile_board|analytic|0.5": {
+    "drawn_stripes_pad|analytic|1": {
      "abs_k": [
       0,
-      1.7e-05
+      4e-06
      ]
     },
-    "profile_board|analytic|1": {
+    "drawn_stripes_pad|analytic|0.5": {
      "abs_k": [
       0,
-      1.7e-05
+      4e-06
      ]
     },
-    "profile_board|analytic|2": {
+    "drawn_ell|analytic|2": {
      "abs_k": [
       0,
-      1.7e-05
+      4e-06
      ]
     },
-    "reference_board|analytic|0.5": {
+    "drawn_ell|analytic|1": {
      "abs_k": [
       0,
-      1.7e-05
+      4e-06
      ]
     },
-    "reference_board|analytic|1": {
+    "drawn_ell|analytic|0.5": {
      "abs_k": [
       0,
-      1.7e-05
-     ]
-    },
-    "reference_board|analytic|2": {
-     "abs_k": [
-      0,
-      1.7e-05
-     ]
-    },
-    "round_outline|analytic|0.5": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "round_outline|analytic|1": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "round_outline|analytic|2": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "t_outline|analytic|0.5": {
-     "abs_k": [
-      0,
-      4.4e-05
-     ]
-    },
-    "t_outline|analytic|1": {
-     "abs_k": [
-      0,
-      4.4e-05
-     ]
-    },
-    "t_outline|analytic|2": {
-     "abs_k": [
-      0,
-      4.4e-05
-     ]
-    },
-    "two_layer_partial|analytic|0.5": {
-     "abs_k": [
-      0,
-      2.9e-05
-     ]
-    },
-    "two_layer_partial|analytic|1": {
-     "abs_k": [
-      0,
-      2.9e-05
-     ]
-    },
-    "two_layer_partial|analytic|2": {
-     "abs_k": [
-      0,
-      2.9e-05
+      4e-06
      ]
     }
    }
@@ -465,22 +522,46 @@
    "status": "quantified",
    "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
    "limits": {
-    "example_board|fdm|0.5": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
     "example_board|fdm|1": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "example_cut_to_T|fdm|0.5": {
+    "example_board|fdm|0.5": {
      "abs_k": [
       0,
-      1.9e-05
+      1.5e-05
+     ]
+    },
+    "profile_board|fdm|1": {
+     "abs_k": [
+      0,
+      1.5e-05
+     ]
+    },
+    "profile_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      1.5e-05
+     ]
+    },
+    "reference_board|fdm|2": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|fdm|1": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|fdm|0.5": {
+     "abs_k": [
+      0,
+      1.7e-05
      ]
     },
     "example_cut_to_T|fdm|1": {
@@ -489,24 +570,166 @@
       1.9e-05
      ]
     },
-    "finned_block|fdm|0.5": {
+    "example_cut_to_T|fdm|0.5": {
      "abs_k": [
       0,
-      0.04946
-     ],
-     "abs_w": [
-      0,
-      0.0013300549038974818
+      1.9e-05
      ]
     },
-    "finned_block|fdm|1": {
+    "plate_uniform|fdm|2": {
      "abs_k": [
       0,
-      0.049479
-     ],
-     "abs_w": [
+      4.2e-05
+     ]
+    },
+    "plate_uniform|fdm|1": {
+     "abs_k": [
       0,
-      0.001329781354376669
+      4.2e-05
+     ]
+    },
+    "plate_uniform|fdm|0.5": {
+     "abs_k": [
+      0,
+      4.2e-05
+     ]
+    },
+    "plate_pad|fdm|2": {
+     "abs_k": [
+      0,
+      9.2e-05
+     ]
+    },
+    "plate_pad|fdm|1": {
+     "abs_k": [
+      0,
+      9.6e-05
+     ]
+    },
+    "plate_pad|fdm|0.5": {
+     "abs_k": [
+      0,
+      9.9e-05
+     ]
+    },
+    "plate_vias|fdm|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|fdm|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|fdm|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fdm|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fdm|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fdm|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "round_outline|fdm|2": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|fdm|1": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "t_outline|fdm|2": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "t_outline|fdm|1": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "t_outline|fdm|0.5": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "two_layer_partial|fdm|1": {
+     "abs_k": [
+      0,
+      2.7e-05
+     ]
+    },
+    "two_layer_partial|fdm|0.5": {
+     "abs_k": [
+      0,
+      2.7e-05
+     ]
+    },
+    "one_layer_full|fdm|2": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_full|fdm|1": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_full|fdm|0.5": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_pad|fdm|2": {
+     "abs_k": [
+      0,
+      2e-05
+     ]
+    },
+    "one_layer_pad|fdm|1": {
+     "abs_k": [
+      0,
+      2.1e-05
+     ]
+    },
+    "one_layer_pad|fdm|0.5": {
+     "abs_k": [
+      0,
+      2.2e-05
      ]
     },
     "finned_block|fdm|2": {
@@ -519,96 +742,24 @@
       0.0013289691889611932
      ]
     },
-    "hatched_copper|fdm|0.5": {
+    "finned_block|fdm|1": {
      "abs_k": [
       0,
-      1.5e-05
-     ]
-    },
-    "hatched_copper|fdm|1": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
-    "hatched_copper|fdm|2": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
-    "one_layer_full|fdm|0.5": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_full|fdm|1": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_full|fdm|2": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_pad|fdm|0.5": {
-     "abs_k": [
-      0,
-      2.2e-05
-     ]
-    },
-    "one_layer_pad|fdm|1": {
-     "abs_k": [
-      0,
-      2.1e-05
-     ]
-    },
-    "one_layer_pad|fdm|2": {
-     "abs_k": [
-      0,
-      2e-05
-     ]
-    },
-    "part_across_outline|fdm|0.5": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|fdm|1": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|fdm|2": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_top_path|fdm|0.5": {
-     "abs_k": [
-      0,
-      7e-06
+      0.049479
      ],
      "abs_w": [
       0,
-      1.291033197015068e-07
+      0.001329781354376669
      ]
     },
-    "part_top_path|fdm|1": {
+    "finned_block|fdm|0.5": {
      "abs_k": [
       0,
-      7e-06
+      0.04946
      ],
      "abs_w": [
       0,
-      1.2986835440376154e-07
+      0.0013300549038974818
      ]
     },
     "part_top_path|fdm|2": {
@@ -621,154 +772,60 @@
       1.348352268726316e-07
      ]
     },
-    "plate_lone_via|fdm|0.5": {
+    "part_top_path|fdm|1": {
      "abs_k": [
       0,
-      3.9e-05
+      7e-06
+     ],
+     "abs_w": [
+      0,
+      1.2986835440376154e-07
      ]
     },
-    "plate_lone_via|fdm|1": {
+    "part_top_path|fdm|0.5": {
      "abs_k": [
       0,
-      3.9e-05
-     ]
-    },
-    "plate_lone_via|fdm|2": {
-     "abs_k": [
+      7e-06
+     ],
+     "abs_w": [
       0,
-      3.9e-05
+      1.291033197015068e-07
      ]
     },
-    "plate_pad|fdm|0.5": {
-     "abs_k": [
-      0,
-      9.9e-05
-     ]
-    },
-    "plate_pad|fdm|1": {
-     "abs_k": [
-      0,
-      9.6e-05
-     ]
-    },
-    "plate_pad|fdm|2": {
-     "abs_k": [
-      0,
-      9.2e-05
-     ]
-    },
-    "plate_uniform|fdm|0.5": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_uniform|fdm|1": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_uniform|fdm|2": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_vias|fdm|0.5": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "plate_vias|fdm|1": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "plate_vias|fdm|2": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "profile_board|fdm|0.5": {
+    "hatched_copper|fdm|2": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "profile_board|fdm|1": {
+    "hatched_copper|fdm|1": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "reference_board|fdm|0.5": {
+    "hatched_copper|fdm|0.5": {
      "abs_k": [
       0,
-      1.7e-05
+      1.5e-05
      ]
     },
-    "reference_board|fdm|1": {
+    "part_across_outline|fdm|2": {
      "abs_k": [
       0,
-      1.7e-05
+      7.1e-05
      ]
     },
-    "reference_board|fdm|2": {
+    "part_across_outline|fdm|1": {
      "abs_k": [
       0,
-      1.7e-05
+      7.1e-05
      ]
     },
-    "round_outline|fdm|0.5": {
+    "part_across_outline|fdm|0.5": {
      "abs_k": [
       0,
-      5.5e-05
-     ]
-    },
-    "round_outline|fdm|1": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "round_outline|fdm|2": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "t_outline|fdm|0.5": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "t_outline|fdm|1": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "t_outline|fdm|2": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "two_layer_partial|fdm|0.5": {
-     "abs_k": [
-      0,
-      2.7e-05
-     ]
-    },
-    "two_layer_partial|fdm|1": {
-     "abs_k": [
-      0,
-      2.7e-05
+      7.1e-05
      ]
     }
    }
@@ -820,22 +877,46 @@
    "status": "quantified",
    "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
    "limits": {
-    "example_board|fvm|0.5": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
     "example_board|fvm|1": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "example_cut_to_T|fvm|0.5": {
+    "example_board|fvm|0.5": {
      "abs_k": [
       0,
-      1.9e-05
+      1.5e-05
+     ]
+    },
+    "profile_board|fvm|1": {
+     "abs_k": [
+      0,
+      1.5e-05
+     ]
+    },
+    "profile_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      1.5e-05
+     ]
+    },
+    "reference_board|fvm|2": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|fvm|1": {
+     "abs_k": [
+      0,
+      1.7e-05
+     ]
+    },
+    "reference_board|fvm|0.5": {
+     "abs_k": [
+      0,
+      1.7e-05
      ]
     },
     "example_cut_to_T|fvm|1": {
@@ -844,24 +925,166 @@
       1.9e-05
      ]
     },
-    "finned_block|fvm|0.5": {
+    "example_cut_to_T|fvm|0.5": {
      "abs_k": [
       0,
-      0.049455
-     ],
-     "abs_w": [
-      0,
-      0.00133026779571499
+      1.9e-05
      ]
     },
-    "finned_block|fvm|1": {
+    "plate_uniform|fvm|2": {
      "abs_k": [
       0,
-      0.04946
-     ],
-     "abs_w": [
+      4.2e-05
+     ]
+    },
+    "plate_uniform|fvm|1": {
+     "abs_k": [
       0,
-      0.0013305914801425844
+      4.2e-05
+     ]
+    },
+    "plate_uniform|fvm|0.5": {
+     "abs_k": [
+      0,
+      4.2e-05
+     ]
+    },
+    "plate_pad|fvm|2": {
+     "abs_k": [
+      0,
+      0.000112
+     ]
+    },
+    "plate_pad|fvm|1": {
+     "abs_k": [
+      0,
+      0.000104
+     ]
+    },
+    "plate_pad|fvm|0.5": {
+     "abs_k": [
+      0,
+      0.000101
+     ]
+    },
+    "plate_vias|fvm|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|fvm|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_vias|fvm|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fvm|2": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fvm|1": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "plate_lone_via|fvm|0.5": {
+     "abs_k": [
+      0,
+      3.9e-05
+     ]
+    },
+    "round_outline|fvm|2": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|fvm|1": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "round_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      5.5e-05
+     ]
+    },
+    "t_outline|fvm|2": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "t_outline|fvm|1": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "t_outline|fvm|0.5": {
+     "abs_k": [
+      0,
+      5.9e-05
+     ]
+    },
+    "two_layer_partial|fvm|1": {
+     "abs_k": [
+      0,
+      2.7e-05
+     ]
+    },
+    "two_layer_partial|fvm|0.5": {
+     "abs_k": [
+      0,
+      2.7e-05
+     ]
+    },
+    "one_layer_full|fvm|2": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_full|fvm|1": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_full|fvm|0.5": {
+     "abs_k": [
+      0,
+      9e-06
+     ]
+    },
+    "one_layer_pad|fvm|2": {
+     "abs_k": [
+      0,
+      2.4e-05
+     ]
+    },
+    "one_layer_pad|fvm|1": {
+     "abs_k": [
+      0,
+      2.3e-05
+     ]
+    },
+    "one_layer_pad|fvm|0.5": {
+     "abs_k": [
+      0,
+      2.2e-05
      ]
     },
     "finned_block|fvm|2": {
@@ -874,96 +1097,24 @@
       0.0013318242980087103
      ]
     },
-    "hatched_copper|fvm|0.5": {
+    "finned_block|fvm|1": {
      "abs_k": [
       0,
-      1.5e-05
-     ]
-    },
-    "hatched_copper|fvm|1": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
-    "hatched_copper|fvm|2": {
-     "abs_k": [
-      0,
-      1.5e-05
-     ]
-    },
-    "one_layer_full|fvm|0.5": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_full|fvm|1": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_full|fvm|2": {
-     "abs_k": [
-      0,
-      9e-06
-     ]
-    },
-    "one_layer_pad|fvm|0.5": {
-     "abs_k": [
-      0,
-      2.2e-05
-     ]
-    },
-    "one_layer_pad|fvm|1": {
-     "abs_k": [
-      0,
-      2.3e-05
-     ]
-    },
-    "one_layer_pad|fvm|2": {
-     "abs_k": [
-      0,
-      2.4e-05
-     ]
-    },
-    "part_across_outline|fvm|0.5": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|fvm|1": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_across_outline|fvm|2": {
-     "abs_k": [
-      0,
-      7.1e-05
-     ]
-    },
-    "part_top_path|fvm|0.5": {
-     "abs_k": [
-      0,
-      7e-06
+      0.04946
      ],
      "abs_w": [
       0,
-      1.2844434599257326e-07
+      0.0013305914801425844
      ]
     },
-    "part_top_path|fvm|1": {
+    "finned_block|fvm|0.5": {
      "abs_k": [
       0,
-      7e-06
+      0.049455
      ],
      "abs_w": [
       0,
-      1.2782100017316722e-07
+      0.00133026779571499
      ]
     },
     "part_top_path|fvm|2": {
@@ -976,154 +1127,60 @@
       1.239320965296109e-07
      ]
     },
-    "plate_lone_via|fvm|0.5": {
+    "part_top_path|fvm|1": {
      "abs_k": [
       0,
-      3.9e-05
+      7e-06
+     ],
+     "abs_w": [
+      0,
+      1.2782100017316722e-07
      ]
     },
-    "plate_lone_via|fvm|1": {
+    "part_top_path|fvm|0.5": {
      "abs_k": [
       0,
-      3.9e-05
-     ]
-    },
-    "plate_lone_via|fvm|2": {
-     "abs_k": [
+      7e-06
+     ],
+     "abs_w": [
       0,
-      3.9e-05
+      1.2844434599257326e-07
      ]
     },
-    "plate_pad|fvm|0.5": {
-     "abs_k": [
-      0,
-      0.000101
-     ]
-    },
-    "plate_pad|fvm|1": {
-     "abs_k": [
-      0,
-      0.000104
-     ]
-    },
-    "plate_pad|fvm|2": {
-     "abs_k": [
-      0,
-      0.000112
-     ]
-    },
-    "plate_uniform|fvm|0.5": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_uniform|fvm|1": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_uniform|fvm|2": {
-     "abs_k": [
-      0,
-      4.2e-05
-     ]
-    },
-    "plate_vias|fvm|0.5": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "plate_vias|fvm|1": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "plate_vias|fvm|2": {
-     "abs_k": [
-      0,
-      3.9e-05
-     ]
-    },
-    "profile_board|fvm|0.5": {
+    "hatched_copper|fvm|2": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "profile_board|fvm|1": {
+    "hatched_copper|fvm|1": {
      "abs_k": [
       0,
       1.5e-05
      ]
     },
-    "reference_board|fvm|0.5": {
+    "hatched_copper|fvm|0.5": {
      "abs_k": [
       0,
-      1.7e-05
+      1.5e-05
      ]
     },
-    "reference_board|fvm|1": {
+    "part_across_outline|fvm|2": {
      "abs_k": [
       0,
-      1.7e-05
+      7.1e-05
      ]
     },
-    "reference_board|fvm|2": {
+    "part_across_outline|fvm|1": {
      "abs_k": [
       0,
-      1.7e-05
+      7.1e-05
      ]
     },
-    "round_outline|fvm|0.5": {
+    "part_across_outline|fvm|0.5": {
      "abs_k": [
       0,
-      5.5e-05
-     ]
-    },
-    "round_outline|fvm|1": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "round_outline|fvm|2": {
-     "abs_k": [
-      0,
-      5.5e-05
-     ]
-    },
-    "t_outline|fvm|0.5": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "t_outline|fvm|1": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "t_outline|fvm|2": {
-     "abs_k": [
-      0,
-      5.9e-05
-     ]
-    },
-    "two_layer_partial|fvm|0.5": {
-     "abs_k": [
-      0,
-      2.7e-05
-     ]
-    },
-    "two_layer_partial|fvm|1": {
-     "abs_k": [
-      0,
-      2.7e-05
+      7.1e-05
      ]
     }
    }
@@ -1132,6 +1189,9 @@
    "id": "R4",
    "item": "M1+M2",
    "boards": [
+    "drawn_ell",
+    "drawn_inset_square",
+    "drawn_stripes_pad",
     "example_board",
     "example_cut_to_T",
     "profile_board",
@@ -1141,6 +1201,8 @@
     "fdm"
    ],
    "cells": [
+    0.5,
+    1.0,
     2.0
    ],
    "metrics": "*",
@@ -1166,22 +1228,76 @@
       0.139735
      ]
     },
-    "example_cut_to_T|fdm|2": {
-     "abs_k": [
-      0,
-      0.170068
-     ]
-    },
     "profile_board|fdm|2": {
      "abs_k": [
       0,
       0.139735
      ]
     },
+    "example_cut_to_T|fdm|2": {
+     "abs_k": [
+      0,
+      0.170068
+     ]
+    },
     "two_layer_partial|fdm|2": {
      "abs_k": [
       0,
       2.331857
+     ]
+    },
+    "drawn_inset_square|fdm|2": {
+     "abs_k": [
+      0,
+      12.138964
+     ]
+    },
+    "drawn_inset_square|fdm|1": {
+     "abs_k": [
+      0,
+      3.050804
+     ]
+    },
+    "drawn_inset_square|fdm|0.5": {
+     "abs_k": [
+      0,
+      2.036489
+     ]
+    },
+    "drawn_stripes_pad|fdm|2": {
+     "abs_k": [
+      0,
+      23.900262
+     ]
+    },
+    "drawn_stripes_pad|fdm|1": {
+     "abs_k": [
+      0,
+      10.211139
+     ]
+    },
+    "drawn_stripes_pad|fdm|0.5": {
+     "abs_k": [
+      0,
+      3.848224
+     ]
+    },
+    "drawn_ell|fdm|2": {
+     "abs_k": [
+      0,
+      22.317255
+     ]
+    },
+    "drawn_ell|fdm|1": {
+     "abs_k": [
+      0,
+      4.986059
+     ]
+    },
+    "drawn_ell|fdm|0.5": {
+     "abs_k": [
+      0,
+      7.682737
      ]
     }
    }
@@ -1190,6 +1306,9 @@
    "id": "R5",
    "item": "M1+M2",
    "boards": [
+    "drawn_ell",
+    "drawn_inset_square",
+    "drawn_stripes_pad",
     "example_board",
     "example_cut_to_T",
     "profile_board",
@@ -1199,6 +1318,8 @@
     "fvm"
    ],
    "cells": [
+    0.5,
+    1.0,
     2.0
    ],
    "metrics": "*",
@@ -1224,22 +1345,80 @@
       0.001803
      ]
     },
-    "example_cut_to_T|fvm|2": {
-     "abs_k": [
-      0,
-      0.004812
-     ]
-    },
     "profile_board|fvm|2": {
      "abs_k": [
       0,
       0.001803
      ]
     },
+    "example_cut_to_T|fvm|2": {
+     "abs_k": [
+      0,
+      0.004812
+     ]
+    },
     "two_layer_partial|fvm|2": {
      "abs_k": [
       0,
       0.232693
+     ]
+    },
+    "drawn_inset_square|fvm|2": {
+     "abs_k": [
+      0,
+      4.844702
+     ]
+    },
+    "drawn_inset_square|fvm|1": {
+     "abs_k": [
+      0,
+      0.949235
+     ]
+    },
+    "drawn_inset_square|fvm|0.5": {
+     "abs_k": [
+      0,
+      1.038342
+     ]
+    },
+    "drawn_stripes_pad|fvm|2": {
+     "abs_k": [
+      0,
+      22.389753
+     ]
+    },
+    "drawn_stripes_pad|fvm|1": {
+     "abs_k": [
+      0,
+      6.899365
+     ],
+     "rel": [
+      0,
+      0.00375
+     ]
+    },
+    "drawn_stripes_pad|fvm|0.5": {
+     "abs_k": [
+      0,
+      2.075246
+     ]
+    },
+    "drawn_ell|fvm|2": {
+     "abs_k": [
+      0,
+      8.480877
+     ]
+    },
+    "drawn_ell|fvm|1": {
+     "abs_k": [
+      0,
+      6.471197
+     ]
+    },
+    "drawn_ell|fvm|0.5": {
+     "abs_k": [
+      0,
+      4.853479
      ]
     }
    }
@@ -1248,6 +1427,9 @@
    "id": "R6",
    "item": "M1+M3",
    "boards": [
+    "drawn_ell",
+    "drawn_inset_square",
+    "drawn_stripes_pad",
     "example_board",
     "example_cut_to_T",
     "finned_block",
@@ -1291,10 +1473,10 @@
    "status": "quantified",
    "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
    "limits": {
-    "example_board|lumped|0.5": {
+    "example_board|lumped|2": {
      "abs_k": [
       0,
-      7.385109
+      6.012772
      ]
     },
     "example_board|lumped|1": {
@@ -1303,22 +1485,46 @@
       6.012772
      ]
     },
-    "example_board|lumped|2": {
+    "example_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      7.385109
+     ]
+    },
+    "profile_board|lumped|2": {
      "abs_k": [
       0,
       6.012772
      ]
     },
-    "example_cut_to_T|lumped|0.5": {
+    "profile_board|lumped|1": {
      "abs_k": [
       0,
-      6.982559
+      6.012772
      ]
     },
-    "example_cut_to_T|lumped|1": {
+    "profile_board|lumped|0.5": {
      "abs_k": [
       0,
-      7.513126
+      7.385109
+     ]
+    },
+    "reference_board|lumped|2": {
+     "abs_k": [
+      0,
+      13.020606
+     ]
+    },
+    "reference_board|lumped|1": {
+     "abs_k": [
+      0,
+      13.020606
+     ]
+    },
+    "reference_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      12.437697
      ]
     },
     "example_cut_to_T|lumped|2": {
@@ -1327,52 +1533,142 @@
       7.513126
      ]
     },
-    "finned_block|lumped|0.5": {
+    "example_cut_to_T|lumped|1": {
      "abs_k": [
       0,
-      16.930775
+      7.513126
      ]
     },
-    "finned_block|lumped|1": {
+    "example_cut_to_T|lumped|0.5": {
      "abs_k": [
       0,
-      15.873972
+      6.982559
      ]
     },
-    "finned_block|lumped|2": {
+    "plate_uniform|lumped|2": {
      "abs_k": [
       0,
-      15.873972
+      16.389677
      ]
     },
-    "hatched_copper|lumped|0.5": {
+    "plate_uniform|lumped|1": {
      "abs_k": [
       0,
-      13.878478
+      16.389677
      ]
     },
-    "hatched_copper|lumped|1": {
+    "plate_uniform|lumped|0.5": {
      "abs_k": [
       0,
-      14.07363
+      14.862469
      ]
     },
-    "hatched_copper|lumped|2": {
+    "plate_pad|lumped|2": {
      "abs_k": [
       0,
-      14.07363
+      15.765168
      ]
     },
-    "one_layer_full|lumped|0.5": {
+    "plate_pad|lumped|1": {
      "abs_k": [
       0,
-      3.268062
+      15.765168
      ]
     },
-    "one_layer_full|lumped|1": {
+    "plate_pad|lumped|0.5": {
      "abs_k": [
       0,
-      3.660617
+      14.396026
+     ]
+    },
+    "plate_vias|lumped|2": {
+     "abs_k": [
+      0,
+      5.165277
+     ]
+    },
+    "plate_vias|lumped|1": {
+     "abs_k": [
+      0,
+      5.165277
+     ]
+    },
+    "plate_vias|lumped|0.5": {
+     "abs_k": [
+      0,
+      5.165277
+     ]
+    },
+    "plate_lone_via|lumped|2": {
+     "abs_k": [
+      0,
+      15.352418
+     ]
+    },
+    "plate_lone_via|lumped|1": {
+     "abs_k": [
+      0,
+      15.352418
+     ]
+    },
+    "plate_lone_via|lumped|0.5": {
+     "abs_k": [
+      0,
+      13.965252
+     ]
+    },
+    "round_outline|lumped|2": {
+     "abs_k": [
+      0,
+      15.781777
+     ]
+    },
+    "round_outline|lumped|1": {
+     "abs_k": [
+      0,
+      15.781777
+     ]
+    },
+    "round_outline|lumped|0.5": {
+     "abs_k": [
+      0,
+      17.537838
+     ]
+    },
+    "t_outline|lumped|2": {
+     "abs_k": [
+      0,
+      11.932045
+     ]
+    },
+    "t_outline|lumped|1": {
+     "abs_k": [
+      0,
+      11.932045
+     ]
+    },
+    "t_outline|lumped|0.5": {
+     "abs_k": [
+      0,
+      11.450188
+     ]
+    },
+    "two_layer_partial|lumped|2": {
+     "abs_k": [
+      0,
+      15.504129
+     ]
+    },
+    "two_layer_partial|lumped|1": {
+     "abs_k": [
+      0,
+      15.504129
+     ]
+    },
+    "two_layer_partial|lumped|0.5": {
+     "abs_k": [
+      0,
+      18.643405
      ]
     },
     "one_layer_full|lumped|2": {
@@ -1381,16 +1677,16 @@
       3.660617
      ]
     },
-    "one_layer_pad|lumped|0.5": {
+    "one_layer_full|lumped|1": {
      "abs_k": [
       0,
-      3.120549
+      3.660617
      ]
     },
-    "one_layer_pad|lumped|1": {
+    "one_layer_full|lumped|0.5": {
      "abs_k": [
       0,
-      3.459865
+      3.268062
      ]
     },
     "one_layer_pad|lumped|2": {
@@ -1399,42 +1695,34 @@
       3.459865
      ]
     },
-    "part_across_outline|lumped|0.5": {
+    "one_layer_pad|lumped|1": {
      "abs_k": [
       0,
-      16.917963
+      3.459865
      ]
     },
-    "part_across_outline|lumped|1": {
+    "one_layer_pad|lumped|0.5": {
      "abs_k": [
       0,
-      18.009017
+      3.120549
      ]
     },
-    "part_across_outline|lumped|2": {
+    "finned_block|lumped|2": {
      "abs_k": [
       0,
-      18.009017
+      15.873972
      ]
     },
-    "part_top_path|lumped|0.5": {
+    "finned_block|lumped|1": {
      "abs_k": [
       0,
-      1.885361
-     ],
-     "abs_w": [
-      0,
-      0.05499131920734174
+      15.873972
      ]
     },
-    "part_top_path|lumped|1": {
+    "finned_block|lumped|0.5": {
      "abs_k": [
       0,
-      1.680974
-     ],
-     "abs_w": [
-      0,
-      0.04896267753949496
+      16.930775
      ]
     },
     "part_top_path|lumped|2": {
@@ -1447,166 +1735,114 @@
       0.04896267753949496
      ]
     },
-    "plate_lone_via|lumped|0.5": {
+    "part_top_path|lumped|1": {
      "abs_k": [
       0,
-      13.965252
+      1.680974
+     ],
+     "abs_w": [
+      0,
+      0.04896267753949496
      ]
     },
-    "plate_lone_via|lumped|1": {
+    "part_top_path|lumped|0.5": {
      "abs_k": [
       0,
-      15.352418
+      1.885361
+     ],
+     "abs_w": [
+      0,
+      0.05499131920734174
      ]
     },
-    "plate_lone_via|lumped|2": {
+    "hatched_copper|lumped|2": {
      "abs_k": [
       0,
-      15.352418
+      14.07363
      ]
     },
-    "plate_pad|lumped|0.5": {
+    "hatched_copper|lumped|1": {
      "abs_k": [
       0,
-      14.396026
+      14.07363
      ]
     },
-    "plate_pad|lumped|1": {
+    "hatched_copper|lumped|0.5": {
      "abs_k": [
       0,
-      15.765168
+      13.878478
      ]
     },
-    "plate_pad|lumped|2": {
+    "part_across_outline|lumped|2": {
      "abs_k": [
       0,
-      15.765168
+      18.009017
      ]
     },
-    "plate_uniform|lumped|0.5": {
+    "part_across_outline|lumped|1": {
      "abs_k": [
       0,
-      14.862469
+      18.009017
      ]
     },
-    "plate_uniform|lumped|1": {
+    "part_across_outline|lumped|0.5": {
      "abs_k": [
       0,
-      16.389677
+      16.917963
      ]
     },
-    "plate_uniform|lumped|2": {
+    "drawn_inset_square|lumped|2": {
      "abs_k": [
       0,
-      16.389677
+      3.235598
      ]
     },
-    "plate_vias|lumped|0.5": {
+    "drawn_inset_square|lumped|1": {
      "abs_k": [
       0,
-      5.165277
+      3.235598
      ]
     },
-    "plate_vias|lumped|1": {
+    "drawn_inset_square|lumped|0.5": {
      "abs_k": [
       0,
-      5.165277
+      3.50659
      ]
     },
-    "plate_vias|lumped|2": {
+    "drawn_stripes_pad|lumped|2": {
      "abs_k": [
       0,
-      5.165277
+      3.200098
      ]
     },
-    "profile_board|lumped|0.5": {
+    "drawn_stripes_pad|lumped|1": {
      "abs_k": [
       0,
-      7.385109
+      3.200098
      ]
     },
-    "profile_board|lumped|1": {
+    "drawn_stripes_pad|lumped|0.5": {
      "abs_k": [
       0,
-      6.012772
+      3.457303
      ]
     },
-    "profile_board|lumped|2": {
+    "drawn_ell|lumped|2": {
      "abs_k": [
       0,
-      6.012772
+      3.593816
      ]
     },
-    "reference_board|lumped|0.5": {
+    "drawn_ell|lumped|1": {
      "abs_k": [
       0,
-      12.437697
+      3.593816
      ]
     },
-    "reference_board|lumped|1": {
+    "drawn_ell|lumped|0.5": {
      "abs_k": [
       0,
-      13.020606
-     ]
-    },
-    "reference_board|lumped|2": {
-     "abs_k": [
-      0,
-      13.020606
-     ]
-    },
-    "round_outline|lumped|0.5": {
-     "abs_k": [
-      0,
-      17.537838
-     ]
-    },
-    "round_outline|lumped|1": {
-     "abs_k": [
-      0,
-      15.781777
-     ]
-    },
-    "round_outline|lumped|2": {
-     "abs_k": [
-      0,
-      15.781777
-     ]
-    },
-    "t_outline|lumped|0.5": {
-     "abs_k": [
-      0,
-      11.450188
-     ]
-    },
-    "t_outline|lumped|1": {
-     "abs_k": [
-      0,
-      11.932045
-     ]
-    },
-    "t_outline|lumped|2": {
-     "abs_k": [
-      0,
-      11.932045
-     ]
-    },
-    "two_layer_partial|lumped|0.5": {
-     "abs_k": [
-      0,
-      18.643405
-     ]
-    },
-    "two_layer_partial|lumped|1": {
-     "abs_k": [
-      0,
-      15.504129
-     ]
-    },
-    "two_layer_partial|lumped|2": {
-     "abs_k": [
-      0,
-      15.504129
+      3.858067
      ]
     }
    }
@@ -1642,10 +1878,10 @@
    "status": "quantified",
    "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
    "limits": {
-    "finned_block|analytic|0.5": {
+    "finned_block|analytic|2": {
      "abs_k": [
       0,
-      0.157319
+      0.157253
      ]
     },
     "finned_block|analytic|1": {
@@ -1654,121 +1890,158 @@
       0.157253
      ]
     },
-    "finned_block|analytic|2": {
+    "finned_block|analytic|0.5": {
      "abs_k": [
       0,
-      0.157253
+      0.157319
      ]
     }
    }
   },
   {
-   "id": "D8",
+   "id": "S7",
    "item": "M1+M2",
    "boards": [
-    "drawn_*"
+    "example_board"
    ],
    "models": [
-    "fvm"
+    "fvm_sor"
    ],
-   "cells": "*",
+   "cells": [
+    2.0
+   ],
    "metrics": "*",
    "direction": "any",
-   "rel_rise": [
+   "abs_k": [
     0,
-    0.06
+    0.001803
    ],
    "abs_w": [
     0,
-    0.01
+    1e-06
    ],
    "rel": [
     0,
     1
    ],
-   "status": "derived",
-   "note": "the drawn_* boards are in no frozen file: bound DERIVED from the evidence of the items (validation 51.3 and 53), replaced by the measured limit of the final run"
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
   },
   {
-   "id": "D9",
-   "item": "M1+M2",
-   "boards": [
-    "drawn_*"
-   ],
-   "models": [
-    "fdm"
-   ],
-   "cells": "*",
-   "metrics": "*",
-   "direction": "any",
-   "rel_rise": [
-    0,
-    0.15
-   ],
-   "abs_w": [
-    0,
-    0.01
-   ],
-   "rel": [
-    0,
-    1
-   ],
-   "status": "derived",
-   "note": "the drawn_* boards are in no frozen file: bound DERIVED from the evidence of the items (validation 51.3 and 53), replaced by the measured limit of the final run"
-  },
-  {
-   "id": "D10",
-   "item": "M1+M3",
-   "boards": [
-    "drawn_*"
-   ],
-   "models": [
-    "lumped"
-   ],
-   "cells": "*",
-   "metrics": "*",
-   "direction": "any",
-   "rel_rise": [
-    0,
-    0.06
-   ],
-   "abs_w": [
-    0,
-    0.01
-   ],
-   "rel": [
-    0,
-    1
-   ],
-   "status": "derived",
-   "note": "the drawn_* boards are in no frozen file: bound DERIVED from the evidence of the items (validation 51.3 and 53), replaced by the measured limit of the final run"
-  },
-  {
-   "id": "D11",
+   "id": "S8",
    "item": "M1",
    "boards": [
-    "drawn_*"
+    "plate_lone_via"
    ],
    "models": [
-    "analytic"
+    "fvm_sor"
    ],
-   "cells": "*",
+   "cells": [
+    2.0
+   ],
    "metrics": "*",
    "direction": "any",
-   "rel_rise": [
+   "abs_k": [
     0,
-    0.001
+    3.9e-05
    ],
    "abs_w": [
     0,
-    0.01
+    1e-06
    ],
    "rel": [
     0,
     1
    ],
-   "status": "derived",
-   "note": "the drawn_* boards are in no frozen file: bound DERIVED from the evidence of the items (validation 51.3 and 53), replaced by the measured limit of the final run"
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S9",
+   "item": "M1",
+   "boards": [
+    "plate_uniform"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    4.2e-05
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S10",
+   "item": "M1",
+   "boards": [
+    "plate_vias"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    3.9e-05
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
+  },
+  {
+   "id": "S11",
+   "item": "M1+M2",
+   "boards": [
+    "two_layer_partial"
+   ],
+   "models": [
+    "fvm_sor"
+   ],
+   "cells": [
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.232693
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "the SOR run reaches the direct FVM solution: the same items as the FVM record"
   },
   {
    "id": "R0",
@@ -1830,7 +2103,7 @@
    {
     "id": "T1",
     "boards": [
-     "example_board"
+     "drawn_ell"
     ],
     "models": [
      "analytic"
@@ -1846,7 +2119,7 @@
    {
     "id": "T2",
     "boards": [
-     "example_board"
+     "drawn_ell"
     ],
     "models": [
      "fdm"
@@ -1854,7 +2127,7 @@
     "direction": "any",
     "rel_change": [
      0,
-     0.0139
+     0.0815
     ],
     "item": "M1+M2",
     "note": "time to 63 %"
@@ -1862,7 +2135,7 @@
    {
     "id": "T3",
     "boards": [
-     "example_board"
+     "drawn_ell"
     ],
     "models": [
      "fvm"
@@ -1878,6 +2151,198 @@
    {
     "id": "T4",
     "boards": [
+     "drawn_ell"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0296
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T5",
+    "boards": [
+     "drawn_inset_square"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T6",
+    "boards": [
+     "drawn_inset_square"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.3367
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T7",
+    "boards": [
+     "drawn_inset_square"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0772
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T8",
+    "boards": [
+     "drawn_inset_square"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0222
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T9",
+    "boards": [
+     "drawn_stripes_pad"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T10",
+    "boards": [
+     "drawn_stripes_pad"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1951
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T11",
+    "boards": [
+     "drawn_stripes_pad"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.1044
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T12",
+    "boards": [
+     "drawn_stripes_pad"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.021
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T13",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T14",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0139
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T15",
+    "boards": [
+     "example_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T16",
+    "boards": [
      "example_board"
     ],
     "models": [
@@ -1892,7 +2357,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T5",
+    "id": "T17",
     "boards": [
      "example_cut_to_T"
     ],
@@ -1908,7 +2373,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T6",
+    "id": "T18",
     "boards": [
      "example_cut_to_T"
     ],
@@ -1924,7 +2389,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T7",
+    "id": "T19",
     "boards": [
      "finned_block"
     ],
@@ -1940,7 +2405,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T8",
+    "id": "T20",
     "boards": [
      "finned_block"
     ],
@@ -1956,7 +2421,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T9",
+    "id": "T21",
     "boards": [
      "hatched_copper"
     ],
@@ -1972,7 +2437,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T10",
+    "id": "T22",
     "boards": [
      "one_layer_full"
     ],
@@ -1988,7 +2453,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T11",
+    "id": "T23",
     "boards": [
      "one_layer_pad"
     ],
@@ -2004,7 +2469,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T12",
+    "id": "T24",
     "boards": [
      "part_across_outline"
     ],
@@ -2020,7 +2485,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T13",
+    "id": "T25",
     "boards": [
      "part_across_outline"
     ],
@@ -2036,7 +2501,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T14",
+    "id": "T26",
     "boards": [
      "part_top_path"
     ],
@@ -2052,7 +2517,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T15",
+    "id": "T27",
     "boards": [
      "part_top_path"
     ],
@@ -2068,7 +2533,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T16",
+    "id": "T28",
     "boards": [
      "plate_lone_via"
     ],
@@ -2084,7 +2549,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T17",
+    "id": "T29",
     "boards": [
      "plate_lone_via"
     ],
@@ -2100,7 +2565,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T18",
+    "id": "T30",
     "boards": [
      "plate_lone_via"
     ],
@@ -2116,7 +2581,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T19",
+    "id": "T31",
     "boards": [
      "plate_lone_via"
     ],
@@ -2132,7 +2597,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T20",
+    "id": "T32",
     "boards": [
      "plate_pad"
     ],
@@ -2148,217 +2613,25 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T21",
-    "boards": [
-     "plate_uniform"
-    ],
-    "models": [
-     "analytic"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T22",
-    "boards": [
-     "plate_uniform"
-    ],
-    "models": [
-     "fdm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T23",
-    "boards": [
-     "plate_uniform"
-    ],
-    "models": [
-     "fvm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T24",
-    "boards": [
-     "plate_uniform"
-    ],
-    "models": [
-     "lumped"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.0413
-    ],
-    "item": "M1+M3",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T25",
-    "boards": [
-     "plate_vias"
-    ],
-    "models": [
-     "analytic"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T26",
-    "boards": [
-     "plate_vias"
-    ],
-    "models": [
-     "fdm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T27",
-    "boards": [
-     "plate_vias"
-    ],
-    "models": [
-     "fvm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T28",
-    "boards": [
-     "plate_vias"
-    ],
-    "models": [
-     "lumped"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.0136
-    ],
-    "item": "M1+M3",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T29",
-    "boards": [
-     "profile_board"
-    ],
-    "models": [
-     "analytic"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T30",
-    "boards": [
-     "profile_board"
-    ],
-    "models": [
-     "fdm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.0139
-    ],
-    "item": "M1+M2",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T31",
-    "boards": [
-     "profile_board"
-    ],
-    "models": [
-     "fvm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1+M2",
-    "note": "time to 63 %"
-   },
-   {
-    "id": "T32",
-    "boards": [
-     "profile_board"
-    ],
-    "models": [
-     "lumped"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.2491
-    ],
-    "item": "M1+M3",
-    "note": "time to 63 %"
-   },
-   {
     "id": "T33",
     "boards": [
-     "reference_board"
+     "plate_uniform"
     ],
     "models": [
-     "lumped"
+     "analytic"
     ],
     "direction": "any",
     "rel_change": [
      0,
-     0.0214
+     0.01
     ],
-    "item": "M3",
+    "item": "M1",
     "note": "time to 63 %"
    },
    {
     "id": "T34",
     "boards": [
-     "round_outline"
+     "plate_uniform"
     ],
     "models": [
      "fdm"
@@ -2374,7 +2647,7 @@
    {
     "id": "T35",
     "boards": [
-     "round_outline"
+     "plate_uniform"
     ],
     "models": [
      "fvm"
@@ -2390,6 +2663,198 @@
    {
     "id": "T36",
     "boards": [
+     "plate_uniform"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0413
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T37",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T38",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T39",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T40",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0136
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T41",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T42",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0139
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T43",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1+M2",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T44",
+    "boards": [
+     "profile_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.2491
+    ],
+    "item": "M1+M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T45",
+    "boards": [
+     "reference_board"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.0214
+    ],
+    "item": "M3",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T46",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T47",
+    "boards": [
+     "round_outline"
+    ],
+    "models": [
+     "fvm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     0.01
+    ],
+    "item": "M1",
+    "note": "time to 63 %"
+   },
+   {
+    "id": "T48",
+    "boards": [
      "two_layer_partial"
     ],
     "models": [
@@ -2404,7 +2869,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T37",
+    "id": "T49",
     "boards": [
      "two_layer_partial"
     ],
@@ -2420,7 +2885,7 @@
     "note": "time to 63 %"
    },
    {
-    "id": "T38",
+    "id": "T50",
     "boards": [
      "two_layer_partial"
     ],
@@ -2434,70 +2899,6 @@
     ],
     "item": "M3",
     "note": "time to 63 %"
-   },
-   {
-    "id": "T39",
-    "boards": [
-     "drawn_*"
-    ],
-    "models": [
-     "fvm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.3
-    ],
-    "item": "M1+M2",
-    "note": "time to 63 %: bound DERIVED for the drawn_* boards, replaced by the measured limit of the final run"
-   },
-   {
-    "id": "T40",
-    "boards": [
-     "drawn_*"
-    ],
-    "models": [
-     "fdm"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.4
-    ],
-    "item": "M1+M2",
-    "note": "time to 63 %: bound DERIVED for the drawn_* boards, replaced by the measured limit of the final run"
-   },
-   {
-    "id": "T41",
-    "boards": [
-     "drawn_*"
-    ],
-    "models": [
-     "lumped"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.2
-    ],
-    "item": "M1+M3",
-    "note": "time to 63 %: bound DERIVED for the drawn_* boards, replaced by the measured limit of the final run"
-   },
-   {
-    "id": "T42",
-    "boards": [
-     "drawn_*"
-    ],
-    "models": [
-     "analytic"
-    ],
-    "direction": "any",
-    "rel_change": [
-     0,
-     0.01
-    ],
-    "item": "M1",
-    "note": "time to 63 %: bound DERIVED for the drawn_* boards, replaced by the measured limit of the final run"
    },
    {
     "id": "T0",
