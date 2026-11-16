@@ -38,9 +38,9 @@ Do NOT make CI compare notes with the papers: `papers/` is absent in a clean clo
 
 ## 5. Who writes them
 
-1. The **researcher** (or executor) writes the note from the verified findings of the study and the page images, **not** from a "summarise this paper" request to a model, and not from the transcription alone.
+1. The **researcher** (or executor) reads the verified transcription to understand, makes a local fact sheet (equations, numbers, pages; no sentence of the source) and writes the note from it with the source closed, **never** from a "summarise this paper" request to a model (method B).
 2. The author runs the similarity tool locally.
-3. The **reviewer** reads each note against the template and the "own words" rule and signs it in `research/REVIEW.md`; a note without that is a draft and is not committed.
+3. The **reviewer** reads each note against the template and the "own words" rule and reads it against the text, re-checks the images by sample and signs it in `research/REVIEW.md`; a note without that is a draft and is not committed.
 4. The maintainer commits (stage by path; `git ls-files papers` must stay empty).
 
 ## 6. Plan per key
@@ -56,8 +56,8 @@ Decisions 1 to 5 and 7: **decided by the reviewer, adopted by the maintainer** (
 
 1. **Adopt the principle?** (own-words notes in git, all else local). **Decided: yes**, as a rule in CLAUDE.md "Licences" and "Papers library" on a `docs/` branch, because it is already the practice and makes the line explicit.
 2. **Per-key note files or keep the BIBLIOGRAPHY entries as they are?** **Decided: pilot 20 files** (section 6.2), then a review of the pilot decides; `BIBLIOGRAPHY.md` stays the index; no note is committed before the checker of section 4 covers it.
-3. **Who signs** "own words": **decided: the reviewer**, against the page images, recorded in `research/REVIEW.md`.
+3. **Who signs** "own words": **decided: the reviewer**, against the source text (the image-checked transcription; a page-image crop for `machine` pages), with an image re-check by sample (1 in 3, plus flagged notes), recorded in `research/REVIEW.md` (amended by the reviewer, method B, adopted by the maintainer).
 4. **Quotation limit:** **decided: 25 words and one per note** (house rule, not law), inline quotations tested too; none for standards and vendor documents.
 5. **Licence column:** **decided: read the landing page of each pilot key** before its note; until read, `not checked` counts as `all rights reserved`.
 6. **A lawyer** before a commercial version or a bundle that ships notes: **for the maintainer** (cost and a commercial choice). Reviewer's opinion: not needed for research-only notes under 1 to 5; needed before a commercial version, a bundle that ships notes, or a rightholder notice.
-7. **Machine drafts:** **decided: forbid** a model draft that was given the full paper text or its transcription; allow a model to help format a note written from our findings.
+7. **Machine drafts:** **decided: forbid** a note whose prose is drafted by a model asked to summarise or paraphrase the paper, its images or its transcription; allow reading the transcription to understand and a model writing or formatting the prose from a fact sheet (no sentence of the source) with the source closed (amended by the reviewer, method B, adopted by the maintainer).
