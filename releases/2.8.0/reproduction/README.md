@@ -101,6 +101,16 @@ Columns: scripts per class (u = unchanged, e = explained, nb = checked without a
 * `point-via-convergence/study_array_board` is refused by the memory guard at the cell 0.0625 mm only because of the process baseline of the study's own earlier 3D work (about 7.55 GB against 6.0 GB in the old run; 7.55 + 2.82 > 10.3 GB); the FVM/FDM law is identical in both trees (`MEMORY_GUARD_STUDY_ARRAY_BOARD.md`). Not a program change; the study needs about 7 GB.
 * `analytic-partial-copper/study_review` was killed at 3.4 GB; `study_baseline` timed out in both trees (its cache is needed by two more studies).
 * Stale studies and tests (documentation finding, not defects of the program): source copies of the Lumped network (`lumped-via-groups`, `lumped-analytic-vias`, `lumped-near-edge`, `lumped-ring-uniform-deficit`, `lumped-zones-adoption`, `young-omega-tiles` prototypes), `block-and-fins/study_finned_block_all_models` (a wrapper without the new `board_cover` argument), `block-and-fins/study_why_coefficients_fail` (sets the block k to 1e-6: the film now passes the half block, so the column that tests 'no lateral conduction' moved from +28.5 to +58.6 %), the pins of `point-via-convergence` and `lumped-analytic-vias` to commit f2d5c03 (already failing on v2.7.1).
+  **Status after the follow-ups on `release/2.8.0-lumped-shifts`** (decisions per test group in `STALE_TESTS_DECISIONS.md`; tests on `development` 232ba648, no skipped test left):
+  * `lumped-via-groups`: **fixed**: 5 copy tests deleted, 2 redone on the program; 11 passed.
+  * `lumped-analytic-vias`: **fixed**: 3 deleted (2 pinned to f2d5c03, 1 patch), 3 redone on the program; 10 passed.
+  * `lumped-near-edge`: **fixed**: 2 deleted (the variants became the 2.8.0 first link), 2 redone on the program (the corner now -2.13 %); 4 passed.
+  * `lumped-ring-uniform-deficit`: **fixed**: 1 copy test deleted; 5 passed.
+  * `lumped-zones-adoption`: **fixed**, kept version-aware (its studies need the switch, README 11); 20 passed.
+  * `young-omega-tiles`: **fixed**: 3 prototype-patch tests deleted; 23 passed.
+  * `point-via-convergence`: **fixed**: 2 pinned tests deleted, the gain convergence redone on the program (FVM and FDM); 17 passed.
+  * `block-and-fins`: **fixed**: `study_finned_block_all_models` runs again (its wrapper passes `board_cover` on); the premise of `study_why_coefficients_fail` (block k 1e-6) is stale since M1, written in its README.
+  * Rule for the future in `research/README.md`: a research test that mirrors program source is version-aware or removed when the program changes.
 * `gap-subdivision/study_real_boards` overwrites a tracked file (`research/gap-subdivision/baseline/real_boards.csv`); restored, nothing committed.
 
 ## 4. Heavy studies not run, by decision
@@ -110,7 +120,7 @@ About 205 scripts (listed by reason in the part files): timeouts at 300 s in bot
 ## 5. Documentation edits still to do (for the maintainer agent)
 
 1. `docs/theory.md`, memory guard limits: add the sentence 'in a script that does heavy work before the first estimate, that memory enters the base' (the guard reads the resident memory once, at the first estimate; the study of `MEMORY_GUARD_STUDY_ARRAY_BOARD.md`).
-2. Mark or fix the stale studies of section 3 (their READMEs are records of their run and stay; the source copies of the Lumped network need an update or an 'obsolete since M3' note, as done for `lumped-zones-adoption`).
+2. **Done** (`release/2.8.0-lumped-shifts`, section 3 status list). Mark or fix the stale studies of section 3 (their READMEs are records of their run and stay; the source copies of the Lumped network need an update or an 'obsolete since M3' note, as done for `lumped-zones-adoption`).
 3. `research/gap-subdivision/scripts/study_real_boards.py`: write its output to `out/`, not to the tracked `baseline/`.
 4. GUI (decision, no document): the Board dock accepts a copper thickness equal to the board thickness and the run then fails with a clear dialog; consider a limit that leaves room for the gaps.
 5. The research READMEs that quote the old report table (`lumped-zone-placement`, `fdm-inset-edge`) stay as records of their run (state it in the documentation review).

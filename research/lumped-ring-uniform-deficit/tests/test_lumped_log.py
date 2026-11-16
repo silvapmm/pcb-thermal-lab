@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_log.py
-@brief Tests of the patched Lumped copy: it is the program bit for bit at its defaults, the first ring of the proposal follows the cell and not the board, and the deficit it removes is real.
+@brief Tests of the patched Lumped copy: the first ring of the proposal follows the cell and not the board, and the deficit it removes is real. (The test that the copy is the program bit for bit at its defaults was removed in the 2.8.0 reproduction pass: it certified the copy of the 2.7.1 Lumped text; README.)
 @details Run from the repository root: QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/lumped-ring-uniform-deficit/tests
 """
 
@@ -29,23 +29,6 @@ def _restore():
     """
     yield
     LL.configure("strip", 0.04, 1.5, None)
-
-
-def test_defaults_are_the_program():
-    """!
-    @brief With the switches of the program the patched module gives the temperature field of the program to the last bit, on three boards.
-    @details The patched module is built on the text of v2.5.1 (no first-ring cap); 2.6.0 adopted the cap (fix/lumped-first-ring, one equivalent radius of the footprint,
-             `FIRST_A` = 1.0 here), so the program is reproduced with the cap on; the patched text also passes cut_cells=False as the program does (measured max |dT| = 0 on the three boards).
-    @return None.
-    """
-    LL.configure("strip", 0.04, 1.5, 1.0)
-    for kw in (dict(w_mm=60, h_mm=40, side_mm=3.0), dict(w_mm=100, h_mm=80, side_mm=1.0, layers=4, fill=0.6), dict(w_mm=30, h_mm=20, side_mm=6.0, layers=1)):
-        p = S.board(**kw)
-        LL.uninstall()
-        a = simulate(p, SolverOptions(models=("lumped",), cell_mm=0.5)).results["lumped"]
-        LL.install()
-        b = simulate(p, SolverOptions(models=("lumped",), cell_mm=0.5)).results["lumped"]
-        assert np.array_equal(a.T, b.T) and a.t_max == b.t_max
 
 
 def test_ring_edges_first_ring():

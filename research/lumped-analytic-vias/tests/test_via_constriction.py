@@ -3,10 +3,12 @@
 """!
 @file test_via_constriction.py
 @brief Tests of the constriction library and of the in-memory patches of the Lumped and Analytic models.
-@details Closed forms against numerical integration and limits; the Kron reduction against a series circuit; the patches with mode "off" against the program bit by bit; the
-         patched models restore the program on exit; the unit-cell error of the patched models is small. Run: .venv/bin/python -m pytest research/lumped-analytic-vias/tests
+@details Closed forms against numerical integration and limits; the Kron reduction against a series circuit; the adopted claims (unit cell, row, copper-fill gain of the
+         example board) on the program as it ships; the Analytic tile patch. The tests that certified the source-text patches and the values frozen from f2d5c03 were removed
+         in the 2.8.0 reproduction pass (README, section on 2.8.0). Run: .venv/bin/python -m pytest research/lumped-analytic-vias/tests
 """
 
+import contextlib
 import copy
 import math
 import os
@@ -23,7 +25,6 @@ import analytic_patch as ap                                                  # n
 import cases                                                                 # noqa: E402
 import constriction as cr                                                    # noqa: E402
 import harness as hz                                                         # noqa: E402
-import lumped_patch as lp                                                    # noqa: E402
 import program_cases as pc                                                   # noqa: E402
 
 
@@ -102,98 +103,63 @@ def libs():
     pc.load_libraries()
 
 
-# Values (K) of the program as it was at commit f2d5c03 (the last before `fix/point-via` and `fix/via-constriction`, which adopted these patches), 0.5 mm cells; the
-# "off" mode of the patches is that program, the current one has the constriction built in
-FROZEN = {"lumped_unit": 360.2915219685997, "lumped_array": 32.27347498914426, "analytic_array": 33.81517429819902}
-
-
-def test_lumped_off_is_the_program_of_f2d5c03(libs, monkeypatch):
-    """!
-    @brief The patched Lumped with mode "off" gives the program's result at `f2d5c03` to the last digit (values frozen from that commit), on a lattice cell and on the via array.
-    @param libs Fixture.
-    @param monkeypatch pytest fixture. 2.6.0 lengthens the via barrel by half the copper (fix/via-barrel-and-rim-uncoupling, +0.13 % on the unit cell: 360.2915 K to 360.7554 K);
-           with `BARREL_COPPER_FRACTION` set to zero the program gives the frozen number to the last digit, which is the check of this test.
-    @return None.
-    """
-    from pcbthermal import viawell
-    monkeypatch.setattr(viawell, "BARREL_COPPER_FRACTION", 0.0)
-    for key, prob in (("lumped_unit", cases.unit_cell(4, 0.3, 385.0)), ("lumped_array", cases.array(4, 3, 3.5, 0.3, 385.0))):
-        with lp.patched("off"):
-            b = pc.max_rise(prob, "lumped", 0.5)
-        assert b == pytest.approx(FROZEN[key], rel=1e-9)
-
-
-def test_analytic_off_is_the_program_of_f2d5c03(libs):
-    """!
-    @brief The patched Analytic with mode "off" gives the program's result at `f2d5c03` to the last digit (value frozen from that commit).
-    @param libs Fixture.
-    @return None.
-    """
-    prob = cases.array(4, 3, 3.5, 0.3, 385.0)
-    with ap.patched("off"):
-        b = pc.max_rise(prob, "analytic", 0.5)
-    assert b == pytest.approx(FROZEN["analytic_array"], rel=1e-9)
-
-
-def test_patches_restore_the_program(libs):
-    """!
-    @brief After the context ends the original functions are back.
-    @param libs Fixture.
-    @return None.
-    """
-    from pcbthermal import analytic, lumped
-    n1, s1 = lumped._heater_network, analytic.solve_steady
-    with lp.patched("krogh"), ap.patched("on"):
-        assert lumped._heater_network is not n1 and analytic.solve_steady is not s1
-    assert lumped._heater_network is n1 and analytic.solve_steady is s1
-    assert not hasattr(lumped, "_via_couplings") and not hasattr(analytic, "_self_terms")
-
 
 def test_unit_cell_error_is_small(libs):
     """!
-    @brief On the periodic unit cell (4 mm, 0.3 mm copper fill, 2 layers) the program overstates the via effect by 10 % or more and the patches by less than 6 %.
+    @brief The claim adopted by fix/via-constriction (2.4.5), on the program as it ships: on the periodic unit cell (4 mm, 0.3 mm copper fill, 2 layers) the Lumped and the
+           Analytic via effect within 2 % of the fine-grid reference (1/16 mm). Measured on development 232ba648: reference 235.670 K, Lumped +0.89 %, Analytic -0.64 %
+           (the program before the constriction overstated it by 10 % or more and the patches of this folder read within 6 %: README, the record).
     @param libs Fixture.
     @return None.
     """
     prob = cases.unit_cell(4, 0.3, 385.0)
     e_ref, _, _ = hz.reference_uniform(prob, 1.0 / 16)
-    err = hz.errors(prob, e_ref, 0.5, ["L_prog", "L_ring", "A_bil"])
-    assert err["L_prog"] > 10.0
-    assert abs(err["L_ring"]) < 6.0 and abs(err["A_bil"]) < 6.0
+    q0 = hz.no_vias(prob)
+    for model in ("lumped", "analytic"):
+        assert abs(hz.effect(prob, model, contextlib.nullcontext, 0.5, q0) / e_ref - 1.0) < 0.02
 
 
-def test_cluster_group_improves_the_row(libs):
+def test_row_beside_a_source(libs):
     """!
-    @brief A row of five vias beside a source: the cluster treatment is much closer to the reference than the cell of the ring alone.
+    @brief The row of five vias beside a source, on the program as it ships (the cluster treatment adopted): the Lumped via effect within 8 % and the Analytic within 2 % of
+           the fine-grid reference (1/8 mm). Measured on development 232ba648: reference 3.0091 K, Lumped +5.96 %, Analytic -0.81 % (the record of the patches: the cluster
+           treatment at less than half the error of the ring cell alone, README).
     @param libs Fixture.
     @return None.
     """
     prob = cases.row(5, 1.0, 0.3, 385.0, 16.0, 2, 3.0, 1.0)
     e_ref, _, _ = hz.reference_uniform(prob, 1.0 / 8)
-    err = hz.errors(prob, e_ref, 0.5, ["L_ring", "L_grp"])
-    assert abs(err["L_grp"]) < 0.5 * abs(err["L_ring"])
+    q0 = hz.no_vias(prob)
+    assert abs(hz.effect(prob, "lumped", contextlib.nullcontext, 0.5, q0) / e_ref - 1.0) < 0.08
+    assert abs(hz.effect(prob, "analytic", contextlib.nullcontext, 0.5, q0) / e_ref - 1.0) < 0.02
 
 
 def test_copper_fill_gain_of_the_example_board(libs):
     """!
-    @brief The roadmap symptom A6: the copper-fill gain of the example board is 6.3 to 6.8 K in the program (the corrected FVM puts it at 4.2 K); the patches bring both models within 0.5 K of 4.2 K.
+    @brief The roadmap symptom A6, on the program as it ships: the copper-fill gain of the example board (fill 0 against 385 W/mK in the nine vias, 0.5 mm) in the Lumped
+           and the Analytic within 0.5 K of the FVM's. Measured on development 232ba648: FVM 4.245 K, Lumped 4.666 K, Analytic 4.324 K (6.3 to 6.8 K before the constriction;
+           README, the record).
     @param libs Fixture.
     @return None.
     """
     from pcbthermal.examples import example_board
 
-    def gain(model, ctx):
+    def gain(model):
+        """!
+        @brief Copper-fill gain of the example board in one model.
+        @param model Model key.
+        @return float Gain in K (rise with empty vias minus rise with filled vias).
+        """
         out = []
         for fill in (0.0, 385.0):
             prob = example_board()
             for v in prob.vias:
                 v.fill_k = fill
-            with ctx():
-                out.append(pc.max_rise(prob, model, 0.5))
+            out.append(pc.max_rise(prob, model, 0.5))
         return out[0] - out[1]
-    assert gain("lumped", hz.VARIANTS["L_prog"][1]) > 6.0 and gain("analytic", hz.VARIANTS["A_prog"][1]) > 5.8
-    assert abs(gain("lumped", hz.VARIANTS["L_grp0"][1]) - 4.2) < 0.5
-    assert abs(gain("analytic", hz.VARIANTS["A_fin"][1]) - 4.2) < 0.5
+    g_fvm = gain("fvm")
+    assert g_fvm == pytest.approx(4.245, abs=0.01)
+    assert abs(gain("lumped") - g_fvm) < 0.5 and abs(gain("analytic") - g_fvm) < 0.5
 
 
 def test_analytic_fine_tiles_resolve_a_dense_array(libs):

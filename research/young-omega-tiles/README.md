@@ -348,6 +348,10 @@ are not cut by any cap: they stay a limit with a warning. **After the review (3.
 .venv/bin/python research/young-omega-tiles/scripts/make_figures.py
 ```
 
+## Status on 2.8.0 (reproduction pass)
+
+**Tests removed in 2.8.0**: three tests of the prototype patch of the Analytic (installed and removed, bit for bit when switched off, the modes hook) were skipped since `fix/via-constriction` (2.4.5) put the tile rule and the via self-term in the program; the patch has nothing to rewrite. The 23 other tests pass (`development` 232ba648). The studies `study_s4_arrays`, `study_s4_heldout`, `study_s4_rule`, `study_s4_tile`, `study_s4_example` and `study_s4_lumped` use that patch and stop on the current program; they are the record of their run. (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
+
 ## What was read and what was not verified
 
 * **Read (R)**: Saad, *Iterative Methods for Sparse Linear Systems* (2nd ed.), sections 4.1 and 4.2 including Theorems 4.10 and 4.16 and eq. 4.47 (read in the folder `sor-with-via-couplings` and relied on here); Saad, *Numerical Methods for Large Eigenvalue Problems* (revised ed.), section 4.1.1 (power method, Algorithm 4.1, Theorem 4.1, printed pp. 86-87) and section 6.6 (Lanczos convergence, Theorems 6.3 and 6.4, printed pp. 147-150): open copies of the author, extracted to text in the scratch area, nothing stored in the repository (`research/theory/BIBLIOGRAPHY.md` section 21). The README, INTEGRATION and review chapters of `sor-with-via-couplings` and `lumped-analytic-vias`, `pcbthermal/fvm.py` (`solve_sor`) and `pcbthermal/analytic.py` (the tile and the correction).
