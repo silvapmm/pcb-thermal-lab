@@ -1321,7 +1321,8 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
         model.add_faces(nid[outer][plan.quads[ids]], h=h_exp, label="block_top" if face == 0 else "block_bottom")
         h_wall = float(blocks.wall_h(hs, float(np.mean(h_face))))
         edges = _boundary_edges(plan.quads, ids)
-        slab_ids = [s for s, sl in enumerate(zs) if sl["region"] == "blk" and sl["face"] == face]
+        # Only the real metal slabs have a wall in the air: the interface pad is a fictitious layer (its height is the contact resistance times K_PAD), so it carries no film
+        slab_ids = [s for s, sl in enumerate(zs) if sl["region"] == "blk" and sl["face"] == face and sl["kind"] == "blk"]
         for s in slab_ids:
             f = np.column_stack([nid[s][edges[:, 0]], nid[s][edges[:, 1]], nid[s + 1][edges[:, 1]], nid[s + 1][edges[:, 0]]])
             model.add_faces(f, h=h_wall, label="block_top" if face == 0 else "block_bottom")

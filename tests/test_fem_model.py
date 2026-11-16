@@ -333,3 +333,40 @@ def test_case_2_the_converged_node_at_the_centroid_meets_the_paper_with_a_conduc
         assert d.min() < 1e-9                                                       # the centroid is a node of the mesh
         got = 25.0 + th[nodes[int(np.argmin(d))]]
         assert -0.07 < got - want < 0.0, (cx, cy, got)
+
+
+def test_the_interface_pad_of_a_block_has_no_wall_film_one_dimensional_column():
+    # The pad under a block is a fictitious layer (its height is the contact resistance times K_PAD): the film belongs on the walls of the metal only. A block over the whole
+    # board with insulated board edges is a one-dimensional column; the only lateral loss is the film on the block walls (plain h of the face on the area perimeter x thickness),
+    # which adds to the exposed film as h_eff = hb (1 + perimeter t / A). Measured: the FEM meets the closed form within 0.003 K; with the film on the pad walls it read 3.5 to 41 K low
+    for rc, tb in ((5.0e-4, 1.0e-3), (5.0e-3, 1.0e-3), (5.0e-3, 3.0e-3)):
+        p = Problem.new(width_mm=20, height_mm=20, layers=2, h_top=30.0, h_bottom=12.0, h_side=None)
+        p.add_full_copper([1, 2])
+        power = 4.0
+        p.add_heater(1, power, rect=(0, 0, 20, 20), name="all")
+        p.add_heatsink(2, 0.0, rect=(0, 0, 20, 20), name="b", thickness_mm=tb * 1e3, contact_r=rc)
+        b = p.board
+        area, t, d, k = 4.0e-4, b.copper_thickness[0], b.gap_thicknesses()[0], b.materials.k_copper
+        kz = b.gap_properties()[0][0]
+        h_eff = b.h_bottom * (1.0 + 0.08 * tb / area)
+        big_b = 1.0 / h_eff + tb / p.heatsinks[0].k + rc + d / kz + t / k
+        big_c = 1.0 / b.h_top + t / k
+        q = power / area
+        th_top = q * (big_b + t / (2 * k)) / (big_b + big_c) / b.h_top
+        r = fem.solve_steady(p, cell_mm=5.0)
+        assert r.arrays["T_surface"][0].max() - r.ambient == pytest.approx(th_top, abs=0.02), (rc, tb)
+
+
+def test_the_interface_pad_of_a_block_has_no_wall_film_against_the_3d_solid():
+    # The same boards with a small part: measured at the 2 mm cell, rise of the hottest cell: FEM 202.81 and 214.40 K for contact 5e-4 and 5e-3 m2K/W, 3D solid 205.77 and
+    # 217.40 K (the plain-board column read-out of the FEM is 1.5 % below, see the plain-board test), the FVM 204.79 and 216.51 K. With the film on the pad walls the FEM read 199.29
+    # and 186.56 K. The change of the rise with the contact resistance is the clean figure: 11.58 K (FEM), 11.63 K (3D), 11.72 K (FVM); it was -12.7 K
+    rise = {}
+    for rc in (5.0e-4, 5.0e-3):
+        p = small(layers=2, power=5.0)
+        p.add_heatsink(2, 20.0, rect=(8, 6, 32, 24), name="b", thickness_mm=3.0, contact_r=rc)
+        rise[rc] = (fem.solve_steady(p, cell_mm=2.0).delta_t, simulate(p, SolverOptions(models=("solid3d",), cell_mm=2.0)).results["solid3d"].delta_t)
+        assert rise[rc][0] == pytest.approx(rise[rc][1], rel=0.02), rc
+    d_fem = rise[5.0e-3][0] - rise[5.0e-4][0]
+    d_3d = rise[5.0e-3][1] - rise[5.0e-4][1]
+    assert d_fem == pytest.approx(d_3d, abs=0.15)
