@@ -24,17 +24,22 @@ from pcbthermal.gui.results_view import PlotTab, ResultsView
 # sha256 of the RGBA buffer of the maps that the program draws for the example board at a 2 mm cell; they hold the Current view to the pictures of the
 # release, byte for byte. Pixel output depends on the Matplotlib version, so the check runs only on the one that made them.
 # Regenerated for 2.6.0 (branch feature/refreeze-260, from the integration tree feature/integration-260): the 2.6.0 items that move the example board's field
-# move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 degC at 2 mm): the via barrel length and rim uncoupling, the laminate edge
+# move the Current-view bytes (FVM field up to 0.157 K, hottest point 85.075 -> 85.203 °C at 2 mm): the via barrel length and rim uncoupling, the laminate edge
 # band (plus the cut-cell links, which do not reach this board); the drawing code is unchanged. The three hashes before: f8df8cc4, beeecfc3, b6a9fa15.
 # 2.7.0 (fix/results-map-markers-and-cut-locator): only the 'fields' hash (All layers) moved, a6553d95 -> 324047ee, because every panel now marks its hottest (red) and
 # coolest (blue) sample instead of one cyan plus; the single-layer Current picture is drawn without markers by default (`extremes=False`) and the gradient map is unchanged.
 # 2.7.0 (fix/simple-stackup-physical-layers, merge 35f242aa): the 'field' hash (489e1bd3 -> a32414ed) and the 'fields' hash (324047ee -> 07e40550, All layers draws the same field) moved, because the 4-layer example board's FVM field moved exactly
 # there (hottest 85.203 -> 85.294 K at 2 mm); not the markers, the hot mark or the display code and the 'gradient' hash (f1046ff0 -> f3c6d4e3) is the gradient of that same field; the drawing code is unchanged.
+# fix/drawn-copper-faces: the partial copper of the example board is read as an import (exact fill, flow-based faces), so the FVM field moved (hottest 85.29380 -> 85.29256 K at 2 mm);
+# the 'field' hash (a32414ed -> 3cea24b0), the 'fields' hash (07e40550 -> 5be14198) and the 'gradient' hash (f3c6d4e3 -> b8cdc541) follow the field, the drawing code is unchanged.
+# fix/face-film-half-slab: the film passes the half copper layer, the example board's field moves by about 2e-5 K (hottest +1e-5 K); only the 'fields' hash (5be14198 -> c86e8a40) changes, the drawing code is unchanged.
+# feature/surface-always-both: the all-layers picture names its read-out (suptitle 'column mean, all layers', colour bar 'Temperature, column mean (°C)'); only the 'fields' hash (c86e8a40 -> c29d267c) changes, the field is untouched.
+# fix/gui-review-rest: the suptitle gives the power balance as a percentage with a floor ('0.00 %', it printed the round-off); only the 'fields' hash (c29d267c -> bc473725) changes, the field is untouched.
 BASELINE_MPL = "3.11.2"
 BASELINE = {
-    "field": "a32414ed17a349d01fa6453f2f972c4aef94036b0a670ca270eefdbc1e3cadf4",
-    "fields": "07e405503f2f7d094e122246b6e4a18c5c9d6d308badf72700926bc8152b201e",
-    "gradient": "f3c6d4e35e58d695307747a726722348e4bfec6c31bbdb84816d5e55a38a55ec",
+    "field": "3cea24b0d404096e174db97d0ceb290266fcbb94c0a9a57d2ec12602d1532a91",
+    "fields": "bc47372561800303aa7d97f568163b324b371ce3a62c603f0d006a1814f01567",
+    "gradient": "b8cdc5413c1f54a0cfb4055c716bb3ab2bfbbfb928487dfa972ea1e35387dfe6",
 }
 
 
@@ -214,7 +219,7 @@ def test_copper_image_from_zones_and_from_an_imported_mask(sim):
 
 def test_solved_rectangle_has_no_copper_and_says_so():
     """!
-    @brief A Lumped result on an outline board drawn as solved shows a note instead of the copper.
+    @brief A LPTN result on an outline board drawn as solved shows a note instead of the copper.
     """
     p = example_board()
     W, H = p.board.width, p.board.height

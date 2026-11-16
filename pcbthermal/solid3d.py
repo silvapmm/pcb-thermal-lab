@@ -32,7 +32,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import copper, laminate, memory, viawell
+from . import blocks, copper, laminate, memory, viawell
 from .fvm import ORDERING
 from .geometry import (part_weights, coverage_fraction, edge_length_on_board, face_apertures, nearest_active_cell, polygon_centroid,
                        signed_distance_to_outline)
@@ -228,7 +228,7 @@ class Solid:
             if not s.is_block():
                 continue
             face = 0 if (s.layer == 0 or L == 1) else 1
-            c = cover(s.polygon, 4) * bcov                     # The block is cut at the board outline (cells off the board are pinned to the ambient)
+            c = blocks.block_cover(s.polygon, b.outline if b.has_outline() else None, nx, ny, dx, dy, bcov)   # Exact area of the block on the board (cut at the outline: cells off the board are pinned to the ambient)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
                                         "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0
@@ -241,15 +241,20 @@ class Solid:
                          (("h", s.fin_height if s.has_fins() else 0.0), ("t", s.fin_thickness if s.has_fins() else 0.0),
                           ("p", s.fin_pitch if s.has_fins() else 0.0), ("k", s.k))}
             f["names"].append(s.name or "block")
+        for f in faces.values():
+            # Share of the board part of every cell under the block: the z links and the films of a cell act on the board part `Ab` = A bcov, while the
+            # cover is a share of the whole cell (times Ab it counted the board share twice in a cell cut by the outline)
+            f["share"] = np.where(bcov > 0, np.minimum(f["cov"] / np.where(bcov > 0, bcov, 1.0), 1.0), 0.0)
         self.faces = faces
         n_blk = {face: int(np.clip(round(float(f["t"].max()) * 1000.0), 1, 6)) for face, f in faces.items()}
         self.n_blk = n_blk
 
         def block_slabs(face):
             f = faces[face]
-            cov = f["cov"]
-            out = [("pad", f["r"] * K_PAD, np.maximum(cov, 0.0) * K_PAD, np.maximum(cov, 0.0) * K_PAD)]
-            out += [("blk", f["t"] / n_blk[face], cov * f["k"], cov * f["k"])] * n_blk[face]
+            cov, share = f["cov"], f["share"]
+            # Lateral: a share of the whole cell, as the board slabs (k times bcov); through the thickness: a share of the board part (the z links use Ab)
+            out = [("pad", f["r"] * K_PAD, np.maximum(cov, 0.0) * K_PAD, np.maximum(share, 0.0) * K_PAD)]
+            out += [("blk", f["t"] / n_blk[face], cov * f["k"], share * f["k"])] * n_blk[face]
             return out                                          # Ordered from the board outwards
 
         if 0 in faces:
@@ -341,8 +346,8 @@ class Solid:
             if not s.is_block():
                 (he_top if (s.layer == 0 or L == 1) else he_bot)[:] += s.h_extra * cover(s.polygon, 4)
         top_s, bot_s = self.board_slab[0], last_board
-        cov_t = faces[0]["cov"] if 0 in faces else np.zeros((ny, nx))
-        cov_b = faces[1]["cov"] if 1 in faces else np.zeros((ny, nx))
+        cov_t = faces[0]["share"] if 0 in faces else np.zeros((ny, nx))
+        cov_b = faces[1]["share"] if 1 in faces else np.zeros((ny, nx))
         free_t, free_b = 1.0 - cov_t, 1.0 - cov_b                # The board face is covered where a block sits
         h_t, h_b = b.h_top * ones, b.h_bottom * ones
         tot = face_g(h_t + he_top, top_s) * free_t
@@ -387,7 +392,7 @@ class Solid:
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]
-            vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
+            vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["share"]
             for s in blk_ids:
                 vk[s] += h_sd * slabs[s]["dz"] * edge
             for s in range(ns):

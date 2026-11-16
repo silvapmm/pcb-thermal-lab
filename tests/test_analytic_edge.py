@@ -311,8 +311,9 @@ def test_insulated_numbers_are_those_of_the_cosine_code():
     r = analytic.solve_steady(p, cell_mm=1.0)
     # 71.11675482396726 before fix/simple-stackup-physical-layers: the four-layer simple board now has the physical slabs (0.278 / 0.522 mm, not 0.4 mm), so the outer copper
     # nodes hold less laminate (+0.035 K, 0.06 % of the rise)
-    assert r.t_max == pytest.approx(71.15189346002255, abs=1e-9)
-    assert r.power_out["heatsinks"] == pytest.approx(0.5134831826200915, abs=1e-12)     # 0.5136421134196508 before the physical slabs of the simple stack-up
+    # 71.15189346002255 before fix/face-film-half-slab: the face films pass the half copper layer of the outer nodes (+1.06e-5 K, 2e-7 of the rise)
+    assert r.t_max == pytest.approx(71.15190404175038, abs=1e-9)
+    assert r.power_out["heatsinks"] == pytest.approx(0.5134833567753585, abs=1e-12)     # 0.5136421134196508 before the physical slabs of the simple stack-up
     assert sum(r.power_out.values()) == pytest.approx(r.power_in, rel=1e-6)
 
 
@@ -325,13 +326,15 @@ def test_transient_modal_matrix_has_the_basis_wavenumbers():
     sh = analytic._effective_sheet(p, 1.0)
     A = analytic._modal_matrix(p, sh, 4, 1.0)
     bx, by = analytic._bases(sh, 4)
-    expected = 20.0 + sh["S"].sum() * (bx.eig2[0] + by.eig2[0])
+    # The two faces are the films through the half copper layer of the outer nodes (fix/face-film-half-slab); h_tot, the length of the fin, keeps the plain 20
+    expected = sh["h_top_eff"] + sh["h_bottom_eff"] + sh["S"].sum() * (bx.eig2[0] + by.eig2[0])
     assert A[0, 0].sum() == pytest.approx(expected, rel=1e-9)
     assert bx.eig2[0] > 0.0 and sh["beta"] > 0.0
     assert sh["h_tot"] == pytest.approx(20.0 + 10.0 * 2 * (0.040 + 0.030) * 1.6e-3 / (0.040 * 0.030), rel=1e-12)
     p0 = _plate(40, 30, 10, None, layers=2)
     A0 = analytic._modal_matrix(p0, analytic._effective_sheet(p0, 1.0), 4, 1.0)
-    assert A0[0, 0].sum() == pytest.approx(20.0, rel=1e-12)
+    sh0 = analytic._effective_sheet(p0, 1.0)
+    assert A0[0, 0].sum() == pytest.approx(sh0["h_top_eff"] + sh0["h_bottom_eff"], rel=1e-12)      # the two film coefficients through the half copper (not 20 any more)
 
 
 def _t63(sr):
@@ -443,7 +446,7 @@ def test_not_a_number_edge_coefficient_is_refused():
 @pytest.mark.parametrize("model", ["fvm", "analytic"])
 def test_bad_edge_coefficient_is_refused_by_the_board(h_side, model):
     """Board.validate refuses a NaN, infinite or negative edge coefficient for every model (the review found that the FVM ran a negative one, the edge acting as
-    a heat source, 170.33 degC against 169.41 for the insulated board at 1 mm, and that only the Analytic refused it, from inside its basis)."""
+    a heat source, 170.33 °C against 169.41 for the insulated board at 1 mm, and that only the Analytic refused it, from inside its basis)."""
     p = _plate(40, 30, 10, h_side, pos="corner")
     with pytest.raises(ValueError, match="edge heat transfer coefficient"):
         p.validate()
@@ -494,3 +497,24 @@ def test_thin_sheet_series_against_equation_21(k, t, he):
     amp = np.outer(px / bx.norm, py / by.norm) / (4 * a * b) / (k * t * (bx.eig2[:, None] + by.eig2[None, :]) + h)
     sheet = float((amp * np.outer(px, py)).sum() / (4 * a * b))
     assert sheet == pytest.approx(r21, rel=0.015)
+
+
+@pytest.mark.parametrize("he", [50.0, 200.0, 1000.0])
+def test_thin_sheet_series_against_equation_21_low_conductivity(he):
+    """!
+    @brief The same thin-sheet check as test_thin_sheet_series_against_equation_21 at k 20 W/mK and t 1 mm (tau = t / source side 10 mm = 0.1), the row that holds the stated range (audit of 2.8.0, REVIEW_L4L9 T3).
+    @details Source: Muzychka, Culham and Yovanovich (2003, Part II), equation 21 (printed). The sheet of the program's basis reads -1.6 % of it (measured -1.60 to -1.66 % at edge
+             coefficients 50 to 1000 W/m2K): the channel keeps the through-thickness variation that no layered model has, and the gap grows as k falls. Bound: -1.85 to -1.40 %, so a
+             change in either direction is seen (the first bound, -2.0 to -1.0 %, let an insulated basis through at 50 W/m2K, -1.07 %; with this band the insulated basis
+             fails at every coefficient and a 10 % error of the edge parameter fails at 1000 W/m2K). A failure means the thin-sheet limit of the edge basis moved.
+    @param he Edge coefficient in W/m2K.
+    @return None.
+    """
+    k, t, a, c, h = 20.0, 1e-3, 5e-3, 25e-3, 100.0
+    r21 = _eq21(a, a, c, c, t, k, h, he)
+    n = 400
+    bx = analytic._EdgeBasis(2 * c, he / k, n)
+    px = bx.project(c - a, c + a)
+    amp = np.outer(px / bx.norm, px / bx.norm) / (4 * a * a) / (k * t * (bx.eig2[:, None] + bx.eig2[None, :]) + h)
+    sheet = float((amp * np.outer(px, px)).sum() / (4 * a * a))
+    assert -0.0185 <= sheet / r21 - 1.0 <= -0.0140

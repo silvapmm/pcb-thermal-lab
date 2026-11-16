@@ -267,6 +267,9 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
     verified = parse_verified(rd(notes / "OCR_TO_VERIFY.md"))
     offsets = parse_offsets(rd(notes / "SUSPECT_PAGES.md"))
     flags = parse_flags(rd(notes / "FINAL_TRIAGE.md"))
+    # the sidecar written by `status set`: a verified or corrected page counts as verified (E2) whatever the notes say
+    from . import status as status_mod
+    status_data = status_mod.load(papers)
     arxiv_pdfs = set(re.findall(r"\|\s*([\w.-]+)\.pdf\s*\|", rd(papers / "arxiv" / "INDEX.md")))
     docs = {f: rd(root / f) for f in DOC_FILES}
     program = "\n".join(p.read_text(encoding="utf-8", errors="replace")
@@ -343,12 +346,21 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         v = verified.get(stem, {"verified": set(), "error": set()})
         page_rows = []
         for pg in sorted(ess):
-            ok_verified = pg in v["verified"] and pg not in v["error"]
+            from_notes = pg in v["verified"] and pg not in v["error"]
+            state_now = status_mod.effective(papers, stem, pg, status_data)["state"]
+            from_status = state_now in ("verified", "corrected")
+            if from_status and state_now == "verified" and pg in v["error"]:
+                # OCR_TO_VERIFY.md judged the Gemini page: its ERROR is stale only when another page is in use now
+                # (Claude, OpenRouter) or the text was corrected; a `verified` mark on the same Gemini page cannot be
+                # ordered against the note, so the page stays to verify (the safe side)
+                src = status_mod._src(papers, stem, pg)
+                from_status = src is not None and src[0] != "gemini"
+            ok_verified = from_notes or from_status
             needs_model = (not born) or cls.get(pg) != "clean" or any(
                 r.startswith(("Table", "eq.", "listed")) for r in ess[pg])
             has_claude = pg in claude
             tier = "E2" if ok_verified else "E1"
-            page_rows.append({"page": pg, "tier": tier, "why": sorted(set(ess[pg]))[:4], "claude": has_claude,
+            page_rows.append({"page": pg, "tier": tier, "from_status": bool(from_status and not from_notes), "why": sorted(set(ess[pg]))[:4], "claude": has_claude,
                               "gemini": pg in gemini, "needs_model": needs_model, "error": pg in v["error"],
                               "flag": flags.get(stem, {}).get(pg, "")})
         e1 = [r for r in page_rows if r["tier"] == "E1"]
@@ -368,7 +380,8 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
             "essential_pages": [r["page"] for r in page_rows],
             "e1_run": [r["page"] for r in run], "e1_verify_only": [r["page"] for r in verify_only],
             "e1_text_only": [r["page"] for r in e1 if not r["needs_model"]],
-            "e2_pages": [r["page"] for r in e2], "flagged": sorted(flags.get(stem, {})),
+            "e2_pages": [r["page"] for r in e2],
+            "e2_from_status": [r["page"] for r in e2 if r["from_status"]], "flagged": sorted(flags.get(stem, {})),
             "detail": page_rows,
             "tokens_e1": len(run) * RATE_TOKENS_PER_PAGE,
         }
@@ -388,7 +401,9 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         "essential_pages": sum(len(r["essential_pages"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
         "e1_run_pages": run_pages, "e1_verify_only_pages": sum(len(r["e1_verify_only"]) for r in rows),
         "e1_text_only_pages": sum(len(r["e1_text_only"]) for r in rows),
-        "e2_pages": sum(len(r["e2_pages"]) for r in rows),
+        # E2 counted over the same files as `essential_pages` (arXiv and confidential files left out), so E1 + E2 = essential
+        "e2_pages": sum(len(r["e2_pages"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
+        "e2_from_status_pages": sum(len(r["e2_from_status"]) for r in rows if not (r["arxiv_text"] or r["confidential"])),
         "tokens_e1": run_pages * RATE_TOKENS_PER_PAGE,
         "optional_pages": total_pages - sum(len(r["essential_pages"]) for r in rows),
         "free_text_pdfs": [r["stem"] for r in rows if r["free_text_ok"]],
@@ -441,6 +456,8 @@ def render_markdown(m: dict) -> str:
          f"output: {s['gemini_pages']}.",
          f"* Essential pages (outside arXiv and confidential files): {s['essential_pages']}; E2 (verified): {s['e2_pages']}; "
          f"optional pages (not essential): {s['optional_pages']}.",
+         f"* Verified from the status file (`reading_status.json`, states verified or corrected; counted in E2): "
+         f"{s['e2_from_status_pages']} pages.",
          f"* E1 still to run with Claude (needs the model, no Claude output or a transcription found wrong): "
          f"**{s['e1_run_pages']} pages, about {s['tokens_e1']:,} tokens** at {s['rate_tokens_per_page']} per page.",
          f"* E1 with a Claude page but not verified (costs a reviewer's reading, no tokens): {s['e1_verify_only_pages']}; "

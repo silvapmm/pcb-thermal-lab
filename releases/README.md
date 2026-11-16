@@ -17,6 +17,17 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.7.0/rename/`](2.7.0/rename/README.md) | The text rename of the integration branch `develop` to `development`. |
 | [`2.7.1/final-opinion/`](2.7.1/final-opinion/README.md) | The reviewer's final opinion on 2.7.1, the patch release of the first wave of the 2.8.0 plan: go, with the list of the release commit and the proposed CHANGELOG text. |
 | [`2.8.0/wave-1/`](2.8.0/wave-1/enter-focus-and-calculator.md) | Reviews of the 2.8.0 wave-1 branches: `enter-focus-and-calculator.md` (the Enter-focus fix, the Duplicate selection, the JEDEC numbers of the calculator). |
+| [`2.8.0/audit/`](2.8.0/audit/FINAL.md) | The fine-comb re-review of 2.8.0: the claims register (`CLAIMS_REGISTER.md`, `claims.csv`), the formula inventory (`formulas.csv`), the assignments, the reviews by topic (`REVIEW_*.md`), the decisions (`DECISIONS.md`, `DECISIONS_2.md`, `DECISIONS_3.md`), the scripts of the reviews (`scripts/`) and the closing document `FINAL.md` (what was wrong, what was corrected, what remains, trust per area). |
+| [`2.8.0/final-review/`](2.8.0/final-review/PART_1A.md) | The final code-against-theory review of 2.8.0: `docs/theory.md`, `docs/models.md`, `docs/validation.md` and every user-facing text against the code (`PART_1A.md` to `PART_2C.md`, `scripts/`). |
+| [`2.8.0/reviews/`](2.8.0/reviews/board-dock-write-back.md) | The reviews of the 2.8.0 fix and feature branches (one file per branch). |
+| [`2.8.0/RELEASE_GATE.md`](2.8.0/RELEASE_GATE.md) | The release gate of 2.8.0, step by step, with `DOC_REVIEW_CHECKLIST.md` (step 6b) and `REFREEZE_PLAN.md` (the refreeze, with its scripts and tests in `refreeze/`). |
+| [`2.8.0/WHAT_MOVED.md`](2.8.0/WHAT_MOVED.md) | What moved between 2.7.x and 2.8.0, board by board and model by model, with the item of each shift (`reproduction/scripts/what_moved.py`, JSON only). |
+| [`2.8.0/reproduction/`](2.8.0/reproduction/LUMPED_SHIFTS_REVIEW.md) | The reproduction pass of 2.8.0 (parts and totals on `release/2.8.0-reproduction`) and the review of the LPTN and calculator shifts it left to confirm. |
+| [`2.8.0/fem-model/`](2.8.0/fem-model/DESIGN.md) | The design, plans, decisions and reviews of the finite-element model, the surface read-out and the GUI review of 2.8.0. |
+| [`2.8.0/theory-review/`](2.8.0/theory-review/README.md) | The review of `docs/theory.md` against the code before the release (step 2). |
+| [`2.8.0/doc-review/`](2.8.0/doc-review/README.md) | The documentation review of 2.8.0 (step 6b): checked, changed, stale on purpose, not verified, per document. |
+| [`2.8.0/plan-resume/`](2.8.0/plan-resume/PLAN.md), [`2.8.0/opinions/`](2.8.0/opinions/2026-11-15-open-questions.md), [`2.8.0/simplify/`](2.8.0/simplify/DOCS_PLAN.md) | The plan of the version with every open item, the reviewer's opinions on open questions, and the plan to simplify the documents (part done: the moves out of `CLAUDE.md`). |
+| [`2.9.0/PLAN.md`](2.9.0/PLAN.md) | The plan of 2.9.0 (FEM transient, comparison campaign, surface in every model). |
 
 ## Layout rule
 

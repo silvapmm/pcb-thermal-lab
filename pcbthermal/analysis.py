@@ -51,7 +51,7 @@ def hotspots(result, threshold):
 def gradient_magnitude(result):
     """!
     @brief Magnitude of the in-plane temperature gradient of every layer.
-    @details A Lumped or Analytic result of a board with an outline is the field of the rectangle of the same area stretched by 1/s onto
+    @details A LPTN or Analytic result of a board with an outline is the field of the rectangle of the same area stretched by 1/s onto
              the box (`SteadyResult.equivalent_scale`); its gradient is taken on the spacing that was solved (dx s, dy s), since the stretched
              spacing would make it s times too small.
     @param result A SteadyResult with a field.
@@ -69,7 +69,7 @@ def gradient_magnitude(result):
 def _board_mask(result, outline):
     """!
     @brief Which samples of a result field lie on the board (cells or nodes the models take as on the board).
-    @details Off the board the FVM, FDM and 3D solid pin the field to the ambient (and the Lumped and Analytic fields, stretched back from
+    @details Off the board the FVM, FDM and 3D solid pin the field to the ambient (and the LPTN and Analytic fields, stretched back from
              the rectangle of the same area, hold values that belong to no board), so a statistic over a polygon that crosses the outline
              must leave those samples out. The test is the one of the models: exact board cover of at least 0.01 on the cells
              (FVM, 3D solid) and the same cover averaged on the nodes (FDM).
@@ -141,6 +141,66 @@ def _footprint_stats(result, polygon, layer, outline=None, face=False):
     if face and "face_peak" in result.arrays:
         T_peak, T_mean = T + result.arrays["face_peak"][li], T + result.arrays["face_mean"][li]
     return float((T_mean * cov).sum() / cov.sum()), float(T_peak[inside].max()), float(T[inside].min())
+
+
+def surface_stats(result, polygon, layer, outline=None):
+    """!
+    @brief Surface read-out under a part: the hottest and the mean temperature of the outer face of its layer, and whether the estimate is an upper one.
+    @details Beside the column read-out of _footprint_stats, never instead of it: nothing that decides a number (Tj, margin, power limit, top path, power coefficient, Power
+             Calculator, calibration) reads these. Only a part on the first layer (top face) or the last (bottom face) has one, and only when the result holds arrays["T_surface"]
+             (thickness.attach: every steady FVM and FDM result, no threshold).
+    @param result A SteadyResult with a field.
+    @param polygon Footprint vertices (n, 2) in metres.
+    @param layer 0-based layer of the part.
+    @param outline Board outline vertices in metres or None.
+    @return Tuple (t_max_surface, t_mean_surface, estimate_is_upper) or None when the result has no surface for that part.
+    """
+    arr = result.arrays
+    n = result.T.shape[0]
+    if "T_surface" not in arr or result.T is None or layer not in (0, n - 1):
+        return None
+    face = 0 if layer == 0 else 1
+    surf, mean = arr["T_surface"][face], arr["T_surface_mean"][face]
+    if not np.isfinite(surf).any():
+        return None
+    ny, nx = result.T.shape[1:]
+    on_board = _board_mask(result, outline)
+    if result.grid == "nodes":
+        xs, ys = result.coords()
+        X, Y = np.meshgrid(xs, ys)
+        cov = points_in_polygon(X.ravel(), Y.ravel(), polygon).reshape(X.shape).astype(float)
+    else:
+        cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
+    if on_board is not None:
+        cov = cov * on_board
+    cov = cov * np.isfinite(surf)
+    if cov.sum() <= 0:
+        return None
+    inside = cov > 0
+    flag = bool(arr["T_surface_flag"][face][inside].any()) if "T_surface_flag" in arr else False
+    return float(surf[inside].max()), float((np.nan_to_num(mean) * cov).sum() / cov.sum()), flag
+
+
+def point_max(result, polygon, layer, outline=None):
+    """!
+    @brief The hottest mesh node of the finite-element model under a part, on the outer face of its layer.
+    @details A read-out of its own beside the column and the surface (the FEM only: arrays["T_point"], the hottest node of each face in each cell). It is a node value, not a cell
+             mean, so it is never compared with the cell values of the other models; the window shows it in a tooltip and the report in a line.
+    @param result A SteadyResult with a field.
+    @param polygon Footprint vertices (n, 2) in metres.
+    @param layer 0-based layer of the part.
+    @param outline Board outline vertices in metres or None.
+    @return Hottest node temperature in degrees Celsius, or None when the result has no point read-out for that part (not the FEM, or a part on an inner layer).
+    """
+    arr = result.arrays
+    n = result.T.shape[0]
+    if "T_point" not in arr or layer not in (0, n - 1):
+        return None
+    pts = arr["T_point"][0 if layer == 0 else 1]
+    ny, nx = result.T.shape[1:]
+    cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
+    inside = (cov > 0) & np.isfinite(pts)
+    return float(pts[inside].max()) if inside.any() else None
 
 
 def zone_stats(result, problem):
@@ -218,7 +278,7 @@ def heater_stats(result, problem, powers=None):
              with psi_jb the second estimate is Tj = mean board temperature in the 0.5 to 1.5 mm ring around the outline + psi_jb P. The device temperature
              used for the limit is Tj (or the hottest point under a part without theta). The power limit is the dissipation that brings the device to tj_max
              with the board's response of this run (linear in the power for constant coefficients).
-    @param result A SteadyResult with a field.
+    @param result A SteadyResult with a field (a LPTN result also carries arrays["heater_peak"], the own peak of each powered part, which t_max then reads).
     @param problem The Problem that owns the heaters.
     @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
     @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
@@ -230,6 +290,11 @@ def heater_stats(result, problem, powers=None):
     for k, h in enumerate(problem.heaters):
         power = h.power if powers is None else float(powers[k])
         mean, mx, _ = _footprint_stats(result, h.polygon, h.layer, problem.board.outline, face=True)
+        peak = result.arrays.get("heater_peak")
+        if peak is not None and k < len(peak) and np.isfinite(peak[k]):
+            # The LPTN paints the footprint with its node; the part's own peak (node + peak term + the other parts at its centre) is what its board maximum uses,
+            # so the part rows read it too (never below the drawn field)
+            mx = max(mx, float(peak[k]))
         tj, p_top = part_split(h, mx, power, amb)
         device = tj if tj is not None else mx
         ring = _ring_mean(result, h.polygon, h.layer, problem.board.outline)
@@ -241,6 +306,10 @@ def heater_stats(result, problem, powers=None):
                "power_top_w": p_top, "power_board_w": power - p_top, "r_top": h.top_resistance()}
         if h.tj_max > 0 and power > 0 and device > amb:
             row["p_limit_w"] = power * (h.tj_max - amb) / (device - amb)
+        # The surface read-out BESIDE the column one, only when the result has it (thick outer copper, FVM and FDM); no other key of the row reads it
+        surf = surface_stats(result, h.polygon, h.layer, problem.board.outline)
+        if surf is not None:
+            row["t_max_surface"], row["t_mean_surface"], row["surface_upper"] = surf
         rows.append(row)
     return rows
 
@@ -248,7 +317,7 @@ def heater_stats(result, problem, powers=None):
 def block_stats(result, problem):
     """!
     @brief Temperature of the metal blocks and the heat they take, one row per face that carries blocks.
-    @param result A SteadyResult from the FVM or the FDM (other models have no blocks).
+    @param result A SteadyResult from the FVM, the FDM or the FEM (the block mean through its thickness; other models have no blocks).
     @param problem The Problem that owns the heatsinks.
     @return List of dicts: name, face ("top" or "bottom"), t_mean, t_max, w_to_block (heat entering the block through the interface,
             W) and w_to_air (heat leaving through its exposed surface, W); empty without blocks.
@@ -276,7 +345,7 @@ def extreme_points(field, mask, dx, dy, nodes=False, hot=None):
     @param dx Spacing along x in metres.
     @param dy Spacing along y in metres.
     @param nodes True when the field holds values at grid points (the first sample sits at 0), False for cell values (the first centre sits at half a cell).
-    @param hot Optional (tmax_degC, (x_mm, y_mm)): the hottest point as the MODEL reports it (`SteadyResult.t_max` and `t_max_location`, for the Lumped the peak of
+    @param hot Optional (tmax_degC, (x_mm, y_mm)): the hottest point as the MODEL reports it (`SteadyResult.t_max` and `t_max_location`, for the LPTN the peak of
            a part); it replaces the computed hottest sample, so only the coolest point is taken from the drawn field. None computes both ends.
     @return dict with `tmax`, `tmin` (degC) and `pmax`, `pmin` ((x, y) in millimetres), or None when no sample is finite.
     """

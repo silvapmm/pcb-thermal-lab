@@ -67,7 +67,8 @@ def _cases():
     """
     if MISSING:
         return []
-    data = F.load(FROZEN_FILE)
+    frozen = F.load(FROZEN_FILE)
+    data = {"records": {**frozen["records"], **with_pending(frozen)["records"]}}   # the records that a pending file ADDS (a new model) are run too; a skipped one still runs
     cells, boards, models = [float(x) for x in _csv("PCBT_FROZEN_CELLS", "2")], _csv("PCBT_FROZEN_BOARDS", ""), _csv("PCBT_FROZEN_MODELS", "")
     out = []
     for k in data["records"]:
@@ -85,7 +86,7 @@ def _transient_keys():
     if MISSING or os.environ.get("PCBT_FROZEN_TRANSIENTS", "1") != "1":
         return []
     boards, models = _csv("PCBT_FROZEN_BOARDS", ""), _csv("PCBT_FROZEN_MODELS", "")
-    return sorted(k for k in F.load(FROZEN_FILE)["transients"]
+    return sorted(k for k in with_pending(F.load(FROZEN_FILE))["transients"]
                   if (not boards or k.split("|")[0] in boards) and (not models or k.split("|")[1] in models))
 
 
@@ -112,9 +113,18 @@ def with_pending(data):
     """
     out = copy.deepcopy(data)
     out["pending"] = []
-    for path in _pending_files():
-        pend = json.loads(path.read_text(encoding="utf-8"))
+    loaded = [(path, json.loads(path.read_text(encoding="utf-8"))) for path in _pending_files()]
+    # A file with "new_readouts" ADDS metrics (a read-out that no frozen record has, such as the surface) to records that exist: it is merged after the shifts, into the
+    # record as the shifts left it, and changes no number that the frozen file or a shift holds: a metric the record already has keeps its value (a shift file made
+    # with the newer harness may hold the same read-out, measured on the tree of its own change, and that number must win over the older addition)
+    for path, pend in sorted(loaded, key=lambda x: bool(x[1].get("new_readouts"))):
         if pend.get("base_version") != data["version"]:
+            continue
+        if pend.get("new_readouts"):
+            for k, rec in pend.get("records", {}).items():
+                if k in out["records"]:
+                    out["records"][k]["metrics"] = {**rec["metrics"], **out["records"][k]["metrics"]}
+            out["pending"].append(path.name)
             continue
         out["records"].update(pend.get("records", {}))
         for k, reason in pend.get("skipped", {}).items():       # A record the change pushed over the size cap of the harness: now skipped, no longer run
@@ -168,6 +178,8 @@ def test_no_record_or_time_is_in_two_pending_files():
     seen = {}
     for path in _pending_files():
         pend = json.loads(path.read_text(encoding="utf-8"))
+        if pend.get("new_readouts"):                                  # it adds metrics to a record, it does not replace it
+            continue
         for kind in ("records", "transients"):
             for key in pend.get(kind, {}):
                 assert (kind, key) not in seen, f"{kind[:-1]} {key} is in both {seen[(kind, key)]} and {path.name}"
@@ -189,7 +201,20 @@ def test_pending_shifts_belong_to_the_frozen_release():
         assert pend.get("base_version") == data["version"], (f"{path.name} shifts the numbers of {pend.get('base_version')}, the newest frozen file is "
                                                              f"{data['version']}: fold it into the refreeze of the release and delete it")
         assert pend.get("item") and pend.get("branch") and pend.get("why"), f"{path.name}: the item, the branch and the reason are required"
-        assert set(pend.get("records", {})) <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
+        # A pending file may ADD the records of a model that the frozen file does not hold ("new_models": a comparison model added by a feature): they are new keys of
+        # that model only; every other record must be one the frozen file holds
+        if pend.get("new_readouts"):
+            # Only additions: every record exists (frozen, or added by a new model), and no metric of it is a number the frozen file already holds
+            assert not pend.get("transients") and not pend.get("skipped"), f"{path.name}: a new read-out file holds records only"
+            for k, rec in pend.get("records", {}).items():
+                assert k in data["records"], f"{path.name}: {k} is not in {FROZEN_FILE.name}"
+                clash = set(rec["metrics"]) & set(data["records"][k]["metrics"])
+                assert not clash, f"{path.name}: {k} already holds {sorted(clash)[:3]}: a read-out file only adds"
+            continue
+        new = set(pend.get("new_models", []))
+        added = {k for k in pend.get("records", {}) if k.split("|")[1] in new}
+        assert not added & set(data["records"]), f"{path.name}: added records that {FROZEN_FILE.name} already holds"
+        assert set(pend.get("records", {})) - added <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
         assert set(pend.get("skipped", {})) <= set(data["records"]), f"{path.name}: skipped records that are not in {FROZEN_FILE.name}"
         assert not set(pend.get("skipped", {})) & set(pend.get("records", {})), f"{path.name}: a record cannot be both moved and skipped"
         assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
@@ -218,6 +243,31 @@ def test_a_pending_skip_moves_the_record_out_of_the_checked_set(tmp_path, monkey
     assert F.compare(out, now_skipped) == [] and F.compare(out, still_runs)
 
 
+def test_a_new_readouts_file_only_adds_metrics_and_cannot_hide_a_shift(tmp_path, monkeypatch):
+    """!
+    @brief A pending file with "new_readouts" adds metrics to the record as the shifts left it, whatever the order of the file names; a metric the record already holds
+           (frozen or shifted) keeps its value, and a run that moves an old metric is still reported.
+    @param tmp_path Folder of the synthetic pending files (pytest fixture).
+    @param monkeypatch Pytest fixture that points the module at that folder.
+    @return None.
+    """
+    data = {"version": "9.9.9", "records": {"b|fvm|1": {"class": "bit", "metrics": {"t_max": 2.0, "t_mean": 1.5}}}, "transients": {}, "skipped": {}}
+    # "a.json" sorts before the shift "x.json": the addition must still be merged after it; its stale "t_max" must not replace the shifted value
+    (tmp_path / "a.json").write_text(json.dumps({"base_version": "9.9.9", "new_readouts": True,
+                                                 "records": {"b|fvm|1": {"class": "added", "metrics": {"surface:top:t_max": 2.5, "t_max": 99.0}}}}), encoding="utf-8")
+    (tmp_path / "x.json").write_text(json.dumps({"base_version": "9.9.9", "records": {"b|fvm|1": {"class": "moved", "metrics": {"t_max": 3.0, "t_mean": 1.5}}}}),
+                                     encoding="utf-8")
+    monkeypatch.setitem(globals(), "PENDING_DIR", tmp_path)
+    out = with_pending(data)
+    assert out["records"]["b|fvm|1"]["metrics"] == {"t_max": 3.0, "t_mean": 1.5, "surface:top:t_max": 2.5}
+    assert out["pending"] == ["x.json", "a.json"]
+    base = {"board": "b", "model": "fvm", "cell_mm": 1.0, "status": "ok", "t_mean": 1.5, "surface": {"top": {"t_max": 2.5}}}
+    assert F.compare(out, [dict(base, t_max=3.0)]) == []
+    assert F.compare(out, [dict(base, t_max=3.1)]), "a shift of an old metric must be reported with a read-out file present"
+    assert F.compare(out, [dict(base, t_max=3.0, surface={"top": {"t_max": 2.6}})]), "a shift of the added read-out must be reported"
+    assert F.compare(out, [dict(base, t_max=3.0, surface=None)]), "a read-out that disappears must be reported"
+
+
 def test_the_frozen_file_is_present_and_complete():
     """!
     @brief The file exists (skipped with a message otherwise), names its version and holds the records of the default set.
@@ -243,6 +293,12 @@ def test_run_agrees_with_the_frozen_numbers(board, model, cell, frozen_data, boa
     @return None.
     """
     import regress_harness as H
+    if model == "fem":
+        # The finite-element model solves a mesh of more than femcore.FEM_DIRECT_MAX unknowns by conjugate gradients with the optional package pyamg
+        from pcbthermal import femcore
+        n = frozen_data["records"].get(F.key(board, model, cell), {}).get("metrics", {}).get("unknowns", 0)
+        if n > femcore.FEM_DIRECT_MAX and not femcore.available():
+            pytest.skip(f"{board} at {cell} mm: the finite-element mesh has {n} unknowns and needs the package pyamg (pip install pyamg)")
     s = frozen_data["settings"]
     rec = H.run_one(_board(boards_cache, board), board, model, cell, s["max_unknowns"], s["solid_cap"])
     diffs = F.compare(frozen_data, [rec], exact=EXACT)

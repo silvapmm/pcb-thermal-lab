@@ -39,7 +39,7 @@ def patched(a):
         """
         return _ORIG_KRON(np.asarray(g_gap) * state["scale"], g_well)
 
-    def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
+    def build(problem, d, S, cover, dx, dy, nx, ny, origin, active=None):
         """!
         @brief viawell.build with the scale set from the problem.
         @param problem The Problem.

@@ -1,0 +1,158 @@
+# Claims register of the theory, the validation and the investigations (2.8.0 audit, step 1)
+
+**What this is.** Every quantitative claim, and every claim of the kind 'agrees with', 'validated against', 'confirms', 'reproduces', found in the documents that describe what the program computes and how well, with what it rests on and a risk score. It is the input of the fine-comb re-review (`ASSIGNMENTS.md`). **Nothing was fixed in this step**: the rows say what to look at, not what is wrong. A risk 3 row is a claim to re-check first, not a proven error.
+
+**Why.** The re-review was asked after a run of findings of the same family: a validation text that said a published case 'confirms the effect' while part of the gap came from a term the model does not have (the film acting on the node of a thick plate, case 2 of Muzychka, Culham and Yovanovich 2003); a thick-plate warning that did not fire on a case where the program reads low; earlier mix-ups of the compared quantity (peak, mean, node, face, layer mean); a 3D reference taken as converged when it was not; and a test floor that asserted an old defect.
+
+**Companion inventory**: [`formulas.csv`](formulas.csv), the 100 formulas, constants and correlations of the program with their sources and page status (the literature-to-code track of `ASSIGNMENTS.md`).
+
+**Machine-readable file**: [`claims.csv`](claims.csv), one row per claim, 15 columns:
+
+| Column | Meaning |
+| :-- | :-- |
+| `id` | prefix by source (below) and a number |
+| `file`, `section` | where the claim is written |
+| `claim` | the claim in one line, with its numbers |
+| `basis` | what it rests on: `PUBLISHED` (a paper or textbook case), `INDEPENDENT` (an independent solver: `layered3d.py`, the finite-element tool of `research/independent-fem-edge`, a radial, finite-difference or series solver in a `lib/`), `SOLID3D` (the program's own 3D solid used as the reference), `SELF` (one model of the program against another, or against itself at a finer cell), `CLOSED-FORM` (an exact closed form, an energy balance, a limit), `DATASHEET`, `MEASUREMENT-NONE` (a claim about real behaviour with no measurement behind it: no claim of the project rests on a measurement), `MEMORY-UNREAD` (a source with status M, S or N, or not opened) |
+| `reference` | which paper (table, equation) or which solver at which cell |
+| `reproduced` | for a published case: was the published number reproduced by an independent solver (Y/N) |
+| `program_on_case` | was the program itself run on that case (Y/N/NA) |
+| `quantity` | the compared quantity as the text states it, or `NOT STATED` |
+| `ref_converged` | whether the convergence of the reference is stated, and how |
+| `limits` | the limits the text states |
+| `risk` | 0 to 3 (below) |
+| `risk_reason`, `action` | why, and the proposed re-review action |
+| `assignment` | the reviewer assignment of `ASSIGNMENTS.md` (A1 to A6) that re-checks the row |
+
+**Risk scale.** 3: a claim of agreement whose basis is a self-comparison, an unconverged or unreproduced reference, an undefined quantity, a source marked M/N/S treated as read, a tolerance or floor that asserts an old defect, or a number that a later review corrected and that is still quoted. 2: plausible, but a definition, the convergence or a limit is missing, or the agreement may be a cancellation. 1: well founded, not re-checked since the code changed. 0: a closed form, an exact property, or re-checked recently against a converged independent reference.
+
+**How it was built.** The documents were read in full and split by source among extraction passes (one per group below), each writing rows by the same rules; the rows were merged without editing (`claims.csv`). The extraction passes read and searched; they ran no study. The scores are those of the reading: a reviewer of each assignment confirms or lowers them. Where the long Gerber folders (`gerber-models`, `gerber-real-boards`) are concerned, the findings, the review chapters and the numeric sections were read, not every paragraph of the descriptive text.
+
+## 1. Coverage and counts
+
+| Prefix | Source | Rows | risk 0 | risk 1 | risk 2 | risk 3 |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| `T` | `docs/theory.md`, chapters 1 to 11 and the sources table | 174 | 26 | 78 | 52 | 18 |
+| `VA` | `docs/validation.md` sections 1 to 22 | 160 | 13 | 45 | 78 | 24 |
+| `VB` | `docs/validation.md` sections 23 to 50 | 188 | 12 | 75 | 79 | 22 |
+| `M` | `docs/models.md` | 78 | 2 | 23 | 38 | 15 |
+| `C` | `docs/calculators.md` | 21 | 1 | 6 | 9 | 5 |
+| `W` | warning texts of `pcbthermal/checks.py` and the other numeric warnings (`api.py`, `copper.py`, `analytic.py`, `lumped.py`, `profiles.py`) | 36 | 0 | 9 | 17 | 10 |
+| `H` | the user guide `pcbthermal/help/index.html` (limits tables) and `help/calculator.html` | 46 | 0 | 13 | 18 | 15 |
+| `RA` | research: literature, convection, blocks, calculator (18 folders) | 249 | 35 | 97 | 97 | 20 |
+| `RB` | research: edge, laminate, outline, finite elements (15 folders) | 161 | 12 | 63 | 71 | 15 |
+| `RCA`..`RCD` | research: Lumped, Analytic, vias (21 folders) | 259 | 22 | 90 | 97 | 50 |
+| `RD` | research: Gerber, model comparison, memory, fast waves (12 folders) and the registers `research/README.md`, `REVIEW.md`, `ROADMAP.md` | 110 | 13 | 34 | 45 | 18 |
+| **Total** | 66 research folders, 3 registers, 4 documents, the warnings, the user guide | **1482** | **136** | **533** | **601** | **212** |
+
+**By basis and risk** (rows):
+
+| Basis | Rows | risk 0 | risk 1 | risk 2 | risk 3 |
+| :-- | --: | --: | --: | --: | --: |
+| `SELF` | 511 | 14 | 163 | 235 | 99 |
+| `INDEPENDENT` | 449 | 12 | 193 | 188 | 56 |
+| `CLOSED-FORM` | 173 | 95 | 64 | 10 | 4 |
+| `PUBLISHED` | 147 | 13 | 66 | 51 | 17 |
+| `MEMORY-UNREAD` | 83 | 2 | 25 | 50 | 6 |
+| `SOLID3D` | 65 | 0 | 7 | 39 | 19 |
+| `DATASHEET` | 37 | 0 | 9 | 20 | 8 |
+| `MEASUREMENT-NONE` | 17 | 0 | 6 | 8 | 3 |
+
+**Read of the counts.** A third of the claims (511) rest on the program against itself, and they hold almost half of the risk 3 rows (99 of 212): the Lumped and Analytic accuracy figures are measured against the FVM they were fitted to, and several 'converged' references are the FVM or the 3D solid at a finer cell. The program's own 3D solid used as the truth has the worst ratio (19 of 65 at risk 3), because it changed several times (slabs by thickness, the face term, the sliver fix) after the tables that use it were written. Only 147 rows rest on a published case, and of those a few are run by the test battery (section 3). No claim rests on a measurement.
+
+## 2. The 40 claims to re-check first
+
+Grouped where the same number or the same defect appears in several places (all the ids of a group are listed; the first is the main one). 'Corrected later' means that a later section, a review chapter or `docs/versions.md` gives another number for the same quantity.
+
+| # | Ids | Claim (where) | Why it is a risk | Re-review action |
+| --: | :-- | :-- | :-- | :-- |
+| 1 | RA-108, VA-156, RA-021, T-128 | Muzychka 2003: the cross of five sources and cases 1 (b) and 2 are 'reproduced' (validation 22.1, `theory-sources` 3.7, `effective-conductivity` 4.6); on case 2 the program's one-layer models read 2.9 to 5.6 K low (4 to 7 % of the rise), '67 to 89 % of the bound `q'' t/(2k)`' | validation 22.1 says the published cases are reproduced and leaves out that the program reads 2.1 % (cross), 9 to 10 % (case 1 (a)) and 4 to 7 % (case 2) low; the case 2 gap compares the program's node (thickness mean) with the reference surface and mixes in the film acting on the node (about `h t/(2k)`, the term the review of `effective-conductivity` 8 measured: with the film in series with half the plate the FVM meets the 3D thickness mean to 0.01 to 0.1 K); no test runs any of these cases | separate the two terms on case 2 (program node against the 3D thickness mean, then against the surface, with and without the film in series); rewrite 22.1 to say what the program reads; add the cases as regression tests |
+| 2 | W-022, M-041, H-020, RA-018, VA-149 | Thick-plate warning: warn when `q'' t/(2k)` exceeds 5 % of the heater rise; 'the bound is above the real effect in every case (2 to 10 times)'; 'never fires on the cases the program is built for' | the 5 % has no stated basis; the 74 block cases never reach it (largest 0.34 to 0.42 %), so its firing was never tested; the 'real effect' is a difference of two program models; **measured by the audit**: on case 2 of Muzychka 2003 the warning fires for three of the four sources (11, 9, 7 % of the rise) and is silent for the 10 W source, whose bound is 3.33 K, about 4.8 % of the program's rise of about 69 K (under the 5 % threshold), while the FVM reads that source 2.95 K (about 4 % of the reference rise) low at its centroid (`theory-sources` 3.7 output) | decide the threshold on the published cases and on a sweep against an independent 3D solver (warn on the measured shortfall, not on the bound alone); add case 2 as a test of the warning |
+| 3 | T-128, T-165, VA-124, VB-038, RA-140, RA-114, RA-347 | Seri Lee plate +0.6 / -0.8 / -4.6 % (centre, edge, corner) listed as the check of the plate (block) model (theory 11 table, validation 20 and 25, `theory-sources` 3.11 and 3.12, `component-heatsink` NOTES) | `blocks.py` was never run on the case: the numbers come from a re-implementation inside a study and the independent solver; the -4.6 % corner is the article's corner rule against two independent solvers (both about 4.4 % below the printed 2.38 K/W), not an error of the program | run the program's block on Lee's plate; reword every place that lists it as a check of the program |
+| 4 | T-014, T-015, RB-012, M-028 | Edge laminate against the finite elements: -0.4 / -1.4 / -3.2 / -6.0 % (theory 1.4, validation 44), -3.4 / -6.2 % (`versions.md` 21, `checks.py:1155`), and two more sets in validation 46; eight sub-gaps +2.2 / +2.6 % against +2.3 / +2.8 % | four sets for one quantity; the compared quantity (point maximum or cell mean of the heater) is not fixed in every place | fix the quantity, take the numbers from the closing review of `independent-fem-edge`, make every place quote one set |
+| 5 | T-054, VB-073, RCD-003, RCD-008 | Via on partial copper: the FVM reads the via effect 31 to 47 % low (copper edge through the via), 45 to 68 % low (track ending on it), 3 to 4 times high just outside a copper edge (theory 2.2, validation 30.1) | numbers from before the rim rule and the barrel length (2.6.0), against the program's 3D solid with a smeared barrel; with the rim rule validation 34.2 says 22 to 85 % low and the 'outside the edge' case reads 0 | re-measure against the resolved reference of `via-contact-geometry`; replace or date the old numbers |
+| 6 | VA-048, W-029, RB-081, RCC-025, RCC-026 | 'The FVM laminate at the edge reads 13 to 17 % low at 200 W/m2K' (validation 4.1, line 300), 'up to about 15 % low' (`analytic.py` warning), user guide | fixed by the laminate edge band (validation 36, -2.3 %); against the finite elements -0.4 to -6.2 % (44, 46) | update the three texts |
+| 7 | RCB-057, VA-148, RA-014 | `tests/test_layered_vs_3d.py` holds the one-layer pad errors (Analytic -30.2 %, Lumped -17.0 %, FDM -5.2 %) within 1 to 3 points and the order fvm > fdm > lumped > analytic | a test that asserts a documented defect: a fix of either model fails it; validation 22 prints older numbers (FVM -3.0 %, FDM -12.6 %) than the test (-1.66, -5.20 %) | turn the windows into one-sided bounds (never worse than), refresh validation 22 |
+| 8 | RCC-019, VA-035, RCC-002 | Analytic per-layer edge: worst 8.64 to 4.07 %, mean 1.51 to 0.90 % (validation 4.1, `CLAUDE.md`, two research folders); `tests/test_analytic_perlayer.py` floor widened to -5.5 % while its docstring says -4.07 % | against the FVM, which moved since (the 2.7.0 audit gives 4.91 % worst, 1.19 % mean); the floor follows the FVM drift | re-run the 48 boards on the tree; one number everywhere; tie the floor to an independent reference |
+| 9 | RD-019 | `tests/test_rect_board.py` bands: Lumped and Analytic 10 to 32 % below the FVM, 3D solid 2 to 12 % above | bands that assert a known deficit, widened twice to follow code changes | rewrite as one-sided bounds with the reason, or against an independent reference |
+| 10 | RCA-001, T-097, T-100 | Zoned Lumped via effect: error 3.9 / 9.1 %, quoted in the `checks.py` warning ('4.0 to 4.6 %') and validation 18.2 | partly two errors cancelling (review 8.2 of `lumped-zones-adoption`); against the FVM that the zones were fitted to | re-measure against the independent solver with the barrels resolved; reword the warning |
+| 11 | W-034, W-001, RD-063, RD-064, VB-053, M-072, H-019 | Imported copper: the Lumped and Analytic read 25 to 82 % and 17 to 77 % too cool on 42 parts; the 0402 example 84.6 / 201 K | the reference is the program's FVM at 0.5 mm, which moves 3 to 30 % (copper.py says 15 to 30 %) to 0.25 mm on small parts; measured before the capped first ring and the part-peak read-out | re-measure against a converged reference (FVM at 0.25 and 0.125 mm or the independent solver on windows); one number for the reference uncertainty |
+| 12 | RB-099, RB-100, RB-101, VB-116 | `strong-edge-laminate` 8.2 to 8.4: physical slabs -5.1 %, eight sub-gaps +0.4 %, via -7.3 %; 'the reference is sound' | the cell-centred reference is +1.65 % hot on the plate and +8.5 % hot on the via effect against the finite elements; corrected values about -3.5 %, +2.0 % (hot), +0.5 % | carry the finite-element corrections into the folder and validation 36.3 |
+| 13 | VB-058, VB-160, VB-055, VB-057 | Validation 28 and 44 tables against the cell-centred 3D reference, kept 'as first measured'; the h_side 1000 row; the '-17 / -23 / -26 %, does not converge' paragraph | first-order hot reference; a paragraph that the next one says is wrong is still printed | replace by the finite-element numbers or mark the tables as superseded |
+| 14 | RB-152 | The Analytic transient with vias reads the hot point of the board WITHOUT vias: -21.7 % at 0.3 s, wave swing -11.2 % (`transient-reference-boards` 4.3) | an open program defect (A48 in `versions.md` 'Planned'); the heatsink transient warning's '5 to 7 % low' may be the same defect | check whether the warning numbers include the defect; keep it in the fix list |
+| 15 | VA-043 | Local Analytic transient: time to 63 % -8.1 to +0.5 % on 12 boards against the FVM at 0.5 mm 'converged' | the worst board moved 15 % between 1 and 0.5 mm; the -8.1 % worst row is that board | re-run against the finite-element transient of `transient-reference-boards` |
+| 16 | T-090, T-164, VA-006, VA-020 | 3D solid against a finite-element solid: within 0.2 % on three boards, +1.6 % on a 20 mm pad, +8 % on the heater pad (validation 3, 3.1) | measured with 4 slabs per gap before the 2.6.0 slab rule; the finite-element reference at 1 mm elements does not converge on the heater pad | refresh validation 3 and 3.1 (already a 'Planned' item) |
+| 17 | VA-128, VB-022, VB-026, RB-056, RB-142, VB-003 | Tables that take the program's 3D solid at 1 mm as the truth (validation 21, 25, `laminate-nodes` 3.14, `bare-spot-under-source` 7.2) | the solid is up to 1.4 % off the independent solver, about the size of the accuracy claimed; it reads the slab centre, not the face; it changed since | re-run those rows against `layered3d` or the finite elements |
+| 18 | RB-115 | The 3D solid had the sliver defect (+15.9 K at 200 W/m2K) while it was the reference of validation 13 and 23 on outline boards | rows taken against a defective reference | re-run validation 13 and 23 on the fixed solid |
+| 19 | VA-113 | Shen 2020 via array: the independent unit-cell solver 1.461 K/W, the program's FVM +0.7 % of it, 21 % below the paper's CFD 1.86 K/W | the published number is not reproduced and the gap is not explained | find the cause (boundary conditions, the CFD domain) or say that the case is not reproduced |
+| 20 | VA-111 | Three 16 mm via boards against the independent solver at 0.125 mm 'with barrels drawn': zones within 7.8 % in the effect | the reference does not resolve the barrel whose constriction is the physics under test | re-run with the barrel resolved (the reference of `via-contact-geometry`) |
+| 21 | T-120, VA-105, M-015, RCA-038, RCA-039 | Via constriction: Analytic mean error 1.8 % (study boards), 2.9 % (held out); Lumped 8 % / 20 %; lone via -22 to +65 % (`checks.py:896`) | against the FVM the reduced models were fitted to; measured at 2.4.5, before the barrel length, the zones and the first-ring cap; the lone-via range differs from `lumped-via-groups` (-31 to +14 %) | re-run the 29 + 17 boards on the tree against a resolved reference |
+| 22 | T-113 | The Analytic edge warning 'fires on every one of the 5 boards with an error above 3 %' | the error is against the FVM; against the 3D solid the small boards are -5 to -10 % | re-define the trigger on the independent reference |
+| 23 | RCB-018 | Lumped first ring: -13.7 to +0.3 % and -25.3 to +2.5 % | against the FVM at mixed cells; at the same cell -13.1 %; the near zero is partly a cancellation | one reference cell; say the cancellation |
+| 24 | RCA-019, RCA-026, W-005, M-020, H-025 | Lumped near a side: -6.6 % mean [-22, +1.4] (validation 35.1), 'up to 22 % at a corner' (warning, guide), docstring -7.4 % | after the laminate band the table is -7.4 % [-22.2, -0.8]; validation 35.2 shows `t_outline` at -32 % and 48.3 at -27.5 %, beyond 'up to 22 %'; `lumped-edge-link` re-measured -11.0 % | one table, re-derive the warning rates (57 of 58, 35 of 37) |
+| 25 | VB-134, VB-138 | 'What is left is the idealisation of four sub-gaps (about -2 %)' (39.1, 39.4, 40.4); the copper-to-wall square gain -3.65 to -0.93 % (40.2) | 40.5 measured about -0.8 % and showed the gain is a cancellation | correct 39 and 40 to the 40.5 numbers |
+| 26 | VB-143 | Strips 2 mm / gap 2 mm row of validation 41 | the board is in no script and 47.2 could not reproduce it | remove the row or write the script |
+| 27 | VA-132 | Two-layer boards against the independent solver: -2.3 / -3.8 % (validation 21.1) | the script is not in the repository; stale since the laminate nodes | write the script or withdraw |
+| 28 | VA-134 | 2-layer 3.2 mm window -34.19 to -9.13 % (validation 21.2) | the -9.13 % is against an unconverged reference; the corrected -7.7 % was worked out by hand | re-run against the converged reference |
+| 29 | VA-143, T-021, T-084, T-020 | Small parts over a thick laminate: errors against references extrapolated with an assumed order 2 (observed 1.55; order near 1 for the pad case); a closed form of Muzychka, Yovanovich and Culham with no key in the sources table; the compared quantity (centroid, mean) not defined | undefined quantity, assumed order, unkeyed source; these numbers set the 0.10 and 0.15 thresholds of the laminate warning | define the quantity on both sides, extrapolate with the observed order, key the source |
+| 30 | T-131, T-144 | Face up `0.54 Ra^(1/4)` (Lloyd-Moran type, status M), used outside its range and 4 to 24 % above the published upper bound on boards of 60 mm and more; the mixed-convection blend (paper N, rule S) | laws in use rest on sources not opened | open the sources or restate them as assumptions |
+| 31 | VB-039, RA-596 | 'The fin-channel warning misses 1 of 667 cases' | graded against the same correlation it uses (threshold 90 is phi = 0.9 by construction); the originals of the correlation were not obtained | say that it is a self-consistency count, or grade on an independent channel solution |
+| 32 | W-003, W-036, H-033, C-012, M-044, M-068, H-042 | Numbers that no document holds: '6.3 K, 17.5 %' (Lumped off-centre via warning), '2 to 5 % at 4 pixels per cell' (`copper.py`), 'within 0.3 to 3 %' (guide validity table), the -4 % of the calculator with the 3D solid, '20 to 30 %' uncertainty of the convection laws | a number no script reproduces is a finding | find the study or remove the number |
+| 33 | W-007, M-034, H-021 | Bare-laminate warning: FVM 0 to 3 % (up to 10 %), FDM 2 to 20 % | three FVM ranges in the documents (24: 3 to 11 / 4 to 23 %; 41.2: 2 to 13 %); the FDM range predates the cell-fill faces of 47 | re-measure on the tree and quote one range |
+| 34 | M-071, W-035 | 'The fill mapping reads 10 to 30 % too cool on thin copper' | validation 27.1 and 27.3 give 4 to 9 % and 9.5 to 16.7 % | quote the measured range |
+| 35 | H-007, H-012, M-059 | Metal block accuracy: 'about 2 % / 1 % off' (guide table) against 5 % and up to 7 % (guide 7, the API warning); 'Lumped and Analytic 1 to 4 % hot' (models 15) against -1.5 % and -0.1 % (validation 17); finned FVM rise 65.0 K against 75.6 K | contradictions inside the documents | one source of the numbers (validation 17), the others quote it |
+| 36 | C-003, C-014, H-044, H-016, M-053 | Calculator sensitivities: -13 / -24 / -34 / -11 % (validation 19, the guide, calculators 1.1c) against -15.7 / -23.9 / -35.1 / -11.7 % (calculators 2.2) | two versions of the same study | re-run, quote one |
+| 37 | H-008, H-015, H-036, H-037, C-010, C-011, VA-116, RA-149, RA-320 | Datasheet rows: CSD17308Q3 -1.7 % / 46.8 K/W and JEDEC +3 % in the guide and calculators history, -3.2 / +3.9 % 'two datasheet resistances', 47.5 and 31.3 / 32.1 K/W in validation 19 | the current rows are -1.4 % (46.7 K/W) and +2.9 % (31.6 K/W); the README says the test tolerance is 3 %, the test asserts 4 % | one table, refreshed from `tests/test_calculator_validation.py` |
+| 38 | RCD-019, RCD-020 | Shen unit cell '+0.8 %', '-0.3 / -0.5 %' | a definition mix-up (heater maximum against mean): the like-for-like figures are -1.5 / -1.9 %; two values of the cell in one folder (207.52 and 210.40 K/W) | correct the folder |
+| 39 | RD-072, VA-025, VA-077, VA-078 | Validation 2 and 2.1 print the example board at 85.23 / 85.07 degC (before 2.6.0); the prose of validation 3 and 12 contradicts the tables above it and calls the program's 3D solid 'independent' | stale numbers, wrong label of a reference | regenerate validation 2 with `validation_study.py`; correct the prose |
+| 40 | VB-017, VB-020, VB-014, RB-074 | Warning statistics measured on older models: 'fires on 21 of 28 boards' (old via groups, 42.5 says not re-run), 'a via within one cell of the edge 12 to 15 % too large' (before the mirror image, now 1 to 2 % in the FVM), 'warned 70, silent 49' (before the Robin edge), the screening rule of the laminate (before 2.4.5) | rates of warnings that no longer describe the program | re-run the rates on the tree, or mark them as of their version |
+
+## 3. The published cases the program is said to reproduce
+
+'Reproduced' = the published number was reproduced by an independent solver; 'program' = the program itself was run on the case. 'In the battery' = a test under `tests/` runs it today (the research folders' own tests do not run with the battery). The program's error is quoted from the document named, not re-run here, except where marked.
+
+| Case | Reproduced | Program run | In the battery | How far off the program is (document) |
+| :-- | :-- | :-- | :-- | :-- |
+| Muzychka, Culham, Yovanovich 2003, cross of five sources (case 3) | Y (80.62 against 80.61 C) | Y, five models | **no** | 2.1 % of the rise low, one node through the thickness (`effective-conductivity` 4.6, theory 7.5) |
+| Muzychka 2003, case 1 (a) (plate, two sources) | Y, within 1 % of the rise | Y | **no** | 9 to 10 % of the rise low (same) |
+| Muzychka 2003, case 1 (b) (compound plate) | Y (0.03 K) | Y | **no** | FVM, 3D solid, Analytic within 0.06 K, FDM 0.09 K, Lumped 1.2 K (`theory-sources` 3.7) |
+| Muzychka 2003, case 2 (heat-sink base, four sources) | Y (0.03 K at the centroids, 32 sub-slabs) | Y | **no** | 2.9 to 5.6 K low (4 to 7 % of the rise); part is the film on the node, not isolated (`theory-sources` 3.7); the thick-plate warning is silent on the 10 W source (audit run, section 2 item 2) |
+| Muzychka, Culham, Yovanovich 2003 Part II, eq. 21 (edge-cooled channel) | the formula against an independent finite-volume solver, -0.16 to +1.06 % (no printed table) | the Analytic basis only, not the whole model | yes: `tests/test_analytic_edge.py::test_thin_sheet_series_against_equation_21` (5 cases, 1.5 %) | -0.03 to -1.1 % for `t/L <= 0.1`, -3.6 to -6.1 % at 0.3 (theory 6) |
+| Muzychka et al. 2003, eq. 27 (rectangular source on a plate) | Y (+0.20 %, `bare-spot-under-source`) | N | no | not run |
+| Muzychka, Yovanovich, Culham 2004, eq. 50 (thick laminate) | Y | Y | no | 3D solid +2.6 to +7.9 % for a 2 mm part (cell-limited), 0.6 to 0.9 % for 5 mm (`laminate-slabs-and-local-rule`) |
+| Seri Lee 1998 plate (spreading resistance) | Y (independent solver and finite elements, corner both about 4.4 % below the printed value) | **N** (a re-implementation inside the study, `blocks.py` not called) | **no** | unknown |
+| Culham and Yovanovich 1998 coupon (effective conductivity) | partly: the solver is 2 to 6 % below the paper (values partly read from a plot; cause not isolated) | Y, on a Cu / FR-4 / Cu version of case 2 | yes, but against `layered3d`, not the paper: `tests/test_layered_vs_3d.py` (0.2 %, FDM 1.2 %) | models within 0.2 % of the independent solver; no published number is asserted |
+| Yovanovich 2003, Table 3 (circular source on a flux tube) | Y (Bessel series) | Y (3D solid) | yes: `tests/test_solid3d_verification.py` (2 %) | +0.7 / +0.8 % |
+| Yovanovich, Muzychka, Culham 1999, Table 2 (compound channel) | Y (33 of 36 cells; theory 6 says 'to four digits') | N | no | not run |
+| Lemczyk 1992 | Y | Y | no | thin slab 1 to 5 %, 20 mm slab -10 to -16 % (`theory-sources`) |
+| Lee and Yovanovich, conjugate glass and ceramic plates | not stated | Y | no | +10.3 % and -2.0 % (single h per face; no source key in theory 8) |
+| Shen 2020, 12 x 12 via array | equations Y; the paper's CFD 1.86 K/W **not** reproduced (21 % gap) | Y | no (only `research/lumped-zones-adoption/tests`) | FVM +0.7 % of the folder's solver |
+| Fish 2017, via unit cell | Y (1215.2 against 1240 K/W, -2.0 %) | N | no | not a program case |
+| Lienhard Example 8.1 (vertical plate) and Example 6.5 | Y | Y | no numeric test (`test_docs.py` checks the text) | 4.233 against 4.22 W/m2K; 21.39 against 21.4 |
+| Ostrach 1953, laminar boundary layer | Y | Y (the laminar form) | yes: `tests/test_natural_form.py` | 0.21 to 0.25 % |
+| Goldstein-Lau face down (via Yovanovich and Jafarpur 1993) | second hand | Y (the constant) | `tests/test_convection.py` checks trends, not the case | no published plate case run |
+| Bar-Cohen, Iyengar, Kraus 2003 fin array | Y (0.2 and 1.0 %) | N (a warning only) | no | — |
+| TI AN-2020 barrel example | Y (0.06 %, the pure-length formula; the 0.5 `t_bar` of the program is not in the example) | N | no | — |
+| TI CSD17308Q3 datasheet (46 K/W on 1 in2 of 2 oz copper) | datasheet | Y (calculator) | yes: `tests/test_calculator_validation.py` (4 %; the folder README says 3 %) | -1.4 % (46.7 K/W) |
+| JEDEC 2s2p, TPS7A47-like exposed-pad board (32.5 K/W) | datasheet; JESD51 not obtained, via array assumed, bottom copper read as traces (a plane gives 26.4 K/W, +23 %) | Y | yes: `tests/test_calculator_validation.py` (5 % at 1 mm) | +2.9 % at 0.5 mm in calculators.md; validation 29 and the guide say 31.9 K/W (-1.8 %), calculators.md 31.6 K/W |
+| Sampson 2017 worked example (effective conductivity) | Y (research solver) | NA | no (only `research/gerber-models/tests`) | — |
+
+**Re-run by the audit, light** (one process, under 3 GB): `tests/test_calculator_validation.py`, `tests/test_solid3d_verification.py`, `tests/test_layered_vs_3d.py` and the equation 21 test: 18 passed (54 s, 2.6 GB peak). The case 2 warning check: the board of `CASES["2"]` of `research/theory-sources/scripts/study_muzychka_more_cases.py` built as that script builds it (one layer of the plate, k 150 W/mK, `h_bottom` 400), FVM at 1 mm: three thick-plate warnings (sources of 25, 20 and 15 W: 11, 9 and 7 % of the rise), none for the 10 W source (bound 3.33 K, about 4.8 % of the program's rise, under the 5 % threshold; the FVM reads it 2.95 K below the independent solver at the centroid, `theory-sources` 3.7); hottest 98.31 degC. This was a scratch run, not a script of the repository; assignment 1 turns it into a test.
+
+**Published cases with no regression test in the battery**: the five Muzychka 2003 cases (cross, 1 (a), 1 (b), 2, eq. 27), Seri Lee (and the program was never run on it), the Yovanovich-Muzychka-Culham Table 2, Lemczyk, Lee-Yovanovich plates, Shen 2020, the Lienhard examples, Fish, the TI barrel example and the published number of the Culham-Yovanovich coupon. A published case as a test with the program's error stated as a one-sided bound would have caught the case 2 finding.
+
+## 4. Patterns found across the register
+
+1. **The compared quantity is not fixed.** Peak against mean (the Shen cell, `RCD-019`), node against surface (Muzychka case 2, `RA-108`), point maximum against cell mean (the edge band, `T-014`), centroid against mean of a closed form (`T-020`). Every comparison of a temperature should say on both sides which of: point maximum, mean of the footprint, centroid, node value, face value (with the face term), mean through the thickness.
+2. **The reference is the program, or moves with it.** 99 risk 3 rows are self-comparisons; the reduced models are judged against the FVM they were fitted to; the FVM at a finer cell is called converged while it moved 15 % in the last step (`VA-043`); the 3D solid served as the truth while it had the sliver defect (`RB-115`).
+3. **Numbers corrected in one place and quoted uncorrected elsewhere** (the largest group of risk 3): the per-layer edge, the edge laminate, the via on partial copper, the near edge, the datasheet rows, the calculator sensitivities, the metal block accuracy. A number should have one home (validation.md) and every other text should cite it.
+4. **Tests that hold a defect.** `tests/test_layered_vs_3d.py` (one-layer pad windows and model order), `tests/test_rect_board.py` (bands of known deficits), `tests/test_analytic_perlayer.py` (floor widened to follow the FVM). The rule to adopt: a test of a known limit is one-sided (the model is never worse than X), and its docstring names the investigation that would tighten it.
+5. **Warnings whose threshold was never tested at the threshold.** The thick-plate 5 % (never reached by its 74 cases), the fin-channel count (graded on its own correlation), the warning rates measured on earlier models.
+6. **Sources from memory in the formulas in use.** The face-up convection law, the mixed-convection blend, the Peaceman and Krogh radii, the Sturm-Liouville odd functions: 83 rows rest on M, S or N sources; most are flagged as such in the text, six are treated as read.
+
+## 5. What was not done in this step
+
+- No claim was corrected, no study was re-run except the light runs of section 3, and the risk scores are those of the reading.
+- The research READMEs were read by extraction passes; the long descriptive parts of the two largest Gerber folders were read only through their findings, review chapters and tables. The REVIEW.md and ROADMAP.md rows were read for corrections only.
+- `docs/versions.md` was searched for corrections, not registered row by row (its 'Planned' chapter is a list of work, not of claims).
+- The rows of basis `MEASUREMENT-NONE` say what real behaviour is claimed without a measurement; the audit does not add one.

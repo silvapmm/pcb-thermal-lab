@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayo
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fdm, fvm, plots
+from ..results import model_full_label
 from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from .display import DisplayState
 
@@ -42,22 +43,26 @@ class AnimationTab(QWidget):
         self.timer.timeout.connect(self._advance)
 
         self.t_end = QDoubleSpinBox()
+        self.t_end.setAccessibleName("Duration")                # Screen readers: the labels of this row are not buddies
         self.t_end.setRange(0.1, 1e6)
         self.t_end.setDecimals(1)
         self.t_end.setValue(300.0)
         self.t_end.setSuffix(" s")
         self.frames = QSpinBox()
+        self.frames.setAccessibleName("Frames")
         self.frames.setRange(10, 400)
         self.frames.setValue(60)
         self.model = QComboBox()
-        self.model.addItem("Finite volume (FVM)", "fvm")
-        self.model.addItem("Finite difference (FDM)", "fdm")
-        self.model.addItem("Analytical (Fourier series)", "analytic")
+        self.model.setAccessibleName("Model")
+        for key in ("fvm", "fdm", "analytic"):
+            self.model.addItem(model_full_label(key), key)
         self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points.")
         self.scheme = QComboBox()
+        self.scheme.setAccessibleName("Scheme")
         self.scheme.addItem("Implicit Euler (robust)", 1.0)
         self.scheme.addItem("Crank-Nicolson (accurate)", 0.5)
         self.spacing = QComboBox()
+        self.spacing.setAccessibleName("Spacing")
         self.spacing.addItem("Logarithmic time", True)
         self.spacing.addItem("Linear time", False)
         self.t_end.setToolTip("Length of the animated power step, s (preset: a few board time constants).")
@@ -76,9 +81,11 @@ class AnimationTab(QWidget):
         self.play.setCheckable(True)
         self.play.toggled.connect(self._toggle_play)
         self.slider = QSlider(Qt.Horizontal)
+        self.slider.setAccessibleName("Time of the frame")
         self.slider.setRange(0, 0)
         self.slider.valueChanged.connect(self._show_frame)
         self.fps = QSpinBox()
+        self.fps.setAccessibleName("Speed")
         self.fps.setRange(1, 60)
         self.fps.setValue(12)
         self.fps.setSuffix(" fps")
@@ -244,7 +251,7 @@ class AnimationTab(QWidget):
         k = self.slider.value()
         with _mpl_theme(self.theme):
             plots.draw_field(self.fig, tr.frames[k, l], self.problem, dx, dy, cmap=self.display.cmap,
-                             vmin=tr.ambient, vmax=float(tr.frames[:, l].max()), layer=l,
+                             vmin=tr.ambient, vmax=float(tr.frames[:, l].max()), layer=l, label=plots.COLUMN_LABEL,
                              title=f"Layer {l + 1}   t = {tr.times[k]:.2f} s   Tmax = {tr.t_max[k]:.1f} °C", view=self.map_view())
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()

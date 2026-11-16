@@ -209,7 +209,7 @@ def failure_message(name, exc):
     log.error("job %s failed: %s\n%s", name, exc, traceback.format_exc())
     text = _without_home(str(exc)) or type(exc).__name__
     if len(text) > MAX_MESSAGE_CHARS:
-        text = text[:MAX_MESSAGE_CHARS] + "..."
+        text = text[:MAX_MESSAGE_CHARS] + "…"
     if not isinstance(exc, ValueError):
         text += f"\n(Unexpected error, {type(exc).__name__}. Details: {LOG_NAME} in the configuration folder.)"
     return text

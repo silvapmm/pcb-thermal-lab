@@ -65,6 +65,11 @@ EDGE_MISMATCH_MIN = 1e-9      # Relative spread of the per-layer edge parameters
 EDGE_GMRES_RTOL = 1e-6        # Relative residual of the per-layer edge loop (GMRES on the modal coefficients; 4 to 9 products measured)
 LOCAL_MODES = 16              # Modes per direction of the coupled block of the transient with vias and heatsinks (24 changes the time to 63 % by under 1.5 points)
 LOCAL_MAX_UNKNOWNS = 3000     # K x K x L of the block is lowered to stay under this (a dense eigenproblem: 42 MB and about 4 s at 1024)
+# Share of the steady rise within which the point of the board without vias and heatsinks is taken as hot as the maximum of the steady field with them when the transient
+# readout point is chosen (_readout_point): the tile correction resolves the field near vias to about a tile, and on the 4-layer test boards with vias and a heatsink 18 to 36
+# cells lay within 0.1 % of the maximum (that point 0.03 to 0.12 % below it) while the FVM put the cell the argmax chose 0.4 to 3 % below its own hottest node; a via cluster
+# or a heatsink beside the part that moves the hot point leaves that point 0.5 to 0.6 % below the maximum.
+READOUT_TOLERANCE = 2.5e-3
 EDGE_GMRES_RESTART = 30       # GMRES restart length and maximum number of restarts of the per-layer edge loop
 
 
@@ -390,6 +395,11 @@ def _effective_sheet(problem, cell_mm):
                 "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
                 "differed by up to 1.8 times. Use the FVM result for this board.")
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
+    # Face coefficients of the surface problem: each film in series with the half copper layer between the layer node (the column mean) and the face, on the copper fill of
+    # the layer (Board.face_film_h, docs/theory.md 1.2). The fin lengths, the tiles and the time constant above keep the plain h (they are lengths, 5e-7 of them for 35 um).
+    # A one-layer board: the laminate is already in series with the bottom film (laminate.series_bottom_problem); the half copper above it is added here
+    h_top_eff = float(b.face_film_h(b.h_top, 0, fill[0]))
+    h_bottom_eff = float(b.face_film_h(b.h_bottom, L - 1, fill[L - 1]))
     # Edge parameter of the Robin basis (Muzychka, Culham and Yovanovich 2003, Part II eqs. 12 to 21), one for all layers: the sum of the edge conductances per metre of
     # edge over the sum of the sheet conductances. Exact when every layer has the same ratio slab_l / S_l, an approximation otherwise (docs/theory.md 6). h_eff is
     # h_side scaled so that the rectangle has the edge conductance of the real outline. 1/m; zero without h_side (the cosine basis).
@@ -408,7 +418,7 @@ def _effective_sheet(problem, cell_mm):
             warnings.append(
                 f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and on a one-layer board the laminate edge is given to the copper: "
                 "the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
-                "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
+                "Use the FVM result for this board (itself a few percent cool at a strongly cooled edge, up to about 16 % on a 3.2 mm board at 2000 W/m2K: then the 3D solid).")
         else:
             # Per-layer edge (research/analytic-edge-and-transient README 2.3, 2.4 and 6.1; docs/validation.md 4.1). What is left is the one laminate link per gap of the layered
             # idealisation, which the per-layer edge solves exactly (within 0.5 % of an FVM with one link): the FVM with its sub-gaps and the 3D solid both read hotter.
@@ -417,12 +427,12 @@ def _effective_sheet(problem, cell_mm):
             warnings.append(
                 f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the sheet conductances of the layers differ by {spread:.1f} times: "
                 "the Analytic model treats the edge of each layer separately, but it keeps one laminate link per gap, and its hottest temperature was measured too cool, "
-                "by up to about 6 % against the 3D solid on 60 x 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
+                "by up to about 6 % against the 3D solid on 60 × 40 mm boards and up to about 10 % on a small board with a small part in a corner (a sample, not a bound). "
                 "Use the FVM or, on a thick board with a large edge coefficient, the 3D solid.")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
             "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "beta_l": beta_l, "edge_mismatch": edge_mismatch, "h_eff": h_eff, "d_diel": d_diel, "d_barrel": d_barrel, "g_diel": g_diel, "k_lam": k_lam,
-            "rho_cp_lam": rho_cp_lam}
+            "rho_cp_lam": rho_cp_lam, "h_top_eff": h_top_eff, "h_bottom_eff": h_bottom_eff}
 
 
 def _heater_unit_sources(problem, bx, by):
@@ -474,7 +484,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
     fill_t = copper.problem_fill(problem, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
-    for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
+    for ly in blocks.extra_layers(problem, lambda poly, n: blocks.block_cover(poly, None, ntx, nty, tw, th), area_t, fill_t, tw, th):
         tiles = np.argwhere(ly["cov"] > 0)
         index = -np.ones((nty, ntx), dtype=int)
         index[tuple(tiles.T)] = np.arange(len(tiles))
@@ -496,6 +506,8 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
         Dl = np.diag(g_link)
         B = Dl - Dl @ np.linalg.solve(M, Dl)
         h_face = b.h_top if ly["face"] == 0 else b.h_bottom
+        # The board face that the block hides is the film seen through the half copper layer of the node, on the copper fill of the tile
+        h_face = b.face_film_h(h_face, ly["board_layer"], fill_t[ly["board_layer"]][tuple(tiles.T)])
         face = h_face * tw * th * ly["cov"][tuple(tiles.T)]                      # Face conductance that the block hides
         out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "side": ly["face"], "M": M, "g_link": g_link, "g_amb": g_amb})
     return out
@@ -632,7 +644,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
           needs a dense system of (active tiles x layers)^2 entries, kept to 4800 unknowns.
     @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
-          within 1 % on average and 4.5 % at most (docs/validation.md section 17).
+          within 1 % on average and 4.5 % at most with one to four pads (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
@@ -650,8 +662,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom
+    h_l[0] += sh["h_top_eff"]
+    h_l[L - 1] += sh["h_bottom_eff"]
     g = g_diel.copy()                                         # (L-1,) per gap
     if not local_corrections:
         for s in problem.heatsinks:
@@ -778,11 +790,11 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
     # Heat leaving through the faces: the mean of each layer over the plan (for the cosine basis exactly a_00)
     mean = [_plan_mean(bx, by, a_mn[:, :, k]) for k in range(L)]
-    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * mean[0]) - hidden["top"],
-             "bottom": float(b.h_bottom * W * H * mean[L - 1]) - hidden["bottom"],
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(sh["h_top_eff"] * W * H * mean[0]) - hidden["top"],
+             "bottom": float(sh["h_bottom_eff"] * W * H * mean[L - 1]) - hidden["bottom"],
              "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * mean[k] for k in range(L))
-                            - b.h_top * W * H * mean[0] - b.h_bottom * W * H * mean[L - 1])}
+                            - sh["h_top_eff"] * W * H * mean[0] - sh["h_bottom_eff"] * W * H * mean[L - 1])}
     if b.h_side:
         # The edge loss, reported apart under the same key as the FVM: beta S_l times the rise of the layer integrated along the four sides, so the heat balance closes
         # (per layer: beta_l S_l = h_eff s_l; with equal layers the common beta, so the balance of the earlier code is kept bit for bit)
@@ -814,8 +826,8 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     M = N = n_terms
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom
+    h_l[0] += sh["h_top_eff"]
+    h_l[L - 1] += sh["h_bottom_eff"]
     for s in problem.heatsinks:
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"].copy()
@@ -917,8 +929,16 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
     PX, PY = lc["PX"][:K] / tw, lc["PY"][:K] / th                         # Average of the first K eigenfunctions over each active tile
     A = _modal_matrix(problem, d, n_terms, 0.0, 0.0)[:K, :K]
     ls = LocalSystem(A, d["c_l"], bx.weight[:K], by.weight[:K], PX, PY, lc["Cv"], lc["cs"], W, H)
-    lay, iy, ix = d["points"][served]
+    # The readout point is a hottest cell of the steady field WITH the vias and heatsinks (what the steady result reports), not the hottest cell of the board without
+    # them that _modal_dynamics found: with a via cluster the two differ by millimetres and the transient read 22 % low at 0.3 s (research transient-reference-boards 4.3).
+    # The problem handed here has only the served heater powered, so the field is its own; the point of the board without them is kept while it is within
+    # READOUT_TOLERANCE of the maximum (_readout_point), so that a flat top does not make the point jump with a tiny change of the board.
+    lay, iy, ix = _readout_point(steady.T - ambient, d["points"][served], d["dx"], d["dy"])
+    d["points"] = list(d["points"])
+    d["points"][served] = (int(lay), int(iy), int(ix))
     wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
+    d["U"] = d["U"].copy()
+    d["U"][served] = wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]    # uniform-mode output row at the new point
     q_all = _heater_unit_sources(problem, bx, by)                          # 1 W of every heater
     del lc["Cv"], lc["cs"]                                                 # (now held as projections inside the LocalSystem)
     # Target: the steady rise per watt of the corrected steady model at the own point of the served heater, less what the modes outside the block carry
@@ -946,6 +966,31 @@ def _local_dynamics(problem, cell_mm, n_terms, served=0):
         d["local_note"] = (f"the coupling of the vias in the coupled block of the Analytic transient could not reach the steady value of the board with the factor limited "
                            f"to {num(FACTOR_BRACKET[0], 3)} .. {num(FACTOR_BRACKET[1], 3)} (it took {num(s, 3)}): the time behaviour near the vias is approximate")
     return d
+
+
+def _readout_point(rise, start, dx, dy):
+    """!
+    @brief Transient readout point of a heater: the start point while it is as hot as the maximum of the steady field within READOUT_TOLERANCE, else the hottest cell.
+    @details The start point is the hottest cell of the board without vias and heatsinks (where the early response peaks). When the steady field with them is no hotter
+             than that point by more than READOUT_TOLERANCE of the rise, the top is flat to within what the tile correction resolves and the point is kept: the plain
+             argmax of such a top jumped between cells 1 to 2 mm apart when the part moved by 0.05 mm (time to 63 % 1.3 % apart) and chose cells that the FVM puts 0.4 to
+             3 % below its hottest node (review of fix/analytic-transient-hot-point). Otherwise (a via cluster that moves the hot point, 0.5 to 0.6 % hotter) the
+             hottest cell is read, nearest to the start point among equal maxima.
+    @param rise Steady rise (layers, ny, nx) in kelvin of the board with only this heater powered.
+    @param start Tuple (layer, iy, ix) of the start point.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Tuple (layer, iy, ix) of ints.
+    """
+    lay0, iy0, ix0 = (int(v) for v in start)
+    top = float(rise.max())
+    if rise[lay0, iy0, ix0] >= (1.0 - READOUT_TOLERANCE) * top:
+        return lay0, iy0, ix0
+    cand = np.argwhere(rise >= top)                                      # the maximum (several cells when the field is symmetric)
+    # Squared distance in the plane, with another layer counted as farther than any cell of the start layer
+    dist = ((cand[:, 1] - iy0) * dy) ** 2 + ((cand[:, 2] - ix0) * dx) ** 2 + (cand[:, 0] != lay0) * 1e6
+    lay, iy, ix = cand[int(np.argmin(dist))]
+    return int(lay), int(iy), int(ix)
 
 
 def _point_vector(d, point):
@@ -1103,10 +1148,12 @@ class _AnalyticAdapter:
         self.warnings = []
         scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
         if problem.heatsinks:
-            # Measured on 12 test boards (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves; the FVM at
-            # 0.5 mm, converged), research/analytic-edge-and-transient README 6.3 and docs/validation.md 4.1: the time to 63 % of the local coupled block is -8.1 % to +0.5 % (-8.1 % to
-            # -0.1 % with a heatsink; the worst is the 4-layer board with vias and a 300 W/m2K heatsink), the smeared transient of 2.5.0 was -66 % to +175 %. The review
-            # added two parts, overlapping parts, partial copper and profile runs (validation 4.1): time to 63 % up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the heatsink beside the part (-38 %).
+            # Measured on the ten boards of validation 4.1 (one 60 x 40 mm family, one 10 x 10 mm part, 2 and 4 layers, 8 with a heatsink; unit-step response and square waves)
+            # against the FVM at 0.5 mm (converged: 11.21 and 11.22 s at 0.5 and 0.25 mm on the 4-layer board), with the Analytic at its default 1 mm cell and the readout point of
+            # fix/analytic-transient-hot-point (audit 2.8.0, DECISIONS_2 24): the time to 63 % is -9.1 % (4 layers, vias, 300 W/m2K heatsink) to +3.2 % (2 layers, vias, heatsink
+            # beside the part); the research and the fix's review measured -8.1 to +0.5 % and -8.3 to +2.1 % with the Analytic at 0.5 mm. Added two parts, overlapping parts,
+            # partial copper and profile runs (validation 4.1): up to +4.2 %, square-wave peaks of overlapping parts 5 to 7 % low. The Lumped model is no safe alternative with the
+            # heatsink beside the part (-38 %).
             self.warnings.append(heatsink_transient_warning(scales if ms.scaled else ""))
         elif ms.scaled:
             self.warnings.append(
@@ -1178,7 +1225,7 @@ class _AnalyticAdapter:
         return None
 
 
-HEATSINK_TRANSIENT_KEY = "-8 % to +1 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
+HEATSINK_TRANSIENT_KEY = "-9 % to +3 %"      # The measured range quoted by the heatsink warning (tests and the Results summary look for it)
 
 
 def heatsink_transient_warning(scales=""):
@@ -1188,8 +1235,8 @@ def heatsink_transient_warning(scales=""):
     @return str Warning text (measured range of the time to 63 % against the converged FVM, a sample and not a bound).
     """
     return ("the analytic transient keeps the heatsinks as local couplings in a block of the lowest modes of the board: with a heatsink the time to 63 % was, on a sample "
-            "of test boards, from about -8 % to +1 % off the converged finite-volume result (the worst, -8 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K); "
-            "this is a sample, not a bound (one 60 x 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
+            "of test boards, from about -9 % to +3 % off the converged finite-volume result (the worst, -9 %, a 4-layer board with vias and a strong heatsink, 300 W/m2K; the +3 % a 2-layer board with vias and a heatsink beside the part; on five other boards the independent finite elements give +1 to +4 % at 0.5 mm); "
+            "this is a sample, not a bound (one 60 × 40 mm family, one part; on further boards up to +4 %, and with two overlapping parts over vias the peak of a "
             "square wave read 5 to 7 % low; a board outline was not tested); "
             "use the FVM or the FDM to confirm the time behaviour with a heatsink"
             + (f" (via coupling factors {scales})" if scales else ""))

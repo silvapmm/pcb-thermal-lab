@@ -609,7 +609,7 @@ def _zone_index(problem, n_layers, masks=None):
     return list(zip(polys, boxes))
 
 
-def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
+def build(problem, d, S, cover, dx, dy, nx, ny, origin, active=None):
     """!
     @brief Couplings of every via of a problem on a grid.
     @param problem The Problem.
@@ -621,8 +621,9 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     @param nx Cells (nodes) along x.
     @param ny Cells (nodes) along y.
     @param origin Lower x edge of cell 0 in m (0 for the FVM, -dx/2 for the FDM nodes); the y edge is origin * dy / dx (-dy/2 for the FDM).
-    @param active Boolean array (ny, nx) of the cells on the board. Unused since a via without board under its drill disc is skipped instead of being
-           moved to the nearest active cell; kept so that the call sites of the FVM and FDM (and the research patches that match them by text) do not change.
+    @param active Deprecated and ignored (optional). It was the boolean array (ny, nx) of the cells on the board; a via without board under its drill disc
+           is skipped now instead of being moved to the nearest active cell, so nothing reads it. The FVM and FDM no longer pass it; the keyword stays
+           only so that research code that calls build() with it keeps working.
     @return Tuple (blocks, gz_via): blocks is a list of (rows, cols, w, G) with the cell indices (integer arrays), the weights (sum 1) and the
             layer-to-layer conductances G (L, L) in W/K; gz_via is the array (L-1, ny, nx) with the barrel conductance in the cell of the via centre
             (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells). A via whose drill disc has no board

@@ -22,8 +22,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(FOLDER), "lumped-analytic-vias",
 
 import axisym_cell as ax                                                    # noqa: E402
 import constriction as cr                                                   # noqa: E402
-import lumped_groups as lg                                                  # noqa: E402
-import lumped_patch as lp                                                   # noqa: E402
 import lumped_zones as lz                                                   # noqa: E402
 import refs                                                                 # noqa: E402
 import study_cell_link as scl                                               # noqa: E402
@@ -102,71 +100,22 @@ def test_annulus_excess_limits():
     assert t.argmax() == 0
 
 
-def test_groups_copy_equals_the_patch_of_the_earlier_investigation():
+def test_program_via_effect_against_the_fine_grid_reference_on_a_small_board():
     """!
-    @brief `lumped_groups.patched(macro="all")` is the same model as `lumped_patch.patched("krogh", cell="nn", cluster=True)`.
+    @brief The claim of the investigation, on the program as it ships (zones adopted in 2.5.0, first link of 2.8.0): a 3 x 3 array under a 10 mm source on a 20 mm board,
+           the Lumped via effect within 6 % of the fine-grid layered reference (1/16 mm). Measured on development 232ba648: -4.28 % (reference 18.914 K, Lumped 18.104 K);
+           the copy of the proposal read within 10 % and the earlier group term 15 % or more off (README, the record). Peak memory 1.8 GB (the reference).
     @return None.
     """
+    import contextlib
     import harness as hz
     import program_cases as pc
     pc.load_libraries()
-    p = refs.make_problem(dict(layers=4, n=3, pitch=1.0, fill=385.0, side=20.0, src=8.0))
-    q0 = hz.no_vias(p)
-    e1 = hz.effect(p, "lumped", lambda: lg.patched(macro="all"), 0.5, q0)
-    e2 = hz.effect(p, "lumped", lambda: lp.patched("krogh", cell="nn", cluster=True), 0.5, q0)
-    assert e1 == pytest.approx(e2, rel=1e-9)
-
-
-def test_zone_model_without_vias_is_the_program():
-    """!
-    @brief On a board without vias the zoned Lumped model reproduces the program bit by bit.
-    @return None.
-    """
-    import harness as hz
-    import program_cases as pc
-    pc.load_libraries()
-    p = hz.no_vias(refs.make_problem(dict(layers=4, n=3, pitch=1.0, fill=385.0, side=20.0, src=8.0)))
-    t0 = pc.max_rise(p, "lumped", 0.5)
-    with lz.patched():
-        t1 = pc.max_rise(p, "lumped", 0.5)
-    assert t1 == pytest.approx(t0, abs=1e-12)
-
-
-def test_zone_model_energy_balance_and_restore():
-    """!
-    @brief The zoned network closes its energy balance (all the power leaves through the films) and the program is restored afterwards.
-    @return None.
-    """
-    from pcbthermal import lumped
-    import program_cases as pc
-    pc.load_libraries()
-    p = refs.make_problem(dict(layers=4, n=5, pitch=1.0, fill=385.0, side=20.0, src=8.0))
-    before = lumped._heater_network
-    with lz.patched():
-        r = lumped.solve_steady(p, 10, 0.5)
-        assert lz.LAST["frac_c"] < 1.0
-        assert r.residual < 1e-9
-        out = r.power_out
-        assert out["top"] + out["bottom"] + out["sides"] + out["heatsinks"] == pytest.approx(p.total_power(), rel=1e-9)
-    assert lumped._heater_network is before
-
-
-def test_zone_model_against_the_fine_grid_reference_on_a_small_board():
-    """!
-    @brief A 3 x 3 array under a 10 mm source on a 20 mm board: the zone model within 10 % of the fine-grid layered reference where the earlier group term is 15 % or more off.
-    @return None.
-    """
-    import harness as hz
-    import program_cases as pc
-    pc.load_libraries()
-    spec = dict(layers=4, n=3, pitch=1.0, fill=385.0, side=20.0, src=10.0)
-    p = refs.make_problem(spec)
+    p = refs.make_problem(dict(layers=4, n=3, pitch=1.0, fill=385.0, side=20.0, src=10.0))
     ref = hz.reference_uniform(p, 1.0 / 16)[0]
-    q0 = hz.no_vias(p)
-    e_zone = hz.effect(p, "lumped", lambda: lz.patched(), 0.5, q0)
-    e_grp = hz.effect(p, "lumped", lambda: lg.patched(macro="all"), 0.5, q0)
-    assert abs(e_zone / ref - 1.0) < 0.10
-    assert abs(e_grp / ref - 1.0) > 0.10
+    e_prog = hz.effect(p, "lumped", contextlib.nullcontext, 0.5, hz.no_vias(p))
+    assert ref == pytest.approx(18.914, rel=1e-3)
+    assert abs(e_prog / ref - 1.0) < 0.06
 
 
 def test_rim_minus_mean_by_integration():
@@ -181,36 +130,6 @@ def test_rim_minus_mean_by_integration():
     mean = np.trapezoid(t * 2 * math.pi * r, r) / (math.pi * (R * R - a * a))
     assert lz.rim_minus_mean(S, R, a) == pytest.approx(t[-1] - mean, rel=1e-4)
     assert cr.krogh(S, R, a) == pytest.approx(mean, rel=1e-4)
-
-
-def test_core_internal_resistance_raises_the_core_temperature_difference():
-    """!
-    @brief The core-internal resistance Q / (8 pi S) lengthens the A-C link: with it the via effect of a dense array is smaller (the model is hotter).
-    @return None.
-    """
-    import harness as hz
-    import program_cases as pc
-    pc.load_libraries()
-    p = refs.make_problem(dict(layers=4, n=5, pitch=1.0, fill=385.0, side=20.0, src=10.0))
-    q0 = hz.no_vias(p)
-    e0 = hz.effect(p, "lumped", lambda: lz.patched(geometry="disc", core_int=0.0, peak="annulus"), 0.5, q0)
-    e1 = hz.effect(p, "lumped", lambda: lz.patched(geometry="disc", core_int=1.0, peak="annulus"), 0.5, q0)
-    assert e1 < e0
-
-
-def test_micro_peak_is_positive_and_small():
-    """!
-    @brief With the micro peak the maximum is higher than without it, by less than one kelvin on a 3 W board.
-    @return None.
-    """
-    import program_cases as pc
-    pc.load_libraries()
-    p = refs.make_problem(dict(layers=4, n=3, pitch=2.0, fill=0.0, side=20.0, src=6.0))
-    with lz.patched(micro_peak=False):
-        t0 = pc.max_rise(p, "lumped", 0.5)
-    with lz.patched(micro_peak=True):
-        t1 = pc.max_rise(p, "lumped", 0.5)
-    assert 0.0 < t1 - t0 < 1.0
 
 
 def test_mutual_potentials_equal_krogh_plus_core_internal():
@@ -271,11 +190,11 @@ def test_potential_excess_lossy_is_smaller():
     assert 0 < e1 < e0
 
 
-def test_zone_model_with_vias_that_conduct_nothing_stays_near_the_program():
+def test_program_with_vias_that_conduct_nothing_stays_near_the_board_without_vias():
     """!
-    @brief Regression of the review: vias that conduct nothing (plating 1e-12 m, open) have no effect, so the zone model must stay near the program without vias.
-    @details A sparse 3 x 3 array at 3 mm under a 12 mm source on a 20 mm board: the core is hotter than the rest of the footprint, and the researcher's version took the core
-             mean as its peak, 4.2 % of the rise below the program; with the bump of a hot core (`core_peak`) the offset is 0.8 %.
+    @brief The regression of the review, on the program as it ships: vias that conduct nothing (plating 1e-12 m, open) have no effect, so the zoned Lumped of the program
+           stays within 1.5 % of the same board without vias. A sparse 3 x 3 array at 3 mm under a 12 mm source on a 20 mm board; measured on development 232ba648:
+           76.685 against 77.365 K, -0.88 % (the copy of the proposal read 4.2 % low before its core_peak, 0.8 % with it: README, the record).
     @return None.
     """
     import harness as hz
@@ -284,9 +203,5 @@ def test_zone_model_with_vias_that_conduct_nothing_stays_near_the_program():
     p = refs.make_problem(dict(layers=4, n=3, pitch=3.0, fill=0.0, side=20.0, src=12.0))
     p.board.via_plating = 1e-12
     t0 = pc.max_rise(hz.no_vias(p), "lumped", 0.5)
-    with lz.patched():
-        t_new = pc.max_rise(p, "lumped", 0.5)
-    with lz.patched(core_peak=False, decimation="stride"):
-        t_old = pc.max_rise(p, "lumped", 0.5)
-    assert abs(t0 - t_new) < 0.015 * t0
-    assert t0 - t_old > 0.03 * t0
+    t = pc.max_rise(p, "lumped", 0.5)
+    assert abs(t - t0) < 0.015 * t0

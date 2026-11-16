@@ -10,6 +10,7 @@ import numpy as np
 
 from ..analysis import extreme_points  # noqa: F401  (moved to the GUI-free analysis module; the editor overlay and the Results maps share it)
 from ..geometry import coverage_fraction
+from ..results import MODEL_LABELS
 
 
 def colour_limits(field, auto=True, vmin=None, vmax=None):
@@ -153,15 +154,15 @@ def place_colourbar(view, board, avoid, size, margin=8):
 def overlay_refusal(result, problem):
     """!
     @brief Why a result cannot be painted on the editor canvas, or None when it can.
-    @details The Lumped and Analytic models of a board with an outline run on the rectangle of the same area and their field is stretched back onto the box; the editor draws
+    @details The LPTN and Analytic models of a board with an outline run on the rectangle of the same area and their field is stretched back onto the box; the editor draws
              the real board, so the field would sit in the wrong place (see the Equiv. rect. box of the Results view). Such a map is refused instead of drawn wrong.
     @param result results.SteadyResult shown.
     @param problem model.Problem that is open in the editor.
     @return str with the note for the status bar, or None.
     """
     if problem.board.has_outline() and getattr(result, "equivalent_scale", None) is not None:
-        return "The overlay is not drawn for the stretched map of a board with an outline (Lumped or Analytic): choose the FVM or FDM result, or see the Results tab."
+        return "The overlay is not drawn for the stretched map of a board with an outline (LPTN or Analytic): choose the FVM or FDM result, or see the Results tab."
     return None
 
 
-MODEL_SHORT = {"fvm": "FVM", "fdm": "FDM", "lumped": "Lumped", "analytic": "Analytic", "solid3d": "3D solid"}   # Title of the card of the map on the board
+from ..results import MODEL_SHORT   # One table of short names for the whole program (results.MODEL_SHORT)

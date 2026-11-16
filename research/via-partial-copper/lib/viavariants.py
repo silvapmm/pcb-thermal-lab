@@ -188,7 +188,7 @@ def make_build(variant, uniform_to_program=True):
     """
     original = vw.build
 
-    def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
+    def build(problem, d, S, cover, dx, dy, nx, ny, origin, active=None):
         blocks0, gz_via = original(problem, d, S, cover, dx, dy, nx, ny, origin, active)
         b = problem.board
         k_cu = b.materials.k_copper

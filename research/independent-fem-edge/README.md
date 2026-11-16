@@ -408,6 +408,10 @@ sensitive than the point maximum. Elsewhere the GCI is 0.01 to 0.27 %.
   FEM it is +0.6 / +1.6 / +2.2 / +2.6 %, and the default column (-0.83 / -2.55 / -5.09 / -8.90 %) is -0.4 / -1.4 / -3.4 / -6.2 % (closing review; the first run
   printed +2.3 / +2.8 and -3.2 / -6.0 at 1000 / 2000 W/m2K).
 
+#### 6.4 Re-derived by the 2.8.0 audit
+
+`releases/2.8.0/audit/REVIEW_A2.md` section 2 solved six boards of the table again with `lib/` (scratch scripts outside the repository, numpy, scipy and pyamg only): plan 0.4 / 0.2 / 0.1 / 0.05 mm, Richardson on the last three for the point maximum and for the hottest 0.25 mm cell mean separately, and the through-thickness term measured at EVERY coefficient on the 0.2 mm mesh (6 / 12 / 24 elements per gap on the 4-layer 1.6 mm board, observed order 2.4 to 2.7, +0.012 / +0.026 / +0.039 / +0.055 K at 200 / 500 / 1000 / 2000 W/m2K; 4 (v12 - v6) / 3 on the others). The rule of `study_thin_laminate.report` sets that term to zero below 1000 W/m2K and uses the 1000 W/m2K value at 2000, which it calls an under-estimate: measured, it moves the limits by up to +0.1 % at 500 and +0.3 % at 2000 W/m2K (2 layers 1.0 mm), so the program errors of 6.1 move by at most -0.2 point (the 4-layer 1.6 mm board reads -0.4 / -1.6 / -3.4 / -6.3 % instead of -0.4 / -1.4 / -3.4 / -6.2 %). Every other limit of 6.1 for these boards is reproduced within -0.29 to +0.06 %. Not re-run: the 6-layer 2.4 mm and the 8-layer boards.
+
 ## 7. Review
 
 Two reviews by the project reviewer: the review of the folder as it is in the repository (7.0 to 7.0.4, the closing review, run on `develop` e39de188) and the

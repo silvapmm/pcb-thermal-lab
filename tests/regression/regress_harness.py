@@ -29,9 +29,11 @@ import regress_boards as B                                                      
 
 FORMAT = 1
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+OPTIONAL_MODELS = ("fem",)       # models that an older revision does not have: recorded as skipped there ("model absent in this version"), never as a failure; run_suite adds them only when asked
 CELLS = (2.0, 1.0, 0.5)
 MAX_UNKNOWNS = 400_000          # FVM and FDM above this are skipped (memory light; about 7 GB per million unknowns for the layered models)
 SOLID_CAP = 150_000             # the 3D solid only below this many unknowns (the program's own limit is 250 000)
+FEM_CAP = 130_000               # the finite-element model only below this many unknowns (about 1 GB and 20 s with pyamg; the guard would refuse far more)
 TRANSIENT_CELL = 1.0            # one short transient per board and model (the FVM and FDM step responses use at least 2 mm)
 SOR_BOARDS = ("plate_uniform", "plate_vias", "plate_lone_via", "two_layer_partial", "example_board")
 SOR_CELL = 2.0
@@ -104,6 +106,9 @@ def unknowns_of(problem, model, cell):
         if model == "solid3d":
             from pcbthermal import solid3d
             return int(solid3d.unknowns(problem, cell)[0])
+        if model == "fem":
+            from pcbthermal import femmesh
+            return int(femmesh.unknowns(problem, cell)[0])
     except Exception:                                                         # a count that cannot be made is not a failure of the run
         return None
     return None
@@ -122,19 +127,20 @@ def _parts(sim, model, problem):
         rows = heater_stats(sim.results[model], problem, sim.power_used.get(model))
     except Exception:
         return None
+    # t_max_surface and t_mean_surface are the surface read-out under the part (only a part on an outer layer has them: None otherwise)
     return [{"name": r["name"], "power_w": _f(r["power_w"]), "t_max": _f(r["t_max"]), "t_mean": _f(r["t_mean"]), "t_junction": _f(r["t_junction"]),
-             "power_top_w": _f(r["power_top_w"])} for r in rows]
+             "power_top_w": _f(r["power_top_w"]), "t_max_surface": _f(r.get("t_max_surface")), "t_mean_surface": _f(r.get("t_mean_surface"))} for r in rows]
 
 
 def _blocks(sim, model, problem):
     """!
-    @brief Temperature of the metal blocks (FVM and FDM only).
+    @brief Temperature of the metal blocks (FVM, FDM and FEM; the FEM reports a block as its mean, decision B of releases/2.8.0/fem-model/DECISIONS_REVIEWER.md).
     @param sim Simulation.
     @param model Model key.
     @param problem The Problem that was solved.
     @return List of dicts or None.
     """
-    if model not in ("fvm", "fdm"):
+    if model not in ("fvm", "fdm", "fem"):
         return None
     from pcbthermal.analysis import block_stats
     try:
@@ -144,7 +150,28 @@ def _blocks(sim, model, problem):
         return None
 
 
-def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SOLID_CAP, linear_solver="direct"):
+def _surface(result):
+    """!
+    @brief Statistics of the surface read-out of a result (arrays T_surface and T_surface_mean, one map per outer face), so a change of the surface is seen by the frozen numbers.
+    @param result A model result.
+    @return dict {"top": {...}, "bottom": {...}} with t_max, t_mean (of the surface map), mean_max (maximum of the cell-mean surface map) and t_sum (sum of the map, a checksum) in
+            degC for each face that has a finite map, or None when the result has no surface read-out (a model without one, or an older revision).
+    """
+    import numpy as np
+    arr = getattr(result, "arrays", None) or {}
+    if "T_surface" not in arr:
+        return None
+    out = {}
+    for face, name in enumerate(("top", "bottom")):
+        s = np.asarray(arr["T_surface"][face], dtype=float)
+        if not np.isfinite(s).any():
+            continue
+        m = np.asarray(arr["T_surface_mean"][face], dtype=float) if "T_surface_mean" in arr else s
+        out[name] = {"t_max": _f(np.nanmax(s)), "t_mean": _f(np.nanmean(s)), "mean_max": _f(np.nanmax(m)), "t_sum": _f(np.nansum(s))}
+    return out or None
+
+
+def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SOLID_CAP, linear_solver="direct", fem_cap=FEM_CAP):
     """!
     @brief One steady-state run of one model at one cell size, as a record of the result set.
     @param problem A Problem (it is copied without profiles; the original is not modified).
@@ -154,13 +181,26 @@ def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SO
     @param max_unknowns FVM and FDM above this many unknowns are skipped.
     @param solid_cap The 3D solid above this many unknowns is skipped.
     @param linear_solver FVM solver: "direct" or "sor".
+    @param fem_cap The finite-element model above this many unknowns is skipped (and a board it cannot mesh, or a revision that has no such model, is skipped with the reason).
     @return dict: board, model, cell_mm, status ("ok", "skipped" or "error"), reason, unknowns, seconds and, when ok, the temperatures, the parts, the balance and the warnings.
     """
     import numpy as np
     from pcbthermal import SolverOptions, simulate
     p = steady_problem(problem)
     rec = {"board": board, "model": model, "cell_mm": cell, "solver": linear_solver, "status": "ok", "reason": "", "unknowns": unknowns_of(p, model, cell)}
-    cap = {"fvm": max_unknowns, "fdm": max_unknowns, "solid3d": solid_cap}.get(model)
+    if model == "fem":
+        # A model of a later revision: an older tree has no module (skipped, not an error); a board the FEM refuses to mesh (a slanted outline, ...) is skipped with the reason
+        import importlib.util
+        if importlib.util.find_spec("pcbthermal.fem") is None:
+            rec.update(status="skipped", reason="model absent in this version")
+            return rec
+        from pcbthermal import femmesh
+        try:
+            femmesh.unknowns(p, cell)
+        except ValueError as exc:
+            rec.update(status="skipped", reason=f"no finite-element mesh: {exc}"[:300])
+            return rec
+    cap = {"fvm": max_unknowns, "fdm": max_unknowns, "solid3d": solid_cap, "fem": fem_cap}.get(model)
     if cap is not None and rec["unknowns"] is not None and rec["unknowns"] > cap:
         rec.update(status="skipped", reason=f"{rec['unknowns']} unknowns, more than {cap}")
         return rec
@@ -179,6 +219,7 @@ def run_one(problem, board, model, cell, max_unknowns=MAX_UNKNOWNS, solid_cap=SO
                balance_error=_f(r.balance_error), residual=_f(r.residual), layer_mean=[_f(v) for v in r.layer_mean],
                warnings=sorted(sim.warnings), parts=_parts(sim, model, p), blocks=_blocks(sim, model, p),
                extras={k: _f(v) for k, v in (r.extras or {}).items() if isinstance(v, (int, float))})
+    rec["surface"] = _surface(r)
     if r.T is not None:
         T = np.asarray(r.T, dtype=float)
         rec.update(t_shape=list(T.shape), t_sum=_f(np.nansum(T)), t_sumsq=_f(np.nansum(T * T)))        # a checksum of the whole field: a change anywhere is seen

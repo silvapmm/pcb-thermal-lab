@@ -265,7 +265,7 @@ All 17 rows are in the script's table. The Analytic with a tile (fixed or rule) 
 576 vias at 1.0 mm 1.04 / 6400 / 1.33 / 256 against 1.18 / 4900 / 0.91 / 165 with the fixed 1 mm and 0.29 s for the program's own. The rule costs the same as fixed 1 mm for pitch above 1.33 mm; at pitch 1.0 mm the tile is 0.75 mm, 1.3 to 1.9 times the seconds and up to 2.1 times the memory (for example 225 vias: 0.68 against 0.37 s, 165 against 78 MB).
 The dense matrix grows as the square of the unknowns: 1 GB at 6400.
 
-**3.7 The example board** (`study_s4_example.py`; change of the maximum temperature from the open via, K; "FVM 0.25 mm" is the FVM with the mean-potential via treatment of `point-via-convergence` (`FVM_fix` of `lumped-analytic-vias`), not the program's FVM at 0.25 mm; the open-board maximum is 85.81 degC FVM 1 mm, 85.15 degC FVM at 0.25 mm, 83.54 Lumped, 84.69 Analytic, 85.22 Analytic with the tile):
+**3.7 The example board** *(audit of 2.8.0: these numbers are the 2.4.x program and a research copy of the FVM; the scripts no longer run on the program. Re-run on the 2.7.1 tree with the program itself (`releases/2.8.0/audit/scripts/study_via_checks.py fillgain`): copper-fill gain FVM −4.256 K at 0.25 mm, Lumped −4.535 and Analytic −4.324 K at 0.5 mm, so the two reduced models are within 0.28 and 0.07 K of the FVM; the FVM is the program's own reference, not an independent one: `docs/validation.md` 18.1 lists the independent checks)* (`study_s4_example.py`; change of the maximum temperature from the open via, K; "FVM 0.25 mm" is the FVM with the mean-potential via treatment of `point-via-convergence` (`FVM_fix` of `lumped-analytic-vias`), not the program's FVM at 0.25 mm; the open-board maximum is 85.81 degC FVM 1 mm, 85.15 degC FVM at 0.25 mm, 83.54 Lumped, 84.69 Analytic, 85.22 Analytic with the tile):
 
 | row | FVM 1 mm | FVM 0.25 mm | Lumped program | Lumped cluster | Analytic program | Analytic fixed 1 mm | Analytic rule |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
@@ -347,6 +347,10 @@ are not cut by any cap: they stay a limit with a warning. **After the review (3.
 .venv/bin/python research/young-omega-tiles/scripts/make_diagrams.py
 .venv/bin/python research/young-omega-tiles/scripts/make_figures.py
 ```
+
+## Status on 2.8.0 (reproduction pass)
+
+**Tests removed in 2.8.0**: three tests of the prototype patch of the Analytic (installed and removed, bit for bit when switched off, the modes hook) were skipped since `fix/via-constriction` (2.4.5) put the tile rule and the via self-term in the program; the patch has nothing to rewrite. The 23 other tests pass (`development` 232ba648). The studies `study_s4_arrays`, `study_s4_heldout`, `study_s4_rule`, `study_s4_tile`, `study_s4_example` and `study_s4_lumped` use that patch and stop on the current program; they are the record of their run. (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## What was read and what was not verified
 

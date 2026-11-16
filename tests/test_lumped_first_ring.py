@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_first_ring.py
-@brief The first ring of the Lumped network is at most one equivalent radius of the footprint wide (research/lumped-ring-uniform-deficit, INTEGRATION.md 1 and 3).
+@brief The first ring of the thermal network is at most one equivalent radius of the footprint wide (research/lumped-ring-uniform-deficit, INTEGRATION.md 1 and 3).
 
 @details Before the cap the ring next to a small part was 0.04 of the distance to the farthest cell of the board wide, so the result of a 1 mm part on a uniform two-layer
          sheet fell with the board (centred, against the FVM at 0.5 mm: 60 x 40 mm -0.9 %, 100 x 80 mm -13.1 %, 200 x 150 mm -25.3 %). The tests hold: the rule of `lumped.ring_edges`
@@ -125,7 +125,7 @@ def test_the_equivalent_radius_helper_counts_the_touched_cells():
 def test_one_mm_part_on_100_by_80_agrees_with_the_independent_3d_solver():
     """!
     @brief The 1 mm part at the centre of a 100 x 80 mm uniform sheet against the independent 3D layered solver (cell mean of the source cells, 0.5 mm).
-    @details Insulated edges and films of 10 W/m2K on both faces in both models (the same board). Before the cap the Lumped read 38.69 K against 44.81 K (-13.7 %);
+    @details Insulated edges and films of 10 W/m2K on both faces in both models (the same board). Before the cap the LPTN read 38.69 K against 44.81 K (-13.7 %);
              with it 44.93 K (+0.3 %; the FVM at 0.5 mm 44.51 K).
     @return None.
     """
@@ -139,12 +139,14 @@ def test_one_mm_part_on_100_by_80_agrees_with_the_independent_3d_solver():
     p.add_full_copper()
     p.add_heater(1, 1.0, rect=(49.5, 39.5, 50.5, 40.5), name="U")
     lum = rise(p, "lumped")
-    assert abs(err(lum, ref)) < 2.0, (lum, ref)
+    # fix/lumped-edge-first-link: the first link reads the footprint with the images of the board sides, which moves a centred part about +2 points (hot side):
+    # +2.3 % here against +0.3 % before; the bound is 3 %
+    assert abs(err(lum, ref)) < 3.0, (lum, ref)
 
 
 def test_one_mm_part_on_100_by_80_is_within_a_few_percent_of_the_fvm():
     """!
-    @brief The same board with the program's film coefficients: the Lumped against the FVM at 0.5 mm (program before the cap: -13.1 %, after +1.0 %).
+    @brief The same board with the program's film coefficients: the LPTN against the FVM at 0.5 mm (program before the cap: -13.1 %, after +1.0 %).
     @return None.
     """
     p = sheet(100, 80, 1.0)
@@ -153,7 +155,7 @@ def test_one_mm_part_on_100_by_80_is_within_a_few_percent_of_the_fvm():
 
 def test_result_of_a_small_part_does_not_follow_the_distance_to_the_farthest_cell():
     """!
-    @brief 30 x 20, 60 x 40, 100 x 80 and 200 x 150 mm: the Lumped error against the FVM of a 1 mm part stays within a few percent (before the cap -25 % on the largest).
+    @brief 30 x 20, 60 x 40, 100 x 80 and 200 x 150 mm: the LPTN error against the FVM of a 1 mm part stays within a few percent (before the cap -25 % on the largest).
     @return None.
     """
     errors = []
@@ -196,7 +198,7 @@ def test_aspect_three_part_on_200_by_150_reads_hot_by_less_than_fifteen_percent(
 
 def test_time_to_63_percent_of_a_small_part_follows_the_fvm_step_response():
     """!
-    @brief The 1 mm part on 100 x 80 mm: time to 63 % of the Lumped step response within 10 % of the FVM's at 0.5 mm (program before the cap: 1.9 times).
+    @brief The 1 mm part on 100 x 80 mm: time to 63 % of the LPTN step response within 10 % of the FVM's at 0.5 mm (program before the cap: 1.9 times).
     @return None.
     """
     p = sheet(100, 80, 1.0)
@@ -223,7 +225,7 @@ def _without_cap(monkeypatch):
 
 def test_example_board_is_bit_identical_steady_and_step_response(monkeypatch):
     """!
-    @brief The example board (cell 1 mm): the cap does not act, so the Lumped field and the step response are those of the program to the last bit.
+    @brief The example board (cell 1 mm): the cap does not act, so the LPTN field and the step response are those of the program to the last bit.
     @param monkeypatch pytest fixture.
     @return None.
     """
@@ -248,7 +250,9 @@ def test_the_cap_does_act_on_a_small_part_of_a_big_board(monkeypatch):
     new = rise(p, "lumped")
     _without_cap(monkeypatch)
     old = rise(p, "lumped")
-    assert new > 1.2 * old
+    # fix/lumped-edge-first-link: the first link now comes from the potential of the footprint with its images, so the uncapped first ring is also compensated there and the
+    # cap acts by 2 % instead of 20 % (44.79 against 43.93 K); it must still raise the rise
+    assert new > 1.01 * old
 
 
 def test_zoned_network_receives_the_cap_and_a_small_via_board_does_not_move(monkeypatch):

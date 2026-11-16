@@ -231,12 +231,20 @@ def test_open_refuses_a_newer_a_damaged_and_a_missing_file_and_keeps_the_open_pr
     assert win.doc.path == str(good)
 
 
-def test_the_program_keeps_no_list_of_recent_files(win):
-    """There is no recent-files menu in this version: the File menu holds the documented entries only (a regression guard for the day one is added: this test then needs its flows)."""
+def test_the_recent_list_lives_only_in_the_user_settings_never_in_the_project(win, tmp_path):
+    """File - Open recent exists; opening a project puts it on the list in the user settings and leaves the project file byte for byte as it was."""
     file_menu = next(m.menu() for m in win.menuBar().actions() if m.text() == "&File")
     texts = [a.text() for a in file_menu.actions()]
-    assert not any("recent" in t.lower() for t in texts)
+    assert "Open recent" in texts
     assert {"New board…", "Open…", "Import Gerber board…", "Save", "Save as…"} <= set(texts)
+    good = tmp_path / "recent_probe.pcbt.json"
+    save_project(good, Project(problem=example_board()))
+    before = good.read_bytes()
+    win._open_path(str(good)) if hasattr(win, "_open_path") else win.open_file(str(good))
+    assert win.doc.path == str(good)
+    assert [os.path.abspath(p) for p in win.recent_files()][:1] == [os.path.abspath(str(good))]   # In the settings
+    assert good.read_bytes() == before                                      # Opening writes nothing to the project file
+    assert not [f for f in os.listdir(tmp_path) if f.startswith("recent_probe") and f != good.name]   # No sidecar (.bak, .tmp)
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ the keyboard

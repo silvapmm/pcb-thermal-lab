@@ -79,7 +79,9 @@ def test_column_does_not_depend_on_n():
     for n in (2, 4):
         net = GN.build(p, 1.0, RU.Rule(n_fixed=n, vert=False, face=-1.0))
         th, _ = net.solve_steady()
-        assert np.allclose(th[:2], th0[:2], rtol=1e-9, atol=1e-12)
+        # rtol 1e-9 -> 1e-7 with fix/face-film-half-slab: the film of a cell is h_eff over copper and h over the window, so the face loss is no longer uniform and a little heat
+        # flows sideways between the two kinds of cell; the n-dependence measured is 3e-9 of the rise (1.2e-6 K on 356 K)
+        assert np.allclose(th[:2], th0[:2], rtol=1e-7, atol=1e-12)
 
 
 def test_energy_balance_and_nonnegative_arrays():

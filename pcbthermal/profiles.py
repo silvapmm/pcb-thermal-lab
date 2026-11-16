@@ -145,8 +145,8 @@ class StepResponse:
     """
     model: str                                  # Model that produced them
     times: np.ndarray                           # Sample times in s (increasing, without t = 0)
-    z: np.ndarray                               # Responses (n_heaters, n_times) in degC/W
-    rth: np.ndarray                             # Steady-state resistances (n_heaters,) in degC/W
+    z: np.ndarray                               # Responses (n_heaters, n_times) in K/W
+    rth: np.ndarray                             # Steady-state resistances (n_heaters,) in K/W
     face_rth: Optional[np.ndarray] = None       # Largest face term of every heater per watt of its own power (n_heaters,) in K/W (parts over absent copper); None: no part has one
 
     def z_at(self, i, t):
@@ -155,7 +155,7 @@ class StepResponse:
                sample (heat-capacity limited) and Rth above the last.
         @param i Heater index.
         @param t Time or array of times in seconds (values <= 0 give 0).
-        @return Response in degC/W with the shape of t.
+        @return Response in K/W with the shape of t.
         """
         t = np.asarray(t, dtype=float)
         scalar = t.ndim == 0
@@ -298,7 +298,7 @@ def _cumulative_response(resp, i, period, sigma, terms):
     @param period Period T in seconds.
     @param sigma Array of values in [0, T].
     @param terms Number of exact terms.
-    @return Array like sigma, in degC/W.
+    @return Array like sigma, in K/W.
     """
     sigma = np.atleast_1d(np.asarray(sigma, dtype=float))
     m = np.arange(terms)
@@ -416,7 +416,7 @@ def decide(problem, resp, threshold_c):
         osc = max(pk - vl, 0.0)
         # The floor of the fast waves (docs/theory.md 10.5, eq. 10.6): the node structure of the layered models understates the swing of a short stretch (the capacity of half a
         # laminate gap sits on the copper node), the closed form of the stack does not. It needs a repeating profile (square wave or table), copper under the part and a swing of
-        # the power; it is applied whatever the model of the step response (FVM, FDM, Lumped, Analytic), since all of them share the node structure or are tuned on it
+        # the power; it is applied whatever the model of the step response (FVM, FDM, LPTN, Analytic), since all of them share the node structure or are tuned on it
         fast = _fast_swing(problem, i, w) if w.repeat else 0.0
         if fast > osc:
             osc = fast
@@ -450,7 +450,7 @@ def _fast_swing(problem, index, wave):
     @details A square wave uses the exact pulse coefficients, a table the coefficients of its stretches (stackimpedance.profile_coefficients). The value is the swing at the centre
              of the disc of the part's area on an infinite board: it leaves out vias, planes other than as layers of the column, the board edge and the other heaters.
     @note Measured against the reviewer's Cartesian 3D reference (docs/validation.md 37.2): 0.995 to 1.08 on full copper; above 1 with vias (to 2.04 at 0.1 to 1 Hz), elongated parts (1.37)
-          and inner layers at 0.1 Hz (1.20), the safe side for a floor; 0.61 at 0.1 Hz for a part within its radius of a board side (warned by checks.check_fast_wave).
+          and inner layers at 0.1 Hz (1.20), the safe side for a floor; 0.60 at 0.1 Hz for a part within its radius of a board side (warned by checks.check_fast_wave).
     @param problem A Problem (h_top and h_bottom as the run uses them: the steady effective values with computed h).
     @param index Heater index.
     @param wave SquareWave or repeating TableProfile of that heater.
@@ -826,7 +826,7 @@ def _ripple_only(problem, decisions, options, adapter, rip, result, t_begin, pro
     result.t_max, result.t_heaters = _add_ripple(result, problem, rip, times, gmax, hmax, dt)
     field0 = adapter.frame(state).astype(np.float32)
     result.frames, result.frame_times = field0[None], np.array([window])
-    # The FVM and FDM give the field of the state as peak values; the Lumped and Analytic adapters give none (their peak map is the maximum of the frames), so the one frame is it
+    # The FVM and FDM give the field of the state as peak values; the LPTN and Analytic adapters give none (their peak map is the maximum of the frames), so the one frame is it
     values = adapter.peak_values(state)
     result.peak_map = field0 if values is None else adapter.shape_field(values)
     result.history_t, result.history_max = times, result.t_max

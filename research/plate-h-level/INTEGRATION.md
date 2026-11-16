@@ -6,7 +6,7 @@ What would enter the program, the measured impact, what does not change and the 
 
 ## 1. What the study found, for the decision
 
-* The exact laminar boundary layer of an isothermal vertical plate in air is `Nu = 0.5157 Ra^(1/4)` (own solver; Ostrach's Table I reproduced to 0.02 %) [3]. The `Ra^(1/4)` term of the Churchill and Chu **laminar** form is 0.28 % below it, and its `0.68` is the leading-edge term: the program's `laminar` form already **is** "the exact boundary layer plus the leading edge" [3, 4].
+* The exact laminar boundary layer of an isothermal vertical plate in air is `Nu = 0.5157 Ra^(1/4)` (own solver; Ostrach's Table I reproduced to 0.02 %) [3]. The `Ra^(1/4)` term of the Churchill and Chu **laminar** form is 0.28 % below it, and its `0.68` is the leading-edge term: the program's `laminar` form already **is** "the exact boundary layer plus the leading edge" [3, 4]. **Corrected (README 10 item 4, and (audit of 2.8.0, `releases/2.8.0/audit/REVIEW_A1.md`))**: 0.68 is a fitted constant, larger than the end effect of the 2D plate (an additive 0.35 to 0.54); Lienhard says it 'accounts for very low values of Ra_L at which boundary layer behavior begins to break down' (eq. 8.13a, printed p 419).
 * A full 2D numerical plate (own solver, grid and domain checked; the review's finer grid moves `Nu` by 0.01 to 0.11 % at `Ra` 1e5 to 1e7) says the real mean `Nu` is, against the program's two forms [6]:
 
 | Ra | numerical / laminar form | numerical / general form | numerical / 0.59 Ra^(1/4) |
@@ -28,7 +28,7 @@ What would enter the program, the measured impact, what does not change and the 
 
 | Option | Value | Name in the interface | What it is |
 | :-- | :-- | :-- | :-- |
-| 1 | `laminar` | "Boundary layer (Churchill and Chu, laminar)" | the exact laminar boundary-layer coefficient plus the leading-edge term; within 0.6 to 2.2 % of the 2D numerical plate over `Ra` 1e4 to 3e7; right below `Ra` 1e9; the recommended default |
+| 1 | `laminar` | "Boundary layer (Churchill and Chu, laminar)" | the exact laminar boundary-layer coefficient plus a fitted constant 0.68 (not a derived leading-edge term, see 1); within 0.6 to 2.2 % of the 2D numerical plate over `Ra` 1e4 to 3e7; right below `Ra` 1e9; the recommended default |
 | 2 | `general` | "All Rayleigh numbers (Churchill and Chu)" | the single formula that joins the laminar and the turbulent regime; 5 % lower `h` than the numerical plate at `Ra` 1e4 to 1e5 (conservative for the rise), 6 to 11 % higher at 1e7 to 3e7; the right one above `Ra` 1e9 |
 
 `0.59 Ra^(1/4)` and the composite's plate limit are not offered: it is 14 % above the exact boundary layer and 4 to 13 % above the numerical plate, and it is not a boundary-layer result.

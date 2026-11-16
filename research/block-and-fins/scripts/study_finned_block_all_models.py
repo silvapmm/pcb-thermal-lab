@@ -54,7 +54,7 @@ def sides_without_fins(original):
     @param original The function `blocks.extra_layers` of the program.
     @return A function with the same signature.
     """
-    def wrapped(problem, cover, area, fill, dx, dy):
+    def wrapped(problem, cover, area, fill, dx, dy, **kwargs):
         """!
         @brief `blocks.extra_layers` with the side coefficient of every block taken without the fin ratio.
         @param problem A Problem.
@@ -63,9 +63,10 @@ def sides_without_fins(original):
         @param fill Copper fill of the board layers.
         @param dx Cell size along x in m.
         @param dy Cell size along y in m.
+        @param kwargs Further keywords of `blocks.extra_layers`, passed on (`board_cover` since 2.8.0, the exact block cover of `fix/block-exact-cover`).
         @return The list of dicts of `blocks.extra_layers`, with g_amb changed.
         """
-        out = original(problem, cover, area, fill, dx, dy)
+        out = original(problem, cover, area, fill, dx, dy, **kwargs)
         b = problem.board
         for lay in out:
             h_face = b.h_top if lay["face"] == 0 else b.h_bottom

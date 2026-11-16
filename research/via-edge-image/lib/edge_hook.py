@@ -197,7 +197,7 @@ def _enlarged(v_x, v_y, r_via, dx, origin, cover, dy, oy, need):
     return make(hi)
 
 
-def build_edge(problem, d, S, cover, dx, dy, nx, ny, origin, active, mode="mirror", reach_cells=6.0):
+def build_edge(problem, d, S, cover, dx, dy, nx, ny, origin, active=None, mode="mirror", reach_cells=6.0):
     """!
     @brief `viawell.build` with the edge term in the wells; identical to the program's when no wall is near a via or mode is "program".
     @param problem The Problem.

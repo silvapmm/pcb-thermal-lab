@@ -60,8 +60,9 @@ def solve(problem, cell_mm=1.0, n_terms=300, per_layer=True, tol=1e-9, beta_rule
         q += ht.power * qu
     k2 = bx.eig2[:, None] + by.eig2[None, :]
     h_l = np.zeros(L)
-    h_l[0] += b.h_top
-    h_l[L - 1] += b.h_bottom
+    # The faces through the half copper layer of the node, as the program since fix/face-film-half-slab (docs/theory.md 1.2a; validation 55)
+    h_l[0] += sh["h_top_eff"]
+    h_l[L - 1] += sh["h_bottom_eff"]
     g = sh["g_diel"]
     A = np.zeros((M, N, L, L))
     for l in range(L):
@@ -118,7 +119,7 @@ def solve(problem, cell_mm=1.0, n_terms=300, per_layer=True, tol=1e-9, beta_rule
     theta = np.stack([cy @ a[:, :, l].T @ cx.T for l in range(L)])
     # Heat balance: faces (plan mean) plus the true per-layer edge loss  h_side s_l * integral of the layer rise along the sides  (= S_l beta_l * the edge integral)
     mean = [analytic._plan_mean(bx, by, a[:, :, k]) for k in range(L)]
-    p_faces = float(b.h_top * W * H * mean[0] + b.h_bottom * W * H * mean[L - 1])
+    p_faces = float(sh["h_top_eff"] * W * H * mean[0] + sh["h_bottom_eff"] * W * H * mean[L - 1])
     p_sides = float(sum(analytic._edge_loss(bx, by, a[:, :, k], S[k], beta_l[k]) for k in range(L)))
     return {"t_max": float(theta.max() + b.ambient), "iterations": its[0], "beta_l": beta_l, "beta0": beta0, "a": a, "sh": sh, "p_sides": p_sides,
             "p_faces": p_faces, "power": problem.total_power(), "balance": (p_sides + p_faces) / problem.total_power()}

@@ -123,7 +123,7 @@ def test_bare_laminate_silent_on_copper_under_the_part():
 
 def test_via_warnings():
     """!
-    @brief Lumped: a part with vias under it warns once (tagged with the part); the vias outside every footprint give one warning together
+    @brief LPTN: a part with vias under it warns once (tagged with the part); the vias outside every footprint give one warning together
            (tagged with the first), and a via off the board none; the FVM alone gives no via warning at any cell.
     @return None.
     """
@@ -153,7 +153,7 @@ def test_via_warnings():
 
 def test_via_warnings_silent_on_a_one_layer_board():
     """!
-    @brief A one-layer board has no gap, so its vias change no model: the Lumped, Analytic, edge and coarse-cell via warnings stay silent there
+    @brief A one-layer board has no gap, so its vias change no model: the LPTN, Analytic, edge and coarse-cell via warnings stay silent there
            (they fired before, on a via near the edge and on vias outside every part, although the result does not depend on them).
     @return None.
     """
@@ -228,7 +228,7 @@ def _grid(cx, cy, n, pitch):
 
 def _cool_warnings(p):
     """!
-    @brief The warnings of the Lumped model that carry the too-cool rule of the one-node network (the zone model off: with it a part that will be split gets its text
+    @brief The warnings of the LPTN model that carry the too-cool rule of the one-node network (the zone model off: with it a part that will be split gets its text
            after the run, tests/test_lumped_zones.py).
     @param p Problem.
     @return list of str.
@@ -261,12 +261,12 @@ def test_lumped_cool_warning_fires_across_the_edge_and_off_centre():
     assert any("under the footprint" in str(x) for x in check_model_limits(centred, ("lumped",), 1.0))   # The general text still applies
     assert _cool_warnings(_via_part_board(27, 27, 33, 33, [])) == []
     assert check_model_limits(_via_part_board(27, 27, 33, 33, _grid(33.5, 30, 5, 1.5), layers=1), ("lumped",), 1.0) == []
-    assert not _cool_warnings_other(edge)                                     # The rule belongs to the Lumped model only
+    assert not _cool_warnings_other(edge)                                     # The rule belongs to the LPTN model only
 
 
 def _cool_warnings_other(p):
     """!
-    @brief The too-cool rule text among the warnings of the models other than the Lumped (must be none).
+    @brief The too-cool rule text among the warnings of the models other than the LPTN (must be none).
     @param p Problem.
     @return list of str.
     """
@@ -383,7 +383,7 @@ def test_live_input_check_is_what_a_run_reports():
     models = ("fvm", "lumped")
     live = [str(w) for w in check_input(p, models, 1.0)]
     assert any("sits on bare laminate" in w for w in live)
-    assert any("under the footprint; the Lumped" in w for w in live)
+    assert any("under the footprint; the LPTN" in w for w in live)
     sim = simulate(p, SolverOptions(models=models, cell_mm=1.0))
     # Same warnings in the same order; the live list shows the one-line form of each and the full measured text is the tooltip and the run's text
     assert [str(w) for w in sim.problem_warnings[:len(live)]] == live
@@ -393,13 +393,13 @@ def test_live_input_check_is_what_a_run_reports():
     assert any(sh != full for sh, full in zip(shorts, live))                 # At least the via and bare-laminate texts have a shorter form
     via_line = next(sh for sh in shorts if "under the footprint" in sh)
     assert "use the FVM" in via_line and "-21 to +33 %" in via_line and "measured" not in via_line
-    # The warnings depend on the selected models: with the FVM alone the Lumped via text is gone
-    assert not any("via under the footprint" in str(w) or "under the footprint; the Lumped" in str(w) for w in check_input(p, ("fvm",), 1.0))
+    # The warnings depend on the selected models: with the FVM alone the LPTN via text is gone
+    assert not any("via under the footprint" in str(w) or "under the footprint; the LPTN" in str(w) for w in check_input(p, ("fvm",), 1.0))
 
 
 def _many_via_board(n_scattered, outline=False):
     """!
-    @brief A 200 x 150 mm four-layer board with 20 parts, a 5 x 5 array of 0.4 mm pitch under each part (a group the Lumped zone model splits) and scattered vias.
+    @brief A 200 x 150 mm four-layer board with 20 parts, a 5 x 5 array of 0.4 mm pitch under each part (a group the LPTN zone model splits) and scattered vias.
     @param n_scattered Number of scattered vias.
     @param outline True to cut the board to an ellipse (some vias and parts then lie off it).
     @return Problem.
@@ -473,7 +473,7 @@ def test_heater_distance_is_the_per_via_loop():
 def test_live_input_check_is_cheap_on_a_large_board():
     """!
     @brief The live list runs in the window's thread after every edit: with 8500 vias, 20 parts and every model it took 1.8 s (2.7 s on an outline) because the
-           Lumped zone decision rebuilt the vias for every part and the Analytic plan measured the distances via by via; now about 0.2 s (0.5 s).
+           LPTN zone decision rebuilt the vias for every part and the Analytic plan measured the distances via by via; now about 0.2 s (0.5 s).
     @return None.
     """
     import time
@@ -646,7 +646,7 @@ def test_overlap_of_self_crossing_and_rotated_polygons_follows_the_even_odd_fill
 
 def test_overlap_and_cool_part_warnings_keep_their_numbers_in_both_forms():
     """!
-    @brief The overlap share is in the full text (Results summary) as well as in the one-line form; the one-line form of the Lumped cool-part warning
+    @brief The overlap share is in the full text (Results summary) as well as in the one-line form; the one-line form of the LPTN cool-part warning
            names no single trigger (it fires for an array past the edge, an off-centre array and an elongated footprint) and keeps the unsafe size.
     @return None.
     """
@@ -725,7 +725,7 @@ def test_convection_not_measured_note_only_with_computed_h():
 
 def test_copper_edge_across_a_footprint_warns_only_for_lumped_and_analytic():
     """!
-    @brief The "copper edge crosses its footprint" warning concerns the reduced models: silent on an FVM-only run, present with the Lumped or the Analytic.
+    @brief The "copper edge crosses its footprint" warning concerns the reduced models: silent on an FVM-only run, present with the LPTN or the Analytic.
     @return None
     """
     from pcbthermal.checks import check_input

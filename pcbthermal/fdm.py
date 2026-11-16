@@ -21,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from .geometry import exact_coverage, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
-from . import blocks, copper, fvm, laminate, viawell
+from . import blocks, copper, fvm, laminate, thickness, viawell
 from .results import SteadyResult
 
 FACE_FILL_TOL = 1e-9        # Copper fill difference (0..1) below which the nodal fill is taken to equal the fill of the face: uniform copper keeps the earlier faces bit for bit
@@ -195,6 +195,8 @@ class Network:
         self.area = area
 
         self.copper = copper.resolve(faces, problem) if sampling == "area" else None
+        if faces is None and sampling == "area":
+            self.copper = copper.drawn_source(problem, cells_x, cells_y) or self.copper          # Drawn copper read as an import (copper.drawn_source); the FDM has no variant that must keep the old path
         # Copper fill at the nodes
         if sampling == "area":
             # The union of the zones per sample point on the cells, then averaged over the cells around every node
@@ -218,14 +220,20 @@ class Network:
             edge_nodes[:, -1] += wy
             edge_nodes[0, :] += wx
             edge_nodes[-1, :] += wx
-        lam = laminate.extra_layers(b, self.laminate, area, ncov, edge_nodes, b.h_side) if self.laminate is not None else []
+        lam = laminate.extra_layers(b, self.laminate, area, ncov, edge_nodes, b.h_side, fill[0]) if self.laminate is not None else []
         NL = len(lam)
         self.laminate_layers = list(range(L, L + NL))
         if NL:
             S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
-        ex = blocks.extra_layers(problem, lambda poly, n: cover(poly, n) * ncov, area, fill, dx, dy)      # Cut at the outline, as in the FVM
+        # Cut at the outline, as in the FVM; the exact area of the block on the board per cell, averaged over the control volume of the node like the board cover
+        def block_cov(poly, n):
+            if sampling != "area":
+                return cover(poly, n) * ncov
+            c = blocks.block_cover(poly, b.outline if b.has_outline() else None, cells_x, cells_y, dx, dy)
+            return np.minimum(_node_average(c), ncov) if b.has_outline() else _node_average(c)
+        ex = blocks.extra_layers(problem, block_cov, area, fill, dx, dy, board_cover=ncov)      # `area` is already the board part of the control volume
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:
@@ -243,7 +251,7 @@ class Network:
         if use_rule:
             gz0 = (b.gap_properties()[0][:, None, None] * area[None] / b.gap_thicknesses()[:, None, None]) if L > 1 else np.zeros((0, ny, nx))
             g_bottom0 = np.zeros((L, ny, nx))
-            g_bottom0[L - 1] = b.h_bottom * area
+            g_bottom0[L - 1] = b.face_film_h(b.h_bottom, L - 1, fill[L - 1]) * area   # film through the half copper layer (theory 1.2)
             g_side0 = np.zeros((L, ny, nx))
             self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
             plans = laminate.plan_gaps(b, fill, dx, self.active, edge=edge_nodes if b.h_side else None)
@@ -305,7 +313,7 @@ class Network:
             d = b.gap_thicknesses()
             gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy() if rule is None else rule.gz
             # The barrel is a mean-potential coupling of a footprint of nodes (viawell.py), appended to the matrix entries
-            via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx, self.active)
+            via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx)
             vr, vc, vv = viawell.matrix_entries(via_blocks, idx)
             rows.extend(vr)
             cols.extend(vc)
@@ -316,7 +324,7 @@ class Network:
         # Ambient: faces, heatsinks and edges
         self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
         self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
-        self.g_top[0] = b.h_top * area
+        self.g_top[0] = b.face_film_h(b.h_top, 0, fill[0]) * area                     # film through the half copper layer (Board.face_film_h, theory 1.2)
         if rule is not None:
             # The bottom film and the edge: the copper nodes after the laminate moved out of them, then the new nodes
             self.g_bottom[:L], self.g_side[:L] = rule.g_bottom, rule.g_side
@@ -328,7 +336,7 @@ class Network:
                 self.g_bottom[L + k] = ly["g_bottom"]
                 self.g_side[L + k] = ly["g_side"]
         else:
-            self.g_bottom[L - 1] = b.h_bottom * area
+            self.g_bottom[L - 1] = b.face_film_h(b.h_bottom, L - 1, fill[L - 1]) * area
         for sk in problem.heatsinks:
             if sk.is_block():
                 continue                                       # A metal block is a layer of its own
@@ -435,6 +443,8 @@ def unknowns(problem, cell_mm=2.0):
         # The laminate nodes of the rule exist only at the nodes that carry them: count them as the network will (area sampling of the fill, the default)
         dx, dy = b.width / cells_x, b.height / cells_y
         cell_fill = copper.problem_fill(problem, cells_x, cells_y, dx, dy, 4)
+        for layer, drawn_fill in copper.drawn_layer_cuts(problem, cells_x, cells_y).items():     # (the exact fill of the drawn layers with a cut cell, as the network reads it)
+            cell_fill[layer] = drawn_fill
         fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
         if b.has_outline():
             c = _node_average(exact_coverage(b.outline, cells_x, cells_y, dx, dy))
@@ -485,6 +495,7 @@ def solve_steady(problem, cell_mm=2.0, mean="harmonic", sampling="area", face_fi
     fvm.attach_laminate_results(out, net, theta_all + b.ambient, area)
     fvm.attach_face_terms(out, net, area, dx)
     fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
+    thickness.attach(out, net, theta_all, area, problem)
     return out
 
 

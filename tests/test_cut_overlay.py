@@ -26,7 +26,7 @@ from pcbthermal.gui.main_window import TAB_RESULTS, MainWindow
 @pytest.fixture(scope="module")
 def sim():
     """!
-    @brief One FVM and Lumped run of the example board (2 mm cell).
+    @brief One FVM and LPTN run of the example board (2 mm cell).
     @return Simulation.
     """
     return simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))

@@ -89,7 +89,7 @@ def test_every_panel_of_all_layers_is_marked(sim):
 
 def test_outline_board_marks_only_samples_on_the_board():
     """!
-    @brief On a board with an outline the marks are taken over the samples that are drawn (cells off the outline are NaN), also in the solved view of the Lumped.
+    @brief On a board with an outline the marks are taken over the samples that are drawn (cells off the outline are NaN), also in the solved view of the LPTN.
     """
     from pcbthermal.model import Problem
 
@@ -163,7 +163,7 @@ def test_hot_ring_stays_at_the_model_tmax_point_and_only_the_cold_one_is_compute
 
 def test_lumped_hot_mark_is_the_reported_peak_point_on_every_layer_grid():
     """!
-    @brief The Lumped map keeps its hot ring at `t_max_location` (the part's peak), in the all-layers view too.
+    @brief The LPTN map keeps its hot ring at `t_max_location` (the part's peak), in the all-layers view too.
     """
     from pcbthermal.model import Problem
 
@@ -256,7 +256,7 @@ def test_cut_picture_follows_the_picture_argument_and_the_cut_line_colour(sim):
 
 def test_cut_picture_on_a_stretched_model_of_an_outline_board_is_plain_with_a_note():
     """!
-    @brief A Lumped reference on an outline board has no map (it would be stretched) and the title says why.
+    @brief A LPTN reference on an outline board has no map (it would be stretched) and the title says why.
     """
     pr = example_board()
     pr.board.outline = np.array([[0, 0], [0.1, 0], [0.1, 0.05], [0.05, 0.08], [0, 0.08]])
@@ -335,6 +335,8 @@ def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, si
     win.tabs.setCurrentIndex(TAB_RESULTS)
     win.results.tabs.setCurrentWidget(win.results.profile)
     qtbot.wait(200)
+    # The case is 'both docks open': a dock arrangement restored from another window (closed or floating docks) gives a wider page, where the box rightly stays inline
+    assert all(d.isVisible() and not d.isFloating() for d in (win.dock_board, win.dock_sim)), "the docks of the default arrangement must be open"
     page = win.tabs.widget(TAB_RESULTS)
     for area in [page] + page.findChildren(QAbstractScrollArea):
         if area.isVisible():
@@ -362,3 +364,31 @@ def test_profiles_tab_never_scrolls_sideways_and_keeps_its_cut_picture(qtbot, si
     assert plots.profile_has_strip(tab.fig) != strip
     assert tab._thumb_strip == plots.profile_has_strip(tab.fig)
     assert len(_cut_picture_axes(tab.fig)) == 1
+
+
+def test_a_window_without_settings_never_uses_the_real_preference_store(qtbot):
+    """!
+    @brief A MainWindow built with no settings argument keeps its geometry and dock state in a private file, empty at the start of every test, so one test never
+           restores the layout another one saved (a closed dock saved by an earlier window put the Cut overlay box inline and failed the Profiles test).
+    @param qtbot pytest-qt fixture.
+    """
+    import os
+    from PySide6.QtCore import QSettings
+    from pcbthermal.gui import boxes
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    native = QSettings("PMS Labs", "PCB Thermal Lab").fileName()           # The real store of this machine (the class itself is not patched)
+    win = MainWindow(Document())
+    qtbot.addWidget(win)
+    assert win.settings.fileName() != native
+    assert win.settings.fileName().endswith("window_default.ini")
+    assert win.settings.allKeys() == [], win.settings.allKeys()              # Nothing restored from another test or from the user
+    assert os.path.dirname(win.settings.fileName()) != os.path.expanduser("~/Library/Preferences")
+    # Two windows of one test share the private file: the saved arrangement still reaches the next window
+    win.dock_board.hide()
+    win.close()
+    assert win.settings.value("window_state") is not None
+    again = MainWindow(Document())
+    qtbot.addWidget(again)
+    assert again.settings.fileName() == win.settings.fileName()
+    assert boxes._settings is again.settings

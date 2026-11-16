@@ -1,5 +1,7 @@
 # Results across program versions
 
+*Generated file, stale on purpose until the refreeze of 2.8.0: it ends at v2.7.0 and has the 17 boards of that release. What moves in 2.8.0, board by board, is in [`releases/2.8.0/WHAT_MOVED.md`](../releases/2.8.0/WHAT_MOVED.md). At the release: add the label v2.8.0 to `releases/regression-harness/scripts/regen_version_comparison.sh` and its note to `releases/regression-harness/reference/version_notes.json`, then run that script (it overwrites this file, this note included); the decision is open (`releases/2.8.0/REFREEZE_PLAN.md` 7, decision 3).*
+
 Every number comes from result sets of the regression harness (`releases/regression-harness`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item, or when the notes of the pair (taken from the CHANGELOG and docs/versions.md of the later version) name one; otherwise it is left unclassified or called unexplained. The example boards are read from the current tree for every version: a release that does not know a field of the file ignores it.
 
 Versions compared (oldest first): v2.0.0, v2.1.0, v2.2.0, v2.3.0, v2.4.0, v2.4.1, v2.4.2, v2.4.3, v2.4.4, v2.4.5, v2.5.0, v2.5.1, v2.5.2, v2.6.0, v2.7.0.

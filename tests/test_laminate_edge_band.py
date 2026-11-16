@@ -194,6 +194,8 @@ def test_a_warning_above_200_for_the_layered_fvm_and_fdm_only():
         text = checks.check_edge_laminate(hot, ("fvm",))[0]
     assert "Laminate sub-gaps" in text and "--" not in text.replace("--laminate", "")
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    # audit A2 W1 and W2: the 3.2 mm figures are not too pessimistic, and a finer cell alone does not reduce the cool error of the default rule
+    assert "too pessimistic" not in text and "reduce the cool error" not in text and "hottest point" in text
     # it is part of the model-limit warnings of a run
     assert any("edge coefficient" in str(x).lower() for x in checks.check_model_limits(hot, ("fvm",)))
 
@@ -216,18 +218,18 @@ def test_the_edge_warning_names_the_via_effect_and_has_no_stackup_clause():
 
 
 def test_a_warning_for_the_lumped_and_analytic_when_the_edge_is_cooled_strongly_for_the_thickness():
-    # check_reduced_edge_laminate (review): the Lumped and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
+    # check_reduced_edge_laminate (review): the LPTN and Analytic keep the edge film at the copper temperature, as the FVM did before the band; they read the 60 x 40 mm,
     # 1.6 mm board with a corner part -5.2 % (Analytic) at 200 W/m2K against a converged independent 3D solver (77.66 K), where the FVM with the band is -0.6 %
     w = checks.check_reduced_edge_laminate(plate(1.6, 100.0, "corner"), ("analytic",))
     assert len(w) == 1 and "Analytic model keeps" in w[0] and "FVM or the FDM" in w[0]
-    assert "Lumped and Analytic models" in checks.check_reduced_edge_laminate(plate(3.2, 50.0, "corner"), ("fvm", "lumped", "analytic"))[0]
+    assert "LPTN and Analytic models" in checks.check_reduced_edge_laminate(plate(3.2, 50.0, "corner"), ("fvm", "lumped", "analytic"))[0]
     assert not checks.check_reduced_edge_laminate(plate(1.6, 50.0, "corner"), ("analytic",))              # 80 W/m2K mm: about -1 %, silent
     assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("fvm", "fdm", "solid3d"))
     assert not checks.check_reduced_edge_laminate(plate(3.2, None, "corner"), ("analytic",))
     assert not checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner", layers=1), ("analytic",))
     text = checks.check_reduced_edge_laminate(plate(3.2, 200.0, "corner"), ("lumped",))[0]
     assert not any(k in text for k in ("research/", "fix/", "feature/"))
-    assert any("Lumped model keeps" in str(x) for x in checks.check_model_limits(plate(3.2, 200.0, "corner"), ("lumped",)))
+    assert any("LPTN model keeps" in str(x) for x in checks.check_model_limits(plate(3.2, 200.0, "corner"), ("lumped",)))
 
 
 def test_a_turned_board_converges_to_the_aligned_one_and_to_the_independent_reference():
@@ -284,3 +286,36 @@ def test_the_edge_warning_also_fires_when_no_laminate_gap_is_cut():
     assert "no gap is cut" in checks.check_edge_laminate(adv, ("fvm",))[0]
     # it is part of the model-limit warnings of a run, and the one-line form is short
     assert any("no gap is cut" in str(x) for x in checks.check_model_limits(six, ("fvm",)))
+
+
+def test_the_via_clauses_of_the_edge_warnings_appear_only_with_the_model_and_a_via():
+    # Texts of fix/via-and-edge-warning-texts: the FDM, 3D solid and Analytic via-effect clauses need the model in the run and a via on the board
+    bare = plate(1.6, 1000.0, "corner", layers=4)
+    withvia = plate(1.6, 1000.0, "corner", layers=4)
+    withvia.add_via(5.0, 15.0)
+    fvm = checks.check_edge_laminate(withvia, ("fvm",))[0]
+    assert "The FDM also reads" not in fvm and "The 3D solid reads" not in fvm
+    fdm = checks.check_edge_laminate(withvia, ("fvm", "fdm", "solid3d"))[0]
+    assert "The FDM also reads the effect of the vias low" in fdm and "The 3D solid reads the effect of the vias too large" in fdm
+    assert "The FDM also reads" not in checks.check_edge_laminate(bare, ("fvm", "fdm", "solid3d"))[0]
+    for text in (fdm, fdm.short if hasattr(fdm, "short") else ""):
+        assert not any(k in text for k in ("research/", "fix/", "feature/"))
+    # the one-line forms carry the clauses too, and end with one full stop (the review found '... coarse cell.; FDM ...')
+    assert "FDM via effect 4 to 9 % low" in fdm.short and "3D solid via effect up to 26 % too large" in fdm.short
+    assert ".;" not in fdm.short and fdm.short.endswith("too large.")
+    # the 3D solid alone beside the FVM: its clause without the FDM one, in the long and the short text
+    solid = checks.check_edge_laminate(withvia, ("fvm", "solid3d"))[0]
+    assert "The 3D solid reads the effect of the vias too large" in solid and "The FDM also reads" not in solid
+    assert "3D solid via effect" in solid.short and "FDM via effect" not in solid.short
+    # the 3D solid without a layered model gets no edge-laminate warning at all (the same trigger as the FVM/FDM text)
+    assert checks.check_edge_laminate(withvia, ("solid3d",)) == []
+    # the thin-laminate form (no gap cut, six layers in 1.0 mm) takes the same clauses
+    thin = plate(1.0, 1000.0, "corner", layers=6)
+    thin.add_via(5.0, 15.0)
+    uncut = checks.check_edge_laminate(thin, ("fvm", "fdm", "solid3d"))[0]
+    assert "no laminate gap cut" in uncut.short and "The FDM also reads" in uncut
+    assert ".;" not in uncut.short and "FDM via effect" in uncut.short
+    ana = checks.check_reduced_edge_laminate(withvia, ("analytic",))[0]
+    assert "effect of the vias too small near such an edge" in ana
+    assert "effect of the vias" not in checks.check_reduced_edge_laminate(bare, ("analytic",))[0]
+    assert "effect of the vias" not in checks.check_reduced_edge_laminate(withvia, ("lumped",))[0]
