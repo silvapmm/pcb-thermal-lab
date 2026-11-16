@@ -7,7 +7,7 @@ Method: per folder the tests of the folder, then every study script (not the `ma
 ## Totals of part A (17 folders plus `gerber-models`, 134 study scripts, 15 test sets)
 
 **Scripts: unchanged 30 (22 identical, 8 only timings), explained 40, checked without a v2.7.1 baseline 6, not run 58, UNEXPLAINED 0.**
-Not run: 24 input missing (git-ignored `out/`, `data/` or board files absent: the same error in both trees), 14 need an argument or mode, 2 shapely missing, 3 other script errors identical in both trees, 4+2 timeouts at 300 s (heavy), 2 need the 300 s+ cache of `analytic-partial-copper/study_baseline`, 5 stale studies (see 2), 1 memory (study_review killed by the orchestrator at 3.4 GB), 1 memory guard (see 2). A rerun of `study_baseline` at 1500 s was not made (it is the cache of two other studies and would exceed the 25 min and 4 GB the coordinator allowed).
+Not run: 24 input missing (git-ignored `out/`, `data/` or board files absent: the same error in both trees), 14 need an argument or mode, 2 shapely missing, 3 other script errors identical in both trees, 4+2 timeouts at 300 s (heavy), 2 need the 300 s+ cache of `analytic-partial-copper/study_baseline`, 5 stale studies (see 2), 1 memory (study_review killed by the orchestrator at 3.4 GB), 1 memory guard (finding 3). A rerun of `study_baseline` at 1500 s was not made (it is the cache of two other studies and would exceed the 25 min and 4 GB the coordinator allowed).
 
 ## 1. Research tests
 
@@ -33,7 +33,7 @@ Not run: 24 input missing (git-ignored `out/`, `data/` or board files absent: th
 
 1. Every shift of an FVM, FDM or Analytic number is at most a few 1e-4 K, except the M2 cases (zone edges inside cells at 2 mm: +1.0 K on `example_cut_to_T` FVM, +5.9 K FVM and +12.2 K FDM on the rectangle of `gerber-models/study_rect_convergence` at 2 mm, shrinking with the cell) and the M1 case with a tiny `k` (`block-and-fins/study_why_coefficients_fail`: the study sets the block `k` to 1e-6, the film now passes the half block `t/(2k)` and the column moves from +28.5 to +58.6 %; the premise of that column is stale).
 2. Stale studies (documentation finding, not a defect of the program): `lumped-via-groups` (4 studies and 7 tests, source copy of the Lumped network), `block-and-fins/study_finned_block_all_models` (the monkeypatch `sides_without_fins.wrapped` takes no `board_cover`, the new argument of the block code, M4), `point-via-convergence` pinned tests (stale since before 2.8.0).
-3. Behaviour change to flag: `point-via-convergence/study_array_board` at the cell 0.0625 mm (451 584 unknowns) is now refused by the memory guard (estimate 10.4 GB against the 10.3 GB limit; v2.7.1 ran it in 295 s). The estimates of the coarser cells fell (8.8 to 7.6 GB for the same case): the memory law was re-measured in 2.8.0.
+3. `point-via-convergence/study_array_board` at the cell 0.0625 mm (451 584 unknowns) is refused by the memory guard in the tree (estimate 10.4 GB against the 10.3 GB limit) and ran on v2.7.1. This is NOT a program change: the FVM/FDM memory law is identical in both trees for that board (6 237 B/unknown, 2.816 GB at 0.0625 mm; measured peaks 4 194 vs 4 223 B/unknown, +0.7 %). The guard reads the resident memory once at the first estimate and the study runs heavy independent 3D references first (process baseline about 7.55 GB in this run, 6.0 GB in the v2.7.1 run: 7.55 + 2.82 = 10.4 refused, 6.0 + 2.82 = 8.8 accepted). Not run: needs about 7 GB (`releases/2.8.0/memory-guard-check`, `MEMORY_GUARD_STUDY_ARRAY_BOARD.md`).
 4. Studies whose v2.7.1 twin cannot run because they use an attribute or key of 2.8.0 (`Board.face_film_h`, `heater_peak`): listed as 'checked, no v2.7.1 baseline'.
 
 ## 3. Studies (folder | script | what was compared | class | item)
@@ -138,7 +138,7 @@ Not run: 24 input missing (git-ignored `out/`, `data/` or board files absent: th
 | outline | study_disc_reference | lumped 1 mm +2.22 -> +1.15 %; fvm 0.5 mm -0.12 -> -0.11 %  | explained | M3, M1 |
 | outline | study_edge_on_grid_lines | Lumped error columns -7.0 -> -4.0 %, -10.8 -> -10.1, -1.7 -> -1.3 | explained | M3 |
 | outline | study_outline_time_constant | identical output (timings ignored) | unchanged |  |
-| point-via-convergence | study_array_board | tree: MemoryGuardError at the finest cell (0.0625 mm, 451 584 unknowns: estimate 10.4 GB against the 10.3 GB limit); v2.7.1 ran it (295 s). The guard estimates of the coarse cells fell (8.8 -> 7.6 GB): the memory law was re-measured in 2.8.0 | not run (memory guard) | memory law (guard) |
+| point-via-convergence | study_array_board | tree: MemoryGuardError at the finest cell (0.0625 mm): refused only because of the process baseline of the study's own earlier 3D work (7.55 GB + 2.82 GB > 10.3 GB limit); law identical in both trees; v2.7.1 ran with a 6.0 GB baseline | not run (memory guard, needs about 7 GB) | none (not a program change) |
 | point-via-convergence | study_edge_via | footprint timings only (0.38 -> 0.37 ms) | unchanged (noise) |  |
 | point-via-convergence | study_example_board | two numbers move by 0.01 K (rel 1.2e-4) | explained | M1 |
 | point-via-convergence | study_reference_3d | identical output (timings ignored) | unchanged |  |
