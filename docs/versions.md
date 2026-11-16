@@ -566,3 +566,86 @@ Neural-network surrogates; reduced-order models (only if transients become too s
 ### Sources of this chapter
 
 gerbonara (https://pypi.org/project/gerbonara/, Apache-2.0, checked; its companion shapely is BSD-3-Clause); Nexperia AN11261 and TI SLUAAT8 on RC thermal models and repetitive pulses; the datasheets, JEDEC standards and notes behind the Component element are listed at the end of `research.md`; the fabricator stack-up tables in the Literature section of `validation.md` section 14.
+
+---
+
+## Appendix: passages moved out of CLAUDE.md
+
+Moved word for word from `CLAUDE.md` (2.8.0 state, to bring it under 40 KB); the rule stays in `CLAUDE.md` in short form with a pointer here.
+
+### A1. Release gate, the eight steps (was section 12)
+
+- **A release** (maintainer's gate, mandatory, in this order): (1) every `fix/`/`feature/` branch merged, each through executor -> reviewer -> maintainer with the whole battery; (2) research branches closed and merged; (3) theory and documents reviewed; (4) **reproduction pass**: the tester re-runs the studies of every research folder that imports the program and the reference numbers on the final tree and links every shift to an item of the version (unexplained = a defect until proven otherwise); (5) the reviewer's **final opinion** (go/no-go) on the whole diff against the previous release (how changes interact), the program, the documents and the investigations; (6) the whole battery on the final tree, read to the last line; (6b) **the documentation review** (mandatory, before `main`): the maintainer, with the reviewer for the numbers, goes through README (features, usage, badges, test count, versions, screenshots), user guide and calculator help, the pictures of `docs/images` and `pcbthermal/help` (changed screens regenerated, every changed picture LOOKED AT), `docs/*.md`, tooltips, `SHORTCUTS_HTML`, About box, CHANGELOG and the `research/README.md` index, and writes `releases/<version>/doc-review/README.md` (checked, changed, stale on purpose); (7) only then bump, CHANGELOG, merge to `main`, tag, push, GitHub release (section 6); (8) remove the finished agent worktrees and branches, open the next version's studies. Release reports go to `releases/<version>/` and `releases/regression-harness/`.
+
+### A2. Frozen numbers, the release procedure (was section 6)
+
+- **Frozen numbers** (`tests/regression/`): the test holds the program to the numbers of the last release. A model change on purpose moves numbers only through a **pending file** (`tests/regression/data/pending/<topic>.json`, written by `make_pending.py`, one record in one file only). At a release, **after the version bump**: run the harness of `releases/regression-harness/` on the previous tag and on the tree (`study_baseline_release.py --tag v<previous>`, `study_run_suite.py --label final`), `study_diff.py ... --strict` (0 alarms; every shift explained by an item of the release, table `expected_shifts_<version>.json`, made by `make_expected_shifts.py`), then `study_freeze_reference.py out/v<previous>.json out/final.json --version <new>`, copy `reference/v<new>.json` to `tests/regression/data/` (the test reads the newest file) and delete the pending files in the same commit (the test fails on a pending file of an older base). A release that changes no number leaves the file as it is (`releases/regression-harness/INTEGRATION.md` 2).
+
+### A3. Research rule 14, the literature check (was section 9)
+
+14. **Literature check (the sources are opened and the published cases are reproduced)**: every formula, correlation and model, in use or planned, rests on a source that was **read** and a **published numerical case that was reproduced**; a name is not a source. Steps: (1) obtain it, open archives first (author, group archive, arXiv, open copy); the fetch tools work from the maintainer's machine, so try before giving up; ask the maintainer only for what is paid; (2) read the pages that matter (scans as page images, book PDFs extracted locally; nothing of a third party stored in the repository); (3) write down formulas, cases and numbers with page or equation in `BIBLIOGRAPHY.md` (a number from a plot marked "plot"); (4) reproduce one published case with an independent solver in `lib/` (tested against a closed form and an energy balance), then run the program's models on it; (5) record agreement, limits and discrepancies in the README, correct the bibliography, give a text for the project documents in `docs/`; (6) a check that finds the program wrong becomes a proposal in `INTEGRATION.md`, never an edit from the research branch.
+
+### A4. Research rule 7, diagrams and illustrations (was section 9)
+
+7. **Diagrams and illustrations (always)**: pictures of the thing itself (a cross-section of the board or the via, the copper patterns, the shapes a method acts on, the cases compared) and, wherever heat crosses a junction or an interface (die to board, board to heatsink, a via, a gap in the copper), the real section with the heat paths; flow charts and networks in addition; made in the same pass as the results. `make_diagrams.py` (no data, no program; shapes in `research/diagram_kit.py`) and `make_figures.py` share one numbering (`fig_NN_topic.png`); each is linked from the README with an italic line on what it shows (schematic ones may sit together in section 1.1), reports embed the ones they need, a picture quotes only numbers the README holds, an illustrative curve says so; before closing, every section that explains a situation has a drawing. **Theory and plans are drawn too**: every section of `docs/theory.md` and `docs/models.md` that explains a model, equation or method, and every planned model or analysis, has a picture made in the same pass (without it the section is incomplete); drawn first in `research/theory/` (`docs/theory-figures.md`), copied to `docs/images/` on adoption.
+
+### A5. Research rule 6, folder layout (was section 9)
+
+6. **Folder layout** (the same everywhere): the root holds only what is read: `README.md` (results in numbered sections, with tables, limits and sources; its last section, "What was read and what was not verified", says what was read in full, from a summary or from memory, what was reproduced and what not) and `INTEGRATION.md` (the design for entering the program, while it is not in it; once it is, its place is in `docs/versions.md`; no diary, git has it); `figures/`; `docs/`; `scripts/` holds **all** the executable Python (`study_<question>.py` with a `@file`/`@brief` saying the question and how to run it, `make_figures.py`, `make_diagrams.py`), run from the repository root and finding their siblings through `sys.path`, checked by `tests/test_docs.py` (a research folder follows the language and Doxygen rules of the project); `lib/` only for shared code; `tests/` for the tests of the investigation.
+
+### A6. Local boards library (was section 8)
+
+Maintainer's rules (as for the papers): `pcb-library/` in the main checkout is a **local folder that is never tracked** (in `.git/info/exclude`, valid for every worktree, not in `.gitignore`; never committed or pushed; a fresh clone does not have it). It holds the boards and Gerber sets of the studies and tests, organised once: `real/<id>/` third-party boards (`gerber/` under role names, `original/`, `placement/`, `source/`, `PROVENANCE.md`, `meta.json` with origin, licence and checksums), `generated/` boards of ours (MIT), `samples/` public CAD sample sets, `scripts/` (`fetch_all.py` re-downloads from `manifest.json` and never overwrites, `build_index.py`, `link_env.sh`) and `env/` (symlink farms the tests expect). Tests find them through `PCBT_REAL_BOARDS`, `PCBT_GERBER_DATA`, `PCBT_GERBER_SAMPLES`, set by `eval "$(pcb-library/scripts/link_env.sh)"`; without them those tests skip. Third-party boards keep their owners' licences (several GPL, CC-BY-SA or not stated): use on this machine only, quote numbers, never files or renders.
+
+### A7. Closing an investigation, the reviewer step (was section 12)
+
+- **Closing an investigation, adopting a proposal or any change to a model**: the reviewer is called before the merge with the claims and numbers to check. **When an investigation is closed (or a closed one is reopened and corrected) the reviewer must review it and update it** (mandatory): re-run the studies, check every claim against an independent reference, correct the folder (README results, a chapter 'Review' with the independent checks, limits and what was not verified, `INTEGRATION.md` with a recommendation per decision, figures, bibliography statuses), update the registers (`research/REVIEW.md`, `research/README.md`, `research/ROADMAP.md`) in the commit of the review, and give a written go or no-go. Without it an investigation is not closed or merged. When the program changes later, the reviewer repeats it for the folders that import the program (the reproduction pass).
+
+
+### A8. Module list of `pcbthermal/` (was section 13)
+
+Moved word for word; the detailed map is `docs/models.md`, 'Appendix: module map (detailed)'.
+
+```
+  model.py             Board, Materials, Zone, Heater, Via, Heatsink, Problem (+ mm builder), JSON I/O, import records of format 2
+  geometry.py          polygons, exact cell coverage, part weights across the outline, clipping and overlap, outline edge per cell
+  fvm.py               reference finite volumes: steady (direct, CG, SOR) and transient; lu_factor, factor_reuse
+  fdm.py               node-centred finite differences of the same layered physics, steady and time
+  solid3d.py           3D finite-volume solid (real slabs, steady; off by default, key solid3d; memory guard in its constructor)
+  femcore.py, femmesh.py, fem.py  the FEM: hexahedral core (Robin faces, direct up to 30 000 unknowns, CG + optional pyamg), the mesh of a Problem or a refusal, and the model `fem.solve_steady` (column, surface and point read-outs; key `fem`, saved under `comparison_models` so that v2.7.1 still opens the file)
+  lumped.py            ring network per heater; two-node zones over a dense via group
+  analytic.py, analytic_local.py  multilayer series with local via/heatsink corrections, per-layer edge; the coupled modal block of the transient
+  viawell.py           the via on the FVM/FDM grid: footprint, Peaceman well, Kron couplings, rim test, edge image
+  viaconstriction.py   constriction of heat into a via barrel for the Lumped and the Analytic
+  laminate.py          laminate between copper layers as node layers (sub-gaps where copper is absent), thread-local options
+  blocks.py            metal blocks (heatsinks with thickness): extra node layers
+  copper.py            imported copper masks to cell fill and face conductances; import_copper; per-model warnings
+  checks.py            input warnings (live, exact geometry) and after-run warnings (model limits, vias, plates, fins)
+  convection.py        computed h: air properties, natural/forced convection, radiation
+  profiles.py, profile_io.py, stackimpedance.py  power profiles (average-or-resolve, window runner), CSV, fast-wave impedance and ripple
+  memory.py            memory guard: estimated peak per model, ok/slow/refuse against a fraction of the memory
+  inverse.py           power of a part from a measured temperature or a datasheet parameter
+  api.py, results.py, analysis.py, jobs.py  SolverOptions, simulate, results, read-outs, jobs of the app process
+  project.py, package.py, fileschema.py  .pcbt.json formats 1 and 2 (atomic save, .bak), the .pcbtz package, type checks at loading
+  defaults.py, data/   shipped defaults, libraries, stack-ups, CAD profiles; the user's user_defaults.json
+  units.py, numfmt.py, uicontext.py, plots.py, cli.py, examples.py  number text, warning context, figures, command line, examples
+  gerber/              own Gerber/Excellon reader: parser, macros, outline, raster, layer functions, CAD profiles, safe ZIP, X3 components, parts
+  gui/                 PySide 6 application (main window, canvas, panels, results, Display, import window, profile page, theme tokens)
+  help/                the user guide (index.html) and the calculator help
+```
+
+### A9. Agent worktrees and the branches Claude deletes (was section 6)
+
+- **Agent worktrees**: an agent with an isolated worktree gets an automatic local branch `worktree-agent-<id>` in `.claude/worktrees/` (never pushed, no work of its own); it creates its real branch from `development` inside it (`worktree.baseRef` is `head`). After the work is merged, Claude removes the worktree (`git worktree remove`, without `--force`; a worktree with untracked files is looked at first), checks `git rev-list --count development..<branch>` is 0 and deletes the `worktree-agent-*` branch (`git branch -D`; if a commit exists only on it, report and do not delete). These are the only branches Claude deletes, besides the throwaway ones: throwaway `tmp/<name>` branches and their worktrees (merge checks, prototypes) are deleted by Claude without asking as soon as their work is on a real branch or on development (check `git rev-list --count development..<branch>` first; a tmp branch with unique work is reported, never deleted). Maintainer, 2026-11-16.
+
+### A10. Parallelism follows the load of the PC (was section 12)
+
+- **Parallelism follows the load of the PC**: before launching heavy work and at every report, measure `uptime`, `sysctl vm.swapusage`, `vm_stat` (free + inactive pages, 16 KB each) and the biggest Python processes, and say them in the report. Heavy jobs (a battery, a long study, a big solve; each declares its expected peak memory) may run **in parallel up to 3** only while load < 5 (10 cores), swap used < 2.5 GB and grown < 1.5 GB since the job started, and free + inactive > 6 GB plus the new job's peak; otherwise in series (the default when the PC is busy; one `pytest` at a time on the 16 GB machine). Above load 8 or swap 2.5 GB, pause or stop a job. Reading and writing work may always run in parallel.
+
+### A11. Exhaustive test passes (was section 12)
+
+- **Exhaustive test passes** (the reproduction pass, a re-run of every research folder, a full run of a new version's prepared scripts): split by folder among **up to 4 testers**, **one branch for the whole pass** (owned by the first tester; release work, so named `release/<version>-reproduction`); the others work in **detached worktrees** (`git worktree add --detach <path> <branch>`), one job at a time, commit a part report (`PART-B.md`, ...) and hand the hash to the first tester, who cherry-picks it and writes one README with the totals (checked, unchanged, explained, unexplained, not run). Testers pause when the load stays above 6 or memory gets tight; one is withdrawn if the machine becomes slow.
+
+### A12. Current state of the battery, the 2.8.0 line in full (was section 14)
+
+**Current state of the battery**: the last whole battery gave 4054 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 1 warning on the release tree of 2.8.0 (whole battery 55 min 31 s, real-board environment proven loaded; frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed, three random-action tests passed, 24-project round trip byte-identical). Frozen numbers 332 records at 2, 1 and 0.5 mm (`tests/regression/data/v2.8.0.json`), compat 5 (v2.4.5) + 17 (v2.7.1), secrets 4, published 14 + 1 xfailed. Known flakes under load: the timing test `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). The history is in `docs/versions.md` ('How each version was tested').
