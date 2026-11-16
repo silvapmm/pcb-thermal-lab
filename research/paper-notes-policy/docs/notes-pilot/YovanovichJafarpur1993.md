@@ -1,8 +1,8 @@
-# Note: YovanovichJafarpur1993 (ILLUSTRATION ONLY, a pilot for the policy; not adopted)
+# Note: YovanovichJafarpur1993 (a pilot of the policy, illustration only; not adopted)
 
 - Key: YovanovichJafarpur1993
 - Citation: M. M. Yovanovich, K. Jafarpur, "Bounds on laminar natural convection from isothermal disks and finite plates of arbitrary shape for all orientations and Prandtl numbers", report of the Waterloo Microelectronics Heat Transfer Laboratory (1993), 18 pages (the exact venue was not confirmed).
-- Reading status: R for pages 1 to 15 (text layer, equation 25 compared with the page image by the reviewer).
+- Reading status: R for pages 1 to 15 (transcription); pages 1, 3, 8 and 11 (equations 1, 25, 26 and the face-down constants) compared with the page images by the reviewer of this folder.
 - Licence of the source: all rights reserved (the publisher or author class is not established; status N for terms). What a note may keep: summary, formulas with numbers and equation numbers, our own account.
 - Class: publisher or institution report (copyrighted).
 
@@ -15,7 +15,7 @@ The report brackets the mean heat transfer of a laminar natural-convection plate
 - Equation 1: `Nu = Nu_inf + F(Pr) G Ra^(1/4)` on the length `sqrt(A)`.
 - Equation 25 (upper bound, air, length sqrt(A)): `3.545 + 0.571 Ra^(1/4)`; the figure legends print 0.570 (an inconsistency inside the report).
 - Equation 26 (lower bound, air): `2.257 + 0.382 Ra^(1/4)`.
-- Page 8: for the face looking down, the constant C of `Nu = C Ra^(1/5)` of the earlier work spans 0.44 to 0.527 and its mean over the Pr 0.71 results is 0.475 (this is a number we adopted).
+- Page 8: for the face looking down, the constant C of `Nu = C Ra^(1/5)` in the integral-method results that Goldstein and Lau (1983) summarised spans 0.44 to 0.527, and its mean over the Pr 0.71 results is 0.475 (this is a number we adopted).
 
 ## Numerical cases we test against
 
@@ -23,8 +23,8 @@ None of our own; we use the constant 0.475 and the 1/5 exponent for the face tur
 
 ## Limits and caveats
 
-The 0.475 is a mean of values the report quotes from another paper (not obtained); scale choices are not interchangeable.
+The 0.475 is a mean of values the report quotes from Goldstein and Lau (not obtained); scale choices are not interchangeable.
 
 ## Used in the program
 
-`convection.h_natural_horizontal` (face down law); decision recorded in `CLAUDE.md`.
+`convection.h_natural_horizontal` (face down law, constant `DOWN_COEFFICIENT`); decision recorded in `docs/decisions-log.md`.
