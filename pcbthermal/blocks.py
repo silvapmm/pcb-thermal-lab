@@ -27,6 +27,8 @@ import copy
 
 import numpy as np
 
+from .geometry import coverage_fraction, exact_coverage, part_weights, polygon_is_simple
+
 ISOLATED = 1.0e-9            # W/K of a node without block: keeps the matrix regular, changes nothing
 
 
@@ -82,7 +84,41 @@ def block_faces(problem):
     return sorted(faces)
 
 
-def extra_layers(problem, cover, area, fill, dx, dy):
+def block_cover(poly, outline, nx, ny, dx, dy, board_cover=None):
+    """!
+    @brief Exact fraction of every cell (or control volume) that a metal block covers on the board.
+    @details Same rule as the board cover and the part weights (fix/exact-board-cover): the area of the block polygon, clipped to the board outline
+             when there is one, cut by the cells (`geometry.exact_coverage`, `geometry.part_weights`), divided by the area of the cell. The older rule sampled
+             the block on a 4 x 4 lattice (an error of up to 1/32 of a cell in every cell the block edge cuts) and multiplied it by the board cover, which is
+             wrong in a cell that both the block edge and the outline cut. A polygon that crosses itself, or one with too many long edges for the grid,
+             keeps the sampled rule (4 x 4, times the board cover when it is given, as before). A block edge on the grid lines gives the same 0 or 1
+             as before.
+    @param poly Block polygon vertices (n, 2) in metres.
+    @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board (the caller then limits the cover to the box).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param board_cover Board cover (ny, nx) of the model, or None: the cover is limited to it (zero on the cells the model takes off the board) and the sampled
+           fallback is multiplied by it.
+    @return numpy.ndarray Cover (ny, nx) in [0, 1]; for a board with an outline it is already limited to the board.
+    """
+    p = np.asarray(poly, dtype=float)
+    def sampled():
+        c = coverage_fraction(p, nx, ny, dx, dy, samples=4)
+        return c if board_cover is None else c * board_cover
+    if len(p) < 3 or not polygon_is_simple(p):
+        return sampled()
+    try:
+        c = exact_coverage(p, nx, ny, dx, dy) if outline is None else part_weights(p, outline, nx, ny, dx, dy)
+    except ValueError:
+        return sampled()
+    # A cell that the model takes off the board (its board cover is below the floor of Board.cover, so it is pinned to the ambient) carries no block: a block node
+    # there would be pinned too and drain the block (on an ellipse or a slanted side 0.13 to 0.33 W of 3 W left through the pin, outside the heat balance)
+    return c if board_cover is None else np.minimum(c, board_cover)
+
+
+def extra_layers(problem, cover, area, fill, dx, dy, board_cover=None):
     """!
     @brief Build the arrays of the extra block layers of a network.
     @param problem A Problem.
@@ -91,9 +127,14 @@ def extra_layers(problem, cover, area, fill, dx, dy):
     @param fill Copper fill of the board layers, shape (layers, ny, nx).
     @param dx Spacing of the cells or nodes along x in metres (length of the side faces seen from x).
     @param dy Spacing along y in metres.
+    @param board_cover Share of every cell or node that is board (ny, nx), by which `area` is already multiplied, or None (a rectangular board, or the
+           tiles of the Analytic). The cover of a block is a share of the WHOLE cell (`block_cover`); the areas of the contact, the heat capacity and the
+           exposed face are that share times the whole cell, so they divide the cover by the board share before multiplying by `area` (multiplying the
+           cover by `area` counted the board share twice in a cell cut by the outline: the contact, capacity and exposed face of the block 0.5 to 1.6 %
+           low on the cases of `docs/validation.md` 54.1, and the board face under the block left partly exposed).
     @return List of dicts, one per face with blocks, with keys face (0 top, 1 bottom), board_layer, cov, S, C, g_link, g_amb,
-            face_scale (factor for the board face coefficient), h_total (the coefficient of the exposed face of every node, with the fin ratio,
-            W/m2K; the sides use h_wall instead), h_wall (the coefficient of the side walls, W/m2K; named so because Board.h_side is the board edge coefficient) and names.
+            face_scale (factor for the board face coefficient), h_total (the coefficient of the exposed face of every node, with the fin ratio and in series with the half
+            block, W/m2K; the sides use h_wall instead), h_wall (the coefficient of the side walls, W/m2K; named so because Board.h_side is the board edge coefficient) and names.
     """
     b = problem.board
     L = b.layers
@@ -109,6 +150,7 @@ def extra_layers(problem, cover, area, fill, dx, dy):
         h_face = b.h_top if face == 0 else b.h_bottom
         ny, nx = area.shape
         cov = np.zeros((ny, nx))
+        share = np.zeros((ny, nx))                                          # Share of the board part of the cell under a block
         S, C, g_link, g_amb, h_tot, h_sd = (np.zeros((ny, nx)) for _ in range(6))
         names = []
         for s in problem.heatsinks:
@@ -117,14 +159,23 @@ def extra_layers(problem, cover, area, fill, dx, dy):
             c = cover(s.polygon, 4)
             take = c > 0
             names.append(s.name)
+            # Share of the board part of every cell that the block covers: `area` is the board part of the cell, `c` a share of the whole cell
+            a = c if board_cover is None else np.where(board_cover > 0, np.minimum(c / np.where(board_cover > 0, board_cover, 1.0), 1.0), 0.0)
             cov = np.where(take, np.maximum(cov, c), cov)                  # Overlapping blocks: the later one wins in the overlap
-            S = np.where(take, s.k * s.thickness * c, S)
-            C = np.where(take, s.rho_cp * s.thickness * area * c, C)
+            share = np.where(take, np.maximum(share, a), share)
+            S = np.where(take, s.k * s.thickness * c, S)                     # Lateral: a share of the whole cell, as the board sheet (times its cover)
+            C = np.where(take, s.rho_cp * s.thickness * area * a, C)
             # Contact only over the copper (fill) inside the block; a zero resistance is limited to avoid an unbounded conductance
             r_c = max(s.interface_resistance(), 1e-7)
             f = fill[layer]
-            g_link = np.where(take, c * area * (f / r_c + (1.0 - f) / (r_c + r_half)), g_link)
-            h_tot = np.where(take, exposed_h(s, h_face), h_tot)
+            # The block node is the mean over its thickness (theory 1.2): half the block, s.thickness / (2 k), lies between it and the contact face, and half the copper of the
+            # board node (t_cu / (2 k_cu)) between that node and the same face; over bare laminate the half laminate slab is already there (r_half)
+            r_blk = s.thickness / (2.0 * s.k)
+            r_cu = float(b.copper_thickness[layer]) / (2.0 * b.materials.k_copper)
+            g_link = np.where(take, a * area * (f / (r_c + r_blk + r_cu) + (1.0 - f) / (r_c + r_blk + r_half)), g_link)
+            # The exposed film (fin ratio included, per base area) acts on the block node through the same half block
+            h_exp = exposed_h(s, h_face)
+            h_tot = np.where(take, h_exp / (1.0 + h_exp * r_blk), h_tot)
             h_sd = np.where(take, wall_h(s, h_face), h_sd)                    # No fin ratio on the side walls
             side = np.zeros_like(c)                                         # Length of the block edge inside every cell
             pad = np.pad(c, 1)
@@ -132,10 +183,10 @@ def extra_layers(problem, cover, area, fill, dx, dy):
                 for sgn in (-1, 1):
                     neigh = np.roll(pad, sgn, axis=axis)[1:-1, 1:-1]
                     side += length * np.maximum(c - neigh, 0.0)
-            g_amb = np.where(take, h_tot * area * c + h_sd * s.thickness * side, g_amb)
+            g_amb = np.where(take, h_tot * area * a + h_sd * s.thickness * side, g_amb)
         g_amb = np.where(cov > 0, g_amb, ISOLATED)
         out.append({"face": face, "board_layer": layer, "cov": cov, "S": S, "C": C, "g_link": g_link, "g_amb": g_amb,
-                    "face_scale": 1.0 - cov, "h_total": h_tot, "h_wall": h_sd, "names": names})
+                    "face_scale": 1.0 - share, "h_total": h_tot, "h_wall": h_sd, "names": names})
     return out
 
 

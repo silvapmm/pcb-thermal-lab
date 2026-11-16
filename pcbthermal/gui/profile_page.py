@@ -21,12 +21,27 @@ from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
+from .spinfit import show_value
+from .adaptive import AdaptiveSplitter as _AdaptiveSplitter     # Shared with the Stack-up page
 from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 from ..numfmt import num
+from ..results import model_label
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
+
+
+def _put(spin, value):
+    """!
+    @brief Show a stored value in a spin box, widening the box if the value is outside its range (never clamped).
+    @param spin The spin box.
+    @param value The stored value, in the unit of the box.
+    """
+    show_value(spin, value)
+
+
+PLOT_MIN_PX = 220     # Logical px: the smallest height of the waveform plot of the page
 
 
 class ProfilePage(QWidget):
@@ -64,11 +79,14 @@ class ProfilePage(QWidget):
         self.const_power = QDoubleSpinBox()
         self._spin(self.const_power, 0, 10000, 3, " W")
         self.by = QComboBox()
+        self.by.setAccessibleName("Repeats every: period or frequency")      # Screen readers: the row label names only the first field (review of branch C)
         self.by.addItem("Period", "period")
         self.by.addItem("Frequency", "frequency")
         self.value = QDoubleSpinBox()
+        self.value.setAccessibleName("Period or frequency")
         self._spin(self.value, 1e-6, 1e9, 6, "")
         self.unit = QComboBox()
+        self.unit.setAccessibleName("Unit of the period or frequency")
         self.duty = QDoubleSpinBox()
         self._spin(self.duty, 0.01, 100, 2, " %")
         self.p_on = QDoubleSpinBox()
@@ -125,8 +143,8 @@ class ProfilePage(QWidget):
         self.run_box = QGroupBox("Time simulation")
         rf = QFormLayout(self.run_box)
         self.threshold = QDoubleSpinBox()
-        self._spin(self.threshold, 0, 1000, 2, " °C")
-        self.threshold.setToolTip("Swing, °C, below which a heater runs at its average power; above, it is simulated in time. "
+        self._spin(self.threshold, 0, 1000, 2, " K")
+        self.threshold.setToolTip("Swing, K, below which a heater runs at its average power; above, it is simulated in time. "
                                   "Stretches under 4 s (2 s with 3+ layers): average + ripple.")
         self.start = QComboBox()
         self.start.addItem("Steady state of the average power", "average")
@@ -169,14 +187,17 @@ class ProfilePage(QWidget):
 
         # ---- decision table and waveform
         self.dec_table = QTableWidget(0, 7)
-        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
+        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. K", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (°C, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
+        self.dec_table.setToolTip("Per heater: period, duty, average power, swing (K, % of rise) and regime: constant, average, resolved or average + ripple (fast wave).")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        # A floor for the waveform: with the panes stacked (a window narrower than _AdaptiveSplitter.NARROW_PX) the canvas was squeezed to 10 px at 1200 x 800
+        # (review of the branch; Matplotlib then warned that constrained layout collapsed); the page scrolls vertically instead
+        self.canvas.setMinimumHeight(PLOT_MIN_PX)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
 
         left = QWidget()
@@ -189,7 +210,7 @@ class ProfilePage(QWidget):
         rv.addWidget(self.editor)
         rv.addWidget(self.canvas, 1)
         rv.addWidget(self.dec_table)
-        split = QSplitter(Qt.Horizontal)
+        split = _AdaptiveSplitter(Qt.Horizontal)
         split.addWidget(left)
         split.addWidget(right)
         split.setSizes([420, 760])
@@ -197,8 +218,15 @@ class ProfilePage(QWidget):
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addWidget(split)
         doc.changed.connect(self.refresh)
+        # An undo or a redo keeps the current options (they are not undoable); the run settings are reloaded on `changed` anyway (only edited boxes are written back)
+        doc.changed.connect(self._load_options)
         doc.state_changed.connect(self._load_options)
         compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
+        # The 'Repeats every' row holds two lists and a number: at 16 characters each it asked 531 px and the page scrolled sideways at 1200 x 800 even with the
+        # panes stacked. The two short lists ('Period' / 'Frequency', the unit) need far fewer characters
+        self.by.setMinimumContentsLength(9)
+        self.unit.setMinimumContentsLength(4)
+        self.value.setMinimumWidth(1)
         self.refresh()
         self._load_options()
 
@@ -295,13 +323,14 @@ class ProfilePage(QWidget):
         @brief Show the profile of the current heater in the editor.
         """
         self._updating = True
+        self._shown = {}                                      # What the wave boxes show after the load: _apply keeps the stored value of every box left alone
         pr = self.doc.problem
         ok = 0 <= self.current < len(pr.heaters)
         self.editor.setEnabled(ok)
         if ok:
             h = pr.heaters[self.current]
             self.kind.setCurrentIndex(0 if h.profile is None else (2 if h.profile.kind == "table" else 1))
-            self.const_power.setValue(h.power)
+            _put(self.const_power, h.power)
             w = h.profile
             self.repeat.setChecked(True if w is None else bool(w.repeat))
             if w is not None and w.kind == "table":
@@ -312,28 +341,48 @@ class ProfilePage(QWidget):
                     unit = "µs" if w.period < 1e-3 else "ms" if w.period < 1 else "s" if w.period < 600 else "min"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(w.period / _PERIOD_UNITS[unit])
+                    _put(self.value, w.period / _PERIOD_UNITS[unit])
                 else:
                     f = 1.0 / w.period
                     unit = "Hz" if f < 1e3 else "kHz" if f < 1e6 else "MHz"
                     self._fill_units()
                     self.unit.setCurrentText(unit)
-                    self.value.setValue(f / _FREQUENCY_UNITS[unit])
-                self.duty.setValue(w.duty * 100.0)
-                self.p_on.setValue(w.p_on)
-                self.p_off.setValue(w.p_off)
-                self.avg.setValue(w.average())
+                    _put(self.value, f / _FREQUENCY_UNITS[unit])
+                _put(self.duty, w.duty * 100.0)
+                _put(self.p_on, w.p_on)
+                _put(self.p_off, w.p_off)
+                _put(self.avg, w.average())
             else:
                 self._fill_units()
                 self.unit.setCurrentText("s")
-                self.value.setValue(10.0)
-                self.duty.setValue(50.0)
-                self.p_on.setValue(h.power)
-                self.p_off.setValue(0.0)
-                self.avg.setValue(h.power / 2.0)
+                _put(self.value, 10.0)
+                _put(self.duty, 50.0)
+                _put(self.p_on, h.power)
+                _put(self.p_off, 0.0)
+                _put(self.avg, h.power / 2.0)
         self._show_kind()
         self._updating = False
+        self._remember(self.value, self.duty, self.p_on, self.p_off, self.avg)
+        self._shown[self.unit] = self.unit.currentText()
         self._derived()
+
+    def _remember(self, *boxes):
+        """!
+        @brief Record what some boxes of the page show now, so that an edit of another box does not count them as edited.
+        @param boxes The spin boxes.
+        """
+        for b in boxes:
+            self._shown[b] = b.value()
+
+    def _left_alone(self, box):
+        """!
+        @brief Whether the user has not changed a box since the page loaded it from the document.
+        @param box A spin box or the unit combo of the page.
+        @return bool True when the box shows what was loaded.
+        """
+        shown = getattr(self, "_shown", {})
+        now = box.currentText() if box is self.unit else box.value()
+        return box in shown and shown[box] == now
 
     def _show_kind(self):
         """!
@@ -391,10 +440,30 @@ class ProfilePage(QWidget):
         @brief Square wave described by the editor widgets.
         @return SquareWave (not validated).
         """
-        duty = self.duty.value() / 100.0
-        p_off = self.p_off.value()
-        p_on = p_off + (self.avg.value() - p_off) / duty if self.avg_mode.isChecked() else self.p_on.value()
-        return SquareWave(p_on=p_on, period=self._period_seconds(), duty=duty, p_off=p_off)
+        # A box shows its value rounded to its decimals (a period of 1/3 s, a duty of 12.345 %): the stored wave keeps every field whose box the user did not
+        # change, so an edit of one box never rounds the others into the project
+        old = None
+        if 0 <= self.current < len(self.doc.problem.heaters):
+            old = self.doc.problem.heaters[self.current].profile
+        if old is None or old.kind != "square":
+            duty = self.duty.value() / 100.0
+            p_off = self.p_off.value()
+            p_on = p_off + (self.avg.value() - p_off) / duty if self.avg_mode.isChecked() else self.p_on.value()
+            return SquareWave(p_on=p_on, period=self._period_seconds(), duty=duty, p_off=p_off)
+        keep = self._left_alone
+        period = old.period if keep(self.value) and keep(self.unit) else self._period_seconds()
+        duty = old.duty if keep(self.duty) else self.duty.value() / 100.0
+        p_off = old.p_off if keep(self.p_off) else self.p_off.value()
+        if self.avg_mode.isChecked():
+            # The average is what the user types here: the power while on follows it (the stored average when the average box was left alone)
+            if keep(self.avg) and duty == old.duty and p_off == old.p_off:
+                p_on = old.p_on
+            else:
+                avg = old.average() if keep(self.avg) else self.avg.value()
+                p_on = p_off + (avg - p_off) / duty
+        else:
+            p_on = old.p_on if keep(self.p_on) else self.p_on.value()
+        return SquareWave(p_on=p_on, period=period, duty=duty, p_off=p_off)
 
     def _derived(self):
         """!
@@ -419,8 +488,10 @@ class ProfilePage(QWidget):
             self.derived.setText("")
             return
         self._updating = True
-        (self.avg if not self.avg_mode.isChecked() else self.p_on).setValue(w.average() if not self.avg_mode.isChecked() else w.p_on)
+        derived = self.avg if not self.avg_mode.isChecked() else self.p_on
+        derived.setValue(w.average() if not self.avg_mode.isChecked() else w.p_on)
         self._updating = False
+        self._remember(derived)                               # Set by the program, not by the user
         self.derived.setText(f"Period {num(w.period)} s = {num(1.0 / w.period)} Hz; on for {num(w.on_time())} s, off for {num(w.off_time())} s; "
                              f"average {num(w.average(), 4)} W, power while on {num(w.p_on, 4)} W, energy per period {num(w.average() * w.period, 4)} J")
 
@@ -542,15 +613,16 @@ class ProfilePage(QWidget):
         o = self.doc.options
         po = o.profile
         self._updating = True
-        self.threshold.setValue(po.threshold_c)
+        _put(self.threshold, po.threshold_c)
         self.start.setCurrentIndex(max(self.start.findData(po.initial), 0))
-        self.start_c.setValue(self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
+        _put(self.start_c, self.doc.problem.board.ambient if po.initial_c is None else po.initial_c)
         self.duration.setCurrentIndex(max(self.duration.findData(po.duration), 0))
-        self.cycles.setValue(po.cycles)
-        self.time_s.setValue(po.time_s)
-        self.max_steps.setValue(po.max_steps)
+        _put(self.cycles, po.cycles)
+        _put(self.time_s, po.time_s)
+        _put(self.max_steps, po.max_steps)
         self.steady_mode.setCurrentIndex(max(self.steady_mode.findData(o.steady_power), 0))
         self._updating = False
+        self._options_shown = {b: b.value() for b in (self.threshold, self.start_c, self.cycles, self.time_s, self.max_steps)}
         self._enable_options()
 
     def _enable_options(self):
@@ -569,11 +641,20 @@ class ProfilePage(QWidget):
         if self._updating:
             return
         po = self.doc.options.profile
-        po.threshold_c = self.threshold.value()
+        shown = getattr(self, "_options_shown", {})
+        edited = lambda box: shown.get(box) != box.value()                     # noqa: E731
+        # Only the boxes the user changed are written: a stored value that a box shows rounded or could not hold is kept
+        if edited(self.threshold):
+            po.threshold_c = self.threshold.value()
         po.initial = self.start.currentData()
-        po.initial_c = self.start_c.value() if po.initial == "temperature" else None
+        if po.initial != "temperature":
+            po.initial_c = None
+        elif edited(self.start_c) or po.initial_c is None:
+            po.initial_c = self.start_c.value()
         po.duration = self.duration.currentData()
-        po.cycles, po.time_s, po.max_steps = self.cycles.value(), self.time_s.value(), self.max_steps.value()
+        for box, attr in ((self.cycles, "cycles"), (self.time_s, "time_s"), (self.max_steps, "max_steps")):
+            if edited(box):
+                setattr(po, attr, box.value())
         self.doc.set_options(steady_power=self.steady_mode.currentData())
         self._enable_options()
         self._mark_stale()
@@ -631,13 +712,13 @@ class ProfilePage(QWidget):
         try:
             plan = profiles.plan_run(self.doc.problem, decisions, self.doc.options.profile)
             if plan["resolved"]:
-                self.status.setText(f"Decision from the {ref} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
+                self.status.setText(f"Decision from the {model_label(ref)} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
                                     f"({num(plan['window'])} s per window); press F5 to run.")
             elif any(d.regime == profiles.REGIME_RIPPLE for d in decisions):
-                self.status.setText(f"Decision from the {ref} step response: no heater needs time steps; the fast waves are held at their average power and their "
+                self.status.setText(f"Decision from the {model_label(ref)} step response: no heater needs time steps; the fast waves are held at their average power and their "
                                     "temperature wave is added at the heater (average + ripple). Press F5 to run.")
             else:
-                self.status.setText(f"Decision from the {ref} step response: every heater is replaced by its average power; "
+                self.status.setText(f"Decision from the {model_label(ref)} step response: every heater is replaced by its average power; "
                                     "no time simulation is needed.")
         except profiles.ProfileError as exc:
             self.status.setText(str(exc))

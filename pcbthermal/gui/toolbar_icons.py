@@ -8,7 +8,7 @@
 """
 
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 
 from . import theme as th
@@ -216,6 +216,13 @@ class ThemedToolbar(NavigationToolbar2QT):
         for text, _tip, image, _cb in self.toolitems:
             if text is not None:
                 self._icon_names[text] = image + ".png"     # toolitems hold the name without the extension
+        # Compact: the icons at the size of the other small tool buttons (Matplotlib's 24 px row took about 50 px above every plot; review of the window)
+        self.setIconSize(QSize(self.COMPACT_ICON, self.COMPACT_ICON))
+        self.layout().setSpacing(2)
+        # Tighter than the main tool bar of the theme (4 px padding, 5 px around each icon): this bar is a row of small controls above a plot
+        self.setStyleSheet("QToolBar { padding: 0px; border: none; } QToolButton { padding: 2px; }")
+
+    COMPACT_ICON = 16                       # Logical px of the icons of the plot tool bars
 
     def _icon(self, name, color=None):
         """!

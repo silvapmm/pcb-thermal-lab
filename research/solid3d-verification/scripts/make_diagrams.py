@@ -125,7 +125,7 @@ def spreading(path):
     for x in (2.8, 3.6, 6.4, 7.2):
         dk.arrow(a3, x, 5.7, x, 6.9, color=dk.BLUE, width=1.0)
     a3.text(5, 7.6, "copper pad on one side, no vias", ha="center", fontsize=9, fontweight="bold")
-    a3.text(5, 2.6, "the pad dissipates and spreads by itself;\nLumped up to +107 %, Analytic up to -63 %\n(the input checks warn)", ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+    a3.text(5, 2.6, "the pad dissipates and spreads by itself;\nLumped -8 to +7 %, Analytic up to -63 %\n(the input checks warn)", ha="center", va="top", fontsize=7.5, color=dk.HEAT)
     dk.save(fig, path, "Heat spreading in the layered models and in the 3D solid (README 2)")
 
 

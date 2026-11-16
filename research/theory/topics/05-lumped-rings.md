@@ -48,7 +48,7 @@ Each heater gives a small dense system `K_h theta = Q_h` (`L R` unknowns, `Q` at
 
 * When a copper edge crosses the footprint: the network assumes the ring-mean `S` describes the heat flow (27 % low).
 * At board corners (-8.7 %) and for thin heaters (+9.5 %).
-* One-sided copper pads without vias (copper on the top face only, a bare bottom layer): up to +107 % (`docs/validation.md` 3.1). A one-layer board gets the two laminate nodes of topic 01 through the FVM network it is built from.
+* One-sided copper pads without vias (copper on the top face only, a bare bottom layer): −7.9 % on a 20 mm pad, +6.9 % on a heater-sized pad, within 2.2 % from 40 mm, against the finite elements (`docs/validation.md` 3.1, 2.8.0). *Corrected: the '+107 %' quoted here before was a one-ring network built by a defect of `copper_dissipation.py`, not the program's Lumped.* A one-layer board gets the two laminate nodes of topic 01 through the FVM network it is built from.
 
 The input checks (`checks.py`) warn before the run. On a board with an outline the model runs on the rectangle of the same area (topic 20). With a metal block it adds one layer of unknowns per ring (topic 11).
 

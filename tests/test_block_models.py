@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_block_models.py
-@brief The metal block in the Lumped model (one more layer of the ring network) and in the Analytic model (a graph of tiles in the Green-function correction), against the FVM.
+@brief The metal block in the LPTN model (one more layer of the ring network) and in the Analytic model (a graph of tiles in the Green-function correction), against the FVM.
 """
 
 import os
@@ -50,7 +50,7 @@ def test_simulate_runs_every_model_with_a_block_and_says_how():
     p.heaters[0].set_profile(SquareWave(10.0, 20.0, 0.5))
     sim = simulate(p, SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
     assert "fvm" in sim.profile_results and "lumped" not in sim.profile_results
-    assert any("time simulation not run" in w and "lumped" in w for w in sim.warnings)
+    assert any("time simulation not run" in w and "LPTN" in w for w in sim.warnings)
 
 
 def test_analytic_forces_the_local_corrections_for_a_block_and_the_transients_still_refuse_it():

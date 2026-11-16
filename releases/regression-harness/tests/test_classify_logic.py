@@ -83,6 +83,26 @@ def test_a_shift_with_no_rule_is_unexplained_and_a_known_item_without_size_is_to
     assert by[("plate_vias", "solid3d")]["t_max"] == "expected_out_of_range"
 
 
+def test_an_added_read_out_is_expected_only_where_an_added_metrics_scope_names_it():
+    """!
+    @brief A metric that only the newer revision has (the surface read-out of 2.8.0) is "expected" when an `added_metrics` scope of the table names it by its metric
+           name; without that scope, or for a metric that disappears, it stays an alarm, and an old metric that moves beside it is still classified as a shift.
+    @return None.
+    """
+    surf = {"top": {"t_max": 81.0, "t_sum": 9000.0}}
+    a = rset("a", [rec("unknown_board", "fvm", 1.0, 80.0)])
+    b = rset("b", [rec("unknown_board", "fvm", 1.0, 80.0, surface=surf)])
+    table = dict(TABLE, added_metrics=[{"id": "add-surface", "boards": "*", "models": ["fvm", "fdm"], "cells": "*", "metrics": ["surface:*"], "note": "surface added"}])
+    d = C.diff_sets(a, b, table)
+    by = {m["name"]: m["class"] for m in d["entries"][0]["metrics"]}
+    assert by == {"surface:top:t_max": "expected", "surface:top:t_sum": "expected"} and d["summary"]["alarms"] == 0
+    assert all(m["class"] == "unexplained" for m in C.diff_sets(a, b, dict(TABLE, added_metrics=[]))["entries"][0]["metrics"])
+    gone = C.diff_sets(b, a, table)["entries"][0]["metrics"]
+    assert all(m["class"] == "unexplained" for m in gone), "a read-out that disappears is not an addition"
+    moved = C.diff_sets(a, rset("b", [rec("unknown_board", "fvm", 1.0, 80.5, surface=surf)]), table)
+    assert {m["name"]: m["class"] for m in moved["entries"][0]["metrics"]}["t_max"] == "unexplained"
+
+
 def test_a_change_of_warnings_alone_is_not_a_shift():
     a = rset("a", [rec("plate_pad", "fvm", 1.0, 100.0, warnings=["x"])])
     b = rset("b", [rec("plate_pad", "fvm", 1.0, 100.0, warnings=["x", "y"])])

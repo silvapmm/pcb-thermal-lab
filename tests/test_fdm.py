@@ -51,8 +51,9 @@ def test_fdm_is_selectable_through_the_api_and_runs_the_time_simulation():
     # The FDM alone decides and simulates
     only = simulate(example_profile_board(), SolverOptions(models=("fdm",), cell_mm=2.0))
     assert not only.profile_error and only.profile_reference == "fdm" and only.profile_results["fdm"].resolved
+    SolverOptions(models=("fem",)).validate()                                   # The FEM is a selectable comparison model since feature/fem-model
     with pytest.raises(ValueError):
-        SolverOptions(models=("fem",)).validate()
+        SolverOptions(models=("nonexistent",)).validate()
 
 
 def test_cli_compare(tmp_path, capsys):
@@ -60,7 +61,7 @@ def test_cli_compare(tmp_path, capsys):
     path = tmp_path / "e.pcbt.json"
     cli.main(["example", str(path), "--which", "example"])
     assert cli.main(["run", str(path), "--model", "compare", "--cell-mm", "2", "--out", str(tmp_path / "o"), "--no-plots"]) == 0
-    assert "fdm" in capsys.readouterr().out
+    assert "FDM" in capsys.readouterr().out                # The table prints the model label (FDM), not the key
 
 
 def test_fdm_results_work_in_the_analysis_and_plots(tmp_path):

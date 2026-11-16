@@ -12,7 +12,7 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
@@ -26,6 +26,7 @@ from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .spinfit import fit_range
 from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
@@ -37,7 +38,7 @@ from . import compute
 from .compute import ProcessWorker
 from . import package_actions
 from .document import Document
-from . import boxes
+from . import a11y, boxes
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
 from .stackup import StackupPage
@@ -70,6 +71,7 @@ class NewBoardDialog(QDialog):
         nb = defaults.load()["new_board"]
         for s, v in ((self.w, nb["width_mm"]), (self.h, nb["height_mm"])):
             s.setRange(5, 1000)
+            fit_range(s, v)                               # A saved default outside the usual range is shown as it is, not clamped
             s.setValue(v)
             s.setSuffix(" mm")
         self.layers = QSpinBox()
@@ -129,6 +131,7 @@ class BackgroundDialog(QDialog):
             s.setRange(-2000, 4000)
             s.setDecimals(2)
             s.setSuffix(" mm")
+            fit_range(s, cfg.get(k, d))                   # A stored placement outside the usual range is not clamped when the dialog is accepted
             s.setValue(cfg.get(k, d))
         fit = QPushButton("Fit to board")
         fit.clicked.connect(self._fit)
@@ -178,6 +181,43 @@ class BackgroundDialog(QDialog):
         return out
 
 
+class _FitWidth(QObject):
+    """!
+    @brief Keep the minimum width of a dock's scroll area at the minimum width of its content plus the vertical scroll bar.
+    """
+
+    def __init__(self, area, content):
+        """!
+        @brief Watch the content of a scroll area and update the area's minimum width now and after every layout change.
+        @param area The QScrollArea of the dock.
+        @param content The widget inside it.
+        """
+        super().__init__(area)
+        self.area, self.content = area, content
+        content.installEventFilter(self)
+        self.update()
+
+    def update(self):
+        """!
+        @brief Set the minimum width of the area: content minimum, vertical scroll bar and frame.
+        """
+        bar = self.area.verticalScrollBar().sizeHint().width()
+        need = self.content.minimumSizeHint().width() + bar + 2 * self.area.frameWidth()
+        if self.area.minimumWidth() != need:
+            self.area.setMinimumWidth(need)
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Update the width after a layout request of the content (a different element in Properties, a group shown).
+        @param obj Watched object.
+        @param event The event.
+        @return False (the event goes on).
+        """
+        if event.type() in (QEvent.LayoutRequest, QEvent.Show):
+            self.update()
+        return False
+
+
 class MainWindow(QMainWindow):
     """!
     @brief The application window.
@@ -217,7 +257,12 @@ class MainWindow(QMainWindow):
         self.stackup_page.add_parameters(self.board_panel.stack_box, self.board_panel.materials_box)
         self.elements = ElementList(self.doc)
         self.inspector = Inspector(self.doc)
+        self._busy_since = time.monotonic()
+        self._busy_timer = QTimer(self)                       # Refreshes the elapsed time of a running calculation in the status bar, once a second
+        self._busy_timer.setInterval(1000)
+        self._busy_timer.timeout.connect(self._show_run_state)
         self.solver_panel = SolverPanel(self.doc)
+        self.solver_panel.status_changed.connect(self._on_run_status)        # One owner of the run state: the status bar follows the line under Run
         self._build_docks()
         self._build_actions()
         self._build_toolbar()
@@ -270,8 +315,13 @@ class MainWindow(QMainWindow):
         # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
         self._saved_state = self.settings.value("window_state")
         self._docks_sized = False
-        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (off = free).")
+        self.snap_combo.setToolTip("Grid that drawn and dragged elements snap to (Off = free).")
         tips.apply(self)
+        a11y.name_fields(self)                                 # Every field read by a screen reader with the label of its row (grids included)
+        # The value boxes of the tool bars have a text label beside them but are not in a form: they are named here
+        self.layer_combo.setAccessibleName("Layer")
+        self.snap_combo.setAccessibleName("Snap")
+        self.canvas.setAccessibleName("Board")
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
@@ -309,6 +359,9 @@ class MainWindow(QMainWindow):
             # A dock narrower than its fields scrolls sideways instead of squeezing the rows on top of each other (they overlapped with the bar always off)
             area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             area_widget.setWidget(widget)
+            # The dock is never narrower than its fields plus the vertical scroll bar, so the sideways bar does not appear in normal use (review of the
+            # window: a 4 px bar in the Simulation dock at 322 px, and the Properties of a metal block asked 337 px); it follows the content as it changes
+            _FitWidth(area_widget, widget)
             if footer is not None:
                 host = QWidget()
                 hl = QVBoxLayout(host)
@@ -519,8 +572,8 @@ class MainWindow(QMainWindow):
                                 tip="Find a part's power from a measured temperature")
         self.a_import = self._act("Import Gerber board…", self.show_import,
                                   tip="New project from Gerber, drill and placement files")
-        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
-        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Cancel calculation, F5 to Run)
+        self.a_cancel = self._act("Stop calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running calculation (Ctrl+.)")
+        # The toolbar button of a running calculation: the same cancel path, no key of its own (Ctrl+. belongs to Stop calculation, F5 to Run)
         self.a_stop = self._act("Stop", self.cancel_simulation, tip="Stop the calculation (Ctrl+.)")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
@@ -529,13 +582,23 @@ class MainWindow(QMainWindow):
         self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
         self.a_about = self._act("About PCB Thermal Lab", self.show_about)
+        self.a_tabs = []
         for n, key in enumerate(("Board", "Stack-up", "Power profile", "Results")):
-            a = self._act(f"Show the {key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}")
-            self.addAction(a)                                  # Active without a menu entry
+            a = self._act(f"{key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}", tip=f"Show the {key} tab (Ctrl+{n + 1})")
+            self.a_tabs.append(a)                              # In the View menu (they were active but in no menu: found only in the keyboard list)
+            self.addAction(a)                                  # Also on the window, so the key works whatever has the focus
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for a in (self.a_new, self.a_open, self.a_import, None):
+        for a in (self.a_new, self.a_open):
+            m.addAction(a)
+        self.recent_menu = m.addMenu("Open recent")
+        self.recent_menu.setToolTipsVisible(True)               # The full path of each project in its tooltip
+        # Rebuilt each time it opens, so a project deleted or moved since the last open or save is not listed (review of branch C: it stayed listed and a
+        # click gave 'Cannot open file' with the raw system error)
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
+        self._fill_recent_menu()
+        for a in (self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
@@ -548,10 +611,10 @@ class MainWindow(QMainWindow):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
         for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_display, self.a_model, self.a_layer_next, self.a_layer_prev, self.a_imported, *self.a_holes.values(), self.a_labels, None,
-                  self.a_bg, self.a_theme):
+                  self.a_bg, self.a_theme, None, *self.a_tabs, None):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
-            m.addAction(d.toggleViewAction())
+            m.addAction(d.toggleViewAction())                  # The docks after a line of their own (they followed the theme entry with no separator)
         m = mb.addMenu("&Simulation")
         m.addAction(self.a_run)
         m.addAction(self.a_cancel)
@@ -642,7 +705,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addWidget(QLabel(" Snap "))
         self.snap_combo = QComboBox()
-        for label, v in (("off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
+        for label, v in (("Off", 0), ("0.1 mm", 0.1), ("0.5 mm", 0.5), ("1 mm", 1.0), ("2.5 mm", 2.5), ("5 mm", 5.0)):
             self.snap_combo.addItem(label, v)
         self.snap_combo.setCurrentIndex(3)
         self.snap_combo.currentIndexChanged.connect(lambda _i: self.canvas.set_snap(self.snap_combo.currentData()))
@@ -816,7 +879,7 @@ class MainWindow(QMainWindow):
         @brief Paint or remove the temperature result on the board.
         @details The map is the one the Temperature tab shows (same model, colour limits and colour map, so both show the same numbers) on the layer chosen in the
                  toolbar, with the cells off the outline transparent, a colour bar and the card of the model with the hottest and coolest point. A model that cannot
-                 be drawn on this board (the stretched map of the Lumped or Analytic on an outline board) leaves only the card with that note. It is not drawn while
+                 be drawn on this board (the stretched map of the LPTN or Analytic on an outline board) leaves only the card with that note. It is not drawn while
                  the result is outdated.
         @param on True to paint.
         """
@@ -918,8 +981,11 @@ class MainWindow(QMainWindow):
         n = self.canvas.hole_counts()
         what = {"via": "vias (modelled; they are the via elements)", "component": "plated holes above the via limit (not modelled)",
                 "nonplated": "non-plated holes and slots (not modelled)"}
+        imported = bool(self.doc.project.imports)
         for kind, a in self.a_holes.items():
-            tip = f"Draw the {what[kind]} of the import: {n[kind]} on this board"
+            # A drawn board has no import: its vias are its own elements, and it has no other holes (the tip said 'of the import' on the example board)
+            tip = (f"Draw the {what[kind]} of the import: {n[kind]} on this board" if imported
+                   else f"Draw the {what[kind]}: {n[kind]} on this board")
             a.setToolTip(tip)
             a.setStatusTip(tip)
 
@@ -1104,14 +1170,17 @@ class MainWindow(QMainWindow):
         ctx = self._layer_ctx()
         faces = self.results.temp.block_faces() if getattr(self, "sim", None) is not None else []
         kind = layerchoice.EXTENDED_CONTEXT if ctx == "temperature" else "single"
-        value, note = self.layer_choice.effective(kind, n, faces)
-        entries = layerchoice.items(kind, n, faces)
+        sfaces = self.results.temp.surface_faces() if getattr(self, "sim", None) is not None else []
+        value, note = self.layer_choice.effective(kind, n, faces, sfaces)
+        entries = layerchoice.items(kind, n, faces, sfaces)
         box = self.layer_combo
         if [(box.itemText(i), box.itemData(i)) for i in range(box.count())] != entries:
             box.blockSignals(True)
             box.clear()
             for text, data in entries:
                 box.addItem(text, data)
+                if isinstance(data, int) and data >= layerchoice.SURFACE_BASE:
+                    box.setItemData(box.count() - 1, tips.SURFACE_ENTRY_TIP, Qt.ToolTipRole)     # The surface entries say what they are, one by one
             box.blockSignals(False)
         box.blockSignals(True)
         box.setCurrentIndex(max(box.findData(value), 0))
@@ -1122,7 +1191,7 @@ class MainWindow(QMainWindow):
         changed = self.canvas.layer != single
         if changed:
             self.canvas.set_layer(single)                  # The drawing layer and the layer of the map on the board are the same choice
-        self.results.set_layer(self.layer_choice.effective(layerchoice.EXTENDED_CONTEXT, n, faces)[0], single)
+        self.results.set_layer(self.layer_choice.effective(layerchoice.EXTENDED_CONTEXT, n, faces, sfaces)[0], single)
         self.results.set_layer_note(note if ctx in ("gradient", "animation", "profiles") else "")
         if changed and redraw_board and self.a_overlay.isChecked():
             self._toggle_overlay(True)                     # The map follows the layer being edited
@@ -1297,6 +1366,62 @@ class MainWindow(QMainWindow):
         @brief Window title with the file name and the modified flag.
         """
         self.setWindowTitle(f"{self.doc.title}{' *' if self.doc.modified else ''} - PCB Thermal Lab {__version__}")
+        if self.doc.path and getattr(self, "_recent_top", None) != str(self.doc.path):
+            self._remember_recent(self.doc.path)              # A project opened or saved under a name goes to the top of File - Open recent
+
+    RECENT_MAX = 8                                             # Projects listed in File - Open recent
+
+    def recent_files(self):
+        """!
+        @brief The recent projects, newest first, without the files that no longer exist.
+        @return list of str paths.
+        """
+        raw = self.settings.value("recent_files", []) or []
+        paths = [raw] if isinstance(raw, str) else list(raw)
+        return [p for p in paths if p and os.path.exists(p)][:self.RECENT_MAX]
+
+    def _remember_recent(self, path):
+        """!
+        @brief Put a project at the top of the recent list (kept in the settings) and rebuild the menu.
+        @param path Path of the project file.
+        """
+        path = str(path)
+        paths = [path] + [p for p in self.recent_files() if os.path.abspath(p) != os.path.abspath(path)]
+        self.settings.setValue("recent_files", paths[:self.RECENT_MAX])
+        self._recent_top = path
+        self._fill_recent_menu()
+
+    def _fill_recent_menu(self):
+        """!
+        @brief List the recent projects in File - Open recent (greyed when there is none).
+        """
+        menu = getattr(self, "recent_menu", None)
+        if menu is None:
+            return
+        menu.clear()
+        paths = self.recent_files()
+        for i, p in enumerate(paths):
+            a = menu.addAction(f"{i + 1}  {os.path.basename(p)}")
+            a.setToolTip(p)
+            a.setStatusTip(p)
+            a.triggered.connect(lambda _=False, path=p: self._open_recent(path))
+        if paths:
+            menu.addSeparator()
+            clear = menu.addAction("Clear the list")
+            clear.triggered.connect(lambda: (self.settings.setValue("recent_files", []), self._fill_recent_menu()))
+        menu.setEnabled(bool(paths))
+
+    def _open_recent(self, path):
+        """!
+        @brief Open a project of File - Open recent; a file that is gone since the menu was filled is said in plain words and leaves the list.
+        @param path Path of the project file.
+        """
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "Cannot open file", f"The project is no longer there (moved, renamed or deleted):\n{path}\n\nIt is removed from the list.")
+            self.settings.setValue("recent_files", self.recent_files())     # recent_files() drops the missing file
+            self._fill_recent_menu()
+            return
+        self.open_file(path)
 
     # ------------------------------------------------------------------ files
     def _confirm_discard(self):
@@ -1318,6 +1443,8 @@ class MainWindow(QMainWindow):
         """
         self.sim, self._stale = None, False
         self.tabs.setTabText(TAB_RESULTS, "Results")
+        self.results.clear()                                 # The results of the board that was open do not belong to this one
+        self.solver_panel.set_running(False, "")             # ... nor the 'Done: Tmax ...' line
         self.canvas.clear_overlay()
         self.a_overlay.setChecked(False)
         self._update_map_button()
@@ -1480,12 +1607,53 @@ class MainWindow(QMainWindow):
         self.a_bg.setStatusTip(tip)
 
     # ------------------------------------------------------------------ simulation
+    def _on_run_status(self, text):
+        """!
+        @brief The line under the Run button changed: show it in the status bar while a calculation runs or when it is a final state (Done, Cancelled, Failed, Cannot run).
+        @details Other lines (the note of Auto) stay in the dock only, so that the hints of the canvas in the status bar are not overwritten.
+        @param text The new line.
+        """
+        if not hasattr(self, "_busy_timer"):
+            return                                             # Still building the window
+        if getattr(self, "_is_busy", False) or text.startswith(self.FINAL_RUN_STATES) or (not text and self.statusBar().currentMessage().startswith("Cannot run:")):
+            self._show_run_state()                             # The last case: the reason went away (a coarser cell), the bar must not keep it
+
+    FINAL_RUN_STATES = ("Done:", "Cancelled.", "Failed.", "Cannot run:")    # Lines of the dock that the status bar keeps after a calculation
+
+    def _show_run_state(self):
+        """!
+        @brief Write the run state in the status bar: the stage and the elapsed time while a calculation runs, the final line of the dock afterwards, or 'Ready.'.
+        """
+        line = self.solver_panel.status.text()
+        if getattr(self, "_is_busy", False):
+            seconds = int(time.monotonic() - self._busy_since)
+            stage = f": {line}" if line else ""
+            stop = " " if stage.endswith((".", "…")) else ". "        # 'Starting…' read 'Starting…. Stop' (review of branch C)
+            note = getattr(self, "_run_note", "")
+            self.statusBar().showMessage(f"Calculating ({seconds} s){stage}{stop}Stop with Ctrl+." + (f" Memory: {note}" if note and note not in line else ""))
+        elif line.startswith(self.FINAL_RUN_STATES):
+            self.statusBar().showMessage(line)
+        else:
+            self.statusBar().showMessage(self.canvas.background_problem if getattr(self, "canvas", None) is not None and self.canvas.background_problem else "Ready.")
+
     def _on_busy(self, busy):
         """!
         @brief Follow the calculation engine: the Run button of the toolbar and of the dock is the Stop button while a calculation runs or waits.
         @param busy True while any calculation runs or waits.
         """
         self.solver_panel.set_busy(busy)
+        # One owner of the run state: the status bar follows the line under the Run button. While busy it says what runs and for how long (a timer
+        # refreshes it every second); when the calculation ends it keeps the final line of the dock ('Done: ...', 'Cancelled.', 'Failed.',
+        # 'Cannot run: ...'), and says 'Ready.' only when there is no such line (review of the window: it went back to 'Ready.' after a run or a Stop)
+        self._is_busy = bool(busy)
+        if busy:
+            if not self._busy_timer.isActive():
+                self._busy_since = time.monotonic()
+                self._busy_timer.start()
+        else:
+            self._busy_timer.stop()
+            self._run_note = ""                               # The memory note belongs to the run that ended
+        self._show_run_state()
         # Right after a Stop the button under the pointer becomes Run: the second click of a double click on Stop would start a new run. Run stays off for one
         # double-click interval after a Stop (the dock button and the toolbar action alike), then comes back by itself.
         hold = (not busy) and time.monotonic() < getattr(self, "_run_hold_until", 0.0)
@@ -1529,12 +1697,11 @@ class MainWindow(QMainWindow):
         # needs more than the memory available now only warns
         self.solver_panel.refresh()
         if self.solver_panel.blocked:
-            QMessageBox.warning(self, "Cannot run: not enough memory", self.solver_panel.blocked)
+            # The reason is the memory, a FEM mesh that cannot be built or a FEM that needs pyamg (the text says which): the title names none of them
+            QMessageBox.warning(self, "Cannot run", self.solver_panel.blocked)
             return
         low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
         self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
-        if low:
-            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), dataclasses.replace(copy.deepcopy(self.doc.options), ui="gui"))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -1542,6 +1709,10 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
+        # The memory note of this run stays in the status bar while it runs: the one-second refresh of the elapsed time overwrote a message shown once
+        # (review of branch C: 'the machine may swap' was visible for less than a second)
+        self._run_note = low[0] if low else ""
+        self._show_run_state()
 
     def cancel_simulation(self):
         """!
@@ -1624,7 +1795,7 @@ class MainWindow(QMainWindow):
         lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
         # The numbers first: copper layers replaced, files and parts, holes (never an empty text)
         lines = [reimport_summary(old, dlg.record, dlg.mode)] + lines
-        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("…" if len(lines) > 4 else ""))
 
     def show_calculator(self):
         """!
@@ -1703,7 +1874,11 @@ class MainWindow(QMainWindow):
         @param message Error text.
         """
         self.solver_panel.set_running(False, "Failed.")
-        QMessageBox.critical(self, "Simulation failed", message)
+        # The cause first, then what to do (review of the window: the box gave the cause only); the traceback of a bug stays in the log file the text names
+        QMessageBox.critical(self, "Simulation failed", f"{message}\n\n{self.FAILED_HINT}")
+
+    FAILED_HINT = ("Nothing of the earlier result was changed. Correct the input the message names (or choose a coarser cell or fewer models) and run again; "
+                   "if it says 'Unexpected error', please send the log file it names.")
 
     # ------------------------------------------------------------------ misc
     def toggle_theme(self):
@@ -1739,7 +1914,8 @@ class MainWindow(QMainWindow):
 <tr><td><b>M</b></td><td>Model of the map: the list of the models of the result (the same as a click on the model name of the card on the board)</td></tr>
 <tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / stop the calculation (the Run button is Stop while one runs)</td></tr>
-<tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
+<tr><td><b>Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs (also in the View menu)</td></tr>
+<tr><td><b>Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S, Ctrl+Q</b></td><td>New board, open, save, save as, quit</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr>
 <tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""

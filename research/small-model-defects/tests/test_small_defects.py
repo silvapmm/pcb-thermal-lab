@@ -97,10 +97,13 @@ def test_interpolation_is_exact_for_a_linear_raster_and_commutes_with_a_mirror()
 
 def test_fdm_below_fvm_across_a_gap_and_the_harmonic_mean_halves_the_error():
     """!
-    @brief Copper cut by a 3 mm gap on every layer, 1 mm cell: the FDM is more than 15 % under the converged value, the harmonic mean under 11 %, both reach it with the cell.
+    @brief Copper cut by a 2 mm gap on every layer, 1 mm cell: the FDM is more than 15 % under the converged value, the harmonic mean under 11 %, both reach it with the cell.
+    @details The gap was 3 mm (edges 23.5 and 26.5 mm, between the nodes of the 1 mm cell). Since fix/drawn-copper-faces such a layer (a cell cut by a zone edge) is read by the exact
+             fill and the flow-based faces, so the mean option no longer applies to it and the two means read the same, +0.3 % of the converged value (the arithmetic mean was -15 % or more).
+             The 2 mm gap has its edges on the node lines, where the earlier path (and the mean option) still apply: -17.8 % arithmetic, -1.2 % harmonic.
     @return None.
     """
-    p = gap.gap_board(3.0, 1.0)
+    p = gap.gap_board(2.0, 1.0)
     ref = float(simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"].t_max) - 25.0
     a = float(fdm.solve_steady(p, 1.0, "arithmetic").t_max) - 25.0
     h = float(fdm.solve_steady(p, 1.0, "harmonic").t_max) - 25.0

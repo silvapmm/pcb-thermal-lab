@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_lumped_footprint.py
-@brief Tests of the footprint potentials of the Lumped model (block aggregation above 900 cells instead of a stride).
+@brief Tests of the footprint potentials of the LPTN model (block aggregation above 900 cells instead of a stride).
 """
 
 import numpy as np
@@ -172,7 +172,7 @@ def test_old_stride_failed_this_check():
 
 def test_energy_balance_with_large_footprint():
     """!
-    @brief A large heater on a board: the heat that leaves by the convective paths equals the power (Lumped).
+    @brief A large heater on a board: the heat that leaves by the convective paths equals the power (LPTN).
     @return None.
     """
     from pcbthermal import Problem, SolverOptions, simulate

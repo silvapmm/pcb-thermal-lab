@@ -29,7 +29,7 @@ from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_
 @pytest.fixture(scope="module")
 def sim():
     """!
-    @brief One FVM and Lumped run of the example board (2 mm cell).
+    @brief One FVM and LPTN run of the example board (2 mm cell).
     @return Simulation.
     """
     return simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
@@ -75,9 +75,9 @@ def _go(win, tab):
 # ------------------------------------------------------------------------------------------------------------------ the model (no window)
 def test_lists_per_context():
     assert [d for _t, d in lc.items("single", 4)] == [0, 1, 2, 3]
-    assert [t for t, _d in lc.items("single", 4)] == ["1 top", "2", "3", "4 bottom"]
+    assert [t for t, _d in lc.items("single", 4)] == ["1 (top)", "2", "3", "4 (bottom)"]
     ext = lc.items(lc.EXTENDED_CONTEXT, 2, (0, 1))
-    assert [t for t, _d in ext] == ["All layers", "All (2 x 2)", "1 top", "2 bottom", "Metal block (top)", "Metal block (bottom)"]
+    assert [t for t, _d in ext] == ["All layers", "All (2 × 2)", "1 (top)", "2 (bottom)", "Metal block (top)", "Metal block (bottom)"]
     assert [d for _t, d in ext][-2:] == [100, 101]
     assert [d for _t, d in lc.items(lc.EXTENDED_CONTEXT, 2)] == [-1, -2, 0, 1]      # No result block: no entry
 
@@ -88,7 +88,7 @@ def test_fallback_rule_and_latest_pick_wins():
     c.pick(lc.ALL_GRID)
     assert c.effective(lc.EXTENDED_CONTEXT, 4) == (lc.ALL_GRID, "")
     value, note = c.effective("single", 4)
-    assert value == 2 and "All (2 x 2)" in note and "Temperature only" in note and "layer 3" in note
+    assert value == 2 and "All (2 × 2)" in note and "Temperature only" in note and "layer 3" in note
     assert c.effective(lc.EXTENDED_CONTEXT, 4) == (lc.ALL_GRID, "")               # Back in Temperature, All returns
     c.pick(1)                                                                     # A single layer picked meanwhile wins
     assert c.effective(lc.EXTENDED_CONTEXT, 4) == (1, "") and c.effective("single", 4) == (1, "")
@@ -112,7 +112,8 @@ def test_the_lists_in_each_context(qtbot, tmp_path, sim):
         win.tabs.setCurrentIndex(tab)
         assert _texts(win) == layers
     _go(win, win.results.temp)
-    assert _texts(win) == ["All layers", "All (2 x 2)"] + layers
+    # The surface read-out is always computed now (feature/surface-always-both): its two faces are listed after the layers
+    assert _texts(win) == ["All layers", "All (2 × 2)"] + layers + ["Surface (top)", "Surface (bottom)"]
     for w in (win.results.grad, win.results.animation, win.results.profile, win.results.time_sim):
         _go(win, w)
         assert _texts(win) == layers
@@ -152,7 +153,7 @@ def test_fallback_note_over_the_maps(qtbot, tmp_path, sim):
     win.layer_combo.setCurrentIndex(win.layer_combo.findData(-2))
     assert not rv.layer_note.isVisible() or rv.layer_note.text() == ""
     _go(win, rv.grad)
-    assert rv.layer_note.isVisibleTo(rv) and "Temperature only" in rv.layer_note.text() and "All (2 x 2)" in rv.layer_note.text()
+    assert rv.layer_note.isVisibleTo(rv) and "Temperature only" in rv.layer_note.text() and "All (2 × 2)" in rv.layer_note.text()
     assert win.layer_combo.currentData() == 0 and rv.grad.layer_value == 0
     _go(win, rv.animation)
     assert rv.layer_note.isVisibleTo(rv)
@@ -256,7 +257,7 @@ def test_the_menu_changes_the_same_model_control(qtbot, tmp_path, sim):
     assert [a.isChecked() for a in menu.actions()] == [True, False]
     menu.actions()[1].trigger()
     assert t.model.currentData() == "lumped"                                       # No second list: the Temperature tab's own control
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
     menu.close()
 
 

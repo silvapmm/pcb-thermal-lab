@@ -11,7 +11,9 @@
 
 from PySide6.QtCore import QObject, Signal
 
-ALL_LAYERS, ALL_GRID, BLOCK_BASE = -1, -2, 100      # Data of the entries that are not one copper layer (block: 100 top, 101 bottom)
+from .. import units
+
+ALL_LAYERS, ALL_GRID, BLOCK_BASE, SURFACE_BASE = -1, -2, 100, 200      # Data of the entries that are not one copper layer (block: 100 top, 101 bottom; surface of the outer copper: 200 top, 201 bottom)
 EXTENDED_CONTEXT = "temperature"                    # The only context whose list has the extra entries
 
 NOTE = "'{what}' is for Temperature only: showing layer {layer}, the last single layer"
@@ -20,7 +22,7 @@ NOTE = "'{what}' is for Temperature only: showing layer {layer}, the last single
 def is_single(value):
     """!
     @brief Tell whether a choice is one copper layer.
-    @param value Choice data: layer index (0-based), -1, -2 or 100 + face of a metal block.
+    @param value Choice data: layer index (0-based), -1, -2, 100 + face of a metal block or 200 + face of the surface read-out.
     @return True for a copper layer.
     """
     return 0 <= value < BLOCK_BASE
@@ -35,7 +37,9 @@ def entry_name(value):
     if value == ALL_LAYERS:
         return "All layers"
     if value == ALL_GRID:
-        return "All (2 x 2)"
+        return "All (2 × 2)"
+    if value >= SURFACE_BASE:
+        return f"Surface ({'top' if value == SURFACE_BASE else 'bottom'})"
     return f"Metal block ({'top' if value == BLOCK_BASE else 'bottom'})"
 
 
@@ -44,27 +48,29 @@ def layer_label(layer, n):
     @brief Text of a layer entry of the toolbar box.
     @param layer Layer index (0-based).
     @param n Number of copper layers of the board.
-    @return str, for example "1 top", "2" or "4 bottom".
+    @return str, for example "1 (top)", "2" or "4 (bottom)" (as the Properties panel writes them).
     """
-    return f"{layer + 1}" + (" top" if layer == 0 else " bottom" if layer == n - 1 else "")
+    return units.layer_label(layer, n)
 
 
-def items(context, n, block_faces=()):
+def items(context, n, block_faces=(), surface_faces=()):
     """!
     @brief The entries of the Layer box in a context.
     @param context Context name; "temperature" gets the extended list.
     @param n Number of copper layers of the board.
     @param block_faces Faces (0 top, 1 bottom) of the metal blocks that the result has (used in the extended list only).
+    @param surface_faces Faces (0 top, 1 bottom) of the outer copper whose surface read-out the result has (extended list only; a view of the map, never a calculation mode).
     @return List of (text, data).
     """
     out = []
     if context == EXTENDED_CONTEXT:
         out += [("All layers", ALL_LAYERS)]
         if n > 1:
-            out += [("All (2 x 2)", ALL_GRID)]          # A one-layer board has no grid to show (it would show All layers under another name)
+            out += [("All (2 × 2)", ALL_GRID)]          # A one-layer board has no grid to show (it would show All layers under another name)
     out += [(layer_label(l, n), l) for l in range(n)]
     if context == EXTENDED_CONTEXT:
         out += [(entry_name(BLOCK_BASE + f), BLOCK_BASE + f) for f in sorted(block_faces)]
+        out += [(entry_name(SURFACE_BASE + f), SURFACE_BASE + f) for f in sorted(surface_faces)]
     return out
 
 
@@ -129,19 +135,22 @@ class LayerChoice(QObject):
         """
         return min(max(self.last_single, 0), max(n - 1, 0))
 
-    def effective(self, context, n, block_faces=()):
+    def effective(self, context, n, block_faces=(), surface_faces=()):
         """!
         @brief What a context shows for the stored choice.
         @param context Context name.
         @param n Number of copper layers of the board.
         @param block_faces Faces of the metal blocks of the result.
+        @param surface_faces Faces of the surface read-out of the result.
         @return Tuple (value, note): the data of the entry shown and a one-line note when it is the fallback (else "").
         """
         v = self.pick_value
         if context == EXTENDED_CONTEXT:
             if is_single(v):
                 return min(v, max(n - 1, 0)), ""
-            if v >= BLOCK_BASE and (v - BLOCK_BASE) not in block_faces:
+            if v >= SURFACE_BASE and (v - SURFACE_BASE) not in surface_faces:
+                return self.single(n), ""       # A surface the result does not have (another model, a thin board): the layer
+            if BLOCK_BASE <= v < SURFACE_BASE and (v - BLOCK_BASE) not in block_faces:
                 return self.single(n), ""       # A block the result does not have: the layer (no note, the list does not offer it)
             return (v, "") if v != ALL_GRID or n > 1 else (ALL_LAYERS, "")
         if is_single(v):

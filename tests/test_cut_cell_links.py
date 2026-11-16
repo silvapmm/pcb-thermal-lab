@@ -542,7 +542,7 @@ def test_a_rectangle_with_imported_copper_has_no_outline_note_and_moves_only_by_
 # Restored by the review of fix/imported-copper-outline-mask: these three tests of the cut-cell treatment of drawn boards were deleted by that branch by mistake
 
 def test_the_lumped_model_builds_its_network_without_the_series_term(monkeypatch):
-    # The Lumped never sees the links: its networks are built with cut_cells=False, so its numbers do not move with this change
+    # The LPTN never sees the links: its networks are built with cut_cells=False, so its numbers do not move with this change
     from pcbthermal import SolverOptions, lumped, simulate
     seen = []
     real = lumped.Network

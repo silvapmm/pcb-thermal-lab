@@ -274,7 +274,8 @@ def test_one_dimensional_chain_is_the_series_circuit():
     b = p.board
     area = b.width * b.height
     r_chain = float(np.sum(b.gap_thicknesses() / (b.gap_properties()[0] * area)))
-    r_top, r_bot = 1.0 / (H_FACE * area), 1.0 / (H_FACE * area)
+    # Both films pass the half copper layer of their node (fix/face-film-half-slab, theory 1.2a): the full-copper coefficient of Board.face_film_h
+    r_top, r_bot = 1.0 / (b.face_film_h(H_FACE, 0, 1.0) * area), 1.0 / (b.face_film_h(H_FACE, 3, 1.0) * area)
     expected = 1.0 / (1.0 / r_top + 1.0 / (r_chain + r_bot))
     th, _ = fvm.Network(p, 6, 6).solve_steady()
     assert abs(th[0].mean() / expected - 1.0) < 1e-9
@@ -378,7 +379,7 @@ def test_fdm_takes_the_faces_and_corrects_the_fill():
 
 def test_five_models_run_and_warn():
     """!
-    @brief Imported copper runs in all five models: the layered models say what the copper is, Lumped and Analytic always warn (a sample, not a bound), the 3D solid says it reads the fill.
+    @brief Imported copper runs in all five models: the layered models say what the copper is, LPTN and Analytic always warn (a sample, not a bound), the 3D solid says it reads the fill.
     @return None.
     """
     n = int(WINDOW / PIX)
@@ -386,11 +387,11 @@ def test_five_models_run_and_warn():
     sim = api.simulate(p, api.SolverOptions(models=("fvm", "fdm", "lumped", "analytic", "solid3d"), cell_mm=1.0))
     assert set(sim.results) == {"fvm", "fdm", "lumped", "analytic", "solid3d"}
     for name in ("lumped", "analytic"):
-        assert any("imported copper on the Lumped" in w for w in sim.results[name].warnings), name
+        assert any("imported copper on the LPTN" in w for w in sim.results[name].warnings), name
     for name in ("lumped", "analytic"):
-        w = [x for x in sim.results[name].warnings if "imported copper on the Lumped" in x][0]
+        w = [x for x in sim.results[name].warnings if "imported copper on the LPTN" in x][0]
         # The text states the cases honestly: windows and the whole board, a sample and not a bound, and who reads the copper
-        assert "not a bound" in w and "42 parts" in w and "25 to 82 %" in w and "17 to 77 %" in w and "39 to 81 %" in w and "0402" in w and "do read" in w, name
+        assert "not a bound" in w and "82 parts" in w and "23 to 76 %" in w and "19 to 77 %" in w and "33 to 76 %" in w and "0402" in w and "do read" in w, name
         assert "average over a cell" in w and "invisible" in w, name
     assert any("imported copper in the 3D solid" in w for w in sim.results["solid3d"].warnings)
     assert any("import" in w for w in sim.results["fvm"].warnings) and any("import" in w for w in sim.results["fdm"].warnings)

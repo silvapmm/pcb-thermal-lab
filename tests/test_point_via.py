@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_point_via.py
-@brief The mean-potential via of the FVM and FDM: convergence with the cell size, energy balance, the Lumped model keeping its vias, the block SOR with the via
+@brief The mean-potential via of the FVM and FDM: convergence with the cell size, energy balance, the LPTN model keeping its vias, the block SOR with the via
        couplings, the single footprint rule of the 3D solid and the warnings about vias at the board edge and at coarse cells.
 @details The reference of the convergence tests is the copper-fill gain of the 3 x 3 via board (research/point-via-convergence): -4.51 K on a fine-grid solution of the
          same layered model with the vias drawn at their real size (independent solver), the program with the point link gave -4.78 K at 1 mm and -3.64 K at 0.125 mm.
@@ -136,7 +136,7 @@ def test_a_board_without_vias_has_no_via_blocks():
 
 def test_the_lumped_model_keeps_its_vias():
     """!
-    @brief The Lumped rings read gz + gz_via: the point barrel conductance of the cell of every via is in the ring sums (without it the vias vanish, +10 to +20 K).
+    @brief The LPTN rings read gz + gz_via: the point barrel conductance of the cell of every via is in the ring sums (without it the vias vanish, +10 to +20 K).
     @return None.
     """
     p = example_board()

@@ -25,11 +25,13 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
+from . import a11y
 from . import theme as th
 from .elided import ElidedLabel, clamp_to_screen
 from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, PLACEMENT, ROLES, UNIQUE, ImportSession
 from ..gerber import parts as parts_mod
 from .panels import WarningList
+from .spinfit import fit_range
 
 log = logging.getLogger(__name__)
 
@@ -147,7 +149,7 @@ class Preview(QWidget):
         f = QFont(self.font())
         f.setPixelSize(11)
         fm = QFontMetricsF(f)
-        items = [(k, f"{d:.2f} mm {k} x{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
+        items = [(k, f"{d:.2f} mm {k} ×{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
         rows, row, used = [], [], 0.0
         for kind, text in items:
             w = fm.horizontalAdvance(text) + 24
@@ -237,7 +239,7 @@ class Preview(QWidget):
             if self.show_layers["holes"]:
                 self._paint_legend(p, c)
         p.setPen(QColor(c["muted"]))
-        p.drawText(10, self.height() - 8, f"{b.width:.1f} x {b.height:.1f} mm   zoom {self.zoom:.1f}x")
+        p.drawText(10, self.height() - 8, f"{b.width:.1f} × {b.height:.1f} mm   zoom {self.zoom:.1f}×")
         p.end()
 
     def _paint_parts(self, p, c):
@@ -579,6 +581,8 @@ class Step1Page(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Folder, ZIP or files"))
         self.source = QLineEdit()
+        self.source.setAccessibleName("Folder, ZIP or files")
+        self.source.setToolTip("The folder, ZIP file or files to import: type or paste a path and press Enter, or use the buttons beside it.")
         self.source.returnPressed.connect(lambda: self.win.open_path(self.source.text()))
         row.addWidget(self.source, 1)
         for text, fn in (("Folder…", self._folder), ("ZIP…", self._zip), ("Files…", self._files)):
@@ -647,6 +651,7 @@ class Step1Page(QWidget):
         bar = QHBoxLayout()
         self.preview = Preview(self.session)
         self.layer_pick = QComboBox()
+        self.layer_pick.setAccessibleName("Layer of the preview")
         self.layer_pick.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.layer_pick.setMinimumContentsLength(14)
         self.layer_pick.currentTextChanged.connect(self._layer_picked)
@@ -742,9 +747,9 @@ class Step1Page(QWidget):
         self.layers_label.setText(f"{len(layers)}: {sx.stackup_text().split(': ', 1)[1]}" if layers else "none")
         b = sx.board()
         if b is not None and b.outline_area_mm2 is not None:
-            self.outline_label.setText(f"{b.width:.2f} x {b.height:.2f} mm, area {b.outline_area_mm2:.1f} mm², {len(b.outline)} board(s)")
+            self.outline_label.setText(f"{b.width:.2f} × {b.height:.2f} mm, area {b.outline_area_mm2:.1f} mm², {len(b.outline)} board(s)")
         elif b is not None:
-            self.outline_label.setText(f"none: the box of the copper, {b.width:.2f} x {b.height:.2f} mm")
+            self.outline_label.setText(f"none: the box of the copper, {b.width:.2f} × {b.height:.2f} mm")
         else:
             self.outline_label.setText("-")
         v, comp, nonplated = sx.vias()
@@ -865,6 +870,11 @@ class Step1Page(QWidget):
             self.preview.update()
 
 
+# The words of the parts counter of step 2 for the source keys of the session (the keys, such as 'to.c+placement', are not for the reader)
+SOURCE_WORDS = {"x3": "from the X3 component layer", "to.c+placement": "from paste and placement", "placement by position": "matched by position",
+                "paste only": "from paste only", "placement only": "from placement only"}
+
+
 def _spin(lo, hi, value, decimals, suffix, tip):
     """!
     @brief A spin box with a unit and a tooltip.
@@ -879,6 +889,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     s = QDoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
+    fit_range(s, value)                                   # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setSuffix(" " + suffix)
     s.setToolTip(tip)
@@ -1015,7 +1026,7 @@ class Step2Page(QWidget):
             size = "-"
             if has:
                 xs, ys = [q[0] for q in p.polygon_mm], [q[1] for q in p.polygon_mm]
-                size = f"{max(xs) - min(xs):.1f} x {max(ys) - min(ys):.1f}"
+                size = f"{max(xs) - min(xs):.1f} × {max(ys) - min(ys):.1f}"
             pos = p.from_file.get("position_mm") or ([sum(q[0] for q in p.polygon_mm) / len(p.polygon_mm), sum(q[1] for q in p.polygon_mm) / len(p.polygon_mm)] if has else None)
             nop = len(sx._openings_of(p))
             vals = {1: p.designator, 2: (p.footprint or p.from_file.get("package", "")), 3: sx.source_label(p), 4: str(nop or p.from_file.get("n_openings", 0)), 5: size,
@@ -1043,6 +1054,7 @@ class Step2Page(QWidget):
             t.setCellWidget(k, 7, sp)
             tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Datasheet Tj max, °C (0: none); the result gives the margin.")
             tj.setSuffix("")
+            tj.setSpecialValueText("none")                # 0 means no limit (the Properties panel writes "no limit"; a short word keeps the column narrow), not a limit of 0 °C
             tj.setFixedWidth(tj.minimumSizeHint().width())
             tj.valueChanged.connect(lambda v, d=p.designator: self._set(d, tj_max=v))
             t.setCellWidget(k, 8, tj)
@@ -1064,7 +1076,7 @@ class Step2Page(QWidget):
         self._building = False
         counts = sx.parts_info().get("counts", {})
         n_open = len(sx.openings())
-        self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {k}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
+        self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {SOURCE_WORDS.get(k, k)}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
                           + (f"<span style='color:{c['bad']}'>{len(sx.unmatched())} match no part (red in the preview).</span>" if sx.unmatched() else "0 match no part."))
         fr = sx.frame_proposal()
         self.frame_box.setVisible(bool(fr))
@@ -1459,7 +1471,7 @@ class Step3Page(QWidget):
             if mv["import_error"]:
                 text += f"<span style='color:{c['bad']}'>Masks: {html.escape(mv['import_error'])}</span>"
             else:
-                text += (f"<span style='color:{c['ok']}'>Masks: {len(sx.board().copper)} layers of {mv['cols']} x {mv['rows']} pixels, peak about {mv['import_peak'] / 1e9:.2f} GB (fits)</span>")
+                text += (f"<span style='color:{c['ok']}'>Masks: {len(sx.board().copper)} layers of {mv['cols']} × {mv['rows']} pixels, peak about {mv['import_peak'] / 1e9:.2f} GB (fits)</span>")
             self.mem.setText(text)
         n, comp, nonp = sx.vias()
         self.vias.setText(f"{n} vias, {comp} component holes kept out of the models; {nonp} non-plated holes ignored." if sx.board() else "-")
@@ -1896,6 +1908,7 @@ class ImportBoardWindow(QDialog):
         for btn in self.findChildren(QPushButton):
             btn.setAutoDefault(False)
             btn.setDefault(False)
+        a11y.name_fields(self)                              # Screen readers read the label of each field (form rows and grids)
         self.update_nav()
 
     def _in_thread(self, fn):
@@ -2221,7 +2234,7 @@ class ImportBoardWindow(QDialog):
         """
         if self._busy:
             self._close_asked = True
-            self.status.setText("Closing when the reading in progress has ended...")
+            self.status.setText("Closing when the reading in progress has ended…")
             return
         super().reject()
 

@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_laminate.py
-@brief The laminate of a one-layer board: node layers under the copper in the FVM, FDM and Lumped, the series film in the Analytic model, and the bottom face for the computed coefficients.
+@brief The laminate of a one-layer board: node layers under the copper in the FVM, FDM and LPTN, the series film in the Analytic model, and the bottom face for the computed coefficients.
 """
 
 import numpy as np
@@ -40,7 +40,7 @@ def test_nodes_add_up_to_the_board_and_only_a_one_layer_board_has_them():
     assert lam.count == laminate.LAMINATE_NODES == 2
     assert lam.copper_slab + lam.slabs.sum() == pytest.approx(1.6e-3)
     assert laminate.nodes(Problem.new(60.0, 60.0, 2).board) is None
-    # The nodes of the earlier versions (the Lumped model, and a board with a metal block, still use them)
+    # The nodes of the earlier versions (the LPTN model, and a board with a metal block, still use them)
     net = fvm.Network(p, 30, 30, ladder=False)
     assert net.nl == 3 and net.laminate_layers == [1, 2] and net.g_bottom[0].sum() == 0.0 and net.g_bottom[2].sum() > 0.0
     # The rule: copper everywhere needs no interior node, only the bottom node that carries the bottom film
@@ -55,7 +55,9 @@ def test_a_uniform_one_layer_board_matches_the_series_closed_form(model):
     p.add_heater(1, 5.0, rect=(0, 0, 50, 50), name="U")
     b = p.board
     t_lam = b.thickness - b.copper_thickness[0]
-    expected = 5.0 / (0.05 * 0.05 * (10.0 + 1.0 / (1.0 / 15.0 + t_lam / b.materials.k_fr4_through)))
+    # Both films pass the half copper layer of the node (fix/face-film-half-slab, theory 1.2a)
+    r_cu = b.copper_thickness[0] / (2.0 * b.materials.k_copper)
+    expected = 5.0 / (0.05 * 0.05 * (1.0 / (1.0 / 10.0 + r_cu) + 1.0 / (1.0 / 15.0 + t_lam / b.materials.k_fr4_through + r_cu)))
     r = (fvm.solve_steady(p, 5.0) if model == "fvm" else fdm.solve_steady(p, 5.0))
     assert rise(r) == pytest.approx(expected, rel=1e-9)
     assert abs(r.balance_error) < 1e-9 and r.T.shape[0] == 1

@@ -48,7 +48,10 @@ def run(p, cell=1.0):
     @return Dict model -> Tmax in degC (plus "fem" when --fem is given).
     """
     out = {"fvm": fvm.solve_steady(p, cell).t_max, "fdm": fdm.solve_steady(p, cell).t_max,
-           "solid3d": solid3d.solve_steady(p, cell).t_max, "lumped": lumped.solve_steady(p, cell).t_max,
+           "solid3d": solid3d.solve_steady(p, cell).t_max,
+           # The cell by keyword: the second positional argument of lumped.solve_steady is the number of rings (a cell of 1.0 there built a one-ring network,
+           # which the program never runs; the Lumped column of every version before this correction was that network). Ten rings, as SolverOptions.lumped_rings
+           "lumped": lumped.solve_steady(p, rings=10, cell_mm=cell).t_max,
            "analytic": analytic.solve_steady(p, cell).t_max}
     if FEM:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

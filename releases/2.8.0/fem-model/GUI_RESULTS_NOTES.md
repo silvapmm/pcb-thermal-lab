@@ -1,0 +1,25 @@
+# GUI results and warnings: progress notes (branch `feature/gui-results-warnings`)
+
+* Item 1 (warning rows, variant V1): done in commit "Show warnings with a severity dot and the element label at the end of the row". `gui/warning_box.py`: `dot_pixmap`, `_ElementLabel`, `_TopicRow`; tests updated and a new one for the label; guide and `tests/test_help.py` words.
+* Item 2 (Summary table, decision a+): done in commit "Name the read-outs in the Summary table ...". `api.SUMMARY_COLUMNS`, `results_view.summary_table`. The surface column is implemented: it fits at 1500 px (content 769 px, table 828 px) and scrolls horizontally at 1200 x 800 (the table is 528 px wide there; the base columns alone, 691 px, already need the scroll bar).
+* Screenshots: to regenerate (`results_summary.png`, `results_summary_imported.png`, `editor_warnings.png`) with the heavy lock free.
+* Incident: a `heavy_lock` directory of another executor was removed by this one (an `rmdir` after a small test) and recreated at once; no data lost.
+
+## Added scope (general review)
+
+* Components tables: same fix as the Summary (`_table`), tested at 1200 x 800. Map title on two lines. Power profile page: `_AdaptiveSplitter` (stacked below 800 px, no horizontal bar, looked at). About: label height fixed. Legends of bar charts outside; Profiles legend with `results.MODEL_SHORT` (FVM, LPTN, Analytic, FDM, 3D solid, FEM, aligned with the panel branch by the review; the card of the map uses it too). Warnings ordered by severity; `°C` in titles. Unit rule (maintainer, current): differences in K (`ΔT K`, `Margin K`), absolute temperatures in °C; a literature check of the convention is pending.
+* The dot: the panel branch had no shared helper yet, so `gui/dots.py` (`dot_pixmap`, `severity_token`, tokens `bad` and `warn`) is written here; the panel branch can import it for the memory lines (merge order: panel first, then this one; if the panel branch adds its own helper, drop `dots.py` and import theirs).
+* V1 at 322 px (the Simulation dock at 1200 x 800): the row is dot, title (wraps, full title in the tooltip), label at the end (name elided at 110 px, full name in the tooltip). The title drops the leading `Name:` when the label shows the same name. See `docs/images/editor_warnings.png` (350 px box) and the 322 px picture in the scratchpad.
+* NOT DONE: the Properties panel of a Heat source scrolls horizontally because the label 'Direct contact: the source is at the board temperature.' (`pcbthermal/gui/panels.py` line 885, `info = QLabel(...)`) has no word wrap (min width 320 px against a 322 px panel); the fix is `info.setWordWrap(True)`, one line in `panels.py`, which this branch must not touch (the panel branch owns it). Item 5 (labels `µm`, `1 (top)`) only where touched: none touched beyond `°C`.
+
+## Message from the reviewer (GUI fix plan, `docs/gui-general-review`, `releases/2.8.0/fem-model/GUI_FIX_PLAN.md`)
+
+* **Unit rule, final** (`UNITS_DELTA_T.md` on `docs/units-delta-t`): absolute temperatures in °C; every difference, rise, margin, oscillation, gradient step and the oscillation threshold in K; resistances K/W; µm.
+* **B13, yours** (the places that still write a difference in °C): Summary header `ΔT °C` to `ΔT K` (`gui/results_view.py:536`); report `ΔT [°C]` to `ΔT [K]` (`api.py:276`) and `dT C` to `dT K` (`api.py:331`); `Oscillation [°C]` to `[K]` (`api.py:297`, `306`); column `Osc. °C` (`gui/profile_page.py:182`); the oscillation threshold spin box suffix and tooltip (`gui/profile_page.py`); 'oscillation x °C' in `gui/profile_results.py:144` and `plots.py:1117`; the guide `help/index.html:319`; the Preferences label that shows the threshold. The JSON field `threshold_c` keeps its NAME (file format); only visible labels change.
+* **B9 (Properties horizontal bar)** is moved to the panel branch, as you suggested.
+* **`gui/dots.py`**: keep it; it becomes the one painter. The panel branch will not add a second one; `fix/gui-review-rest` routes the memory-line dot through it after both merges.
+* Use `°C` for absolute temperatures and `K` for differences in every string you touch; the scan test of `fix/gui-review-rest` will reject `degC`, `um` after a number, `dT C`, `ΔT °C`, `Osc. °C` and `°C` after 'oscillation', 'rise', 'margin'.
+
+* Unit rule (final): K for differences. Done here: Summary `ΔT K`, `Margin K`, `Osc. K`, the oscillation threshold box and tooltip, the oscillation and ripple lines of `api.py` (text and Markdown), `profile_results.py`, `plots.py`, the guide (threshold default 1 K). `pcbthermal/units.py` is created in branch A; it was NOT created here (an add/add conflict): the strings are literal `K` and A's table is the one to adopt at the merge.
+
+* V1 at a narrow dock: looked at with a 340 px dock (box 306 px) and long designators (`Q_LONG_DESIGNATOR_C123_REG`): dot and arrow stay, the title wraps (never cut), the label at the end elides to `Q_LONG_DESIG…` with the full name in its tooltip. Picture: scratchpad `gr/w322.png`. Screenshots regenerated once at the end (`editor_warnings.png`, `results_summary.png`, `results_summary_imported.png`, and the copy in `pcbthermal/help/`).

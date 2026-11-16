@@ -10,7 +10,7 @@
          1. "x3": a component layer (`components.py`) names every part with reference, mount type, rotation and outlines; the paste openings are linked by `TO.C`.
          2. "to.c+placement": the paste file carries `TO.C`; the designator of each opening is the answer, the placement file adds value, package and rotation.
          3. "placement by position": no `TO.C`; per opening (no grouping first), the part of the placement file whose pad envelope, rotated by the part angle and grown by 0.3 mm, contains the opening
-            centre; the smallest envelope wins; one part takes many openings. The envelope comes from the footprint NAME (0402 to 1206, SOIC pins and pitch, SOT-223, pin headers, QFN from the size in the
+            centre; the smallest envelope wins; one part takes many openings. The envelope comes from the footprint NAME (0201 to 1206, SOIC pins and pitch, SOT-223, pin headers, QFN from the size in the
             name), no footprint library is read. Before it, the frame of the placement file is checked: the bottom-side X convention (as written or negated, a KiCad option) is detected from the openings
             (with the offset, when one is given), the mirror of an off-centre bottom footprint too (the specification's local-x flip, or the same turned by 180 degrees), and a frame check proposes an
             offset when it aligns clearly more parts (thresholds `FRAME_*`, measured on four real boards) or says that the files do not fit at all.
@@ -1376,7 +1376,7 @@ def diff_parts(old, new, move_mm=MOVED_MM, resize_mm=0.2):
                 detail.append(f"{d:.2f} mm")
             if max(abs(ca[1][0] - cb[1][0]), abs(ca[1][1] - cb[1][1])) > resize_mm:
                 changes.append("resized")
-                detail.append(f"{ca[1][0]:.2f} x {ca[1][1]:.2f} to {cb[1][0]:.2f} x {cb[1][1]:.2f} mm")
+                detail.append(f"{ca[1][0]:.2f} × {ca[1][1]:.2f} to {cb[1][0]:.2f} × {cb[1][1]:.2f} mm")
         # Rotated: the rotation written by the files changed, or (no rotation in the files) the box of the shape swapped its sides; the sorted sides of `resized` do not see a quarter turn
         ra, rb = a.from_file.get("rotation_deg"), b.from_file.get("rotation_deg")
         turn = None

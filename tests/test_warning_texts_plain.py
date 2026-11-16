@@ -50,6 +50,6 @@ def test_no_internal_branch_or_study_name_in_user_warnings():
     sim = simulate(p, SolverOptions(models=models, cell_mm=1.0))
     texts += [str(w) for w in sim.warnings]
     assert len(texts) > 4                                        # the board really raises warnings
-    assert any("Lumped" in t and "via" in t for t in texts)      # including the long via text that used to quote the branches
+    assert any("LPTN" in t and "via" in t for t in texts)      # including the long via text that used to quote the branches
     bad = [t for t in texts if BAD.search(t)]
     assert not bad, bad[0]

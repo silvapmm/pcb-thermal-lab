@@ -59,7 +59,7 @@ Lumped `program`, error of the hottest node / of the footprint mean, % (mean ove
 
 The worst case is a 10 mm part in the corner of the 100 x 80 board (-22.0 % of the rise, 47.2 K reference). The deficit falls with the gap but does not vanish (-2.4 to -3 % at 30 mm, which is the
 centre value of the uniform-sheet deficit of `lumped-ring-uniform-deficit`, partly removed by the capped first ring that this tree has). It grows with the board (100 x 80 against 40 x 40) and falls with the
-edge film (a cooled side is a weaker wall). Size of the part: no clear trend (2 mm -6.2, 5 mm -6.6, 10 mm -6.9 % on the hottest node).
+edge film (a cooled side is a weaker wall; *2.8.0 audit: with the laminate band of 2.6.0 the deficit hardly depends on the film, -7.8 / -7.3 / -7.2 % at 10 / 50 / 200 as the 2.7.0 audit above says; the all-case figures re-run on 2.7.1 are -7.4 [-22.2, -0.8] %, `docs/validation.md` 35.1*). Size of the part: no clear trend (2 mm -6.2, 5 mm -6.6, 10 mm -6.9 % on the hottest node).
 
 ![Error against the gap](figures/fig_03_error_against_gap.png)
 
@@ -246,6 +246,10 @@ On the random boards the rule flags 59 of 120: those read -8.3 % on average (ran
   of the board maximum against the program after the review's correction; the first run quoted -2.1 to +1.0, with `reference_board` -1.2 to -3.3 % from the defect of section 10.2). The candidate's image potentials
   are cell-resolved up to 3600 footprint cells (a 30 mm part at 0.5 mm) and fall back to the program's block potentials without images above.
 * "Bad" is 8 % of the rise on the hottest node; the rates move with that threshold.
+
+## Status on 2.8.0 (reproduction pass)
+
+The image potentials of this folder were ported by `research/lumped-edge-link` and became the 2.8.0 first link of the Lumped (`fix/lumped-edge-first-link`). **Tests removed in 2.8.0**: the source-text variants of `lib/variants.py` apply to the program text (gone in 2.8.0) and the large-footprint regression of the variant (the program's own tests, `tests/test_lumped_edge_first_link.py`, cover the images and the footprint limit). The record stays: README and `lib/`, run on `git archive v2.7.1 pcbthermal`. **Tests redone on the program as it ships** (`development` 232ba648): the heat balance and the centred 5 mm part (Lumped 52.483 against FVM 51.981 degC, +1.9 % of the rise, within 6 %), and the headline corner case, a 10 mm part in a corner read 22 % cool on 2.7.1 and **-2.13 %** now (FVM 47.359 K, Lumped 46.349 K, within 8 %). 4 tests pass. (`releases/2.8.0/reproduction/STALE_TESTS_DECISIONS.md`)
 
 ## 8. What was read and what was not verified
 

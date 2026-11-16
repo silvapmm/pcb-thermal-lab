@@ -44,6 +44,15 @@ from pcbthermal import lumped, viaconstriction, viawell                      # n
 from pcbthermal.fvm import board_time_constant                               # noqa: E402
 from pcbthermal.geometry import cell_index_of_point                          # noqa: E402
 
+# The first link of the program this copy was made from. The copy (heater_network below) has the first link of 2.4.5 to 2.7.1: the half strip of ring 1 after the
+# footprint potentials, without the mirror images of the board sides. From 2.8.0 (fix/lumped-edge-first-link) the program reads that link as the potential of the
+# footprint and its images to the mean of ring 1, which the copy does not have; so that "the program" of the comparisons of this folder is the network the copy
+# reproduces, the folder runs the program with that link switched off (lumped.IMAGE_MAX_CELLS = 0 keeps the plain link for every footprint, the program's own
+# fallback for a large footprint). PCBT_ZONES_FIRST_LINK=2.8.0 runs the program as it ships instead (the copy then no longer equals it; README 11).
+FIRST_LINK = os.environ.get("PCBT_ZONES_FIRST_LINK", "2.7.1")
+if FIRST_LINK == "2.7.1" and hasattr(lumped, "IMAGE_MAX_CELLS"):
+    lumped.IMAGE_MAX_CELLS = 0
+
 OPTIONS = {
     "zones": True,               # False: every footprint stays one node (the program's network, plus the options below)
     "zone_macro": "none",        # macro term of the cluster well in the zone nodes: "none" (the micro well only) or "cap" (the program's well with the cap of 0.75 fin lengths)

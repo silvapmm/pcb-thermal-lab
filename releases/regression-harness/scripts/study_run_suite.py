@@ -7,6 +7,7 @@
 
          .venv/bin/python releases/regression-harness/scripts/study_run_suite.py --label rc                    # the tree you are in -> out/rc.json
          .venv/bin/python releases/regression-harness/scripts/study_run_suite.py --program-root /path/to/tree --label v2.4.4
+         .venv/bin/python releases/regression-harness/scripts/study_run_suite.py --label final --models fvm fdm lumped analytic solid3d fem    # with the finite-element model (2.8.0)
 
          `--program-root` is a folder that contains the `pcbthermal` package (the repository, or an extracted `git archive`; see `study_baseline_release.py`). The program under test is
          the only `pcbthermal` that is imported (the script refuses otherwise). `--quick` runs the 2 mm cell only. The output is `out/<label>.json` (git-ignored). Solve times are
@@ -36,7 +37,8 @@ def main(argv=None):
     ap.add_argument("--label", default="rc", help="name of the result set and of the output file (default rc)")
     ap.add_argument("--out", default=None, help="output JSON (default out/<label>.json in this folder)")
     ap.add_argument("--cells", nargs="+", type=float, default=list(H.CELLS), help="cell sizes in mm (default 2 1 0.5)")
-    ap.add_argument("--models", nargs="+", default=list(H.MODELS), choices=list(H.MODELS))
+    # The finite-element model (OPTIONAL_MODELS) is accepted but never a default: an older revision has no such model (recorded as skipped there). The refreeze of 2.8.0 passes it for the final run.
+    ap.add_argument("--models", nargs="+", default=list(H.MODELS), choices=list(H.MODELS) + list(H.OPTIONAL_MODELS))
     ap.add_argument("--boards", nargs="+", default=None, help="board names (default all): " + ", ".join(B.board_names()))
     ap.add_argument("--examples-dir", default=None, help="folder of the example files (default examples/ of this repository, the same for every revision)")
     ap.add_argument("--max-unknowns", type=int, default=H.MAX_UNKNOWNS, help="FVM and FDM above this many unknowns are skipped")

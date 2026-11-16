@@ -35,7 +35,7 @@ def reading(problem):
     """!
     @brief The board-ring temperature the model gives for the part.
     @param problem Problem.
-    @return Temperature in degC.
+    @return Temperature in °C.
     """
     return simulate(problem, SolverOptions(models=("fvm",), cell_mm=1.5)).heater_rows()[0]["t_ring"]
 

@@ -21,6 +21,8 @@ from .. import defaults
 from ..inverse import power_from_theta
 from ..results import DISCLAIMER
 from .compute import ProcessWorker
+from .spinfit import fit_range
+from . import a11y
 from . import theme as th
 from .help import set_themed_page
 
@@ -30,7 +32,7 @@ DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band cover
           ("Drawn by hand from the layout", "hand", "Drawn by hand from the layout: half the 'estimated' amplitudes by default."),
           ("Estimated (no layout at hand)", "estimated", "The board is a guess (copper, planes or vias unknown): the full amplitudes of Preferences - Power Calculator."))
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
-           "The board 0.5 to 1.5 mm outside the package (where ψJB is defined), e.g. a thermocouple on the copper. No datasheet value needed."),
+           "The mean board temperature 0.5 to 1.5 mm outside the package (an approximation of the board point of ψJB, which TI SPRA953 defines at the centre package pin), e.g. a thermocouple on the copper. No datasheet value needed."),
           ("Hottest board point under the part", "max",
            "The hottest copper under the footprint. No datasheet value needed."),
           ("Mean board temperature under the part", "mean", "The mean board temperature under the footprint. No datasheet value needed."),
@@ -57,6 +59,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     s = QDoubleSpinBox()
     s.setRange(lo, hi)
     s.setDecimals(decimals)
+    fit_range(s, value)                                   # A loaded value outside the usual range is shown as it is, not clamped
     s.setValue(value)
     s.setSuffix(" " + suffix)
     s.setToolTip(tip)
@@ -127,6 +130,8 @@ class PowerCalculator(QDialog):
         self._point_changed()
         # The window keeps one size for every point: the parameters a point does not use are greyed, not removed
         self.setMinimumSize(self.sizeHint())
+        a11y.name_fields(self)                              # Screen readers read the label of each field
+        self.case.setAccessibleName("Power to use")
 
     # ------------------------------------------------------------------ route 1
     def _board_tab(self):
@@ -222,7 +227,7 @@ class PowerCalculator(QDialog):
         lay.addWidget(note)
         f = QFormLayout()
         self.tj = _spin(-50, 500, 100.0, 1, "°C", "Junction temperature, °C (e.g. from a sense diode).")
-        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Reference temperature, °C: board 1 mm from the package (ψJB, θJB) or case top (ψJT).")
+        self.tref = _spin(-50, 500, 80.0, 1, "°C", "Reference temperature, °C: the board next to the package (ψJB, θJB; the program's ring is 0.5 to 1.5 mm outside it) or the case top (ψJT).")
         self.par = _spin(0.01, 2000, 10.0, 2, "K/W", "Datasheet ψJB, ψJT or θ, K/W; an estimate on your board (ψJB within about 15 % of θJB).")
         self.out2 = QLabel("")
         self.out2.setToolTip("P = (Tj − Treference) / parameter.")
@@ -253,6 +258,8 @@ class PowerCalculator(QDialog):
         k = self.heater.currentData()
         if k is not None and 0 <= k < len(self.doc.problem.heaters):
             self.theta.setValue(self.doc.problem.heaters[k].theta)
+        if hasattr(self, "point"):
+            self._top_allowed()
 
     def _point_changed(self, *_):
         """!
@@ -261,12 +268,29 @@ class PowerCalculator(QDialog):
         @param _ Ignored (the Qt signal argument).
         """
         key = self.point.currentData()
+        self._top_allowed()
         for wd, on, why in ((self.theta, key in ("junction", "top"), "junction or the top of the package"), (self.psi_jt, key == "top", "top of the package")):
             wd.setEnabled(on)
             label = self.theta_label if wd is self.theta else self.psi_label
             label.setEnabled(on)
             suffix = "" if on else f"\n\nGreyed: not used by this point (used by the {why})."
             wd.setToolTip(wd.property("base_tip") + suffix)
+
+    def _top_allowed(self):
+        """!
+        @brief Grey the "Top of the package" point for a part that has a heatsink on top, with the reason in its tooltip.
+        @details psi_JT of a datasheet is defined for a package with no heatsink, so no split of the power makes the route valid (docs/calculators.md 3).
+        """
+        k = self.heater.currentData()
+        heaters = self.doc.problem.heaters
+        blocked = k is not None and 0 <= k < len(heaters) and heaters[k].theta_sa > 0
+        i = self.point.findData("top")
+        item = self.point.model().item(i)
+        if item is not None:
+            item.setEnabled(not blocked)
+            item.setToolTip(POINTS[i][2] + ("\n\nGreyed: this part has a heatsink on top (θSA set); ψJT of a datasheet is defined without a heatsink." if blocked else ""))
+        if blocked and self.point.currentData() == "top":
+            self.point.setCurrentIndex(self.point.findData("ring"))
 
     def _theta(self, *_):
         """!
@@ -328,7 +352,10 @@ class PowerCalculator(QDialog):
         self.result.setText(head + f"reproduces {out['temperature_c']:.1f} °C ({out['runs']} model runs"
                             f"{', linear' if out['linear'] else ', iterated: the heat transfer depends on the temperature'}).<br>"
                             f"At the nominal power the model reads: {reads}.<br>"
-                            f"Board resistance at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air)."
+                            f"Board resistance of the part at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air; "
+                            f"it does not include the heating by the other parts)."
+                            + (f"<br>The other parts alone raise this point by <b>{out['other_parts_rise_k']:.1f} K</b> (already taken off before the power is found)."
+                               if out.get("other_parts_rise_k", 0.0) > 0.05 else "")
                             + band + f"<br><i>{DISCLAIMER}</i>")
         self.use.setEnabled(True)
 

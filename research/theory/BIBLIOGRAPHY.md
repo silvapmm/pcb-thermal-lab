@@ -412,7 +412,11 @@ JEDEC JESD15-3, *Two-Resistor Compact Thermal Model Guideline* (July 2008; free 
 
 ### [JESD51family]
 
-**Licence:** not checked. **Source URL:** https://www.jedec.org/node/3931.
+**Licence:** all rights reserved. **Source URL:** https://www.jedec.org/node/3931.
+
+Copyright JEDEC, all rights reserved; free download after registration; only the citation and the few numbers we test against are used, no text reproduced.
+
+**Used for the JEDEC 2s2p case of the Power Calculator** (audit of 2.8.0, `releases/2.8.0/audit/REVIEW_A1.md`): the board dimensions were not read in JESD51-7 (N) but taken from ROHM application note 64AN113E, which quotes JESD51-3/5/7/9/10: 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces (not drawn), two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch; the 3 × 3 via array under the TPS7A47-like pad is an assumption (`docs/calculators.md` 2.1). The case is an indication, not a check against the standard.
 
 JEDEC JESD51 family. The JEDEC listing page (read in The maintainer's reference compilation (`docs/reference-compilation.md`)) shows every entry as a free download after registration: JESD51-2A natural convection (still air) conditions (January 2007); JESD51-5 thermal-via test boards (February 1999, reaffirmed 2026); JESD51-6 forced convection (March 1999); JESD51-8 junction-to-board (October 1999); JESD51-9 area-array test boards (July 2000); JESD51-10 through-hole perimeter-leaded packages (July 2000); JESD51-11 through-hole area-array leaded packages (June 2001); JESD51-12.01 reporting and using package thermal information (November 2012); JESD51-13 glossary (June 2009); JESD51-14 transient dual interface junction-to-case method (November 2010); JESD51-31, -32 and -34 multichip packages; JESD51-51A, -52A and -53A LED testing (2022); JESD88G dictionary (March 2025). **JESD51-1** (electrical test method, K-factor of a temperature-sensitive parameter) is behind a login: index pages https://www.jedec.org/node/3931 and https://www.vektrex.com/news-articles/measuring-led-junction-temperature-tj/ . **JESD51-3** (low-k board, 1s0p) and **JESD51-7** (high-k board, 2s2p) did not appear in the part of the listing that could be read; their roles are from memory: search by number. None of the standards was opened; the project knows them through Electronics Cooling ([EC2019JEDEC]). **Status S for the list, N for the content.** Topics 09, 14, 23.
 
@@ -1205,7 +1209,7 @@ Y. Saad, *Numerical Methods for Large Eigenvalue Problems*, revised edition, SIA
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm.
+Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm. Audit L12 of 2.8.0, by image: eq. 4.47 on printed page 127 (PDF 147), Theorem 4.16 on page 126 (PDF 146, 'Let A be a consistently ordered matrix such that a_ii != 0'), Theorem 4.10 (SOR converges for 0 < omega < 2 if and only if A is positive definite, A symmetric with positive diagonal) on page 122 (PDF 142).
 
 ### Sources of S4
 The constriction (Krogh cell, `(ln(R/r_t) - 3/4) / (2 pi S)`), the tile self-term and the references are those of section 17 and of `research/lumped-analytic-vias/README.md` (status as recorded there: the closed forms are derived and checked, no published numerical case of a via-array constriction was found); nothing new was opened for S4.
@@ -1313,7 +1317,7 @@ The two equation images of the article (files `A3form1_2` and `A3formula` of the
 ### What could not be obtained (for the maintainer to fetch)
 Churchill and Chu (1975), Churchill (1977), Hollands et al. (1976) and Hollands (1984), Churchill and Usagi (1972), Elenbaas (1942), Bar-Cohen and Rohsenow (1984), Hashin and Shtrikman (1962), Keller (1964), Dykhne (1970), Bruggeman (1935), Landauer (1952), Incropera and DeWitt (any edition), Torquato (2002), Patankar (1980), Carslaw and Jaeger, JEDEC JESD51-2A, -3, -7, -14 and JESD51-12, IPC-2152, IPC-4761, ASTM D5470, ASME V&V 20, Briggs, Henson and McCormick (*A Multigrid Tutorial*), Roache's books. Publisher paywall or an account is needed; the open archives and search gave no copy. The researcher did not try sources that require evading an access check.
 
-## 20. Sources of `docs/theory.md` and of the code docstrings (status table, added for the rewrite of the theory)
+## 25. Sources of `docs/theory.md` and of the code docstrings (status table, added for the rewrite of the theory)
 
 The table lists every source that `docs/theory.md` (section 12) and the docstrings of `pcbthermal/` cite, with the status **as recorded above**; nothing was upgraded without a reading recorded in an entry. Where a statement of the theory rests on a source that was not opened, the theory marks it. The five entries after the table are new keys.
 
@@ -1329,7 +1333,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [IncroperaDeWitt] | fin and sheet equations, correlations, radiation | M content, S citations | section 2 |
 | [CarslawJaeger] | Fourier series, K0 Green function of the fin equation, disc sources (I0, I1) | M content, S citation | section 2 |
 | [CulhamYovanovich1998] | no homogenised conductivity of a laminate; coupon cases | R pages 460 to 466 (scan; page 462, equations 7 to 10, re-read in batch 1) | section 12, batch 1 |
-| [EC1998Spreading] | Seri Lee plate check, equations 1 and 2, worked example | R (equations and numbers, as images) | section 2 |
+| [EC1998Spreading] | Seri Lee plate check, equations 1 and 2, worked example | S: the worked example and its printed values R (the text of the article, re-read in the audit of 2.8.0); the equations are images that were not read (N). The earlier status 'R (equations and numbers, as images)' was wrong (audit 2.8.0 A1, RA-346; the final review 2a aligned this row with `docs/theory.md` 12) | section 2 |
 | [Lee1995] | cited by earlier documents for the plate check | N (not located) | section 2 |
 | [Muzychka2003], [Lemczyk1992] | cross of five sources and coupon cases reproduced | R | section 12 |
 | [ChurchillChu1975] | vertical plate, general and laminar forms | paper N; equations R through [Lienhard2024] (8.13a, 8.13b) | section 3 |
@@ -1340,7 +1344,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [JESD15-3], [JESD51family] | two-resistor model, theta and psi definitions | JESD15-3 R through a mirror; JESD51 documents N | section 4 |
 | [Celik2008] | grid convergence index, procedure and Table 1 | R pages 4 to 9 | section 19 |
 | [Roache] | GCI as used by ASME V&V 20 | M (summaries S) | section 1 |
-| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms, forced plate (page 311), air and copper properties | R pages 310, 311, 419 to 421 (equations 8.11 to 8.13b by image), 431, 433 to 437, 755 (Table A.6) and Table A.1 | section 19, batch 2, image pass below |
+| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms, forced plate (page 311), air and copper properties | R pages 310, 311, 419 to 421 (equations 8.11 to 8.13b by image), 431, 433 to 437, 755 (Table A.6) and 739 (Table A.1, PDF 753, by image in audit L12); in audit L1/L5 by image 72 (eqs 2.28 to 2.31), 309 (eq. 6.68), 312 (eq. 6.72), 332 to 334; printed 234, PDF 248 (eq. 5.62, used in `docs/theory.md` 10.5) | section 19, batch 2, image pass below; the audits of 2.8.0 |
 | [Fish2017] | microspreading of via cells (context of the constriction) | R chapter 6, reproduced; chapter 7 formulation R (equations 58 to 83, 177 to 182), its series S; chapter 5 not read | sections 17, 18, batch 1 |
 | [Kron2022], [MFEMStaticCond] | Kron reduction, static condensation | S; [Kron2022] is S. Chevalier, M. R. Almassalkhi, *Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554; the theory of the reduction is read in [DorflerBullo2013Kron] (R in part), the better citation | sections 1, 24, batch 2 |
 | [George1973] | nested-dissection fill and operations (form of the memory law) | R in part (abstract, Theorems 4.1, 5.2, the closing remark on the cube; the constants of A.6 unreadable), with [LiGolub2013] slides 19, 20 (R) | sections 22, 24 |
@@ -1711,7 +1715,7 @@ H. G. Rodero, D. Garrido, I. Baraia-Etxaburu, I. Aizpuru, J. P. Amillano, *Stead
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-Equations 1 to 4 (R_T = R_1D + R_s) and 37 to 50 read in the text layer: orthotropic flux tube and flux channel by the transformation xi = z/gamma, gamma = sqrt(kz/kr) (or kxy), k_eff = sqrt(kr kz), t_eff = t/gamma, Bi_eff = h b/k_eff; the composite-board conductivities are the parallel sum k_xy = sum k_i t_i/t (equation 39) and the series k_z = t / sum(t_i/k_i) (equation 40), valid "if the source size is considerably larger than the thickness of individual layers". **Status R for pages 1 to 6 (45 to 50)**; the numerical figures are plots. Not reproduced numerically (README 8).
+Equations 1 to 4 (R_T = R_1D + R_s) and 37 to 50 read in the text layer: orthotropic flux tube and flux channel by the transformation xi = z/gamma, gamma = sqrt(kz/kr) (or kxy), k_eff = sqrt(kr kz), t_eff = t/gamma, Bi_eff = h b/k_eff; the composite-board conductivities are the parallel sum k_xy = sum k_i t_i/t (equation 39) and the series k_z = t / sum(t_i/k_i) (equation 40), valid "if the source size is considerably larger than the thickness of individual layers". **Status R for pages 1 to 6 (45 to 50)**; the numerical figures are plots. Not reproduced numerically (README 8). **Checked on the page image by the 2.8.0 audit (`releases/2.8.0/audit/REVIEW_A2.md`)**: eq. 39 (bottom of the left column) and eq. 40 (right column) are on printed page 49 (PDF page 5), not page 6; eqs. 48 to 51 (the orthotropic flux channel, `k_eff = sqrt(k_xy k_z)`, `t_eff = t / γ`) and 52 to 56 on printed page 50 (PDF 6); the condition quoted above is printed on page 49.
 
 ### [Teertstra2004Enclosure] (read here)
 
@@ -1832,7 +1836,7 @@ Bittele, standard multilayer stack-up, 2 pages, **R**: 2 layers 1 oz copper (0.0
 
 **Licence:** not checked. **Source URL:** https://arxiv.org/abs/2204.05554.
 
-Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password.
+Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password. **Audit L12 of 2.8.0**: Table A.1 is on book page 739 (PDF 753), checked by image: pure copper at 20 C 8954 kg/m3, 384 J/kgK, 398 W/mK (401 at 0 C, 391 at 100 C, 389 at 200 C). The program's copper (385 W/mK, 8960, 385) is **not** this row and has no recorded source: `docs/theory.md` 0 marks it 'typical, no source'. Text layer of PDF 753 to 754 (not imaged): aluminium pure 237, 6061-T6 167, brass (30 % Zn) 109, AISI 1010 64, AISI 304 13.8 W/mK.
 
 ### Citations and identities corrected in this pass
 * [Kron2022]: the authors are S. Chevalier and M. R. Almassalkhi (*Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554); status S (abstract).
@@ -2092,3 +2096,31 @@ Every essential page that has a Claude transcription was compared with its page 
 * [ShenWang2019Vias] prints `Theta_jc = 44.12` for Theta_jt, a duplicate `psi_ea` after eq. 33 and a flowchart reference '(39)'.
 
 **Not verified**: pages that no progress file lists as compared; [Xu1992] pages 593 to 613; the 2005 published version of [LiSuperLU2005].
+
+## Sources named by the finite-element model and the Lumped self term (final theory review of 2.8.0)
+
+The finite-element section of `docs/theory.md` (4a) and the self term of the Lumped footprint (5) named sources without a key; they get one here, with the status of what was done. Nothing was opened for them in this review.
+
+### [ZienkiewiczTaylor2000]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (a book, not opened).
+
+O. C. Zienkiewicz, R. L. Taylor, *The Finite Element Method*, volume 1, 5th edition, Butterworth-Heinemann, 2000 (edition and year from memory). Named for the trilinear (Q1) isoparametric brick, the 2 x 2 x 2 Gauss rule and the consistent Robin face integral of `pcbthermal/femcore.py`. **Status M** (not opened). The element is checked without it: a patch test on a distorted mesh, scikit-fem on the same mesh to 1e-10 (`research/independent-fem-edge`), the hollow cylinder against the radial closed form, and a one-dimensional column against its series closed form to 1e-5 K (final theory review of 2.8.0).
+
+### [Hughes2000]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (a book, not opened).
+
+T. J. R. Hughes, *The Finite Element Method: Linear Static and Dynamic Finite Element Analysis*, Dover, 2000. Same use as [ZienkiewiczTaylor2000]. **Status M** (not opened).
+
+### [MaxwellGMD]
+
+**Licence:** public domain. **Source URL:** not recorded (not opened).
+
+J. C. Maxwell, the geometric mean distance of a rectangle from itself (Trans. R. Soc. Edinburgh 26, 1872; *A Treatise on Electricity and Magnetism*, 1873; from memory). Used for the self term `ln(0.447 sqrt(dx dy))` of a square cell in the logarithmic potential of the Lumped footprint. **Status M** (not opened); the value `exp(ln 2 / 3 + pi/3 - 25/12)` = 0.4470492 is checked by quadrature (audit L12 to 1e-12, and again in this review: 0.44704915590 by a double integral of the difference density).
+
+### [Pyamg] (version)
+
+**Licence:** MIT. **Source URL:** https://github.com/pyamg/pyamg.
+
+The installed package is pyamg 5.4.1 (metadata read in the environment: licence MIT, authors N. Bell, J. Schroder, B. Southworth; `requirements.txt` asks for 5.4 or later); the entry above recorded 5.3.0 from the package index of an earlier session. **Status R for the metadata, N for the paper.**

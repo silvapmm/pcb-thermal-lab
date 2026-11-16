@@ -64,6 +64,8 @@ Memory is kept light: FVM and FDM above 400 000 unknowns and the 3D solid above 
 | `must_not_move` | the board and model that no item of the release may change moved: an alarm that wins over every rule |
 | warnings only | the texts changed, no number: listed, not a shift |
 
+A metric that only the newer run has (a read-out added by the release, such as the surface of 2.8.0) is `expected` when a scope of the table's optional `added_metrics` list names it by board, model, cell and metric name (`regress_classify.diff_sets`); otherwise it falls to the rules on `status` as before. A metric that disappears is never an addition.
+
 `reference/expected_shifts.json` holds nine items (I1 part across the outline, I2 board cover 8 x 8, I3 laminate nodes, I4 point via and block SOR, I5 via constriction in Lumped and Analytic, I6 Young omega (sweeps only), I7 warnings only, I8 documents and theory, I9 the Power Calculator row), 22 rules, 6 must-not-move entries, the rules for the times to 63 %, and a matrix of what each board should show (printed at the end of the diff). Each rule says whether its bound is *quantified* (a number printed by a study), *derived* (worked out from a printed number or an engineering margin) or *to be explained*. Examples: a 2-layer board with a copper window and the laminate rule: the FVM rise goes up by at most 45 % of the rise (the largest in the studies, +38 %, a 6 mm window over 3.2 mm laminate); the example board cut to a T: the hottest point of the FVM goes down by at most 20 K (4 K on the example, 16 K in the edge sweep of a small T); Lumped and Analytic on any board without vias: no shift at all.
 
 ## 2. How to run (in this order)

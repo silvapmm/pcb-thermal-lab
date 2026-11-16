@@ -98,4 +98,6 @@ def test_review_via_deficit_is_per_via_and_follows_the_barrel_length():
     assert two == pytest.approx(one, rel=1e-3)
     # 2.6.0 (fix/via-barrel-and-rim-uncoupling): the barrel is longer by half the copper, which closes this deficit of the program against the resolved cell: -7.46 % (2.5.x barrel)
     # becomes -0.30 % (the other published case, research/lumped-zones-adoption, moves the other way: 0.8 % to 8.0 % above its reference; both are reported)
-    assert one / ref - 1 == pytest.approx(-0.00302, abs=0.0005)
+    # fix/face-film-half-slab: the study imposes the end face with h = 1e7 W/m2K (1/h = 1e-7 m2K/W), the size of the half copper layer t_cu / (2 k_cu) (a few 1e-8 m2K/W), which the
+    # program now has in series with the film: the via column reads hotter and the deficit against the resolved cell goes from -0.30 % to +0.04 % (the film term, not a defect)
+    assert one / ref - 1 == pytest.approx(0.00038, abs=0.0005)

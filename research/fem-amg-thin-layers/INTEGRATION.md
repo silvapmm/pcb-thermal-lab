@@ -1,0 +1,41 @@
+# INTEGRATION: a cheaper preconditioner for the FEM above the direct limit
+
+**Status: reviewed (README section 10: GO for closing the investigation). Recommendation: NOTHING is adopted in 2.8.0; the program keeps its pyamg default** (the maintainer's preference, given after the measurements; the review agrees on the evidence, see section 3). The column preconditioner is kept below as an OPTION for the record, with its guard, timing and impact, to be revisited in 2.9.0 only if the maintainer asks. Nothing in `pcbthermal/` is edited from this branch. Tree: `development` 6c225276; reference: the current default of `femcore.Model.solve`. Numbers: README sections 7 and 10.
+
+## 1. What would change (if the maintainer wanted it)
+
+Only `femcore.Model.solve`, in the CG branch (line 387 of this tree). The pyamg-only variants (theta, smoothers, aggregation, evolution, Ruge-Stueben, root-node, W cycle, coarse size, scaling, candidates) and the reuse of a hierarchy do **not** pass: no change is proposed for them (decisions a, c). The only candidates were:
+
+* (b) CG tolerance `rtol` 1e-10 to 1e-9: saves 4 % (2 mm) and 10 % (1 mm) on one run each, field moves by 1.3e-9 to 1.6e-9 K (review: 1.29e-9 K at 2 mm, 476 against 525 iterations).
+* (d) a **vertical-column preconditioner**, new code of about 25 lines: column index of every unknown from the node coordinates (`np.unique` of the rounded x, y of the used nodes); `P` = the entries of `A` whose two unknowns share a column (block-diagonal, SPD; each block is tridiagonal in z on the meshes of `femmesh`, review 10.2); `splu(P)`; preconditioner `z = P^-1 r` (`colblock`) or `z = P^-1 r + V(r)` with the current V cycle (`colblock_amg`). Reference implementation: `research/fem-amg-thin-layers/lib/variants.py` (`column_ids`, `column_matrix`, `make_preconditioner`).
+
+## 2. Measured impact (README sections 7 and 10; total = setup + CG, assembly excluded)
+
+| Case | default total s | colblock (ratio) | colblock_amg (ratio) |
+| :-- | --: | --: | --: |
+| example 2 mm, 67 229 unknowns | 4.06 | 0.16 | 0.31 |
+| thin4 1 mm, 246 468 | 8.51 | 0.37 | 0.51 |
+| example 1 mm, 275 724 | 10.15 | 0.55 | 0.64 |
+| case 2 plate 1 mm, 84 375 | 0.67 | 1.09 | 1.01 |
+| case 2 plate 0.5 mm, 315 375 | 2.09 | 2.53 | 1.40 (review re-run: 1.28) |
+| example 0.732 mm, 487 048 | 12.31 | 1.07 | 0.84 |
+| the 16 frozen records the program solves by CG (36 864 to 93 060): median / worst | | 0.23 / 0.85 (review re-run 0.22 / 0.83) | 0.80 / 1.42 (review re-run 0.81 / 1.46) |
+
+Fields and read-outs agree with the default to about 1e-9 K (review: every read-out of `fem.solve_steady`, column, surface, point, hottest node, layer means, heat paths, within 6e-10 K on three boards; the default itself is 1.2e-9 K from the direct solution on the example at 4 mm). `colblock` repeats bitwise; the default and `colblock_amg` repeat to 4e-10 K. The LU of the column blocks holds 15 % of the non-zeros of `A` (1.08 million against 7.13 million at 275 724 unknowns): about 13 MB, not visible in the 1.9 to 3.0 GB peak. Setup of both is below 1 s.
+
+## 3. Recommendation per decision (reviewer)
+
+* **(a) pyamg variants: do not adopt.** Confirmed by an independent re-run (README 10.3): theta 0.25, evolution k 2 epsilon 4, energy and a larger coarse level give the same iteration counts as the study (372, 46, 523/275, 525/280) and none gains 10 % in total at 1 mm. A clear negative result.
+* **(b) CG tolerance 1e-9: do not adopt in 2.8.0.** Field within 1.3e-9 K and up to 10 % faster, but the worst-conditioned mesh (case 2 at 828 375 unknowns, which needs the restart) was not run at 1e-9; the gain does not justify a new frozen tolerance question in the release of confidence.
+* **(c) Reuse of a hierarchy: do not adopt.** With the default's setup at 1 to 5 % of its total, there is nothing to amortise; the transient case (K + M/dt) is an assumption here (no mass matrix in `femcore` on this tree) and must be measured on the transient FEM when it exists.
+* **(d) Column preconditioner: NOT adopted in 2.8.0; the default stays pyamg; revisit in 2.9.0 only if the maintainer asks.** Reasons: the maintainer's acceptance rule (25 % lower on the cap-size boards) is not met (case 2 at 1 mm 1.09 / 1.01; case 2 at 0.5 mm 2.53 / 1.28 to 1.40; example at 487 048 unknowns 1.07 / 0.84); no selection rule was found (the vertical share of the coupling is 0.24 to 0.29 on every case); case 2 at 828 375 unknowns (the mesh that needs the CG restart) was not run; and 2.8.0 is a version of confidence. **Real gain worth keeping on record:** on thin boards up to about 300 000 unknowns the time of the CG solve halves (example 1 mm 0.55 to 0.65) and the condition number of the preconditioned system drops from 25 000 to 31 000 (default V cycle) to 17 (`colblock_amg`) on small thin meshes (README 10.2): the default V cycle is weak on thin copper slabs, and `colblock_amg` keeps the iteration count in a narrow band (47 to 211 on every case and record measured, against 46 to 525 for the default). **Real risk:** `colblock` alone has no coarse correction, so its iterations grow as 1/h (436, 969, 1156) and it loses 2.5 times on a thick plate; `colblock_amg` never lost more than 1.46 times on any case or record measured, but it was not run on the restart case.
+
+## 4. The option, if the maintainer asks for it in 2.9.0 (kept for the record)
+
+* **Variant**: `colblock_amg` only (never `colblock` alone: no coarse correction, 2.5 times slower on the thick plate).
+* **Guard**: (1) only on the CG path (above `FEM_DIRECT_MAX`); (2) a size and thickness gate is NOT proposed (no rule was found; a rule would need a cheap test-case set of about ten boards: thin 2, 4 and 8 layers, a thick plate, a block on a board, a dense via field, each at three cells between 100 000 and the cap); (3) a **fall-back**: if CG with `colblock_amg` has not converged after N iterations (N = 500, about 2.4 times the worst count measured, 211 on the frozen record `plate_lone_via` at 2 mm; 155 on the example at 1 mm), restart from the current iterate with the default preconditioner and the program's existing restart rule. This is safe for correctness (CG from any start vector with an SPD preconditioner converges; the true-residual check of `Model.solve` stays the acceptance) and bounds the loss to N iterations of `colblock_amg` (about 20 s at 276 000 unknowns), but it does NOT remove the 1.28 to 1.46 slow-down on the cases measured, which converge well before N; a fall-back only protects against non-convergence, not against a slower win.
+* **Tests**: a small thin-layer system on which `colblock_amg` reaches the direct solution and needs fewer iterations than the default (as `tests/test_amg_variants.py` of this folder); the fall-back path forced by a tiny N; a dense check that the operator is symmetric positive definite on a mesh of a few thousand unknowns (README 10.2 recipe); the stress scenario of a FEM run in `tests/test_gui_stress.py` unchanged.
+* **Frozen impact**: the 16 CG records of `tests/regression/data/pending/fem-records.json` move by at most about 1e-9 K (review: 1.1e-9 K on the unknown vector, 6e-10 K on the read-outs), inside the 1e-8 K policy and comparable with the run-to-run spread of the default (up to 5e-10 K): a pending file `fem-preconditioner.json` would be written only if the refreeze shows a shift above the tolerance; the 13 direct records do not move.
+* **Before adoption, still to measure**: case 2 at 828 375 unknowns (needs more than 4 GB, a quiet machine), boards between 300 000 and the cap with real stacks, the transient FEM with its own mass matrix, a second platform.
+* **Effort and risk**: about 1 day of code and tests plus the measurements above (about half a day of machine time on a quiet machine) and the whole battery; risk low for correctness (the true-residual check stays), medium for speed (1.28 to 1.46 times slower on a thick plate and on one record).
+* **Documents**: `docs/theory.md` 4a (solver paragraph), `docs/models.md`, `docs/validation.md` (speed numbers with tree and reference), the memory law only if the peak changes (the LU is 15 % of the non-zeros of `A`, about 13 MB at 276 000 unknowns: no change expected), CHANGELOG.

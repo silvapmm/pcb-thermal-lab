@@ -31,6 +31,11 @@ from pcbthermal.model import Problem, reference_problem
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALL_MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+# The FEM is not in ALL_MODELS (decision: the 1 mm tests would add 15 s and 2 GB each); it has dedicated scenarios (tests/test_fem_gui.py), the model loop of the profile
+# test below, the live checks and the random actions (only at the default mesh options, at a cell of 2 mm or more)
+MODELS_WITH_FEM = ALL_MODELS + ("fem",)
+FEM_MONKEY_CELLS = 2e4          # Largest board (plan cells x layers) on which the random actions may tick the FEM: about 170 000 FEM unknowns, 10 s and 1.5 GB at most
+                                # (the example board at 2 mm: 8000 cells, 67 229 unknowns; at 1 mm: 32 000 cells, 275 724 unknowns, 15 s, 2 GB)
 
 
 @pytest.fixture
@@ -317,11 +322,13 @@ def test_profile_run_with_each_kind_and_model_subset(win, qtbot):
     pr.heaters[0].set_profile(SquareWave(13.3, 0.01, 0.3))
     pr.heaters[1].set_profile(TableProfile([0, 2, 5, 9, 20], [6, 1, 3, 0], True))
     win.doc.changed.emit()
-    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ("solid3d",), ("fvm", "solid3d"), ALL_MODELS):
+    from pcbthermal import femcore
+    fem_sets = (("fem",), ("fvm", "fem")) if femcore.available() else (("fvm", "fem"),)       # The example board's FEM mesh needs pyamg when alone
+    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ("solid3d",), ("fvm", "solid3d"), ALL_MODELS) + fem_sets:
         run(win, qtbot, models)
         walk_results(win, qtbot)
-        if models == ("solid3d",):
-            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid has no time simulation
+        if models in (("solid3d",), ("fem",)):
+            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid and the FEM have no time simulation
     # One-shot table, a step limit that is too small, a computed h
     pr.heaters[1].set_profile(TableProfile([0, 0.01, 20], [0.0, 5.0], False))   # A 10 ms stretch in 20 s: 20,000 steps
     win.doc.options.profile.max_steps = 200
@@ -605,7 +612,12 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
             cells = b.width * b.height / (2e-3 * 2e-3) * b.layers
             if win.doc.problem.heaters and win.doc.problem.total_power() > 0 and cells < 3e5 \
                     and win.doc.options.analytic_modes <= 400 and win.doc.options.profile.max_steps <= 300000:
-                run(win, qtbot, tuple(rng.sample(ALL_MODELS, rng.randint(1, 5))), cell=max(win.doc.options.cell_mm, 2.0),
+                o = win.doc.options
+                # A fine FEM mesh or a large board is a long solve (the FEM has about six times the unknowns of the FVM: 400 x 300 mm, 4 layers at 2 mm is 756 000
+                # unknowns and about 6 GB, which the memory guard of a 16 GB machine still lets run): the FEM only on boards up to FEM_MONKEY_CELLS cells at the run's cell
+                small = b.width * b.height / (max(o.cell_mm, 2.0) * 1e-3) ** 2 * b.layers <= FEM_MONKEY_CELLS
+                pool = MODELS_WITH_FEM if (small and o.fem_gap_elements <= 6 and o.fem_refine >= 2.0) else ALL_MODELS
+                run(win, qtbot, tuple(rng.sample(pool, rng.randint(1, len(pool)))), cell=max(o.cell_mm, 2.0),
                     expect_ok=False)
         else:
             qtbot.wait(2)
@@ -691,6 +703,49 @@ def test_metal_block_in_the_application(win, qtbot):
     assert rv.block_table.rowCount() == 0
 
 
+def test_surface_read_out_of_a_thick_plate_in_the_application(win, qtbot):
+    """A thick copper plate: the Layer box lists the surface entries after a run (FVM, FDM), the map and the part table show them beside the column, the other models say none."""
+    from pcbthermal.model import Materials
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
+    p.add_full_copper()
+    p.add_heater(1, 25.0, rect=(20, 20, 30, 30), name="S")
+    load(win, p)
+    run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert "Surface (top)" in texts and "Surface (bottom)" in texts
+    assert rv.heater_table.columnCount() == 10 and "(surface," in rv.heater_table.horizontalHeaderItem(9).text() and "estimate)" in rv.heater_table.horizontalHeaderItem(9).text()
+    assert "from the column max" in rv.heater_table.item(0, 9).toolTip() and "% of the rise" in rv.heater_table.item(0, 9).toolTip()   # the difference is in the cell tooltip
+    sbox = win.layer_combo
+    assert "estimate" in sbox.itemData(sbox.findData(200), Qt.ToolTipRole)          # The entry carries its own tooltip
+    for model in ("fvm", "fdm", "lumped", "analytic"):
+        rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
+        for data in (200, 201, 0):
+            win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))      # The lumped and analytic draw a message, never an error
+    walk_results(win, qtbot)
+    # Animation and Profiles show the column and say so
+    rv.tabs.setCurrentWidget(rv.animation)
+    assert "Surface" not in [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+
+
+def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_none(win, qtbot):
+    """Decision (always computed, always shown, no threshold): 35 um copper has the surface arrays, the Layer box entries and the ONE surface column; the LPTN says n/a with a reason."""
+    load(win, example_board())
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
+    rv = win.results
+    assert "T_surface" in win.sim.results["fvm"].arrays
+    assert rv.heater_table.columnCount() == 10
+    rv.tabs.setCurrentWidget(rv.temp)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert "Surface (top)" in texts and "Surface (bottom)" in texts
+    assert rv.heater_table.item(0, 9).text() not in ("n/a", "")
+    rv.temp.model.setCurrentIndex(rv.temp.model.findData("lumped"))
+    win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
+    qtbot.wait(50)
+    assert "column mean" in rv.temp.fig.axes[0].get_title()
+
+
 def test_component_fields_in_the_application(win, qtbot):
     """A part with theta, a junction limit, psi_JB and a power temperature coefficient: inspector fields, a run with every model, its table and the warnings."""
     load(win, example_board())
@@ -744,7 +799,7 @@ def test_top_path_in_the_application(win, qtbot):
     assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
     run(win, qtbot, ALL_MODELS, cell=2.0)
     rv = win.results
-    top = rv.heater_table.columnCount() - 1
+    top = 8                                                                  # the Top path column (the surface column follows it)
     assert rv.heater_table.item(0, top).text() != "-" and float(rv.heater_table.item(0, top).text()) > 0
     assert rv.heater_table.item(1, top).text() == "-"                       # U2 has no heatsink
     walk_results(win, qtbot)
@@ -1138,6 +1193,33 @@ def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
     assert "will not run" not in win.solver_panel.cells_label.text()
 
 
+def test_the_settings_groups_follow_quick_ticks_and_theme_switches(win):
+    """Every model ticked and unticked in a quick sequence with a theme switch in between: the six group headers are recoloured for the theme and the ticked state at
+    every step (a group is 'not ticked' exactly when none of its models is ticked), the board with a block greys the laminate group, and nothing raises."""
+    from pcbthermal.gui import theme as th
+    load(win, example_board())
+    panel = win.solver_panel
+    serves = {h["title"].text(): h["models"] for h in panel._heads}
+    steps = 0
+    for model in ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem") * 2:
+        for ticked in (("fvm", model), (model,), ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")):
+            win.doc.set_options(models=tuple(dict.fromkeys(ticked)))
+            if steps % 5 == 0:
+                win.toggle_theme()
+            steps += 1
+            colours = th.colors(th.current_name())
+            for h in panel._heads:
+                models = serves[h["title"].text()]
+                shown = (not models) or any(m in win.doc.options.models for m in models)
+                assert ("not ticked" not in h["tag"].text()) == shown
+                assert (colours["accent_text"] if shown else colours["muted"]) in h["title"].styleSheet()
+    p = example_board()
+    p.add_heatsink(1, 50.0, rect=(5, 5, 20, 20), name="Block", thickness_mm=3.0)
+    load(win, p)
+    win.doc.set_options(models=("fvm", "fdm"))
+    assert not panel.lam_s.isEnabled()
+
+
 def test_the_memory_verdict_in_the_panel_disables_run_and_auto_fits(win, qtbot, popups, monkeypatch):
     """The panel shows the memory verdict of each selected model; a refused FVM cell disables Run (with the reason as its tooltip) and F5 only shows the message; Auto
     gives a cell the guard accepts and says so; the animation is refused in the window; a low memory limit set in the options (a machine preference) is restored."""
@@ -1229,6 +1311,16 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
         if w.kind is not None:
             box.warning_clicked.emit(w.kind, w.index)
             assert win.canvas.selected_elements() == [(w.kind, w.index)]
+    # The element label at the end of every row is the real control: click each one (a closed row) and the element is selected; a long name is elided with the full name in the tooltip
+    labelled = [r for r in box.rows if r.button is not None]
+    assert len(labelled) == sum(w.kind is not None for w in box.warnings) and labelled
+    for r in labelled:
+        win.canvas.set_selection([])
+        r.button.click()
+        assert win.canvas.selected_elements() == [(r.kind, r.index)] and r.button.accessibleName().startswith(f"Select {r.kind}")
+        assert r.button.width() <= 200 and not r.is_open()
+    box.set_stale()
+    assert not any(r.button.isEnabled() for r in labelled)                   # a stale list: the labels are greyed
     box.warning_clicked.emit("heater", 999)                                  # A stale index is ignored
     box.warning_clicked.emit("nothing", 0)
     win.doc.stack.undo()
@@ -1238,7 +1330,7 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
 
 
 def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
-    """The zone model of the Lumped network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
+    """The zone model of the thermal network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
     that stays one node, a footprint covered by 400 vias (core above 92 %, the fallback, no zone warning), an array across the edge (post-run warning) and a board with an outline."""
     def zoned(proj, cover=False):
         pr = proj.problem
@@ -1264,7 +1356,7 @@ def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
     win.doc.edit("Across the edge", lambda proj: [setattr(v, "x", v.x + 5.0e-3) for v in proj.problem.vias])
     run(win, qtbot, ("lumped",))
     assert any("past the edge" in str(w) for w in win.sim.warnings)
-    # A board with an outline: the Lumped model solves the rectangle of the same area, where the decision of the zones is made too
+    # A board with an outline: the LPTN model solves the rectangle of the same area, where the decision of the zones is made too
     win.doc.edit("Outline", lambda proj: setattr(proj.problem.board, "outline", np.array([(0.0, 0.0), (30e-3, 0.0), (30e-3, 30e-3), (12e-3, 30e-3), (0.0, 18e-3)])))
     run(win, qtbot, ("lumped",))
     assert np.isfinite(win.sim.results["lumped"].t_max)
@@ -1319,7 +1411,7 @@ def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
         for x, y in rng.uniform(1, 79, (1500, 2)):
             pr.add_via(float(x) + 10.0, float(y), 0.3)
     win.doc.edit("Vias", build)
-    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d")):
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d"), ("fvm", "fem")):
         for cell in (2.0, 1.0):
             win.doc.set_options(models=models, cell_mm=cell)
             t0 = time.time()
@@ -1425,7 +1517,7 @@ def test_display_control_in_the_application(win, qtbot):
             win.canvas.viewport().grab()
             win.display_button.click()
     win.results.temp.model.setCurrentIndex(win.results.temp.model.findData("lumped"))
-    assert win.canvas._overlay_card["title"] == "Lumped"
+    assert win.canvas._overlay_card["title"] == "LPTN"
     win.doc.set_props("heater", 0, power=2.0)                                 # the first edit: the map leaves, the button greys
     assert win.canvas._overlay is None and win.canvas._overlay_card is None and not win.a_overlay.isEnabled()
     win.doc.stack.undo()
