@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Release 2.8.0: tree tested whole (4054 passed); merged to `main` and tagged `v2.8.0` with the maintainer's word on 2026-11-16** (the maintainer said to correct, go on and release to `main` if everything had passed; the tester's GO was on the tree of `development` plus `fix/summary-warnings-spacing`).
+
 - **Room between the Warnings box and the report on the Summary page** (`fix/summary-warnings-spacing`; maintainer's one small change after approving the page): the accordion keeps an 8 px bottom margin (`results_view.SUMMARY_WARNINGS_GAP_PX`; hidden with the box when there are no notes, the console keeps its stretch); display only, no number moves; test in `tests/test_summary_table.py`, pictures `results_summary*.png` regenerated.
 
 - **Final tree of 2.8.0 tested** (tester on `tmp/merge-final`; merged into `development` by the maintainer agent): FEM interface pad correction (film on the pad walls removed; the pad conducts only through its thickness) merged with the release commit; two FEM frozen records regenerated (`finned_block|fem|1` and `|2`, +0.293 K); the 3D solid interface pad has the same weaker defect (0.6 % at 5e-3): fix in 2.9.0 (`releases/2.9.0/PLAN.md`, e16). Whole battery: 4050 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 1 warning on the final tree of 2.8.0 (whole battery 55 min 12 s, real-board environment proven loaded; frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed, three random-action tests passed). No tag, no merge into `main`: the maintainer decides.
