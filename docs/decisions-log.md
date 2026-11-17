@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Formula index review: no defect in the program or the theory; corrected stale bibliography and audit records; two real tests proposed for 2.9.0** (maintainer adopted the review, 2026-11-17, `docs/formula-review-corrections`): the Ibraguimov sentence and the page notes of `research/theory/BIBLIOGRAPHY.md` corrected, `releases/2.8.0/audit/ERRATA_FORMULAS.md` added (the frozen `formulas.csv` untouched), the YMC 1999 two-layer test and a `Via.copper_area` unit test proposed in `releases/2.9.0/PLAN.md`. Documents only.
+
 - **Bibliography: MUN 13266 corrected** (maintainer's order, 2026-11-17, `docs/bibliography-mun-13266`): the Memorial University record 13266, cited as a Muzychka thesis, is the doctoral thesis of Al-Khamaiseh (2018), not a Muzychka thesis; copy held locally, not read. New entry [AlKhamaiseh2018Thesis]; [MuzychkaMultilayer2018] keeps only the journal abstract and its claims rest on a source not opened.
 
 - **Atlas traces removed from the living documents of development** (the maintainer's order, 2026-11-16, `docs/atlas-traces-removed`; `main` is replaced by `development` at the next release, so it was not edited): the F10 row of `research/ROADMAP.md`, the Atlas lines of `research/README.md`, `research/REVIEW.md`, `releases/2.9.0/PLAN.md`, section 2.6 of `releases/2.8.0/plan-resume/PLAN.md` and the Atlas wording of `research/paper-notes-policy` were removed or reworded; history untouched; the decisions-log entries and the historical reviewer record `releases/2.9.0/leftover-branches/OPINION.md` are kept as the record.
