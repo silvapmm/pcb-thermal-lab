@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Planned for 2.9.0, right after the Summary table setting: name the model on the Components tab and wherever a result follows the reference model; the reviewer decides how far to carry it** (maintainer's request, 2026-11-17, `docs/plan-components-model-name`): item e18 of `releases/2.9.0/PLAN.md`, branch `fix/results-name-the-model`; the Components tab is filled from the reference model, not from the Results 'Model' box, and does not say so (checked in the code). Documents only.
+
 - **Planned for 2.9.0: a Preferences setting for the Summary table in the report text, default as today** (maintainer's request, 2026-11-17, `docs/plan-summary-table-setting`): item e17 of `releases/2.9.0/PLAN.md`, branch `feature/summary-table-setting`; the CLI and the saved report keep the table (checked in the code).
 
 - **Formula index review: no defect in the program or the theory; corrected stale bibliography and audit records; two real tests proposed for 2.9.0** (maintainer adopted the review, 2026-11-17, `docs/formula-review-corrections`): the Ibraguimov sentence and the page notes of `research/theory/BIBLIOGRAPHY.md` corrected, `releases/2.8.0/audit/ERRATA_FORMULAS.md` added (the frozen `formulas.csv` untouched), the YMC 1999 two-layer test and a `Via.copper_area` unit test proposed in `releases/2.9.0/PLAN.md`. Documents only.
