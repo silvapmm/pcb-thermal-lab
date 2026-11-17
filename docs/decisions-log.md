@@ -4,6 +4,8 @@ The record of the decisions of PCB Thermal Lab, newest first, with the reason. I
 
 ## Entries
 
+- **Bibliography: MUN 13266 corrected** (maintainer's order, 2026-11-17, `docs/bibliography-mun-13266`): the Memorial University record 13266, cited as a Muzychka thesis, is the doctoral thesis of Al-Khamaiseh (2018), not a Muzychka thesis; copy held locally, not read. New entry [AlKhamaiseh2018Thesis]; [MuzychkaMultilayer2018] keeps only the journal abstract and its claims rest on a source not opened.
+
 - **Atlas traces removed from the living documents of development** (the maintainer's order, 2026-11-16, `docs/atlas-traces-removed`; `main` is replaced by `development` at the next release, so it was not edited): the F10 row of `research/ROADMAP.md`, the Atlas lines of `research/README.md`, `research/REVIEW.md`, `releases/2.9.0/PLAN.md`, section 2.6 of `releases/2.8.0/plan-resume/PLAN.md` and the Atlas wording of `research/paper-notes-policy` were removed or reworded; history untouched; the decisions-log entries and the historical reviewer record `releases/2.9.0/leftover-branches/OPINION.md` are kept as the record.
 
 - **CLAUDE.md brought to the state after 2.8.0** (maintainer, 2026-11-16, `docs/claude-state-after-2-8-0`): the Atlas mentions were removed after the maintainer deleted the Atlas remote branches; section 15 was rewritten for the released 2.8.0; the size was reduced (below 40 KB, section 16) by moving detail to `docs/versions.md` ('Appendix: passages moved out of CLAUDE.md', A1 to A12), word for word, leaving the rule in short form and a pointer in `CLAUDE.md`.

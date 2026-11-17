@@ -1034,7 +1034,13 @@ The section "Application to Orthotropic Systems" (Eqs. 37 to 42, Fig. 9, Eqs. 39
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-**Status S** (abstract only). Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it), and the Memorial University thesis records (research.library.mun.ca/13266). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).**
+**Status S** (abstract only). Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).** Correction: this entry used to add "the Memorial University thesis records (research.library.mun.ca/13266)" as if that record were a thesis of Muzychka; it is not (see [AlKhamaiseh2018Thesis]). Any claim about the orthotropic multilayer solution of Muzychka rests on a source not opened.
+
+### [AlKhamaiseh2018Thesis]
+
+**Licence:** not checked. **Source URL:** https://research.library.mun.ca/13266.
+
+Formerly cited as the Muzychka thesis (MUN 13266), which was wrong. A. Al-Khamaiseh, *Analytical solutions of 3D heat conduction in flux channels with nonuniform properties and complex structures*, PhD thesis, Memorial University of Newfoundland (2018). **Copy held locally, not read** (the file is in the git-ignored papers library, 221 pages). **Status N** (not read; nothing is quoted from it).
 
 ### [MonierVinard2017]
 
