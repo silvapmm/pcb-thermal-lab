@@ -1506,7 +1506,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                 elif what.startswith("the copper") and "t_max_surface" in row:
                     # The surface read-out of the result (FVM, FDM), beside the column one: a number instead of the bound alone
                     est = (f" The surface estimate of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
-                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is small against the plate' if row['surface_upper'] else ''}).")
+                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is narrow against the plate' if row['surface_upper'] else ''}).")
                 if into_laminate:
                     parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
                               "that face is not in the model)")

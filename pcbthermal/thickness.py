@@ -9,12 +9,14 @@
              T_top - T_m = t (2 q_top - q_bot) / (6 k),    T_bottom - T_m = t (2 q_bot - q_top) / (6 k).
          A column fed at the top and cooled at the bottom (q_bot = -q_top) gives the familiar q t / (2 k); heat that spreads sideways (q_bot = 0) gives q t / (3 k). The parabola is
          within 7 % of an independent 3D solution up to t/a = 0.5 (a the side of the source) and an UPPER estimate beyond (research/through-thickness-readout 4.2, validation 55.6).
+         For a rectangular source b x c the overshoot depends on the NARROW side b only (releases/2.9.0/surface-flag: 2 x 10, 2 x 20 and 2 x 40 mm on 2 mm copper all read 1.15 times
+         the true term, 10 x 10 and 10 x 20 mm both 0.99), so `source_width` takes the smaller of the minimum width of the part and the equivalent side sqrt(A), never the area alone.
          The surface is ALWAYS a second number beside the column, never a mode: no option, no project key (decision of the maintainer, releases/2.8.0/fem-model/SURFACE_DECISIONS.md).
          `attach` is called by the FVM and the FDM for EVERY steady result, with NO thickness or size threshold (the former 105 um limit and the 'worth showing' test are gone:
          the cost is 0 to 3 ms and no number of any model sees the arrays); the result holds (absolute temperatures in degC, NaN off the board and on a face that is not computed)
              arrays["T_surface"] (2, ny, nx)       top face of layer 1 and bottom face of the last layer, the HOTTEST value in the cell;
              arrays["T_surface_mean"] (2, ny, nx)  the same with the area mean of a partly filled cell;
-             arrays["T_surface_flag"] (2, ny, nx)  bool, true under a part with t/a above UPPER_RATIO (the value is an upper estimate);
+             arrays["T_surface_flag"] (2, ny, nx)  bool, true under a part with t/a above UPPER_RATIO, a = source_width (the value is an upper estimate);
              extras["t_max_surface_top"], ["t_max_surface_bottom"], ["surface_excess_k"].
          The face fluxes: the heat of a part and the films on the outer face, the sum of the conductances to the other layers (laminate, inner copper, via couplings) on the inner face,
          the heat into a block on its face; the sideways flow is not a face flux. Partly filled cells: the copper term c uses the fluxes of the cell; the mean is f c plus the
@@ -96,9 +98,45 @@ def _couplings_out(net, theta, layer):
     return inner, out_block[0].reshape(ny, nx), out_block[1].reshape(ny, nx)
 
 
+def source_width(polygon):
+    """!
+    @brief The length a of the thin-sheet limit t / a of a source: its narrow side, never more than the equivalent side sqrt(A).
+    @details For a rectangle b x c the parabola of `offsets` overshoots the true surface term by an amount that depends on b alone (measured against the independent 3D solver,
+             releases/2.9.0/surface-flag: the ratio is 1.15 for 2 x 10, 2 x 20 and 2 x 40 mm on a 2 mm plate, so sqrt(A) misses the elongated ones). The minimum width of the
+             polygon (the smallest distance between two parallel lines that enclose it, found on the convex hull) is b for a rectangle of any orientation. The result is capped by
+             sqrt(A) so that a shape whose width is larger than its equivalent side (a disc: d against 0.886 d) is flagged exactly as before; a square gives its own side either way.
+    @param polygon Vertices (n, 2) in m.
+    @return Length in m (0 for a degenerate polygon).
+    """
+    pts = np.unique(np.round(np.asarray(polygon, dtype=float), 12), axis=0)
+    root_a = float(np.sqrt(max(polygon_area(polygon), 0.0)))
+    if len(pts) < 3 or root_a <= 0.0:
+        return root_a
+    # Convex hull by the monotone chain: the minimum width of a set is reached perpendicular to an edge of its hull
+    pts = pts[np.lexsort((pts[:, 1], pts[:, 0]))]
+    def half(seq):
+        out = []
+        for q in seq:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (q[1] - out[-2][1]) - (out[-1][1] - out[-2][1]) * (q[0] - out[-2][0]) <= 0.0:
+                out.pop()
+            out.append(q)
+        return out[:-1]
+    hull = np.array(half(pts) + half(pts[::-1]))
+    best = np.inf
+    for i in range(len(hull)):
+        e = hull[(i + 1) % len(hull)] - hull[i]
+        n = np.hypot(*e)
+        if n == 0.0:
+            continue
+        normal = np.array([-e[1], e[0]]) / n
+        proj = hull @ normal
+        best = min(best, float(proj.max() - proj.min()))
+    return min(root_a, best) if np.isfinite(best) else root_a
+
+
 def _upper_flags(problem, res, faces):
     """!
-    @brief Cells under a part whose source is wide against the plate it sits on the wrong way round: t / a above UPPER_RATIO, where the parabola is an upper estimate.
+    @brief Cells under a part whose narrow side is wide against the plate it sits on the wrong way round: t / a above UPPER_RATIO, a = source_width, where the parabola is an upper estimate.
     @param problem The Problem.
     @param res SteadyResult (gives the sample positions).
     @param faces List [(face index 0 or 1, layer index)] of the outer faces that were computed.
@@ -113,7 +151,7 @@ def _upper_flags(problem, res, faces):
         t = float(b.copper_thickness[layer])
         for h in problem.heaters:
             on_face = (h.layer == layer) if b.layers > 1 else True
-            a = float(np.sqrt(max(polygon_area(h.polygon), 0.0)))
+            a = source_width(h.polygon)   # the narrow side, not sqrt(A): an elongated part overshoots through its narrow side
             if on_face and a > 0 and t / a > UPPER_RATIO:
                 flag[face] |= points_in_polygon(X.ravel(), Y.ravel(), h.polygon).reshape(X.shape)
     return flag

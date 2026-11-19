@@ -253,6 +253,42 @@ def test_the_flag_marks_a_part_that_is_wide_against_the_plate_only():
     assert wide.arrays["T_surface_flag"][0].any() and not narrow.arrays["T_surface_flag"][0].any()
 
 
+# Measured against the independent 3D solver (releases/2.9.0/surface-flag, k 385 and 150 W/mK, bottom film 400, 0.5 mm cells): (t mm, b mm, c mm, parabola / true term at the
+# source centre). The term overshoots by more than 7 % exactly when the NARROW side b is thin against the plate, whatever the long side c is.
+FLAG_TABLE = [(1, 2, 20, 1.028), (1, 2, 10, 1.028), (1, 5, 10, 0.993), (1, 10, 10, 0.993), (2, 2, 20, 1.149), (2, 2, 10, 1.150), (2, 2, 40, 1.148), (2, 3, 10, 1.058),
+              (2, 4, 20, 1.021), (2, 5, 10, 1.006), (2, 5, 20, 1.006), (2, 10, 10, 0.994), (2, 10, 20, 0.994), (2, 20, 20, 0.994), (3, 5, 10, 1.043), (3, 4, 20, 1.075)]
+
+
+def test_source_width_is_the_narrow_side_capped_by_the_equivalent_side():
+    rect = lambda b, c: [(0, 0), (c, 0), (c, b), (0, b)]
+    assert thickness.source_width(rect(2e-3, 20e-3)) == pytest.approx(2e-3, rel=1e-9)             # elongated: the narrow side (sqrt(A) is 6.3 mm)
+    assert thickness.source_width(rect(10e-3, 10e-3)) == pytest.approx(10e-3, rel=1e-9)           # a square: its side, as before
+    th = 0.6
+    rot = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+    assert thickness.source_width(np.array(rect(2e-3, 20e-3)) @ rot.T) == pytest.approx(2e-3, rel=1e-9)   # orientation does not matter
+    disc = 5e-3 * np.array([(np.cos(a), np.sin(a)) for a in np.linspace(0, 2 * np.pi, 97)[:-1]])
+    assert thickness.source_width(disc) == pytest.approx(np.sqrt(thickness.polygon_area(disc)), rel=1e-12)   # capped: a disc is flagged as before
+    assert thickness.source_width([(0, 0), (1e-3, 0), (2e-3, 0)]) == 0.0                           # degenerate
+
+
+@pytest.mark.parametrize("t,b,c,ratio", FLAG_TABLE)
+def test_the_flag_follows_the_measured_overshoot_of_elongated_parts(t, b, c, ratio):
+    # A measured overshoot above 7 % must be flagged; the flag may be earlier (it is conservative) but never miss one
+    p = plate(t_mm=float(t), k=385.0, src=(25 - c / 2, 25 - b / 2, 25 + c / 2, 25 + b / 2), power=10.0)
+    r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
+    flagged = bool(r.arrays["T_surface_flag"][0].any())
+    if abs(t / b - thickness.UPPER_RATIO) > 1e-6:                    # exactly on the threshold the float rounding of the polygon decides
+        assert flagged == (t / b > thickness.UPPER_RATIO)
+    if ratio > 1.07:
+        assert flagged
+
+
+def test_an_elongated_part_is_flagged_by_its_narrow_side_and_a_square_part_is_unchanged():
+    long_ = simulate(plate(t_mm=2.0, k=385.0, src=(15, 24, 35, 26), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]     # 2 x 20: sqrt(A) 6.3, t/b 1
+    square = simulate(plate(t_mm=2.0, k=385.0, src=(20, 20, 30, 30), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]   # 10 x 10: t/a 0.2
+    assert long_.arrays["T_surface_flag"][0].any() and not square.arrays["T_surface_flag"][0].any()
+
+
 def test_the_layer_box_lists_the_surface_only_with_it_and_only_in_temperature():
     assert [t for t, _ in layerchoice.items("temperature", 2, (), (0, 1))][-2:] == ["Surface (top)", "Surface (bottom)"]
     assert not any("Surface" in t for t, _ in layerchoice.items("temperature", 2, (), ()))
