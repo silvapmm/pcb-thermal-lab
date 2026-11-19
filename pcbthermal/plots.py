@@ -11,6 +11,7 @@ the GUI can embed the figure in a Qt canvas and the command line can save it to 
 
 import functools
 import math
+import warnings
 from dataclasses import dataclass, field as dc_field
 
 import matplotlib
@@ -116,6 +117,45 @@ def _with_engineering_ticks(draw):
         engineering_ticks(fig)
         return result
     return wrapper
+
+
+COLLAPSE_WARNING = "constrained_layout not applied because axes sizes collapsed to zero"   # Start of the Matplotlib message of a canvas too small for its decorations
+
+
+def draw_unless_collapsed(fig, draw):
+    """!
+    @brief Draw a constrained-layout figure; when the canvas is too small for the axes decorations (Matplotlib then warns and leaves the axes unplaced) draw it blank instead.
+    @details Matplotlib cannot lay out a figure whose decorations (titles, labels, an outside legend) take the whole canvas, as in a window dragged very small, and
+             warns at every paint. The draw is tried once with that one warning caught; when it fired, the axes and the legends are hidden for a second, blank draw
+             and the layout engine and visibility are restored, so the next draw (the canvas grew) lays the chart out as usual. At a size where the layout succeeds
+             nothing changes: the same draw, the same pixels. Every other warning is passed on untouched.
+    @param fig Figure (its canvas is the one `draw` paints).
+    @param draw Callable with no argument that paints the figure (for example the canvas draw of the base class).
+    @return bool True when the canvas was too small and a blank figure was drawn.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        draw()
+    collapsed = False
+    for w in caught:
+        if COLLAPSE_WARNING in str(w.message):
+            collapsed = True
+        else:
+            warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)    # Not ours: raise it again as it was
+    if not collapsed:
+        return False
+    hidden = [a for a in list(fig.axes) + list(fig.legends) if a.get_visible()]
+    engine = fig.get_layout_engine()
+    for a in hidden:
+        a.set_visible(False)
+    fig.set_layout_engine("none")                    # Nothing left to place: no layout, no warning
+    try:
+        draw()
+    finally:
+        for a in hidden:
+            a.set_visible(True)
+        fig.set_layout_engine(engine)
+    return True
 
 
 def new_figure(width=7.0, height=4.5):

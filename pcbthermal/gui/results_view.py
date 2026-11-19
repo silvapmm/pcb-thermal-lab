@@ -229,6 +229,20 @@ def redraw_pending(widget, redraw):
         redraw()
 
 
+class CollapseSafeCanvas(FigureCanvasQTAgg):
+    """!
+    @brief Matplotlib canvas that paints a blank chart, without the Matplotlib warning, while it is too small for its decorations.
+    @details A window dragged very small (or an offscreen test) leaves the constrained layout no room: the base canvas would warn at every paint. See `plots.draw_unless_collapsed`;
+             the chart comes back by itself at the next paint after the canvas grew.
+    """
+
+    def draw(self):
+        """!
+        @brief Paint the figure, blank when the layout has no room.
+        """
+        plots.draw_unless_collapsed(self.figure, super().draw)
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -249,7 +263,7 @@ class PlotTab(QWidget):
         self.display = display if display is not None else DisplayState(self)
         self._updating = False
         self.fig = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas = (CollapseSafeCanvas if kind == "compare" else FigureCanvasQTAgg)(self.fig)   # The Models chart has an outside legend: it needs the guard at a tiny size
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = ThemedToolbar(self.canvas, self, self.theme)
         recolour_toolbar(self.toolbar, self.theme)
