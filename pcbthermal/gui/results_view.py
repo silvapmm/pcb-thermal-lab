@@ -229,6 +229,22 @@ def redraw_pending(widget, redraw):
         redraw()
 
 
+class CollapseSafeCanvas(FigureCanvasQTAgg):
+    """!
+    @brief Matplotlib canvas that paints a blank chart, without the Matplotlib warning, while it is too small for its decorations.
+    @details A window dragged very small (or an offscreen test) leaves the constrained layout no room: the base canvas would warn at every paint. See `plots.draw_unless_collapsed`;
+             the chart comes back by itself at the next paint after the canvas grew. Used by every chart of the Results tabs (maps, gradient, profile, Models,
+             Components, power profile): measured in the review, each of them warned at a tiny canvas, and the Components chart already in a window of 900 x 600
+             (its pane is then about 20 px tall). At a size where the layout succeeds the paint is the base one, pixel for pixel.
+    """
+
+    def draw(self):
+        """!
+        @brief Paint the figure, blank when the layout has no room.
+        """
+        plots.draw_unless_collapsed(self.figure, super().draw)
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -249,7 +265,7 @@ class PlotTab(QWidget):
         self.display = display if display is not None else DisplayState(self)
         self._updating = False
         self.fig = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas = CollapseSafeCanvas(self.fig)      # Blank instead of a Matplotlib warning at every paint while the canvas is too small
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = ThemedToolbar(self.canvas, self, self.theme)
         recolour_toolbar(self.toolbar, self.theme)
@@ -925,7 +941,7 @@ class ResultsView(QWidget):
             tl.addWidget(t)
         split.addWidget(tables)
         self.comp_fig = Figure(layout="constrained")
-        self.comp_canvas = FigureCanvasQTAgg(self.comp_fig)
+        self.comp_canvas = CollapseSafeCanvas(self.comp_fig)    # Its pane is about 20 px tall in a 900 x 600 window: blank there, no warning
         split.addWidget(self.comp_canvas)
         split.setSizes([360, 260])
         split.setStretchFactor(1, 1)            # A taller window gives its extra height to the chart; no minimum height (it would bring the page scroll bar back)

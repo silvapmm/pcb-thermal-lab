@@ -8,6 +8,7 @@
 import copy
 import csv
 import os
+import warnings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -361,3 +362,171 @@ def test_a_window_narrower_than_1200_px_lets_the_tables_scroll_sideways_inside_t
             assert t.mapTo(tab.area.viewport(), t.rect().topRight()).x() < view, "a table is cut at the right of the page"
             assert t.viewport().height() >= sum(t.rowHeight(r) for r in range(t.rowCount())), "the sideways bar covers a row"
         win.close()
+
+
+# ------------------------------------------------------------------ the chart at a tiny canvas (no Matplotlib layout warning, back to normal when the canvas grows)
+
+TINY_SIZES = ((50, 30), (120, 60), (200, 100))       # Canvas sizes (px) that leave the constrained layout no room
+
+
+def _collapse_warnings(caught):
+    """!
+    @brief The recorded warnings that are the Matplotlib "axes sizes collapsed" one.
+    @param caught List from warnings.catch_warnings(record=True).
+    @return list of the matching warnings.
+    """
+    return [w for w in caught if plots.COLLAPSE_WARNING in str(w.message)]
+
+
+def _canvas_rgba(fig):
+    """!
+    @brief The pixels of a drawn figure.
+    @param fig Figure with an Agg-based canvas.
+    @return numpy.ndarray copy of the RGBA buffer.
+    """
+    return np.array(fig.canvas.buffer_rgba())
+
+
+def test_draw_comparison_at_tiny_sizes_is_guarded_and_comes_back(sim6):
+    # The unguarded draw does warn at these sizes (the premise of the fix); the guarded one does not, and the chart is complete again at a normal size
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    for w, h in TINY_SIZES:
+        raw = Figure(figsize=(w / 100, h / 100), dpi=100, layout="constrained")
+        FigureCanvasAgg(raw)
+        plots.draw_comparison(raw, sim6.results, "fvm")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            raw.canvas.draw()
+        assert _collapse_warnings(caught), f"{w}x{h} no longer collapses: pick a smaller size"
+        fig = Figure(figsize=(w / 100, h / 100), dpi=100, layout="constrained")
+        FigureCanvasAgg(fig)
+        plots.draw_comparison(fig, sim6.results, "fvm")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")                  # Any warning at all fails the test
+            assert plots.draw_unless_collapsed(fig, fig.canvas.draw) is True
+        assert all(a.get_visible() for a in fig.axes + fig.legends), "the chart stays hidden after the blank draw"
+        assert fig.get_layout_engine() is not None
+        fig.set_size_inches(12, 8)                          # The window grows back
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert plots.draw_unless_collapsed(fig, fig.canvas.draw) is False
+        ref = Figure(figsize=(12, 8), dpi=100, layout="constrained")
+        FigureCanvasAgg(ref)
+        plots.draw_comparison(ref, sim6.results, "fvm")
+        ref.canvas.draw()
+        assert np.array_equal(_canvas_rgba(fig), _canvas_rgba(ref)), "the chart after growing back differs from one drawn at that size"
+
+
+def test_the_guard_changes_nothing_at_a_normal_size(sim6):
+    # 1200 x 800: the guarded draw and the plain draw give the same pixels and the same axes positions
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    out = []
+    for guarded in (False, True):
+        fig = Figure(figsize=(12, 8), dpi=100, layout="constrained")
+        FigureCanvasAgg(fig)
+        plots.draw_comparison(fig, sim6.results, "fvm")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            if guarded:
+                assert plots.draw_unless_collapsed(fig, fig.canvas.draw) is False
+            else:
+                fig.canvas.draw()
+        out.append((_canvas_rgba(fig), fig.axes[0].get_position().bounds))
+    assert np.array_equal(out[0][0], out[1][0]) and out[0][1] == out[1][1]
+
+
+def test_the_guard_passes_other_warnings_on():
+    fig = Figure(layout="constrained")
+    with pytest.warns(UserWarning, match="something else"):
+        plots.draw_unless_collapsed(fig, lambda: warnings.warn("something else", UserWarning))
+
+
+@pytest.mark.parametrize("action", ["ignore", "error"])
+def test_the_guard_keeps_a_module_filter_of_another_warning(action):
+    # Review: the first guard set simplefilter("always") for every warning and re-raised the others with warn_explicit, which names the module by its file
+    # path: a filter on the module name (pytest's filterwarnings, -W ...:module) no longer matched, so an ignored library warning was shown and an "error"
+    # one passed as a plain warning. The other warnings must meet the filters in force where they are raised.
+    import re
+    fig = Figure(layout="constrained")
+
+    def draw():
+        """!
+        @brief A draw that raises one warning from this module.
+        """
+        warnings.warn("a warning raised by the draw", RuntimeWarning)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        warnings.filterwarnings(action, category=RuntimeWarning, module=re.escape(__name__))
+        if action == "error":
+            with pytest.raises(RuntimeWarning, match="raised by the draw"):
+                plots.draw_unless_collapsed(fig, draw)
+        else:
+            plots.draw_unless_collapsed(fig, draw)
+    assert not caught, [str(w.message) for w in caught]
+
+
+def _paint(qtbot, canvas, size):
+    """!
+    @brief Give a Qt canvas a size and let the event loop paint it (resize -> draw_idle -> paintEvent -> draw), recording every warning.
+    @param qtbot pytest-qt fixture.
+    @param canvas FigureCanvasQTAgg shown on screen (offscreen platform).
+    @param size (width, height) in px.
+    @return list of the warnings recorded during the paints.
+    """
+    canvas.setMinimumSize(0, 0)
+    canvas.setFixedSize(*size)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        qtbot.wait(100)
+        canvas.repaint()
+        qtbot.wait(50)
+    return caught
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_the_models_tab_paint_at_tiny_sizes_warns_only_without_the_guard(qtbot, sim6, monkeypatch, guarded):
+    # The real warning, from real Qt paints of the Models tab (no direct draw call): the plain Matplotlib canvas warns at 120 x 60, the guarded one never,
+    # and after growing back the chart is laid out again (axes visible and wide, legend visible)
+    if not guarded:
+        monkeypatch.setattr(results_view, "CollapseSafeCanvas", results_view.FigureCanvasQTAgg)
+    tab = results_view.ModelsTab("dark")
+    qtbot.addWidget(tab)
+    assert isinstance(tab.canvas, results_view.CollapseSafeCanvas) is guarded or not guarded
+    tab.resize(1200, 800)
+    tab.show()
+    tab.set_simulation(sim6)
+    tab.chart_box.setMinimumHeight(0)
+    assert not _collapse_warnings(_paint(qtbot, tab.canvas, (600, 400))), "the chart warns at a normal size"
+    counts = {size: len(_collapse_warnings(_paint(qtbot, tab.canvas, size))) for size in TINY_SIZES}
+    if guarded:
+        assert not any(counts.values()), f"the guarded Models chart warns: {counts}"
+    else:
+        assert counts[(120, 60)] > 0, f"the plain canvas no longer warns at 120 x 60 (the premise of the guard): {counts}"
+    tab.canvas.setMaximumSize(16777215, 16777215)
+    caught = _paint(qtbot, tab.canvas, (900, 450))
+    if guarded:
+        assert not caught, [str(w.message) for w in caught]
+        assert tab.fig.axes[0].get_visible() and tab.fig.legends and tab.fig.legends[0].get_visible()
+        assert tab.fig.axes[0].get_position().width > 0.3, "the axes did not get their place back"
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_the_components_chart_of_a_900_x_600_window_warns_only_without_the_guard(qtbot, tmp_path, sim6, monkeypatch, guarded):
+    # Real use, measured in the review: in a 900 x 600 window the Components chart pane is about 20 px tall and the plain canvas warned at every paint
+    if not guarded:
+        monkeypatch.setattr(results_view, "CollapseSafeCanvas", results_view.FigureCanvasQTAgg)
+    win = show(qtbot, tmp_path, sim6, size=(900, 600))
+    rv = win.results
+    rv.tabs.setCurrentIndex(next(i for i in range(rv.tabs.count()) if rv.tabs.tabText(i) == "Components"))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        qtbot.wait(150)
+        rv.comp_canvas.repaint()
+        qtbot.wait(50)
+    assert rv.comp_canvas.height() < 60, f"the Components chart is {rv.comp_canvas.height()} px tall: the case no longer arises at 900 x 600"
+    if guarded:
+        assert not _collapse_warnings(caught)
+    else:
+        assert _collapse_warnings(caught), "the plain canvas no longer warns here (the premise of guarding the Components chart)"
+    win.close()
