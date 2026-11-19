@@ -75,16 +75,18 @@ LIBRARY_TIPS = {"via_fills": "Via barrel fills: the name is listed in the via's 
                 "dielectrics": "Stack-up dielectrics: k across and along the plane (W/mK), density (kg/m³), specific heat (J/kgK). Typical values, no source (see each note): check your datasheet.",
                 "package_theta": "Typical θ junction-pad, θJC(top) (K/W) and Tj max (°C) per package family: a starting value, not the datasheet.",
                 "heatsinks": "Package-top heatsinks with catalogue θSA (K/W), source and test conditions: a starting value; yours depends on air flow and mounting. Natural-convection catalogue values are quoted at a large rise (75 K for the BGA 40×40×18): at a small rise the heatsink is worse."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "results": "Results (this machine)", "gerber": "Gerber import (this machine)", "package": "Project package (this machine)"}
 SECTION_HINTS = {"new_board": "Values of a board from File - New board (and at start-up).",
                  "new_elements": "Values of an element drawn or added from the right-click menu.",
                  "materials": "Copper and simple-stack-up dielectric of a new board (advanced dielectrics: a library).",
                  "calculator": "Uncertainty of the Power Calculator inputs: each is moved to both ends, effects added as root sum of squares.",
                  "solver": "The models and settings a new project starts with.",
+                 "results": "How the Results page shows its report text; this machine only, not saved in project files.",
                  "gerber": "Gerber reader limits; this machine only, not saved in project files.",
                  "package": "Size limit of a .pcbtz package; this machine only, not saved in project files."}
 MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit is a machine preference: "
                            "it is not saved in project files.",
+                 "results": "How the report text of the Results page is written. A machine preference: not saved in project files.",
                  "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files.",
                  "package": "Size limit of a project package. A machine preference: not saved in project files."}
 # Shown under the package page when the limit is above the shipped 512 MB
@@ -110,7 +112,7 @@ LABELS = {
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
     "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "LPTN rings", "analytic_modes": "Analytic modes",
-    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)", "max_mb": "Largest package (MB)",
+    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "summary_table_in_report": "Summary table in the report text", "max_file_mb": "Largest Gerber or drill file (MB)", "max_mb": "Largest package (MB)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
 COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
@@ -156,6 +158,9 @@ TIPS = {
               "This machine only: not saved in project files.",
     "memory_fraction": "Share of physical memory a solve may use (0.10 to 0.95, shipped 0.60); an FVM, FDM or 3D run estimated above it is refused, with the cell that fits. "
                        "This machine only: not saved in project files. PCBTHERMAL_MEMORY_BYTES sets the memory when it cannot be read.",
+    "summary_table_in_report": "Ticked: the report text on the Summary page also carries the aligned models table (the same numbers as the table above it, as plain text to copy). "
+                               "Unticked (shipped): the table is only in its own widget and the text omits it. Changes how the text is written, never a number. "
+                               "The saved report.txt, the exported report and the command line always carry the table. This machine only: not saved in project files.",
 }
 
 
@@ -196,6 +201,7 @@ class PreferencesDialog(QDialog):
         self._add_section("Defaults for new projects", self._defaults_tab())
         # Solver and Gerber import have their own sections (they sat at the bottom of the long defaults page, hard to find)
         self._add_section("Solver", self._machine_tab("solver"))
+        self._add_section("Results", self._machine_tab("results"))
         self._add_section("Gerber import", self._machine_tab("gerber"))
         self._add_section("Project package", self._machine_tab("package"))
         self._add_section("Power Calculator", self._calculator_tab())
@@ -313,7 +319,7 @@ class PreferencesDialog(QDialog):
     def _machine_tab(self, section):
         """!
         @brief A page of its own for the Solver, Gerber import or Project package settings, with a header line.
-        @param section "solver", "gerber" or "package".
+        @param section "solver", "results", "gerber" or "package".
         @return QWidget (a scroll area that never scrolls sideways).
         """
         from PySide6.QtWidgets import QScrollArea

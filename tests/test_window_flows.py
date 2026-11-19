@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_window_flows.py
-@brief Flows of the main window that no other test drives: Preferences (each of the eleven sections, Save and Reset), File - Open example, Save and Save As, a newer or damaged file,
+@brief Flows of the main window that no other test drives: Preferences (each of the twelve sections, Save and Reset), File - Open example, Save and Save As, a newer or damaged file,
        the keyboard (Del, Backspace, Ctrl+A, Ctrl+comma, the zoom keys, the tab keys, G and T) sent as key events, and the Animation tab (compute, play and pause, GIF export, the
        underlay combo).
 """
@@ -86,14 +86,14 @@ def _bump(widget):
     return widget.value()
 
 
-def test_preferences_has_eleven_sections_and_each_one_applies_and_resets(win, qtbot, monkeypatch):
+def test_preferences_has_twelve_sections_and_each_one_applies_and_resets(win, qtbot, monkeypatch):
     opened = []
     monkeypatch.setattr(prefs.PreferencesDialog, "exec", lambda self: (opened.append(self), 0)[1])
     win.a_prefs.trigger()
     assert len(opened) == 1
     d = opened[0]
     qtbot.addWidget(d)
-    assert len(d.section_titles()) == 11 and d.section_titles()[6:] == ["Defaults for new projects", "Solver", "Gerber import", "Project package", "Power Calculator"]
+    assert len(d.section_titles()) == 12 and d.section_titles()[6:] == ["Defaults for new projects", "Solver", "Results", "Gerber import", "Project package", "Power Calculator"]
     assert not defaults.has_user_file()
     changed = {}
     for row in range(d.sections.count()):
@@ -109,6 +109,10 @@ def test_preferences_has_eleven_sections_and_each_one_applies_and_resets(win, qt
         for (sec, key), wdg in d.widgets.items():
             if sec == section and isinstance(wdg, (QSpinBox, QDoubleSpinBox)):
                 changed[(sec, key)] = _bump(wdg)
+                break
+            if sec == section == "results" and isinstance(wdg, QCheckBox):      # The Results page holds a single check box, no number
+                wdg.setChecked(not wdg.isChecked())
+                changed[(sec, key)] = wdg.isChecked()
                 break
         else:
             pytest.fail(f"no spin box in the section {section}")
@@ -133,7 +137,7 @@ def test_preferences_has_eleven_sections_and_each_one_applies_and_resets(win, qt
     assert not defaults.has_user_file()
     for (sec, key), wdg in d.widgets.items():
         if (sec, key) in changed:
-            assert wdg.value() == pytest.approx(defaults.shipped()[sec][key])
+            assert (wdg.isChecked() if isinstance(wdg, QCheckBox) else wdg.value()) == pytest.approx(defaults.shipped()[sec][key])
     for lib in defaults.LIBRARIES:
         assert d.tables[lib][0].rowCount() == len(defaults.shipped()["libraries"][lib])
     d.close()

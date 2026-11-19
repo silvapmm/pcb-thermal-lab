@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from .. import analysis, plots
+from .. import analysis, defaults, plots
 from . import layerchoice
 from . import theme as th
 from . import tips
@@ -822,7 +822,7 @@ class ResultsView(QWidget):
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report(inline_warnings=False, table=False))      # The warnings are in the box above it and the models table is the table above
+        self._fill_report()
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
@@ -830,6 +830,29 @@ class ResultsView(QWidget):
         self.time_sim.set_simulation(sim)
         if sim.decisions:
             self.tabs.setCurrentWidget(self.time_sim if sim.profile_results else self.tabs.widget(0))
+
+    def _fill_report(self):
+        """!
+        @brief Write the report text of the Summary page for the shown simulation, following the Preferences setting `results.summary_table_in_report`.
+        @details Off (shipped): no table in the text, since the models table is the widget above it. On: the text also holds the aligned table. The warnings are
+                 never repeated in the text (the box above it shows them). Only the way the text is written depends on the setting; no number does.
+        @return None.
+        """
+        if self.sim is None:
+            return
+        try:
+            # Only a JSON true turns it on: a hand-edited "false" (a non-empty string) must not read as on
+            with_table = defaults.value("results", "summary_table_in_report") is True
+        except (KeyError, TypeError, OSError):
+            with_table = False                                  # An unreadable preference falls back to the shipped behaviour
+        self.report.setPlainText(self.sim.report(inline_warnings=False, table=with_table))
+
+    def refresh_report(self):
+        """!
+        @brief Rewrite the report text after the preferences changed (called by the main window when Preferences were saved); nothing to do without a result.
+        @return None.
+        """
+        self._fill_report()
 
     def _fill_components(self):
         """!

@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+
+- **Setting "Summary table in the report text"** (`feature/summary-table-setting`; display and text only, no number moves, frozen numbers unchanged): Preferences, page *Results*, key `results.summary_table_in_report`, shipped off (a setting of this machine, not saved in project files; a user file without the key reads as off). Off is the behaviour of 2.8.0: the models table is only in its own widget on the Summary page and the report text under it omits it. On: the text also carries the aligned table. The report saved by File - Export, the `report.txt` of the command line and the Markdown report always carry the table. Saving Preferences (Save, Reset to shipped or Import) rewrites the text of the result already shown; only a JSON `true` turns it on.
+
 ## [2.8.0] - 2026-11-16
 
 **2.8.0 in short**: a version of confidence. It adds the finite-element model (FEM; **steady state only**: no Animation or Power profile run, its transient is planned for 2.9.0; a comparison model off by default, pyamg optional), the surface read-out always shown beside the column mean, and a reviewed window (grouped Simulation settings, one name per model, °C for temperatures and K for differences, the Summary table, warning rows, File - Open recent, first-step hints). Four model corrections move numbers on purpose; **what moved, board by board, with the item that explains each shift: [`releases/2.8.0/WHAT_MOVED.md`](releases/2.8.0/WHAT_MOVED.md)** (2.7.0 frozen numbers against the pending files of 2.8.0, JSON only); **the refreeze of 2.8.0 re-ran the harness: frozen 332 records, 0 alarms, 3882 shifted numbers all explained by the items, the 3D solid did not move** (`releases/2.8.0/refreeze/DIFF_v2.7.1_vs_final.md`). In short:
