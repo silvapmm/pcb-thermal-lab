@@ -336,3 +336,9 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **SOR omega: the sweep counts of the example board by version**
 
 > the sweep counts (example board 2197 -> 676 at 1 mm, 1054 -> 364 at 2 mm, as measured at 2.4.5; the 2.7.1 tree prints 726 sweeps at 1 mm and 356 at 2 mm; the 2.8.0 tree with the film term prints 726 and 357, `python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1` and `2`)
+
+### Theory 2.6
+
+**Via well: the shares of the sheet the well reads**
+
+> (only in the cells the rule flags: 0.5 to 1.3 % of the sheet on full 35 µm copper, 2.7 to 6.2 % at fill 0.2). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K (+0.002 to +0.036 K in the FVM, 3 to 6 times less in the FDM); against a resolved 3D barrel the order used is equal or closer by at most 0.005 K, so it is kept
