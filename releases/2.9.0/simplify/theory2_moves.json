@@ -251,6 +251,24 @@
      "4"
     ]
    ]
+  },
+  {
+   "sec": "7",
+   "label": "Muzychka plates: the per-case numbers",
+   "start": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low (9.2 and 9.8 % of the independent solver's); case 1 (b)",
+   "end": "(`validation.md` 22.1, `research/muzychka-case2-analytic`).",
+   "new": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low; case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 4.0 to 7.0 % of the rise low, of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`; the figures against the independent solver: `validation-history.md`, 'Theory passages moved by the second simplification', 7).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "7",
+   "label": "Seri Lee plate: the FDM and 3D solid digits",
+   "start": "(FDM 0.6650 / 1.2798 / 2.2680; re-run by the final review",
+   "end": "3D solid 0.6637 / 1.2796 / 2.2691, audit A1, not re-run)",
+   "new": "(FDM and 3D solid within 0.2 % of the FVM; re-run by the final review of 2.8.0 with the film term in the model, `releases/2.8.0/audit/scripts/study_lee_blocks.py fvm,fdm 0.5`: it moved the last digit; the 3D solid, audit A1, not re-run; the digits are in `validation-history.md`, 'Theory passages moved by the second simplification', 7)",
+   "point": [],
+   "move": true
   }
  ]
 }

@@ -382,3 +382,13 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Local transient: the boards outside the study**
 
 > The review added boards outside it (FVM at 0.5 mm): two parts with vias under one and a heatsink in a corner, time to 63 % +0.2 / -0.5 % (2.5.1: -39 / +17 %) and the square-wave peak of a profile run +0.3 % (the minimum of the cycle 1.1 K low); two overlapping parts over 25 vias with a 200 W/m²K heatsink on a four-layer 40 x 30 mm board, +3.0 / +4.2 %, but the peak of a square-wave profile run 5 to 7 % low; a part at the edge over partial copper (fill 0.3) with `h_side` 50 and vias at the edge, +0.8 % on the time to 63 % but the step curve up to 6.9 % of the steady resistance off.
+
+### Theory 7
+
+**Muzychka plates: the per-case numbers**
+
+> case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low (9.2 and 9.8 % of the independent solver's); case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 2.9 to 5.5 K low (4.0 to 7.0 % of the rise), of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`).
+
+**Seri Lee plate: the FDM and 3D solid digits**
+
+> (FDM 0.6650 / 1.2798 / 2.2680; re-run by the final review of 2.8.0 with the film term in the model, `releases/2.8.0/audit/scripts/study_lee_blocks.py fvm,fdm 0.5`: it moved the last digit; 3D solid 0.6637 / 1.2796 / 2.2691, audit A1, not re-run)
