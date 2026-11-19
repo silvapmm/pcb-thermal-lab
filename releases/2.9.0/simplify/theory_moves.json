@@ -114,6 +114,27 @@
    "start": "(Until `fix/analytic-transient-hot-point` the Analytic read",
    "end": "preface and decision 24.)",
    "replace": ""
+  },
+  {
+   "sec": "7",
+   "label": "The branch that introduced the half-copper term of the block film",
+   "start": "since `fix/face-film-half-slab`; ",
+   "end": "since `fix/face-film-half-slab`; ",
+   "replace": ""
+  },
+  {
+   "sec": "10",
+   "label": "The fast-wave factors on four layers before 2.7.0",
+   "start": ", 5 to 7 before",
+   "end": "5 to 7 before",
+   "replace": ""
+  },
+  {
+   "sec": "10",
+   "label": "The wording of the Lanczos factor before the audit of 2.8.0",
+   "start": "; the text said `sinc(k/N)` until the audit 2.8.0 A5",
+   "end": "not what the code computes",
+   "replace": ""
   }
  ],
  "splits": [
@@ -276,6 +297,138 @@
   {
    "before": "**Sources**: [CarslawJaeger] (M), [IncroperaDeWitt] (M), [MFEMStaticCo",
    "indent": ""
+  },
+  {
+   "before": "**That film term is in the model** (1.2a: `h_eff = 1/(1/h + t/(2k))` o",
+   "indent": ""
+  },
+  {
+   "before": "**Published cases** (re-run in the audit of 2.8.0, `releases/2.8.0/aud",
+   "indent": ""
+  },
+  {
+   "before": "**The Seri Lee plate** [EC1998Spreading] (R for its equations 1 and 2 ",
+   "indent": ""
+  },
+  {
+   "before": "**The four plates of [Muzychka2003]** (numbers of this paragraph are t",
+   "indent": ""
+  },
+  {
+   "before": "**Source: none.** The three numbers are those of the original program ",
+   "indent": ""
+  },
+  {
+   "before": "**Source and status**: `0.54 Ra^{1/4}` is the correlation of Lloyd and",
+   "indent": "  "
+  },
+  {
+   "before": "**Ranges**: the form is printed for `Ra ≥ 10⁷` with no upper bound ('c",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled in this branch**: the reference temperature that Lienha",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction** (table): against Raithby-Hollands the prog",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: after a computed-`h` run of a horizontal board, the top ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the laws assume an isolated isothermal plate with fr",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_orientation.py` (the law written out), `valid",
+   "indent": "  "
+  },
+  {
+   "before": "**Face turned down and its limit**: the constant 0.475 is the average ",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction** (table): +8.1 % above Fujii-Imura, +2.0 % ",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the bottom face outside `Ra` 10² to 10⁹ after a computed",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the stable layer under the board needs the air to le",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_orientation.py`, `tests/test_convection_publi",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: each form is its printed equation (deviat",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the laminar form above `Ra` 10⁹ ('choose the general for",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the air drawn in at the sides of a small board, the ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not covered**: no study of the program lies between `Ra` 10³ and 10⁴",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_convection_published.py` (Example 8.1), `test",
+   "indent": "  "
+  },
+  {
+   "before": "**Source and status**: the laminar mean `0.664 Re^{1/2} Pr^{1/3}` (Poh",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: 0 against eq. 6.68; −3.5 % against the un",
+   "indent": "  "
+  },
+  {
+   "before": "**Range**: the laminar plate holds from about `Re` 100 to the transiti",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: when `air_speed` > 0 and the `Re` of a face is outside 1",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: parts standing in the flow (they trip the layer and ",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_convection_published.py` (Example 6.5), `vali",
+   "indent": "  "
+  },
+  {
+   "before": "**Source and status**: the exponent 3 is Churchill's rule [ChurchillBl",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: with equal natural and forced terms, `p` ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: opposing flow (the program never subtracts the two t",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: none. **Checked**: no mixed-convection case has been che",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: no mixed-convection case has been checked against a measu",
+   "indent": "  "
   }
  ]
 }

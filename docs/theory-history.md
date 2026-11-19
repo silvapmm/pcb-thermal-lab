@@ -87,3 +87,19 @@ keeps only what is implemented now. What each version did is in `versions.md`; t
 **The Analytic step response of a board with vias before fix/analytic-transient-hot-point**
 
 > (Until `fix/analytic-transient-hot-point` the Analytic read the step response of a board with vias at the hottest point of the board without them: -22 % at 0.3 s and a square-wave swing -11 % against the finite elements on a via cluster; the fix moved no frozen number, `releases/2.8.0/audit/DECISIONS_2.md`, preface and decision 24.)
+
+## 7
+
+**The branch that introduced the half-copper term of the block film**
+
+> since `fix/face-film-half-slab`; 
+
+## 10
+
+**The fast-wave factors on four layers before 2.7.0**
+
+> , 5 to 7 before
+
+**The wording of the Lanczos factor before the audit of 2.8.0**
+
+> ; the text said `sinc(k/N)` until the audit 2.8.0 A5, which is not what the code computes
