@@ -301,3 +301,108 @@ The bullets of section 7 of `docs/validation.md` as they stood before the old va
   steady with the average power 85.4 / 86.8 / 84.7 °C (FVM / Lumped / Analytic); bound with the on-state powers 230.3 °C (FVM). *Now: peak FVM 136.5 °C (135.4 at 2 mm), Analytic 135.8, Lumped 133.0; steady 85.5 / 86.9 / 84.8 °C; bound 230.6 °C (230.1 at 2 mm); the decisions are unchanged (U1 average + ripple 2.0 °C, U2 resolved 97.8 °C). On da16d80f the same except the **Lumped peak, 140.8 °C** (+7.8 K; the images of the sides in the first link, section 53, which shorten the time to 63 % of the small interior part U2 from 2.43 to 1.94 s and raise its own peak, 53.4): the Lumped profile peak is now 3.9 % of the rise above the FVM at 1 mm, where it was 3.1 % below.*
 * **CSV example** (`examples/csv_profiles`): U1 a repeating 30 s cycle (12 W, 5 W, 0.5 W), U2 a one-shot start-up: peak FVM 119.5 °C, Lumped 116.1, Analytic 115.1 (within 4 % of the temperature; on the rise above ambient the Analytic is 4.7 % and the Lumped 3.6 % below the FVM); steady with the average powers 66.5 °C; bound 201.6 °C. *Now: peak FVM 120.3 °C, Lumped 124.0, Analytic 119.8 (on the rise the Lumped is 3.9 % above the FVM and the Analytic 0.5 % below: the earlier sentence is superseded; the move was not decomposed by item); steady 66.6 °C; bound 200.4 °C. On da16d80f the Lumped peak reads 124.2 °C, the rest the same.*
 
+## Theory passages moved by the second simplification
+
+Paragraphs and sentences of `theory.md` that held measured numbers which the validation does not hold in the same form. They were moved here byte for byte, under the number of the section they left; the theory keeps the law and one representative number and points here. The list and its check are `releases/2.9.0/simplify/theory2_moves.json` and `releases/2.9.0/simplify/scripts/theory2_moves.py`.
+
+### Theory 1.4
+
+**Small part over a thick laminate: the cost of the finer rules**
+
+> `(0.2 mm, 8)` takes 1.4 to 4.6 times the time and 1.2 to 3 times the memory on the boards measured and still leaves -6 / -9 % in the worst case (2 mm part on 3.2 mm); `(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory.
+
+**Small part over a pad: the review's measured errors of the pad limit**
+
+> measured by the review on the rise of the part in air (20 mm two-layer board, h 10 / 15 W/m²K, FVM at 0.25 mm against the FVM extrapolated in its sub-gaps), bare -3.4 % at `s/w_p` 0.14 and -4.1 to -4.3 % at 0.16, over a pad of the part's size -4.3 to -4.8 % at 0.08 to 0.09, -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14 (that reference converges at an order near 1 under a pad, so these pad numbers carry about 1.5 points of uncertainty; against the 16 sub-gap run they are 1.3 to 2.3 points smaller)
+
+### Theory 1.8
+
+**Heat-source shape: the per-part errors of the hull and the datasheet readings**
+
+> reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; RP2040 QFN-56 +37.4 %, its SOT-223 +44.3 %, ISASTM SOT-223 +18.8 %, the QFN-24 and QFN-28 +12.7 and +13.1 %); on a JEDEC 2s2p board with the TPS7A47 the heater on the exposed pad gives 31.9 K/W against 32.5 on the datasheet, on the 5 mm body 40.0 and on the body with the leads 45.1 (audit 2.8.0 A5: that agreement holds for the JEDEC board drawn without backside copper on the program before 2.7.0; on the board as ROHM 64AN113E prints it the pad reads 28.4 K/W, and the readings span 27.6 to 36.4 K/W, so it is an indication, not a check: `validation.md` 29.2)
+
+### Theory 2.2
+
+**Maximum principle: the counts of positive entries**
+
+> ; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), 432 / 432 at 0.5 mm and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.018 / 0.015 of the diagonal at 0.5 mm and 0.023 / 0.022 at 0.25 mm, FVM / FDM; at most 0.022 of the sum of the negative entries of the row);
+
+### Theory 2.3
+
+**SOR omega: the sweep counts around the estimate**
+
+> `ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps at 1 mm against 726 at `ω_R`, and 571 / 480 against 356 at 2 mm; only within about 0.03 of 2 does an overestimate blow up, 7916 sweeps at 1.997)
+
+**SOR omega: the sweep counts of the example board by version**
+
+> the sweep counts (example board 2197 -> 676 at 1 mm, 1054 -> 364 at 2 mm, as measured at 2.4.5; the 2.7.1 tree prints 726 sweeps at 1 mm and 356 at 2 mm; the 2.8.0 tree with the film term prints 726 and 357, `python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1` and `2`)
+
+### Theory 2.6
+
+**Via well: the shares of the sheet the well reads**
+
+> (only in the cells the rule flags: 0.5 to 1.3 % of the sheet on full 35 µm copper, 2.7 to 6.2 % at fill 0.2). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K (+0.002 to +0.036 K in the FVM, 3 to 6 times less in the FDM); against a resolved 3D barrel the order used is equal or closer by at most 0.005 K, so it is kept
+
+### Theory 2.7
+
+**Memory guard: the peak of the via boards and the CO60 runs**
+
+> (106 runs on the plates and CO60, one process per run; the first fit, 0.40 on SuperLU's default mode, and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times (small CO60 boards that the law without vias already misses by 1.20 to 1.27), against 13 of 85 by 1.33 with no term. Measured with the symmetric mode (`research/memory-guard` README 14.12): CO60 striped 0.5 mm 2.42 GB (estimate 4.60), 0.7 mm 1.18 GB (2.05), full copper 0.5 mm 0.66 GB (0.81).
+
+**Memory guard: the resident size of the process after runs**
+
+> (0.08 GB fresh, 0.67 GB after one 1 mm run of the CO60 import, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve (1.21, 1.37, 1.37 GB after three 0.7 mm runs), so they are not counted again
+
+### Theory 4
+
+**3D solid limits: the part errors before and after the slab rule**
+
+> a 2 mm part reads, before (4 slabs, no face term) and now: bare 1.6 mm +5.5 -> +4.1 %, 3.2 mm +20.0 -> +3.9 %; over a pad of its size 1.6 mm +14.7 -> +9.0 %, 3.2 mm +27.3 -> +7.9 % (a 5 mm part on bare 3.2 mm +5.3 -> +0.9 %; on bare 1.6 mm +0.6 -> +1.1 %, where the earlier number was two errors cancelling).
+
+**3D solid limits: the error of the slabs alone by ratio**
+
+> (about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)
+
+### Theory 5
+
+**First ring: the part read cool on large boards**
+
+> (0.79 for a ring one radius wide, closed form, pure conduction; the drop measured on the FVM field is 0.50 and 0.43 of the FVM's on 100 x 80 and 200 x 150 mm), so the part read cool: a 1 mm part on a uniform two-layer sheet, centred, 60 x 40 mm -0.9 %, 100 x 80 mm -13.1 %, 200 x 150 mm -25.3 % against the FVM at 0.5 mm (Lumped cell 0.5 mm).
+
+**First ring: limits, the numbers before and after the images**
+
+> for a small square part the two nearly cancelled (1 mm part: +0.4 to +2.5 % from 30 x 20 to 200 x 150 mm before the images, +1.3 to +4.6 % on the final tree of 2.8.0), for a part of aspect ratio 3 they add (+9 to +12 % hot before the images; on the final tree +2 to +5 % for 3 x 1 mm at the 0.5 mm Lumped cell and +4 to +6 % for 6 x 2 mm at the 1 mm cell);
+
+**First ring: limits, the side and corner errors before the images**
+
+> (on average -10 % at a side and -17 % at a corner at a gap of zero, up to -22 % against the FVM and up to -26 % against an independent 3D solver)
+
+### Theory 6
+
+**Local transient: the boards outside the study**
+
+> The review added boards outside it (FVM at 0.5 mm): two parts with vias under one and a heatsink in a corner, time to 63 % +0.2 / -0.5 % (2.5.1: -39 / +17 %) and the square-wave peak of a profile run +0.3 % (the minimum of the cycle 1.1 K low); two overlapping parts over 25 vias with a 200 W/m²K heatsink on a four-layer 40 x 30 mm board, +3.0 / +4.2 %, but the peak of a square-wave profile run 5 to 7 % low; a part at the edge over partial copper (fill 0.3) with `h_side` 50 and vias at the edge, +0.8 % on the time to 63 % but the step curve up to 6.9 % of the steady resistance off.
+
+### Theory 7
+
+**Muzychka plates: the per-case numbers**
+
+> case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low (9.2 and 9.8 % of the independent solver's); case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 2.9 to 5.5 K low (4.0 to 7.0 % of the rise), of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`).
+
+**Seri Lee plate: the FDM and 3D solid digits**
+
+> (FDM 0.6650 / 1.2798 / 2.2680; re-run by the final review of 2.8.0 with the film term in the model, `releases/2.8.0/audit/scripts/study_lee_blocks.py fvm,fdm 0.5`: it moved the last digit; 3D solid 0.6637 / 1.2796 / 2.2691, audit A1, not re-run)
+
+### Theory 8
+
+**Default coefficients: the sizes and rises of the comparison**
+
+> 13.6 / 10.1 at 20 K, 15.5 / 11.3 at 40 K (60 × 40 mm 13.2 to 17.0 / 10.2 to 12.6; 160 × 100 mm 11.6 to 14.8 / 8.8 to 10.7).
+
+**Default coefficients: the rise against the computed coefficients**
+
+> and against the computed coefficients the defaults read +0.4 % (example board), +7.2 % and +8.8 % (two hot single-part plates at 130 to 140 K, where the computed coefficients have grown) of the rise, the hot side except on a one-layer pad (−2.7 %).
+
+**Face-up law at high Ra: the effect of the change on the plate**
+
+> On an 800 × 800 mm two-layer plate with 1200 W in 64 parts (computed `h`, top-face `Ra` 3.4·10⁷) the change lowers the top convection coefficient from 7.05 to 6.61 W/m²K and raises the hottest rise by 1.1 % (108.9 to 110.1 K, the hot side). It replaced the constant `0.15` that was from memory (M; 7 % higher, a step of +6.4 % at 10⁷, 30.37 to 32.32); the step is now −0.6 % (30.37 to 30.18) and the deviation from the printed law there is 0.
