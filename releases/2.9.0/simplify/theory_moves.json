@@ -1,0 +1,84 @@
+{
+ "base": "10757a0e",
+ "intro_old": "What earlier versions did is in [`versions.md`](versions.md);",
+ "intro_new": "What earlier versions did is in [`versions.md`](versions.md), and the passages of this text that described an earlier state or a replaced value are kept, by section number, in [`theory-history.md`](theory-history.md);",
+ "moves": [
+  {
+   "sec": "1.5",
+   "label": "Via target ratio: the figure quoted before the barrel length of 2.6.0 (audit of 2.8.0)",
+   "start": "; the -2.1 to +3.9 % quoted before was with the barrel over `d` alone",
+   "end": "study_via_checks.py target`)",
+   "replace": ""
+  }
+ ],
+ "splits": [
+  {
+   "before": "**Partly filled cells**: the copper term `c` uses the fluxes of the ce",
+   "indent": "  "
+  },
+  {
+   "before": "**Range**: against an independent 3D solution (54 plates, `research/th",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the Lumped and the Analytic (no flux per cell and no",
+   "indent": "  "
+  },
+  {
+   "before": "**Error direction**: exact for a one-dimensional column; within 7 % of",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the thick-plate warning of 7.5 (`checks.check_thick_plat",
+   "indent": "  "
+  },
+  {
+   "before": "**Sources**: the through-thickness profile is derived here (status abo",
+   "indent": "  "
+  },
+  {
+   "before": "**Where it is validated**: `validation.md` 55.6; explained for the use",
+   "indent": "  "
+  },
+  {
+   "before": "**Validity per layer type**: outer copper (top of layer 1, bottom of t",
+   "indent": "  "
+  },
+  {
+   "before": "**Where it is checked**: `tests/test_cad_profiles.py` (26 banners made",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: own and measured, `research/gerber-cad-profiles` (README ",
+   "indent": ""
+  },
+  {
+   "before": "**When it applies**: FVM (the network of a run, not the Lumped network",
+   "indent": ""
+  },
+  {
+   "before": "**Range checked**: two- and four-layer boards of 10 to 40 mm, cells of",
+   "indent": ""
+  },
+  {
+   "before": "**Direction of the error left**: cool by 1 to 3 % at 0.5 mm (the lamin",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: copper finer than a tenth of a cell (the raster pixe",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: the same as the imported copper (transmissibility upscali",
+   "indent": ""
+  },
+  {
+   "before": "**Why**: the die of these packages sits on the pad; the hull spreads t",
+   "indent": ""
+  },
+  {
+   "before": "**What this rests on**: eleven parts of three open KiCad boards compar",
+   "indent": ""
+  }
+ ]
+}
