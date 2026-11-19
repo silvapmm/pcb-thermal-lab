@@ -108,6 +108,12 @@ def main(out_dir):
     for tab, name in ((1, "results_temperature.png"), (0, "results_summary.png"), (4, "results_components.png")):
         win.results.tabs.setCurrentIndex(tab)
         shot(name)
+    # The Models tab shows the six models side by side (the FEM and the 3D solid are off by default, so they are run for this picture only); the three-model run comes back after
+    sim_all = simulate(win.doc.problem, SolverOptions(cell_mm=1.0, models=("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")))
+    win._on_done(sim_all)
+    win.results.tabs.setCurrentWidget(win.results.compare)
+    shot("results_models.png")
+    win._on_done(sim)
 
     win.tabs.setCurrentIndex(TAB_RESULTS)
     win.results.tabs.setCurrentWidget(win.results.animation)

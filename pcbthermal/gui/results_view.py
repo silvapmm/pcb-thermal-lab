@@ -13,9 +13,9 @@ import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
+                               QFrame, QHeaderView, QLabel, QPlainTextEdit, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, defaults, plots
@@ -567,9 +567,224 @@ class PlotTab(QWidget):
                 plots.draw_profile(self.fig, res, prob, layer=self._layer_index(), axis=axis, position_mm=pos,
                                    picture=picture, underlay=under, map_alpha=self.display.value(), cmap=self.display.cmap)
             elif self.kind == "compare":
-                plots.draw_comparison(self.fig, sim.results)
+                plots.draw_comparison(self.fig, sim.results, sim.reference.model)
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()
+
+
+MODELS_FIRST_COLUMN_MAX_PX = 120   # Logical px: the first column of the parts tables (longer part names are elided, the full name is the tooltip)
+MODELS_CHART_MIN_PX = 280          # Logical px: the least height of the chart of the Models tab, toolbar included
+MODELS_TABLES_MAX_PX = 300         # Logical px: the height the tables area asks for at most; beyond it the two tables scroll together in their one area
+
+
+class ModelsTab(PlotTab):
+    """!
+    @brief The Models page: the temperature under every part in every model (two tables) and the whole board in every model (one chart).
+    @details Top: one scroll area with two stacked tables, "Tmax: hottest point under the part" and "Tmean: mean under the part" (column read-out), one row per part and one column
+             per model that ran (the reference first, in bold, headed "FVM (ref.)"). The cells hold plain values with one decimal and no colour; the difference from the reference
+             is in the tooltip of the cell. Below a splitter: the bar chart of the whole board (`plots.draw_comparison`), at least MODELS_CHART_MIN_PX tall with its toolbar.
+             The numbers are those of `Simulation.part_comparison()`, the one definition also used by the report and the CSV file.
+    """
+
+    def __init__(self, theme="dark", parent=None, display=None):
+        """!
+        @param theme Colour theme name.
+        @param parent Qt parent.
+        @param display The shared DisplayState (a private one when None).
+        """
+        super().__init__("compare", theme, parent, display)
+        self.table_max = self._parts_table()
+        self.table_mean = self._parts_table()
+        self.title_max = QLabel("<b>Tmax</b>: hottest point under the part, °C (column)")
+        self.title_mean = QLabel("<b>Tmean</b>: mean under the part, °C (column)")
+        self.title_max.setToolTip("Hottest point of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
+                                  "hover a cell for the difference from it.")
+        self.title_mean.setToolTip("Mean of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
+                                   "hover a cell for the difference from it. The LPTN has one node per part: its mean is that node painted under the part.")
+        self.message = QLabel("")
+        self.message.setWordWrap(True)
+        self.message.setVisible(False)
+        self.models_shown = []                          # Keys of the model columns now shown (the reference first)
+        inner = QWidget()
+        il = QVBoxLayout(inner)
+        il.setContentsMargins(0, 0, 0, 0)
+        for w in (self.title_max, self.table_max, self.title_mean, self.table_mean, self.message):
+            il.addWidget(w)
+        il.addStretch(1)
+        self._inner = inner
+        self.area = QScrollArea()
+        self.area.setWidget(inner)
+        self.area.setWidgetResizable(True)
+        self.area.setFrameShape(QFrame.NoFrame)
+        self.area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)   # The columns fit the page at 1200 px (tested); a table scrolls by itself in a narrower one
+        # The toolbar and the chart move under a splitter, so that the user gives height to the tables or to the chart
+        lay = self.layout()
+        lay.removeWidget(self.toolbar)
+        lay.removeWidget(self.canvas)
+        self.chart_box = QWidget()
+        cl = QVBoxLayout(self.chart_box)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.addWidget(self.toolbar)
+        cl.addWidget(self.canvas, 1)
+        self.chart_box.setMinimumHeight(MODELS_CHART_MIN_PX)
+        self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.addWidget(self.area)
+        self.splitter.addWidget(self.chart_box)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        lay.addWidget(self.splitter, 1)
+
+    @staticmethod
+    def _parts_table():
+        """!
+        @brief One table of the page: read-only, columns of the width we set (no stretching), no vertical scroll bar (the page's area scrolls).
+        @return QTableWidget.
+        """
+        t = _table(["Part"])
+        t.setToolTip("One row per part, one column per model that ran, the reference model first (in bold). Hover a cell for its value with two decimals and the "
+                     "difference from the reference; hover a column title for the model.")      # Each cell and header says more
+        head = t.horizontalHeader()
+        head.setSectionResizeMode(QHeaderView.Interactive)
+        head.setStretchLastSection(False)
+        t.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        t.setTextElideMode(Qt.ElideRight)
+        t.setSelectionMode(QAbstractItemView.NoSelection)
+        return t
+
+    def clear_results(self):
+        """!
+        @brief Empty the tables (the board was changed: the run no longer belongs to it).
+        """
+        self.models_shown = []
+        for t in (self.table_max, self.table_mean):
+            t.setRowCount(0)
+            t.setColumnCount(1)
+            t.setHorizontalHeaderLabels(["Part"])
+        self.message.setVisible(False)
+        self._fit_heights()
+
+    def set_simulation(self, sim):
+        """!
+        @brief Show a simulation: the chart (as every tab) and the two tables of the parts.
+        @param sim Simulation.
+        """
+        super().set_simulation(sim)
+        self._fill_parts(sim)
+
+    @staticmethod
+    def _cell_tip(model, part, key, value, delta, ref):
+        """!
+        @brief Tooltip of a cell: what the number is, its two decimals and the difference from the reference.
+        @param model Model key of the column.
+        @param part Dict of one part of `Simulation.part_comparison()`.
+        @param key "t_max" or "t_mean".
+        @param value Temperature in degC or None.
+        @param delta Difference from the reference in K or None.
+        @param ref Key of the reference model.
+        @return str.
+        """
+        what = "max under" if key == "t_max" else "mean under"
+        head = f"{model_label(model)}{' (reference)' if model == ref else ''}, {what} {part['name']} (column)"
+        if value is None:
+            return f"{head}: no value in this model."
+        text = f"{head}: {value:.2f} °C"
+        if delta is not None:
+            text += f", {delta:+.2f} K vs {model_label(ref)} (reference)"
+        if model == "lumped":
+            text += ("." + (" The LPTN has one node per part: the part's mean is that node, painted under the part." if key == "t_mean" else
+                            " The LPTN maximum is the network's own peak of the part (its node plus the peak term and the other parts' share)."))
+        return text
+
+    def _fill_parts(self, sim):
+        """!
+        @brief Fill the two tables from `Simulation.part_comparison()`: the reference column first and in bold, plain numbers, the differences in the tooltips.
+        @param sim Simulation.
+        """
+        cmp = sim.part_comparison()
+        models, ref, parts = cmp["models"], cmp["reference"], cmp["parts"]
+        self.models_shown = list(models)
+        bold = QFont()
+        bold.setBold(True)
+        for t, key in ((self.table_max, "t_max"), (self.table_mean, "t_mean")):
+            t.setRowCount(0)
+            t.setColumnCount(1 + len(models))
+            t.setHorizontalHeaderLabels(["Part"] + [f"{model_label(m)} (ref.)" if m == ref else model_label(m) for m in models])
+            t.horizontalHeaderItem(0).setToolTip("The part (its name and its power, W); a long name is cut here, the whole name is the tooltip of the cell.")
+            for j, m in enumerate(models):
+                head = t.horizontalHeaderItem(1 + j)
+                head.setToolTip(f"{model_full_label(m)}" + (": the reference model, the one of the Components page and the report. Other columns: hover a cell for the difference from it." if m == ref else
+                                                           f". Hover a cell for the difference from {model_label(ref)} (reference)."))
+                if m == ref:
+                    f = head.font()
+                    f.setBold(True)
+                    head.setFont(f)
+            t.setRowCount(len(parts))
+            for r, part in enumerate(parts):
+                label = f"{part['name']}  {part['power_w']:.2f} W"
+                first = QTableWidgetItem(label)
+                first.setToolTip(f"{part['name']} (layer {part['layer']}), {part['power_w']:.2f} W in the reference model")
+                t.setItem(r, 0, first)
+                for j, m in enumerate(models):
+                    v = part[key][m]
+                    cell = QTableWidgetItem("n/a" if v is None else f"{v:.1f}")
+                    cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    cell.setToolTip(self._cell_tip(m, part, key, v, part[key + "_delta"][m], ref))
+                    if m == ref:
+                        cell.setFont(bold)
+                    t.setItem(r, 1 + j, cell)
+        if parts:
+            self.message.setVisible(False)
+        else:
+            self.message.setText("This board has no part (heater), so there is no temperature under a part to compare. The chart below compares the whole board in every model.")
+            self.message.setVisible(True)
+        self._set_widths()
+        self._fit_heights()
+
+    def _set_widths(self):
+        """!
+        @brief Give the two tables the same column widths: each column as wide as its widest text in either table, the first one at most MODELS_FIRST_COLUMN_MAX_PX.
+        """
+        for t in (self.table_max, self.table_mean):
+            t.resizeColumnsToContents()
+        for c in range(self.table_max.columnCount()):
+            w = max(self.table_max.columnWidth(c), self.table_mean.columnWidth(c), MIN_SECTION)
+            if c == 0:
+                w = min(w, MODELS_FIRST_COLUMN_MAX_PX)
+            for t in (self.table_max, self.table_mean):
+                t.setColumnWidth(c, w)
+
+    def _fit_heights(self):
+        """!
+        @brief Give each table the height of its rows (the area scrolls them together) and the area the height of its content up to MODELS_TABLES_MAX_PX.
+        """
+        for t in (self.table_max, self.table_mean):
+            h = t.horizontalHeader().height() + sum(t.rowHeight(r) for r in range(t.rowCount())) + 2 * t.frameWidth() + 2
+            if t.horizontalScrollBar().maximum() > 0:               # A table in a page too narrow for its columns keeps its own bar, and the height for it
+                h += t.horizontalScrollBar().sizeHint().height()
+            t.setFixedHeight(h)
+        need = self._inner.sizeHint().height()
+        self.area.setMinimumHeight(min(need, MODELS_TABLES_MAX_PX))
+
+    def resizeEvent(self, e):
+        """!
+        @brief Refit the table heights when the page changes size (a table that gets a horizontal bar needs the room for it).
+        @param e QResizeEvent.
+        """
+        super().resizeEvent(e)
+        if self.table_max.rowCount() or self.table_max.columnCount() > 1:
+            self._fit_heights()
+
+    def showEvent(self, e):
+        """!
+        @brief Size the tables and give the splitter its first division when the page is first shown (the sizes are those of a shown widget).
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        self._fit_heights()
+        if not getattr(self, "_split_done", False):
+            self._split_done = True
+            self.splitter.setSizes([self.area.minimumHeight(), 10000])
 
 
 class Cover(QLabel):
@@ -670,7 +885,7 @@ class ResultsView(QWidget):
         self.temp = PlotTab("temperature", theme, display=self.display)
         self.grad = PlotTab("gradient", theme, display=self.display)
         self.profile = PlotTab("profile", theme, display=self.display)
-        self.compare = PlotTab("compare", theme, display=self.display)
+        self.compare = ModelsTab(theme, display=self.display)
         self.tabs.addTab(self.temp, "Temperature")
         self.tabs.addTab(self.grad, "Gradients")
         self.tabs.addTab(self.profile, "Profiles")
@@ -807,6 +1022,7 @@ class ResultsView(QWidget):
         """
         self.sim = None
         self.reference_line.setVisible(False)       # No run, no reference model to name
+        self.compare.clear_results()
         for cover in self._covers:
             cover.setText(self.CLEARED_NOTE)
             cover.cover(True)

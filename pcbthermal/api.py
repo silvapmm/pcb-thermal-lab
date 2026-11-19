@@ -36,7 +36,7 @@ from . import defaults
 from . import uicontext
 from .checks import ALERT, check_fin_channels, check_input, is_fem_left_out, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
-from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult
+from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult, model_order
 from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
@@ -351,6 +351,101 @@ class Simulation:
                          "seconds": self.seconds.get(name, 0.0), "warnings": len(r.warnings)})
         return rows
 
+    def part_models(self):
+        """!
+        @brief Models that contribute a column to the parts table: the steady results with a field, the reference first and the others in the program order.
+        @details The program order is that of results.MODEL_LABELS (FVM, LPTN, Analytic, FDM, 3D solid, FEM); a model that was not run is simply absent. The profile (time)
+                 results never appear: the 3D solid and the FEM are steady state only, so the table is a steady-state one for every model.
+        @return List of model keys (empty when the reference has no field).
+        """
+        ref = self.reference
+        if ref.T is None:
+            return []
+        return model_order([k for k, r in self.results.items() if r.T is not None], ref.model)
+
+    def part_comparison(self):
+        """!
+        @brief The temperature under every part in every model: the one definition behind the Models tab, the report block and the CSV file.
+        @details Each value is that model's `analysis.heater_stats` row of the part (column read-out: the hottest point and the mean under the footprint, degC) computed with the
+                 power the model dissipated (`power_used`, which differs from the typed power with a power temperature coefficient). The reference column therefore equals
+                 the Components table by construction. A value that is not finite is None ("n/a" in the views). The LPTN has one node per part: its part mean is that node painted under
+                 the part, and its part maximum the network's own peak of the part (`heater_peak`). No model is run here and no number of a model changes.
+        @return dict: "reference" (key), "models" (keys, reference first), "parts" (one dict per part: name, layer (1-based), power_w (reference model, W), power_by_model {model: W},
+                "t_max" and "t_mean" {model: degC or None}, "t_max_delta" and "t_mean_delta" {model: K from the reference, None for the reference itself or without a value}),
+                "board" ({model: (t_max, t_mean)}, the whole-board numbers of the Summary, used by the chart).
+        """
+        models = self.part_models()
+        out = {"reference": models[0] if models else self.reference.model, "models": models, "parts": [], "board": {}}
+        if not models:
+            return out
+        stats = {m: heater_stats(self.results[m], self.problem, self.power_used.get(m)) for m in models}
+        out["board"] = {m: (float(self.results[m].t_max), float(self.results[m].t_mean)) for m in models}
+
+        def finite(v):
+            return float(v) if v is not None and np.isfinite(v) else None
+
+        for k in range(len(self.problem.heaters)):
+            part = {"name": stats[models[0]][k]["name"], "layer": stats[models[0]][k]["layer"], "power_w": stats[models[0]][k]["power_w"],
+                    "power_by_model": {m: stats[m][k]["power_w"] for m in models}, "t_max": {}, "t_mean": {}, "t_max_delta": {}, "t_mean_delta": {}}
+            for key in ("t_max", "t_mean"):
+                vals = {m: finite(stats[m][k][key]) for m in models}
+                part[key] = vals
+                ref_v = vals[models[0]]
+                part[key + "_delta"] = {m: (None if m == models[0] or vals[m] is None or ref_v is None else vals[m] - ref_v) for m in models}
+            out["parts"].append(part)
+        return out
+
+    def part_comparison_rows(self):
+        """!
+        @brief The parts table as flat rows, two per part (Tmax, then Tmean): the form of the CSV file and of the text block.
+        @return List of dicts: part, layer, power_w (reference model, W), reading ("Tmax" or "Tmean", column), values {model: degC or None}, deltas {model: K from the reference or None}.
+        """
+        cmp = self.part_comparison()
+        rows = []
+        for part in cmp["parts"]:
+            for reading, key in (("Tmax", "t_max"), ("Tmean", "t_mean")):
+                rows.append({"part": part["name"], "layer": part["layer"], "power_w": part["power_w"], "reading": reading,
+                             "values": part[key], "deltas": part[key + "_delta"]})
+        return rows
+
+    def part_comparison_lines(self):
+        """!
+        @brief The text block "Parts by model" of the report (empty when there is no part or only one model).
+        @return List of strings.
+        """
+        cmp = self.part_comparison()
+        models = cmp["models"]
+        if not cmp["parts"] or len(models) < 2:
+            return []
+        label = lambda m: RESULT_MODEL_LABELS.get(m, m)
+        lines = [f"Parts by model (steady state, column read-out; hottest point and mean under each part, °C; difference from the reference {label(cmp['reference'])} in K):"]
+        for r in self.part_comparison_rows():
+            cells = []
+            for m in models:
+                v, d = r["values"][m], r["deltas"][m]
+                cells.append(f"{label(m)} {'n/a' if v is None else f'{v:.2f}'}" + (f" ({d:+.2f})" if d is not None else (" (reference)" if m == models[0] else "")))
+            # Worded "hottest point" and "mean", not Tmax and Tmean: those are the headers of the models table, which the on-screen report leaves out
+            lines.append(f"  {r['part']} ({r['power_w']:.2f} W) {'hottest point' if r['reading'] == 'Tmax' else 'mean'}: " + ", ".join(cells))
+        return lines
+
+    def write_part_comparison_csv(self, path):
+        """!
+        @brief Write the parts table to a CSV file: part, layer, power, reading, one column per model (degC) and one difference column per non-reference model (K).
+        @param path Output file path.
+        @return Number of data rows written (0 when there is nothing to write; the file is then still written with its header).
+        """
+        cmp = self.part_comparison()
+        models = cmp["models"]
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["part", "layer", "power_w", "reading"] + [f"{m}_c" for m in models] + [f"{m}_minus_{models[0]}_k" for m in models[1:]])
+            rows = self.part_comparison_rows()
+            for r in rows:
+                w.writerow([r["part"], r["layer"], round(r["power_w"], 6), r["reading"]]
+                           + ["" if r["values"][m] is None else round(r["values"][m], 4) for m in models]
+                           + ["" if r["deltas"][m] is None else round(r["deltas"][m], 4) for m in models[1:]])
+        return len(rows)
+
     def summary_columns(self):
         """!
         @brief The columns of the models table that carry a value in this run (the surface column is left out when no model has a surface read-out).
@@ -543,6 +638,7 @@ class Simulation:
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} °C{extra}")
+            lines += self.part_comparison_lines()
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
                              f"max {z['t_max']:.1f}, min {z['t_min']:.1f} °C")
@@ -619,6 +715,8 @@ class Simulation:
                 for k in range(len(r.times)):
                     w.writerow([round(float(r.times[k]), 6), round(float(r.t_max[k]), 4)] +
                                [round(float(r.t_heaters[j, k]), 4) for j in range(len(self.decisions))])
+        if len(self.part_models()) > 1 and self.problem.heaters:
+            self.write_part_comparison_csv(path("parts_by_model.csv"))
         if plots:
             from . import plots
             for name, r in self.profile_results.items():
@@ -635,7 +733,7 @@ class Simulation:
                             if np.isfinite(r.arrays["T_surface"][face]).any():
                                 plots.plot_surface(r, self.problem, path(f"surface_{name}_{tag}.png"), face, cmap=cmap)
             if len(self.results) > 1:
-                plots.plot_comparison(self.results, path("comparison.png"))
+                plots.plot_comparison(self.results, path("comparison.png"), self.reference.model)
             plots.plot_profiles(self.results, self.problem, path("profiles.png"))
         return written
 
