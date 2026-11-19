@@ -1001,16 +1001,17 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
 
 
-def _legend_outside(fig, ax, **kw):
+def _legend_outside(fig, ax, loc="outside right upper", **kw):
     """!
     @brief Put the legend of a bar chart beside the axes, so that it never covers a bar or a value label.
     @param fig Figure of the axes.
     @param ax Axes whose handles are listed.
+    @param loc Place of the legend with a constrained layout (default beside the axes at the top; the bar chart with a two-line title uses the lower right, away from the title).
     @param kw Extra keyword arguments of the legend (fontsize).
     """
     handles, labels = ax.get_legend_handles_labels()
     if fig.get_layout_engine() is not None:
-        fig.legend(handles, labels, loc="outside right upper", **kw)       # constrained layout leaves room for it
+        fig.legend(handles, labels, loc=loc, **kw)       # constrained layout leaves room for it
     else:
         ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0, **kw)
 
@@ -1061,7 +1062,8 @@ def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=10)
     ax.grid(axis="y", alpha=0.3)
-    _legend_outside(fig, ax, fontsize=8)
+    # Lower right: the title may have two lines (it names the model) and the upper right would sit on top of it
+    _legend_outside(fig, ax, loc="outside right lower", fontsize=8)
 
 
 @_with_engineering_ticks
