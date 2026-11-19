@@ -20,7 +20,7 @@ from PySide6.QtWidgets import QScrollArea
 from pcbthermal.api import SolverOptions, simulate
 from pcbthermal.examples import example_board
 from pcbthermal.gui.document import Document
-from pcbthermal.gui.main_window import MainWindow
+from pcbthermal.gui.main_window import TAB_RESULTS, MainWindow
 from pcbthermal.gui.results_view import ResultsView
 
 
@@ -46,14 +46,23 @@ def test_the_line_is_hidden_before_a_run_and_names_the_model_after_it(qtbot):
     view = ResultsView()
     qtbot.addWidget(view)
     view.show()
-    assert not view.reference_line.isVisible()
+    # isHidden, not isVisible: set_simulation opens the Summary page, so the Components page (and every widget on it) is not visible anyway;
+    # review of the branch: the first version asserted 'not isVisible()', which held whatever the line did
+    assert view.reference_line.isHidden()
     view.set_simulation(simulate(example_board(), SolverOptions(models=("fdm",), cell_mm=2.0)))
     line = view.reference_line
+    assert not line.isHidden()
     assert line.text() == "Reference model: Finite difference (FDM). Other models: the Models tab."
     assert "Model box of the maps does not change this page" in line.toolTip() and "(here: FDM)" in line.toolTip()
     assert view.heater_table.toolTip().startswith("Values of the reference model (FDM);")
     view.clear()
-    assert not line.isVisible()
+    assert line.isHidden()
+    # Review of the branch: a reference without a field fills no table, so the line of the previous run must not stay
+    view.set_simulation(simulate(example_board(), SolverOptions(models=("fdm",), cell_mm=2.0)))
+    assert not line.isHidden()
+    view.sim.reference.T = None
+    view._fill_components()
+    assert line.isHidden()
 
 
 def test_the_chart_title_has_two_lines_and_names_the_model(qtbot):
@@ -77,11 +86,14 @@ def test_components_page_fits_at_1200_x_800(qtbot, tmp_path):
     win = _window(qtbot, tmp_path)
     win._on_done(simulate(example_board(), SolverOptions(models=("fvm",), cell_mm=2.0)))
     res = win.results
-    res.tabs.setCurrentIndex(4)
+    res.tabs.setCurrentIndex(res.tabs.indexOf(res.comp_canvas.parentWidget().parentWidget()))
+    assert res.tabs.tabText(res.tabs.currentIndex()) == "Components"
     qtbot.wait(200)
-    page = res.tabs.currentWidget()
-    area = page if isinstance(page, QScrollArea) else None
-    assert area is None or area.verticalScrollBar().maximum() == 0
+    # The scroll area is the one of the main window around the whole Results tab (MainWindow._scrolled), not the Components page itself;
+    # review of the branch: the first version of this test looked at the page, which is never a QScrollArea, so the check could not fail
+    area = win.tabs.widget(TAB_RESULTS)
+    assert win.tabs.currentIndex() == TAB_RESULTS and isinstance(area, QScrollArea)
+    assert area.verticalScrollBar().maximum() == 0
     assert res.comp_canvas.height() >= 180
     line = res.reference_line
     assert line.isVisible() and line.height() <= line.fontMetrics().lineSpacing() + 4

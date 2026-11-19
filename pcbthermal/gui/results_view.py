@@ -885,6 +885,7 @@ class ResultsView(QWidget):
         """
         sim, ref = self.sim, self.sim.reference
         if ref.T is None:
+            self.reference_line.setVisible(False)       # No field to fill the tables from: never leave the name of the previous run's model on the line
             return
         self._name_reference(ref.model)
         heaters = sim.heater_rows()
