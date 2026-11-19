@@ -225,7 +225,7 @@ PCBT_COMPAT_V271=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests
 PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   # release gate: key values
 ```
 
-**Current state of the battery**: the last whole battery gave 4082 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 1 warning on the merge of `docs/simplify-theory` (57 min 17 s, real-board environment proven loaded; release gates not part of it; last full gate run: the release tree of 2.8.0, 4054 passed, frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
+**Current state of the battery**: the last whole battery gave 4101 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 30 warnings (constrained_layout of the Models chart at tiny sizes, follow-up e24) on the merge of `feature/models-part-table` (58 min 52 s; frozen 413 passed; earlier: 4082 on `docs/simplify-theory`, 57 min 17 s, real-board environment proven loaded; release gates not part of it; last full gate run: the release tree of 2.8.0, 4054 passed, frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
 
 ## 15. Where to continue (after 2.8.0)
 
