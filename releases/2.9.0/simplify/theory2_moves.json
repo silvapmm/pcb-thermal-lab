@@ -309,6 +309,32 @@
      "37"
     ]
    ]
+  },
+  {
+   "sec": "11",
+   "label": "Verification table: the layered idealisation row",
+   "start": "(+0.5 / −1.1 % at 1 / 0.5 mm) of the converged finite elements of the audit of 2.8.0, which also showed the table's finite-element column 1.1 to 2.4 % cold (the +2.9 % and 'within 1.2 % for pads of 20 mm and more' of the table are against that cold column; the 30 to 80 mm rows were not re-run)",
+   "end": "the 30 to 80 mm rows were not re-run)",
+   "new": "of the converged finite elements of the audit of 2.8.0, which also showed the table's finite-element column cold (the older percentages against it are superseded; the 30 to 80 mm rows were not re-run; `validation.md` 3.1)",
+   "point": [
+    [
+     "validation.md",
+     "3"
+    ]
+   ]
+  },
+  {
+   "sec": "11",
+   "label": "Verification table: the 3D solid row",
+   "start": "the 1 mm plan cell on a 10 mm part (the +8.0 % of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "end": "the 1 mm plan cell on a 10 mm part (the +8.0 % of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "new": "the 1 mm plan cell on a 10 mm part (the older figure of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "point": [
+    [
+     "validation.md",
+     "3"
+    ]
+   ]
   }
  ]
 }
