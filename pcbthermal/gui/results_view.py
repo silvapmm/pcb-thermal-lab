@@ -597,10 +597,15 @@ class ModelsTab(PlotTab):
         self.table_mean = self._parts_table()
         self.title_max = QLabel("<b>Tmax</b>: hottest point under the part, °C (column)")
         self.title_mean = QLabel("<b>Tmean</b>: mean under the part, °C (column)")
+        for title in (self.title_max, self.title_mean):
+            # Wrapped: an unwrapped title holds the page at its text width (about 280 px), and in a narrower centre the area (no sideways bar) would cut the tables
+            # and their own scroll bars at the right; wrapped, the tables take the width there is and scroll sideways by themselves
+            title.setWordWrap(True)
         self.title_max.setToolTip("Hottest point of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
                                   "hover a cell for the difference from it.")
         self.title_mean.setToolTip("Mean of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
-                                   "hover a cell for the difference from it. The LPTN has one node per part: its mean is that node painted under the part.")
+                                   "hover a cell for the difference from it. The LPTN has one node per part (two, the core and the rest, for a part over a group of vias): "
+                                   "its mean is that node painted under the part.")
         self.message = QLabel("")
         self.message.setWordWrap(True)
         self.message.setVisible(False)
@@ -692,8 +697,9 @@ class ModelsTab(PlotTab):
         if delta is not None:
             text += f", {delta:+.2f} K vs {model_label(ref)} (reference)"
         if model == "lumped":
-            text += ("." + (" The LPTN has one node per part: the part's mean is that node, painted under the part." if key == "t_mean" else
-                            " The LPTN maximum is the network's own peak of the part (its node plus the peak term and the other parts' share)."))
+            text += ("." + (" The LPTN has one node per part (two, the core and the rest, for a part over a group of vias): the part's mean is that node, "
+                            "painted under the part." if key == "t_mean" else
+                            " The LPTN maximum is the network's own peak of the part: its node plus the peak term plus the rise the other parts give at its centre."))
         return text
 
     def _fill_parts(self, sim):
@@ -763,7 +769,11 @@ class ModelsTab(PlotTab):
             if t.horizontalScrollBar().maximum() > 0:               # A table in a page too narrow for its columns keeps its own bar, and the height for it
                 h += t.horizontalScrollBar().sizeHint().height()
             t.setFixedHeight(h)
-        need = self._inner.sizeHint().height()
+        # The wrapped titles have a height for the width they get: ask for it at the width of the area (the plain size hint assumes a narrower title on two lines)
+        width = self.area.viewport().width()
+        need = self._inner.heightForWidth(width) if (self._inner.hasHeightForWidth() and width > 0) else -1
+        if need <= 0:
+            need = self._inner.sizeHint().height()
         self.area.setMinimumHeight(min(need, MODELS_TABLES_MAX_PX))
 
     def resizeEvent(self, e):

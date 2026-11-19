@@ -109,10 +109,17 @@ def main(out_dir):
         win.results.tabs.setCurrentIndex(tab)
         shot(name)
     # The Models tab shows the six models side by side (the FEM and the 3D solid are off by default, so they are run for this picture only); the three-model run comes back after
-    sim_all = simulate(win.doc.problem, SolverOptions(cell_mm=1.0, models=("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")))
+    six = ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")
+    sim_all = simulate(win.doc.problem, SolverOptions(cell_mm=1.0, models=six))
+    # The Models box ticks the six models of the picture (so the panel and the tab agree), before the result is shown so that it is not marked outdated
+    shown = [k for k, c in win.solver_panel.cb.items() if c.isChecked()]
+    for k, c in win.solver_panel.cb.items():
+        c.setChecked(k in six)
     win._on_done(sim_all)
     win.results.tabs.setCurrentWidget(win.results.compare)
     shot("results_models.png")
+    for k, c in win.solver_panel.cb.items():
+        c.setChecked(k in shown)
     win._on_done(sim)
 
     win.tabs.setCurrentIndex(TAB_RESULTS)

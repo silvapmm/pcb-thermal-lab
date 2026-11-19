@@ -1922,6 +1922,10 @@ def test_models_tab_parts_tables_with_one_three_and_six_models_clear_and_themes(
         qtbot.wait(50)
         ran = [m for m in tab.models_shown]
         assert ran and ran[0] == win.sim.reference.model and set(ran) <= set(models)      # a model the guard left out is simply absent
+        # every steady model that ran has its column, the 3D solid and the FEM included when they ran
+        assert set(ran) == {m for m, r in win.sim.results.items() if r.T is not None}
+        if models == MODELS_WITH_FEM:
+            assert "solid3d" in ran and ("fem" in ran) == ("fem" in win.sim.results)
         assert tab.table_max.columnCount() == 1 + len(ran) and tab.table_max.rowCount() == len(win.sim.problem.heaters)
         assert tab.table_max.horizontalScrollBar().maximum() == 0 and tab.chart_box.height() >= 280
         for _ in range(2):                                   # Both themes with the tables and the chart on screen

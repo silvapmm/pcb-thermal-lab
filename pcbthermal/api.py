@@ -368,8 +368,9 @@ class Simulation:
         @brief The temperature under every part in every model: the one definition behind the Models tab, the report block and the CSV file.
         @details Each value is that model's `analysis.heater_stats` row of the part (column read-out: the hottest point and the mean under the footprint, degC) computed with the
                  power the model dissipated (`power_used`, which differs from the typed power with a power temperature coefficient). The reference column therefore equals
-                 the Components table by construction. A value that is not finite is None ("n/a" in the views). The LPTN has one node per part: its part mean is that node painted under
-                 the part, and its part maximum the network's own peak of the part (`heater_peak`). No model is run here and no number of a model changes.
+                 the Components table by construction. A value that is not finite is None ("n/a" in the views). The LPTN has one node per part (two, the core and the rest, for a part over a group
+                 of vias, docs/theory.md 5.2): its part mean is that node painted under the part (the area mean of the two), and its part maximum the network's own peak of the
+                 part (`heater_peak`: the node plus the peak term plus the rise of the other parts at its centre, never below the drawn field; docs/theory.md 5). No model is run here and no number of a model changes.
         @return dict: "reference" (key), "models" (keys, reference first), "parts" (one dict per part: name, layer (1-based), power_w (reference model, W), power_by_model {model: W},
                 "t_max" and "t_mean" {model: degC or None}, "t_max_delta" and "t_mean_delta" {model: K from the reference, None for the reference itself or without a value}),
                 "board" ({model: (t_max, t_mean)}, the whole-board numbers of the Summary, used by the chart).
@@ -395,12 +396,13 @@ class Simulation:
             out["parts"].append(part)
         return out
 
-    def part_comparison_rows(self):
+    def part_comparison_rows(self, cmp=None):
         """!
         @brief The parts table as flat rows, two per part (Tmax, then Tmean): the form of the CSV file and of the text block.
+        @param cmp The result of `part_comparison()` when the caller already has it (None: computed here; every part of every model is read again, which on a large board is not free).
         @return List of dicts: part, layer, power_w (reference model, W), reading ("Tmax" or "Tmean", column), values {model: degC or None}, deltas {model: K from the reference or None}.
         """
-        cmp = self.part_comparison()
+        cmp = self.part_comparison() if cmp is None else cmp
         rows = []
         for part in cmp["parts"]:
             for reading, key in (("Tmax", "t_max"), ("Tmean", "t_mean")):
@@ -419,7 +421,7 @@ class Simulation:
             return []
         label = lambda m: RESULT_MODEL_LABELS.get(m, m)
         lines = [f"Parts by model (steady state, column read-out; hottest point and mean under each part, °C; difference from the reference {label(cmp['reference'])} in K):"]
-        for r in self.part_comparison_rows():
+        for r in self.part_comparison_rows(cmp):
             cells = []
             for m in models:
                 v, d = r["values"][m], r["deltas"][m]
@@ -439,7 +441,7 @@ class Simulation:
         with open(path, "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             w.writerow(["part", "layer", "power_w", "reading"] + [f"{m}_c" for m in models] + [f"{m}_minus_{models[0]}_k" for m in models[1:]])
-            rows = self.part_comparison_rows()
+            rows = self.part_comparison_rows(cmp)
             for r in rows:
                 w.writerow([r["part"], r["layer"], round(r["power_w"], 6), r["reading"]]
                            + ["" if r["values"][m] is None else round(r["values"][m], 4) for m in models]

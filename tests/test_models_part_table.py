@@ -58,7 +58,8 @@ def test_the_reference_column_equals_the_components_numbers_and_every_model_its_
 
 
 def test_the_lptn_part_mean_is_its_painted_node_and_its_max_is_the_network_peak(sim4):
-    # The LPTN paints one node under each part: the mean under the footprint is that node, the maximum is the network's own peak of the part (never below the node)
+    # The LPTN paints one node under each part (two when its footprint is cut into zones over a group of vias; both parts of the example board stay one node,
+    # arrays["zoned_heaters"]): the mean under the footprint is that node, the maximum is the network's own peak of the part (never below the node)
     part = sim4.part_comparison()["parts"][0]
     assert part["t_max"]["lumped"] >= part["t_mean"]["lumped"]
     assert part["t_max"]["lumped"] == pytest.approx(float(sim4.results["lumped"].arrays["heater_peak"][0]))
@@ -347,3 +348,16 @@ def test_one_model_one_column_lptn_reference_no_part_and_clear(qtbot, tmp_path):
     assert tab.message.isHidden() and tab.table_max.rowCount() == 2
     win.results.clear()
     assert tab.table_max.rowCount() == 0 and tab.table_max.columnCount() == 1 and tab.models_shown == []
+
+
+def test_a_window_narrower_than_1200_px_lets_the_tables_scroll_sideways_inside_the_page(qtbot, tmp_path, sim6):
+    # Below 1200 px the six columns no longer fit: each table must keep its own sideways bar inside the page (the area has none), never be cut at the right
+    for width in (1100, 900):
+        win = show(qtbot, tmp_path, sim6, size=(width, 800))
+        tab = win.results.compare
+        view = tab.area.viewport().width()
+        for t in (tab.table_max, tab.table_mean):
+            assert t.horizontalScrollBar().maximum() > 0, "six columns fit a narrow page?"
+            assert t.mapTo(tab.area.viewport(), t.rect().topRight()).x() < view, "a table is cut at the right of the page"
+            assert t.viewport().height() >= sum(t.rowHeight(r) for r in range(t.rowCount())), "the sideways bar covers a row"
+        win.close()
