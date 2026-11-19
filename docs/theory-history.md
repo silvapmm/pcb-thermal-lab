@@ -55,3 +55,35 @@ keeps only what is implemented now. What each version did is in `versions.md`; t
 **The contact of an imported via before the ray test**
 
 > ; before it the full contact read the effect 1.5 to 5 times high, `validation.md` 45
+
+## 4
+
+**The cut-cell link of the 3D solid before the open-fraction rule**
+
+> A cell cut by the outline (cover `c_b < 1`) used to be joined with the cover-scaled conductivity `k c_b` and the harmonic mean, which makes the link into a sliver of a cell (`c_b` of 0.01 to 0.1) `2c_b/(1 + c_b)` of a full link, and the edge film sat on the sliver node behind the cover-scaled conduction: the heat of the edge column could not reach the sliver and the sliver cell read far too hot (a jump of 15.8 K, 13 % of the rise, between covers 0.01 and 0.02 at 1 mm and `h_side` = 200 W/m²K; +1.6 K at the default 10; four to five times the same defect of the FVM, `research/cut-cell-links` 10.1, `validation.md` 33). Now, for the
+
+## 4a
+
+**Review of the model branch (tree feature/fem-model): the checks of the steady FEM**
+
+> **Review of the model branch** (`releases/2.8.0/fem-model/REVIEW_BRANCH4.md`, tree `feature/fem-model`): (1) the first test of case 2 met the paper to the printed digit by two offsets that cancel (the 1 um laminate film of the one-layer Problem, +0.09 K, and a 2 x 2 mm window that `round()` to even put 0.5 mm off the centroid, -0.07 K); the converged node is 0.02 to 0.05 K below the paper with a conductive film and moves by at most 0.01 K from a 2 mm to a 0.5 mm cell and from the refinement 1 to 4; (2) on a 40 x 30 mm two-layer board (35 um, isotropic laminate 0.3 W/mK, 6 mm part, 1 W) the heater surface mean converges from below in the FEM (55.003 / 55.083 / 55.104 / 55.108 K for the fine element 1 / 0.5 / 0.25 / 0.25 mm at the cell 1, 1, 1, 0.5 mm) and from above in the independent finite volumes of `research/solid3d-verification/lib/layered3d.py` (55.379 / 55.183 / 55.134 K at 1 / 0.5 / 0.25 mm), both to about 55.12 K: the 0.4 to 0.9 % between the FEM and the FVM at the same cell is mostly the discretisation of the finite volumes (the 6 or 12 elements across the gap give the same number to 0.1 mK); (3) a hollow via (0.3 mm drill, 25 µm plating, open) 3 mm from a 3 x 2 mm, 0.5 W part on the 10 x 10 mm four-layer strong-edge board lowers the hottest node by 1.422 / 1.428 / 1.436 K at the cell 1 / 0.5 / 0.25 mm and the heater surface mean by 1.475 / 1.481 / 1.482 K, against 1.431 / 1.434 K and 1.476 / 1.481 K of the research tool (`research/independent-fem-extensions`, fine size 0.2 / 0.1 mm); (4) the face flux of a part on thick outer copper is continuous at the 105 µm switch: 2.4 mK between the face flux and the volumetric source at 110 µm, where the independent 3D (a face flux) puts the surface 2.7 mK above the column; (5) the conjugate gradients against the direct solve: 6e-10 to 1.8e-9 K on four meshes of 12 558 to 80 500 unknowns. 
+
+## 5
+
+**The one-node footprint before the zones of 2.5.0**
+
+> ; the +22 to +221 % of the effect, 8 to 26 % of the rise, of `validation.md` 18.1 is the one-node footprint before the zones of 2.5.0
+
+**The earlier near-side deficit, against the FVM before its laminate band**
+
+> ; the earlier -9 / -15 % were against the FVM before its laminate band
+
+## 6
+
+**The earlier range of the interface balance**
+
+> ; the earlier text gave the first range up to 500
+
+**The Analytic step response of a board with vias before fix/analytic-transient-hot-point**
+
+> (Until `fix/analytic-transient-hot-point` the Analytic read the step response of a board with vias at the hottest point of the board without them: -22 % at 0.3 s and a square-wave swing -11 % against the finite elements on a via cluster; the fix moved no frozen number, `releases/2.8.0/audit/DECISIONS_2.md`, preface and decision 24.)

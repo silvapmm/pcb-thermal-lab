@@ -72,6 +72,48 @@
    "start": "; before it the full contact read the effect 1.5 to 5 times high",
    "end": "`validation.md` 45",
    "replace": ""
+  },
+  {
+   "sec": "4",
+   "label": "The cut-cell link of the 3D solid before the open-fraction rule",
+   "start": "A cell cut by the outline (cover `c_b < 1`) used to be joined",
+   "end": "Now, for the",
+   "replace": "For the"
+  },
+  {
+   "sec": "4a",
+   "label": "Review of the model branch (tree feature/fem-model): the checks of the steady FEM",
+   "start": "**Review of the model branch**",
+   "end": "12 558 to 80 500 unknowns. ",
+   "replace": ""
+  },
+  {
+   "sec": "5",
+   "label": "The one-node footprint before the zones of 2.5.0",
+   "start": "; the +22 to +221 % of the effect, 8 to 26 % of the rise",
+   "end": "before the zones of 2.5.0",
+   "replace": ""
+  },
+  {
+   "sec": "5",
+   "label": "The earlier near-side deficit, against the FVM before its laminate band",
+   "start": "; the earlier -9 / -15 % were against the FVM before its laminate band",
+   "end": "before its laminate band",
+   "replace": ""
+  },
+  {
+   "sec": "6",
+   "label": "The earlier range of the interface balance",
+   "start": "; the earlier text gave the first range up to 500",
+   "end": "up to 500",
+   "replace": ""
+  },
+  {
+   "sec": "6",
+   "label": "The Analytic step response of a board with vias before fix/analytic-transient-hot-point",
+   "start": "(Until `fix/analytic-transient-hot-point` the Analytic read",
+   "end": "preface and decision 24.)",
+   "replace": ""
   }
  ],
  "splits": [
@@ -185,6 +227,54 @@
   },
   {
    "before": "Weights by sheet conductance, which would remove the cold spot of 2.2",
+   "indent": ""
+  },
+  {
+   "before": "**A via exactly on a cell line**: when the drill of a via is smaller t",
+   "indent": ""
+  },
+  {
+   "before": "**Speed, without a change of the physics** (`fix/fem-solve-speed`; tre",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: the transient (no time simulation with the FEM) and ",
+   "indent": ""
+  },
+  {
+   "before": "**Limits of the builder**: a heater whose footprint is partly over bar",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: [ZienkiewiczTaylor2000] (M) and [Hughes2000] (M) for the ",
+   "indent": ""
+  },
+  {
+   "before": "**Limits**: the capped ring is quantised (1.5 cells around a footprint",
+   "indent": ""
+  },
+  {
+   "before": "**Direction and size of the error** (hottest node, % of the rise): aga",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: the links between the outer rings (the ring contours",
+   "indent": ""
+  },
+  {
+   "before": "**Limit, measured** (this tree, after the readout fix of the next para",
+   "indent": ""
+  },
+  {
+   "before": "**The first seconds** of a step are too cool in every layered model, t",
+   "indent": ""
+  },
+  {
+   "before": "**Uniform boards, both references** (45 boards of 30 x 20 to 100 x 80 ",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: [CarslawJaeger] (M), [IncroperaDeWitt] (M), [MFEMStaticCo",
    "indent": ""
   }
  ]
