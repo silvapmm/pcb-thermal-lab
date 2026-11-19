@@ -27,7 +27,7 @@ Release work: the tools and the reports of the release gate (`CLAUDE.md`, "Agent
 | [`2.8.0/theory-review/`](2.8.0/theory-review/README.md) | The review of `docs/theory.md` against the code before the release (step 2). |
 | [`2.8.0/doc-review/`](2.8.0/doc-review/README.md) | The documentation review of 2.8.0 (step 6b): checked, changed, stale on purpose, not verified, per document. |
 | [`2.8.0/plan-resume/`](2.8.0/plan-resume/PLAN.md), [`2.8.0/opinions/`](2.8.0/opinions/2026-11-15-open-questions.md), [`2.8.0/simplify/`](2.8.0/simplify/DOCS_PLAN.md) | The plan of the version with every open item, the reviewer's opinions on open questions, and the plan to simplify the documents (part done: the moves out of `CLAUDE.md`). |
-| [`2.9.0/PLAN.md`](2.9.0/PLAN.md) | The plan of 2.9.0 (FEM transient, comparison campaign, surface in every model). |
+| [`3.0.0/PLAN.md`](3.0.0/PLAN.md) | The plan of 3.0.0 (FEM transient, comparison campaign, surface in every model). |
 
 ## Layout rule
 

@@ -93,7 +93,7 @@ Set by the maintainer on 2026-10-16:
 
 ### Branches and Versions
 
-- Semantic versioning; the only definition is `pcbthermal.__version__` (`pcbthermal/__init__.py`), shown in the GUI (title, status bar, About), `--version`, reports and saved projects. It stays the released number on `development` until the release commit. Numbering (maintainer): only fixes give a patch number; any `feature/` item makes the version a minor number.
+- Semantic versioning; the only definition is `pcbthermal.__version__` (`pcbthermal/__init__.py`), shown in the GUI (title, status bar, About), `--version`, reports and saved projects. It stays the released number on `development` until the release commit. Numbering (maintainer): only fixes give a patch number; any `feature/` item makes the version a minor number. The maintainer decides the version numbers; the release after 2.8.0 is 3.0.0 (decision 2026-11-19); development carries 3.0.0 while it is unreleased.
 - A release needs: the release gate of section 12 (reproduction pass, final opinion, whole battery, documentation review), version bump, `CHANGELOG.md` entry and README (`tests/test_version.py` checks both), merge to `main`, annotated tag, push, and right after the push the **GitHub release** (mandatory): `gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <the CHANGELOG section extracted to a temp file in the scratchpad> --verify-tag` (the newest carries the Latest mark; an older one created later uses `--latest=false`); check `gh release list` before calling the release closed.
 - **Frozen numbers** (`tests/regression/`): the test holds the program to the numbers of the last release. A model change on purpose moves numbers only through a **pending file** (`tests/regression/data/pending/<topic>.json`, written by `make_pending.py`, one record in one file only). At a release, after the version bump, the harness of `releases/regression-harness/` is run on the previous tag and on the tree (0 alarms with `--strict`, every shift explained), the reference is frozen into `tests/regression/data/v<new>.json` and the pending files are deleted in the same commit. Commands in full: `docs/versions.md`, 'Appendix: passages moved out of CLAUDE.md', A2.
 
@@ -147,7 +147,7 @@ Maintainer's rule (2026-10-21): **no commit without updating, in the same commit
 
 ## 11. Standing rules of the models and the numbers
 
-- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, off by default like the FDM and the 3D solid, which cross-check the three main models (checkbox `Finite elements (FEM)`), optional pyamg; it ships **steady** in 2.8.0 (`releases/2.8.0/fem-model/DESIGN.md`); the transient and the comparison campaign are in 2.9.0 (maintainer, 2026-11-15). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
+- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, off by default like the FDM and the 3D solid, which cross-check the three main models (checkbox `Finite elements (FEM)`), optional pyamg; it ships **steady** in 2.8.0 (`releases/2.8.0/fem-model/DESIGN.md`); the transient and the comparison campaign are in 3.0.0 (maintainer, 2026-11-15). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
 - **The surface read-out is a VIEW, never a mode**: it changes what is read from a solved field, not the solve.
 - **The theory is explicit and self-contained** (`docs/theory.md`): for every law, the formula, the constants, the range, the source and its reading status, the direction of the error, the warnings, and what is not modelled; it describes what is implemented, with a picture per section.
 - **Numbers name their tree and their reference**: every number of the theory and the validation says which tree (commit or version) and which reference it was measured against; **every number the user sees carries the name of its read-out** (peak, mean, node, surface, ...).
@@ -230,7 +230,7 @@ PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   
 ## 15. Where to continue (after 2.8.0)
 
 - **2.8.0 is released** (tag `v2.8.0` at `465c037a`, GitHub release published and Latest, 2026-11-16). `main` holds the release plus one README-only commit; `development` is ahead (documents and research folders merged since, among them `research/muzychka-influence-coefficients`).
-- Next: **2.9.0**, `releases/2.9.0/PLAN.md` (the FEM transient, the comparison campaign with validation 56 and 57, copper slabs in the 3D solid, FEM outlines, the surface in the other models), to start when the maintainer says; the non-blocking items of `releases/2.8.0/final-opinion/README.md` 3.2 and the maintainer's open list go there. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
+- Next: **3.0.0** (planned as 2.9.0), `releases/3.0.0/PLAN.md` (the FEM transient, the comparison campaign with validation 56 and 57, copper slabs in the 3D solid, FEM outlines, the surface in the other models), to start when the maintainer says; the non-blocking items of `releases/2.8.0/final-opinion/README.md` 3.2 and the maintainer's open list go there. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
 
 ## 16. Maintaining This File
 

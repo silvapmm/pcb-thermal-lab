@@ -153,7 +153,7 @@
    "Items that move frozen numbers (releases/2.8.0/WHAT_MOVED.md): M1 the film of an outer face starts at the face, not at the middle of the copper layer (FVM, FDM, Lumped, Analytic; every record, all hotter, at most +0.040 K); M2 drawn copper read as imported copper (FVM and FDM at 2 mm and on the drawn_* boards, up to +1.9 K in the FDM, +17.9 K on drawn_ell at 2 mm); M3 the Lumped part read-out and first link (every Lumped record, part rows up to +14.9 K, board maximum -3.1 to +3.1 % of the rise); M4 the exact cover of a metal block (Analytic finned_block +0.09 K). Additions that move no old number: the finite-element model (key fem), the surface read-out of the FVM, FDM and SOR runs, and the three drawn_* boards (20 boards in the set). v2.7.1 moved no frozen number, so the pair v2.7.0 to v2.8.0 is the pair v2.7.1 to v2.8.0."
   ],
   "reading": [
-   "The numeric table of this pair is not generated yet: docs/version-comparison.md is regenerated with every version at once (planned for 2.9.0, releases/2.9.0/PLAN.md). The shifts of the pair are in releases/2.8.0/refreeze/DIFF_v2.7.1_vs_final.md (3882 shifted numbers, 0 alarms) and in expected_shifts_2.8.0.json."
+   "The numeric table of this pair is not generated yet: docs/version-comparison.md is regenerated with every version at once (planned for 3.0.0, releases/3.0.0/PLAN.md). The shifts of the pair are in releases/2.8.0/refreeze/DIFF_v2.7.1_vs_final.md (3882 shifted numbers, 0 alarms) and in expected_shifts_2.8.0.json."
   ]
  }
 }
