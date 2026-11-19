@@ -1107,8 +1107,9 @@ def _solve_computed_h(problem, name, o):
     if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
         # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
         # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
-        res.warnings.append(f"the bottom-face (turned down) Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
-                            "where the law of the face turned down has published support; the coefficient is an extrapolation")
+        res.warnings.append(f"the bottom-face Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
+                            "where the law of that face has published support (the 1/5 law of a face turned down; a board colder than the air uses the face-up law there); "
+                            "the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
@@ -1268,9 +1269,9 @@ def _run_profiles(sim, progress, start):
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
         sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(RESULT_MODEL_LABELS.get(m, m) for m in left_out) + " (no time simulation with a metal block or an outline)"))
-    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
+    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid and the FEM have no time simulation
     if ref is None:
-        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid and the FEM are steady state only, so they have no time simulation)"
         return
     sim.profile_reference = ref
     if progress:
