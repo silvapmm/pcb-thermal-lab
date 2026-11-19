@@ -1,0 +1,48 @@
+{
+ "base": "cca8aef8",
+ "edits": [
+  {
+   "sec": "1.4",
+   "label": "Edge band: the error lists against the references",
+   "start": "Its width does not matter from one gap thickness on",
+   "end": "(`checks.check_reduced_edge_laminate`; `validation.md` 36.3).",
+   "new": "Its width does not matter from one gap thickness on (`validation.md` 36.2). What is left is the `1/n` error of the four sub-gaps, which grows with `h_side`: at most −2.3 % (FVM) and −2.6 % (FDM) of the hottest rise at 200 W/m²K or less (2-layer boards of 0.8 to 3.2 mm, cells 1 to 0.25 mm, against a converged 3D solver), and −16 % at 2000 W/m²K on 3.2 mm with four sub-gaps; the program warns above 200 W/m²K (`checks.check_edge_laminate`). The error of the default rule depends on the cell (the half-cell film of a coarse cell hides part of the missing sub-gaps), and eight sub-gaps read hot where the cell is wider than the sub-gap (the half-cell film over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth; a sample, not a bound (an independent finite-element solution of a 1.6 mm four-layer board, 0.25 mm cell: the default rule reads −0.4 % at 200 W/m²K and −6.3 % at 2000; the table and the re-derivation by the 2.8.0 audit are in `validation.md` 36.1, 43.2, 44 and 46). On thin gaps that are not cut (under 0.4 mm) the error does not depend on the cell. A board in air has `h_side` of 5 to 50 W/m²K, where the band is enough. The 3D solid, the Lumped and the Analytic are not changed. The Lumped and the Analytic have no laminate nodes, so they keep the edge film at the copper temperature, as the FVM did before the band, and read cool: on a 60 × 40 mm, 1.6 mm board with a corner part the Analytic is −5.2 % at 200 W/m²K against the converged 3D solver, where the FVM with the band is −0.6 % at 0.5 mm; the program warns for these two models when `h_side` times the thickness in mm reaches 150 W/m²K·mm (`checks.check_reduced_edge_laminate`; `validation.md` 36.3).",
+   "point": [
+    [
+     "validation.md",
+     "36"
+    ],
+    [
+     "validation.md",
+     "43"
+    ],
+    [
+     "validation.md",
+     "44"
+    ],
+    [
+     "validation.md",
+     "46"
+    ]
+   ]
+  },
+  {
+   "sec": "1.4",
+   "label": "Small part over a thick laminate: the cost of the finer rules",
+   "start": "`(0.2 mm, 8)` takes 1.4 to 4.6 times the time",
+   "end": "`(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory.",
+   "new": "`(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory, and `(0.2 mm, 8)` still leaves −6 / −9 % in the worst case (2 mm part on 3.2 mm; the times and memories of the boards measured are in `validation-history.md`, 'Theory passages moved by the second simplification', 1.4).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "1.4",
+   "label": "Small part over a pad: the review's measured errors of the pad limit",
+   "start": "measured by the review on the rise of the part in air",
+   "end": "1.3 to 2.3 points smaller)",
+   "new": "measured by the review on the rise of the part in air (FVM at 0.25 mm against the FVM extrapolated in its sub-gaps): bare −3.4 % at `s/w_p` 0.14, over a pad of the part's size −6.3 to −7.4 % at 0.12 to 0.14 (that reference converges at an order near 1 under a pad, so the pad numbers carry about 1.5 points of uncertainty; the other ratios and the comparison with the 16 sub-gap run are in `validation-history.md`, 'Theory passages moved by the second simplification', 1.4)",
+   "point": [],
+   "move": true
+  }
+ ]
+}

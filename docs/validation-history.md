@@ -301,3 +301,16 @@ The bullets of section 7 of `docs/validation.md` as they stood before the old va
   steady with the average power 85.4 / 86.8 / 84.7 °C (FVM / Lumped / Analytic); bound with the on-state powers 230.3 °C (FVM). *Now: peak FVM 136.5 °C (135.4 at 2 mm), Analytic 135.8, Lumped 133.0; steady 85.5 / 86.9 / 84.8 °C; bound 230.6 °C (230.1 at 2 mm); the decisions are unchanged (U1 average + ripple 2.0 °C, U2 resolved 97.8 °C). On da16d80f the same except the **Lumped peak, 140.8 °C** (+7.8 K; the images of the sides in the first link, section 53, which shorten the time to 63 % of the small interior part U2 from 2.43 to 1.94 s and raise its own peak, 53.4): the Lumped profile peak is now 3.9 % of the rise above the FVM at 1 mm, where it was 3.1 % below.*
 * **CSV example** (`examples/csv_profiles`): U1 a repeating 30 s cycle (12 W, 5 W, 0.5 W), U2 a one-shot start-up: peak FVM 119.5 °C, Lumped 116.1, Analytic 115.1 (within 4 % of the temperature; on the rise above ambient the Analytic is 4.7 % and the Lumped 3.6 % below the FVM); steady with the average powers 66.5 °C; bound 201.6 °C. *Now: peak FVM 120.3 °C, Lumped 124.0, Analytic 119.8 (on the rise the Lumped is 3.9 % above the FVM and the Analytic 0.5 % below: the earlier sentence is superseded; the move was not decomposed by item); steady 66.6 °C; bound 200.4 °C. On da16d80f the Lumped peak reads 124.2 °C, the rest the same.*
 
+## Theory passages moved by the second simplification
+
+Paragraphs and sentences of `theory.md` that held measured numbers which the validation does not hold in the same form. They were moved here byte for byte, under the number of the section they left; the theory keeps the law and one representative number and points here. The list and its check are `releases/2.9.0/simplify/theory2_moves.json` and `releases/2.9.0/simplify/scripts/theory2_moves.py`.
+
+### Theory 1.4
+
+**Small part over a thick laminate: the cost of the finer rules**
+
+> `(0.2 mm, 8)` takes 1.4 to 4.6 times the time and 1.2 to 3 times the memory on the boards measured and still leaves -6 / -9 % in the worst case (2 mm part on 3.2 mm); `(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory.
+
+**Small part over a pad: the review's measured errors of the pad limit**
+
+> measured by the review on the rise of the part in air (20 mm two-layer board, h 10 / 15 W/m²K, FVM at 0.25 mm against the FVM extrapolated in its sub-gaps), bare -3.4 % at `s/w_p` 0.14 and -4.1 to -4.3 % at 0.16, over a pad of the part's size -4.3 to -4.8 % at 0.08 to 0.09, -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14 (that reference converges at an order near 1 under a pad, so these pad numbers carry about 1.5 points of uncertainty; against the 16 sub-gap run they are 1.3 to 2.3 points smaller)
