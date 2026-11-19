@@ -59,7 +59,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Temperature](docs/images/results_temperature.png)
 
-![Components tab: the statistics of every part](docs/images/results_components.png)
+![Components tab: the statistics of every part, with a line that names the reference model](docs/images/results_components.png)
 
 ![Animation tab: the heat-up of the example board, frame at 55 % of the run](docs/images/animation.png)
 

@@ -22,12 +22,14 @@ from .. import analysis, defaults, plots
 from . import layerchoice
 from . import theme as th
 from . import tips
+from .elided import ElidedLabel
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
 from ..api import SUMMARY_COLUMNS
 from ..numfmt import num, signed_fixed
+from ..results import model_full_label, model_label
 
 
 @contextlib.contextmanager
@@ -68,7 +70,7 @@ def _table(headers):
     @return QTableWidget.
     """
     t = QTableWidget(0, len(headers))
-    t.setToolTip("Values of the reference model; hover a column title for its meaning.")
+    t.setToolTip("Values of the reference model; hover a column title for its meaning.")   # _fill_components names the model once there is a run
     t.setHorizontalHeaderLabels(headers)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -679,6 +681,11 @@ class ResultsView(QWidget):
         split = QSplitter(Qt.Vertical)
         tables = QWidget()
         tl = QVBoxLayout(tables)
+        # One line naming the model of every number on this page (first widget of the pane the user resizes, so it adds no fixed height to the page);
+        # ElidedLabel never wraps and never asks for width, the long explanation is its tooltip. Hidden until a run.
+        self.reference_line = th.hint(ElidedLabel("", max_lines=1))
+        self.reference_line.setVisible(False)
+        tl.addWidget(self.reference_line)
         self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"])
         # Every temperature the user sees names its read-out: these tables are all column values (the layer mean through the copper thickness), like the part table
         self.zone_table = _table(["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"])
@@ -696,6 +703,7 @@ class ResultsView(QWidget):
         self.comp_canvas = FigureCanvasQTAgg(self.comp_fig)
         split.addWidget(self.comp_canvas)
         split.setSizes([360, 260])
+        split.setStretchFactor(1, 1)            # A taller window gives its extra height to the chart; no minimum height (it would bring the page scroll bar back)
         cl.addWidget(split)
         self.tabs.addTab(comp, "Components")
         self.tabs.addTab(self.compare, "Models")
@@ -798,6 +806,7 @@ class ResultsView(QWidget):
         @brief Forget the run: another board was opened or created, so the pages that show a run say there are no results for it yet.
         """
         self.sim = None
+        self.reference_line.setVisible(False)       # No run, no reference model to name
         for cover in self._covers:
             cover.setText(self.CLEARED_NOTE)
             cover.cover(True)
@@ -854,13 +863,31 @@ class ResultsView(QWidget):
         """
         self._fill_report()
 
+    def _name_reference(self, key):
+        """!
+        @brief Say which model every number of the Components page comes from: the line above the tables, their tooltips and (in _draw_components) the chart title.
+        @param key Model key of the reference model (fvm, lumped, analytic, fdm, solid3d, fem).
+        """
+        self.reference_line.setText(f"Reference model: {model_full_label(key)}. Other models: the Models tab.")
+        # setText sets the tooltip to the text; the long explanation replaces it
+        self.reference_line.setToolTip(
+            "Every number on this page (heaters, zones, hotspots, metal block and the chart) comes from the reference model: the FVM when it runs, "
+            f"otherwise the first model that ran (here: {model_label(key)}). The Model box of the maps does not change this page; "
+            "compare the models in the Models tab or the Summary.")
+        self.reference_line.setVisible(True)
+        tip = f"Values of the reference model ({model_label(key)}); hover a column title for its meaning."
+        for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
+            t.setToolTip(tip)
+
     def _fill_components(self):
         """!
         @brief Fill the heater, zone and hotspot tables from the reference model.
         """
         sim, ref = self.sim, self.sim.reference
         if ref.T is None:
+            self.reference_line.setVisible(False)       # No field to fill the tables from: never leave the name of the previous run's model on the line
             return
+        self._name_reference(ref.model)
         heaters = sim.heater_rows()
         # Every temperature column names its read-out and ONE surface column always follows (decision: the surface is always shown beside the column mean, no threshold):
         # the hottest point of the outer face under the part, in the face of its source. The difference to the column in K and in % of the rise is in the tooltip of the
@@ -939,7 +966,7 @@ class ResultsView(QWidget):
                           "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean)")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title=f"Heater temperatures (column mean)\nReference model: {model_label(self.sim.reference.model)}")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)
