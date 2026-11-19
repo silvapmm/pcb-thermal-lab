@@ -83,6 +83,8 @@ def test_the_cut_slider_is_usable_in_a_narrow_window(qtbot, tmp_path, sim, size)
     tab: PlotTab = win.results.profile
     s: QSlider = tab.pos
     assert s.isVisible() and s.width() >= MIN_USABLE_PX, (size, s.width())
+    if size == (900, 700):
+        assert s.width() >= PlotTab.CUT_SLIDER_MIN_PX, s.width()               # The reported case: 23 px before the fix
     # Fully inside the tab, nothing of it (or of its position text) beyond the edge
     for w in (s, tab.pos_label):
         r = w.rect().translated(w.mapTo(tab, QPoint(0, 0)))
@@ -126,3 +128,55 @@ def test_the_wide_layout_of_the_controls_is_unchanged_at_1200_x_800(qtbot, tmp_p
     win.resize(1200, 800)
     qtbot.wait(150)
     assert tab._controls.indexOf(tab.pos) >= 0 and tab._controls3.count() == 0
+
+
+def _rect_in(tab, w):
+    """!
+    @brief Rectangle of a child widget in the coordinates of the tab.
+    @param tab The PlotTab.
+    @param w The child widget.
+    @return QRect.
+    """
+    return w.rect().translated(w.mapTo(tab, QPoint(0, 0)))
+
+
+@pytest.mark.parametrize("before_run", [False, True])
+def test_every_width_of_the_profiles_tab_gives_a_usable_line_and_settles(qtbot, sim, before_run):
+    """!
+    @brief Sweep the width of a Profiles tab from 1400 px down to 150 px and back: the controls never overlap or leave the tab, the slider is at least
+           CUT_SLIDER_MIN_PX wide whenever it shares a line (the stretch after the box takes half the free width: a threshold that ignored it gave 50 px),
+           the layout changes at the same width both ways and does not change again while the width stays.
+    @param qtbot pytest-qt fixture.
+    @param sim Simulation of the example board.
+    @param before_run True: the layout is chosen before the first result (empty position text), the result comes after.
+    """
+    tab = PlotTab("profile")
+    qtbot.addWidget(tab)
+    if not before_run:
+        tab.set_simulation(sim)
+    tab.show()
+    widths = list(range(1400, 149, -7))
+    seen = {}
+    for direction, ws in (("down", widths), ("up", widths[::-1])):
+        for w in ws:
+            tab.resize(w, 600)
+            qtbot.wait(1)
+            mode = tab._cut_mode
+            qtbot.wait(5)
+            assert tab._cut_mode == mode and tab.width() == w, (w, mode, tab._cut_mode)
+            seen.setdefault(w, mode)
+            assert seen[w] == mode, (w, direction, seen[w], mode)        # Same layout at the same width, whichever way the edge moved
+            if before_run and direction == "down" and w in (518, 455, 350, 315):
+                tab.set_simulation(sim)                                   # The result arrives while the layout is the one chosen with an empty position text
+                qtbot.wait(5)
+            ctrls = [tab._cut_label, tab.axis, tab.pos, tab.pos_label, tab.cut_overlay]
+            rects = [_rect_in(tab, c) for c in ctrls]
+            for c, r in zip(ctrls, rects):
+                assert c.isVisible() and tab.rect().contains(r), (w, c, r)
+            for i in range(len(rects)):
+                for j in range(i + 1, len(rects)):
+                    assert not rects[i].intersects(rects[j]), (w, ctrls[i], ctrls[j])
+            if mode != "narrow":
+                assert tab.pos.width() >= PlotTab.CUT_SLIDER_MIN_PX, (w, mode, tab.pos.width())
+            assert tab.cut_overlay.width() >= tab.cut_overlay.sizeHint().width(), (w, tab.cut_overlay.width())
+    assert set(seen.values()) == {"wide", "mid", "narrow"}

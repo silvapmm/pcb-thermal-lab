@@ -345,7 +345,7 @@ class PlotTab(QWidget):
 
     def resizeEvent(self, e):
         """!
-        @brief Put the Cut overlay box of the Profiles tab on the first control line when the line holds it at its natural width, on a second line otherwise.
+        @brief Lay out the control lines of the Profiles tab for the new width (`_place_cut_overlay`: one, two or three lines).
         @param e QResizeEvent.
         """
         super().resizeEvent(e)
@@ -361,11 +361,16 @@ class PlotTab(QWidget):
         m = self.layout().contentsMargins()
         row = self._controls
         sp = row.spacing()
-        fixed = [self._cut_label, self.axis, self.pos_label]
+        # The position text is measured at a wide value, not at its current text: the text is empty before a run and changes with every move of the slider,
+        # and a threshold that moved with it would put the slider on another line while it is dragged (the layout is chosen again at the next resize only)
+        label_w = max(self.pos_label.sizeHint().width(), self.pos_label.minimumWidth(),
+                      self.pos_label.fontMetrics().horizontalAdvance("y = 888.8 mm") + 2 * self.pos_label.margin())
         # Natural width of the line without the slider and the box (every widget at its size hint), plus the spacing and the margins
-        base = sum(w.sizeHint().width() for w in fixed) + m.left() + m.right()
-        mid = base + self.CUT_SLIDER_MIN_PX + sp * len(fixed)                   # Slider at its usable minimum, the box on the second line
-        wide = mid + self.cut_overlay.sizeHint().width() + sp                   # Everything on the first line
+        base = self._cut_label.sizeHint().width() + self.axis.sizeHint().width() + label_w + m.left() + m.right() + 3 * sp
+        # Mid: Cut, direction, slider, text, with no stretch after them, so the slider takes all the free width
+        mid = base + self.CUT_SLIDER_MIN_PX
+        # Wide (the line of a wide window, kept as it was): the slider shares the free width with the stretch after the box, about half each, so it needs twice
+        wide = base + self.cut_overlay.sizeHint().width() + 2 * sp + 2 * self.CUT_SLIDER_MIN_PX
         mode = "wide" if width >= wide else "mid" if width >= mid else "narrow"
         if mode == getattr(self, "_cut_mode", None):
             return
@@ -388,7 +393,6 @@ class PlotTab(QWidget):
             row.addWidget(self.cut_overlay)
             row.addStretch(1)
         else:
-            row.addStretch(1)
             self._controls2.addWidget(self.cut_overlay)
             self._controls2.addStretch(1)
 
