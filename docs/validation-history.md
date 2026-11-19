@@ -314,3 +314,9 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Small part over a pad: the review's measured errors of the pad limit**
 
 > measured by the review on the rise of the part in air (20 mm two-layer board, h 10 / 15 W/m²K, FVM at 0.25 mm against the FVM extrapolated in its sub-gaps), bare -3.4 % at `s/w_p` 0.14 and -4.1 to -4.3 % at 0.16, over a pad of the part's size -4.3 to -4.8 % at 0.08 to 0.09, -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14 (that reference converges at an order near 1 under a pad, so these pad numbers carry about 1.5 points of uncertainty; against the 16 sub-gap run they are 1.3 to 2.3 points smaller)
+
+### Theory 1.8
+
+**Heat-source shape: the per-part errors of the hull and the datasheet readings**
+
+> reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; RP2040 QFN-56 +37.4 %, its SOT-223 +44.3 %, ISASTM SOT-223 +18.8 %, the QFN-24 and QFN-28 +12.7 and +13.1 %); on a JEDEC 2s2p board with the TPS7A47 the heater on the exposed pad gives 31.9 K/W against 32.5 on the datasheet, on the 5 mm body 40.0 and on the body with the leads 45.1 (audit 2.8.0 A5: that agreement holds for the JEDEC board drawn without backside copper on the program before 2.7.0; on the board as ROHM 64AN113E prints it the pad reads 28.4 K/W, and the readings span 27.6 to 36.4 K/W, so it is an indication, not a check: `validation.md` 29.2)
