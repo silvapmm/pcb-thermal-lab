@@ -283,6 +283,32 @@ def test_the_flag_follows_the_measured_overshoot_of_elongated_parts(t, b, c, rat
         assert flagged
 
 
+L_2MM = [(15, 15), (35, 15), (35, 17), (17, 17), (17, 35), (15, 35)]     # an L of 2 mm arms, 20 mm long, in mm: hull 8.7 mm wide, sqrt(A) 8.7 mm
+
+
+def test_source_width_finds_the_narrow_arm_of_a_concave_part():
+    # The hull bridges the notch of an L or a U (review: an L of 2 mm arms on 2 mm copper overshoots 1.19 times against an exact cosine series, with a hull 8.7 mm wide)
+    mm = lambda pts: np.asarray(pts, dtype=float) * 1e-3
+    assert thickness.source_width(mm(L_2MM)) == pytest.approx(2e-3, rel=1e-9)
+    assert thickness.source_width(mm(L_2MM)[::-1]) == pytest.approx(2e-3, rel=1e-9)                 # clockwise outline
+    u = [(0, 0), (20, 0), (20, 20), (18, 20), (18, 2), (2, 2), (2, 20), (0, 20)]
+    assert thickness.source_width(mm(u)) == pytest.approx(2e-3, rel=1e-9)
+    # A keyhole outline (two 4 x 4 pads joined by a slit of zero width): the chord across the gap and the zero-length one are ignored, the pad width is kept
+    keyhole = [(0, 0), (4, 0), (4, 2), (10, 2), (10, 0), (14, 0), (14, 4), (10, 4), (10, 2), (4, 2), (4, 4), (0, 4)]
+    assert thickness.source_width(mm(keyhole)) == pytest.approx(4e-3, rel=1e-9)
+    closed = np.vstack([mm(L_2MM), mm(L_2MM)[:1]])                                                   # a repeated closing vertex changes nothing
+    assert thickness.source_width(closed) == pytest.approx(2e-3, rel=1e-9)
+
+
+def test_a_thin_l_shaped_part_is_flagged():
+    # sqrt(A) and the hull width both give t/a 0.23 here; the arm gives 1 (the surface term of the FVM at 0.5 mm reads 1.19 times the exact series, releases/2.9.0/surface-flag study_exact_series.py)
+    p = Problem.new(50, 50, layers=1, thickness_mm=2.0002, copper_um=2000.0, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=385.0))
+    p.add_full_copper()
+    p.add_heater(1, 10.0, polygon=L_2MM, name="L")
+    r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
+    assert r.arrays["T_surface_flag"][0].any()
+
+
 def test_an_elongated_part_is_flagged_by_its_narrow_side_and_a_square_part_is_unchanged():
     long_ = simulate(plate(t_mm=2.0, k=385.0, src=(15, 24, 35, 26), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]     # 2 x 20: sqrt(A) 6.3, t/b 1
     square = simulate(plate(t_mm=2.0, k=385.0, src=(20, 20, 30, 30), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]   # 10 x 10: t/a 0.2

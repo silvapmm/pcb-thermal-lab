@@ -10,7 +10,7 @@
          A column fed at the top and cooled at the bottom (q_bot = -q_top) gives the familiar q t / (2 k); heat that spreads sideways (q_bot = 0) gives q t / (3 k). The parabola is
          within 7 % of an independent 3D solution up to t/a = 0.5 (a the side of the source) and an UPPER estimate beyond (research/through-thickness-readout 4.2, validation 55.6).
          For a rectangular source b x c the overshoot depends on the NARROW side b only (releases/2.9.0/surface-flag: 2 x 10, 2 x 20 and 2 x 40 mm on 2 mm copper all read 1.15 times
-         the true term, 10 x 10 and 10 x 20 mm both 0.99), so `source_width` takes the smaller of the minimum width of the part and the equivalent side sqrt(A), never the area alone.
+         the true term, 10 x 10 and 10 x 20 mm both 0.99), so `source_width` takes the smallest of the minimum width of the hull, the narrowest local width of the polygon (an L, a U) and the equivalent side sqrt(A), never the area alone.
          The surface is ALWAYS a second number beside the column, never a mode: no option, no project key (decision of the maintainer, releases/2.8.0/fem-model/SURFACE_DECISIONS.md).
          `attach` is called by the FVM and the FDM for EVERY steady result, with NO thickness or size threshold (the former 105 um limit and the 'worth showing' test are gone:
          the cost is 0 to 3 ms and no number of any model sees the arrays); the result holds (absolute temperatures in degC, NaN off the board and on a face that is not computed)
@@ -100,11 +100,13 @@ def _couplings_out(net, theta, layer):
 
 def source_width(polygon):
     """!
-    @brief The length a of the thin-sheet limit t / a of a source: its narrow side, never more than the equivalent side sqrt(A).
-    @details For a rectangle b x c the parabola of `offsets` overshoots the true surface term by an amount that depends on b alone (measured against the independent 3D solver,
-             releases/2.9.0/surface-flag: the ratio is 1.15 for 2 x 10, 2 x 20 and 2 x 40 mm on a 2 mm plate, so sqrt(A) misses the elongated ones). The minimum width of the
-             polygon (the smallest distance between two parallel lines that enclose it, found on the convex hull) is b for a rectangle of any orientation. The result is capped by
-             sqrt(A) so that a shape whose width is larger than its equivalent side (a disc: d against 0.886 d) is flagged exactly as before; a square gives its own side either way.
+    @brief The length a of the thin-sheet limit t / a of a source: its narrowest width, never more than the equivalent side sqrt(A).
+    @details For a rectangle b x c the parabola of `offsets` overshoots the true surface term by an amount that is set by b once c is about 3 b or longer (measured against the
+             independent 3D solver and an exact cosine series, releases/2.9.0/surface-flag: the ratio is 1.15 for 2 x 10, 2 x 20 and 2 x 40 mm on a 2 mm plate, 1.28 for the
+             2 x 2 square), so sqrt(A) misses the elongated ones. Three lengths, the smallest wins: the minimum width of the convex hull (the smallest distance between two
+             parallel lines that enclose the part; b for a rectangle of any orientation), the narrowest local width of a concave polygon (`_local_width`: the arm of an L or a U,
+             which the hull bridges: an L of 2 mm arms on 2 mm copper overshoots 1.19 times with a hull 8.7 mm wide), and sqrt(A), so that a shape whose width is larger than its
+             equivalent side (a disc: d against 0.886 d) is flagged exactly as before; a square gives its own side either way. Every choice errs small, so the flag comes early.
     @param polygon Vertices (n, 2) in m.
     @return Length in m (0 for a degenerate polygon).
     """
@@ -131,7 +133,76 @@ def source_width(polygon):
         normal = np.array([-e[1], e[0]]) / n
         proj = hull @ normal
         best = min(best, float(proj.max() - proj.min()))
-    return min(root_a, best) if np.isfinite(best) else root_a
+    hull_width = best if np.isfinite(best) else root_a
+    # The hull bridges the notch of a concave part (an L or a U of 2 mm arms has a hull 9 to 11 mm wide), so the narrowest arm is found on the polygon itself;
+    # a convex part is its own hull, whose minimum width is the right length (the chords of a triangle can be shorter), so it keeps the hull width
+    if len(hull) == len(pts) or _is_convex(np.asarray(polygon, dtype=float)):
+        return min(root_a, hull_width)
+    return min(root_a, hull_width, _local_width(np.asarray(polygon, dtype=float)))
+
+
+def _is_convex(polygon):
+    """!
+    @brief True when a simple polygon is convex (every turn has the same sense; collinear vertices allowed).
+    @param polygon Vertices (n, 2) in m.
+    @return bool.
+    """
+    e = np.roll(polygon, -1, axis=0) - polygon
+    cross = e[:, 0] * np.roll(e[:, 1], -1) - e[:, 1] * np.roll(e[:, 0], -1)
+    scale = float(np.max(np.abs(cross))) if len(cross) else 0.0
+    cross = cross[np.abs(cross) > 1e-9 * scale]
+    return bool(np.all(cross > 0.0) or np.all(cross < 0.0))
+
+
+def _local_width(polygon):
+    """!
+    @brief The narrowest local width of a simple polygon: the shortest chord cast inwards, normal to an edge, from points of its edges.
+    @details From three points of every edge (a quarter, a half and three quarters of its length) a ray is cast along the inward normal to the first edge it meets; the
+             shortest such chord is the width of the narrowest arm (2 mm for an L or a U of 2 mm arms, b for a rectangle b x c, at most the minimum width for a convex
+             polygon). A chord whose middle point lies outside the polygon (a ray that leaves through a zero-width slit of a keyhole outline) and hits closer than a
+             millionth of the size are ignored, so a degenerate outline never gives a width of zero. Erring small is the safe side: a thinner arm flags the part earlier.
+    @param polygon Vertices (n, 2) in m (either orientation, closing vertex optional).
+    @return Length in m (inf when no chord was found).
+    """
+    p = polygon
+    if len(p) > 1 and np.allclose(p[0], p[-1]):
+        p = p[:-1]
+    if len(p) < 3:
+        return np.inf
+    a_start, a_end = p, np.roll(p, -1, axis=0)
+    edge = a_end - a_start
+    length = np.hypot(edge[:, 0], edge[:, 1])
+    keep = length > 0.0
+    a_start, edge, length = a_start[keep], edge[keep], length[keep]
+    # The inward normal: to the left of the edge for a counter-clockwise outline, to the right for a clockwise one
+    signed = 0.5 * float(np.sum(p[:, 0] * np.roll(p[:, 1], -1) - np.roll(p[:, 0], -1) * p[:, 1]))
+    sense = 1.0 if signed > 0.0 else -1.0
+    normal = sense * np.stack([-edge[:, 1], edge[:, 0]], axis=1) / length[:, None]
+    tol = 1e-6 * float(np.max(np.ptp(p, axis=0)))
+    best = np.inf
+    chunk = 256                                                          # rays per block: a Gerber outline of thousands of vertices stays at a few MB
+    # Three points per edge on a drawn outline; the middle one only on a long (imported) outline, whose edges are short anyway
+    for frac in ((0.25, 0.5, 0.75) if len(edge) <= 256 else (0.5,)):
+        for lo in range(0, len(edge), chunk):
+            sl = slice(lo, lo + chunk)
+            origin, nrm = a_start[sl] + frac * edge[sl], normal[sl]           # (r, 2) ray origins and directions
+            # Ray origin + s n against every edge start + u e (0 <= u <= 1): solve the 2 x 2 system for all pairs at once
+            d = origin[:, None, :] - a_start[None, :, :]                     # (r, m, 2)
+            den = nrm[:, None, 0] * edge[None, :, 1] - nrm[:, None, 1] * edge[None, :, 0]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                s = (edge[None, :, 0] * d[..., 1] - edge[None, :, 1] * d[..., 0]) / den
+                u = (nrm[:, None, 0] * d[..., 1] - nrm[:, None, 1] * d[..., 0]) / den
+            # A ray parallel to an edge has den 0 and never hits it; its own edge gives s = 0 and is cut by the tolerance
+            hit = (np.abs(den) > 0.0) & (s > tol) & (u >= 0.0) & (u <= 1.0)
+            s = np.where(hit, s, np.inf).min(axis=1)                          # the first edge each ray meets
+            ok = np.isfinite(s)
+            if not ok.any():
+                continue
+            mid = origin[ok] + 0.5 * s[ok, None] * nrm[ok]
+            inside = points_in_polygon(mid[:, 0], mid[:, 1], p)               # the chord must run through the part, not across a gap
+            if inside.any():
+                best = min(best, float(s[ok][inside].min()))
+    return best
 
 
 def _upper_flags(problem, res, faces):

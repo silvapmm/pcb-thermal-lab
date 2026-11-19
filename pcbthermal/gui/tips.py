@@ -29,7 +29,8 @@ COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of 
                      "the FDM, resolved for the FEM), hotter under a source on thick copper.")
 SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in °C; the face is the one the part sits on. FVM and FDM: an estimate from the "
                    "layer mean and the heat fluxes through the faces (layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); "
-                   "'(upper)' marks a part whose narrow side is small against the plate (t/a above 0.5): the estimate is then high, by about 1.2 to 1.4 times at t/a = 1. FEM: resolved by "
+                   "'(upper)' marks a part whose narrowest width a (the narrow side, the arm of an L) is small against the plate (t/a above 0.5): the estimate is then high, by about 1.15 (a long part) "
+                   "to 1.4 (a square) times at t/a = 1. FEM: resolved by "
                    "the elements (the element mean on the face, not an estimate); the tooltip of a cell also gives the hottest mesh node under the part (a node value, not a "
                    "cell mean). Steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise and "
                    "for the surface mean. Junction, margin and power limit stay on the column. n/a: the LPTN, the Analytic, the 3D solid, a time simulation, or a part "
