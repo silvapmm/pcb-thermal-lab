@@ -26,7 +26,7 @@ for p in (ROOT, os.path.join(HERE, "..", "lib"), os.path.join(ROOT, "releases", 
 import regress_boards as RB  # noqa: E402
 import rules  # noqa: E402
 from pcbthermal import SolverOptions, analysis, simulate  # noqa: E402
-from pcbthermal.geometry import polygon_area  # noqa: E402
+from pcbthermal.geometry import coverage_fraction, polygon_area  # noqa: E402
 
 
 def run_board(name, cell):
@@ -58,12 +58,16 @@ def run_board(name, cell):
             s = analysis.surface_stats(r, h.polygon, h.layer, b.outline)
             if s is not None:
                 row[f"surf_{m}"] = s[0]
-        ny, nx = res["lumped"].T.shape[1:] if "lumped" in res else res["fvm"].T.shape[1:]
         q = h.power / polygon_area(h.polygon)
         t = float(b.copper_thickness[h.layer])
         row["bound_k"] = q * t / (2.0 * b.materials.k_copper)
+        # The cells of THIS part only: q_src > 0 is the footprint of every part of the layer, which read the
+        # hottest offset of the layer for each part (a defect found in review, the U1 / U2 rows were equal)
+        # (per model: the Analytic may solve on a finer grid than the Lumped, plate_vias)
         for m in fr:
-            mask = fr[m]["q_src"][h.layer] > 0
+            my, mx = fr[m]["q_src"].shape[1:]
+            own = coverage_fraction(h.polygon, mx, my, b.width / mx, b.height / my, 4) > 0
+            mask = (fr[m]["q_src"][h.layer] > 0) & own
             d = fr[m]["d_top"] if face == 0 else fr[m]["d_bottom"]
             row[f"d_{m}"] = float(d[mask].max()) if mask.any() else float("nan")
         rows.append(row)
@@ -120,6 +124,24 @@ def main(cell=2.0):
     print(f"\nparts with a FEM surface: {len(with_fem)}; the Lumped bound is BELOW the FEM surface on {len(below_fem)} (worst {min((r['margin_ub'] for r in with_fem), default=float('nan')):.2f} K); "
           f"below the FVM surface on {len(below_fvm)} of {len(with_fvm)} (worst {min((r['col_lumped'] + r['bound_k'] - r['surf_fvm'] for r in with_fvm), default=float('nan')):.2f} K); "
           f"the bound on the offset q'' t / 2k holds against the FEM offset on {len(held)} of {sum(1 for r in allrows if r.get('off_fem') is not None)}")
+    # The counts quoted in README 4.4 and 4.6 (added in review, so that every quoted count is printed by a script)
+    dA = [r for r in allrows if np.isfinite(r.get("d_analytic", np.nan))]
+    dL = [r for r in allrows if np.isfinite(r.get("d_lumped", np.nan))]
+    if dA and dL:
+        print(f"rule F: {1e3 * min(r['d_analytic'] for r in dA):.2f} to {1e3 * max(r['d_analytic'] for r in dA):.2f} mK on the Analytic field, "
+              f"{1e3 * min(r['d_lumped'] for r in dL):.2f} to {1e3 * max(r['d_lumped'] for r in dL):.2f} mK on the Lumped's (parts with a FEM surface: "
+              f"{sum(1 for r in dA if r.get('off_fem') is not None)})")
+        both = [r for r in dA if r.get("off_fem") is not None and np.isfinite(r.get("d_lumped", np.nan))]
+        print(f"  Analytic and Lumped rule F within 0.02 mK of each other on {sum(1 for r in both if abs(r['d_analytic'] - r['d_lumped']) <= 2e-5)} of {len(both)}")
+        near = [r for r in dA if r.get("off_fem") is not None and r.get("off_fvm") is not None]
+        print(f"  Analytic rule F within 1 mK of the FVM offset on {sum(1 for r in near if abs(r['d_analytic'] - r['off_fvm']) <= 1e-3)} of {len(near)}; "
+              f"exceptions: {[(r['board'], r['part']) for r in near if abs(r['d_analytic'] - r['off_fvm']) > 1e-3]}")
+    pairs = [r for r in allrows if r.get("off_fem") is not None and r.get("off_fvm") is not None and r["off_fvm"] > 1e-4 and r["board"] != "drawn_ell"]
+    if pairs:
+        ratio = [r["off_fvm"] / max(r["off_fem"], 1e-12) for r in pairs]
+        print(f"FEM offset smaller than the FVM offset on {sum(1 for r in pairs if r['off_fem'] < r['off_fvm'])} of {len(pairs)} parts (FVM offset > 0.1 mK, drawn_ell out), "
+              f"FVM / FEM {min(ratio):.1f} to {max(ratio):.1f}; FEM offset / bound {min(r['off_fem'] / r['bound_k'] for r in pairs):.2f} to {max(r['off_fem'] / r['bound_k'] for r in pairs):.2f}, "
+              f"FVM offset / bound {min(r['off_fvm'] / r['bound_k'] for r in pairs):.2f} to {max(r['off_fvm'] / r['bound_k'] for r in pairs):.2f}")
     os.makedirs(os.path.join(HERE, "..", "out"), exist_ok=True)
     with open(os.path.join(HERE, "..", "out", f"harness_{cell}.json"), "w") as f:
         json.dump(allrows, f, indent=1, default=float)
