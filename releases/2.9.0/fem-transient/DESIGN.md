@@ -1,20 +1,185 @@
-# Design note: the FEM transient (branch `feature/fem-transient`, 2.9.0 item a)
+# Design note: the FEM transient (`feature/fem-transient`, 2.9.0 item a)
 
-**Status: planning only.** Nothing in this note was run: no solve, no `pytest`, no figure. Every number is either quoted from a document named next to it, or is hand arithmetic marked "arithmetic", or is a hypothesis marked H1, H2, ... that the first commits must measure. The program is not touched. Tree read: `development` at 6c225276 (2.8.0 not yet released; the steady FEM, its window and the speed-up are merged). No dates.
+**Status: design, before code, for the reviewer.** Documents and two tiny scripts only; no program file is touched and no test or study of the branch was run (the one number printed for this note is the 1D check of `scripts/check_first_seconds.py`, section 3). Tree: `development` at b80d2b71 (2.8.0 released: the steady FEM, its window and the surface read-out are in). Requested by `releases/2.9.0/PLAN.md` 2.2, 3 and 7 (item 1). Every number is quoted with its file or is marked *arithmetic* (hand calculation from named constants) or *H* (hypothesis the first commits must measure). Appendix A is the earlier, longer working draft of this note (formulation, solver strategy, validation, files, risks); where the two differ **this page wins** (section 11 lists the differences). No dates.
 
-**What this note is for.** `releases/2.9.0/PLAN.md` (2.2, 3) asks for a one-page design note before the code of `feature/fem-transient`, so that the reviewer is called early on three things: the memory law per stage, the statement about the first seconds, and the profile runner interface. This note answers those and the rest of the formulation, so that the executor can start from it and the reviewer can reject a choice before it is coded.
+## 1. Scope
 
-## 0. The question and what would answer it
+| In 2.9.0 | Out of 2.9.0 |
+| :-- | :-- |
+| Linear transient of the FEM (`fem`): the power step (animation, unit-power response) and power profiles (square waves, CSV tables) through the same window runner as the FVM and FDM | Nonlinear terms (radiation, `h(T)`): the plain `h` of `problem.board` is used, as in the steady FEM (`fem.py` docstring) |
+| The same outputs as the FVM transient: `TransientResult` (`times`, `t_max`, `t_mean`, `frames`, `steady_t_max`) and `ProfileResult`; **column** read-out is the headline, **surface** beside it at the output frames, the hottest node as a series | The FEM as the **reference** of the time decisions (`api.TIME_MODELS` order: FVM first; `profiles.decide` keeps its step response); FEM on outlines (item d); the frequency-domain periodic state of the research tool |
+| A capacity on every element; the capacity inventory in the transient summary (e11, decision 6 of PLAN) | Changing `plan_run` (it would move FVM and FDM records) |
+| FEM time records in the regression harness (additions only, e4 remainder) | The 3D solid in time (stays steady) |
 
-**Question.** How does the FEM (`femcore.py`, `femmesh.py`, `fem.py`) advance in time, so that the time simulation (power step with animation, and power profiles through `profiles.run_windows`) can be run with it as a comparison model, with the same results objects as the FVM and FDM, at a cost the memory guard can predict?
+The FEM is a comparison model (CLAUDE.md 11): off by default, ticked as `comparison_models: ["fem"]`, no new project key.
 
-**Why it matters.** The FEM is the only model that resolves the thickness of the board (copper slabs and dielectric gaps as elements). The other models carry one node per layer, so their first seconds are read too cool (`research/transient-reference-boards` README 4.2: at 0.3 / 1 / 3 / 10 s the FVM, FDM and Analytic read -58 / -30 / -9 / -1.4 % on `two2`, tagged there as a limit of one node per layer, not of the mesh). The comparison campaign (`releases/2.8.0/fem-model/COMPARE_PLAN.md`, rows T1 to T3, validation section 57) cannot run without this branch, and the Difference view (item b) needs frames of the FEM in time.
+## 2. Equations (source of each one)
 
-**What answers it.** A closed form for the integrator (a 1D mode with an exact decay rate, a lumped RC, the semi-infinite solid), the FVM and FDM transient on the same boards, the research transient tool as an independent reference, the energy balance in time, convergence in dt and in the mesh. Section 3.
+The research folder `research/independent-fem-extensions` has **no numbered equations**: its method is the docstring of `lib/transient.py` (read in full), `README.md` 7.3 (decision) and 8.3 (results). The labels E1 to E8 below are this note's, each with its location; the program's theory has the theta step as `docs/theory.md` (2.5) for the FVM.
 
-## 1. Formulation
+| | Equation | Source |
+| :-- | :-- | :-- |
+| E1 | `M dT/dt + A T = p(t) F`, `T` the rise above the ambient; `A` = Galerkin stiffness + Robin face matrix, `F` unit load | `transient.py` docstring; `femcore.Model.assemble` returns `A`, `rhs` |
+| E2 | `M_ij = integral rho c N_i N_j dV` (consistent); lumped `m_i = sum_j M_ij` (row sums, positive for Q1 hexahedra); `rho c` **per element**, so the capacity enters per layer as the copper slab (fill-weighted with the laminate), the gap elements, via, block and pad each with their own `rho c` (Appendix A1.6) | `transient.py` `consistent_mass`, `lumped_mass`; copper 8960 x 385, FR-4 1850 x 900 J/m3K as the program's `Materials` (README Study 5 text, section 2) |
+| E3 | `(M/dt + theta A) T1 = (M/dt - (1 - theta) A) T0 + (theta p1 + (1 - theta) p0) F` | `transient.py` docstring and `Transient.step`; same as theory (2.5) with `C -> M`, `K -> A` |
+| E4 | factor per step of a mode of rate `lambda`: `(1 - (1 - theta) x) / (1 + theta x)`, `x = lambda dt`: Euler 1/(1+x) tends to 0 (L-stable), Crank-Nicolson tends to -1 | theory 2.4 (M: Patankar); figure D1 |
+| E5 | Rannacher start: two implicit-Euler steps of `dt/2` open a stretch of constant load (every power change in the research tool, only `t = 0` in the program) | `Transient.march`, `step_response`; README Study 5 text, section 2 ("Crank-Nicolson is not L-stable") |
+| E6 | Energy: stored `m . T`, lost `sum h (theta gam.T1 + (1 - theta) gam.T0)`, input `p q_in h`; stored + lost = input | `Transient.march` (`energy`); residual 2.6e-12 (disc), 1e-9 at most (plates), README 8.3 |
+| E7 | Read-outs: column `T_col = Rcol T`, surface `T_surf = Rsurf T` (sparse operators made once from the weights `fem.solve_steady` already uses), point `max T` | `fem.py` `_gauss_weights`, `_cell_shares`, `_to_cells`, `_fill_empty` |
+| E8 | Closed form of the first seconds: flux `q` on a semi-infinite solid, `T_face = 2 q sqrt(t / pi) / e`, `e = sqrt(k rho c)` | textbook (status M); used by the tiny check and `transient-reference-boards` 4.2 |
 
-### 1.1 The semi-discrete system
+**Choices.** Consistent mass (the studies of 8.3 ran `consistent=True`; the class default of the tool is lumped, so the port test must set it). Theta: **1/2 with the Rannacher start for the step response and animation** (the validated integrator; `theta_scheme=1.0` honoured); **`ProfileOptions.theta` (1.0 default, 0.5 allowed) without a start in the runner**, because the runner feeds the exact mean power of every step (`profiles.run_windows`: `waves[i].mean_power(t_start, t_start + dt)`), so the load changes at every step (H2: CN rings negligibly there; if not, the adapter forces Euler and warns). BDF2 rejected (variable-step zero-stability limit 1 + sqrt 2 = 2.41, status M, against the ratio 3 of `step_responses`).
+
+**A difference with the research tool to keep in the port test.** In `Transient.step_response` the two half steps take the place of the first two slots of the first stage, so the grid is shifted by one step (the recorded times are cumulative sums, so they are right, but they are not the nominal grid). The program's stepper keeps the nominal grid and adds the half steps, so that its output times coincide with those of `fvm.transient_from_network` (the Difference view subtracts like for like). The port test therefore compares at the research tool's own times, not at the nominal ones.
+
+## 3. The first seconds (statement and policy)
+
+**Statement proposed for the documents.** The FEM resolves the thickness of the board, the other models carry one node per layer. In the first seconds after a power step they therefore disagree, and the FEM is the one to believe, to the stated residual: `research/transient-reference-boards` 4.2 (R) reads, on the two-layer board, the FEM copper under the part at 4.99 / 7.58 / 10.11 / 13.07 K/W at 0.3 / 1 / 3 / 10 s against the program's node 2.08 / 5.31 / 9.18 / 12.88 (-58 / -30 / -9 / -1.4 %), with the same figure for the FVM, FDM and Analytic at 0.5 and 1 mm, so it is a limit of one node per layer and not of the mesh. The reference there was converged in the gap (24 instead of 12 elements: 0.13 % at 0.3 s) and bounded above by the closed form (8.7 K/W). The residual of the FEM itself against the axisymmetric modal reference on the disc board (21 411 unknowns, consistent mass) is -2.76 / -1.85 / -1.27 / -0.54 / +0.06 / +0.19 % at 0.01 / 0.1 / 1 / 10 / 100 / 500 s (`independent-fem-extensions` README 8.3, R), explained there by the plan mesh at the edge of the source (0.5 to 3.5 % low on the fast swing of a footprint mean). The **column** of the FEM is the volume mean over the copper slab (`fem.py` docstring), i.e. the copper temperature, which is the quantity the program's node reports at the plateau; in the first seconds the copper is hotter than the capacity mean of copper plus half gap (1.68 / 3.95 / 6.93 / 10.43 K/W, same README 4.2) and the text says which is read.
+
+**What is accurate, and from when: the time step policy.** Hand arithmetic with the program's constants: a half-slab of 35 um copper (17.5 um) has `dz^2 / alpha` = 2.7e-6 s (alpha = 390 / (8960 x 385) = 1.13e-4 m2/s); a 20 um dielectric element 2.2e-3 s (alpha = 0.3 / (1850 x 900) = 1.8e-7); the board a few hundred seconds (201 s for the 60 x 40 mm plate, README 8.3). The spectrum spans about eight decades, no explicit method is thinkable, and Euler damps what the first steps cannot resolve. The *tiny check* `scripts/check_first_seconds.py` (1D linear elements, 45 nodes graded from 2 um, a flux switched on, laminate `k = 0.3`, `rho c = 1.665e6`) prints the error of the face temperature against E8 after 1, 2, 4 and 8 steps, the same for any dt because a sqrt(t) response is self-similar:
+
+| scheme (consistent mass) | 1 step | 2 | 4 | 8 |
+| :-- | :-- | :-- | :-- | :-- |
+| implicit Euler | -11.4 % | -6.0 | -3.1 | -1.6 |
+| Crank-Nicolson, two Euler half steps at t = 0 | -6.0 | -0.34 | -0.17 | -0.08 |
+| Crank-Nicolson, no start | +25.3 | -11.4 | -6.0 | -3.1 (alternating sign) |
+
+The lumped mass gives the same within 0.1 point on this 1D line (it was 2 to 3 points worse on the 3D disc, README 8.3: the 1D line is not a substitute for that result). Consequences: **(1) no output time has fewer than 4 steps behind it**; the first stage of the doubling grid is walked in steps of `dt0 / 4` (16 steps, one extra factorisation) while the **output times stay the program's**, so for `t_end` = 1000 s (`dt0` = 0.244 s, arithmetic of `fvm.transient_from_network`: 10 stages, `per_stage` 4) the first output has 4 steps of 61 ms behind it (D1); **(2)** the start (E5) is mandatory for CN and is applied at `t = 0` of every step response; **(3)** Euler is available for the campaign "same theta" rule but its first outputs carry the first-order error of the table; **(4)** the mesh, not the step, limits the extreme start: below about `(first gap element)^2 / alpha` (2.2 ms for a 20 um element, *arithmetic*; the actual first element of `femmesh`'s gap grading is not read in this pass) the FEM is not claimed; the animation never starts there (its first output is `dt0`). **H5**: the policy keeps every frame within 1 % of the converged `dt` at the first output; measured by halving dt in the integrator study before the adapter is written.
+
+## 4. Memory law per stage (new, to be measured; ties to `memory.py`)
+
+The present law is a steady law: `memory.CONTINUOUS["fem"] = (6700 B, p 1, a 0, safety 1.15)`, i.e. peak = base + 1.15 x 6700 x N (7 705 B per unknown, 21 runs of 10 boards at 40 000 to 215 000 unknowns, `memory.py` header comment of `FEM_K1`), the direct path `FEM_DIRECT_BYTES` = 15 900 B per unknown for N <= `FEM_DIRECT_MAX` = 30 000, and `check(..., transient=True)` multiplies by `TRANSIENT_FACTOR` = 2.0 (two FVM factors alive, "measured 1.9, one-factor fix"). The FEM transient is not two factors (one factor or one hierarchy is alive, section 6), so the factor is a new constant `FEM_TRANSIENT_FACTOR`, **2.0 until measured** (it only makes the guard refuse earlier). Predicted stages, kB per unknown (arithmetic and H4):
+
+| Stage | Holds | Bytes per unknown | Source of the figure |
+| :-- | :-- | :-- | :-- |
+| 1 mesh + assembly of `A` and `M` in **one element loop** | mesh, triplets of `A`, `M`, `F` (the same Jacobians, so `M` adds only its value vector) | peak of the steady law 6.7 kB + about 0.5 kB of triplet values | steady law measured; the 0.5 is *arithmetic* (64 entries x 8 B per element, about one element per unknown) |
+| 2 `A`, `M` as csc | two matrices of the pattern of `A` | 2 x 27 x 12 B = 0.65 kB | *arithmetic* (8 B value + 4 B index) |
+| 3 per dt, direct (N <= 30 000) | `B = M/dt + theta A` and its factor, the previous factor freed first | 15.9 kB (the steady direct figure) + 0.3 kB | `FEM_DIRECT_BYTES`; the pattern of `B` is that of `A` |
+| 3 per dt, CG | `B` and the pyamg hierarchy, the previous freed first; the hierarchy setup is 1 to 5 % of a solve | about the steady hierarchy (inside the 6.7 kB) + 0.3 kB | `fem-amg-thin-layers` README 7.6 |
+| 4 state | `T`, `T_prev`, work vectors, `Rcol`, `Rsurf`, `F` | below 0.5 kB | *arithmetic*; `Rcol` has about one nonzero set per used copper element |
+| 5 frames | `n_out x L x ny x nx` float64 (+ 2 surface faces), independent of N | 6.4 MB for 40 frames, 2 layers, 100 x 100 cells | *arithmetic* |
+
+The peak is the **largest stage, not their sum**: **H4**: the factor is 1.04 to 1.15 on the CG path and 1.04 on the direct path, instead of 2.0. The stake: at 276 000 unknowns (the example board at 1 mm, `fem-amg-thin-layers` README 1) the steady law is 7 705 x 276 000 = 2.1 GB (*arithmetic*); with the factor 2.0 the guard would read 4.3 GB. Measured as the steady law was (`releases/2.8.0/fem-model/scripts/measure_fem_law.py`, fresh process, `ru_maxrss` growth over the build), the same 10 boards at 2, 1, 0.5 mm, a step response of 40 frames and a profile run of two windows, one run at a time on a quiet machine; the constant becomes the largest measured growth x 1.1, as in the steady fit. The **time law**: seconds = build (`TIME_LAWS["fem"]` 15.7 s at the reference size, exponent 0.69, a lower bound) + stages x setup + steps x iterations x cost per iteration; iterations per step against `dt / tau_board` is **H1** (the diagonal `M/dt` improves the conditioning: few iterations at small dt) and is measured, not assumed. A **work bound** `unknowns x steps` refuses with the existing `ProfileError` text ("the time simulation needs about N steps ...", `profiles.plan_run`); its number is a maintainer decision after the measurement. Hand arithmetic from the steady figures (15 s for 280 iterations at 276 000 unknowns, about 0.05 s per iteration): a 40-frame step response 40 x 20 x 0.05 s = 40 s plus 11 hierarchy setups; a profile run of 12 windows x 200 steps at 10 iterations is 20 minutes at that size, hence the bound; below the direct limit, seconds.
+
+## 5. Interface
+
+**`femcore.py`** (new, nothing of the steady path changes; the existing keys of `Model.assemble` stay):
+* `Model.rho_c`: (E,) volumetric heat capacity per element, J/m3K, default zeros (like `k`, `q`).
+* `Model.assemble(cancel=None, capacity=False)`: with `capacity=True` the dict gains `"M"` (csc, used nodes, consistent), `"m_lump"` (n,) and `"capacity_total"` (J/K); one element loop for `A` and `M`. (`structured_model` has no `rho_c` argument; the closed-form tests set `model.rho_c` directly.)
+* `Model.load_vector(elem_ids, face_ids=None)` -> (n,) load of a unit power spread over a group (volume source `1 / V` on elements, face flux on thick outer layers); `F` is the column stack, `F @ p` equals the steady `rhs` at the heater powers.
+* `class Stepper(A, M, direct_max=FEM_DIRECT_MAX, tol=1e-10, cancel=None)`: `prepare(dt, theta)` (builds `B`, frees the previous factor first, then factors or builds the hierarchy), `step(T0, dt, theta, load0, load1)`, `solve(b)` (the steady solve with `M=None`, so `solve_many` is `Stepper(A, None)` called per right-hand side: one factor, three back substitutions), `solver`, `iterations`, `close()`.
+
+**`femmesh.py`**: `rho c` per element where `kx, ky, kz` are assigned (femmesh has no heat capacity today: no `rho` or `cp` in the file), `FemMesh.rho_c`, copper fill weighting as `fvm.Network.C` (`f rho_cu cp_cu t + diel_t rho_cp_lam`, `fvm.py` line 233), the pad slab with the capacity of its thickness, films none.
+
+**`fem.py`**:
+```
+solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=0.5, log_times=True,
+                gap_elements=6, refine=2.0, memory_fraction=None, cancel=None, progress=None) -> TransientResult
+```
+the first six arguments in the order of `fvm.solve_transient`; same time grid as the FVM (the stages of `fvm.transient_from_network`, plus the start of section 3); `TransientResult` gains optional `arrays: dict = {}` and `extras: dict = {}` (default empty: the other models and saved projects are untouched) holding `arrays["T_surface"]` (n_out, 2, ny, nx), `extras["t_max_point"]` (series), `extras["energy_residual"]`, `extras["solver"]`, `extras["steps"]`, and the capacity inventory (section 9). Read-out operators `Rcol`, `Rsurf` built once from the steady helpers.
+
+**`profiles.py`**: `run_fem(problem, decisions, options, cell_mm=1.0, progress=None)` = `run_windows(..., _FEMAdapter(problem, cell_mm, ...), "fem", progress)` with the adapter interface of `run_windows`: `dx, dy, ambient, steady_average_max, steady_peak_max`, `begin(options)`, `prepare(dt)`, `advance(state, dt, powers)`, `observe(state)`, `frame(state)`, `peak_values(state)`, `offset = 0.5`; the steady states by `Stepper(A, None).solve` on three right-hand sides; no face-term machinery (D2). `plan_run` is not touched.
+
+**`api.py`, `jobs.py`, `cli.py`**: `TIME_MODELS` stays the list of models that can be the *reference* (FVM, Lumped, Analytic, FDM, in that order, `api.py` line 46); a new tuple of models that run in time, with `"fem"`, is used by `_run_profiles` (`elif name == "fem": profiles.run_fem`, a refusal becomes a profile warning like a skipped steady comparison model: `SKIPPABLE_MODELS` is steady-only today and is split); `step_response` for the decision stays FVM; `jobs.job_transient` gets the FEM branch with `memory.check(("fem",), cell, transient=True)` and per-frame progress and cancel; `cli.py` `transient --model fem`. The `RECTANGLE_ONLY` refusal of a block or outline does not apply to the FEM; a slanted or curved outline is refused as in the steady FEM. **GUI**: the Models list says "steady and time" for the FEM (tooltip in `gui/panels.py`, guide `help/index.html`); the animation's model chooser and the profile results show the FEM curve (theme tokens, no new colour concept); the Layer entry 'Surface (top)/(bottom)' reads `arrays["T_surface"]`. **Warnings** (`checks.py`): one new after-run text when the integrator was forced to Euler (H2) or the run was cut by a limit.
+
+## 6. Solver strategy in one paragraph
+
+One matrix per `dt`, never per power. Step response: 11 matrices (the start stage + ten stages), 4 steps each (the start: 16); profile run: one for the whole run (constant `dt = window / n_per`). Direct up to 30 000 unknowns (one factor alive, freed before the next is built, as `fvm.transient_from_network`), otherwise CG with pyamg smoothed aggregation, a hierarchy per stage (not reused across stages: `fem-amg-thin-layers` E8 c found a stale hierarchy of `K` a poor preconditioner for `K + s diag`, and the reverse direction of stage-to-stage was not measured), warm start from the previous field. The right-hand side is two matrix-vector products and no assembled `B_rhs`.
+
+## 7. Tests (section 2.2 of the PLAN, mapped)
+
+| Test file (new, in the branch) | Content |
+| :-- | :-- |
+| `tests/test_fem_transient_closed_forms.py` | lumped RC (`Bi << 1`); 1D mode with exact rate (order 1 for Euler, 2 for CN: halve dt, ratio 2 and 4); slab with convection (eigenseries, M); semi-infinite solid (E8: the first-seconds test, and the choice of the start); energy balance every step (< 1e-9); steady limit after 10 tau |
+| `tests/test_fem_transient_port.py` | the program's `Stepper` against `research/independent-fem-extensions/lib/transient.py` (`Transient.march`, `step_response`) on the same structured model, same `rho c`, same steps, at the tool's own times (section 2): fields agree to solver tolerance (as `tests/test_fem_port.py` does for the steady model) |
+| `tests/test_fem_transient_load.py` | `F @ p` equals the steady `rhs`; `sum(M)` equals the integral of `rho c` of the layered description; the identity against `fvm.Network.C.sum()` on plain boards, differences on vias, blocks, laminate bands explained, never tuned |
+| `tests/test_fem_transient_readouts.py` | `Rcol T` equals `solve_steady`'s column on the same field to round-off; `Rsurf T` equals its surface |
+| `tests/test_fem_profile_adapter.py` | adapter interface; periodicity and energy per window on a small plate; Euler against a direct FVM-style stepper on the same matrices |
+| `tests/test_fem_transient_memory.py` | the law against recorded peaks, the refusal, the work bound |
+| `tests/test_gui_stress.py`, `tests/test_help.py`, `tests/test_tooltips.py` | start, cancel in the middle of a stage, a long profile refused by the bound, a memory-refused board, an outline refused, the FEM ticked with the Analytic and Lumped on a block board, the 3D solid next to it |
+
+## 8. Validation plan and error targets (rule 14 of CLAUDE.md 9)
+
+Independent references first, then the program's models. **Reproduced published numerical case: none exists in the papers library** (Appendix A3.3: only an index search was done, no paper opened; Carslaw and Jaeger, Patankar, Rannacher 1984 not obtained, status N). Until a published value is reproduced the status in `validation.md` 57 is "an independent solver of a different construction and closed forms", which is what the 2.8.0 research did; the first step of the branch is to obtain an open copy of the slab-with-convection tables and of Rannacher's paper.
+
+| Case | Reference | Target (from the research numbers) |
+| :-- | :-- | :-- |
+| Disc board step response, 21 411 unknowns | axisymmetric modal reference (`axisym_stack`), research README 8.3 | within -3.5 / -2.0 / -1.5 / -0.7 / +-0.3 / +-0.3 % at 0.01 / 0.1 / 1 / 10 / 100 / 500 s (the observed residual -2.76 .. +0.19 % plus a margin; the program's mesh differs from the research plan mesh, so the numbers are not required to coincide) |
+| Plate with a cluster and a block (study 2 board, 68 672 unknowns) | research tool: steady 103.847 K/W, time to 63 % 201.39 s (footprint mean) / 200.287 s (hottest top node) | time to 63 % and plateau within 0.5 % at the hottest-node read-out (the program's `fvm.step_responses` reads the hottest cell) |
+| Two-layer plain board, 0.3 to 10 s | research FEM copper 4.99 / 7.58 / 10.11 / 13.07 K/W (`transient-reference-boards` 4.2) | within 1 % from 1 s, 3 % at 0.3 s |
+| 20 Hz, 30 % wave on the 60 x 40 mm plate through `run_fem` | centre swing 0.63788 K/W of on-power (README 8.3, converged 0.01 %) | within 2 %; H3 measures the unaligned-edge part (below 1 % of the swing at 10 steps per shortest feature) |
+| FVM and FDM on the same boards, column read-out for all | the five boards of `transient-reference-boards` | classified differences; the first seconds are **not** a pass criterion (row T3, `COMPARE_PLAN.md`), they are the stated limit of the others |
+
+The targets are proposals from the research numbers, not requirements the program already meets: nothing is run.
+
+## 9. The capacity inventory (e11), the frozen records (e4), the surface of the transient (e23)
+
+* **e11** (PLAN decision 6: yes, with the transient). The transient summary lists the heat capacity each model holds in J/K by category (copper per layer, laminate, via barrels, blocks and pads, parts) against the capacity computed from the description (`integral rho c dV`, independent of any mesh), so that a missing mass is visible; the FEM reports `capacity_total` (sum of `M`), the FVM and FDM `Network.C.sum()`; a difference above a stated tolerance becomes a warning. **Not verified**: whether the FVM counts the capacity of a via barrel (I did not find it in `fvm.py`, `grep` for a capacity near `via` returned nothing; `blocks.py` line 167 sets `C = rho_cp thickness area` for a block); read before coding, and record the answer, never tune it away. Needs a tooltip and a guide sentence (PLAN).
+* **e4**. The FEM steady records with the surface are in `tests/regression/data/v2.8.0.json` (38 `|fem|` records among 332; its settings hold `transient_cell` 1.0). What the branch adds are **time records** for the FEM boards (`transients`: `board|fem` -> `t63` per part, the format of `regress_frozen.py`; checked in `v2.8.0.json`: its 70 `transients` records hold the models analytic, fdm, fvm and lumped, none for the FEM), additions only: pending file `fem-transient.json`, the other records do not move (PLAN 2.2). The PLAN is inconsistent here (1.1 lists e4 for this branch, 2.1 says the steady surface part was done in 2.8.0); this note takes the second reading.
+* **e23** (surface of the transient in the FVM and FDM, the last item of `feature/surface-readout-models`). This branch delivers the resolved surface at the output frames only (`Rsurf T`, never every step) and so the reference that e23 needs; it does **not** put a surface in the other models' transients. Until e23 the other models show 'n/a' (PLAN 1.1).
+
+## 10. Open questions for the reviewer
+
+1. **Start policy**: is a first stage of `dt0/4` steps with the program's output times the right reading of "no frame with fewer than 4 steps behind it", or should the output times of the FEM move (breaking the like-for-like subtraction)? Is the self-similarity argument (the 1D table) enough for a 3D mesh, or must H5 be measured first?
+2. **Consistent mass in the profile runner**: the research validated it on step responses and on the 20 Hz wave (README 8.3); the runner uses Euler by default. Is Euler plus consistent mass acceptable as the default, or should the FEM default to `theta 1/2` there (H2)?
+3. **`FEM_TRANSIENT_FACTOR`**: ship 2.0 and measure later, or hold the branch until measured? (Ship, I propose: it only refuses earlier.)
+4. **Splitting `SKIPPABLE_MODELS`** touches `api.py` shared with the surface branches; is the new tuple of "runs in time" models the least invasive way?
+5. **Unaligned edges** (H3) when `duty x n_per` is not an integer: acceptable as first-order edge placement common to all models, or does it justify an optional edge list in `plan_run` as a separate branch?
+6. **The reference of the first seconds is the research tool's own FEM** (a different code, the same family of method): is "an independent solver of a different construction" enough for validation 57 without a published case?
+7. **e11**: the tolerance for "missing mass" and whether a part body gets a capacity at all (today a part is a source without mass).
+
+## 11. Corrections to the earlier draft (Appendix A) and to the plan
+
+* Appendix A1.2 and A3.1 mention `femcore.structured_model` "with `rho_c`": the function has no such argument; `Model.rho_c` is new (section 5).
+* Appendix A3.2 d says the FEM "is expected to follow the reference"; the cited reference is a FEM of the research tool, so the statement is "agrees with an independent implementation to the residual of section 8", not "is exact".
+* The earlier draft proposed an `assemble_mass` separate pass; this note assembles `A` and `M` in one loop (section 4, stage 1).
+* The earlier draft started the step response at `dt0`; section 3 shows one step is -6 % (CN + start) and -11 % (Euler), so a finer first stage is added.
+* The earlier draft's figures 1 to 8 (never run, schematic) are replaced by D1 to D3 below; the other pictures belong to the branch (`make_figures.py`, with numbers the branch prints).
+* Appendix A4 quotes line numbers of `help/index.html` and `gui/panels.py` from a tree that has changed since (228 commits); they were not re-read in this pass.
+
+## 12. Diagrams
+
+![D1: the step and the time grid](figures/fig_01_time_step_scheme.png)
+
+*Figure D1 (`figures/fig_01_time_step_scheme.png`): the flow of one run (assembly once, one matrix per dt, the Rannacher start and the stage change), the factor per step of the three schemes (textbook formulas, E4), and the time grid of a step response for `t_end` = 1000 s with the finer first stage (arithmetic).*
+
+![D2: the profile runner](figures/fig_02_profile_runner.png)
+
+*Figure D2 (`figures/fig_02_profile_runner.png`): `run_fem` and its adapter inside `run_windows`, what the FEM adds and does not use, and the exact step-mean power of a duty 0.33 wave with `n_per` = 31 (the program's `plan_run` rule), whose edge falls inside step 11.*
+
+![D3: the first seconds](figures/fig_03_first_seconds.png)
+
+*Figure D3 (`figures/fig_03_first_seconds.png`): the node of the FVM against the resolved copper and gap elements of the FEM; the two-layer board in the first seconds (numbers of `transient-reference-boards` 4.2); and the error against the number of steps since switch-on of the three schemes (`check_first_seconds.py`).*
+
+`scripts/make_diagrams.py` draws the three figures (`.venv/bin/python releases/2.9.0/fem-transient/scripts/make_diagrams.py`); each was looked at after drawing.
+
+## 13. What was read and what was not verified
+
+| Source | Status | Notes |
+| :-- | :-- | :-- |
+| `releases/2.9.0/PLAN.md` | R (all) | 2.2, 3, 7, decisions 5 and 6; e4 is stated twice with two readings (section 9) |
+| `releases/2.8.0/fem-model/DESIGN.md` | S | the memory law and the interface by the earlier draft and by `memory.py`; not re-read end to end in this pass |
+| `pcbthermal/femcore.py` (`Model`, `assemble`, `solve`), `fem.py` (docstring, `solve_steady` head), `memory.py` (constants and `check`), `fvm.py` (`transient_from_network`, `step_responses_from_network`, capacity lines), `profiles.py` (`run_windows`, `plan_run`, `_FVMAdapter` head), `api.py` (`_step_response`, `_run_profiles`), `jobs.py` (`job_transient`), `results.py` (`TransientResult`) | R for the parts quoted | `femmesh.py` read only by `grep` (no `rho`/`cp` in it), the mesh grading of the gap not read |
+| `research/independent-fem-extensions/lib/transient.py` | R (the class, mass functions, `march`, `step_response`) | no numbered equations exist; E1 to E8 are this note's labels |
+| `research/independent-fem-extensions/README.md` 7.3, 8.3 | R | the numbers of sections 3 and 8 |
+| `research/transient-reference-boards/README.md` 2.2 table lines, 2.3 item 3, 4.2 | R (those parts) | the first-seconds numbers; rest S |
+| `docs/theory.md` 2.4 | R | the theta method (2.5) and the grids |
+| `tests/regression/data/v2.8.0.json` and `regress_frozen.py` docstring | R (keys inspected) | 332 `records` (38 FEM), 70 `transients` (no FEM): the time records are an addition |
+| `docs/validation.md` sections 56 and 57 | N | the sections are reserved by `COMPARE_PLAN.md` (rows T1 to T3, read) and are not in the file yet |
+| `research/fem-amg-thin-layers`, `papers/` | S, N | from the earlier draft; no paper opened |
+| Textbook statements (BDF2 limit, slab eigenseries, semi-infinite solid, Rannacher) | M | to be derived in the tests; the papers to be obtained |
+| `scripts/check_first_seconds.py` output | run for this note | a 1D line, not a study of the branch and not a validation of the 3D model |
+| Hypotheses H1 to H5 and every cost estimate | **not measured** | hypotheses and arithmetic |
+
+Appendix A follows (the earlier working draft, unchanged except for its headings, which carry an `A` so that its internal references 1.2, 3.1 and so on mean A1.2, A3.1).
+
+---
+
+# Appendix A: the earlier working draft
+
+## A1. Formulation
+
+### A1.1 The semi-discrete system
 
 The steady FEM assembles (`femcore.Model.assemble`) the Galerkin stiffness plus the Robin face matrix `A`, and the unit load `f` of the sources, on the unknowns that belong to elements (`used`), with the ambient at zero (the field is a rise above the ambient). The transient adds a heat capacity matrix `M` of the same sparsity:
 
@@ -22,7 +187,7 @@ The steady FEM assembles (`femcore.Model.assemble`) the Galerkin stiffness plus 
 
 with `p(t)` the power factor (one scalar for the power step; one per heater in the profile runner, so `f` becomes a matrix `F = [f_1 ... f_nh]`, see 1.7). Q1 hexahedra, 2 x 2 x 2 Gauss rule, the same quadrature and the same chunks (20 000 elements) as the stiffness, so `M` costs one more pass of the element loop and no new mesh data. This is exactly the semi-discrete system of the research tool `research/independent-fem-extensions/lib/transient.py` (read in full, the class `Transient` and `lumped_mass`, `consistent_mass`), which is what the port test must reproduce.
 
-### 1.2 Lumped or consistent mass
+### A1.2 Lumped or consistent mass
 
 | | consistent | lumped (row sums) |
 | :-- | :-- | :-- |
@@ -33,7 +198,7 @@ with `p(t)` the power factor (one scalar for the power step; one per heater in t
 
 **Choice: the consistent mass, the lumped mass kept as a switch for tests and a diagnostic (`mass="consistent"|"lumped"` in the transient function, not in the saved options).** Reason: it is the integrator that was validated against an independent solver, the lumped one is measurably worse in the first seconds that this model exists to resolve, and the memory cost is about 4 % of the law. Check in the first commit (study, not asked for a decision): the semi-infinite solid test (3.1 d) at the first element-diffusion times, to see the undershoot of the consistent mass and to set the Rannacher start (1.3) accordingly.
 
-### 1.3 Time integration: implicit Euler, Crank-Nicolson, BDF2
+### A1.3 Time integration: implicit Euler, Crank-Nicolson, BDF2
 
 The system is stiff in the extreme. Arithmetic, with the program's constants (copper 390 W/mK and 8960 x 385 J/m3K, FR-4 0.3 W/mK through and 1850 x 900 J/m3K) and assumed element sizes: a half-slab of 35 um copper (17.5 um) has `dz^2 / alpha` = (17.5e-6)^2 / 1.13e-4 = 2.7e-6 s; a fine dielectric element of 20 um has (20e-6)^2 / 1.8e-7 = 2.2e-3 s; the board time constant is of the order of 100 to 200 s (201 s for the 60 x 40 mm study plate, `independent-fem-extensions` README 8.3). The spectrum spans about eight decades, and no explicit method is thinkable.
 
@@ -48,19 +213,19 @@ The system is stiff in the extreme. Arithmetic, with the program's constants (co
 * The **profile runner** uses the `theta` of `ProfileOptions` (1.0 by default, 0.5 allowed) with **no** Rannacher: the runner feeds the exact mean of the wave over every step (`profiles.run_windows`), so the load changes at every step and a half-step restart at every step would double the cost for nothing. Under CN the stiff modes excited by a step-mean jump ring with factor -1 per step; their amplitude is the projection of the jump on stiff modes, small away from the heated elements. **H2**: the ring is negligible for theta = 1/2 at 10 or more steps per shortest feature (the runner's `n_per`); if not, the FEM adapter forces implicit Euler and says so in a warning. Measured in 3.2 b before the adapter is finished.
 * A **like-for-like** comparison between models uses the same theta and the same time grid on all of them (campaign rule): the option exists in every model. The accuracy statement of the FEM (within 0.5 % of an independent reference at the plateau and the time to 63 %) is made with theta = 1/2 + Rannacher.
 
-### 1.4 Step control and the edges of the power profile
+### A1.4 Step control and the edges of the power profile
 
 * **Power step** (animation, step response, the unit-power response): the only edge is t = 0, so it is aligned by construction; the Rannacher half steps sit there.
 * **Profile runner**: the plan is shared (`profiles.plan_run`: `n_per = ceil(window / (shortest / 10))`, `dt = window / n_per`, constant) and is not changed by this branch (it would move the FVM and FDM profile records). The edges of a square wave then fall inside a step unless `duty x n_per` is an integer. This is harmless for energy (the power of a step is the exact mean over the step: `waves[i].mean_power(t_start, t_start + dt)`), and costs first-order accuracy of the edge position, the same in every model. The research tool aligns the steps to the edges (`march` with segments, `square_segments`), so the independent reference is aligned and the program is not: the validation (3.3) reports the FEM run unaligned against the aligned reference, the difference to be measured and stated, **H3**: below 1 % of the swing at 10 steps per shortest feature. If H3 fails, the proposal is an optional `edges` list in the plan (a second small branch, not this one, because it touches every model).
 * The runner needs **one factorisation or one hierarchy for the whole run** (constant dt); the step response needs one per stage (ten for the doubling grid, plus one for the half step of the Rannacher start).
 
-### 1.5 Initial condition
+### A1.5 Initial condition
 
 * Power step: the board at ambient (rise 0).
 * Profiles: the steady state of the average power (`ProfileOptions.initial = "average"`, the runner's default; for a one-shot profile, the steady state of its first power) or a uniform temperature. The steady states (`th_avg`, `th_init`, `th_peak`, which give `steady_average_max` and `steady_peak_max`) are **three right-hand sides of one steady matrix**: the steady solve must accept several (direct: one factorisation, several back substitutions; CG: one hierarchy, three solves, which the E8 measurement says keeps the iteration count exactly, `research/fem-amg-thin-layers` README 7.6 (a)). New in `femcore`: `Model.solve_many(rhs_list)` (S).
 * The frequency-domain periodic state of the research tool (`harmonic_response`, `periodic_wave`) is **not brought in**: complex SuperLU is limited to 25 000 unknowns there and the runner already finds the periodic state by windows. It stays in the research folder as the reference (3.3).
 
-### 1.6 Heat capacity per element (`femmesh`)
+### A1.6 Heat capacity per element (`femmesh`)
 
 `rho c` per element, in the same places where `femmesh.build` assigns `kx, ky, kz` (README of the mesh: "Materials per element", `femmesh.py` around line 1112 to 1230; this was read from the source, only the places named here):
 
@@ -76,11 +241,11 @@ The system is stiff in the extreme. Arithmetic, with the program's constants (co
 
 **Identity test** (a closed form of the mesh, the first test of the branch): the total capacity `sum(M)` equals `integral rho c dV` of the layered description, and equals the FVM's total `net.C.sum()` on the plain boards to the precision of the copper area fills; any difference on a board with vias, a block or a laminate band is explained by the feature (the FVM adds laminate sub-nodes by `laminate.build`, the FEM resolves the gap), never silently. **To read before coding** (not read in this pass): whether the FVM/FDM counts the capacity of the via barrel; if it does not, the FEM must still count it (it is the model of the physics) and the difference is recorded, not tuned away.
 
-### 1.7 Loads in time
+### A1.7 Loads in time
 
 The steady FEM sums all heaters into one `f`. The transient needs the load of each heater separately: `F` (n x nh, sparse: a heater touches few elements), built by a helper `Model.load_vector(elem_ids, q)` (Gauss quadrature of `N q`) from `mesh.heater_elems`, plus the face-flux loads of parts on a thick outer layer (`add_faces(flux=)`, one label per heater). The sum `F @ p` must equal the steady `f` at the heater powers: the first assertion of the load test. Radiation and `h`: the transient takes the **plain `h` of `problem.board`**, as the steady FEM does (the computed-h loop of the API sets them before the call; the profile run takes `sim.effective_problem`, so it carries the same coefficients). No nonlinear term is added.
 
-### 1.8 Read-outs per step (the three read-outs of the steady model, `DESIGN.md` 5.4 of 2.8.0)
+### A1.8 Read-outs per step (the three read-outs of the steady model, `DESIGN.md` 5.4 of 2.8.0)
 
 The steady read-outs are **linear in the nodal field** except the point maximum: `column = Rcol T`, `surface = Rsurf T`, with `Rcol` (layers x ny x nx rows, n columns) and `Rsurf` (2 x ny x nx rows) sparse operators made once from the Gauss weights and the cell shares that `solve_steady` already computes (`_gauss_weights`, `_cell_shares`, `_to_cells`, `_fill_empty`). Building them once and applying one `matvec` per frame replaces the Python loops of the steady read-out (which would be the slowest part of a many-step run). Empty-cell filling (`_fill_empty`) is a fixed gather, so it joins the operator.
 
@@ -92,21 +257,21 @@ The steady read-outs are **linear in the nodal field** except the point maximum:
 
 Decision 5 of PLAN 6 holds: the column is the headline. What the **energy balance** needs per step is `gam . T` (the heat leaving through the films) and `M . T` (stored heat), both vectors of the system; they are free.
 
-### 1.9 What the results object holds
+### A1.9 What the results object holds
 
 * `fem.solve_transient(...)` returns the same `results.TransientResult` as `fvm.solve_transient`: `times`, `t_max`, `t_mean`, `frames` (n_out, layers, ny, nx) in degC, `steady_t_max` (the steady FEM column maximum: one more steady solve, a back substitution if the factor is kept, one CG otherwise), `ambient`, `grid="cells"`, `warnings`. New optional fields only (`arrays` as above; `extras` with the energy residual, the solver per stage and the step count). The animation tab, `plots.plot_transient`, `plots.save_transient_gif` and the CSV of the CLI work unchanged.
 * `profiles.run_fem(problem, decisions, options, cell_mm, progress)` returns the same `ProfileResult` through `run_windows` with a `_FEMAdapter` that has the interface of `_FVMAdapter`: `dx, dy, ambient, steady_average_max, steady_peak_max`, `begin`, `prepare(dt)`, `advance`, `observe`, `frame`, `peak_values`, `shape_field`, `offset = 0.5` (the cells of the run grid), `warnings`. The face-term machinery of `_FVMAdapter._face_setup` is **not** needed (the FEM resolves the laminate under a part, so a part over absent copper has its own face temperature; `observe` reads the per-heater column maximum, and the part face peak is the extra `t_max_point` series).
 
-## 2. Solver strategy
+## A2. Solver strategy
 
-### 2.1 One matrix per dt
+### A2.1 One matrix per dt
 
 The matrix is `B = M/dt + theta A` (`A + M/dt` for implicit Euler, `M/dt + A/2` for Crank-Nicolson), symmetric positive definite, with the sparsity of `A`. It changes with dt and theta only, never with the power.
 
 * **Power step**: one matrix per stage (ten stages on the doubling grid, plus one with the half step), 4 to 6 steps per stage. **Profile runner**: one matrix for the whole run.
 * The right-hand side of a step needs `M T/dt - (1 - theta) A T`: two matrix-vector products, **no assembled `B_rhs`** (the FVM forms it as a matrix; here it would store a third pattern).
 
-### 2.2 Direct or AMG, and what to reuse
+### A2.2 Direct or AMG, and what to reuse
 
 | | Direct (SuperLU, symmetric mode, `n <= FEM_DIRECT_MAX = 30 000`) | CG with pyamg smoothed aggregation (above) |
 | :-- | :-- | :-- |
@@ -121,11 +286,11 @@ The matrix is `B = M/dt + theta A` (`A + M/dt` for implicit Euler, `M/dt + A/2` 
 * a hierarchy of `K` used for `K + s x (mean diagonal)` with s from 0.01 to 10 was a **poor preconditioner**, 2405 to 5000 (not converged) iterations against 525 fresh (E8 c). That test used a made-up scale (the transient matrix did not exist then, the research text says so), and the reverse direction (the hierarchy of stage j for stage j + 1, whose matrix differs by a factor 2 in `M/dt`) was not measured. **So the design does not rely on stale hierarchies across stages: it builds one per stage, since the setup is 1 to 5 % of a solve.** The measurement of the cross-stage reuse is a study of the first commits (M1 of 3.2), not a premise.
 * **H1** (the reason the transient CG should be cheap): `M/dt` adds a positive diagonal that shrinks the condition number, so the iteration count per step is a few at small dt and rises toward the steady count (280 at 1 mm on the example board, 276 000 unknowns, `REVIEW_SPEED` as quoted in the AMG README 1) only for dt of the order of the board time constant. To measure: iterations per step against `dt / tau_board`, at 3 sizes (M2).
 
-### 2.3 Cost per step and the estimate
+### A2.3 Cost per step and the estimate
 
 Hand arithmetic from the measured steady figures, not a prediction: the steady CG solve of the example board at 1 mm is about 15 s for 280 iterations, so one iteration is of the order of 0.05 s at 276 000 unknowns (V cycle + matvec; the build and assembly are the other 30 %). A step response of 40 frames with 10 to 30 iterations per step on average: about 40 x 20 x 0.05 s = 40 s plus 10 hierarchy setups (0.5 s each) and the operators of the read-out: **under two minutes at 276 000 unknowns (to measure)**. A profile run of 12 windows x 200 steps = 2400 steps at 10 iterations is 2400 x 10 x 0.05 s = 20 minutes at that size: **too slow to offer without a verdict**, so the guard needs a work bound (2.4). For the direct range (up to 30 000 unknowns) the steps are milliseconds and the factorisation (about 1 s) per stage dominates: seconds for a step response, a minute at most for a profile run.
 
-### 2.4 Memory law and time law (what to measure; new coefficients of `memory.py`)
+### A2.4 Memory law and time law (what to measure; new coefficients of `memory.py`)
 
 The present law (`memory.CONTINUOUS["fem"]`: `peak = base + safety x k1 x N`, k1 = 6700 B, safety 1.15, p = 1, a = 0; direct 15 900 B per unknown) is a steady law, and `check(..., transient=True)` multiplies it by `TRANSIENT_FACTOR = 2.0` (two factors alive in the FVM, "measured 1.9, one-factor fix"). For the FEM the transient is not two factors. Predicted stages (to be measured, hypotheses H4):
 
@@ -141,15 +306,15 @@ So **H4: the FEM transient factor is 1.1 to 1.3 of the steady law on the CG path
 
 **Time law**: seconds = build (the steady build time law, `TIME_LAWS["fem"]`: 15.7 s at N_REF, q = 0.69, a lower bound) + stages x setup + steps x iterations x cost per iteration. To measure: iterations per step (H1) and cost per iteration against N, giving `memory.fem_transient_seconds(unknowns, steps, stages)`; the verdict "slow" at `SLOW_SECONDS` and a **work bound** `unknowns x steps` above which the guard refuses with the message that already exists for `ProfileError` ("the time simulation needs about N steps ...", `profiles.plan_run`): a coarser cell, fewer windows, a higher oscillation threshold. The number of the bound is a **decision** after the measurement (7).
 
-### 2.5 Cancel and progress
+### A2.5 Cancel and progress
 
 `jobs.job_transient` today reports nothing ("the solvers report nothing"). A step loop makes real progress possible: `progress("Time step k of n", k / n)` once per frame (the step response) or once per window (the runner already calls `progress(f"Window ...")`); a **cooperative cancel** per step through the same `cancel` callable as the assembly (`femcore.FemCancelled`), on top of the process termination the job system already uses. The assembly stays chunked (20 000 elements).
 
-## 3. Validation plan
+## A3. Validation plan
 
 Independent references first (CLAUDE.md 9, 13 and 14); the program's own models are compared second.
 
-### 3.1 Closed forms (in the battery, small meshes, `femcore.structured_model` with `rho_c`)
+### A3.1 Closed forms (in the battery, small meshes, `femcore.structured_model` with `rho_c`)
 
 a. **Lumped RC**: a plate of one element across the thickness with `Bi = h t / k << 1` and a source, uniform temperature: `T(t) = (q / hA)(1 - exp(-t / tau))`, `tau = rho c V / (h A)`. Tests `M`, the film matrix and the step.
 b. **1D mode with an exact rate**: a bar with insulated ends, initial `cos(k pi x / L)`, decay `exp(-alpha (k pi / L)^2 t)`. Temporal order: implicit Euler 1, Crank-Nicolson 2 (halve dt, ratio of the errors 2 and 4); spatial order on the mesh refinement. Shows the lumped mass against the consistent one on a smooth mode.
@@ -159,7 +324,7 @@ e. **Energy balance in time** at every step: `M (T_n - T_0)` stored + `integral 
 f. **Steady limit**: after 10 `tau` the transient field equals the steady solve (research: 174.35599 against 174.35726 K/W, 7e-6).
 g. **Load**: `F p` equals the steady `f`; `sum(M)` equals the integral of `rho c`.
 
-### 3.2 Against the independent solver and against the program's models
+### A3.2 Against the independent solver and against the program's models
 
 a. **Port test** (first test after the mass assembly, as `tests/test_fem_port.py`): the same structured model, the same `rho c`, the same steps: the program's `femcore` stepper against `research/independent-fem-extensions/lib/transient.py` (`Transient.march` and `step_response`), the fields agree to solver tolerance. The research copy stays as the independent reference and its README numbers stay.
 b. **Integrator study** (a script of the branch, `study_fem_transient_integrator.py`): theta 1 and 1/2, Rannacher on and off, at 10, 20 and 40 steps per shortest feature, on a square wave and a step (H2 and H3); lumped against consistent mass (the 1.2 check).
@@ -169,11 +334,11 @@ e. **The average-or-resolve windows**: the FEM runs the plan of `profiles.decide
 f. **Convergence**: dt halved (tolerance on the time to 63 % and the swing), mesh `cell_mm` 2, 1, 0.5 where the cap allows, gap elements 6, 12, 24; the unaligned-edge sensitivity of H3.
 g. **Stress** (GUI/API tests in `tests/test_gui_stress.py`): start, cancel in the middle of the stages, a long profile that the work bound refuses, a memory-refused board, a board with an outline refused as the steady FEM refuses it, the FEM ticked with the Analytic and Lumped on a board with a block (those two refuse transients there, `RECTANGLE_ONLY`), the 3D solid ticked next to it (still steady only).
 
-### 3.3 Published cases (rule 14), and what the papers library offers
+### A3.3 Published cases (rule 14), and what the papers library offers
 
 Read in this pass: the research folders named above (their README sections quoted here), `profiles.py`, `fvm.py` transient, `api.py` and `jobs.py` where cited, `femcore.py`, `fem.py` and `memory.py` where cited. The papers library was only searched by its index (`papers/notes/INDEX.md` and the file list of `papers/pdf/`, **no paper opened**): the entries that touch transient heat flow are `Ibragimov2023PeacemanTimeDependent.pdf` (time-dependent Peaceman well, arXiv:2309.05372: about wells, a way to the via in time, not a board case) and `TI-SLUAAT8.pdf` (a MOSFET transient thermal impedance, Foster network from datasheet curves: a package, not a board with a mesh), both with only the first page checked in the index; the classical sources (Carslaw and Jaeger 1959, Patankar 1980, Incropera) are books or paywalled and listed as not obtained in the index. **No published numerical transient case of a board that the papers library lets this pass reproduce was found.** Proposal for the branch (a first step with the researcher, since the rule asks for a published case): obtain the tabulated roots and Heisler-type values of the slab with convection (open copy, to be searched: the fetch tools work from the maintainer's machine), and Rannacher's paper on irregular data in diffusion problems (Numer. Math. 43, 1984, the origin of the start; not obtained, status N; the Rannacher start is used from the research tool as a measured practice, not from the paper). Until a published number is reproduced, the status of the transient in `validation.md` 57 is "independent solver of a different construction and closed forms", which is what the 2.8.0 research did, and says so.
 
-## 4. Window, command line, project file
+## A4. Window, command line, project file
 
 * **Project file**: no new key. The FEM is already stored as `comparison_models: ["fem"]` (`SolverOptions.to_dict`), and the same ticked model now also runs in time. No format version change; 2.7.1 reads the project as before (the file compatibility test stays). No new option is saved: the mass is fixed consistent, the integrator comes from `ProfileOptions.theta` and the animation's `theta_scheme`, the cell from the run's cell. If a measured need adds an option (for example a work bound), it is stored under a key older readers drop, as `comparison_models` is.
 * **API** (`api.py`): `TIME_MODELS` gains "fem" **only as a model that runs** and not as the reference of the decision (`ref = next(m for m in TIME_MODELS if m in usable)`: the FVM, then the others; the FEM never becomes the reference); `SKIPPABLE_MODELS` is split so that "fem" stays skippable for time runs (memory refusal, no pyamg, no mesh, a work bound) when other models run next to it, and "solid3d" remains the steady-only one. `_run_profiles` gets an `elif name == "fem"` branch (`profiles.run_fem`) that turns a refusal into a profile warning, not an error that stops the others. The `RECTANGLE_ONLY` rule for a block does not apply to the FEM.
@@ -182,9 +347,9 @@ Read in this pass: the research folders named above (their README sections quote
 * **Window**: the Models list says "steady and time" instead of "steady state only" for the FEM (tooltip in `panels.py` near line 1571, guide section `#fem` and the table row of `help/index.html` line 246, 251, 298); the animation tab offers the FEM in its model chooser when it is ticked and available; the Results profile page draws the FEM curve as a comparison curve (theme tokens, no new colour concept) and the summary table adds its row; the Display Layer entries and the Difference view (item b) work on the frames of the FEM because they are on the run grid in the layout of the others; the surface frames appear as the Layer entry 'Surface (top)' / '(bottom)' in the animation, from `arrays["T_surface"]`. Tooltips for every new control (none new is expected: only the model chooser entry), `tests/test_tooltips.py` and `tests/test_help.py` words updated by the maintainer in the same branch.
 * **Warnings** (`checks.py`): the existing FEM text (mesh, copper fill, imported copper) is shared; one new after-run warning when the integrator was forced to implicit Euler (H2) or the run was cut by a limit.
 
-## 5. Files to touch, tests to add, effort, order, risks
+## A5. Files to touch, tests to add, effort, order, risks
 
-### 5.1 Files and size
+### A5.1 Files and size
 
 | Piece | File | What | Size |
 | :-- | :-- | :-- | :-- |
@@ -201,11 +366,11 @@ Read in this pass: the research folders named above (their README sections quote
 
 Total: **L** as in the PLAN (about 9 agent days with review and battery: this note 1, code 6 (1 + 1 + 1.5 + 1.5 + 1 for the rest), measurement and law 1, review 2).
 
-### 5.2 Tests to add (all in the branch; no test is run here)
+### A5.2 Tests to add (all in the branch; no test is run here)
 
 `tests/test_fem_transient_closed_forms.py` (3.1 a to g), `tests/test_fem_transient_port.py` (3.2 a), `tests/test_fem_transient_load.py` (loads, capacity, identity), `tests/test_fem_transient_readouts.py` (operators against the steady read-out on the same field: `Rcol T` equals `solve_steady`'s column to round-off), `tests/test_fem_profile_adapter.py` (interface of the adapter, periodicity and energy per window on a small plate, equal results with theta 1 against a direct FVM-style stepper on the same matrices), `tests/test_fem_transient_memory.py` (the law: the estimate against recorded peaks, the refusal, the work bound), the stress scenarios in `tests/test_gui_stress.py`, `tests/test_help.py` and `tests/test_tooltips.py` words. Research side (`research/fem-transient-*` is not opened; the studies of the branch live in `releases/2.9.0/fem-transient/scripts/` or in the campaign folder): `study_fem_transient_integrator.py`, `study_fem_transient_amg.py` (M1, M2), `study_fem_transient_memory.py`.
 
-### 5.3 Order of the commits
+### A5.3 Order of the commits
 
 1. Mass assembly, `load_vector`, `solve_many`, the stepper in `femcore`, with 3.1 a, b, e, f and the port test. (Stops here if the port test fails.)
 2. `femmesh` capacity and the identity tests (3.1 g); the first study M1 and M2 (the iteration counts and the cross-stage reuse) and the integrator study (H2) run at this point, to fix the design before the adapter is written.
@@ -217,7 +382,7 @@ Total: **L** as in the PLAN (about 9 agent days with review and battery: this no
 
 The reviewer is called on this note first, and again after step 4 (the numerics) and at the end.
 
-### 5.4 Risks
+### A5.4 Risks
 
 1. **A second solver path**: the stepper and the adapter are code with their own numerics. Mitigation: the port test against the independent research tool, the identity and energy tests, and no change of `plan_run` or of any FVM/FDM number.
 2. **The first seconds**: the FEM resolves the thickness, the others do not, so the comparison tables differ there by tens of percent (the FVM -58 % at 0.3 s). Mitigation: the text says which is right and why (limit of one node per layer), a campaign row (T3) that is not a pass criterion, the Difference view labelled.
@@ -229,54 +394,3 @@ The reviewer is called on this note first, and again after step 4 (the numerics)
 8. **Capacity of the via barrel and the laminate**: read the FVM/FDM before coding (1.6), so that a difference is explained, not tuned.
 9. **The published case**: none is available in the library; the rule 14 of CLAUDE.md is met only partly (3.3) and the validation text says so.
 
-## 6. Diagram plan (CLAUDE.md 9.7: every planned model has a picture)
-
-`releases/2.9.0/fem-transient/scripts/make_diagrams.py` (written, **not run**; no data, no program; shapes from `research/diagram_kit.py`) draws, written to `figures/fig_NN_*.png` when it is run by the branch:
-
-| Figure | Content |
-| :-- | :-- |
-| fig_01_transient_section | the cross-section of the board as the FEM sees it in time: copper slabs and gaps as elements each with its `rho c`, a via barrel, a rod, a metal block and its pad, a part as a source with no body mass, the Robin films top and bottom, and the three heat paths (stored in the capacity, conducted, lost through the films) |
-| fig_02_mass_matrix | one hexahedron and the row of the mass matrix: lumped (the 1/8 of the capacity at each corner) against consistent (the coupling with the seven other nodes), and the 1D picture of why the consistent mass can undershoot at a front |
-| fig_03_time_methods | the amplification factor of implicit Euler, Crank-Nicolson and BDF2 against `lambda dt` (a textbook curve, marked illustrative), and the stiffness spectrum of the board by arithmetic (copper element, dielectric element, in-plane cell, the board), with the Rannacher half steps |
-| fig_04_time_grid_and_edges | the time axis of a step response (ten doubling stages, one factor each) and of a profile run (constant dt, step-mean power over an unaligned edge, against the aligned reference) |
-| fig_05_solver_strategy | the flow of one run: mesh, `A` and `M`, per dt the factor or the hierarchy (one alive), the step loop with warm start, the operators `Rcol` and `Rsurf`, the results, the progress and the cancel |
-| fig_06_readouts_in_time | the cross-section with the three read-outs (column, surface, point) at one instant, and the operator picture `Rcol T` |
-| fig_07_validation_map | which reference covers which case: closed forms, the research tool, the FVM and FDM, the windows (the design of 3.1 to 3.3 as a matrix) |
-| fig_08_memory_stages | the stack of bytes per unknown by stage (assembly of `A`, assembly of `M`, `B`, hierarchy or factor, state, operators, frames), a schematic with the hypothesis H4 marked as unmeasured |
-
-When the branch runs the script, the pictures that carry data (energy balance, step response against the references, the first seconds) are `make_figures.py` and quote only the numbers the README of the branch holds.
-
-## 7. Decisions left to the maintainer
-
-| # | Decision | Recommendation |
-| :-- | :-- | :-- |
-| 1 | Consistent mass as the default (lumped only as a test switch) | Yes: validated, better in the first seconds, 4 % of the memory law. |
-| 2 | Default theta of the FEM step response: 1/2 with the Rannacher start (validated) or 1.0 like the FVM | 1/2 with Rannacher for the FEM; the campaign runs every model at the same theta. |
-| 3 | The profile runner stays unaligned to the edges (the plan is shared by all models) | Yes; an optional edge list only if H3 fails, as its own branch. |
-| 4 | The work bound for a profile run on the FEM and the unknown cap of the transient | After the measurement of H1 and H4 (commits 2 and 6 of 5.3); a number now would be a guess. Suggest the guard says "slow" and refuses, never silently drops the FEM when it is the only model. |
-| 5 | The published case: obtain the slab tables and the Rannacher paper before the branch, or ship with closed forms and the independent research solver only | Obtain first (an open copy; the fetch tools work from the maintainer's machine); ship without them if none is found, with the validation text saying so. |
-| 6 | The frequency-domain periodic state (research tool) is not brought in | Not brought in: the windows find the periodic state; it stays as the reference. |
-| 7 | The capacity of the part body (thermal-capacity inventory, e11) | In this branch only if small, as PLAN 6.6 says; it needs a tooltip and a guide sentence. |
-
-## 8. What was read and what was not verified
-
-| Source | Status | Notes |
-| :-- | :-- | :-- |
-| `releases/2.9.0/PLAN.md` (branch `docs/plan-2-9-0` copy, sections 1 to 6) | R (sections about the transient) | items a, e4, e11, order, decisions 5 and 6 |
-| `releases/2.8.0/fem-model/DESIGN.md` (sections 5.3 to 5.5, 7, 11 to 13 read; the rest by headings) | R in part | the branch 8 section 7, the law of 5.3 |
-| `releases/2.8.0/fem-model/COMPARE_PLAN.md` | S | rows T1 to T3, the reserved sections 56 and 57 |
-| `pcbthermal/femcore.py` (`assemble`, `solve`, `Model`) and `fem.py` (`solve_steady`) | R (these functions); no mass matrix exists | |
-| `pcbthermal/fvm.py` `solve_transient`, `transient_from_network`, `step_responses` | R | |
-| `pcbthermal/profiles.py` (`ProfileOptions`, `plan_run`, `run_windows`, `_FVMAdapter`, `run_fvm`) | R | |
-| `pcbthermal/api.py` (`_step_response`, `_run_profiles`, model constants), `jobs.py` `job_transient`, `memory.py` constants and laws | R (the parts quoted) | |
-| `pcbthermal/femmesh.py` (material assignment) | S (grep and the lines quoted); not read end to end | read before coding (1.6) |
-| `docs/theory.md` 2.4, 2.5 | R | `docs/validation.md` transient sections were found by search, not re-read |
-| `research/independent-fem-extensions/lib/transient.py` | R (class `Transient`, `lumped_mass`, `consistent_mass`) | the reference |
-| `research/independent-fem-extensions/README.md` 8.3 | R | the numbers of 1.2 and 3.2 are quoted from it |
-| `research/transient-reference-boards/README.md` | S (head, the lines about the first seconds) | |
-| `research/fem-amg-thin-layers` README (state, sections 1, 4, 7.6, 10) and INTEGRATION | R (E8 and the reuse text) | reviewed and closed; the AMG variants are not adopted |
-| `papers/` | N (index and file list only) | no paper opened; see 3.3 |
-| Textbook results (stability of BDF2 with variable step, the slab with convection, the semi-infinite solid, Rannacher start) | M | formulas to be derived in the tests, the papers to be obtained |
-| Everything labelled H1 to H4 and every cost estimate of 2.3 | not measured | hypotheses and arithmetic |
-
-Nothing was run for this note: the machine is busy with batteries and reviews.
