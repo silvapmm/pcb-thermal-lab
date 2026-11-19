@@ -352,3 +352,13 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Memory guard: the resident size of the process after runs**
 
 > (0.08 GB fresh, 0.67 GB after one 1 mm run of the CO60 import, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve (1.21, 1.37, 1.37 GB after three 0.7 mm runs), so they are not counted again
+
+### Theory 4
+
+**3D solid limits: the part errors before and after the slab rule**
+
+> a 2 mm part reads, before (4 slabs, no face term) and now: bare 1.6 mm +5.5 -> +4.1 %, 3.2 mm +20.0 -> +3.9 %; over a pad of its size 1.6 mm +14.7 -> +9.0 %, 3.2 mm +27.3 -> +7.9 % (a 5 mm part on bare 3.2 mm +5.3 -> +0.9 %; on bare 1.6 mm +0.6 -> +1.1 %, where the earlier number was two errors cancelling).
+
+**3D solid limits: the error of the slabs alone by ratio**
+
+> (about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)

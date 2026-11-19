@@ -145,6 +145,24 @@
    "new": "(0.08 GB fresh, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve, so they are not counted again",
    "point": [],
    "move": true
+  },
+  {
+   "sec": "4",
+   "label": "3D solid limits: the part errors before and after the slab rule",
+   "start": "a 2 mm part reads, before (4 slabs, no face term) and now:",
+   "end": "where the earlier number was two errors cancelling).",
+   "new": "a 2 mm part on bare 3.2 mm reads +20.0 % before (4 slabs, no face term) and +3.9 % now, and over a pad of its size +27.3 -> +7.9 % (the other boards and part sizes are in `validation.md` 21.3 and in `validation-history.md`, 'Theory passages moved by the second simplification', 4).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "4",
+   "label": "3D solid limits: the error of the slabs alone by ratio",
+   "start": "(about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)",
+   "end": "(about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)",
+   "new": "(about +2 % at a ratio of 0.1 and +5 % at 0.2, bare and over a pad; `validation.md` 21.3 and `validation-history.md`, 'Theory passages moved by the second simplification', 4)",
+   "point": [],
+   "move": true
   }
  ]
 }
