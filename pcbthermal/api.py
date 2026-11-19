@@ -44,6 +44,18 @@ COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Models off by default; the ref
 SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
 TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
+INTEGER_COUNT_KEYS = ("lumped_rings", "laminate_n_max", "fem_gap_elements")   # Counts of SolverOptions that a JSON file may hold as an integer-valued float
+
+
+def integer_count(value):
+    """!
+    @brief The count read from a JSON file: an integer-valued float (10.0, as some writers give it) becomes the int; anything else is returned as is.
+    @param value The value read (count, dimensionless).
+    @return int for an integer-valued float, otherwise the value unchanged (SolverOptions.validate then judges it).
+    """
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
 
 
 @dataclass
@@ -81,8 +93,13 @@ class SolverOptions:
             raise ValueError("cell_mm must be between 0.05 and 50")
         if self.linear_solver not in ("direct", "cg", "sor"):
             raise ValueError("linear_solver must be 'direct', 'cg' or 'sor'")
-        if self.lumped_rings < 3 or self.analytic_modes < 20:
-            raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
+        # The same rule as the Lumped entry points (lumped.check_rings): an integer count of at least 3, so a bad file is refused when it opens, not when it runs
+        try:
+            lumped.check_rings(self.lumped_rings)
+        except ValueError:
+            raise ValueError(f"lumped_rings must be an integer >= {lumped.RINGS_MIN}, got {self.lumped_rings!r}") from None
+        if self.analytic_modes < 20:
+            raise ValueError("analytic_modes must be >= 20")
         if self.ui not in uicontext.UIS:
             raise ValueError(f"ui must be one of {uicontext.UIS}")
         if self.steady_power not in ("average", "peak"):
@@ -159,11 +176,11 @@ class SolverOptions:
                 base = tuple(known.get("models", MODEL_NAMES))
                 known["models"] = ("fem",) if only else tuple(m for m in base if m != "fem") + ("fem",)
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
-        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
-        for key in ("laminate_n_max", "fem_gap_elements"):
-            n = known.get(key)
-            if isinstance(n, float) and n.is_integer():
-                known[key] = int(n)
+        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation). lumped_rings too: a file
+        # with 10.0 ran before the rings guard of 2.9.0 and must still run, as 10
+        for key in INTEGER_COUNT_KEYS:
+            if key in known:                                    # An absent key keeps the default of the dataclass
+                known[key] = integer_count(known[key])
         o = cls(**known)
         o.validate()
         return o
@@ -1311,7 +1328,8 @@ def default_options():
     for key, val in (("models", models), ("cell_mm", d.get("cell_mm")), ("linear_solver", d.get("linear_solver")), ("lumped_rings", d.get("lumped_rings")),
                      ("analytic_modes", d.get("analytic_modes")), ("hotspot_c", d.get("hotspot_c"))):
         if val is not None:
-            setattr(o, key, val)
+            # A hand-edited defaults file may hold 10.0 rings: the integer, as in a project file (otherwise validate() would drop every user value below)
+            setattr(o, key, integer_count(val) if key in INTEGER_COUNT_KEYS else val)
     try:
         o.validate()
     except ValueError:                                   # A bad user value: fall back to the built-in settings

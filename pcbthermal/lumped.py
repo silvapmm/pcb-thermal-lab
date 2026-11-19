@@ -1036,8 +1036,8 @@ def check_rings(rings):
     @param rings Number of rings outside each footprint (dimensionless count).
     @return int The same number as a Python int.
     @throws ValueError If rings is not an integer or is below RINGS_MIN (the message names the parameter and the minimum).
-    @note SolverOptions.validate refuses lumped_rings < 3 with "lumped_rings must be >= 3"; a positional call such as solve_steady(p, 1.0) (the cell
-          passed as rings) once ran a one-ring network unnoticed, so the three entry points check the value as well.
+    @note SolverOptions.validate applies this same rule to lumped_rings (after a project or defaults file's 10.0 is read as 10); a positional call such as
+          solve_steady(p, 1.0) (the cell passed as rings) once ran a one-ring network unnoticed, so the three entry points check the value as well.
     """
     # bool is an int subclass: True would read as one ring, so it is refused as not a count
     if isinstance(rings, (bool, np.bool_)) or not isinstance(rings, (int, np.integer)):
