@@ -353,6 +353,9 @@
     "hotspot_c": 100.0,
     "memory_fraction": 0.6
   },
+  "results": {
+    "summary_table_in_report": false
+  },
   "gerber": {
     "max_file_mb": 256
   },

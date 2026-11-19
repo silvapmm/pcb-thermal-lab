@@ -1754,6 +1754,7 @@ class MainWindow(QMainWindow):
         if d.saved:
             self.doc.options.memory_fraction = memory.default_fraction()       # The machine preference may have changed; the panel shows the new verdicts
             self.solver_panel.refresh()
+            self.results.refresh_report()                                       # The setting 'Summary table in the report text' applies to the result already shown
             self._show_defaults_state()
             self.inspector.rebuild()
             self.stackup_page.refresh()
