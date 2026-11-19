@@ -1,8 +1,8 @@
-# Design note: the FEM transient (branch `feature/fem-transient`, 2.9.0 item a)
+# Design note: the FEM transient (branch `feature/fem-transient`, 3.0.0 item a)
 
 **Status: planning only.** Nothing in this note was run: no solve, no `pytest`, no figure. Every number is either quoted from a document named next to it, or is hand arithmetic marked "arithmetic", or is a hypothesis marked H1, H2, ... that the first commits must measure. The program is not touched. Tree read: `development` at 6c225276 (2.8.0 not yet released; the steady FEM, its window and the speed-up are merged). No dates.
 
-**What this note is for.** `releases/2.9.0/PLAN.md` (2.2, 3) asks for a one-page design note before the code of `feature/fem-transient`, so that the reviewer is called early on three things: the memory law per stage, the statement about the first seconds, and the profile runner interface. This note answers those and the rest of the formulation, so that the executor can start from it and the reviewer can reject a choice before it is coded.
+**What this note is for.** `releases/3.0.0/PLAN.md` (2.2, 3) asks for a one-page design note before the code of `feature/fem-transient`, so that the reviewer is called early on three things: the memory law per stage, the statement about the first seconds, and the profile runner interface. This note answers those and the rest of the formulation, so that the executor can start from it and the reviewer can reject a choice before it is coded.
 
 ## 0. The question and what would answer it
 
@@ -203,7 +203,7 @@ Total: **L** as in the PLAN (about 9 agent days with review and battery: this no
 
 ### 5.2 Tests to add (all in the branch; no test is run here)
 
-`tests/test_fem_transient_closed_forms.py` (3.1 a to g), `tests/test_fem_transient_port.py` (3.2 a), `tests/test_fem_transient_load.py` (loads, capacity, identity), `tests/test_fem_transient_readouts.py` (operators against the steady read-out on the same field: `Rcol T` equals `solve_steady`'s column to round-off), `tests/test_fem_profile_adapter.py` (interface of the adapter, periodicity and energy per window on a small plate, equal results with theta 1 against a direct FVM-style stepper on the same matrices), `tests/test_fem_transient_memory.py` (the law: the estimate against recorded peaks, the refusal, the work bound), the stress scenarios in `tests/test_gui_stress.py`, `tests/test_help.py` and `tests/test_tooltips.py` words. Research side (`research/fem-transient-*` is not opened; the studies of the branch live in `releases/2.9.0/fem-transient/scripts/` or in the campaign folder): `study_fem_transient_integrator.py`, `study_fem_transient_amg.py` (M1, M2), `study_fem_transient_memory.py`.
+`tests/test_fem_transient_closed_forms.py` (3.1 a to g), `tests/test_fem_transient_port.py` (3.2 a), `tests/test_fem_transient_load.py` (loads, capacity, identity), `tests/test_fem_transient_readouts.py` (operators against the steady read-out on the same field: `Rcol T` equals `solve_steady`'s column to round-off), `tests/test_fem_profile_adapter.py` (interface of the adapter, periodicity and energy per window on a small plate, equal results with theta 1 against a direct FVM-style stepper on the same matrices), `tests/test_fem_transient_memory.py` (the law: the estimate against recorded peaks, the refusal, the work bound), the stress scenarios in `tests/test_gui_stress.py`, `tests/test_help.py` and `tests/test_tooltips.py` words. Research side (`research/fem-transient-*` is not opened; the studies of the branch live in `releases/3.0.0/fem-transient/scripts/` or in the campaign folder): `study_fem_transient_integrator.py`, `study_fem_transient_amg.py` (M1, M2), `study_fem_transient_memory.py`.
 
 ### 5.3 Order of the commits
 
@@ -225,13 +225,13 @@ The reviewer is called on this note first, and again after step 4 (the numerics)
 4. **Cost of the CG per step** (H1) unknown until measured: a profile run could be too slow at large meshes. Mitigation: the work bound and the verdicts; the direct path up to 30 000 unknowns is cheap.
 5. **The memory law is new and heavy to measure**, on a machine that is busy: measured in series, alone (the rule of CLAUDE.md 12); until measured, a conservative `FEM_TRANSIENT_FACTOR = 2.0` is the safe default (the present transient factor), which only makes the guard refuse earlier.
 6. **Heaters on a face flux and the per-heater load matrix**: a part on a thick outer layer enters through a face flux in the steady model; the load matrix must carry it. Test 3.1 g.
-7. **Shared files**: `femcore`, `femmesh`, `fem`, `memory`, `checks`, `api`, `gui/panels.py` and the results pages are shared with the other 2.9.0 code branches: this branch goes after compare-differences and before the surface read-out branches, one at a time (PLAN 2.3).
+7. **Shared files**: `femcore`, `femmesh`, `fem`, `memory`, `checks`, `api`, `gui/panels.py` and the results pages are shared with the other 3.0.0 code branches: this branch goes after compare-differences and before the surface read-out branches, one at a time (PLAN 2.3).
 8. **Capacity of the via barrel and the laminate**: read the FVM/FDM before coding (1.6), so that a difference is explained, not tuned.
 9. **The published case**: none is available in the library; the rule 14 of CLAUDE.md is met only partly (3.3) and the validation text says so.
 
 ## 6. Diagram plan (CLAUDE.md 9.7: every planned model has a picture)
 
-`releases/2.9.0/fem-transient/scripts/make_diagrams.py` (written, **not run**; no data, no program; shapes from `research/diagram_kit.py`) draws, written to `figures/fig_NN_*.png` when it is run by the branch:
+`releases/3.0.0/fem-transient/scripts/make_diagrams.py` (written, **not run**; no data, no program; shapes from `research/diagram_kit.py`) draws, written to `figures/fig_NN_*.png` when it is run by the branch:
 
 | Figure | Content |
 | :-- | :-- |
@@ -262,7 +262,7 @@ When the branch runs the script, the pictures that carry data (energy balance, s
 
 | Source | Status | Notes |
 | :-- | :-- | :-- |
-| `releases/2.9.0/PLAN.md` (branch `docs/plan-2-9-0` copy, sections 1 to 6) | R (sections about the transient) | items a, e4, e11, order, decisions 5 and 6 |
+| `releases/3.0.0/PLAN.md` (branch `docs/plan-2-9-0` copy, sections 1 to 6) | R (sections about the transient) | items a, e4, e11, order, decisions 5 and 6 |
 | `releases/2.8.0/fem-model/DESIGN.md` (sections 5.3 to 5.5, 7, 11 to 13 read; the rest by headings) | R in part | the branch 8 section 7, the law of 5.3 |
 | `releases/2.8.0/fem-model/COMPARE_PLAN.md` | S | rows T1 to T3, the reserved sections 56 and 57 |
 | `pcbthermal/femcore.py` (`assemble`, `solve`, `Model`) and `fem.py` (`solve_steady`) | R (these functions); no mass matrix exists | |
