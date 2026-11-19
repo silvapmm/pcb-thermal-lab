@@ -841,7 +841,8 @@ class ResultsView(QWidget):
         if self.sim is None:
             return
         try:
-            with_table = bool(defaults.value("results", "summary_table_in_report"))
+            # Only a JSON true turns it on: a hand-edited "false" (a non-empty string) must not read as on
+            with_table = defaults.value("results", "summary_table_in_report") is True
         except (KeyError, TypeError, OSError):
             with_table = False                                  # An unreadable preference falls back to the shipped behaviour
         self.report.setPlainText(self.sim.report(inline_warnings=False, table=with_table))

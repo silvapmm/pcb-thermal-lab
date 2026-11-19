@@ -1395,6 +1395,45 @@ def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypa
         d.close()
 
 
+def test_summary_table_setting_toggled_through_preferences_with_a_result_shown(win, qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The setting 'Summary table in the report text' flipped twelve times through the real Preferences dialog of the window (Save, then Reset to shipped
+           every third time) with a result on screen: the report text follows each change at once, the models widget keeps its rows, and the project file never
+           holds the key (a machine preference).
+    @param win Main window fixture.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    import json
+    from pcbthermal import defaults
+    from pcbthermal.gui import preferences as prefs
+    from pcbthermal.project import project_to_dict
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    monkeypatch.setattr(prefs.QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)       # Reset asks before deleting the user file
+    sim = simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
+    win.results.set_simulation(sim)
+    assert "Tmean" not in win.results.report.toPlainText()                                    # Shipped: off, as 2.8.0
+    for i in range(12):
+        want = i % 3 != 2
+
+        def act(dialog, want=want):
+            box = dialog.widgets[("results", "summary_table_in_report")]
+            if want:
+                box.setChecked(True)
+                dialog.save()
+            else:
+                dialog.reset()
+            return 0
+        monkeypatch.setattr(prefs.PreferencesDialog, "exec", act)
+        win.show_preferences()
+        assert defaults.value("results", "summary_table_in_report") is want
+        assert ("Tmean" in win.results.report.toPlainText()) is want
+        assert win.results.model_table.rowCount() == 2
+    assert "summary_table_in_report" not in json.dumps(project_to_dict(win.doc.project))
+
+
 def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
     """The live checks (validity, model limits, vias) on a board of 1500 scattered vias and several parts, after every change of the models and the cell: each call stays
     under a second, and the list under Run is checks.check_input, the head of the warnings of a run."""

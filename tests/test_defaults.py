@@ -269,7 +269,7 @@ def test_preferences_show_readable_labels_and_read_a_decimal_comma(qtbot):
 
 def test_preferences_sections_are_a_list_with_stacked_pages(qtbot, tmp_path):
     """!
-    @brief The eight sections are a list on the left (first one selected, no title cut, Up and Down change the page) with their pages stacked on the right.
+    @brief The sections are a list on the left (first one selected, no title cut, Up and Down change the page) with their pages stacked on the right.
     """
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest

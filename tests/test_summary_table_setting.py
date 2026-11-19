@@ -127,6 +127,21 @@ def test_summary_text_without_the_table_by_default_and_with_it_when_set(qtbot, t
     assert text != win.results.report.toPlainText() and win.results.report.toPlainText() == sim.report(inline_warnings=False, table=False)
 
 
+def test_only_a_json_true_turns_it_on(qtbot, tmp_path, sim):
+    """!
+    @brief A hand-edited user file with a string "false", "true" or a number reads as off (only a JSON true turns the table on); the window never fails on it.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    @return None.
+    """
+    win = _window(qtbot, tmp_path)
+    for value in ("false", "true", 1, None):
+        _write_user(value)
+        win.results.set_simulation(sim)
+        assert MARK not in win.results.report.toPlainText(), value
+
+
 def test_refresh_report_applies_a_saved_change_to_the_result_shown(qtbot, tmp_path, sim):
     """!
     @brief After Preferences are saved the report text of the result already shown is rewritten; without a result the call does nothing.
