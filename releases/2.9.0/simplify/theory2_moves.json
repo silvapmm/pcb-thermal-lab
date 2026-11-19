@@ -61,6 +61,24 @@
    "new": "; audit of 2.8.0, re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.023 / 0.022 of the diagonal; the counts at 0.5 mm and the other ratios are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.2);",
    "point": [],
    "move": true
+  },
+  {
+   "sec": "2.3",
+   "label": "SOR omega: the sweep counts around the estimate",
+   "start": "`ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps",
+   "end": "7916 sweeps at 1.997)",
+   "new": "`ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps at 1 mm against 726 at `ω_R`; only within about 0.03 of 2 does an overestimate blow up; the 2 mm and 1.997 values are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.3)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.3",
+   "label": "SOR omega: the sweep counts of the example board by version",
+   "start": "the sweep counts (example board 2197 -> 676 at 1 mm",
+   "end": "`python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1` and `2`)",
+   "new": "the sweep counts (example board at 1 mm: 726 sweeps on the 2.7.1 tree and on the 2.8.0 tree with the film term, `python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1`; the 2.4.5 counts, the 2 mm counts and the 2.8.0 count of 2 mm are in `validation.md` 5 and 25 and in `validation-history.md`, 'Theory passages moved by the second simplification', 2.3)",
+   "point": [],
+   "move": true
   }
  ]
 }

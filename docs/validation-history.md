@@ -326,3 +326,13 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Maximum principle: the counts of positive entries**
 
 > ; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), 432 / 432 at 0.5 mm and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.018 / 0.015 of the diagonal at 0.5 mm and 0.023 / 0.022 at 0.25 mm, FVM / FDM; at most 0.022 of the sum of the negative entries of the row);
+
+### Theory 2.3
+
+**SOR omega: the sweep counts around the estimate**
+
+> `ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps at 1 mm against 726 at `ω_R`, and 571 / 480 against 356 at 2 mm; only within about 0.03 of 2 does an overestimate blow up, 7916 sweeps at 1.997)
+
+**SOR omega: the sweep counts of the example board by version**
+
+> the sweep counts (example board 2197 -> 676 at 1 mm, 1054 -> 364 at 2 mm, as measured at 2.4.5; the 2.7.1 tree prints 726 sweeps at 1 mm and 356 at 2 mm; the 2.8.0 tree with the film term prints 726 and 357, `python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1` and `2`)
