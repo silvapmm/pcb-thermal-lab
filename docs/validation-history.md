@@ -362,3 +362,17 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **3D solid limits: the error of the slabs alone by ratio**
 
 > (about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)
+
+### Theory 5
+
+**First ring: the part read cool on large boards**
+
+> (0.79 for a ring one radius wide, closed form, pure conduction; the drop measured on the FVM field is 0.50 and 0.43 of the FVM's on 100 x 80 and 200 x 150 mm), so the part read cool: a 1 mm part on a uniform two-layer sheet, centred, 60 x 40 mm -0.9 %, 100 x 80 mm -13.1 %, 200 x 150 mm -25.3 % against the FVM at 0.5 mm (Lumped cell 0.5 mm).
+
+**First ring: limits, the numbers before and after the images**
+
+> for a small square part the two nearly cancelled (1 mm part: +0.4 to +2.5 % from 30 x 20 to 200 x 150 mm before the images, +1.3 to +4.6 % on the final tree of 2.8.0), for a part of aspect ratio 3 they add (+9 to +12 % hot before the images; on the final tree +2 to +5 % for 3 x 1 mm at the 0.5 mm Lumped cell and +4 to +6 % for 6 x 2 mm at the 1 mm cell);
+
+**First ring: limits, the side and corner errors before the images**
+
+> (on average -10 % at a side and -17 % at a corner at a gap of zero, up to -22 % against the FVM and up to -26 % against an independent 3D solver)
