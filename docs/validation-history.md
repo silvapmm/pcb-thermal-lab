@@ -392,3 +392,17 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Seri Lee plate: the FDM and 3D solid digits**
 
 > (FDM 0.6650 / 1.2798 / 2.2680; re-run by the final review of 2.8.0 with the film term in the model, `releases/2.8.0/audit/scripts/study_lee_blocks.py fvm,fdm 0.5`: it moved the last digit; 3D solid 0.6637 / 1.2796 / 2.2691, audit A1, not re-run)
+
+### Theory 8
+
+**Default coefficients: the sizes and rises of the comparison**
+
+> 13.6 / 10.1 at 20 K, 15.5 / 11.3 at 40 K (60 × 40 mm 13.2 to 17.0 / 10.2 to 12.6; 160 × 100 mm 11.6 to 14.8 / 8.8 to 10.7).
+
+**Default coefficients: the rise against the computed coefficients**
+
+> and against the computed coefficients the defaults read +0.4 % (example board), +7.2 % and +8.8 % (two hot single-part plates at 130 to 140 K, where the computed coefficients have grown) of the rise, the hot side except on a one-layer pad (−2.7 %).
+
+**Face-up law at high Ra: the effect of the change on the plate**
+
+> On an 800 × 800 mm two-layer plate with 1200 W in 64 parts (computed `h`, top-face `Ra` 3.4·10⁷) the change lowers the top convection coefficient from 7.05 to 6.61 W/m²K and raises the hottest rise by 1.1 % (108.9 to 110.1 K, the hot side). It replaced the constant `0.15` that was from memory (M; 7 % higher, a step of +6.4 % at 10⁷, 30.37 to 32.32); the step is now −0.6 % (30.37 to 30.18) and the deviation from the printed law there is 0.
