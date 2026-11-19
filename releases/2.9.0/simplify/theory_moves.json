@@ -1,0 +1,452 @@
+{
+ "base": "10757a0e",
+ "intro_old": "What earlier versions did is in [`versions.md`](versions.md);",
+ "intro_new": "What earlier versions did is in [`versions.md`](versions.md), and the passages of this text that described an earlier state or a replaced value are kept, by section number, in [`theory-history.md`](theory-history.md);",
+ "moves": [
+  {
+   "sec": "1.5",
+   "label": "Via target ratio: the figure quoted before the barrel length of 2.6.0 (audit of 2.8.0)",
+   "start": "; the -2.1 to +3.9 % quoted before was with the barrel over `d` alone",
+   "end": "study_via_checks.py target`)",
+   "replace": ""
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The links before the open-fraction rule (sentence of the paragraph on the cut-cell flux)",
+   "start": "The earlier links scaled the sheet of a cut cell by `c`",
+   "end": "The program now uses",
+   "replace": "The program uses"
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The distance used by the drawn layers before 2.7.0",
+   "start": "Before 2.7.0 the drawn layers used the signed distance",
+   "end": "(negative off the board); the",
+   "replace": "The"
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The earlier statement about the floor 0.25 (measured with the cell-centre distance of 2.6.0)",
+   "start": "The earlier statement (it binds in 80 node cells",
+   "end": "no longer holds. ",
+   "replace": ""
+  },
+  {
+   "sec": "2.2",
+   "label": "The first numbers of the positive entries (program before the rim rule of 2.6.0)",
+   "start": "*The numbers first written here (832 / 864",
+   "end": "they are history.* ",
+   "replace": ""
+  },
+  {
+   "sec": "2.2",
+   "label": "The via effect before the rim rule of 2.6.0, against the smeared-barrel 3D solid",
+   "start": "**Before the rim rule of 2.6.0** (section 2.6), against",
+   "end": "(`validation.md` 30.1). ",
+   "replace": ""
+  },
+  {
+   "sec": "2.5",
+   "label": "The spread of the peak with the earlier cut-cell links",
+   "start": "; the earlier links 0.25 to 3.0 K, `validation.md` 32.2",
+   "end": "`validation.md` 32.2",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The first figures of the image limit, withdrawn",
+   "start": ". The '4 to 10 % at 1 mm' and '19 points at 1 mm'",
+   "end": "and are withdrawn",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The error of the partial-copper reading before the contact rule",
+   "start": "; 31 to 68 % before the rule",
+   "end": "before the rule",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The contact of an imported via before the ray test",
+   "start": "; before it the full contact read the effect 1.5 to 5 times high",
+   "end": "`validation.md` 45",
+   "replace": ""
+  },
+  {
+   "sec": "4",
+   "label": "The cut-cell link of the 3D solid before the open-fraction rule",
+   "start": "A cell cut by the outline (cover `c_b < 1`) used to be joined",
+   "end": "Now, for the",
+   "replace": "For the"
+  },
+  {
+   "sec": "5",
+   "label": "The one-node footprint before the zones of 2.5.0",
+   "start": "; the +22 to +221 % of the effect, 8 to 26 % of the rise",
+   "end": "before the zones of 2.5.0",
+   "replace": ""
+  },
+  {
+   "sec": "5",
+   "label": "The earlier near-side deficit, against the FVM before its laminate band",
+   "start": "; the earlier -9 / -15 % were against the FVM before its laminate band",
+   "end": "before its laminate band",
+   "replace": ""
+  },
+  {
+   "sec": "6",
+   "label": "The earlier range of the interface balance",
+   "start": "; the earlier text gave the first range up to 500",
+   "end": "up to 500",
+   "replace": ""
+  },
+  {
+   "sec": "6",
+   "label": "The Analytic step response of a board with vias before fix/analytic-transient-hot-point",
+   "start": "(Until `fix/analytic-transient-hot-point` the Analytic read",
+   "end": "preface and decision 24.)",
+   "replace": ""
+  },
+  {
+   "sec": "7",
+   "label": "The branch that introduced the half-copper term of the block film",
+   "start": "since `fix/face-film-half-slab`; ",
+   "end": "since `fix/face-film-half-slab`; ",
+   "replace": ""
+  },
+  {
+   "sec": "10",
+   "label": "The fast-wave factors on four layers before 2.7.0",
+   "start": ", 5 to 7 before",
+   "end": "5 to 7 before",
+   "replace": ""
+  },
+  {
+   "sec": "10",
+   "label": "The wording of the Lanczos factor before the audit of 2.8.0",
+   "start": "; the text said `sinc(k/N)` until the audit 2.8.0 A5",
+   "end": "not what the code computes",
+   "replace": ""
+  },
+  {
+   "sec": "11",
+   "label": "The note that the numbers of Figure 22 were stale (the figure was redrawn with the numbers of the table in the review of the branch)",
+   "start": " The numbers written in the boxes are of an earlier tree and are stale",
+   "end": "`ladder`).",
+   "replace": " The numbers in the boxes are those of the table below."
+  }
+ ],
+ "splits": [
+  {
+   "before": "**Partly filled cells**: the copper term `c` uses the fluxes of the ce",
+   "indent": "  "
+  },
+  {
+   "before": "**Range**: against an independent 3D solution (54 plates, `research/th",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the Lumped and the Analytic (no flux per cell and no",
+   "indent": "  "
+  },
+  {
+   "before": "**Error direction**: exact for a one-dimensional column; within 7 % of",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the thick-plate warning of 7.5 (`checks.check_thick_plat",
+   "indent": "  "
+  },
+  {
+   "before": "**Sources**: the through-thickness profile is derived here (status abo",
+   "indent": "  "
+  },
+  {
+   "before": "**Where it is validated**: `validation.md` 55.6; explained for the use",
+   "indent": "  "
+  },
+  {
+   "before": "**Validity per layer type**: outer copper (top of layer 1, bottom of t",
+   "indent": "  "
+  },
+  {
+   "before": "**Where it is checked**: `tests/test_cad_profiles.py` (26 banners made",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: own and measured, `research/gerber-cad-profiles` (README ",
+   "indent": ""
+  },
+  {
+   "before": "**When it applies**: FVM (the network of a run, not the Lumped network",
+   "indent": ""
+  },
+  {
+   "before": "**Range checked**: two- and four-layer boards of 10 to 40 mm, cells of",
+   "indent": ""
+  },
+  {
+   "before": "**Direction of the error left**: cool by 1 to 3 % at 0.5 mm (the lamin",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: copper finer than a tenth of a cell (the raster pixe",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: the same as the imported copper (transmissibility upscali",
+   "indent": ""
+  },
+  {
+   "before": "**Why**: the die of these packages sits on the pad; the hull spreads t",
+   "indent": ""
+  },
+  {
+   "before": "**What this rests on**: eleven parts of three open KiCad boards compar",
+   "indent": ""
+  },
+  {
+   "before": "**The floor 0.25** is a rule of the program, not of the sources (Bochk",
+   "indent": ""
+  },
+  {
+   "before": "**Since 2.7.0 it no longer acts in the FVM**: every copper and laminat",
+   "indent": ""
+  },
+  {
+   "before": "**Not covered**: a board with an outline and imported copper has the o",
+   "indent": ""
+  },
+  {
+   "before": "**Limit:** the via takes heat from each footprint cell in proportion t",
+   "indent": "  "
+  },
+  {
+   "before": "**Since 2.6.0** a via just outside a copper edge is uncoupled from tha",
+   "indent": "  "
+  },
+  {
+   "before": "Antipads (clearances around the barrel) are not a cause",
+   "indent": "  "
+  },
+  {
+   "before": "The program warns of the situation (`checks.check_via_partial_copper`",
+   "indent": "  "
+  },
+  {
+   "before": "Corrections measured on a copy, not adopted",
+   "indent": "  "
+  },
+  {
+   "before": "No cold spot was found on full copper;",
+   "indent": "  "
+  },
+  {
+   "before": "**Imported copper reads the masks by a ray test**",
+   "indent": ""
+  },
+  {
+   "before": "Weights by sheet conductance, which would remove the cold spot of 2.2",
+   "indent": ""
+  },
+  {
+   "before": "**A via exactly on a cell line**: when the drill of a via is smaller t",
+   "indent": ""
+  },
+  {
+   "before": "**Speed, without a change of the physics** (`fix/fem-solve-speed`; tre",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: the transient (no time simulation with the FEM) and ",
+   "indent": ""
+  },
+  {
+   "before": "**Limits of the builder**: a heater whose footprint is partly over bar",
+   "indent": ""
+  },
+  {
+   "before": "**Review of the model branch** (`releases/2.8.0/fem-model/REVIEW_BRANCH4.md`",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: [ZienkiewiczTaylor2000] (M) and [Hughes2000] (M) for the ",
+   "indent": ""
+  },
+  {
+   "before": "**Limits**: the capped ring is quantised (1.5 cells around a footprint",
+   "indent": ""
+  },
+  {
+   "before": "**Direction and size of the error** (hottest node, % of the rise): aga",
+   "indent": ""
+  },
+  {
+   "before": "**Not modelled**: the links between the outer rings (the ring contours",
+   "indent": ""
+  },
+  {
+   "before": "**Limit, measured** (this tree, after the readout fix of the next para",
+   "indent": ""
+  },
+  {
+   "before": "**The first seconds** of a step are too cool in every layered model, t",
+   "indent": ""
+  },
+  {
+   "before": "**Uniform boards, both references** (45 boards of 30 x 20 to 100 x 80 ",
+   "indent": ""
+  },
+  {
+   "before": "**Sources**: [CarslawJaeger] (M), [IncroperaDeWitt] (M), [MFEMStaticCo",
+   "indent": ""
+  },
+  {
+   "before": "**That film term is in the model** (1.2a: `h_eff = 1/(1/h + t/(2k))` o",
+   "indent": ""
+  },
+  {
+   "before": "**Published cases** (re-run in the audit of 2.8.0, `releases/2.8.0/aud",
+   "indent": ""
+  },
+  {
+   "before": "**The Seri Lee plate** [EC1998Spreading] (R for its equations 1 and 2 ",
+   "indent": ""
+  },
+  {
+   "before": "**The four plates of [Muzychka2003]** (numbers of this paragraph are t",
+   "indent": ""
+  },
+  {
+   "before": "**Source: none.** The three numbers are those of the original program ",
+   "indent": ""
+  },
+  {
+   "before": "**Source and status**: `0.54 Ra^{1/4}` is the correlation of Lloyd and",
+   "indent": "  "
+  },
+  {
+   "before": "**Ranges**: the form is printed for `Ra ≥ 10⁷` with no upper bound ('c",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled in this branch**: the reference temperature that Lienha",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction** (table): against Raithby-Hollands the prog",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: after a computed-`h` run of a horizontal board, the top ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the laws assume an isolated isothermal plate with fr",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_orientation.py` (the law written out), `valid",
+   "indent": "  "
+  },
+  {
+   "before": "**Face turned down and its limit**: the constant 0.475 is the average ",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction** (table): +8.1 % above Fujii-Imura, +2.0 % ",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the bottom face outside `Ra` 10² to 10⁹ after a computed",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the stable layer under the board needs the air to le",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_orientation.py`, `tests/test_convection_publi",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: each form is its printed equation (deviat",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: the laminar form above `Ra` 10⁹ ('choose the general for",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: the air drawn in at the sides of a small board, the ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not covered**: no study of the program lies between `Ra` 10³ and 10⁴",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_convection_published.py` (Example 8.1), `test",
+   "indent": "  "
+  },
+  {
+   "before": "**Source and status**: the laminar mean `0.664 Re^{1/2} Pr^{1/3}` (Poh",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: 0 against eq. 6.68; −3.5 % against the un",
+   "indent": "  "
+  },
+  {
+   "before": "**Range**: the laminar plate holds from about `Re` 100 to the transiti",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: when `air_speed` > 0 and the `Re` of a face is outside 1",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: parts standing in the flow (they trip the layer and ",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: `tests/test_convection_published.py` (Example 6.5), `vali",
+   "indent": "  "
+  },
+  {
+   "before": "**Source and status**: the exponent 3 is Churchill's rule [ChurchillBl",
+   "indent": "  "
+  },
+  {
+   "before": "**Deviation and direction**: with equal natural and forced terms, `p` ",
+   "indent": "  "
+  },
+  {
+   "before": "**Not modelled**: opposing flow (the program never subtracts the two t",
+   "indent": "  "
+  },
+  {
+   "before": "**Warnings**: none. **Checked**: no mixed-convection case has been che",
+   "indent": "  "
+  },
+  {
+   "before": "**Checked**: no mixed-convection case has been checked against a measu",
+   "indent": "  "
+  }
+ ],
+ "edits": [
+  {
+   "sec": "11",
+   "why": "The plate row cited validation 20, whose body is in validation-history.md; the current evidence is theory 7.5 (re-run by the final review of 2.8.0)",
+   "old": "(validation 20; theory 7.5; the −4.6 % of validation 25 is the earlier thin-plate solver of a study)",
+   "new": "(theory 7.5, re-run by the final review of 2.8.0; the −4.6 % of validation 25 and of the history of validation 20 is the earlier thin-plate solver of a study)"
+  },
+  {
+   "sec": "2.2",
+   "why": "The sentence stated as a finding a claim that the note after it marks as not verified",
+   "old": "No cold spot was found on full copper; in 50 random via layouts",
+   "new": "On full copper the review of 2.4.5 reported no cold spot (not verified, see the note); in 50 random via layouts"
+  }
+ ]
+}
