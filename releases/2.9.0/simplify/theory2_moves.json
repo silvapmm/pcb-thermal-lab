@@ -58,7 +58,7 @@
    "label": "Maximum principle: the counts of positive entries",
    "start": "; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries",
    "end": "at most 0.022 of the sum of the negative entries of the row);",
-   "new": "; audit of 2.8.0, re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.023 / 0.022 of the diagonal; the counts at 0.5 mm and the other ratios are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.2);",
+   "new": "; audit of 2.8.0, re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), 432 / 432 at 0.5 mm and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.023 / 0.022 of the diagonal; the other ratios are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.2);",
    "point": [],
    "move": true
   },
@@ -85,7 +85,7 @@
    "label": "Via well: the shares of the sheet the well reads",
    "start": "(only in the cells the rule flags: 0.5 to 1.3 % of the sheet",
    "end": "equal or closer by at most 0.005 K, so it is kept",
-   "new": "(only in the cells the rule flags). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K; against a resolved 3D barrel the order used is equal or closer, so it is kept",
+   "new": "(only in the cells the rule flags). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K; against a resolved 3D barrel the order used is equal or closer, so it is kept (the shares of the sheet and the measured differences: `validation-history.md`, 'Theory passages moved by the second simplification', 2.6)",
    "point": [],
    "move": true
   },
@@ -133,7 +133,7 @@
    "label": "Memory guard: the peak of the via boards and the CO60 runs",
    "start": "(106 runs on the plates and CO60, one process per run; the first fit, 0.40 on SuperLU's default mode, and why it was replaced are in `versions.md`)",
    "end": "full copper 0.5 mm 0.66 GB (0.81).",
-   "new": "(106 runs on the plates and CO60, one process per run; the first fit and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times, against 13 of 85 by 1.33 with no term (`validation.md` 26; `research/memory-guard` README 14.12; the CO60 peaks and the first fit are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.7).",
+   "new": "(106 runs on the plates and CO60, one process per run; the first fit and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times (small CO60 boards that the law without vias already misses), against 13 of 85 by 1.33 with no term (`validation.md` 26; `research/memory-guard` README 14.12; the CO60 peaks and the first fit are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.7).",
    "point": [],
    "move": true
   },
@@ -142,7 +142,7 @@
    "label": "Memory guard: the resident size of the process after runs",
    "start": "(0.08 GB fresh, 0.67 GB after one 1 mm run",
    "end": "so they are not counted again",
-   "new": "(0.08 GB fresh, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve, so they are not counted again",
+   "new": "(0.08 GB fresh, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve, so they are not counted again (the other measurements: `validation-history.md`, 'Theory passages moved by the second simplification', 2.7)",
    "point": [],
    "move": true
   },
@@ -169,7 +169,7 @@
    "label": "First ring: the part read cool on large boards",
    "start": "(0.79 for a ring one radius wide, closed form, pure conduction; the drop measured",
    "end": "against the FVM at 0.5 mm (Lumped cell 0.5 mm).",
-   "new": "(0.79 for a ring one radius wide, closed form, pure conduction), so the part read cool: a 1 mm part on a uniform two-layer sheet, centred, −25.3 % on 200 x 150 mm against the FVM at 0.5 mm (Lumped cell 0.5 mm; the other boards and the drop measured on the FVM field are in `validation.md` 31 and `validation-history.md`, 'Theory passages moved by the second simplification', 5).",
+   "new": "(0.79 for a ring one radius wide, closed form, pure conduction), so the part read cool, more on a larger board: a 1 mm part on a uniform two-layer sheet, centred, −25.3 % on 200 x 150 mm against the FVM at 0.5 mm (Lumped cell 0.5 mm; the other boards and the drop measured on the FVM field are in `validation.md` 31 and `validation-history.md`, 'Theory passages moved by the second simplification', 5).",
    "point": [],
    "move": true
   },
@@ -222,7 +222,7 @@
    "label": "Local transient: the boards outside the study",
    "start": "The review added boards outside it (FVM at 0.5 mm): two parts with vias under one",
    "end": "the step curve up to 6.9 % of the steady resistance off.",
-   "new": "The review added boards outside it (FVM at 0.5 mm): the time to 63 % reads between −0.5 and +4.2 % on them, but the peak of a square-wave profile run reads 5 to 7 % low on a four-layer 40 x 30 mm board with two overlapping parts, 25 vias and a 200 W/m²K heatsink, and the step curve of a part at the edge over partial copper (fill 0.3, `h_side` 50, vias at the edge) is up to 6.9 % of the steady resistance off (the other boards of the review: `validation-history.md`, 'Theory passages moved by the second simplification', 6).",
+   "new": "The review added boards outside it (FVM at 0.5 mm): the time to 63 % reads −0.5 to +4.2 % on the boards with vias or a heatsink (+10.3 % on a board of unlike layers with neither, which this coupling does not touch), but the peak of a square-wave profile run reads 5 to 7 % low on a four-layer 40 x 30 mm board with two overlapping parts, 25 vias and a 200 W/m²K heatsink, and the step curve of a part at the edge over partial copper (fill 0.3, `h_side` 50, vias at the edge) is up to 6.9 % of the steady resistance off (every board of the review: `validation.md` 4.1; the sentence as it stood: `validation-history.md`, 'Theory passages moved by the second simplification', 6).",
    "point": [],
    "move": true
   },
@@ -257,7 +257,7 @@
    "label": "Muzychka plates: the per-case numbers",
    "start": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low (9.2 and 9.8 % of the independent solver's); case 1 (b)",
    "end": "(`validation.md` 22.1, `research/muzychka-case2-analytic`).",
-   "new": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low; case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 4.0 to 7.0 % of the rise low, of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`; the figures against the independent solver: `validation-history.md`, 'Theory passages moved by the second simplification', 7).",
+   "new": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low; case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 2.9 to 5.5 K low (4.0 to 7.0 % of the rise), of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`; the figures against the independent solver: `validation-history.md`, 'Theory passages moved by the second simplification', 7).",
    "point": [],
    "move": true
   },
@@ -302,7 +302,7 @@
    "label": "Profile limits table: vias under a part",
    "start": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
    "end": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
-   "new": "1.07 to 2.04 at 0.1 to 1 Hz (two and four layers); 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "new": "1.03 to 2.04 at 0.1 to 1 Hz (two and four layers; the 1.07 written before was the 0.1 Hz minimum of two layers); 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
    "point": [
     [
      "validation.md",
