@@ -1027,16 +1027,38 @@ def _footprint_coverage(net, heater):
     return cov
 
 
+RINGS_MIN = 3              # Fewest rings a network may have (SolverOptions.lumped_rings has the same limit: one or two rings are not a radial model)
+
+
+def check_rings(rings):
+    """!
+    @brief Validate the number of rings of a heater network: an integer (numpy integers allowed, bool and floats refused) of at least RINGS_MIN.
+    @param rings Number of rings outside each footprint (dimensionless count).
+    @return int The same number as a Python int.
+    @throws ValueError If rings is not an integer or is below RINGS_MIN (the message names the parameter and the minimum).
+    @note SolverOptions.validate refuses lumped_rings < 3 with "lumped_rings must be >= 3"; a positional call such as solve_steady(p, 1.0) (the cell
+          passed as rings) once ran a one-ring network unnoticed, so the three entry points check the value as well.
+    """
+    # bool is an int subclass: True would read as one ring, so it is refused as not a count
+    if isinstance(rings, (bool, np.bool_)) or not isinstance(rings, (int, np.integer)):
+        raise ValueError(f"rings must be an integer >= {RINGS_MIN}, got {rings!r}")
+    if rings < RINGS_MIN:
+        raise ValueError(f"rings must be an integer >= {RINGS_MIN}, got {rings!r}")
+    return int(rings)
+
+
 def solve_steady(problem, rings=10, cell_mm=1.0):
     """!
     @brief Steady-state solution of the offset-contour networks (one per heater) with superposition.
     @param problem A Problem.
-    @param rings Number of rings outside each footprint (more rings = finer radial resolution).
+    @param rings Number of rings outside each footprint (integer >= 3; more rings = finer radial resolution).
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @note A metal block is one more layer of the ring network: the block layer of the FVM network (conductance k t, contact to the board layer over the copper, exposed surface
           with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within about 5 % with one pad and up to about 7 % (cool side) with several pads or a block much smaller than the board (docs/validation.md section 17).
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
+    @throws ValueError If rings is not an integer or is below 3.
     """
+    rings = check_rings(rings)                                   # Before any work: the cell passed as the positional rings used to run a one-ring network
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
     problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem.validate()
@@ -1213,7 +1235,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     """!
     @brief Unit-step response of every heater's hottest point with the thermal-network model.
     @param problem A Problem with at least one heater.
-    @param rings Rings outside each footprint.
+    @param rings Rings outside each footprint (integer >= 3).
     @param cell_mm Raster size in millimetres.
     @param t_end Last time in seconds (default: ten board time constants).
     @param ratio Growth factor of the time step between stages.
@@ -1221,7 +1243,9 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     @param stages Number of stages.
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
     @return Tuple (times, z, rth) as in fvm.step_responses.
+    @throws ValueError If rings is not an integer or is below 3.
     """
+    rings = check_rings(rings)
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
     problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     net, systems = _unit_networks(problem, rings, cell_mm)
@@ -1360,12 +1384,14 @@ def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=Non
     @param problem A Problem (heater powers equal the averages).
     @param decisions Decisions from profiles.decide().
     @param options ProfileOptions.
-    @param rings Rings outside each footprint.
+    @param rings Rings outside each footprint (integer >= 3).
     @param cell_mm Raster size in millimetres.
     @param progress Optional callback progress(message, fraction).
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
+    @throws ValueError If rings is not an integer or is below 3.
     """
+    rings = check_rings(rings)
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
     problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)

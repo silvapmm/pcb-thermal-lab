@@ -107,7 +107,10 @@ def main():
         for pad in (None, 20, 30, 40, 60, 80):
             key = pad or 10
             out[f"program_{key}"] = round(float(simulate(pads_board(Problem, pad), SolverOptions(models=("lumped",), cell_mm=1.0)).results["lumped"].t_max), 1)
-            out[f"study_rings1_{key}"] = round(float(lumped.solve_steady(pads_board(Problem, pad), 1.0).t_max), 1)   # rings = 1.0, as the study passes it
+            try:
+                out[f"study_rings1_{key}"] = round(float(lumped.solve_steady(pads_board(Problem, pad), 1.0).t_max), 1)   # rings = 1.0, as the study passed it
+            except ValueError as exc:                                                       # Trees with the rings guard refuse it, which is the point of the guard
+                out[f"study_rings1_{key}"] = f"refused: {exc}"
     elif a.case == "fem":
         for pad in (None, 20, 80):
             out[f"fem_{pad or 10}"] = round(float(simulate(pads_board(Problem, pad), SolverOptions(models=("fem",), cell_mm=a.cell or 1.0)).results["fem"].t_max), 1)
