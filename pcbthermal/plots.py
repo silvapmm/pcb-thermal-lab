@@ -11,6 +11,7 @@ the GUI can embed the figure in a Qt canvas and the command line can save it to 
 
 import functools
 import math
+import re
 import warnings
 from dataclasses import dataclass, field as dc_field
 
@@ -129,19 +130,35 @@ def draw_unless_collapsed(fig, draw):
              warns at every paint. The draw is tried once with that one warning caught; when it fired, the axes and the legends are hidden for a second, blank draw
              and the layout engine and visibility are restored, so the next draw (the canvas grew) lays the chart out as usual. At a size where the layout succeeds
              nothing changes: the same draw, the same pixels. Every other warning is passed on untouched.
+    @note Only the collapse message gets a filter of its own ("always", so that every paint can tell, also under `-W error`); the other warnings meet the
+          filters in force where they are raised (module filters, "ignore", "error"), are only recorded here and are handed on unchanged.
+          Review: the first version set `simplefilter("always")` for every warning and re-raised the others with `warn_explicit`, which names the module
+          by its file path, so a filter on a module name (pytest's `filterwarnings`, `-W ...:module`) no longer applied: an ignored library warning was
+          shown and an "error" one was not raised.
+    @note `warnings.catch_warnings` changes process-wide state: call this from the GUI thread only (Qt paints there; the solvers run in a worker process).
+          Entering and leaving it also resets the "once per place" memory of the warnings module, so a "default" warning raised again anywhere in the
+          process after a guarded paint is shown again (measured: 3 times over 3 paints instead of 1). The program shows no Python warning to the user
+          (they go to stderr), so this is accepted; the cost is about 1 microsecond per paint.
     @param fig Figure (its canvas is the one `draw` paints).
     @param draw Callable with no argument that paints the figure (for example the canvas draw of the base class).
     @return bool True when the canvas was too small and a blank figure was drawn.
     """
     with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+        warnings.filterwarnings("always", message=re.escape(COLLAPSE_WARNING), category=UserWarning)   # Prepended: wins over the filters in force for this one message
         draw()
     collapsed = False
     for w in caught:
-        if COLLAPSE_WARNING in str(w.message):
+        if issubclass(w.category, UserWarning) and str(w.message).startswith(COLLAPSE_WARNING):
             collapsed = True
         else:
-            warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)    # Not ours: raise it again as it was
+            # Not ours: it already passed the filters in force where it was raised (else it would not be recorded), so it is shown as is, without a second
+            # filtering (warn_explicit would filter it again under its file path instead of its module name). _showwarnmsg is the hook warn() itself ends
+            # in; it honours a replaced showwarning and a recording catch_warnings (pytest)
+            show = getattr(warnings, "_showwarnmsg", None)
+            if show is not None:
+                show(w)
+            else:                                                       # A Python without the hook: filtered again (module filters may then miss it)
+                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source)
     if not collapsed:
         return False
     hidden = [a for a in list(fig.axes) + list(fig.legends) if a.get_visible()]
