@@ -13,6 +13,7 @@ import functools
 import math
 from dataclasses import dataclass, field as dc_field
 
+import matplotlib
 import numpy as np
 from matplotlib import ticker
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -26,7 +27,7 @@ from scipy import ndimage
 from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
-from .results import model_label, short_name
+from .results import model_color, model_label, model_order, short_name
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -1017,26 +1018,46 @@ def _legend_outside(fig, ax, loc="outside right upper", **kw):
 
 
 @_with_engineering_ticks
-def draw_comparison(fig, results):
+def draw_comparison(fig, results, reference=None):
     """!
-    @brief Bar chart comparing the maximum and mean temperature of the models.
+    @brief Bar chart of the whole board in every model: two groups (Tmax of the column, Tmean of all layers) with one bar per model.
+    @details The bars follow the order of the parts table (the reference first, then the program order) and keep the colour of their model whatever other models ran.
+             The reference is hatched and outlined and named in the legend and in the two-line title; the values are written upright on the bars (they fit a narrow bar and
+             never meet the next one); the axis starts at zero (no cut axis). The hatch colour is set explicitly so that the chart reads on the light and the dark theme.
     @param fig Target Figure (cleared first).
     @param results Dict {model: SteadyResult}.
+    @param reference Key of the reference model (None: the FVM when it ran, else the first model).
     """
     fig.clear()
     ax = fig.add_subplot(111)
-    names = list(results)
-    x = np.arange(len(names))
-    ax.bar(x - 0.2, [results[n].t_max for n in names], 0.4, label="Tmax")
-    ax.bar(x + 0.2, [results[n].t_mean for n in names], 0.4, label="Tmean")
-    for k, n in enumerate(names):
-        ax.text(k - 0.2, results[n].t_max + 0.5, f"{results[n].t_max:.1f}", ha="center", fontsize=8)
-        ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
-    ax.set_xticks(x)
-    ax.set_xticklabels([model_label(n) for n in names])        # "LPTN", as the tables, not the key `lumped`
-    ax.set_ylabel(COLUMN_LABEL)
-    _legend_outside(fig, ax)
+    names = model_order(list(results), reference if reference in results else ("fvm" if "fvm" in results else next(iter(results), None)))
+    ref = names[0] if names else None
+    n = max(len(names), 1)
+    width = 0.8 / n
+    text = matplotlib.rcParams["text.color"]
+    top = max([float(results[m].t_max) for m in names] + [1.0])
+    for k, m in enumerate(names):
+        vals = [float(results[m].t_max), float(results[m].t_mean)]
+        label = f"{model_label(m)} (reference)" if m == ref else model_label(m)
+        bars = ax.bar(np.arange(2) + (k - (n - 1) / 2) * width, vals, width, color=model_color(m), label=label)
+        for b, v in zip(bars, vals):
+            if m == ref:
+                b.set_hatch("///")
+                b.set_edgecolor(text)
+                b.set_linewidth(1.0)
+                b.set_hatchcolor("white")                  # Explicit: the hatch would otherwise take the theme's text colour and vanish against the outline
+            tall = v > 0.12 * top                          # A short bar cannot hold the upright number: it goes above it
+            ax.text(b.get_x() + b.get_width() / 2, v - 0.015 * top if tall else v + 0.01 * top, f"{v:.1f}", rotation=90, ha="center", va="top" if tall else "bottom",
+                    fontsize=7, color="white" if tall else text, fontweight="bold" if m == ref else "normal",
+                    bbox=dict(boxstyle="square,pad=0.1", fc=model_color(m), ec="none") if (m == ref and tall) else None)   # A plain patch under the number of the hatched bar
+    ax.set_xticks(np.arange(2))
+    ax.set_xticklabels(["Tmax (column)", "Tmean (all layers)"], fontsize=9)
+    ax.set_ylabel("Temperature (°C)")                  # Both groups: the column maximum and the all-layer mean are named by the group labels
+    ax.set_ylim(0, top * 1.08)
+    ax.set_title(f"All models - the whole board\nreference {model_label(ref)} (hatched), column", fontsize=10)
     ax.grid(axis="y", alpha=0.3)
+    # Lower right, like the heater bars: the title has two lines and the upper right would sit on top of it
+    _legend_outside(fig, ax, loc="outside right lower", fontsize=8)
 
 
 @_with_engineering_ticks
@@ -1279,14 +1300,15 @@ def plot_profiles(results, problem, path, picture="map", underlay=None, map_alph
     _save(fig, path)
 
 
-def plot_comparison(results, path):
+def plot_comparison(results, path, reference=None):
     """!
     @brief Save the model comparison bars.
     @param results Dict {model: SteadyResult}.
     @param path Output PNG path.
+    @param reference Key of the reference model (None: the FVM when it ran, else the first model).
     """
-    fig = new_figure(6, 4)
-    draw_comparison(fig, results)
+    fig = new_figure(7, 4)
+    draw_comparison(fig, results, reference)
     _save(fig, path)
 
 

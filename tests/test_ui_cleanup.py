@@ -22,8 +22,9 @@ def test_the_comparison_plot_writes_the_names_of_the_models_not_their_keys():
     fig = Figure()
     results = {k: SimpleNamespace(t_max=80.0 + i, t_mean=50.0 + i) for i, k in enumerate(("fvm", "lumped", "analytic", "fdm", "solid3d"))}
     plots.draw_comparison(fig, results)
-    labels = [t.get_text() for t in fig.axes[0].get_xticklabels()]
-    assert labels == ["FVM", "LPTN", "Analytic", "FDM", "3D solid"]
+    # One bar per model (the legend names them); the groups on the x axis are the two readings of the board
+    labels = [t.get_text() for t in fig.legends[0].get_texts()] if fig.legends else [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
+    assert labels == ["FVM (reference)", "LPTN", "Analytic", "FDM", "3D solid"]
 
 
 def test_a_log_axis_of_more_than_six_decades_gets_a_tick_every_three_decades():

@@ -1903,3 +1903,39 @@ def test_element_tree_filter_in_the_application(win, qtbot):
     el.filter.setText("heater")
     win.a_find.trigger()
     el.filter.clear()
+
+
+def test_models_tab_parts_tables_with_one_three_and_six_models_clear_and_themes(win, qtbot):
+    """!
+    @brief The Models tab (two tables of the parts, one chart of the board) through runs with 1, 3 and 6 models, a clear and theme toggles, at the 1200 x 800 layout.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    win.resize(1200, 800)
+    load(win, example_board())
+    rv = win.results
+    tab = rv.compare
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), MODELS_WITH_FEM):
+        run(win, qtbot, models=models, cell=3.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        rv.tabs.setCurrentWidget(tab)
+        qtbot.wait(50)
+        ran = [m for m in tab.models_shown]
+        assert ran and ran[0] == win.sim.reference.model and set(ran) <= set(models)      # a model the guard left out is simply absent
+        # every steady model that ran has its column, the 3D solid and the FEM included when they ran
+        assert set(ran) == {m for m, r in win.sim.results.items() if r.T is not None}
+        if models == MODELS_WITH_FEM:
+            assert "solid3d" in ran and ("fem" in ran) == ("fem" in win.sim.results)
+        assert tab.table_max.columnCount() == 1 + len(ran) and tab.table_max.rowCount() == len(win.sim.problem.heaters)
+        assert tab.table_max.horizontalScrollBar().maximum() == 0 and tab.chart_box.height() >= 280
+        for _ in range(2):                                   # Both themes with the tables and the chart on screen
+            win.toggle_theme()
+            qtbot.wait(20)
+            assert tab.table_max.rowCount() == len(win.sim.problem.heaters) and tab.fig.axes
+        assert len(tab.fig.axes[0].patches) == 2 * len(win.sim.results)
+    rv.clear()                                               # A board change: no run belongs to it
+    assert tab.table_max.rowCount() == 0 and tab.models_shown == []
+    win.toggle_theme()
+    win.toggle_theme()
+    run(win, qtbot, models=("fvm", "fdm"), cell=3.0)         # and a new run fills it again
+    assert tab.models_shown == ["fvm", "fdm"] and tab.table_mean.rowCount() == len(win.sim.problem.heaters)

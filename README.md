@@ -61,6 +61,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Components tab: the statistics of every part, with a line that names the reference model](docs/images/results_components.png)
 
+![Models tab: the temperature under every part in the six models, the reference first, and the whole board in every model](docs/images/results_models.png)
+
 ![Animation tab: the heat-up of the example board, frame at 55 % of the run](docs/images/animation.png)
 
 ![Temperature tab with Layer All (2 x 2), View Smooth and Underlay Copper on the 4-layer example board](docs/images/results_views.png)
