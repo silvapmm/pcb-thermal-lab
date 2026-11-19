@@ -296,6 +296,19 @@
    "new": "On an 800 × 800 mm two-layer plate with 1200 W in 64 parts (computed `h`, top-face `Ra` 3.4·10⁷) the change lowers the top convection coefficient from 7.05 to 6.61 W/m²K and raises the hottest rise by 1.1 % (the hot side). It replaced the constant `0.15` that was from memory (M; 7 % higher, a step of +6.4 % at 10⁷); the step is now −0.6 % and the deviation from the printed law there is 0 (the temperatures: `validation-history.md`, 'Theory passages moved by the second simplification', 8).",
    "point": [],
    "move": true
+  },
+  {
+   "sec": "10",
+   "label": "Profile limits table: vias under a part",
+   "start": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "end": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "new": "1.07 to 2.04 at 0.1 to 1 Hz (two and four layers); 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "point": [
+    [
+     "validation.md",
+     "37"
+    ]
+   ]
   }
  ]
 }

@@ -1281,7 +1281,7 @@ For a square wave of swing `ΔP = P_on − P_off` and duty `D`, `c_k = ΔP (1 �
 | :-- | :-- | :-- |
 | full copper, 1, 2, 4, 6 layers, top, inner or bottom heater, 2 to 10 mm, 0.1 Hz to 10 kHz, duty 10 to 90 %, h manual or computed (636 cases) | 0.995 to 1.08 (inner and 6 layers 1.17 to 1.20 at 0.1 Hz) | validated |
 | tables (20 Hz three levels, 1 Hz four levels, 100 Hz two pulses, 0.2 Hz) | 0.998 to 1.015 | validated |
-| vias under a 10 mm part (4 to 36) | 1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz | safe side |
+| vias under a 10 mm part (4 to 36) | 1.07 to 2.04 at 0.1 to 1 Hz (two and four layers); 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz | safe side |
 | elongated parts (2 x 10, 3 x 8 mm) | 0.97 to 1.37 | safe side, within 3 % below |
 | a part within its radius of a board side (or outline), wave slower than 1 Hz | 0.60 at 0.1 Hz (the warning text says 0.61), 0.71 at 0.3 Hz, 0.88 at 1 Hz (a 5 mm part 1 mm from two sides) | understated: warned (`checks.check_fast_wave`, `EDGE_WAVE_PERIOD_S` 1 s) |
 | two parts in phase, close (cross term not added) | the neighbour's wave adds 17 % at 0.1 Hz (1 mm gap), 5 % at 1 Hz, under 0.4 % from 10 Hz (closed-form estimate) | understated at slow waves: limit |
