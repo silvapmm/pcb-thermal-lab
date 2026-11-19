@@ -28,6 +28,10 @@ log = logging.getLogger(__name__)
 ## Largest unknown count solved by the direct (SuperLU symmetric) factorisation; above it the CG + AMG path is used (needs pyamg).
 FEM_DIRECT_MAX = 30000
 
+## Largest unknown count whose transient is stepped by a direct factorisation (one factor serves every step of a stage; the CG path costs about the steady iteration count at
+## EVERY step, DESIGN.md 14.3). Shipped conservative, equal to the steady limit; the measurement that may raise it is `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py`.
+FEM_TRANSIENT_DIRECT_MAX = 30000
+
 # signs of the eight local nodes (counter-clockwise quad at zeta = -1, then at zeta = +1)
 SX = np.array([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0])
 SY = np.array([-1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0])
@@ -167,6 +171,7 @@ class Model:
         E = self.elems.shape[0]
         self.k = np.ones((E, 3))                                   # (kx, ky, kz) of every element, W/mK
         self.q = np.zeros(E)                                       # volumetric source of every element, W/m3
+        self.rho_c = np.zeros(E)                                   # volumetric heat capacity of every element, J/m3K (zero: no mass, only the transient reads it)
         self.faces = []                                            # list of dicts: nodes (F, 4), h (F,), t_amb (F, 4), flux (F,)
 
     def add_faces(self, face_nodes, h=0.0, t_amb=0.0, flux=0.0, label=""):
@@ -210,6 +215,8 @@ class Model:
             raise ValueError("every element conductivity (kx, ky, kz) must be finite and positive, in W/mK")
         if self.q.shape != (E,) or not np.isfinite(self.q).all():
             raise ValueError("every element source must be a finite number in W/m3")
+        if self.rho_c.shape != (E,) or not np.isfinite(self.rho_c).all() or (self.rho_c < 0).any():
+            raise ValueError("every element heat capacity must be a finite number not below zero, in J/m3K")
         any_film = False
         for f in self.faces:
             fn = f["nodes"]
@@ -248,16 +255,18 @@ class Model:
                     v += np.abs(det_inv3(jacobian(X, dn), False)[0])
         return v
 
-    def _assemble_elements(self, chunk=20000, cancel: Optional[Callable[[], bool]] = None):
+    def _assemble_elements(self, chunk=20000, cancel: Optional[Callable[[], bool]] = None, mass: bool = False):
         """!
-        @brief Stiffness triplets and volumetric load of all elements, in chunks to bound the memory.
+        @brief Stiffness triplets and volumetric load of all elements, in chunks to bound the memory; optionally the consistent mass triplets in the SAME element loop.
+        @details The mass uses the Jacobians the stiffness has just computed, so it adds only the outer product `N N^T` times `rho c det` per Gauss point (DESIGN.md 14.3).
         @param chunk Elements per chunk.
         @param cancel Optional callable checked between chunks; True aborts with FemCancelled.
-        @return Tuple (rows, cols, vals, rhs) with rhs the nodal load (N,) in W.
+        @param mass True: also return the values of the consistent mass matrix (the rows and columns are those of the stiffness).
+        @return Tuple (rows, cols, vals, rhs) with rhs the nodal load (N,) in W; with `mass` a fifth item, the list of mass values per chunk (as `vals`), in J/K.
         """
         E = self.elems.shape[0]
         N = self.nodes.shape[0]
-        rows, cols, vals = [], [], []
+        rows, cols, vals, mvals = [], [], [], []
         rhs = np.zeros(N)
         gps = [(gx, gy, gz) for gx in (-G1, G1) for gy in (-G1, G1) for gz in (-G1, G1)]
         for a in range(0, E, chunk):
@@ -268,6 +277,7 @@ class Model:
             k = self.k[a:a + chunk]
             ke = np.zeros((el.shape[0], 8, 8))
             fe = np.zeros((el.shape[0], 8))
+            me = np.zeros((el.shape[0], 8, 8)) if mass else None
             for gx, gy, gz in gps:
                 n, dn = shape(gx, gy, gz)
                 # closed-form 3 x 3 determinant and inverse and batched matrix products instead of per-call numpy.linalg and einsum (the same numbers to
@@ -278,10 +288,17 @@ class Model:
                 # B diag(k) B^T times det (weight 1 at every Gauss point)
                 ke += np.matmul(B * (k * det[:, None])[:, None, :], B.transpose(0, 2, 1))
                 fe += (self.q[a:a + chunk] * det)[:, None] * n[None, :]
+                if mass:
+                    # consistent mass: rho c N N^T det (weight 1 at every Gauss point), the Jacobian determinant of the stiffness reused
+                    me += (self.rho_c[a:a + chunk] * det)[:, None, None] * np.outer(n, n)[None, :, :]
             rows.append(np.repeat(el, 8, axis=1).ravel())
             cols.append(np.tile(el, (1, 8)).ravel())
             vals.append(ke.ravel())
+            if mass:
+                mvals.append(me.ravel())
             np.add.at(rhs, el.ravel(), fe.ravel())
+        if mass:
+            return rows, cols, vals, rhs, mvals
         return rows, cols, vals, rhs
 
     def _assemble_faces(self):
@@ -316,16 +333,22 @@ class Model:
             np.add.at(gam, fn.ravel(), mf.sum(axis=2).ravel())
         return rows, cols, vals, rhs, gam, q_amb
 
-    def assemble(self, cancel: Optional[Callable[[], bool]] = None):
+    def assemble(self, cancel: Optional[Callable[[], bool]] = None, capacity: bool = False):
         """!
-        @brief Assemble the global matrix and load.
+        @brief Assemble the global matrix and load, and with `capacity` the heat capacity matrix in the same element loop.
         @param cancel Optional cancel callable (see `_assemble_elements`).
+        @param capacity True: the result also holds M (the consistent mass, csc on the used nodes, J/K), m_lump (its row sums, (n,) in J/K) and capacity_total (the sum of
+               all its entries, J/K, equal to the integral of rho c over the mesh).
         @return dict with A (csc, used nodes only), rhs, used (bool N), gam, q_gen (W generated by the volumetric sources), q_flux (W of the
-                prescribed fluxes), q_amb (integral of h T_amb).
+                prescribed fluxes), q_amb (integral of h T_amb); with `capacity` also M, m_lump, capacity_total.
         @throws ValueError If `validate` refuses the inputs.
         """
         self.validate()
-        r1, c1, v1, rhs1 = self._assemble_elements(cancel=cancel)
+        if capacity:
+            r1, c1, v1, rhs1, mv = self._assemble_elements(cancel=cancel, mass=True)
+        else:
+            r1, c1, v1, rhs1 = self._assemble_elements(cancel=cancel)
+            mv = None
         r2, c2, v2, rhs2, gam, q_amb = self._assemble_faces()
         N = self.nodes.shape[0]
         used = np.zeros(N, bool)
@@ -336,6 +359,12 @@ class Model:
         c = np.concatenate(c1 + c2)
         v = np.concatenate(v1 + v2)
         A = sp.csr_matrix((v, (remap[r], remap[c])), shape=(n, n)).tocsc()
+        extra = {}
+        if capacity:
+            # the mass has the element triplets only (a film face has no capacity); the same remap as A, so the two share their unknowns
+            M = sp.csr_matrix((np.concatenate(mv), (remap[np.concatenate(r1)], remap[np.concatenate(c1)])), shape=(n, n)).tocsc()
+            extra = {"M": M, "m_lump": np.asarray(M.sum(axis=1)).ravel(), "capacity_total": float(M.sum())}
+            del mv
         del r, c, v, r1, c1, v1, r2, c2, v2
         q_gen = float((self.q * self.element_volumes()).sum())
         q_flux = 0.0
@@ -347,7 +376,47 @@ class Model:
                     t = np.einsum("fai,aj->fij", X, dn)
                     dA = np.linalg.norm(np.cross(t[:, :, 0], t[:, :, 1]), axis=1)
                     q_flux += float((f["flux"] * dA).sum())
-        return {"A": A, "rhs": (rhs1 + rhs2)[used], "used": used, "gam": gam, "q_gen": q_gen, "q_flux": q_flux, "q_amb": q_amb}
+        return {"A": A, "rhs": (rhs1 + rhs2)[used], "used": used, "gam": gam, "q_gen": q_gen, "q_flux": q_flux, "q_amb": q_amb, **extra}
+
+    def load_vector(self, elem_ids=None, q_unit=None, face_nodes=None, flux_unit=None):
+        """!
+        @brief Nodal load of a UNIT power spread over a group of elements (a volume source) and/or a group of faces (a prescribed flux), on the used unknowns.
+        @details The same Gauss rules as the load of `assemble`, so that for the heaters of a mesh `sum_h p_h load_vector(h)` equals the steady `rhs` at the heater powers (the
+                 load test). `q_unit` and `flux_unit` are densities per watt: W/m3 and W/m2 for a power of 1 W.
+        @param elem_ids Element indices (n,) that carry the source (None: none).
+        @param q_unit Source density of those elements for 1 W, W/m3 per W, array (n,) or a number.
+        @param face_nodes Node ids (F, 4) of the faces that carry a prescribed flux (None: none).
+        @param flux_unit Flux into the body over those faces for 1 W, W/m2 per W, array (F,) or a number.
+        @return numpy.ndarray (n_used,) nodal load in W per W (K/W units cancel: the load of a unit power).
+        """
+        N = self.nodes.shape[0]
+        rhs = np.zeros(N)
+        if elem_ids is not None and len(elem_ids):
+            ids = np.asarray(elem_ids, np.int64)
+            qq = np.broadcast_to(np.asarray(q_unit, float), ids.shape)
+            el = self.elems[ids]
+            X = self.nodes[el]
+            fe = np.zeros((el.shape[0], 8))
+            for gx in (-G1, G1):
+                for gy in (-G1, G1):
+                    for gz in (-G1, G1):
+                        n, dn = shape(gx, gy, gz)
+                        det = np.abs(det_inv3(jacobian(X, dn), False)[0])
+                        fe += (qq * det)[:, None] * n[None, :]
+            np.add.at(rhs, el.ravel(), fe.ravel())
+        if face_nodes is not None and len(face_nodes):
+            fn = np.asarray(face_nodes, np.int64).reshape(-1, 4)
+            fl = np.broadcast_to(np.asarray(flux_unit, float), (fn.shape[0],))
+            X = self.nodes[fn]
+            for gx in (-G1, G1):
+                for gy in (-G1, G1):
+                    n, dn = face_shape(gx, gy)
+                    t = np.einsum("fai,aj->fij", X, dn)
+                    dA = np.linalg.norm(np.cross(t[:, :, 0], t[:, :, 1]), axis=1)
+                    np.add.at(rhs, fn.ravel(), ((fl * dA)[:, None] * n[None, :]).ravel())
+        used = np.zeros(N, bool)
+        used[self.elems.ravel()] = True
+        return rhs[used]
 
     def solve(self, direct_max: int = FEM_DIRECT_MAX, tol: float = 1e-10, cancel: Optional[Callable[[], bool]] = None, force: Optional[str] = None):
         """!
@@ -444,6 +513,143 @@ class Model:
                     tot += float(((T[el] @ n) * det).sum())
                     vol += float(det.sum())
         return tot, vol
+
+
+class Stepper:
+    """!
+    @brief Linear solver of the theta step `(M/dt + theta A) T1 = M T0/dt - (1 - theta) A T0 + load`, with ONE factor or hierarchy alive at a time.
+    @details The matrix depends on `dt` and `theta` only, never on the power: `prepare` builds it (freeing the previous factor FIRST, as `fvm.transient_from_network` does, so that
+             the peak is one factor and not two) and factors it (SuperLU in symmetric mode up to `direct_max` unknowns) or builds the pyamg hierarchy for conjugate gradients above.
+             With `M = None` the object is the steady solver (`prepare(0, 1)` is the matrix `A`), which is how several right-hand sides share one factor. The right-hand side is two
+             matrix-vector products, no assembled `B_rhs`. An implicit-Euler half step has the matrix `2 (M/h + A/2)`: `euler_half_step` solves it with the Crank-Nicolson factor
+             of the step `h`, so the Rannacher start costs no factorisation (DESIGN.md 14.1).
+    """
+
+    def __init__(self, A, M=None, direct_max: int = FEM_DIRECT_MAX, tol: float = 1e-10, cancel: Optional[Callable[[], bool]] = None, force: Optional[str] = None):
+        """!
+        @brief Hold the matrices; nothing is factored until `prepare`.
+        @param A Stiffness plus film matrix (csc, n x n), W/K.
+        @param M Consistent mass matrix (csc, n x n) in J/K, or None for the steady solver.
+        @param direct_max Largest n solved by SuperLU; above it conjugate gradients with pyamg.
+        @param tol Relative residual of the conjugate gradients (dimensionless).
+        @param cancel Optional callable checked before every solve; True raises FemCancelled.
+        @param force None (by size), 'direct' or 'cg' (tests and studies).
+        @return None.
+        @throws ValueError If `force` is not None, 'direct' or 'cg'.
+        """
+        if force not in (None, "direct", "cg"):
+            raise ValueError(f"force must be None, 'direct' or 'cg', not {force!r}")
+        self.A, self.M = A, M
+        self.n = A.shape[0]
+        self.tol, self.cancel = tol, cancel
+        self.solver = ("cg" if force == "cg" else "direct") if force is not None else ("direct" if self.n <= direct_max else "cg")
+        self.iterations = 0                                        # CG iterations of the last solve
+        self.total_iterations = 0                                  # over every solve
+        self.factorisations = 0                                    # factors or hierarchies built
+        self.solves = 0
+        self._key = None
+        self._B = self._lu = self._prec = None
+
+    def close(self):
+        """!
+        @brief Free the factor or hierarchy and the matrix of the current step size.
+        @return None.
+        """
+        self._key = self._B = self._lu = self._prec = None
+
+    def prepare(self, dt: float, theta: float):
+        """!
+        @brief Build the solver of `M/dt + theta A` (`dt = 0` or no mass: the steady matrix A), freeing the previous one first.
+        @param dt Step in s (0 for the steady matrix).
+        @param theta Implicitness, in (0, 1].
+        @return None.
+        @throws FemUnavailable If the CG path is needed and pyamg is not installed.
+        @throws ValueError If the matrix is singular (a part of the mesh with no film).
+        """
+        steady = (self.M is None) or dt == 0
+        key = ("steady",) if steady else (round(float(dt), 15), float(theta))
+        if key == self._key:
+            return
+        self.close()                                               # the old factor is dead weight: free it before the new one is built
+        B = (self.A if steady else (self.M / dt + theta * self.A)).tocsc()
+        if self.solver == "direct":
+            try:
+                self._lu = spla.splu(B, permc_spec="MMD_AT_PLUS_A", diag_pivot_thresh=0.0, options=dict(SymmetricMode=True))
+            except RuntimeError as exc:
+                raise ValueError(f"the finite-element matrix is singular ({exc}): is every part of the mesh connected to a film face?") from exc
+        else:
+            pyamg = _import_pyamg()
+            ml = pyamg.smoothed_aggregation_solver(B.tocsr(), symmetry="symmetric", strength=("symmetric", {"theta": 0.0}), max_coarse=200)
+            self._prec = ml.aspreconditioner(cycle="V")
+        self._B, self._key = B, key
+        self.factorisations += 1
+
+    def solve(self, b, x0=None):
+        """!
+        @brief Solve with the prepared matrix.
+        @param b Right-hand side (n,).
+        @param x0 Start of the conjugate gradients (the previous field: a warm start); ignored by the direct path.
+        @return numpy.ndarray (n,) solution.
+        @throws FemCancelled If the cancel callable returned True.
+        @throws RuntimeError If `prepare` was not called or the conjugate gradients do not converge.
+        """
+        if self._key is None:
+            raise RuntimeError("Stepper.solve before prepare")
+        if self.cancel is not None and self.cancel():
+            raise FemCancelled("the finite-element time stepping was cancelled")
+        self.solves += 1
+        if self.solver == "direct":
+            return self._lu.solve(b)
+        if b.ndim == 2:
+            # several right-hand sides on the conjugate-gradient path: one solve per column, one hierarchy
+            return np.column_stack([self.solve(b[:, j], None if x0 is None else x0[:, j]) for j in range(b.shape[1])])
+        count = [0]
+
+        def _tick(_xk):
+            """!
+            @brief Count one conjugate-gradient iteration.
+            @param _xk Current iterate (unused).
+            @return None.
+            """
+            count[0] += 1
+        x, info = spla.cg(self._B, b, x0=x0, rtol=self.tol, maxiter=5000, M=self._prec, callback=_tick)
+        bn = float(np.linalg.norm(b))
+        if info == 0 and bn > 0 and float(np.linalg.norm(self._B @ x - b)) / bn > max(1e-8, 100 * self.tol):
+            x, info = spla.cg(self._B, b, x0=x, rtol=self.tol, maxiter=5000, M=self._prec, callback=_tick)     # the restart of the steady solve: the recursive residual drifts
+        if info != 0:
+            raise RuntimeError(f"conjugate gradients did not converge (info {info})")
+        self.iterations = count[0]
+        self.total_iterations += count[0]
+        return x
+
+    def step(self, T0, dt: float, theta: float, load0, load1):
+        """!
+        @brief One theta step from `T0`.
+        @param T0 Field at the start (n,) in K of rise.
+        @param dt Step in s.
+        @param theta 0.5 (Crank-Nicolson) or 1 (implicit Euler).
+        @param load0 Load vector at the start of the step (n,) in W (the unit load times the power factor).
+        @param load1 Load vector at the end of the step (n,) in W.
+        @return numpy.ndarray (n,) field at the end of the step.
+        """
+        self.prepare(dt, theta)
+        rhs = self.M @ T0 / dt + theta * load1 + (1.0 - theta) * load0
+        if theta < 1.0:
+            rhs -= (1.0 - theta) * (self.A @ T0)
+        return self.solve(rhs, x0=T0)
+
+    def euler_half_step(self, T0, h: float, load):
+        """!
+        @brief One implicit-Euler step of `h/2` (the Rannacher start), solved with the Crank-Nicolson factor of the step `h` when it is the prepared one.
+        @details `M/(h/2) T1 + A T1 = M/(h/2) T0 + load` divided by two is `(M/h + A/2) T1 = M/h T0 + load/2`: the matrix of the Crank-Nicolson step of size h, so no new factor.
+        @param T0 Field at the start (n,) in K of rise.
+        @param h Full step in s (the half step is h/2).
+        @param load Load vector (n,) in W (constant over the half step).
+        @return numpy.ndarray (n,) field after the half step.
+        """
+        if self._key == (round(float(h), 15), 0.5):
+            return self.solve(self.M @ T0 / h + 0.5 * load, x0=T0)
+        return self.step(T0, 0.5 * h, 1.0, load, load)
 
 
 def structured_mesh(xn, yn, zn):
