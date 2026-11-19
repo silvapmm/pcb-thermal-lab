@@ -9,6 +9,69 @@
    "start": "; the -2.1 to +3.9 % quoted before was with the barrel over `d` alone",
    "end": "study_via_checks.py target`)",
    "replace": ""
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The links before the open-fraction rule (sentence of the paragraph on the cut-cell flux)",
+   "start": "The earlier links scaled the sheet of a cut cell by `c`",
+   "end": "The program now uses",
+   "replace": "The program uses"
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The distance used by the drawn layers before 2.7.0",
+   "start": "Before 2.7.0 the drawn layers used the signed distance",
+   "end": "(negative off the board); the",
+   "replace": "The"
+  },
+  {
+   "sec": "2.1.1",
+   "label": "The earlier statement about the floor 0.25 (measured with the cell-centre distance of 2.6.0)",
+   "start": "The earlier statement (it binds in 80 node cells",
+   "end": "no longer holds. ",
+   "replace": ""
+  },
+  {
+   "sec": "2.2",
+   "label": "The first numbers of the positive entries (program before the rim rule of 2.6.0)",
+   "start": "*The numbers first written here (832 / 864",
+   "end": "they are history.* ",
+   "replace": ""
+  },
+  {
+   "sec": "2.2",
+   "label": "The via effect before the rim rule of 2.6.0, against the smeared-barrel 3D solid",
+   "start": "**Before the rim rule of 2.6.0** (section 2.6), against",
+   "end": "(`validation.md` 30.1). ",
+   "replace": ""
+  },
+  {
+   "sec": "2.5",
+   "label": "The spread of the peak with the earlier cut-cell links",
+   "start": "; the earlier links 0.25 to 3.0 K, `validation.md` 32.2",
+   "end": "`validation.md` 32.2",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The first figures of the image limit, withdrawn",
+   "start": ". The '4 to 10 % at 1 mm' and '19 points at 1 mm'",
+   "end": "and are withdrawn",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The error of the partial-copper reading before the contact rule",
+   "start": "; 31 to 68 % before the rule",
+   "end": "before the rule",
+   "replace": ""
+  },
+  {
+   "sec": "2.6",
+   "label": "The contact of an imported via before the ray test",
+   "start": "; before it the full contact read the effect 1.5 to 5 times high",
+   "end": "`validation.md` 45",
+   "replace": ""
   }
  ],
  "splits": [
@@ -78,6 +141,50 @@
   },
   {
    "before": "**What this rests on**: eleven parts of three open KiCad boards compar",
+   "indent": ""
+  },
+  {
+   "before": "**The floor 0.25** is a rule of the program, not of the sources (Bochk",
+   "indent": ""
+  },
+  {
+   "before": "**Since 2.7.0 it no longer acts in the FVM**: every copper and laminat",
+   "indent": ""
+  },
+  {
+   "before": "**Not covered**: a board with an outline and imported copper has the o",
+   "indent": ""
+  },
+  {
+   "before": "**Limit:** the via takes heat from each footprint cell in proportion t",
+   "indent": "  "
+  },
+  {
+   "before": "**Since 2.6.0** a via just outside a copper edge is uncoupled from tha",
+   "indent": "  "
+  },
+  {
+   "before": "Antipads (clearances around the barrel) are not a cause",
+   "indent": "  "
+  },
+  {
+   "before": "The program warns of the situation (`checks.check_via_partial_copper`",
+   "indent": "  "
+  },
+  {
+   "before": "Corrections measured on a copy, not adopted",
+   "indent": "  "
+  },
+  {
+   "before": "No cold spot was found on full copper;",
+   "indent": "  "
+  },
+  {
+   "before": "**Imported copper reads the masks by a ray test**",
+   "indent": ""
+  },
+  {
+   "before": "Weights by sheet conductance, which would remove the cold spot of 2.2",
    "indent": ""
   }
  ]
