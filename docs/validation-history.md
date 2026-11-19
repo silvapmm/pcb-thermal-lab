@@ -376,3 +376,9 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **First ring: limits, the side and corner errors before the images**
 
 > (on average -10 % at a side and -17 % at a corner at a gap of zero, up to -22 % against the FVM and up to -26 % against an independent 3D solver)
+
+### Theory 6
+
+**Local transient: the boards outside the study**
+
+> The review added boards outside it (FVM at 0.5 mm): two parts with vias under one and a heatsink in a corner, time to 63 % +0.2 / -0.5 % (2.5.1: -39 / +17 %) and the square-wave peak of a profile run +0.3 % (the minimum of the cycle 1.1 K low); two overlapping parts over 25 vias with a 200 W/m²K heatsink on a four-layer 40 x 30 mm board, +3.0 / +4.2 %, but the peak of a square-wave profile run 5 to 7 % low; a part at the edge over partial copper (fill 0.3) with `h_side` 50 and vias at the edge, +0.8 % on the time to 63 % but the step curve up to 6.9 % of the steady resistance off.

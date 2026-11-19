@@ -203,6 +203,54 @@
      "35"
     ]
    ]
+  },
+  {
+   "sec": "6",
+   "label": "Local transient: the ranges of earlier trees",
+   "start": "The range -8.1 to +0.5 % written for 2.6.0 was measured",
+   "end": "(`docs/validation.md` 4.1).",
+   "new": "The range written for 2.6.0 and the smeared transient of 2.5.x (-66 % to +175 %) were measured before the physical slabs of the simple stack-up and the readout fix (`docs/validation.md` 4.1).",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
+  },
+  {
+   "sec": "6",
+   "label": "Local transient: the boards outside the study",
+   "start": "The review added boards outside it (FVM at 0.5 mm): two parts with vias under one",
+   "end": "the step curve up to 6.9 % of the steady resistance off.",
+   "new": "The review added boards outside it (FVM at 0.5 mm): the time to 63 % reads between −0.5 and +4.2 % on them, but the peak of a square-wave profile run reads 5 to 7 % low on a four-layer 40 x 30 mm board with two overlapping parts, 25 vias and a 200 W/m²K heatsink, and the step curve of a part at the edge over partial copper (fill 0.3, `h_side` 50, vias at the edge) is up to 6.9 % of the steady resistance off (the other boards of the review: `validation-history.md`, 'Theory passages moved by the second simplification', 6).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "6",
+   "label": "Analytic limits: the common parameter and the small boards",
+   "start": "the common parameter alone, without the per-layer edge, read -8.6 to +5.8 %",
+   "end": "the laminate band",
+   "new": "the common parameter alone, without the per-layer edge, read cool and hot, up to 8.6 % against an FVM without the edge film in series and the laminate band; `validation.md` 4.1",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
+  },
+  {
+   "sec": "6",
+   "label": "Analytic limits: the warning's firing record",
+   "start": "(the measured range of the case is in the text; on the 54 boards of `validation.md` 4.1 it fires on 10 and on every one of the 5 with an error above 3 %, and on none of the 135 uniform boards)",
+   "end": "and on none of the 135 uniform boards)",
+   "new": "(the measured range of the case is in the text; on the 54 boards of `validation.md` 4.1 it fires on every one of the 5 with an error above 3 % and on none of the 135 uniform boards)",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
   }
  ]
 }
