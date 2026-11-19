@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Drawings of the planned FEM transient (no data, no program): the section with the capacity of every element, the mass matrix, the time methods, the time grid and the
        edges, the solver strategy, the read-outs, the validation map and the memory stages. Run from the repository root:
-       `.venv/bin/python releases/3.0.0/fem-transient/scripts/make_diagrams.py`; it writes `figures/fig_NN_*.png` next to the note (the branch runs it; the planning
+       `.venv/bin/python releases/2.9.0/fem-transient/scripts/make_diagrams.py`; it writes `figures/fig_NN_*.png` next to the note (the branch runs it; the planning
        pass did not).
 @details Every picture is a schematic: the numbers on it are labels or hand arithmetic of `DESIGN.md`, never a result. Shapes come from `research/diagram_kit.py`.
 """
