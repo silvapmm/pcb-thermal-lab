@@ -26,9 +26,11 @@ from .uicontext import cell_where, laminate_where, using_ui
 # The finest cell that Auto (api.suggest_cell_mm, lo=0.25) gives: the cell warning of an imported board must not recommend a finer one
 IMPORTED_CELL_FLOOR_MM = 0.25
 
-# Added to the 'only N cells wide' warning: the time simulation reads a coarse cell worse than the steady solve (research/transient-reference-boards 4.4, the independent finite-element transient)
-COARSE_CELL_TIME_NOTE = (" In a time simulation a coarse cell also shifts the time to 63 %: +28 % for a 6 mm part on a 2 mm cell with its edges at mid-cell "
-                         "(-10 % with the edges on cell lines): the sign and size depend on where the edges fall.")
+# Added to the 'only N cells wide' warning: the time simulation reads a coarse cell worse than the steady solve. Both numbers are the FVM at 2 mm against the same
+# board at 0.5 mm (research/transient-reference-boards 4.4, study_review_checks.py align: +25.7 % and -10.1 %); against the independent finite-element transient
+# the misaligned case reads +28.5 % (README 2.2), the aligned one was not run against it
+COARSE_CELL_TIME_NOTE = (" In a time simulation a coarse cell also shifts the time to 63 %: for a 6 mm part on a 2 mm cell, +26 % with its edges at mid-cell "
+                         "and -10 % with its edges on cell lines (against a 0.5 mm cell): the sign and size depend on where the edges fall.")
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
 THICK_PLATE_LIMIT = 0.05
@@ -1534,8 +1536,9 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                                 if resolved else ("than the model shows", "the models keep one temperature through the thickness"))
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter {shows} by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; {keeps}. "
-                           "The value is an upper estimate from conduction straight through the plate, not added to the results. The face film under the source itself stays in the models "
-                           "(the part is not taken out of it): a stated limit, under 0.5 % of the rise up to about 4 mm of copper at 400 W/m2K (docs/theory.md 1.2c)."
+                           "The value is an upper estimate from conduction straight through the plate, not added to the results. Where the part and the face film share a face, the film "
+                           "is driven from the mean of the plate, not from the hotter face under the part, so it takes a fraction h t / (2 k) of the part's flux too little "
+                           "(the part reads hot): a stated limit, under 0.5 % of the rise up to about 9 mm of copper at 400 W/m2K (docs/theory.md 1.2a to 1.2c)."
                            f"{shape}{est}{todo}"))
     return out
 
