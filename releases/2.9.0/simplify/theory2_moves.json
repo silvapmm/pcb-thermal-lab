@@ -52,6 +52,15 @@
    "new": "reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; the value of each part is in `validation-history.md`, 'Theory passages moved by the second simplification', 1.8, and the shapes in `validation.md` 29); on a JEDEC 2s2p board with the TPS7A47 the heater on the exposed pad gives 31.9 K/W against 32.5 on the datasheet (audit 2.8.0: that agreement holds for the JEDEC board drawn without backside copper; on the board as ROHM 64AN113E prints it the readings span 27.6 to 36.4 K/W, so it is an indication, not a check: `validation.md` 29.2)",
    "point": [],
    "move": true
+  },
+  {
+   "sec": "2.2",
+   "label": "Maximum principle: the counts of positive entries",
+   "start": "; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries",
+   "end": "at most 0.022 of the sum of the negative entries of the row);",
+   "new": "; audit of 2.8.0, re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.023 / 0.022 of the diagonal; the counts at 0.5 mm and the other ratios are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.2);",
+   "point": [],
+   "move": true
   }
  ]
 }

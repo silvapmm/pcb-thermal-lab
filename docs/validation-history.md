@@ -320,3 +320,9 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Heat-source shape: the per-part errors of the hull and the datasheet readings**
 
 > reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; RP2040 QFN-56 +37.4 %, its SOT-223 +44.3 %, ISASTM SOT-223 +18.8 %, the QFN-24 and QFN-28 +12.7 and +13.1 %); on a JEDEC 2s2p board with the TPS7A47 the heater on the exposed pad gives 31.9 K/W against 32.5 on the datasheet, on the 5 mm body 40.0 and on the body with the leads 45.1 (audit 2.8.0 A5: that agreement holds for the JEDEC board drawn without backside copper on the program before 2.7.0; on the board as ROHM 64AN113E prints it the pad reads 28.4 K/W, and the readings span 27.6 to 36.4 K/W, so it is an indication, not a check: `validation.md` 29.2)
+
+### Theory 2.2
+
+**Maximum principle: the counts of positive entries**
+
+> ; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), 432 / 432 at 0.5 mm and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.018 / 0.015 of the diagonal at 0.5 mm and 0.023 / 0.022 at 0.25 mm, FVM / FDM; at most 0.022 of the sum of the negative entries of the row);
