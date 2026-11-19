@@ -15,7 +15,7 @@ such as 'validation 20' still finds its place. The current numbers are in `docs/
 | 23 (body before 23.1) | the part across an outline with the sampled cover (2.4.5 to 2.5.1); 23.1 is current |
 | 25 | numbers carried over from the old `theory.md`, never re-run here; each topic is measured in the section its row names |
 | 28 (one paragraph) | the -17 / -23 / -26 % of the via at h_side 1000 against a copper-link reference (cause corrected in the next paragraph; sections 46 and 49 hold the numbers to quote) |
-| 32.1, 32.2, 32.3, 32.6 | the cut-cell studies of the program of 2.6.0 (stale; the audit note at the head of 32, sections 36 and 40) |
+| 32.1, 32.2, 32.3 | the cut-cell studies of the program of 2.6.0 (stale; the audit note at the head of 32, sections 36 and 40) |
 | 7 (old values) | the values of the time bullets on earlier trees, with their first notes; validation 7 keeps the current ones |
 
 ## 6. The removed wxPython program against the current one
@@ -279,10 +279,6 @@ The factor `1 + H d / S` is floored at 0.25 (a rule of the program, not of the s
 | 5000 | 144 | 91.298 | 91.413 | 91.244 | 91.225 |
 
 At 2000 W/m²K the peak moves 0.06 K (0.25 to 0.05) and 0.15 K (0.25 to 0.5) of a 71 K rise (0.1 and 0.2 %): the value of the floor is not what sets the answer, and the answer there carries the other open problem (the copper edge itself cut by the grid, 2 to 3 K spread at 200 W/m²K for every scheme, `research/cut-cell-links` README 5.2: **not fixed**).
-
-### 32.6 Limits
-
-Imported copper on a board with an outline keeps the earlier links and the film on the node (warned only when the outline is not the whole box: 11 of the 17 readable outlines of the real Gerber boards tried cut cells, rounded corners mostly, and 6 are the plain box; the peak depends on where the edge falls on the grid by a few tenths of a kelvin at the default coefficient); the FDM and the 3D solid keep the cover-scaled links; the copper edge held inside the outline is a second cut-cell problem that this does not address; a via inside a sliver cell keeps the cover-scaled sheet in its well (tested for energy balance only); no physical board was measured.
 
 ## 28. The via near a board edge: the mirror image in the well (FVM), paragraph superseded by the audit of 2.8.0
 
