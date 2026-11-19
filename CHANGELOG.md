@@ -7,6 +7,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Fixed
 
+- **The Cut slider of the Profiles tab is usable in a narrow window** (`fix/cut-slider-narrow-window`, item e9; layout only, no number moves, frozen numbers unchanged): at 900 x 700 with both docks open the slider was 23 px wide (20 px at 800 x 600), a handle with no groove. In a tab too narrow for a slider of at least 100 px on the control line, the slider and its position text now take a line of their own; at 1200 x 800 the line is unchanged.
+
 - **The Components page, the chart, the status line and summary.json name the reference model** (`fix/results-name-the-model`, item e18; display and text only, no number moves, frozen numbers unchanged): the numbers of the Components page always came from the reference model (the FVM when it runs, otherwise the first model that ran), but nothing said so, so an FDM-only or 3D-solid-only run read as FVM. Now a one-line hint above the tables says *Reference model: <full name>. Other models: the Models tab.* (hidden before a run; the long explanation is its tooltip, and the tooltip of the tables names the model), the bar chart title has a second line *Reference model: <name>* (its legend moved to the lower right so it never covers the title), the line under Run and the status bar read *Done: FDM, Tmax ... , Rθ ...*, and summary.json holds `reference_model` (the model key). The Components guide row says it. The screenshots of the guide and the README were regenerated (their status bar text changed).
 
 ### Added

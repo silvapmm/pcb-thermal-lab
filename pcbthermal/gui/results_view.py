@@ -237,6 +237,8 @@ class PlotTab(QWidget):
              Hotspot and the colour limits.
     """
 
+    CUT_SLIDER_MIN_PX = 100                             # Narrowest the Cut slider may be on a line shared with other controls; below it the slider gets a line of its own
+
     def __init__(self, kind, theme="dark", parent=None, display=None):
         """!
         @param kind "temperature", "gradient", "profile" or "compare".
@@ -302,7 +304,8 @@ class PlotTab(QWidget):
                 controls.addWidget(self.vmin)
                 controls.addWidget(self.vmax)
         elif kind == "profile":
-            controls.addWidget(QLabel("Cut"))
+            self._cut_label = QLabel("Cut")
+            controls.addWidget(self._cut_label)
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
             # The position text may be clipped in a very narrow centre area; its width must not set the minimum width of the Results page
@@ -318,8 +321,11 @@ class PlotTab(QWidget):
         lay.addLayout(controls)
         self._controls = controls
         if kind == "profile":
+            self._controls3 = QHBoxLayout()             # Slider line, used only in a narrow tab (the slider then has the whole width); placed before the overlay line
+            lay.addLayout(self._controls3)
             self._controls2 = QHBoxLayout()             # Second line of the profile controls, used only when the first does not hold the Cut overlay box
             lay.addLayout(self._controls2)
+            self._cut_mode = None
         lay.addWidget(self.toolbar)
         lay.addWidget(self.canvas, 1)
 
@@ -348,25 +354,43 @@ class PlotTab(QWidget):
 
     def _place_cut_overlay(self, width):
         """!
-        @brief Move the Cut overlay box between the first control line of the Profiles tab and a second line, by the width of the tab.
+        @brief Lay out the control lines of the Profiles tab by the width of the tab: all on one line, the Cut overlay box on a line of its own, or the
+               slider and its position text on a line of their own as well (a slider squeezed to its handle cannot be used).
         @param width Width of the tab in pixels.
         """
         m = self.layout().contentsMargins()
         row = self._controls
-        # Natural width of the first line with the box: every widget at its size hint (the slider at its minimum), plus the spacing
-        widgets = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget() is not None]
-        widgets += [] if self.cut_overlay in widgets else [self.cut_overlay]
-        need = sum(w.minimumSizeHint().width() if w is self.pos else w.sizeHint().width() for w in widgets if not w.isHidden() or w is self.cut_overlay)
-        need += row.spacing() * len(widgets) + m.left() + m.right()
-        inline = row.indexOf(self.cut_overlay) >= 0
-        if width < need and inline:
-            row.removeWidget(self.cut_overlay)
+        sp = row.spacing()
+        fixed = [self._cut_label, self.axis, self.pos_label]
+        # Natural width of the line without the slider and the box (every widget at its size hint), plus the spacing and the margins
+        base = sum(w.sizeHint().width() for w in fixed) + m.left() + m.right()
+        mid = base + self.CUT_SLIDER_MIN_PX + sp * len(fixed)                   # Slider at its usable minimum, the box on the second line
+        wide = mid + self.cut_overlay.sizeHint().width() + sp                   # Everything on the first line
+        mode = "wide" if width >= wide else "mid" if width >= mid else "narrow"
+        if mode == getattr(self, "_cut_mode", None):
+            return
+        self._cut_mode = mode
+        for lay in (row, self._controls2, self._controls3):
+            while lay.count():
+                lay.takeAt(0)                                                   # The widgets stay children of the tab; they are placed again below
+        row.addWidget(self._cut_label)
+        row.addWidget(self.axis)
+        if mode == "narrow":
+            row.addStretch(1)
+            self._controls3.addWidget(self.pos, 1)
+            self._controls3.addWidget(self.pos_label)
             self._controls2.addWidget(self.cut_overlay)
             self._controls2.addStretch(1)
-        elif width >= need and not inline:
-            while self._controls2.count():
-                self._controls2.takeAt(0)
-            row.insertWidget(row.indexOf(self.pos_label) + 1, self.cut_overlay)
+            return
+        row.addWidget(self.pos, 1)
+        row.addWidget(self.pos_label)
+        if mode == "wide":
+            row.addWidget(self.cut_overlay)
+            row.addStretch(1)
+        else:
+            row.addStretch(1)
+            self._controls2.addWidget(self.cut_overlay)
+            self._controls2.addStretch(1)
 
     def _on_canvas_resized(self, _event):
         """!
