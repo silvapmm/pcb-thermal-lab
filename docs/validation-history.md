@@ -342,3 +342,13 @@ Paragraphs and sentences of `theory.md` that held measured numbers which the val
 **Via well: the shares of the sheet the well reads**
 
 > (only in the cells the rule flags: 0.5 to 1.3 % of the sheet on full 35 µm copper, 2.7 to 6.2 % at fill 0.2). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K (+0.002 to +0.036 K in the FVM, 3 to 6 times less in the FDM); against a resolved 3D barrel the order used is equal or closer by at most 0.005 K, so it is kept
+
+### Theory 2.7
+
+**Memory guard: the peak of the via boards and the CO60 runs**
+
+> (106 runs on the plates and CO60, one process per run; the first fit, 0.40 on SuperLU's default mode, and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times (small CO60 boards that the law without vias already misses by 1.20 to 1.27), against 13 of 85 by 1.33 with no term. Measured with the symmetric mode (`research/memory-guard` README 14.12): CO60 striped 0.5 mm 2.42 GB (estimate 4.60), 0.7 mm 1.18 GB (2.05), full copper 0.5 mm 0.66 GB (0.81).
+
+**Memory guard: the resident size of the process after runs**
+
+> (0.08 GB fresh, 0.67 GB after one 1 mm run of the CO60 import, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve (1.21, 1.37, 1.37 GB after three 0.7 mm runs), so they are not counted again

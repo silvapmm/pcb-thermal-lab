@@ -114,6 +114,37 @@
      "34"
     ]
    ]
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the five points re-measured by the audit",
+   "start": "peak at 0.69 to 0.80 of the estimate and 0.91 to 1.03 of the law without the safety factor, inside the spread of the ladder.",
+   "end": "inside the spread of the ladder.",
+   "new": "peak at 0.69 to 0.80 of the estimate, inside the spread of the ladder (`validation.md` 26).",
+   "point": [
+    [
+     "validation.md",
+     "26"
+    ]
+   ]
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the peak of the via boards and the CO60 runs",
+   "start": "(106 runs on the plates and CO60, one process per run; the first fit, 0.40 on SuperLU's default mode, and why it was replaced are in `versions.md`)",
+   "end": "full copper 0.5 mm 0.66 GB (0.81).",
+   "new": "(106 runs on the plates and CO60, one process per run; the first fit and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times, against 13 of 85 by 1.33 with no term (`validation.md` 26; `research/memory-guard` README 14.12; the CO60 peaks and the first fit are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.7).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the resident size of the process after runs",
+   "start": "(0.08 GB fresh, 0.67 GB after one 1 mm run",
+   "end": "so they are not counted again",
+   "new": "(0.08 GB fresh, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve, so they are not counted again",
+   "point": [],
+   "move": true
   }
  ]
 }
