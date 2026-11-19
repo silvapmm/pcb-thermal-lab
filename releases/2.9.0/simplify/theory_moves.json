@@ -81,13 +81,6 @@
    "replace": "For the"
   },
   {
-   "sec": "4a",
-   "label": "Review of the model branch (tree feature/fem-model): the checks of the steady FEM",
-   "start": "**Review of the model branch**",
-   "end": "12 558 to 80 500 unknowns. ",
-   "replace": ""
-  },
-  {
    "sec": "5",
    "label": "The one-node footprint before the zones of 2.5.0",
    "start": "; the +22 to +221 % of the effect, 8 to 26 % of the rise",
@@ -135,6 +128,13 @@
    "start": "; the text said `sinc(k/N)` until the audit 2.8.0 A5",
    "end": "not what the code computes",
    "replace": ""
+  },
+  {
+   "sec": "11",
+   "label": "The note that the numbers of Figure 22 were stale (the figure was redrawn with the numbers of the table in the review of the branch)",
+   "start": " The numbers written in the boxes are of an earlier tree and are stale",
+   "end": "`ladder`).",
+   "replace": " The numbers in the boxes are those of the table below."
   }
  ],
  "splits": [
@@ -264,6 +264,10 @@
   },
   {
    "before": "**Limits of the builder**: a heater whose footprint is partly over bar",
+   "indent": ""
+  },
+  {
+   "before": "**Review of the model branch** (`releases/2.8.0/fem-model/REVIEW_BRANCH4.md`",
    "indent": ""
   },
   {
@@ -429,6 +433,20 @@
   {
    "before": "**Checked**: no mixed-convection case has been checked against a measu",
    "indent": "  "
+  }
+ ],
+ "edits": [
+  {
+   "sec": "11",
+   "why": "The plate row cited validation 20, whose body is in validation-history.md; the current evidence is theory 7.5 (re-run by the final review of 2.8.0)",
+   "old": "(validation 20; theory 7.5; the −4.6 % of validation 25 is the earlier thin-plate solver of a study)",
+   "new": "(theory 7.5, re-run by the final review of 2.8.0; the −4.6 % of validation 25 and of the history of validation 20 is the earlier thin-plate solver of a study)"
+  },
+  {
+   "sec": "2.2",
+   "why": "The sentence stated as a finding a claim that the note after it marks as not verified",
+   "old": "No cold spot was found on full copper; in 50 random via layouts",
+   "new": "On full copper the review of 2.4.5 reported no cold spot (not verified, see the note); in 50 random via layouts"
   }
  ]
 }

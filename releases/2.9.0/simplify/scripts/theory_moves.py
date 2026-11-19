@@ -11,7 +11,9 @@ commit (10757a0e), never against the working tree:
   under its section number; `replace` is what stays in its place (usually nothing);
 * `splits`: a paragraph is cut in two before the text `before` (only whitespace changes; the check compares the
   text without whitespace);
-* `intro`: the one sentence of the introduction that points to the history file.
+* `intro`: the one sentence of the introduction that points to the history file;
+* `edits`: a correction of the current text found by the review of the branch (an exact text, found once, replaced by
+  another; each says why), applied after the splits; the number check still covers them.
 
 Run from the repository root:
 * `theory_moves.py apply`: write the two documents from the base commit and the moves.
@@ -97,6 +99,11 @@ def build(base_theory, spec):
         if theory.count(key) != 1:
             raise SystemExit(f"split text found {theory.count(key)} times: {sp['before'][:60]!r}")
         theory = theory.replace(key, "\n\n" + sp.get("indent", "") + sp["before"])
+    for ed in spec.get("edits", []):
+        # A correction of the current text (review of the branch): the old text must be found exactly once
+        if theory.count(ed["old"]) != 1:
+            raise SystemExit(f"edit text found {theory.count(ed['old'])} times: {ed['old'][:60]!r}")
+        theory = theory.replace(ed["old"], ed["new"])
     # the history is ordered by the section number, then by the order of the moves
     def sec_key(s):
         return [int(x) if x.isdigit() else 0 for x in re.split(r"[.]", s.replace("a", ".0"))]
