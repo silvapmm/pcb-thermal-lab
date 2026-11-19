@@ -1434,6 +1434,29 @@ def test_summary_table_setting_toggled_through_preferences_with_a_result_shown(w
     assert "summary_table_in_report" not in json.dumps(project_to_dict(win.doc.project))
 
 
+def test_reference_model_named_across_runs_clears_and_theme_switches(win, qtbot):
+    """!
+    @brief Components page naming the reference model: runs of different models in a row, a clear and a theme switch in between; the line, the table tooltip, the
+           chart title and the status line always agree with the model that ran, and the line is hidden while there is no run.
+    @param win Main window fixture.
+    @param qtbot pytest-qt fixture.
+    @return None.
+    """
+    from pcbthermal.results import MODEL_FULL, MODEL_LABELS
+    res = win.results
+    for i, key in enumerate(("fdm", "fvm", "solid3d", "fdm", "fvm", "fdm")):
+        win._on_done(simulate(example_board(), SolverOptions(models=(key,), cell_mm=2.0)))
+        assert not res.reference_line.isHidden() and MODEL_FULL[key] in res.reference_line.text()
+        assert f"({MODEL_LABELS[key]})" in res.heater_table.toolTip()
+        assert res.comp_fig.axes[0].get_title().endswith(f"Reference model: {MODEL_LABELS[key]}")
+        assert win.statusBar().currentMessage().startswith(f"Done: {MODEL_LABELS[key]},")
+        if i % 2:
+            res.clear()
+            assert res.reference_line.isHidden()
+        win.toggle_theme()                                           # the colour of the line follows the theme
+        qtbot.wait(20)
+
+
 def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
     """The live checks (validity, model limits, vias) on a board of 1500 scattered vias and several parts, after every change of the models and the cell: each call stays
     under a second, and the list under Run is checks.check_input, the head of the warnings of a run."""

@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Components page, the chart, the status line and summary.json name the reference model** (`fix/results-name-the-model`, item e18; display and text only, no number moves, frozen numbers unchanged): the numbers of the Components page always came from the reference model (the FVM when it runs, otherwise the first model that ran), but nothing said so, so an FDM-only or 3D-solid-only run read as FVM. Now a one-line hint above the tables says *Reference model: <full name>. Other models: the Models tab.* (hidden before a run; the long explanation is its tooltip, and the tooltip of the tables names the model), the bar chart title has a second line *Reference model: <name>* (its legend moved to the lower right so it never covers the title), the line under Run and the status bar read *Done: FDM, Tmax ... , Rθ ...*, and summary.json holds `reference_model` (the model key). The Components guide row says it. The screenshots of the guide and the README were regenerated (their status bar text changed).
+
 ### Added
 
 - **Setting "Summary table in the report text"** (`feature/summary-table-setting`; display and text only, no number moves, frozen numbers unchanged): Preferences, page *Results*, key `results.summary_table_in_report`, shipped off (a setting of this machine, not saved in project files; a user file without the key reads as off). Off is the behaviour of 2.8.0: the models table is only in its own widget on the Summary page and the report text under it omits it. On: the text also carries the aligned table. The report saved by File - Export, the `report.txt` of the command line and the Markdown report always carry the table. Saving Preferences (Save, Reset to shipped or Import) rewrites the text of the result already shown; only a JSON `true` turns it on.

@@ -556,8 +556,8 @@ class Simulation:
         @brief JSON-ready summary of the whole simulation.
         @return Dict with options, table and per-model summaries.
         """
-        d = {"version": __version__, "disclaimer": DISCLAIMER, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
-             "models": {k: r.summary() for k, r in self.results.items()}}
+        d = {"version": __version__, "disclaimer": DISCLAIMER, "problem": self.problem.name, "options": self.options.to_dict(), "reference_model": self.reference.model,
+             "table": self.table(), "models": {k: r.summary() for k, r in self.results.items()}}
         if self.decisions:
             d["profile"] = {"reference": self.profile_reference, "error": self.profile_error,
                             "models": {k: r.summary() for k, r in self.profile_results.items()}}
