@@ -225,12 +225,12 @@ PCBT_COMPAT_V271=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests
 PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   # release gate: key values
 ```
 
-**Current state of the battery**: the last whole battery gave 4188 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 2 warnings on the merge of `fix/surface-flag-narrow-part` (66 min 9 s; real-board environment proven loaded; frozen 413 passed; last full gate run: the release tree of 2.8.0, 4054 passed, frozen 413 (332 records), compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
+**Current state of the battery**: the last whole battery gave 4284 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 2 warnings on the merge of `feature/fem-transient` (61 min 40 s; real-board environment proven loaded; frozen 430 passed; last full gate run: the release tree of 2.8.0, compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
 
 ## 15. Where to continue (after 2.8.0)
 
 - **2.8.0 is released** (tag `v2.8.0` at `465c037a`, GitHub release published and Latest, 2026-11-16). `main` holds the release plus one README-only commit; `development` is ahead (documents and research folders merged since, among them `research/muzychka-influence-coefficients`).
-- Next: **2.9.0**, `releases/2.9.0/PLAN.md` (the FEM transient, the comparison campaign with validation 56 and 57, copper slabs in the 3D solid, FEM outlines, the surface in the other models), to start when the maintainer says; the non-blocking items of `releases/2.8.0/final-opinion/README.md` 3.2 and the maintainer's open list go there. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
+- Next: **2.9.0**, `releases/2.9.0/PLAN.md` (the FEM transient is merged; the comparison campaign with validation 56 and 57, copper slabs in the 3D solid, FEM outlines, the surface in the other models), to start when the maintainer says; the non-blocking items of `releases/2.8.0/final-opinion/README.md` 3.2 and the maintainer's open list go there. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
 
 ## 16. Maintaining This File
 
