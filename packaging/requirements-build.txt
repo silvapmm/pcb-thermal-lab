@@ -1,0 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Build tool of the downloadable packages (packaging/build.py installs it next to the run-time lines of requirements.txt, in packaging/.venv-build).
+# PyInstaller is GPL-2.0-or-later with an exception that lets the programs it builds use any licence; its notice is copied into the package.
+pyinstaller>=6.10,<7

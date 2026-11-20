@@ -65,7 +65,7 @@ The project is MIT (`LICENSE`). Rules (maintainer, 2026-10-23):
 - **One statement**: `LICENSE`, `README.md` ("Author and license", with the table of the libraries), the About box (`pcbthermal/gui/help.py`) and this file say the same thing; change them together.
 - **A new dependency** gets its licence checked (installed metadata or PyPI) and added to the README table in the same commit. Copyleft code (GPL, AGPL) is never copied or vendored, only ideas and public formats are used; libraries are installed by `pip` and imported, never vendored.
 - **pyamg** (5.4; `requirements.txt`, README table, About box) is MIT (checked 2026-11-15 in the installed metadata; needs only NumPy and SciPy); imported lazily (`femcore.available()`), so the program runs without it and the FEM is then limited to small meshes.
-- **PySide 6** is LGPL-3.0 (or GPL, or commercial): fine for an MIT repository that imports it; a bundled executable must meet the LGPL conditions (licence text and notices, replaceable libraries, Qt source offer). Not legal advice; ask a lawyer before distributing a bundle or a commercial version.
+- **PySide 6** is LGPL-3.0 (or GPL, or commercial): fine for an MIT repository that imports it; the executables (`packaging/`, onedir only, no EULA, no block on replacing Qt files) ship Qt unmodified under the LGPL-3.0: LGPL and GPL-3 texts, Qt notices, a licence folder per library (the build fails without one), `NOTICE.txt`, `SOURCE-OFFER.txt`, `REPLACING-QT.txt`, the Qt line and Licences button of the About box, the exact Qt source attached to the release; no GPL-3-only Qt module, FFmpeg, QtPdf, WebEngine or TLS plug-in. Not legal advice; ask a lawyer before a commercial version.
 - **Third-party data** (boards, datasheets, catalogue values): numbers and facts with their source are fine; copies of files or renders of someone else's board are not committed unless the licence is confirmed. No licence question is open. Notes on papers: section 7.
 
 ## 6. Git
@@ -202,6 +202,7 @@ docs/                  versions.md (per version + 'Planned' + battery record), m
 releases/              release work: regression-harness/, <version>/ (reproduction, final-opinion, doc-review, ...), README.md
 research/              one folder per investigation (section 9): README.md index, REVIEW.md, ROADMAP.md, diagram_kit.py, theory/, independent-fem-edge/, <topic>/
 tools/                 developer tools, not part of the program: tools/ocr/
+packaging/             downloadable packages: build.py, spec, selftest, licences; the one remote job is .github/workflows/build-release.yml (builds, no tests)
 ico/                   application icon
 .claude/agents/        the five project agents
 ```

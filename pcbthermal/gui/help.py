@@ -8,11 +8,11 @@
 import re
 from pathlib import Path
 
-from .. import defaults
+from .. import bundle_info, defaults
 from . import theme as th
 from PySide6.QtCore import QObject, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon, QTextCursor
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QTextBrowser, QVBoxLayout
 
 from .. import __author__, __project_url__, __version__
 
@@ -143,7 +143,7 @@ class AboutDialog(QDialog):
             logo.setPixmap(QIcon(str(LOGO)).pixmap(72, 72))
             top.addWidget(logo)
         self.text = QLabel(
-            f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"
+            f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b><br><small>{bundle_info.live_line()}</small></p>"
             "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series, a 3D solid and finite elements, "
             "with power profiles, computed convection, parts with junction temperature, any board shape and the import of a board from Gerber files.</p>"
             "<p>pyamg (MIT) is an optional library: the finite-element model uses it on large meshes, and without it only small meshes are solved.</p>"
@@ -151,6 +151,7 @@ class AboutDialog(QDialog):
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
+            f"<p>{bundle_info.qt_sentence()}</p>"
             + (f"<p>Custom defaults in use: {defaults.diff_text()}<br>{defaults.user_file()}</p>" if defaults.has_user_file() and defaults.diff_text() else ""))
         self.text.setTextFormat(Qt.RichText)
         self.text.setOpenExternalLinks(True)
@@ -163,4 +164,54 @@ class AboutDialog(QDialog):
         lay.addLayout(top)
         box = QDialogButtonBox(QDialogButtonBox.Close)
         box.rejected.connect(self.reject)
+        # LGPL 3.0 section 4(c): a program that shows copyright notices must point to the licence texts; this button opens them
+        self.b_licences = box.addButton("Licences…", QDialogButtonBox.ActionRole)
+        self.b_licences.setToolTip("The licence texts of this program and of the libraries it bundles (Qt and PySide under the LGPL), the source offer and how to replace Qt.")
+        self.b_licences.clicked.connect(self.show_licences)
+        self.b_copy = box.addButton("Copy version info", QDialogButtonBox.ActionRole)
+        self.b_copy.clicked.connect(self.copy_version_info)
         lay.addWidget(box)
+
+    def show_licences(self):
+        """!
+        @brief Open the Licences window.
+        """
+        LicencesDialog(self).exec()
+
+    def copy_version_info(self):
+        """!
+        @brief Put the version, the system and the loaded Qt and PySide versions on the clipboard (for a bug report).
+        """
+        QGuiApplication.clipboard().setText(bundle_info.version_info_text())
+
+
+class LicencesDialog(QDialog):
+    """!
+    @brief The licence texts: a list of the files of the package (or, from source, of the LICENSE and the library table) and the text of the chosen one.
+    """
+
+    def __init__(self, parent=None):
+        """!
+        @param parent Qt parent.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Licences")
+        self.resize(900, 600)
+        lay = QVBoxLayout(self)
+        row = QHBoxLayout()
+        self.entries = bundle_info.licence_entries()
+        self.names = QListWidget()
+        self.names.addItems([t for t, _ in self.entries])
+        self.names.setToolTip("The licence files of this program and of its libraries; choose one to read it.")
+        self.names.setMaximumWidth(300)
+        self.view = QPlainTextEdit()
+        self.view.setReadOnly(True)
+        self.view.setToolTip("The text of the chosen licence file.")
+        self.names.currentRowChanged.connect(lambda i: self.view.setPlainText(self.entries[i][1] if 0 <= i < len(self.entries) else ""))
+        row.addWidget(self.names)
+        row.addWidget(self.view, 1)
+        lay.addLayout(row, 1)
+        box = QDialogButtonBox(QDialogButtonBox.Close)
+        box.rejected.connect(self.reject)
+        lay.addWidget(box)
+        self.names.setCurrentRow(0)

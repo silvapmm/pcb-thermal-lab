@@ -1,0 +1,133 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Builds the downloadable packages (Windows x64, Linux x64, macOS arm64) and attaches them to the release of a tag. It is the only remote job of the project:
+# it builds, runs the --selftest of the package and attaches the files; it runs no test battery (that is the local CI, CLAUDE.md section 12).
+# Triggers: a tag v* (the release), and a push to a branch build-test/** (a trial: build and self-test only, the release job never runs there).
+# The release job does not create the public release: the maintainer's flow stays `gh release create` with the CHANGELOG notes. It attaches the files to that
+# release and, only if none exists when the job runs, creates it as a DRAFT with the CHANGELOG notes (never Latest, never generated notes).
+name: Build release packages
+
+on:
+  push:
+    tags: ['v*']
+    branches: ['build-test/**']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Tag matches the version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare the tag with pcbthermal.__version__
+        shell: bash
+        run: |
+          # The version is read from the file (no imports, no installation needed)
+          VERSION=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('pcbthermal/__init__.py').read()).group(1))")
+          echo "pcbthermal.__version__ = $VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "${GITHUB_REF_NAME#v}" != "$VERSION" ]]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match pcbthermal.__version__ $VERSION"
+              exit 1
+            fi
+            python3 packaging/release_notes.py "$VERSION" -o /dev/null
+            echo "tag and version agree; the CHANGELOG has a section for $VERSION"
+          else
+            echo "not a tag: trial build, nothing is checked against a tag"
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: windows-x64}
+          - {os: ubuntu-22.04, name: linux-x64}
+          - {os: macos-latest, name: macos-arm64}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt platform libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libdbus-1-3 libfontconfig1
+      - name: Build the package
+        run: python packaging/build.py
+      - name: Self-test the packed program (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $info = Get-Content packaging/dist/BUILD-RESULT.json -Raw | ConvertFrom-Json
+          Expand-Archive -Path "packaging/dist/$($info.archive)" -DestinationPath selftest
+          $exe = Join-Path (Join-Path selftest $info.folder) $info.executable
+          $report = Join-Path $PWD 'selftest-result.txt'
+          # A windowed program has no console: Start-Process -Wait -PassThru waits for it and gives its exit code (a plain call would not wait)
+          $p = Start-Process -FilePath $exe -ArgumentList '--selftest', '--selftest-out', $report -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report }
+          if ($p.ExitCode -ne 0) { Write-Error "selftest exit code $($p.ExitCode)"; exit 1 }
+      - name: Self-test the packed program (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess, sys
+          sys.path.insert(0, "packaging")
+          import build
+          info = json.loads(pathlib.Path("packaging/dist/BUILD-RESULT.json").read_text())
+          sys.exit(build.selftest(pathlib.Path("packaging/dist") / info["archive"], info["executable"]))
+          PY
+      - name: Keep the package for the release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.name }}
+          path: |
+            packaging/dist/PCB-Thermal-Lab-*.zip
+            packaging/dist/PCB-Thermal-Lab-*.tar.gz
+            packaging/dist/qt-source/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Attach the files to the release
+    needs: build
+    # Never on a branch: only a tag push attaches files, and the release is created only as a draft
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          pattern: package-*
+          merge-multiple: true
+      - name: Checksums of every package
+        run: |
+          cd files
+          sha256sum PCB-Thermal-Lab-* qt-source/* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Attach to the release (a draft with the CHANGELOG notes if none exists)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            python3 packaging/release_notes.py "${TAG#v}" -o notes.md
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes-file notes.md
+          fi
+          # The exact Qt and PySide source (qt-source/, made by the Linux job) goes with the packages: the LGPL asks for it from the place that distributes the libraries
+          gh release upload "$TAG" files/PCB-Thermal-Lab-* files/qt-source/* files/SHA256SUMS.txt --clobber
