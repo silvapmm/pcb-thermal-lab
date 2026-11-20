@@ -51,7 +51,9 @@ K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a 
 K_PAD = 1.0                  # W/mK of the interface pad slab ACROSS (its thickness is R'' times this)
 # In-plane conductivity of the interface pad slab (W/mK), the FEM's femmesh.K_PAD_INPLANE: a contact resistance conducts across only. With K_PAD in the plane a pad of height R'' x K_PAD
 # (5 mm at 5e-3 m2K/W) spread the heat of a part under a top block sideways, in a cell whose centre is at mid height: 0.5 % (a block over the part) to 0.9 % (a block over the whole board)
-# below the independent solver at 5e-3 (fix/solid3d-pad-inplane). Not zero: the lateral links of a cell of the slab divide by the sum of the two conductivities.
+# below the independent solver at 5e-3 (fix/solid3d-pad-inplane). The value is the FEM's (whose core needs a positive conductivity; a test holds the two equal), not a need of this
+# solver: `add` floors any conductivity at K_FLOOR and every pad cell keeps its link across, so 0 would also give a regular matrix. The floor itself reads the part 0.002 K (5e-3) to
+# 0.024 K (5e-2 m2K/W) cooler than a pad with no lateral conduction at all (review of fix/solid3d-pad-inplane): lateral conductance per square R'' x 1e-3 W/K, nothing beside the copper.
 K_PAD_INPLANE = 1.0e-3
 # Slabs across a dielectric gap (research/laminate-slabs-and-local-rule 5): a slab of at most 0.2 mm, at least 4 and at most 16 per gap. A fixed 4 slabs left the heat of a small part
 # (2 mm) too concentrated over a thick laminate (+23 % bare, +27 % pad at 3.2 mm); 8 slabs of the 1.53 mm core of a two-layer board and 6 of the 1.065 mm core of a four-layer one

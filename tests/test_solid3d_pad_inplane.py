@@ -111,6 +111,28 @@ def test_the_pad_slab_conducts_across_only():
     assert solid3d.K_PAD_INPLANE <= 1.0e-2 * solid3d.K_PAD
 
 
+def test_the_pad_constants_equal_those_of_the_fem():
+    # The 3D solid and the FEM model the same interface pad (a contact resistance, fictitious slab of height R'' x K_PAD): the two must not drift apart (review of fix/solid3d-pad-inplane)
+    from pcbthermal import femmesh
+    assert solid3d.K_PAD == femmesh.K_PAD
+    assert solid3d.K_PAD_INPLANE == femmesh.K_PAD_INPLANE
+
+
+def test_the_in_plane_floor_is_negligible_against_no_lateral_conduction(monkeypatch):
+    # The worst case of the sweep (block over the whole board, 5e-2 m2K/W, 2 mm): the 1e-3 W/mK floor reads the part 0.024 K cooler than a pad of 1e-9 W/mK (no lateral conduction), measured
+    # in review; the defect it replaced was 0.73 K. Bound 0.05 K (0.03 %)
+    p = top_block_board(5.0e-2, (0.0, 0.0, 40.0, 30.0))
+    m = None
+    out = []
+    for k in (solid3d.K_PAD_INPLANE, 1.0e-9):
+        monkeypatch.setattr(solid3d, "K_PAD_INPLANE", k)
+        net = solid3d.Solid(p, CELL)
+        theta, _ = net.solve()
+        m = mask(HEATER, net.nx, net.ny)
+        out.append(float(theta[net.copper_slabs[0][0]][m].max()))
+    assert 0.0 <= out[1] - out[0] < 0.05
+
+
 def test_the_unknown_count_of_the_memory_law_is_unchanged():
     # The pad slab already existed: the count the guard uses is the count of the model, with one block on each face
     p = top_block_board(5.0e-3, (12.0, 8.0, 28.0, 22.0))
