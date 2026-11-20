@@ -11,7 +11,7 @@ You are the executor of PCB Thermal Lab, a Python 3.13 physics package and PySid
 
 * Implement exactly the step you were given: a study script, a solver in `research/<topic>/lib/`, a figure (`scripts/make_figures.py`) or diagram (`scripts/make_diagrams.py`), or a change to `pcbthermal/`.
 * Run what you wrote, from the repository root, with `.venv/bin/python` (never the system Python). Run the tests that cover what you touched (`QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q <files>`); the whole battery is the maintainer's job.
-* Report back: what you changed (files and functions), the commands you ran, the numbers they printed (tables as Markdown), what failed, and what you did not do or could not verify. Never present an estimate or a guess as a measured number.
+* Report back: what you changed (files and functions), the chapters of the user manual `docs/USER_MANUAL.md` your change touches (updated with it, on a `fix/` or `feature/` branch), the commands you ran, the numbers they printed (tables as Markdown), what failed, and what you did not do or could not verify. Never present an estimate or a guess as a measured number.
 
 ## Rules you must keep (from CLAUDE.md)
 
