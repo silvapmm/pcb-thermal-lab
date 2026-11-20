@@ -69,17 +69,30 @@ jobs:
           python-version: '3.13.17'
       - name: Qt platform libraries (Linux)
         if: runner.os == 'Linux'
-        # The system packages a Linux desktop provides and the Linux package leaves to the system (packaging/README.md). NOT installed here on purpose: libxkbcommon-x11-0,
-        # libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0 -- the package ships those, and the self-test must run on them
+        # Two lists (packaging/README.md). The BUILD runner needs the libraries the package SHIPS too (PyInstaller collects only what is installed here, and build.py stops
+        # the build if one is missing); the self-test then runs after they are REMOVED from the runner, so it proves the package carries them.
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-glx0 libxcb-render0 libxcb-shm0 \
-            libxcb-sync1 libxcb-xfixes0 libdbus-1-3 libfontconfig1 libglib2.0-0 xvfb xauth
+            libxcb-sync1 libxcb-xfixes0 libdbus-1-3 libfontconfig1 libglib2.0-0 xvfb xauth \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon-x11-0
       - name: Build the package
         shell: bash
         # Every build refuses to run if SECOND_CONTACT in packaging/build.py (the contact of the written offer) is ever emptied.
         # Every build puts the exact Qt and PySide source in packaging/dist/qt-source (Linux) for the release job: the release always carries it.
         run: python packaging/build.py ${{ startsWith(github.ref, 'refs/tags/v') && '--release' || '' }}
+      - name: Remove the shipped libraries from the runner (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        # The self-test must run on the libraries of the package alone. apt is first asked, as a simulation, what removing them would take along: anything else
+        # (xvfb, the base packages) stops the job, so the proof is never made by removing the tools the test needs.
+        run: |
+          SHIPPED="libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon-x11-0"
+          sudo apt-get -s remove $SHIPPED | grep '^Remv' || true
+          OTHERS=$(sudo apt-get -s remove $SHIPPED | grep '^Remv' | awk '{print $2}' | grep -v -x -F "$(echo $SHIPPED | tr ' ' '\n')" || true)
+          if [ -n "$OTHERS" ]; then echo "removing the shipped libraries would also remove: $OTHERS"; exit 1; fi
+          sudo apt-get remove -y $SHIPPED
+          if ldconfig -p | grep -E 'libxcb-(cursor|icccm|image|keysyms|render-util|util)\.so|libxkbcommon-x11\.so'; then echo "a shipped library is still on the runner"; exit 1; fi
       - name: Self-test the packed program (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

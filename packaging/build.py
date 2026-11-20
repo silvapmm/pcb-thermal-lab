@@ -60,6 +60,9 @@ SYSTEM_NOTICES = {"ICU": (re.compile(r"^libicu(data|uc|i18n)\.so\.(\d+)"), "73")
 # siblings, which Qt's xcb plug-in needs) and libxkbcommon, all MIT/X11. The name pattern is the shared library (Linux), the key the folder under licenses/_system.
 SHIPPED_SYSTEM_LIBRARIES = {"xcb-util": re.compile(r"^libxcb-(cursor|icccm|image|keysyms|render-util|util)\.so(\.\d+)*$"),
                             "xkbcommon": re.compile(r"^libxkbcommon(-x11)?\.so(\.\d+)*$")}
+# The shared libraries (by name, without the version) that the Linux package MUST contain: Qt's xcb plug-in does not start without them on a desktop that lacks them. The build
+# machine must have them installed (PyInstaller collects only what it finds there); missing_shipped_libraries() makes the build fail when one is not in the package.
+REQUIRED_SHIPPED_LIBRARIES = ("libxcb-cursor", "libxcb-icccm", "libxcb-image", "libxcb-keysyms", "libxcb-render-util", "libxcb-util", "libxkbcommon", "libxkbcommon-x11")
 # The incorporated-software notices of CPython (libmpdec, expat, libffi, zlib, mimalloc, HACL*, ...): the LICENSE file of the interpreter does NOT list them;
 # they are in Doc/license.rst of the exact CPython release, fetched by the build (the build fails when it cannot be fetched)
 PYTHON_NOTICES_URL = "https://raw.githubusercontent.com/python/cpython/v{version}/Doc/license.rst"
@@ -601,6 +604,31 @@ def uncovered_native_libraries(paths):
                   and not any(s.match(Path(p).name) for s in system))
 
 
+def missing_shipped_libraries(paths):
+    """!
+    @brief The libraries of REQUIRED_SHIPPED_LIBRARIES that the file list of a Linux package does not contain.
+    @param paths Relative paths (posix) of the files of the package.
+    @return list of str, the missing library names (in the order of REQUIRED_SHIPPED_LIBRARIES).
+    """
+    names = [Path(p).name for p in paths]
+    return [lib for lib in REQUIRED_SHIPPED_LIBRARIES if not any(re.fullmatch(re.escape(lib) + r"\.so(\.\d+)*", n) for n in names)]
+
+
+def check_shipped(folder):
+    """!
+    @brief Stop a Linux build whose package lacks a library it must ship (every build, trial or release): such a package cannot start on a desktop without it.
+    @param folder The assembled package folder.
+    @return None.
+    @throws SystemExit When a required library is not in the package (names listed; install the apt packages of the build runner, see packaging/README.md).
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    missing = missing_shipped_libraries([p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()])
+    if missing:
+        raise SystemExit("error: the package lacks libraries it must ship (not installed on the build machine, so PyInstaller found nothing to collect): " + ", ".join(missing)
+                         + ". Install libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon0 libxkbcommon-x11-0 and build again.")
+
+
 def check_notices(folder, release):
     """!
     @brief Stop a release build whose package holds a native library without its licence notice; a trial build only reports them.
@@ -762,6 +790,7 @@ def main(argv=None):
     make_icns(staging)
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
+    check_shipped(folder)
     uncovered = check_notices(folder, args.release)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)

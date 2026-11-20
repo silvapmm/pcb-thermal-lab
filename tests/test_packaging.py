@@ -461,16 +461,44 @@ def test_the_shipped_system_libraries_have_their_notice_files_and_a_tag_build_st
         build.check_notices(pkg, release=True)
 
 
+def test_a_linux_package_without_the_shipped_libraries_fails_the_build(tmp_path, monkeypatch):
+    """The failure of the second trial: the build runner had no libxcb-cursor, PyInstaller collected nothing and the package could not start. A file list without it makes
+    missing_shipped_libraries name it and check_shipped stop the build (trial or release); the full list passes; other systems are not checked."""
+    build = load("build")
+    full = [f"_internal/{n}" for n in LINUX_SHIPPED]
+    assert build.missing_shipped_libraries(full) == []
+    assert build.missing_shipped_libraries([p for p in full if "xcb-cursor" not in p]) == ["libxcb-cursor"]
+    assert build.missing_shipped_libraries(["_internal/libxcb-cursor.so.0"]) == [n for n in build.REQUIRED_SHIPPED_LIBRARIES if n != "libxcb-cursor"]
+    pkg = tmp_path / "pkg"
+    for rel in full:
+        if "xcb-cursor" not in rel:
+            (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
+            (pkg / rel).write_text("x")
+    monkeypatch.setattr(build.sys, "platform", "linux")
+    with pytest.raises(SystemExit, match="libxcb-cursor"):
+        build.check_shipped(pkg)
+    (pkg / "_internal" / "libxcb-cursor.so.0").write_text("x")
+    build.check_shipped(pkg)
+    monkeypatch.setattr(build.sys, "platform", "darwin")
+    build.check_shipped(tmp_path / "empty")
+
+
 def test_spec_and_workflow_apply_the_system_policy_and_pin_python():
     """The spec drops the libraries left to the system before it prunes; the workflow pins Python to an exact patch release for all three systems and installs on the
-    Linux runner only the system packages, not the libraries the package ships (so the self-test runs on the shipped ones); BUILD-INFO records the Python version."""
+    Linux runner the system packages and the shipped libraries (to be collected), then removes the shipped ones before the self-test; BUILD-INFO records the Python version."""
     spec = (PKG / "PCB-Thermal-Lab.spec").read_text(encoding="utf-8")
     assert spec.index("left_to_system(b[0])") < spec.index("unreferenced_libraries(a.binaries")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     assert re.search(r"python-version: '3\.13\.\d+'", workflow) and workflow.count("python-version") == 1
     apt = workflow.split("sudo apt-get install -y")[1].split("- name:")[0]
-    for shipped in ("libxcb-cursor0", "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-render-util0", "libxkbcommon-x11-0"):
-        assert shipped not in apt
+    # The build runner needs the libraries the package ships (PyInstaller collects only what is installed), and they are removed again before the self-test
+    for shipped in ("libxcb-cursor0", "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-render-util0", "libxcb-util1", "libxkbcommon-x11-0"):
+        assert shipped in apt
+        assert workflow.count(shipped) >= 2
+    removal = workflow.split("Remove the shipped libraries from the runner")[1].split("- name:")[0]
+    assert "apt-get remove -y $SHIPPED" in removal and "apt-get -s remove" in removal
+    assert workflow.index("Remove the shipped libraries") < workflow.index("Self-test the packed program (Linux and macOS)")
+    assert workflow.index("Build the package") < workflow.index("Remove the shipped libraries")
     for needed in ("libegl1", "libglib2.0-0", "libdbus-1-3", "libfontconfig1"):
         assert needed in apt
     assert "Python: {py}" in (PKG / "build.py").read_text(encoding="utf-8")
