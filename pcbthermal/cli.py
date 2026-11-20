@@ -179,8 +179,13 @@ def cmd_transient(args):
         from . import fdm
         tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     elif args.model == "fem":
-        from . import fem
-        tr = fem.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+        from . import fem, femcore
+        try:
+            tr = fem.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+        except (femcore.FemUnavailable, ValueError) as exc:
+            # no pyamg above the direct limit, no mesh for the outline, a failed solve: the reason, not a traceback (review), with the exit code of a refusal
+            print(f"error: FEM: refused ({exc})", file=sys.stderr)
+            return memory.EXIT_CODE
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))

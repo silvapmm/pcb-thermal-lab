@@ -1074,6 +1074,7 @@ class _FEMAdapter:
         self.warnings = list(self.mesh.warnings)
         self._last = (None, None)                                               # (state, its column read-out): the cache of `_column`
         self.theta = 1.0
+        self._deadline = None                                                   # wall-clock end of the stepping, set by `begin`
         self._rows = np.tile(ctx["active"].ravel(), self.L)                     # the rows of the column read-out that are on the board
         self.F = fem.heater_loads(self.mesh)
         self.footprints = self._footprints(problem, ctx["active"], ctx["cover"])
@@ -1146,6 +1147,10 @@ class _FEMAdapter:
         @return Tuple (state, reported initial temperature in degC).
         """
         self.theta = options.theta
+        # A hard ceiling on the wall time of the stepping (review): the bound of `run_fem` is a prediction from the planned steps, and a run "until stable" can take up to
+        # max_windows windows instead of the 12 the plan counts; past twice the limit the run stops with the ProfileError text, so a FEM ticked beside the FVM never holds Run
+        # simulation for long (the other models' curves stand, `api._run_fem_profile`)
+        self._deadline = time.monotonic() + 2.0 * memory.FEM_RUN_SECONDS_MAX
         if options.initial == "average":
             return self.th_init.copy(), float(self._hottest(self.th_init)[0])
         t0 = self.ambient if options.initial_c is None else float(options.initial_c)
@@ -1158,7 +1163,11 @@ class _FEMAdapter:
         @param dt Time step (s), equal to the prepared one.
         @param powers Mean power of every heater over the step (W).
         @return New state.
+        @throws ProfileError If the stepping has run for more than twice `memory.FEM_RUN_SECONDS_MAX`.
         """
+        if self._deadline is not None and time.monotonic() > self._deadline:
+            raise ProfileError(f"the finite-element time simulation was stopped after {2.0 * memory.FEM_RUN_SECONDS_MAX / 60.0:.0f} minutes, twice its limit (the run needed more "
+                               "windows than planned to become periodic). Use a coarser cell, shorten the duration or start from the average state; the other models can run it.")
         load = self.F @ powers
         return self.stepper.step(x, dt, self.theta, load, load)
 

@@ -1332,7 +1332,8 @@ def _run_fem_profile(sim, p, o):
     """!
     @brief The power-profile run of the comparison FEM, with its own refusals: a refusal is a warning that names the FEM and leaves the other models' profiles in place.
     @details The FEM can be refused by the memory guard, by a missing pyamg above the direct limit, by an outline it has no mesh for (a ValueError with the reason), by the work
-             limit of the time run (a ProfileError) or stopped by the user (a cancel is a cancel, not a warning: it propagates).
+             limit of the time run (a ProfileError), fail in a step (conjugate gradients that do not converge, a RuntimeError) or be stopped by the user (a cancel is a cancel, not
+             a warning: it propagates).
     @param sim Simulation being filled (profile_results, problem_warnings).
     @param p The problem of the run (the effective one).
     @param o SolverOptions.
@@ -1344,7 +1345,9 @@ def _run_fem_profile(sim, p, o):
                                                       memory_fraction=o.memory_fraction)
     except femcore.FemCancelled:
         raise
-    except (memory.MemoryGuardError, femcore.FemUnavailable, profiles.ProfileError, ValueError) as exc:
+    except (memory.MemoryGuardError, profiles.ProfileError, ValueError, RuntimeError) as exc:
+        # RuntimeError covers femcore.FemUnavailable (no pyamg) and conjugate gradients that do not converge in a step of the run (femcore.Stepper.solve): either way the FEM
+        # curve is missing and the other models' curves stand (review: a CG failure used to abort the profiles of every model)
         sim.problem_warnings.append(warn(f"FEM: refused ({exc})"))
 
 

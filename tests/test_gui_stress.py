@@ -1992,7 +1992,9 @@ def test_fem_time_run_with_one_three_and_six_models_clear_and_themes(win, qtbot)
 def test_fem_animation_is_cancelled_in_the_middle_of_a_stage(win, qtbot):
     """!
     @brief The animation with the FEM on a board large enough to take seconds (the example board at 2 mm, the conjugate-gradient path, needs pyamg) is stopped by the Stop button; the
-           button returns to Run and the tab says so.
+           button returns to Run and the tab says so. The job runs in its own process and the Stop terminates it, so where the FEM is (mesh, assembly, a stage) does not matter; the
+           click comes as soon as the button says Stop, usually before the first stage (review: the in-process cancel between steps is `femcore.Stepper`'s, tested in
+           `tests/test_fem_profile_adapter.py`).
     @param win MainWindow fixture.
     @param qtbot Fixture.
     """

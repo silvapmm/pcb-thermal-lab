@@ -120,3 +120,15 @@ def test_the_time_prediction_grows_with_unknowns_and_steps_and_the_cg_path_costs
     s = memory.fem_transient_seconds
     assert s(20_000, 2000) == pytest.approx(2 * s(20_000, 1000)) and s(40_000, 1000) > s(20_000, 1000)
     assert s(100_000, 1000) / 100_000 > s(20_000, 1000) / 20_000
+
+
+def test_the_transient_direct_limit_does_not_outrun_the_direct_memory_law():
+    """!
+    @brief `femcore.FEM_TRANSIENT_DIRECT_MAX` stays at or below `femcore.FEM_DIRECT_MAX` while `memory.estimate_bytes` has a direct law only below the steady limit: a time run on the
+           direct path above it would be estimated with the conjugate-gradient law (6.7 kB per unknown against 24 kB measured for a direct factor at 67 229 unknowns, DESIGN.md 14.3).
+           Raising the transient limit (after `measure_fem_transient_direct_limit.py`) must come with a direct law above 30 000 unknowns in `estimate_bytes`, and this test changes then.
+    @return None.
+    """
+    assert femcore.FEM_TRANSIENT_DIRECT_MAX <= femcore.FEM_DIRECT_MAX
+    n = femcore.FEM_TRANSIENT_DIRECT_MAX
+    assert memory.estimate_bytes("fem", n, n / 10.0, base=0.0) == pytest.approx(memory.FEM_DIRECT_BYTES * n)

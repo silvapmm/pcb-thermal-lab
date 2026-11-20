@@ -173,3 +173,60 @@ def test_step_responses_have_the_form_of_the_fvms_and_reach_the_steady_resistanc
     assert np.all(np.diff(z[0]) > -1e-9) and abs(z[0, -1] / rth[0] - 1.0) < 2e-2
     ft, fz, frth = fvm.step_responses(p, cell_mm=4.0)
     assert abs(rth[0] / frth[0] - 1.0) < 0.05
+
+
+def _halved_grid(monkeypatch):
+    """!
+    @brief Make `fem.time_grid` return every step cut in two (the output times unchanged), for the halved-step check.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    orig = fem.time_grid
+
+    def halved(*a, **k):
+        """!
+        @brief The program's grid with every step halved.
+        @param a Positional arguments of `fem.time_grid`.
+        @param k Keyword arguments of `fem.time_grid`.
+        @return Tuple (steps, emit, times) as `fem.time_grid`.
+        """
+        hs, emit, times = orig(*a, **k)
+        e2 = np.zeros(2 * hs.size, bool)
+        e2[1::2] = emit
+        return np.repeat(hs / 2.0, 2), e2, times
+    monkeypatch.setattr(fem, "time_grid", halved)
+
+
+@pytest.mark.parametrize("theta, bound", [(0.5, 0.01), (1.0, 0.03)])
+def test_the_frames_move_little_when_every_step_is_halved(theta, bound, monkeypatch):
+    """!
+    @brief Halving every step (H5 of DESIGN.md): with Crank-Nicolson and the Rannacher start every frame of the 4 x 4 via plate moves by less than 1 % of its hottest rise from the
+           first output on (review: 0.15 % at the first frame, 0.11 % at most later); implicit Euler, first order, moves by up to 2 % (2.0 % at the first frame, 0.9 % later), so its
+           frames carry an error of about twice that, which the documents state.
+    @param theta 0.5 or 1.
+    @param bound Largest allowed change of a frame over its hottest rise.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    p = B.build("plate_vias")
+    a = fem.solve_transient(p, 600.0, 40, 4.0, theta_scheme=theta, force_solver="direct")
+    _halved_grid(monkeypatch)
+    b = fem.solve_transient(p, 600.0, 40, 4.0, theta_scheme=theta, force_solver="direct")
+    ra, rb = a.frames[1:] - a.ambient, b.frames[1:] - b.ambient
+    change = np.abs(ra - rb).reshape(len(ra), -1).max(axis=1) / rb.reshape(len(rb), -1).max(axis=1)
+    assert b.extras["steps"] == 2 * a.extras["steps"]
+    assert change.max() < bound, change[:4]
+
+
+def test_more_gap_elements_resolve_the_first_second():
+    """!
+    @brief The gap grading limits the first seconds (DESIGN.md 14.1): on the two-layer reference board the hottest column at about 0.44 s with the default 6 elements across the gap is
+           within 1.5 % of 12 elements (review, 3D: -0.9 % against 24 elements, 12 elements -0.15 %), and 4 elements are further off than 6.
+    @return None.
+    """
+    p = B.build("reference_board")
+    runs = {g: fem.solve_transient(p, 600.0, 40, 4.0, theta_scheme=0.5, gap_elements=g, force_solver="direct") for g in (4, 6, 12)}
+    k = int(np.argmin(np.abs(runs[12].times - 0.44)))
+    rise = {g: r.t_max[k] - r.ambient for g, r in runs.items()}
+    assert abs(rise[6] / rise[12] - 1.0) < 0.015, rise
+    assert abs(rise[4] / rise[12] - 1.0) > abs(rise[6] / rise[12] - 1.0)

@@ -139,9 +139,23 @@ def test_the_work_limit_refuses_before_the_mesh_is_built(monkeypatch):
     assert not built
 
 
+def test_a_run_longer_than_twice_the_limit_is_stopped_while_it_steps(monkeypatch):
+    """!
+    @brief The bound of `run_fem` is a prediction (a run 'until stable' may need more windows than the plan counts): the adapter also stops the stepping past twice
+           `memory.FEM_RUN_SECONDS_MAX` of wall time with a ProfileError (review), which `api` turns into the warning 'FEM: refused'.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    p, d = _plate()
+    monkeypatch.setattr(memory, "fem_transient_seconds", lambda n, s: 0.0)       # the prediction lets it start
+    monkeypatch.setattr(memory, "FEM_RUN_SECONDS_MAX", 1e-9)                       # and the wall clock stops it at the first step
+    with pytest.raises(ProfileError, match="was stopped after"):
+        profiles.run_fem(p, d, ProfileOptions(), CELL, gap_elements=GAP)
+
+
 def test_a_memory_refusal_comes_before_the_run_and_a_cancel_is_a_cancel():
     """!
-    @brief With a fraction of the memory that cannot hold the mesh `run_fem` raises the guard's error before any build; a cancel callable stops the stepping with FemCancelled.
+    @brief With a fraction of the memory that cannot hold the mesh `run_fem` raises the guard's error before any build; a cancel callable stops the build, and one that turns True after 30 steps stops the stepping, with FemCancelled.
     @return None.
     """
     p, d = _plate()
@@ -149,6 +163,28 @@ def test_a_memory_refusal_comes_before_the_run_and_a_cancel_is_a_cancel():
         profiles.run_fem(p, d, ProfileOptions(), CELL, gap_elements=GAP, memory_fraction=memory.MIN_FRACTION * 1e-6)
     with pytest.raises(femcore.FemCancelled):
         profiles.run_fem(p, d, ProfileOptions(), CELL, gap_elements=GAP, cancel=lambda: True)
+    # a cancel in the middle of the stepping (review): the callable says True only after the build and a few dozen solves of the windows
+    calls = []
+    st_solves = []
+    orig_step = femcore.Stepper.step
+
+    def counting_step(self, *a, **k):
+        """!
+        @brief Count the steps taken before the cancel.
+        @param self The stepper.
+        @param a Positional arguments of `Stepper.step`.
+        @param k Keyword arguments of `Stepper.step`.
+        @return The new field.
+        """
+        st_solves.append(1)
+        return orig_step(self, *a, **k)
+    femcore.Stepper.step = counting_step
+    try:
+        with pytest.raises(femcore.FemCancelled):
+            profiles.run_fem(p, d, ProfileOptions(), CELL, gap_elements=GAP, cancel=lambda: (calls.append(1) or len(st_solves) > 30))
+    finally:
+        femcore.Stepper.step = orig_step
+    assert 30 < len(st_solves) < 40
 
 
 def test_step_response_of_the_fem_is_the_fems_and_an_unknown_model_raises():
@@ -169,14 +205,15 @@ def test_step_response_of_the_fem_is_the_fems_and_an_unknown_model_raises():
 def test_a_fem_refusal_keeps_the_other_models_profile_and_names_the_fem(monkeypatch):
     """!
     @brief When the FEM is refused in the profile run (memory guard, no pyamg, no mesh, work limit) the FVM profile stands, the FEM has no result and one warning says
-           'FEM: refused (reason)'; the run does not abort.
+           'FEM: refused (reason)'; the run does not abort (also for conjugate gradients that do not converge in a step).
     @param monkeypatch pytest fixture.
     @return None.
     """
     p, _ = _plate()
     o = SolverOptions(models=("fvm", "fem"), cell_mm=CELL, fem_gap_elements=GAP)
     o.profile = ProfileOptions(threshold_c=0.001)
-    for exc in (memory.MemoryGuardError("too big"), femcore.FemUnavailable("no pyamg"), ProfileError("too many steps"), ValueError("slanted outline")):
+    for exc in (memory.MemoryGuardError("too big"), femcore.FemUnavailable("no pyamg"), ProfileError("too many steps"), ValueError("slanted outline"),
+                RuntimeError("conjugate gradients did not converge (info 5000)")):         # the last one: a CG failure in a step (review: it aborted every model's profile)
         def boom(*a, _e=exc, **k):
             raise _e
         monkeypatch.setattr(profiles, "run_fem", boom)
@@ -203,3 +240,33 @@ def test_the_fem_alone_in_the_profile_tab_says_it_needs_another_model_and_both_r
     sim2 = api.simulate(p, o2)
     assert sim2.profile_reference == "fvm" and set(sim2.profile_results) == {"fvm", "fem"}
     assert sim2.profile_results["fem"].resolved
+
+
+def test_the_command_line_runs_the_fem_in_time_and_says_why_when_it_refuses(tmp_path, monkeypatch, capsys):
+    """!
+    @brief `transient --model fem` writes its table, and a refusal of the FEM (no pyamg above the direct limit, no mesh) is the message 'FEM: refused' with the exit code of a
+           refusal, not a traceback (review).
+    @param tmp_path pytest fixture.
+    @param monkeypatch pytest fixture.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    from pcbthermal import cli
+    path = tmp_path / "ref.pcbt.json"
+    cli.main(["example", str(path), "--which", "example"])
+    assert cli.main(["transient", str(path), "--model", "fem", "--t-end", "30", "--steps", "10", "--cell-mm", "6", "--theta", "0.5", "--out", str(tmp_path / "f"),
+                     "--no-plots"]) == 0
+    assert (tmp_path / "f" / "transient.csv").exists()
+
+    def refuse(*a, **k):
+        """!
+        @brief Stand-in for `fem.solve_transient` that refuses like a missing pyamg.
+        @param a Positional arguments.
+        @param k Keyword arguments.
+        @return Never.
+        @throws femcore.FemUnavailable Always.
+        """
+        raise femcore.FemUnavailable("pyamg is not installed")
+    monkeypatch.setattr(fem, "solve_transient", refuse)
+    assert cli.main(["transient", str(path), "--model", "fem", "--t-end", "30", "--steps", "10", "--cell-mm", "6", "--out", str(tmp_path / "g"), "--no-plots"]) == memory.EXIT_CODE
+    assert "FEM: refused (pyamg is not installed)" in capsys.readouterr().err

@@ -81,13 +81,28 @@ def main():
                 est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
                 print(f"cell {cell:3.1f} mm {path:6s} unknowns {n:8d}  expected peak growth {est / 1e9:5.2f} GB")
         return
+    p, memory, femmesh, femcore, fem = _setup()
+    grown = {}                                                  # bytes per unknown of the last direct case, to extrapolate the superlinear fill to the next one
     for cell in CELLS:
+        n = femmesh.unknowns(p, cell)[0]
         for path in PATHS:
+            # a guard of the script itself (review): the expected peak (the shipped law, or the last direct case scaled by sqrt(n) for the superlinear fill) times 1.5 must be
+            # below the memory available now, or the case is not started
+            est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
+            if path == "direct" and grown:
+                n0, b0 = grown["n"], grown["bytes"]
+                est = max(est, b0 / n0 * (n / n0) ** 0.5 * n)
+            free = memory.available_bytes()
+            if free is not None and 1.5 * est > free:
+                print(f"cell {cell} {path}: NOT RUN, expected peak {est / 1e9:.2f} GB x 1.5 above the {free / 1e9:.2f} GB available now", flush=True)
+                continue
             out = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", str(cell), path], capture_output=True, text=True)
             if out.returncode != 0:
                 print(f"cell {cell} {path}: FAILED {out.stderr.strip().splitlines()[-1:]}", flush=True)
                 continue
             r = json.loads(out.stdout.strip().splitlines()[-1])
+            if path == "direct":
+                grown = {"n": r["n"], "bytes": r["growth"]}
             print(f"cell {r['cell']:3.1f} mm {r['path']:6s} n={r['n']:8d}  stage setup {r['t_factor']:7.2f} s  step {r['t_step']:7.3f} s  iterations/step {r['iterations_per_step']:6.1f}  growth {r['growth'] / 1e9:5.2f} GB", flush=True)
 
 

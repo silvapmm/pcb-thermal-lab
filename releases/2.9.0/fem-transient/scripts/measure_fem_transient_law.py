@@ -62,6 +62,15 @@ def expected_peak(name, cell, path):
     return n, memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
 
 
+def available_now():
+    """!
+    @brief The memory available to a new process now, as the program's guard reads it.
+    @return int bytes, or None when the system does not say.
+    """
+    rb, fem, femmesh, memory, profiles = _import()
+    return memory.available_bytes()
+
+
 def one(name, cell, path, kind):
     """!
     @brief Run one case in this process and describe it.
@@ -74,16 +83,18 @@ def one(name, cell, path, kind):
     rb, fem, femmesh, memory, profiles = _import()
     import numpy as np
     p = rb.build(name)
-    start = memory.resident_bytes()
     n = femmesh.unknowns(p, cell)[0]
+    if kind == "profile":
+        # the decision (an FVM step response with its own factors) is taken BEFORE the resident size is read, so that its peak is not counted as the FEM's (review)
+        from pcbthermal import SquareWave
+        p.heaters[0].set_profile(SquareWave(p_on=p.heaters[0].power / 0.3, period=60.0, duty=0.3))
+        d = profiles.decide(p, profiles.step_response_fvm(p, 2.0), 0.001)
+    start = memory.resident_bytes()
     t0 = time.time()
     if kind == "step":
         r = fem.solve_transient(p, 300.0, n_out=40, cell_mm=cell, theta_scheme=0.5, force_solver=path)
         steps, facts, iters, solver = r.extras["steps"], r.extras["factorisations"], r.extras["iterations"], r.extras["solver"]
     else:
-        from pcbthermal import SquareWave
-        p.heaters[0].set_profile(SquareWave(p_on=p.heaters[0].power / 0.3, period=60.0, duty=0.3))
-        d = profiles.decide(p, profiles.step_response_fvm(p, 2.0), 0.001)
         opts = profiles.ProfileOptions(duration="cycles", cycles=2)
         ad = profiles._FEMAdapter(p, cell, force_solver=path)
         r = profiles.run_windows(p, d, opts, ad, "fem")
@@ -113,6 +124,12 @@ def main():
         return
     rows = []
     for name, cell, path, kind in CASES:
+        n, est = expected_peak(name, cell, path)
+        free = available_now()
+        if free is not None and 1.5 * est > free:
+            # a guard of the script itself (review): never start a case whose expected peak, with a margin of 1.5, is above the memory available at that moment
+            print(f"{name} {cell} {path} {kind}: NOT RUN, expected peak {est / 1e9:.2f} GB x 1.5 above the {free / 1e9:.2f} GB available now", flush=True)
+            continue
         out = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", name, str(cell), path, kind], capture_output=True, text=True)
         if out.returncode != 0:
             print(f"{name} {cell} {path} {kind}: FAILED {out.stderr.strip().splitlines()[-1:]}", flush=True)

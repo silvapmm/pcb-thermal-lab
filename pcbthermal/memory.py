@@ -53,13 +53,16 @@ PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measu
 # (the review measured 1.07 on the CG path and 1.14 to 1.28 on the direct path on one mesh); the constants then become the largest measured ratio times 1.1.
 FEM_TRANSIENT_FACTOR_CG = 2.0
 FEM_TRANSIENT_FACTOR_DIRECT = 2.0
-# Time of a FEM time simulation (DESIGN.md 14.3, hand arithmetic, NOT a fit: the CG figure from the review's prototype, the direct one from the fill of the factor, 15.9 kB per unknown,
-# about 1 300 entries of L and U per unknown read twice at roughly 1 GFlop/s, so 55 ms for a step at 21 000 unknowns): seconds per unknown and step on the direct path (a back substitution) and on
-# the CG path (about the steady iteration count at EVERY step: 155 s for 44 steps at 67 229 unknowns), and the longest run the guard accepts, in seconds. A profile run above it is
-# refused with the ProfileError text; the step response of an animation is only warned "slow" (SLOW_SECONDS). Shipped conservative; the measurement script refits them.
+# Time of a FEM time simulation (DESIGN.md 14.3; NOT a fit): seconds per unknown and step on the direct path (a back substitution) and on the CG path (about the steady iteration count
+# at EVERY step: 155 s for 44 steps at 67 229 unknowns in the review's prototype, 5.2e-5), and the longest run the guard accepts, in seconds. The direct figure is kept about ten times
+# above what the review timed (`Stepper.step` alone: 0.21 to 0.41 us per unknown and step at 14 400 to 39 204 unknowns, fill 480 to 920 entries of L and U per unknown, on a loaded
+# machine), so that the build, the read-out of every step and a slower machine stay inside it. A profile run above FEM_RUN_SECONDS_MAX is refused with the ProfileError text; the
+# step response of an animation is only warned "slow" (SLOW_SECONDS). FEM_RUN_SECONDS_MAX is 10 minutes (review): a project saved with the FEM ticked for its steady comparison now
+# also runs the FEM in its power profiles, inside Run simulation and without a progress of its own, so a run longer than that is refused rather than made to wait. Shipped
+# conservative; `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` refits the two costs.
 FEM_STEP_SECONDS_DIRECT = 3.0e-6
 FEM_STEP_SECONDS_CG = 5.2e-5
-FEM_RUN_SECONDS_MAX = 1200.0
+FEM_RUN_SECONDS_MAX = 600.0
 SOR_BLOCK_SHARE = 0.25              # Share of the limit that ALL the dense SOR blocks together (the sum of 75 n^2) may take (sor_block_fits)
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
 VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
@@ -357,7 +360,10 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     k1, p, a, safety = CONTINUOUS[model]
     n = max(float(unknowns), 1.0)
     if model == "fem" and n <= FEM_DIRECT_MAX:
-        # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth
+        # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth.
+        # The time stepping takes the direct path up to femcore.FEM_TRANSIENT_DIRECT_MAX, which is equal to FEM_DIRECT_MAX today; raising it without a direct law above 30 000
+        # unknowns here would estimate a direct time run with the CG law (6.7 against 24 kB per unknown measured at 67 229): tests/test_fem_transient_memory.py holds the two equal
+        # until that law is fitted (review)
         return (baseline_bytes() if base is None else base) + FEM_DIRECT_BYTES * n * factor
     t = n / max(float(cells), 1.0)
     t_eff = max(min(t, float(cells) / t), 1.0)
