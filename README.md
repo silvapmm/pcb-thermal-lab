@@ -47,11 +47,11 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning with a severity dot and the label of its element at the end, and the first one opened](docs/images/editor_warnings.png)
 
-![The imported board in the dark theme](docs/images/editor_imported_dark.png)
+![The imported board in the editor (light theme)](docs/images/editor_imported.png)
 
-![Temperature of the imported board (FVM, dark theme)](docs/images/results_temperature_imported_dark.png)
+![Temperature of the imported board (FVM)](docs/images/results_temperature_imported.png)
 
-*The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
+*All screenshots are in the light theme (the dark theme is one View menu item away). The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
 
 ![Stack-up](docs/images/stackup.png)
 
