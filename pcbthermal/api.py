@@ -30,7 +30,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d, thickness
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from . import uicontext
@@ -194,7 +194,7 @@ def surface_report_lines(res):
              that a thermocouple on the copper and the column agree there. On a patterned board the difference of the whole face includes the rise across the bare laminate under a
              source (the laminate face term), so it can be 1 to 4 K on 35 um copper; the line says so.
     @param res A SteadyResult.
-    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: LPTN, Analytic, 3D solid, transient).
+    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: the LPTN and the transient).
     """
     out = []
     for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
@@ -207,8 +207,8 @@ def surface_report_lines(res):
         col = float(np.nanmax(res.T[layer]))
         rise = max(res.t_max - res.ambient, 1e-9)
         diff = surf - col
-        # The FEM resolves the surface with its elements; the FVM and FDM estimate it from the heat fluxes
-        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is narrow against the plate (t/a above 0.5, a the narrow side)' if flagged else ''}"
+        # The FEM resolves the surface with its elements, the 3D solid with copper slabs computes it, the others (FVM, FDM, Analytic, the 3D solid on one slab) estimate it from the heat fluxes
+        how = thickness.surface_how(res, flagged, face)
         patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
         out.append(f"Hottest surface ({name}): {surf:.1f} °C ({how}; "
                    f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} °C; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
@@ -275,7 +275,8 @@ def _err_text(r, ref):
 
 
 SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM). "
-               "It is a view of the same solution, not another model; the LPTN, Analytic and 3D solid models have no surface read-out (n/a). The bottom face and the "
+               "It is a view of the same solution, not another model; the LPTN has no surface read-out (n/a: it has no heat flux through the face, only a measured upper value for the "
+               "through-thickness term is in the part table), and the Analytic and the 3D solid give an estimate or a computed value as their row says in the report. The bottom face and the "
                "hottest mesh node of the FEM are in the report.")
 SUMMARY_COLUMNS = (
     SummaryColumn("model", "Model", "", "", lambda r, ref: r["model"], "The model; the reference model (FVM when it runs) is the one the errors are measured against.", left=True),
@@ -633,10 +634,12 @@ class Simulation:
                              f"{h['area_mm2']:.1f} mm2")
             surf_lines = surface_report_lines(ref)
             if surf_lines:
-                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM and FDM, resolved by the elements for the FEM)")
+                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM, FDM and Analytic, "
+                             "computed from the copper slabs or estimated from the links for the 3D solid, resolved by the elements for the FEM)")
                 lines += surf_lines
             else:
-                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here (steady FVM, FDM and FEM only)")
+                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here "
+                             "(steady FVM, FDM, Analytic, 3D solid and FEM have one)")
             for h in self.heater_rows():
                 extra = f", junction {h['t_junction']:.1f} °C" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
@@ -650,7 +653,8 @@ class Simulation:
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
                 if "t_max_surface" in h:
                     # Both read-outs exist (always, for the FVM and the FDM): every number names its own
-                    note = "resolved" if ref.model == "fem" else ("estimate, upper side" if h["surface_upper"] else "estimate")
+                    kind = thickness.surface_kind(ref, 0 if h["layer"] == 1 else 1)
+                    note = kind if (kind != "estimate" or not h["surface_upper"]) else "estimate, upper side"
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} °C{extra}; "
                                  f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} °C ({note}; "
@@ -658,6 +662,8 @@ class Simulation:
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} °C{extra}")
+                    if "surface_bound_k" in h:
+                        lines.append("  " + thickness.lumped_surface_note(h["surface_bound_k"], h["layer"]))
             lines += self.part_comparison_lines()
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "

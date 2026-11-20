@@ -54,7 +54,7 @@ from scipy.optimize import brentq
 from scipy.sparse.linalg import LinearOperator, gmres
 from scipy.special import k0
 
-from . import blocks, copper, laminate, viaconstriction, viawell
+from . import blocks, copper, laminate, thickness, viaconstriction, viawell
 from .analytic_local import FACTOR_BRACKET, LocalSystem
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
@@ -800,7 +800,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         # (per layer: beta_l S_l = h_eff s_l; with equal layers the common beta, so the balance of the earlier code is kept bit for bit)
         beta_side = sh["beta_l"] if mismatch else np.full(L, sh["beta"])
         p_out["sides"] = float(sum(_edge_loss(bx, by, a_mn[:, :, k], S[k], beta_side[k]) for k in range(L)))
-    return SteadyResult(
+    out = SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],
         t_max_location=(int(l), (j + 0.5) * dx, (i + 0.5) * dy), T=T, dx=dx, dy=dy,
@@ -809,6 +809,9 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 "uniform_board_rise_k": power / (h_tot * W * H) if h_tot > 0 else float("inf"),
                 "edge_iterations": edge_iterations},
     )
+    # The surface of the two outer faces beside the column (rule F, an estimate from the field and the uniform conductances of the sheet): a view, it changes no number above
+    thickness.attach_field(out, problem, sh)
+    return out
 
 
 # ----------------------------------------------------------------------------------- time dependence

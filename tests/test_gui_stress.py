@@ -746,6 +746,31 @@ def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_no
     assert "column mean" in rv.temp.fig.axes[0].get_title()
 
 
+def test_surface_read_out_of_the_analytic_the_solid_and_the_lumped_text_in_the_application(win, qtbot):
+    """Analytic and 3D solid hold a surface (map entries, part-table column named by how it was made); the Lumped has none and its cell says why, with the bound on the term only."""
+    from pcbthermal.model import Materials
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
+    p.add_full_copper()
+    p.add_heater(1, 25.0, rect=(20, 20, 30, 30), name="S")
+    load(win, p)
+    for models, word in ((("analytic", "solid3d"), "estimate"), (("solid3d",), "computed"), (("lumped",), None)):
+        run(win, qtbot, models, cell=2.0)
+        rv = win.results
+        rv.tabs.setCurrentWidget(rv.temp)
+        head, cell = rv.heater_table.horizontalHeaderItem(9).text(), rv.heater_table.item(0, 9)
+        texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+        if word is None:
+            assert "Surface (top)" not in texts and cell.text() == "n/a"
+            assert "not a guarantee" in cell.toolTip() and "no surface temperature" in cell.toolTip()
+        else:
+            assert "Surface (top)" in texts and word in head and cell.text() != "n/a"
+            for m in models:
+                rv.temp.model.setCurrentIndex(rv.temp.model.findData(m))
+                for data in (200, 201, 0):
+                    win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))
+        walk_results(win, qtbot)
+
+
 def test_component_fields_in_the_application(win, qtbot):
     """A part with theta, a junction limit, psi_JB and a power temperature coefficient: inspector fields, a run with every model, its table and the warnings."""
     load(win, example_board())

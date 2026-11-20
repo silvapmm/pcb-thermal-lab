@@ -26,6 +26,7 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.figure import Figure
 from scipy import ndimage
 
+from . import thickness
 from .analysis import extreme_points
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
@@ -735,7 +736,7 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     """!
     @brief Temperature of the outer face of the copper (the surface read-out), beside the layer mean (the column) that every other map shows.
     @param fig Target Figure (cleared first).
-    @param result A SteadyResult; every steady FVM and FDM result holds arrays["T_surface"] (no thickness threshold).
+    @param result A SteadyResult; every steady FVM, FDM, Analytic, 3D solid and FEM result holds arrays["T_surface"] (no thickness threshold).
     @param problem The Problem.
     @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
     @param cmap Colormap name.
@@ -756,8 +757,8 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     diff = float(np.nanmax(field)) - col
     # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
     # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
-    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + ("resolved" if result.model == "fem" else "estimate") + " (°C)",
-                    title=f"{model_label(result.model)} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
+    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + thickness.surface_kind(result, face) + " (°C)",
+                    title=f"{model_label(result.model)} - surface ({tag}), {thickness.surface_kind(result, face) + (', upper side' if upper and thickness.surface_kind(result, face) == 'estimate' else '')}   max {np.nanmax(field):.1f} °C\n"
                           f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
     face_peak = result.arrays.get("face_peak")
     if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:

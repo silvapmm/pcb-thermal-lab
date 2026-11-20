@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QFrame, QHeaderView, QLabel, QPlainTextEdit, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from .. import analysis, defaults, plots
+from .. import analysis, defaults, plots, thickness
 from . import layerchoice
 from . import theme as th
 from . import tips
@@ -1164,7 +1164,7 @@ class ResultsView(QWidget):
         # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
         # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
         heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W",
-                 "Max °C\n(surface,\nresolved)" if ref.model == "fem" else "Max °C\n(surface,\nestimate)"]
+                 f"Max °C\n(surface,\n{thickness.surface_kind(ref)})" if "T_surface" in ref.arrays else "Max °C\n(surface)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         hi = self.heater_table.horizontalHeaderItem
@@ -1184,7 +1184,11 @@ class ResultsView(QWidget):
                 d = h["t_max_surface"] - h["t_max"]
                 face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
                 row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
-                how = "Resolved by the finite elements (not an estimate). " if ref.model == "fem" else ""
+                hf = 0 if h["layer"] == 1 else 1
+                kind = thickness.surface_kind(ref, hf)
+                how = ("Resolved by the finite elements (not an estimate). " if kind == "resolved" else
+                       "Computed from the copper slabs of the 3D solid (the half slab above the outer one; not an estimate by a parabola). " if kind == "computed" else
+                       thickness.surface_how(ref, h["surface_upper"], hf)[0].upper() + thickness.surface_how(ref, h["surface_upper"], hf)[1:] + ". ")
                 hot_node = ""
                 if ref.model == "fem" and "T_point" in ref.arrays:
                     # The hottest mesh node under the part, a read-out of its own (the element mean is what the maps and tables show)
@@ -1195,8 +1199,10 @@ class ResultsView(QWidget):
                              "Surface mean " + f"{h['t_mean_surface']:.3f} °C." + hot_node + " " + tips.SURFACE_TRAP_TIP)
             else:
                 row.append("n/a")
-                if ref.model not in ("fvm", "fdm", "fem"):
-                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM and FEM only); the column is the only read-out.")
+                if "surface_bound_k" in h:
+                    notes.append(thickness.lumped_surface_note(h["surface_bound_k"], h["layer"]))
+                elif ref.model not in ("fvm", "fdm", "fem", "analytic", "solid3d"):
+                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM, Analytic, 3D solid and FEM only); the column is the only read-out.")
                 elif 1 < h["layer"] < n_layers:
                     notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
                 else:

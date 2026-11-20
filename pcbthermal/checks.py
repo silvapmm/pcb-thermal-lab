@@ -1458,7 +1458,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
              the bound then measures how far the surface can sit above the column read-out (the headline), and the text quotes the resolved surface instead of an estimate.
              When they come from the 3D solid (model "solid3d"), the copper of the part is slabs whose vertical links pass the half slab (several slabs above 105 um, the heat of
              the part in the outer one), so the half plate towards the laminate and the other copper layers are in the model: only the through-thickness term is left, worded
-             against the column mean (the solid has no surface read-out yet).
+             against the column mean (the solid reads its own surface, Layer box and part table: computed from the slabs above 105 um, estimated from its links on one slab).
     @param problem The Problem that was solved.
     @param rows Heater rows of the reference model (Simulation.heater_rows(): name, power_board_w, t_max), one per heater in order.
     @param result The reference SteadyResult that produced the rows (gives the flux into the blocks), or None.
@@ -1518,7 +1518,8 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                            f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C).")
                 elif what.startswith("the copper") and "t_max_surface" in row:
                     # The surface read-out of the result (FVM, FDM), beside the column one: a number instead of the bound alone
-                    est = (f" The surface estimate of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
+                    kind = thickness.surface_kind(result) if result is not None else "estimate"        # the 3D solid on copper slabs computes it, the others estimate it
+                    est = (f" The surface {'computed from the slabs' if kind == 'computed' else 'estimate'} of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
                            f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is narrow against the plate' if row['surface_upper'] else ''}).")
                 if into_laminate:
                     parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
@@ -1526,7 +1527,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                     if across > 0:
                         parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
                 # What to do (text only): read the surface where the model has it; a copper layer gets its surface from the FVM and the FDM, a block only from the 3D solid,
-                # which cuts a block into slabs of about 1 mm (a copper layer is one slab up to 105 um and at most 8 above, and the solid reads no surface of it yet)
+                # which cuts a block into slabs of about 1 mm (a copper layer is one slab up to 105 um and at most 8 above; its surface is read from them)
                 if est and resolved:
                     todo = (" What to do: compare the resolved surface, not the column mean, with a thermocouple or a paper that reports the surface; it is in the Layer box "
                             "(Surface (top) / Surface (bottom)) and in the surface column of the Components table. Tj, margin and power limit stay on the column mean.")
@@ -1542,7 +1543,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                 shows, keeps = (("than its column mean (the headline read-out)", "the column read-out is the mean through the thickness, which the finite elements resolve")
                                 if resolved else
                                 ("than its column mean (the headline read-out)", "the 3D solid has the copper as slabs (several above 105 µm) and reads the column, "
-                                 "the mean through the thickness, with no surface read-out yet")
+                                 "the mean through the thickness, and gives the surface beside it")
                                 if model == "solid3d" and what.startswith("the copper") else ("than the model shows", "the models keep one temperature through the thickness"))
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter {shows} by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; {keeps}. "

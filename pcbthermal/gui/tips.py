@@ -16,7 +16,8 @@ from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names l
 
 # The toolbar Layer box is one choice for the editor and every map; its hint depends on where it is used (keys: MainWindow._layer_ctx)
 SURFACE_ENTRY_TIP = ("Temperature of the outer face of the copper, what a thermocouple or an IR camera on the metal reads, in steady state: an estimate from the layer "
-                     "mean and the heat flowing in and out for the FVM and the FDM, resolved by the elements for the FEM. Milli-kelvins from the layer mean on 35 µm copper, "
+                     "mean and the heat flowing in and out for the FVM, the FDM and the Analytic, computed from the copper slabs (above 105 um) or estimated from the links (one slab) for the 3D solid, "
+                     "resolved by the elements for the FEM. The LPTN has none. Milli-kelvins from the layer mean on 35 µm copper, "
                      "tenths of a kelvin to percent of the rise on thick metal. The title gives the difference in K and in % of the rise. Maps, tables, Tj and margins use the "
                      "layer mean. On patterned copper the difference includes the rise across the bare laminate under a source.")      # Tooltip of the Layer-box entries Surface (top) and Surface (bottom)
 
@@ -25,16 +26,18 @@ SURFACE_TRAP_TIP = ("On a board with patterned copper the difference includes th
 
 # Tooltips of the columns of the Components table (docs: user guide 'Surface temperature and column mean')
 COLUMN_HEADER_TIP = ("Column read-out: the temperature of the node, the mean of the copper through its thickness (plus the laminate face term under a source over absent copper). "
-                     "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is the outer face (an estimate for the FVM and "
-                     "the FDM, resolved for the FEM), hotter under a source on thick copper.")
+                     "Tables, junction temperature, margin, power limit and top path all use it. The surface column on the right is the outer face (an estimate for the FVM, the FDM, "
+                     "the Analytic and the 3D solid on one slab, computed from the copper slabs for the 3D solid above 105 um, resolved for the FEM), hotter under a source on thick copper.")
 SURFACE_MAX_TIP = ("Hottest temperature of the outer face of the copper under the part, in °C; the face is the one the part sits on. FVM and FDM: an estimate from the "
                    "layer mean and the heat fluxes through the faces (layer mean + t (2 q_in - q_out) / (6 k), t and k the thickness and conductivity of the copper); "
                    "'(upper)' marks a part whose narrowest width a (the narrow side, the arm of an L) is small against the plate (t/a above 0.5): the estimate is then high, by about 1.15 (a long part) "
-                   "to 1.4 (a square) times at t/a = 1. FEM: resolved by "
+                   "to 1.4 (a square) times at t/a = 1. Analytic: the same estimate from its own field and its uniform conductances (vias, blocks and heatsinks are not in the fluxes; a part "
+                   "over absent copper has no bare-laminate term). 3D solid: computed from the copper slabs above 105 um (the half slab above the outer one), an estimate from its "
+                   "links on one slab. FEM: resolved by "
                    "the elements (the element mean on the face, not an estimate); the tooltip of a cell also gives the hottest mesh node under the part (a node value, not a "
                    "cell mean). Steady state, also on thin copper, where it equals the column at one decimal; hover a cell for the difference in K and in % of the rise and "
-                   "for the surface mean. Junction, margin and power limit stay on the column. n/a: the LPTN, the Analytic, the 3D solid, a time simulation, or a part "
-                   "on an inner layer.")
+                   "for the surface mean. Junction, margin and power limit stay on the column. n/a: the LPTN (it has no heat flux through the face: the hover text gives the through-thickness term "
+                   "as a measured upper value, not a temperature), a time simulation, or a part on an inner layer.")
 # Tooltips of the other tables of the Components tab and of the Summary table: they name the read-out of their temperatures (every number names its read-out)
 COLUMN_TABLE_TIP = ("Column read-out: the temperature of the copper layer in each cell, the mean through its thickness (the layer mean), the read-out of the maps and of the "
                     "part table. The surface of the outer copper is in the Layer box (Surface entries) and in the last column of the part table.")
