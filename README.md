@@ -1,6 +1,12 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.8.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-4054%20passed-brightgreen)](tests)
+[![Version](https://img.shields.io/badge/version-2.8.0-4f46e5)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-4284%20passed-2da44e)](tests)
+![Python](https://img.shields.io/badge/python-3.13-3776ab)
+[![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20(tested)%20%7C%20Windows%20%7C%20Linux%20(CI%20self--test)-555)
+
+Platforms: the whole test battery runs on macOS only. The Windows and Linux evidence is the CI self-test (an offscreen start that opens the main window and solves a board) of the packaging branch `feature/release-builds`, not yet merged; no person has used the program on Windows or Linux.
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
