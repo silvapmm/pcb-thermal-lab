@@ -85,6 +85,10 @@ if sys.platform.startswith("linux"):
         except Exception as exc:
             raise SystemExit(f"error: the libraries {src} links could not be read ({exc}); the unreferenced libraries cannot be pruned safely")
 
+    # Policy: the libraries a Linux desktop provides are left to the system (see SHIPPED_SYSTEM_LIBRARIES in build.py); only xcb-util and xkbcommon ship, with their notice
+    _system = sorted(b[0] for b in a.binaries if packaging_build.left_to_system(b[0]))
+    print("libraries left to the system: " + (", ".join(_system) or "none"), flush=True)
+    a.binaries = [b for b in a.binaries if b[0] not in _system]
     _unused = packaging_build.unreferenced_libraries(a.binaries, _imports)
     print("unreferenced libraries dropped: " + (", ".join(sorted(_unused)) or "none"), flush=True)
     a.binaries = [b for b in a.binaries if b[0] not in _unused]

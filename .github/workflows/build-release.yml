@@ -65,13 +65,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0   # v7.1.0
         with:
-          python-version: '3.13'
+          # Pinned to one exact patch release (it exists for all three systems in the setup-python manifest); BUILD-INFO.txt records it. Move it on purpose, with the tag.
+          python-version: '3.13.17'
       - name: Qt platform libraries (Linux)
         if: runner.os == 'Linux'
+        # The system packages a Linux desktop provides and the Linux package leaves to the system (packaging/README.md). NOT installed here on purpose: libxkbcommon-x11-0,
+        # libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0 -- the package ships those, and the self-test must run on them
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
-            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libdbus-1-3 libfontconfig1 xvfb xauth
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-glx0 libxcb-render0 libxcb-shm0 \
+            libxcb-sync1 libxcb-xfixes0 libdbus-1-3 libfontconfig1 libglib2.0-0 xvfb xauth
       - name: Build the package
         shell: bash
         # Every build refuses to run if SECOND_CONTACT in packaging/build.py (the contact of the written offer) is ever emptied.

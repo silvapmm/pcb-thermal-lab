@@ -54,6 +54,12 @@ BUILD_TOOLS = ("pyinstaller",)
 # Native libraries that a Qt wheel brings for one system and whose source is not in the attached Qt tarballs: their licence text comes from
 # packaging/licenses/_system/<name>/ (ICU, which QtCore links on Linux; the file is for the ICU major version named here, the build fails on another one)
 SYSTEM_NOTICES = {"ICU": (re.compile(r"^libicu(data|uc|i18n)\.so\.(\d+)"), "73")}
+# POLICY (maintainer): the Linux package leaves to the SYSTEM every shared library a Linux desktop provides and that the Qt wheel itself expects from it (GLib, D-Bus,
+# systemd, libgcrypt, fontconfig, FreeType, libpng, libstdc++, zstd, lz4, X11 and the base xcb libraries, ...): such a library is not copied, so the package carries no
+# licence it cannot document. Only what a desktop often lacks ships, with its notice in licenses/_system/<name>/: the xcb-util libraries (libxcb-cursor and its
+# siblings, which Qt's xcb plug-in needs) and libxkbcommon, all MIT/X11. The name pattern is the shared library (Linux), the key the folder under licenses/_system.
+SHIPPED_SYSTEM_LIBRARIES = {"xcb-util": re.compile(r"^libxcb-(cursor|icccm|image|keysyms|render-util|util)\.so(\.\d+)*$"),
+                            "xkbcommon": re.compile(r"^libxkbcommon(-x11)?\.so(\.\d+)*$")}
 # The incorporated-software notices of CPython (libmpdec, expat, libffi, zlib, mimalloc, HACL*, ...): the LICENSE file of the interpreter does NOT list them;
 # they are in Doc/license.rst of the exact CPython release, fetched by the build (the build fails when it cannot be fetched)
 PYTHON_NOTICES_URL = "https://raw.githubusercontent.com/python/cpython/v{version}/Doc/license.rst"
@@ -316,6 +322,11 @@ def system_notices(root):
             raise SystemExit(f"error: the Qt wheel bundles {name} {sorted(majors)}, the text in packaging/licenses/_system/{name} is for {major}: replace it")
         shutil.copytree(PKG / "licenses" / "_system" / name, root / name, dirs_exist_ok=True)
         out.append((name, f"{name} {major} (bundled by the Qt wheel of this system), {name}/LICENSE"))
+    if sys.platform.startswith("linux"):
+        # The libraries shipped on purpose (SHIPPED_SYSTEM_LIBRARIES) come from the build machine, so their notice is copied whenever the package is for Linux
+        for name in SHIPPED_SYSTEM_LIBRARIES:
+            shutil.copytree(PKG / "licenses" / "_system" / name, root / name, dirs_exist_ok=True)
+            out.append((name, f"{name} (libraries of the build machine shipped in the Linux package), {name}/LICENSE"))
     return out
 
 
@@ -537,6 +548,20 @@ def prunable_library(dest):
     return bool(re.fullmatch(r"[^/]+\.so(\.\d+)*", dest) or re.fullmatch(r"PySide6/Qt/lib/[^/]+\.so(\.\d+)*", dest))
 
 
+def left_to_system(dest):
+    """!
+    @brief Whether a bundled binary is a library the Linux package leaves to the system (see SHIPPED_SYSTEM_LIBRARIES): a shared library at the top of the bundle
+           (where PyInstaller puts the libraries of the build machine) that is neither shipped on purpose (xcb-util, xkbcommon) nor covered by the notices of CPython
+           (libpython, libffi, expat, zlib, mpdec). Nothing inside a folder (PySide6, a wheel's .libs, a plug-in) and no extension module is ever concerned.
+    @param dest Destination path of the binary inside the bundle, as PyInstaller lists it.
+    @return bool True when the library is not copied into the package.
+    """
+    dest = dest.replace("\\", "/")
+    if not re.fullmatch(r"[^/]+\.so(\.\d+)*", dest) or re.search(r"cpython-|\.abi3\.", dest):
+        return False
+    return not (COVERED_NATIVE.search(dest) or any(p.match(dest) for p in SHIPPED_SYSTEM_LIBRARIES.values()))
+
+
 def unreferenced_libraries(binaries, imports_of, prunable=prunable_library):
     """!
     @brief The libraries that no kept binary links any more. PyInstaller collects the dependencies of every binary it finds; when the spec then drops a binary
@@ -571,7 +596,7 @@ def uncovered_native_libraries(paths):
     """
     native = re.compile(r"\.(so(\.\d+)*|dylib|dll)$", re.IGNORECASE)
     extension = re.compile(r"cpython-|\.abi3\.|\.pyd$", re.IGNORECASE)
-    system = [pattern for pattern, _ in SYSTEM_NOTICES.values()]
+    system = [pattern for pattern, _ in SYSTEM_NOTICES.values()] + list(SHIPPED_SYSTEM_LIBRARIES.values())
     return sorted(p for p in paths if native.search(p) and not extension.search(p) and not COVERED_NATIVE.search(p)
                   and not any(s.match(Path(p).name) for s in system))
 

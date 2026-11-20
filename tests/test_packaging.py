@@ -410,6 +410,72 @@ def test_native_libraries_need_a_notice_and_a_release_build_stops_without_one(tm
     assert build.check_notices(pkg, release=True) == []
 
 
+# The shared libraries at the top of the Linux trial package of 2.8.0 (Actions run on ubuntu-22.04, FILES-linux-x64.txt, names only), plus libreadline
+LINUX_TOP_LEVEL_LIBRARIES = """libX11-xcb.so.1 libX11.so.6 libXau.so.6 libXcomposite.so.1 libXcursor.so.1 libXdamage.so.1 libXdmcp.so.6 libXext.so.6 libXfixes.so.3 libXi.so.6
+libXinerama.so.1 libXrandr.so.2 libXrender.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0 libatspi.so.0 libblkid.so.1 libbrotlicommon.so.1 libbrotlidec.so.1 libbsd.so.0
+libbz2.so.1.0 libcairo-gobject.so.2 libcairo.so.2 libcap.so.2 libcom_err.so.2 libdatrie.so.1 libdbus-1.so.3 libepoxy.so.0 libexpat.so.1 libffi.so.8 libfontconfig.so.1
+libfreetype.so.6 libfribidi.so.0 libgcc_s.so.1 libgcrypt.so.20 libgdk_pixbuf-2.0.so.0 libgio-2.0.so.0 libglib-2.0.so.0 libgmodule-2.0.so.0 libgobject-2.0.so.0
+libgpg-error.so.0 libgraphite2.so.3 libgssapi_krb5.so.2 libgthread-2.0.so.0 libharfbuzz.so.0 libjpeg.so.8 libk5crypto.so.3 libkeyutils.so.1 libkrb5.so.3
+libkrb5support.so.0 liblz4.so.1 liblzma.so.5 libmd.so.0 libmount.so.1 libpango-1.0.so.0 libpangocairo-1.0.so.0 libpangoft2-1.0.so.0 libpcre.so.3 libpcre2-8.so.0
+libpixman-1.so.0 libpng16.so.16 libpython3.13.so.1.0 libreadline.so.8 libselinux.so.1 libstdc++.so.6 libsystemd.so.0 libthai.so.0 libtinfo.so.6 libuuid.so.1
+libxcb-cursor.so.0 libxcb-glx.so.0 libxcb-icccm.so.4 libxcb-image.so.0 libxcb-keysyms.so.1 libxcb-randr.so.0 libxcb-render-util.so.0 libxcb-render.so.0
+libxcb-shape.so.0 libxcb-shm.so.0 libxcb-sync.so.1 libxcb-util.so.1 libxcb-xfixes.so.0 libxcb-xkb.so.1 libxkbcommon-x11.so.0 libxkbcommon.so.0 libz.so.1
+libzstd.so.1""".split()
+LINUX_SHIPPED = {"libexpat.so.1", "libffi.so.8", "libpython3.13.so.1.0", "libz.so.1", "libxcb-cursor.so.0", "libxcb-icccm.so.4", "libxcb-image.so.0",
+                 "libxcb-keysyms.so.1", "libxcb-render-util.so.0", "libxcb-util.so.1", "libxkbcommon-x11.so.0", "libxkbcommon.so.0"}
+
+
+def test_linux_leaves_the_desktop_libraries_to_the_system_and_ships_only_what_it_documents():
+    """On the real Linux file list of the trial run, 75 of 87 top-level libraries are left to the system (GLib, D-Bus, systemd, libgcrypt, fontconfig, FreeType, libpng,
+    libstdc++, zstd, lz4, the X11 and base xcb libraries, GNU Readline, ...) and 12 ship: libpython, what the CPython notices cover (libffi, expat, zlib) and the xcb-util
+    and xkbcommon libraries, which have their notice under licenses/_system; the shipped ones leave no library without a notice."""
+    build = load("build")
+    assert len(LINUX_TOP_LEVEL_LIBRARIES) == 87
+    shipped = {n for n in LINUX_TOP_LEVEL_LIBRARIES if not build.left_to_system(n)}
+    assert shipped == LINUX_SHIPPED
+    assert {"libstdc++.so.6", "libglib-2.0.so.0", "libdbus-1.so.3", "libsystemd.so.0", "libgcrypt.so.20", "libfontconfig.so.1", "libfreetype.so.6", "libpng16.so.16",
+            "libzstd.so.1", "liblz4.so.1", "libX11.so.6", "libxcb-xkb.so.1", "libreadline.so.8"} <= set(LINUX_TOP_LEVEL_LIBRARIES) - shipped
+    assert build.uncovered_native_libraries(["_internal/" + n for n in shipped]) == []
+    # What the rule never touches: a library inside a folder, an extension module, a library of a wheel and the Qt libraries
+    for dest in ("PySide6/Qt/lib/libicuuc.so.73", "PySide6/Qt/plugins/platforms/libqxcb.so", "numpy.libs/libscipy_openblas64_-4b78795a.so", "lib-dynload/_ssl.cpython-313-x86_64-linux-gnu.so",
+                 "PIL/_imaging.cpython-313-x86_64-linux-gnu.so", "base_library.zip", "PCB-Thermal-Lab"):
+        assert not build.left_to_system(dest), dest
+
+
+def test_the_shipped_system_libraries_have_their_notice_files_and_a_tag_build_stops_without_one(tmp_path):
+    """Every shipped library group has a LICENSE under licenses/_system with the MIT/X11 permission text, the build copies them on Linux, and a library outside the
+    list (a system library that was not excluded) makes a tag build stop."""
+    build = load("build")
+    for name in build.SHIPPED_SYSTEM_LIBRARIES:
+        text = (PKG / "licenses" / "_system" / name / "LICENSE").read_text(encoding="utf-8")
+        assert "Permission is hereby granted, free of charge" in text and "THE SOFTWARE IS PROVIDED" in text, name
+    xcb = (PKG / "licenses" / "_system" / "xcb-util" / "LICENSE").read_text(encoding="utf-8")
+    for lib in ("libxcb-util", "libxcb-cursor", "libxcb-image", "libxcb-keysyms", "libxcb-render-util", "libxcb-wm"):
+        assert lib in xcb, lib
+    pkg = tmp_path / "pkg"
+    for rel in ("_internal/libxkbcommon.so.0", "_internal/libxcb-cursor.so.0", "_internal/libglib-2.0.so.0"):
+        (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
+        (pkg / rel).write_text("x")
+    assert build.check_notices(pkg, release=False) == ["_internal/libglib-2.0.so.0"]
+    with pytest.raises(SystemExit):
+        build.check_notices(pkg, release=True)
+
+
+def test_spec_and_workflow_apply_the_system_policy_and_pin_python():
+    """The spec drops the libraries left to the system before it prunes; the workflow pins Python to an exact patch release for all three systems and installs on the
+    Linux runner only the system packages, not the libraries the package ships (so the self-test runs on the shipped ones); BUILD-INFO records the Python version."""
+    spec = (PKG / "PCB-Thermal-Lab.spec").read_text(encoding="utf-8")
+    assert spec.index("left_to_system(b[0])") < spec.index("unreferenced_libraries(a.binaries")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert re.search(r"python-version: '3\.13\.\d+'", workflow) and workflow.count("python-version") == 1
+    apt = workflow.split("sudo apt-get install -y")[1].split("- name:")[0]
+    for shipped in ("libxcb-cursor0", "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-render-util0", "libxkbcommon-x11-0"):
+        assert shipped not in apt
+    for needed in ("libegl1", "libglib2.0-0", "libdbus-1-3", "libfontconfig1"):
+        assert needed in apt
+    assert "Python: {py}" in (PKG / "build.py").read_text(encoding="utf-8")
+
+
 def test_qt_wheels_are_quoted_through_licenses_qt_on_every_system(monkeypatch, tmp_path):
     """A Qt wheel that carries LicenseRef-Qt-Commercial.txt (Windows) is quoted like the others: '(covered by Qt/)', no copy of the commercial note."""
     build = load("build")
