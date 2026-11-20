@@ -29,3 +29,15 @@ B0 plate 0.1 m square, 1 mm, k 35, rho c 3.172e+06, P 10.0 W, edge film 1e+05 W/
 | FDM | 0.31 % | 0.36 % | 0.41 % |
 | FEM | 0.32 % | 0.40 % | 0.42 % |
 | Analytic | 0.00 % | 0.01 % | 0.01 % |
+
+Review (`study_compare_t0.py --stepping`):
+
+tree 721bf828
+B1 (review) the same plate: default stepping against 40 linear frames of 16 steps, largest error after 10 s [%] (time of it)
+| model | cell mm | default | linear 40 x 16 |
+| :-- | --: | --: | --: |
+| FVM | 2.5 | +0.456 (91.8 s) | -0.036 (23.0 s) |
+| FVM | 1.25 | +0.435 (91.8 s) | -0.013 (23.0 s) |
+| FDM | 2.5 | +0.363 (91.8 s) | -0.080 (41.3 s) |
+| FDM | 1.25 | +0.412 (91.8 s) | -0.023 (39.0 s) |
+| FEM | 2.5 | +0.398 (68.8 s) | -0.034 (91.8 s) |

@@ -16,10 +16,10 @@ Tree at the start: `development` 7886ac42 (2.8.0 plus the FEM transient, the cop
 | 56.2 (C2) | The surface and part-point read-outs | the same records (the surface map and the part `t_max_surface`, `t_mean_surface`) | FEM and 3D solid against the FVM and FDM estimate | the same run, `study_compare_c1.py report` |
 | 56.3 (C3) | Case 2 of Muzychka, Culham and Yovanovich (2003) | the published plate (50 x 50 x 10 mm, four sources) and its cross | the independent 3D solver of `research/muzychka-case2-analytic/lib/case2.py` (column mean) and the paper's printed values (surface) | `study_compare_c3.py` |
 | 56.4 (C4) | Published cases already in `docs/validation.md` | the cases that all six can represent, taken from `tests/test_published_cases.py` | the published numbers | `study_compare_c4.py` (decided after reading the test file, stage 3) |
-| 56.5 (C5) | Thick plates and blocks | `finned_block`, the thick plate of `checks.check_thick_plates` | the independent finite elements (`research/independent-fem-edge`) and the heat balance | `study_compare_c5.py` |
+| 56.5 (C5) | Thick plates and blocks | `finned_block`, the thick plate of `checks.check_thick_plates` | the independent finite elements (`research/independent-fem-edge`) and the heat balance | no separate script: covered by 56.3, 56.4 and `finned_block` of 56.1 (56.5; the thick-plate bound and the Lee plate were not run in the FEM) |
 | 56.6 (C6) | Thin copper boards | the plain boards of C1 (a subset of the same records) | no difference beyond 1 % expected | `report` of C1 |
 | 56.7 (C7) | Vias | `plate_vias`, `plate_lone_via`, the example board; the research cases of `independent-fem-extensions` | the via effect (rise without minus rise with) of the independent finite elements | `study_compare_c7.py` |
-| 56.8 (C8) | Edge film | a strong edge film on a rectangle and the drawn boards (200 to 2000 W/m2K) | the finite elements of section 46 of the validation | `study_compare_c8.py` |
+| 56.8 (C8) | Edge film | a strong edge film on a rectangle and the drawn boards (200 to 2000 W/m2K) | the finite elements of section 46 of the validation | `study_compare_c4.py edge` (as run) |
 
 **Validation 57, the FEM transient.** Models: FVM, FDM, Analytic, Lumped, FEM (the 3D solid has no transient). The stepping of the FVM and FDM is the 2.9.0 default (Crank-Nicolson, Rannacher start, first stage in quarters), so a difference to the FEM is no longer the first-order time error of 2.8.0.
 

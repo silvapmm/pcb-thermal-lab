@@ -16,7 +16,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | :-- | :-- | :-- | :-- |
 | a | FEM transient | `feature/fem-transient` | L |
 | b | Compare-differences views and trust hints | `feature/compare-differences` | M |
-| c | Full comparison campaign, validation 56 and 57 | `release/2.9.0-fem-campaign`, then `docs/fem-campaign-validation` | L + M |
+| c (campaign run and reviewed: GO, `releases/2.9.0/fem-campaign/README.md`; the text part waits for b) | Full comparison campaign, validation 56 and 57 | `release/2.9.0-fem-campaign`, then `docs/fem-campaign-validation` | L + M |
 | d | Curved and slanted outlines for the FEM | `research/fem-outline-projection`, then `feature/fem-outline-projection` | M + L |
 | e1 | Surface read-out in the Lumped (upper bound), Analytic, 3D solid and the transient | `research/surface-readout-models`, then `feature/surface-readout-models` | M + M |
 | e2 (done, merged into `development`) | Copper slabs in the 3D solid | `feature/solid3d-copper-slabs` | S to M |
