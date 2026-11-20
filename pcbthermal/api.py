@@ -208,7 +208,7 @@ def surface_report_lines(res):
         rise = max(res.t_max - res.ambient, 1e-9)
         diff = surf - col
         # The FEM resolves the surface with its elements; the FVM and FDM estimate it from the heat fluxes
-        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}"
+        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is narrow against the plate (t/a above 0.5, a the narrow side)' if flagged else ''}"
         patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
         out.append(f"Hottest surface ({name}): {surf:.1f} °C ({how}; "
                    f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} °C; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
