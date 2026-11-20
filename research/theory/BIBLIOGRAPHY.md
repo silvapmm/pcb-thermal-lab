@@ -2145,9 +2145,33 @@ R. Rannacher, *Finite element solution of diffusion problems with irregular data
 
 ### [NAFEMS-T3]
 
-**Licence:** all rights reserved. **Source URL:** not recorded (not opened).
+**Licence:** all rights reserved. **Source URL:** the primary publication is not open: the NAFEMS publication page https://nafems.org/publications/browse_buy/browse_by_topic/benchmark/p18 (a catalogue entry); the case and the value are read in the open secondary sources [MOOSE-T3] and [Altair-T3].
 
-NAFEMS, the one-dimensional linear transient heat conduction benchmark (named T3 in memory; NAFEMS *Standard Benchmark Tests*; title, number and year not checked): a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC; reference 36.60 degC at x = 0.08 m, t = 32 s. **Status M** (the case and the value are remembered, the publication was not opened). The program's stepper gives 36.611 degC (100 elements, 3 200 Crank-Nicolson steps, `tests/test_fem_transient_closed_forms.py`), the review's independent line 36.605; the agreement with the remembered value is not a reproduction of a published case until the publication is read (release gate of 2.9.0, DESIGN.md 14.6).
+NAFEMS, the one-dimensional linear transient heat conduction benchmark T3 ("one-dimensional transient heat transfer", sinusoidal temperature at one end), in *The Standard NAFEMS Benchmarks* (publication P18 of the NAFEMS catalogue, listed 1990; the catalogue says the original T3 "proved unsatisfactory", explained in A. Welsh, *Benchmark* magazine, January 1989, p. 23, and that Revision 2 corrected LE8, LE10, LE11 and T3). **Status N for the primary publication** (a paid NAFEMS document, not obtained); **status S for the case and the value**: a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC, no flux across the bar, reference 36.60 degC at x = 0.08 m, t = 32 s, read in two independent third-party documents ([MOOSE-T3] gives the boundary conditions as formulas and the value as 36.6; [Altair-T3] gives the same case and 36.60). A third open page (the Abaqus benchmarks manual 4.3.3, which the fetch tool could not open: HTTP 403) was seen only in a search summary, which described the end B condition differently (a constant 100 degC): the conflict is not resolved by the primary document; the sinusoidal form is the one of both pages that were read and it reproduces the value (`research/transient-published-case`: the exact series gives 36.6031 degC). The program's stepper gives 36.6106 degC (100 elements) and 36.6050 (200), against the exact 36.6031 (`research/transient-published-case/README.md` 2).
+
+### [MOOSE-T3]
+
+**Licence:** LGPL-2.1. **Source URL:** https://github.com/idaholab/moose (documentation of the MOOSE framework, only numbers quoted here), file `modules/heat_transfer/doc/content/modules/heat_transfer/nafems_t3_verif.md` (rendered at https://mooseframework.inl.gov/modules/heat_transfer/nafems_t3_verif.html).
+
+Idaho National Laboratory, MOOSE heat transfer module, "NAFEMS Benchmark 1D Transient Heat Conduction T3": the problem (bar 0.1 m, cross section 0.01 m, uniform elements, 32 s), the boundary conditions as equations (0 degC left, 100 sin(pi t / 40) degC right, initial 0 degC), the material (k 35.0, c 440.5, rho 7200), "the target solution ... should be 36.6 degC" at 0.08 m after 32 s, and a table of the MOOSE results (5 elements: 40.3 for the linear types, 35.9 for the quadratic; 10 elements: 36.9 and 36.1). It cites NAFEMS (key `nafems_std_bench`, bibliography entry not retrieved). **Status R** (the Markdown source of the page was read in full, 2026 session; the rendered page and the Abaqus page answered HTTP 403 to the fetch tool). The MOOSE linear-element values are a mesh result of another program, not a reference.
+
+### [Altair-T3]
+
+**Licence:** all rights reserved. **Source URL:** https://help.altair.com/hwsolvers/os/topics/solvers/os/nafems_test_problem_t3_r.htm
+
+Altair OptiStruct verification problem OS-V 0110 "One-Dimensional Transient Heat Transfer (NAFEMS Test T3)": the same material, the boundary conditions (zero at one end, 100 sin(pi t / 40) degC at the other for t > 0), initial zero, reference 36.60 degC at point C, 0.08 m from A, t = 32 s; OptiStruct results 33.6 / 34.58 (beam and Quad4, 5 / 10 elements) and 35.1 / 35.19 (Quad8). The page cites "NAFEMS R0015, Selected benchmarks for natural frequency analysis", a title that does not match a heat-transfer test (a mistaken citation on the page; not used). **Status R** (the page text was read in full).
+
+### [Lienhard-AHTT]
+
+**Licence:** all rights reserved. **Source URL:** https://ahtt.mit.edu/wp-content/uploads/2024/04/AHTTv600.pdf (free download from the authors' page, not stored here)
+
+J. H. Lienhard IV and J. H. Lienhard V, *A Heat Transfer Textbook*, version 6.00 (2024), 810 pp. Section 5.6 "Transient heat conduction to a semi-infinite region", page 229 of the book (PDF page 243): the semi-infinite solid with a suddenly applied wall flux q_w has the wall temperature T_w(t) = T_i + (2 q_w / k) sqrt(alpha t / pi), eqn (5.56), derived on the page from eqn (5.55) `(q_w - q) / q_w = erf(x / (2 sqrt(alpha t)))`. **Status R** (the page was read in full from the downloaded PDF; the text layer was extracted). It is the open source of the closed form that `tests/test_fem_transient_closed_forms.py` uses (the earlier source of that closed form in the program documents is [CarslawJaeger], M).
+
+### [Muzychka2023Transient]
+
+**Licence:** all rights reserved. **Source URL:** https://doi.org/10.1109/itherm55368.2023.10177640 (IEEE; no open copy found).
+
+Y. S. Muzychka and M. M. Yovanovich, *Compact Models for Transient Thermal Spreading Resistance in Half-space, Flux Tube, and Flux Channel Regions*, 2023 22nd IEEE ITherm Conference, 30 May 2023 (title, venue and DOI from Crossref; the search tool found no open full text at the Waterloo group's archive or elsewhere). **Status N** (not obtained). Candidate for a published transient spreading case of a heat source on a flux channel, not reproduced.
 
 ## Sources of `research/muzychka-influence-coefficients/` (reviewed)
 
