@@ -414,12 +414,15 @@ class PlotTab(QWidget):
 
     def _on_canvas_resized(self, _event):
         """!
-        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them.
+        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them; otherwise fit
+               the title and the y label again to the new size (their wrapping is measured for one size, and a window shrunk after the draw cut them again).
         @param _event Matplotlib ResizeEvent (unused).
         """
         strip = plots.profile_has_strip(self.fig)
         if self._thumb_strip is not None and strip != self._thumb_strip and self.sim is not None:
             self.redraw()
+        elif self.sim is not None:
+            plots.refit_texts(self.fig)                 # The canvas paints right after this event (draw_idle of the Qt canvas)
 
     def map_view(self):
         """!
