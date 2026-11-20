@@ -2163,13 +2163,13 @@ Altair OptiStruct verification problem OS-V 0110 "One-Dimensional Transient Heat
 
 ### [Abaqus-T3]
 
-**Licence:** all rights reserved (Dassault Systemes). **Source URL:** Abaqus Benchmarks Guide (2016), 4.3.3 "T3: One-dimensional transient heat transfer", mirrored at https://ceae-server.colorado.edu/v2016/books/bmk/ch04s03anf14.html, and its input deck https://ceae-server.colorado.edu/v2016/books/eif/nt3xx12c.inp (only numbers quoted here).
+**Licence:** all rights reserved. **Source URL:** Abaqus (Dassault Systemes) Benchmarks Guide (2016), 4.3.3 "T3: One-dimensional transient heat transfer", mirrored at https://ceae-server.colorado.edu/v2016/books/bmk/ch04s03anf14.html, and its input deck https://ceae-server.colorado.edu/v2016/books/eif/nt3xx12c.inp (only numbers quoted here).
 
 The same case: bar 0.1 m (nodes at 0 and 0.1 m in the deck), 0.01 x 0.01 m section, conductivity 35.0, specific heat 440.5, density 7200, 0 degC at end A and 100 sin(pi t / 40) degC at end B (the sinusoid is an equation image in the text; the deck applies `*AMPLITUDE, DEFINITION=PERIODIC` with circular frequency 0.07854 = pi/40 and coefficient 100 to the end node), initial 0 degC, target "36.60 degC at 0.08 m at 32 secs", source "Test T3 from NAFEMS publication TNSB, Rev. 3, 'The Standard NAFEMS Benchmarks,' October 1990". Results: DC1D2 34.54 (coarse, 5 elements) and 35.51 (fine, 10), quadratic DC1D3 35.88 and 36.09, and many 2D and coupled elements; the deck steps 32 fixed increments of 1 s. **Status R** (the page, the equation image and the deck were read by the reviewer). The DC1D2 values are reproduced by an own linear element with a lumped capacity and 32 implicit-Euler steps (34.5383 and 35.5063; `research/transient-published-case` README 2).
 
 ### [Wolfram-T3]
 
-**Licence:** all rights reserved (Wolfram Research). **Source URL:** https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html (only numbers quoted here).
+**Licence:** all rights reserved. **Source URL:** Wolfram Research, https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html (only numbers quoted here).
 
 Wolfram PDEModels, "Heat Transfer Model Verification Tests", test HeatTransfer-FEM-Transient-1D-Single-HeatTransfer-0001: a 0.1 m line, conductivity 35, density 7200, specific heat 440.5, `100 Sin[pi t / 40]` at x = 0 and a fixed temperature at x = 0.1 m, `T[0, x] == 0`, end time 32, `TRef = 36.6` read at x = 0.02 m (the T3 bar mirrored), passed when the relative error is below 1e-3; cites A. D. Cameron, J. A. Casey and G. B. Simpson, *Benchmark Tests for Thermal Analysis*, NAFEMS. **Status R** (the page code read; the value of the fixed end and Mathematica's computed value are in images that were not read).
 
