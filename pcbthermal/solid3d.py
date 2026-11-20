@@ -6,7 +6,7 @@
 
 @details The board is cut into the cells of the plan grid (same nx by ny as the FVM) and, across its thickness, into **real slabs**: every copper
          layer is one slab of its own thickness up to 105 um and `ceil(t / 70 um)` equal slabs (at most 8) above it (the rule of the FEM), every dielectric gap
-         is cut into `n_diel` slabs, and a metal block is a pad slab (the interface, of thickness R'' times 1 W/mK) plus `n` slabs of metal. The unknown is the temperature of every cell of every slab, so the heat spreads in
+         is cut into `n_diel` slabs, and a metal block is a pad slab (the interface, of thickness R'' times 1 W/mK across and 1e-3 W/mK in its plane: a contact resistance conducts across only) plus `n` slabs of metal. The unknown is the temperature of every cell of every slab, so the heat spreads in
          the gaps and inside the blocks and a heater feels the real vertical path.
 
          Material of a cell (volume-averaged on the structured grid, as in the tiled conductivity maps used for PCB models [Electronics Cooling 2010]):
@@ -48,7 +48,13 @@ K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a 
 # The size of a 3D model is no longer a fixed number: pcbthermal/memory.py estimates the peak memory from the unknowns and refuses a run above a share of the
 # installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
 # (16 slabs) takes 3.5 GB at 247 000 unknowns and 9.9 GB at 512 000; a plain two-layer board (6 slabs) 3.3 GB at 500 000.
-K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
+K_PAD = 1.0                  # W/mK of the interface pad slab ACROSS (its thickness is R'' times this)
+# In-plane conductivity of the interface pad slab (W/mK), the FEM's femmesh.K_PAD_INPLANE: a contact resistance conducts across only. With K_PAD in the plane a pad of height R'' x K_PAD
+# (5 mm at 5e-3 m2K/W) spread the heat of a part under a top block sideways, in a cell whose centre is at mid height: 0.5 % (a block over the part) to 0.9 % (a block over the whole board)
+# below the independent solver at 5e-3 (fix/solid3d-pad-inplane). The value is the FEM's (whose core needs a positive conductivity; a test holds the two equal), not a need of this
+# solver: `add` floors any conductivity at K_FLOOR and every pad cell keeps its link across, so 0 would also give a regular matrix. The floor itself reads the part 0.002 K (5e-3) to
+# 0.024 K (5e-2 m2K/W) cooler than a pad with no lateral conduction at all (review of fix/solid3d-pad-inplane): lateral conductance per square R'' x 1e-3 W/K, nothing beside the copper.
+K_PAD_INPLANE = 1.0e-3
 # Slabs across a dielectric gap (research/laminate-slabs-and-local-rule 5): a slab of at most 0.2 mm, at least 4 and at most 16 per gap. A fixed 4 slabs left the heat of a small part
 # (2 mm) too concentrated over a thick laminate (+23 % bare, +27 % pad at 3.2 mm); 8 slabs of the 1.53 mm core of a two-layer board and 6 of the 1.065 mm core of a four-layer one
 SLAB_MM = 0.2
@@ -272,7 +278,8 @@ class Solid:
             f = faces[face]
             cov, share = f["cov"], f["share"]
             # Lateral: a share of the whole cell, as the board slabs (k times bcov); through the thickness: a share of the board part (the z links use Ab)
-            out = [("pad", f["r"] * K_PAD, np.maximum(cov, 0.0) * K_PAD, np.maximum(share, 0.0) * K_PAD)]
+            # The pad conducts across only (K_PAD) and almost nothing in its plane (K_PAD_INPLANE)
+            out = [("pad", f["r"] * K_PAD, np.maximum(cov, 0.0) * K_PAD_INPLANE, np.maximum(share, 0.0) * K_PAD)]
             out += [("blk", f["t"] / n_blk[face], cov * f["k"], share * f["k"])] * n_blk[face]
             return out                                          # Ordered from the board outwards
 
