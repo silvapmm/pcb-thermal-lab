@@ -1541,7 +1541,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                             "temperature through it.")
                 shows, keeps = (("than its column mean (the headline read-out)", "the column read-out is the mean through the thickness, which the finite elements resolve")
                                 if resolved else
-                                ("than its column mean (the headline read-out)", "the 3D solid has the copper as slabs (several above 105 um) and reads the column, "
+                                ("than its column mean (the headline read-out)", "the 3D solid has the copper as slabs (several above 105 µm) and reads the column, "
                                  "the mean through the thickness, with no surface read-out yet")
                                 if model == "solid3d" and what.startswith("the copper") else ("than the model shows", "the models keep one temperature through the thickness"))
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
