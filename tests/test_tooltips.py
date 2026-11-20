@@ -26,7 +26,7 @@ from pcbthermal.gui.main_window import MainWindow
 KINDS = (QAbstractSpinBox, QComboBox, QCheckBox, QPushButton, QLineEdit, QSlider, QRadioButton, QTableWidget, QTreeWidget)
 
 # Command buttons whose label already says what they do: the maintainer asked for no tooltip on them (a tooltip on a button like Close only gets in the way)
-NO_TOOLTIP_BUTTONS = {"Run simulation   (F5)", "Auto", "Calculate", "Help", "Close", "Use as the power of a part", "Open in the browser"}
+NO_TOOLTIP_BUTTONS = {"Run simulation   (F5)", "Auto", "Calculate", "Help", "Close", "Use as the power of a part", "Open in the browser", "Copy version info"}
 
 
 # Controls of the Gerber import window with no tooltip: obvious controls, maintainer decision (the file list and its function boxes, the preview and its layer and view switches,

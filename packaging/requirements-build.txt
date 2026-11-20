@@ -1,0 +1,9 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Build requirements of the downloadable packages (packaging/build.py installs them next to the run-time lines of requirements.txt, in packaging/.venv-build).
+# PINNED EXACTLY: the release carries the Qt and PySide source of the version in these lines, so every runner must bundle that very version; build.py fails when the
+# installed versions differ from these. To move to a newer Qt, change the three numbers together and re-check packaging/README.md (the checklist).
+PySide6-Essentials==6.12.0
+shiboken6==6.12.0
+# PyInstaller is GPL-2.0-or-later with an exception that lets the programs it builds use any licence; its notice is copied into the package.
+pyinstaller==6.22.3

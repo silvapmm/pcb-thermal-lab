@@ -1,0 +1,193 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Builds the downloadable packages (Windows x64, Linux x64, macOS arm64) and attaches them to the release of a tag. It is the only remote job of the project:
+# it builds, runs the --selftest of the package and attaches the files; it runs no test battery (that is the local CI, CLAUDE.md section 12).
+# Triggers: a tag v* (the release), and a push to a branch build-test/** (a trial: build and self-test only, the release job never runs there).
+# The release job never publishes: it creates the release as a DRAFT with the CHANGELOG notes and the list of the Qt source (never Latest, never generated notes),
+# attaches the source and then the packages; the maintainer's flow publishes it (`gh release edit`, not a draft, Latest) after checking the assets
+# (docs/versions.md A1). If a release already exists, the files are attached to it, the source first.
+name: Build release packages
+
+on:
+  push:
+    tags: ['v*']
+    branches: ['build-test/**']
+
+permissions:
+  contents: read
+
+# Actions are pinned to the commit of an exact release (the version in the comment). Two runs of the same ref never overlap; a new push waits, nothing is cancelled.
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Tag matches the version
+    runs-on: ubuntu-22.04
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      - name: Compare the tag with pcbthermal.__version__
+        id: version
+        shell: bash
+        run: |
+          # The version is read from the file (no imports, no installation needed)
+          VERSION=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('pcbthermal/__init__.py').read()).group(1))")
+          echo "pcbthermal.__version__ = $VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "${GITHUB_REF_NAME#v}" != "$VERSION" ]]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match pcbthermal.__version__ $VERSION"
+              exit 1
+            fi
+            python3 packaging/release_notes.py "$VERSION" -o /dev/null
+            echo "tag and version agree; the CHANGELOG has a section for $VERSION"
+            # A pre-release version (2.9.0rc1, 2.9.0b2: the tag v2.9.0rc1) makes a draft marked pre-release
+            if [[ "$VERSION" =~ [0-9](a|b|rc)[0-9]+$ ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+          else
+            echo "not a tag: trial build, nothing is checked against a tag"
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: windows-x64}
+          - {os: ubuntu-22.04, name: linux-x64}
+          - {os: macos-latest, name: macos-arm64}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0   # v7.1.0
+        with:
+          # Pinned to one exact patch release (it exists for all three systems in the setup-python manifest); BUILD-INFO.txt records it. Move it on purpose, with the tag.
+          python-version: '3.13.17'
+      - name: Qt platform libraries (Linux)
+        if: runner.os == 'Linux'
+        # Two lists (packaging/README.md). The BUILD runner needs the libraries the package SHIPS too (PyInstaller collects only what is installed here, and build.py stops
+        # the build if one is missing); the self-test then runs after they are REMOVED from the runner, so it proves the package carries them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libx11-xcb1 libxcb-randr0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-glx0 libxcb-render0 libxcb-shm0 \
+            libxcb-sync1 libxcb-xfixes0 libdbus-1-3 libfontconfig1 libglib2.0-0 xvfb xauth \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon-x11-0
+      - name: Build the package
+        shell: bash
+        # Every build refuses to run if SECOND_CONTACT in packaging/build.py (the contact of the written offer) is ever emptied.
+        # Every build puts the exact Qt and PySide source in packaging/dist/qt-source (Linux) for the release job: the release always carries it.
+        run: python packaging/build.py ${{ startsWith(github.ref, 'refs/tags/v') && '--release' || '' }}
+      - name: Remove the shipped libraries from the runner (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        # The self-test must run on the libraries of the package alone. apt is first asked, as a simulation, what removing them would take along: anything else
+        # (xvfb, the base packages) stops the job, so the proof is never made by removing the tools the test needs.
+        run: |
+          SHIPPED="libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon-x11-0"
+          sudo apt-get -s remove $SHIPPED | grep '^Remv' || true
+          OTHERS=$(sudo apt-get -s remove $SHIPPED | grep '^Remv' | awk '{print $2}' | grep -v -x -F "$(echo $SHIPPED | tr ' ' '\n')" || true)
+          if [ -n "$OTHERS" ]; then echo "removing the shipped libraries would also remove: $OTHERS"; exit 1; fi
+          sudo apt-get remove -y $SHIPPED
+          if ldconfig -p | grep -E 'libxcb-(cursor|icccm|image|keysyms|render-util|util)\.so|libxkbcommon-x11\.so'; then echo "a shipped library is still on the runner"; exit 1; fi
+      - name: Self-test the packed program (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $info = Get-Content packaging/dist/BUILD-RESULT.json -Raw | ConvertFrom-Json
+          Expand-Archive -Path "packaging/dist/$($info.archive)" -DestinationPath selftest
+          $exe = Join-Path (Join-Path selftest $info.folder) $info.executable
+          $report = Join-Path $PWD 'selftest-result.txt'
+          # A windowed program has no console: Start-Process -Wait -PassThru waits for it and gives its exit code (a plain call would not wait)
+          $p = Start-Process -FilePath $exe -ArgumentList '--selftest', '--selftest-out', $report -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report }
+          if ($p.ExitCode -ne 0) { Write-Error "selftest exit code $($p.ExitCode)"; exit 1 }
+          # The console program answers the command line (a plain call waits for a console program and sets $LASTEXITCODE)
+          $cli = Join-Path (Join-Path selftest $info.folder) 'PCB-Thermal-Lab-cli.exe'
+          & $cli --version
+          if ($LASTEXITCODE -ne 0) { Write-Error "PCB-Thermal-Lab-cli --version exit code $LASTEXITCODE"; exit 1 }
+      - name: Self-test the packed program (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        timeout-minutes: 10
+        # macOS: the hosted runner has a logged-in window server, so the real Cocoa plug-in is tried (if it ever has none, set QT_QPA_PLATFORM: offscreen here).
+        # Linux: under a virtual X server, so the xcb plug-in and the X libraries are tried as a user's desktop would (without a display it falls back to offscreen).
+        run: |
+          RUNNER=""; if [[ "$RUNNER_OS" == "Linux" ]]; then RUNNER="xvfb-run -a"; fi
+          $RUNNER python3 - <<'PY'
+          import json, pathlib, subprocess, sys
+          sys.path.insert(0, "packaging")
+          import build
+          info = json.loads(pathlib.Path("packaging/dist/BUILD-RESULT.json").read_text())
+          sys.exit(build.selftest(pathlib.Path("packaging/dist") / info["archive"], info["executable"]))
+          PY
+      - name: Name the build result by system
+        shell: bash
+        run: |
+          cp packaging/dist/BUILD-RESULT.json "packaging/dist/BUILD-RESULT-${{ matrix.name }}.json"
+          cp packaging/dist/FILES.txt "packaging/dist/FILES-${{ matrix.name }}.txt"
+      - name: Keep the package for the release job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: package-${{ matrix.name }}
+          path: |
+            packaging/dist/PCB-Thermal-Lab-*.zip
+            packaging/dist/PCB-Thermal-Lab-*.tar.gz
+            packaging/dist/qt-source/*
+            packaging/dist/BUILD-RESULT-*.json
+            packaging/dist/FILES-*.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Attach the files to the release
+    needs: [check, build]
+    # Never on a branch: only a tag push attaches files, and the release is created only as a draft
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
+        with:
+          path: files
+          pattern: package-*
+          merge-multiple: true
+      - name: The three packages and the attached Qt source must agree
+        run: python3 packaging/check_release.py files --version "${GITHUB_REF_NAME#v}"
+      - name: Checksums of every package
+        run: |
+          # The names as the release lists them (flat), so that `sha256sum -c SHA256SUMS.txt` works in the folder of the downloaded files
+          cd files
+          sha256sum PCB-Thermal-Lab-* > SHA256SUMS.txt
+          (cd qt-source && sha256sum *.tar.xz) >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Attach to the release (a draft with the CHANGELOG notes and the source list if none exists)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            python3 packaging/release_notes.py "${TAG#v}" --build-result files/BUILD-RESULT-linux-x64.json --sums files/SHA256SUMS.txt -o notes.md
+            EXTRA=""; if [[ "$PRERELEASE" == "true" ]]; then EXTRA="--prerelease"; fi
+            gh release create "$TAG" --draft $EXTRA --verify-tag --title "$TAG" --notes-file notes.md
+          fi
+          # The exact Qt and PySide source goes with the packages, always: the LGPL asks for it from the place that distributes the libraries. Never delete a release
+          # or one of its assets, never move its tag; the packages are never published before these files are attached (the release is a draft until then).
+          # The source first: if the release is already public, no package is ever on it without its source
+          gh release upload "$TAG" files/qt-source/* --clobber
+          gh release upload "$TAG" files/PCB-Thermal-Lab-* files/SHA256SUMS.txt --clobber
+      - name: The release lists the source tarballs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | tee assets.txt
+          for f in files/qt-source/* files/PCB-Thermal-Lab-* files/SHA256SUMS.txt; do grep -qx "$(basename "$f")" assets.txt || { echo "::error::$(basename "$f") is not attached"; exit 1; }; done

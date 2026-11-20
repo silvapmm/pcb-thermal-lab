@@ -10,7 +10,7 @@ Commands
 - convergence FVM grid refinement study
 - solvers     compare the linear solvers (direct, CG, SOR) on one board
 - convert     legacy editor JSON -> native JSON; `.pcbt.json` <-> `.pcbtz` package
-- gui         open the graphical application
+- gui         open the graphical application (`--selftest` checks the installation instead and exits)
 - example     write the reference board as a native JSON file
 
 Exit codes: 0 done, 2 usage error (argparse), 3 a run refused by the memory guard (the message names the cell that fits; `--memory-fraction` changes the limit).
@@ -331,6 +331,11 @@ def cmd_gui(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
+    if getattr(args, "selftest", False):
+        # The self-test of an installation or of a downloadable package (pcbthermal/selftest.py): no window stays open, the exit code says the result
+        from .selftest import run as selftest_run
+
+        return selftest_run(args.selftest_out)
     from .gui.app import main as gui_main
 
     return gui_main(["pcbthermal"] + ([args.project] if args.project else []))
@@ -440,6 +445,8 @@ def build_parser():
 
     g = sub.add_parser("gui", help="open the graphical application")
     g.add_argument("project", nargs="?", help="project file to open")
+    g.add_argument("--selftest", action="store_true", help="check that the program starts and solves the example board (imports, files, window, calculation process, energy balance), then exit: 0 when all is well")
+    g.add_argument("--selftest-out", metavar="FILE", help="also write the --selftest report to this file (a windowed program on Windows has no console)")
     g.set_defaults(func=cmd_gui)
 
     e = sub.add_parser("example", help="write the reference board JSON")

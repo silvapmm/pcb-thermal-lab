@@ -1,0 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# The licence texts the packages ship are copied byte for byte (packaging/licenses/Qt/SOURCES.txt records the SHA-256 of the GPL text): no line-ending
+# conversion on any checkout, so the Windows package carries the same bytes as the others (a Windows checkout would otherwise turn them into CRLF).
+packaging/licenses/** -text

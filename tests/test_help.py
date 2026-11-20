@@ -19,7 +19,8 @@ from PySide6.QtWidgets import QMessageBox
 
 from pcbthermal import __author__, __project_url__, __version__
 from pcbthermal.gui.document import Document
-from pcbthermal.gui.help import GUIDE, AboutDialog, GuideWindow
+from pcbthermal import bundle_info
+from pcbthermal.gui.help import GUIDE, AboutDialog, GuideWindow, LicencesDialog
 from pcbthermal.gui.main_window import MainWindow
 from pcbthermal.model import DIELECTRICS
 
@@ -123,3 +124,79 @@ def test_guide_says_drawn_copper_is_read_like_imported_copper():
     html = GUIDE.read_text(encoding="utf-8")
     for word in ("read like imported copper", "exact area of the zones", "flow-based faces"):
         assert word in html, word
+
+
+def test_about_box_states_qt_and_opens_the_licences(qtbot):
+    """!
+    @brief LGPL 3.0 section 4(c): the About box carries the copyright line of Qt with its loaded versions and a way to the licence texts; the live line and the copy button work.
+    @param qtbot pytest-qt fixture.
+    """
+    from PySide6.QtCore import qVersion
+    from PySide6.QtGui import QGuiApplication
+
+    about = AboutDialog()
+    qtbot.addWidget(about)
+    txt = about.text.text()
+    assert "Qt" in txt and "GNU Lesser General Public License version 3" in txt and "The Qt Company Ltd." in txt and qVersion() in txt
+    assert "from source" in txt or "packaged build" in txt
+    assert 'href="mailto:silva.pmm@gmail.com"' in txt and "Pedro Silva (PMS Labs)" in txt      # The contact line, published on purpose (maintainer)
+    assert about.b_licences.toolTip() and about.b_licences.text().startswith("Licences")
+    about.copy_version_info()
+    clip = QGuiApplication.clipboard().text()
+    assert __version__ in clip and qVersion() in clip
+    dlg = LicencesDialog(about)
+    qtbot.addWidget(dlg)
+    assert dlg.names.count() >= 2 and "MIT License" in dlg.view.toPlainText()          # From source the first entry is the LICENSE of the program
+    assert all(len(e) == 3 and e[2] for e in dlg.entries)                              # Every entry has a tooltip text (the full path or a description)
+
+
+def test_packaged_licences_are_listed_by_library(tmp_path, monkeypatch):
+    """!
+    @brief In a packaged build the Licences list has one entry per library folder (its files joined under headings), not one per file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    lic = tmp_path / "licenses"
+    for sub, files in {"Qt": ["LGPL-3.0.txt", "GPL-3.0.txt"], "numpy-2.5.5": ["licenses/LICENSE.txt"], "scipy-1.18.1": ["LICENSE.txt", "LICENSES_bundled.txt"]}.items():
+        for f in files:
+            (lic / sub / f).parent.mkdir(parents=True, exist_ok=True)
+            (lic / sub / f).write_text(f"text of {f}")
+    (lic / "INDEX.txt").write_text("index")
+    (tmp_path / "LICENSE").write_text("MIT")
+    monkeypatch.setattr(bundle_info, "packaged", lambda: True)
+    monkeypatch.setattr(bundle_info, "licences_folder", lambda: lic)
+    titles = [e[0] for e in bundle_info.licence_entries()]
+    assert titles.count("numpy-2.5.5") == 1 and "scipy-1.18.1" in titles and any(t.startswith("Qt and PySide") for t in titles)
+    assert not any("/" in t and t != "licenses/INDEX.txt" for t in titles)
+    scipy_text = next(e[1] for e in bundle_info.licence_entries() if e[0] == "scipy-1.18.1")
+    assert "===== LICENSE.txt =====" in scipy_text and "===== LICENSES_bundled.txt =====" in scipy_text
+
+
+def test_library_table_covers_every_runtime_requirement_with_a_licence():
+    """!
+    @brief The table of the About box is generated from the metadata and holds every run-time line of requirements.txt, each with a recognised licence.
+    @return None
+    """
+    root = pathlib_root()
+    names = []
+    for raw in (root / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#") and not line.lower().startswith("pytest"):
+            names.append(re.match(r"[A-Za-z0-9._-]+", line).group(0))
+    table = {bundle_info.normal(n): lic for n, v, lic in bundle_info.libraries()}
+    assert set(bundle_info.normal(r) for r in bundle_info.ROOTS) >= set(bundle_info.normal(n) for n in names)            # The roots of the table are the requirements
+    for n in names:
+        key = bundle_info.normal(n)
+        found = next((k for k in table if k == key or (key == "pyside6" and k.startswith("pyside6"))), None)
+        assert found is not None, f"{n} is not in the library table"
+        assert table[found], f"{n} has no recognised licence in the table"
+    assert all(lic for lic in table.values()), [k for k, lic in table.items() if not lic]
+
+
+def pathlib_root():
+    """!
+    @brief The repository folder.
+    @return pathlib.Path.
+    """
+    import pathlib
+    return pathlib.Path(__file__).resolve().parent.parent
