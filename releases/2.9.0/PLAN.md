@@ -19,7 +19,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | c | Full comparison campaign, validation 56 and 57 | `release/2.9.0-fem-campaign`, then `docs/fem-campaign-validation` | L + M |
 | d | Curved and slanted outlines for the FEM | `research/fem-outline-projection`, then `feature/fem-outline-projection` | M + L |
 | e1 | Surface read-out in the Lumped (upper bound), Analytic, 3D solid and the transient | `research/surface-readout-models`, then `feature/surface-readout-models` | M + M |
-| e2 | Copper slabs in the 3D solid | `feature/solid3d-copper-slabs` | S to M |
+| e2 (done, merged into `development`) | Copper slabs in the 3D solid | `feature/solid3d-copper-slabs` | S to M |
 | e3 | Export of the surface CSV, '(column)' tags on zone and hotspot tables, hotspot map `T_point` | `feature/surface-export-and-tags` | S to M |
 | e4 (done, merged with the FEM transient) | FEM frozen records store the surface too; FEM time record: pending file generated, refreeze at the release | `feature/fem-transient` | S |
 | e5 | Convection under the source on the same face (about 0.17 K in a 1 mm case) | `research/convection-under-source`, then a fix only if the study says so | S + S |
@@ -50,6 +50,11 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e30 | Published transient case reproduced (NAFEMS 1D transient 36.60 degC at x = 0.08 m, t = 32 s, status M in BIBLIOGRAPHY: open the publication) or validation 57 states on its first line that none was reproduced: REQUIRED at the 2.9.0 release | with the campaign | S |
 | e31 | Optional: the CG per-step cost model 6e-5 s/unknown/step is about 2.4x the measurement at 276 000 unknowns, so a two-window profile of the example board at 1 mm is refused at a predicted 19 min instead of about 8 min: refit with a n^0.8 law | separate small branch | S |
 | e32 | Optional: the steady FEM direct limit 30 000 and the direct law are conservative given the transient measurements (direct step 3-53 ms up to 106 000 unknowns): revisit in a later branch | later branch | S |
+| e33 | Add a thick-copper board (420 um copper, a part over absent copper below) to the regression harness board list (`regress_boards.py` and its copy), frozen at the 2.9.0 refreeze: reviewer decision | harness | S |
+| e34 | Fix `cli-natural-form-help`: `run --natural-form` help says "general (default)" but new projects use laminar (`cli.py` about line 390): text fix | `fix/cli-natural-form-help` | S |
+| e35 | Regenerate the screenshots that show v2.7.1 in the status bar and `docs/images/preferences_solver_gerber.png` at the release documentation review | release | S |
+| README badges (done, merged into `development`) | The five static shields.io badges and their test | `docs/readme-badges` | S |
+| in progress, awaiting the whole battery | `feature/new-icon` (3 commits), `docs/user-manual` (the user manual, 782a1a9b), `feature/release-builds` (packaging; CI trials pass on three systems; the merge needs the whole battery) | | |
 
 ### 1.2 NOT in 2.9.0, with the reason
 
