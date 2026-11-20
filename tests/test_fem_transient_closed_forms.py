@@ -5,8 +5,9 @@
 @brief Closed forms of the finite-element time stepper (`femcore.Stepper`, `femcore.Model.assemble(capacity=True)`): a lumped RC, the order in time of implicit Euler and
        Crank-Nicolson on a decaying mode, the slab with convection (eigenseries), the semi-infinite solid (the first-seconds table of DESIGN.md 3 and the two exact one-step
        values of 14.1), the Rannacher factor reuse, the energy balance, the steady limit and a 1D transient benchmark.
-@details The formulas of the slab and the benchmark are textbook or remembered results (status M in the design note, the sources were not opened): the tests derive them here
-         and say so. Light: a few seconds.
+@details The slab formula is a textbook result (status M of [CarslawJaeger]): the test derives it here and says so. The benchmark is the NAFEMS T3 case, read in four open
+         verification documents ([NAFEMS-T3] for the case, [MOOSE-T3], [Abaqus-T3], [Altair-T3], [Wolfram-T3], keys of research/theory/BIBLIOGRAPHY.md; the NAFEMS publication
+         itself was not obtained) and reproduced by an exact series (36.6031 degC). Light: a few seconds.
 """
 
 import numpy as np
@@ -232,8 +233,10 @@ def test_rannacher_half_step_with_the_crank_nicolson_factor_equals_a_fresh_euler
 def test_the_one_dimensional_transient_benchmark():
     """!
     @brief A bar of 0.1 m (k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK) from 0 degC, x = 0 held at 0 and x = 0.1 m held at 100 sin(pi t / 40) degC: 36.60 degC at x = 0.08 m,
-           t = 32 s. The held temperatures are films of a very large h (the penalty form of the program's Robin face) with a time factor on the load. STATUS: the reference value is
-           REMEMBERED (a NAFEMS benchmark, publication not opened, DESIGN.md 14.6); an independent 1D line of the review gave 36.605 at 200 elements.
+           t = 32 s. The held temperatures are films of a very large h (the penalty form of the program's Robin face) with a time factor on the load. SOURCES: the case and the
+           value 36.60 degC are those of [NAFEMS-T3] as read in [MOOSE-T3], [Abaqus-T3], [Altair-T3] and [Wolfram-T3] (research/theory/BIBLIOGRAPHY.md; the NAFEMS publication
+           itself was not obtained); the exact value is 36.6031 degC (eigenfunction series and method of lines, research/transient-published-case/lib/exact1d.py), and the
+           program's FEM gives 36.6106 degC with 100 elements and 36.6050 with 200.
     @return None.
     """
     n, L, big = 100, 0.1, 1e10
@@ -251,4 +254,4 @@ def test_the_one_dimensional_transient_benchmark():
         T = st.step(T, dt, 0.5, g(i * dt) * a["rhs"], g((i + 1) * dt) * a["rhs"])
     x = m.nodes[a["used"], 0]
     got = float(T[np.abs(x - 0.08) < 1e-9].mean())
-    assert abs(got - 36.60) < 0.1, got
+    assert abs(got - 36.6031) < 0.02, got                      # the exact value; 100 elements read 36.6106
