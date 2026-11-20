@@ -662,7 +662,7 @@ A worked example with CSV tables (a motor driver cycle and a regulator start-up)
    press **Export GIF…** to save the animation.
 
 The first seconds after a power step read too slowly in every layered model (section 12.3).
-Choose the FEM with Crank-Nicolson to read the first seconds.
+Choose the FEM, with Crank-Nicolson (the default), to read the first seconds.
 
 ### 4.12 Import a board from its Gerber files
 
@@ -1285,8 +1285,8 @@ are refused with the reason; the other models still answer.
 
 **FEM in time** (since 2.9.0): while ticked, the FEM also runs the animation (choose it in the
 Model box of the Animation page) and the power profiles, beside the other curves. With the
-default mesh it is the model to believe from about 0.3 s after a power step. Choose
-Crank-Nicolson to read the first seconds (with implicit Euler its first frames carry a few
+default mesh it is the model to believe from about 0.3 s after a power step. Keep
+Crank-Nicolson, the default, to read the first seconds (with implicit Euler its first frames carry a few
 percent of error). The FEM never decides the regime of a power profile and cannot run alone in
 the Power profile tab. A profile run predicted to take more than 10 minutes is refused before it
 starts.
@@ -1652,7 +1652,7 @@ board about 58 % too low at 0.3 s, 30 % at 1 s, 9 % at 3 s); later it agrees. Re
 seconds of a time result of these models as a lower estimate, or use the FEM in time
 (section 7.8).
 
-The time stepping has its own, smaller error. Up to 2.9.0 the Animation tab and `transient`
+The time stepping has its own, smaller error. Before 2.9.0 the Animation tab and `transient`
 used implicit Euler: with 60 frames (40 on the command line) the hottest cell read 0.7 to
 1.9 % low after the first seconds, and the first frame, a single Euler step, read 12 to 17 %
 low on the example board. They now use **Crank-Nicolson** (first frames in quarter steps, the

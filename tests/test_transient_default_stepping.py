@@ -20,7 +20,7 @@ import pytest
 import scipy.sparse as sp
 from scipy.sparse.linalg import splu
 
-from pcbthermal import cli, fdm, fvm
+from pcbthermal import cli, fdm, fem, fvm
 from pcbthermal.model import Problem, load_problem
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -75,7 +75,7 @@ def peak_error_percent(problem, cell, t_end, n_out, m=64, **kw):
 def test_the_default_run_has_no_first_frame_error_and_a_small_peak_error():
     """!
     @brief Two-layer board, the Animation defaults (60 frames, five time constants): the first frame within 1 % and every frame within 0.3 % of the reference (measured -0.12 %);
-           the stepping of 2.9.0 (Euler, one step for the first frame) gave -4.1 % at the first frames, so the check can fail.
+           the stepping of 2.8 (Euler, one step for the first frame) gave -4.1 % at the first frames, so the check can fail.
     @return None.
     """
     p = two_layer()
@@ -87,7 +87,7 @@ def test_the_default_run_has_no_first_frame_error_and_a_small_peak_error():
 
 def test_the_example_board_first_frame_is_no_longer_one_euler_step():
     """!
-    @brief Example board at 4 mm, the Animation defaults: the first frame is within 1 % of the reference (the stepping of 2.9.0 read about -12 % there) and the peak within 0.5 %.
+    @brief Example board at 4 mm, the Animation defaults: the first frame is within 1 % of the reference (the stepping of 2.8 read about -12 % there) and the peak within 0.5 %.
     @return None.
     """
     p = load_problem(os.path.join(ROOT, "examples", "example_board.pcbt.json"))
@@ -176,13 +176,15 @@ def test_crank_nicolson_default_is_monotone_at_the_defaults_and_conserves_the_en
 
 def test_the_defaults_are_crank_nicolson_and_euler_stays_selectable():
     """!
-    @brief The default theta of `fvm.solve_transient`, `fdm.solve_transient` and of `transient --theta` is 0.5; implicit Euler (1.0) is still accepted by all three, and a theta of 1
-           with one step per frame is the stepping of 2.9.0 bit for bit (the frames equal an Euler run that is not split).
+    @brief The default theta of `fvm.solve_transient`, `fdm.solve_transient`, `fem.solve_transient` and of `transient --theta` is 0.5; implicit Euler (1.0) is still accepted by all three, and a theta of 1
+           with one step per frame is the stepping of 2.8 bit for bit (the frames equal an Euler run that is not split).
     @return None.
     """
     for fn in (fvm.solve_transient, fdm.solve_transient):
         sig = inspect.signature(fn).parameters
         assert sig["theta_scheme"].default == 0.5 == fvm.DEFAULT_THETA and sig["first_stage_split"].default == 4 and sig["rannacher"].default is True
+    # The FEM run follows (review): the Animation tab and `transient --model fem` pass the box or --theta anyway, and its Python default no longer differs from the FVM's
+    assert inspect.signature(fem.solve_transient).parameters["theta_scheme"].default == fvm.DEFAULT_THETA and fem.FIRST_STAGE_SPLIT == fvm.FIRST_STAGE_SPLIT
     parser = cli.build_parser()
     args = parser.parse_args(["transient", "x.pcbt.json"])
     assert args.theta == 0.5

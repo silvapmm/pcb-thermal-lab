@@ -1049,7 +1049,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     return _result_from_theta(net, theta, res)
 
 
-## Theta of the default power-step run: 0.5 is Crank-Nicolson (with the Rannacher start), 1.0 implicit Euler (1.0 up to 2.9.0)
+## Theta of the default power-step run: 0.5 is Crank-Nicolson (with the Rannacher start), 1.0 implicit Euler (1.0 before 2.9.0)
 DEFAULT_THETA = 0.5
 ## Steps per frame of the first stage of the logarithmic grid (the FEM's `fem.FIRST_STAGE_SPLIT`): one implicit-Euler step of a flux switched on reads -11.4 % at the face, four -3.1 %
 FIRST_STAGE_SPLIT = 4
@@ -1105,7 +1105,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param substeps Implicit steps between two output frames (linear mode only; logarithmic mode uses one step per frame).
     @param theta_scheme 0.5 for Crank-Nicolson (the default since 2.9.0, opened by the Rannacher half steps), 1.0 for implicit Euler.
     @param log_times If True the time step doubles in ten stages (resolves fast and slow parts with few factorisations).
-    @param first_stage_split Steps per frame of the first logarithmic stage, count (4; 1 gives the one-step first frame of 2.9.0 and before).
+    @param first_stage_split Steps per frame of the first logarithmic stage, count (4; 1 gives the one-step first frame of 2.8 and before).
     @param rannacher True to open a Crank-Nicolson run with two implicit-Euler half steps.
     @return TransientResult.
     """

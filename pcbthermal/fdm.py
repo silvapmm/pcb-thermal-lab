@@ -525,7 +525,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param substeps Implicit steps between two frames (linear mode only).
     @param theta_scheme 0.5 for Crank-Nicolson (the default since 2.9.0, with the Rannacher start), 1.0 for implicit Euler.
     @param log_times True for the doubling time step.
-    @param first_stage_split Steps per frame of the first logarithmic stage, count (1 for the one-step first frame of 2.9.0 and before).
+    @param first_stage_split Steps per frame of the first logarithmic stage, count (1 for the one-step first frame of 2.8 and before).
     @param rannacher True to open a Crank-Nicolson run with two implicit-Euler half steps.
     @return TransientResult with grid "nodes".
     """

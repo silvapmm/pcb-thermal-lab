@@ -237,7 +237,7 @@ def test_transient_keeps_one_factor_and_same_fields(monkeypatch, kind):
             live[0] -= 1
 
     monkeypatch.setattr(fvm.spla, "splu", lambda *a, **k: Counted(real(*a, **k)))
-    r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True, theta_scheme=1.0, first_stage_split=1)      # the stepping of 2.9.0 and before, bit for bit
+    r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True, theta_scheme=1.0, first_stage_split=1)      # the stepping of 2.8 and before, bit for bit
     monkeypatch.undo()
     assert peak[0] == 1          # the old factor is released before the new one is built, never ten at once
     ref = _transient_all_factors(net, p.board.ambient, 600.0, 40)

@@ -418,7 +418,7 @@ def build_parser():
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
     t.add_argument("--model", choices=("fvm", "fdm", "fem", "analytic"), default="fvm", help="model of the transient (default: fvm; fem: finite elements, resolves the board thickness)")
-    t.add_argument("--theta", type=float, default=0.5, help="0.5 = Crank-Nicolson (default, with the Rannacher start), 1 = implicit Euler (up to 2.9.0 the default)")
+    t.add_argument("--theta", type=float, default=0.5, help="0.5 = Crank-Nicolson (default, with the Rannacher start), 1 = implicit Euler (the default before 2.9.0)")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
 

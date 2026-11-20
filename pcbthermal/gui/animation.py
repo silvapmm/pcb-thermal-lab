@@ -69,7 +69,7 @@ class AnimationTab(QWidget):
         self.spacing.addItem("Linear time", False)
         self.t_end.setToolTip("Length of the animated power step, s (preset: a few board time constants).")
         self.frames.setToolTip("Number of frames computed.")
-        self.scheme.setToolTip("Time stepping. Crank-Nicolson (the default; the first frames in quarter steps, opened by two half steps) is second order: under 0.1 % of the peak rise after the "
+        self.scheme.setToolTip("Time stepping. Crank-Nicolson (the default; the first frames in quarter steps, opened by two half steps) is second order: within 0.13 % of the peak rise after the "
                                "first seconds. Implicit Euler is first order and always rises monotonically, but at the default frames it reads the peak 0.7 to 1.9 % low and its first frame 12 to 17 % low on the example board.")
         self.spacing.setToolTip("Frame spacing in time: logarithmic (early heating in detail) or linear.")
         self.compute = QPushButton("Compute")
