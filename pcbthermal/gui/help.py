@@ -11,7 +11,7 @@ from pathlib import Path
 from .. import bundle_info, defaults
 from . import theme as th
 from PySide6.QtCore import QObject, QUrl, Qt
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon, QTextCursor
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QTextBrowser, QVBoxLayout
 
 from .. import __author__, __project_url__, __version__
@@ -151,15 +151,17 @@ class AboutDialog(QDialog):
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
-            f"<p>{bundle_info.qt_sentence()}</p>"
+            f"<p style=\"margin-bottom:8px\">{bundle_info.qt_sentence()}</p>"
             + (f"<p>Custom defaults in use: {defaults.diff_text()}<br>{defaults.user_file()}</p>" if defaults.has_user_file() and defaults.diff_text() else ""))
         self.text.setTextFormat(Qt.RichText)
         self.text.setOpenExternalLinks(True)
         self.text.setWordWrap(True)
         self.text.setToolTip("Program information.")
         # A word-wrapped rich-text label in a dialog was given less height than its text needs at its final width (the last line was cut): fix the width and ask the height for it
-        self.text.setFixedWidth(480)
-        self.text.setMinimumHeight(self.text.heightForWidth(480))
+        self.text.setFixedWidth(560)
+        self.text.setMinimumHeight(self.text.heightForWidth(560))
+        lay.setContentsMargins(20, 18, 20, 14)
+        lay.setSpacing(16)                                      # Air between the text and the buttons (the Qt sentence was glued to them)
         top.addWidget(self.text, 1)
         lay.addLayout(top)
         box = QDialogButtonBox(QDialogButtonBox.Close)
@@ -187,7 +189,7 @@ class AboutDialog(QDialog):
 
 class LicencesDialog(QDialog):
     """!
-    @brief The licence texts: a list of the files of the package (or, from source, of the LICENSE and the library table) and the text of the chosen one.
+    @brief The licence texts: a list with one entry per library (or, from source, the LICENSE and the library table) and the text of the chosen one.
     """
 
     def __init__(self, parent=None):
@@ -201,11 +203,17 @@ class LicencesDialog(QDialog):
         row = QHBoxLayout()
         self.entries = bundle_info.licence_entries()
         self.names = QListWidget()
-        self.names.addItems([t for t, _ in self.entries])
-        self.names.setToolTip("The licence files of this program and of its libraries; choose one to read it.")
-        self.names.setMaximumWidth(300)
+        self.names.addItems([e[0] for e in self.entries])
+        for i, e in enumerate(self.entries):
+            self.names.item(i).setToolTip(e[2])                 # The full name or path: the list is narrow and cuts long names
+        self.names.setToolTip("One entry per library (and the notices of the package); choose one to read its licence files.")
+        self.names.setFixedWidth(320)
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
+        self.view.setLineWrapMode(QPlainTextEdit.NoWrap)       # A long licence name must not wrap into the next row of the table
+        # The library table is padded text: a fixed-width font keeps its columns aligned (a style sheet, because the theme's own style sheet would override setFont alone)
+        self.view.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        self.view.setStyleSheet("font-family: Menlo, Consolas, 'DejaVu Sans Mono', monospace;")
         self.view.setToolTip("The text of the chosen licence file.")
         self.names.currentRowChanged.connect(lambda i: self.view.setPlainText(self.entries[i][1] if 0 <= i < len(self.entries) else ""))
         row.addWidget(self.names)

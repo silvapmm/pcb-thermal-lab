@@ -43,7 +43,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e23 | Transient surface rule for the FVM and FDM, as the LAST item of that branch; it may slip to 2.10 (the 'n/a' stays then) | last item of `feature/surface-readout-models` | S |
 | e24 (done, merged) | Small, follows e19: remove the 29 constrained_layout warnings of the Models chart at tiny sizes (guard the chart draw when the canvas is smaller than a minimum); tests with `-W error` for that warning | `fix/models-chart-tiny-size` | S |
 | e25 | Small, display only: the Profiles chart title is cut off at the left/right in narrow charts (about 400 px at 10 pt; measured -35 px at 1000x700 and -87 px at 900x700 already on `development`): split the title in two lines; changes the Profiles figure in every size and in the reports, so the screenshots are regenerated | `fix/profiles-chart-title` | S |
-| e26 | Release builds (packaging + GitHub Actions workflow); decisions: onedir zipped, name PCB-Thermal-Lab, Qt source offer in the name of Pedro Silva (PMS Labs), draft release only; in progress | `feature/release-builds` | M |
+| e26 | Release builds (packaging + GitHub Actions workflow); decisions: onedir zipped, name PCB-Thermal-Lab, Qt source offer in the name of Pedro Silva (PMS Labs), draft release only; in progress (stage 1b) | `feature/release-builds` | M |
 | e27 | FEM transient (design note reviewed GO on `release/2.9.0-fem-transient-design`); in progress | `feature/fem-transient` | L |
 
 ### 1.2 NOT in 2.9.0, with the reason

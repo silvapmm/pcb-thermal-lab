@@ -101,10 +101,10 @@ Rule of thumb: run them all (`--model compare`); if they agree within about 5 % 
 
 ## Download
 
-The packages of each release are on the [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases): `PCB-Thermal-Lab-<version>-windows-x64.zip`, `PCB-Thermal-Lab-<version>-linux-x64.tar.gz` and `PCB-Thermal-Lab-<version>-macos-arm64.zip` (Apple silicon only), with `SHA256SUMS.txt`. Unzip and run; nothing is installed and Python is not needed. They are **not signed**, so the first start asks for a confirmation:
+The packages of each release are on the [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases): `PCB-Thermal-Lab-<version>-windows-x64.zip`, `PCB-Thermal-Lab-<version>-linux-x64.tar.gz` and `PCB-Thermal-Lab-<version>-macos-arm64.zip` (Apple silicon only), with `SHA256SUMS.txt` and the exact Qt and PySide source (the packages use Qt under the LGPL-3.0). Unzip and run; nothing is installed and Python is not needed. They are **not signed**, so the first start asks for a confirmation:
 
 - **Windows**: SmartScreen says "Windows protected your PC": More info, Run anyway. Do not unpack into a very deep folder.
-- **macOS**: Gatekeeper blocks the first start. Open System Settings, Privacy & Security, "Open anyway" for PCB Thermal Lab, or run `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"` once.
+- **macOS**: Gatekeeper blocks the first start: right click the app and choose Open, or open System Settings, Privacy & Security, "Open anyway" for PCB Thermal Lab, or run `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"` once.
 - **Linux** (built on Ubuntu 22.04, glibc 2.35 or newer): `tar xzf` and run `PCB-Thermal-Lab`. Qt needs these libraries: `sudo apt install libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxcb-image0 libxcb-render-util0`.
 
 `PCB-Thermal-Lab --selftest` (on Windows the `-cli` program prints it) checks the package: imports, files, window, a solve through the calculation process and the energy balance. Each package carries `LICENSE`, `NOTICE.txt`, `SOURCE-OFFER.txt`, `REPLACING-QT.txt` and the `licenses/` folder (see "Author and license"). How the packages are built and what the workflow does: [`packaging/README.md`](packaging/README.md).

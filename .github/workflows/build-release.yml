@@ -15,11 +15,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # THE SWITCH (maintainer's decision pending): 'true' makes the release carry the Qt and PySide source tarballs as assets and SOURCE-OFFER.txt say so; 'false' keeps
-  # the offer as links to the Qt Project plus the written offer
-  ATTACH_QT_SOURCE: 'false'
-
 jobs:
   check:
     name: Tag matches the version
@@ -68,7 +63,9 @@ jobs:
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libdbus-1-3 libfontconfig1
       - name: Build the package
         shell: bash
-        run: python packaging/build.py ${{ env.ATTACH_QT_SOURCE == 'true' && '--attach-source' || '' }}
+        # A tag build refuses to run while SECOND_CONTACT in packaging/build.py is not given; a trial build passes with a TODO in SOURCE-OFFER.txt.
+        # Every build puts the exact Qt and PySide source in packaging/dist/qt-source (Linux) for the release job: the release always carries it.
+        run: python packaging/build.py ${{ startsWith(github.ref, 'refs/tags/v') && '--release' || '' }}
       - name: Self-test the packed program (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -94,6 +91,9 @@ jobs:
           info = json.loads(pathlib.Path("packaging/dist/BUILD-RESULT.json").read_text())
           sys.exit(build.selftest(pathlib.Path("packaging/dist") / info["archive"], info["executable"]))
           PY
+      - name: Name the build result by system
+        shell: bash
+        run: cp packaging/dist/BUILD-RESULT.json "packaging/dist/BUILD-RESULT-${{ matrix.name }}.json"
       - name: Keep the package for the release job
         uses: actions/upload-artifact@v4
         with:
@@ -102,6 +102,7 @@ jobs:
             packaging/dist/PCB-Thermal-Lab-*.zip
             packaging/dist/PCB-Thermal-Lab-*.tar.gz
             packaging/dist/qt-source/*
+            packaging/dist/BUILD-RESULT-*.json
           if-no-files-found: error
           retention-days: 14
 
@@ -120,22 +121,30 @@ jobs:
           path: files
           pattern: package-*
           merge-multiple: true
+      - name: The three packages and the attached Qt source must agree
+        run: python3 packaging/check_release.py files
       - name: Checksums of every package
         run: |
           cd files
-          sha256sum PCB-Thermal-Lab-* $(ls -d qt-source/* 2>/dev/null) > SHA256SUMS.txt
+          sha256sum PCB-Thermal-Lab-* qt-source/* > SHA256SUMS.txt
           cat SHA256SUMS.txt
-      - name: Attach to the release (a draft with the CHANGELOG notes if none exists)
+      - name: Attach to the release (a draft with the CHANGELOG notes and the source list if none exists)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           TAG="$GITHUB_REF_NAME"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            python3 packaging/release_notes.py "${TAG#v}" -o notes.md
+            python3 packaging/release_notes.py "${TAG#v}" --build-result files/BUILD-RESULT-linux-x64.json -o notes.md
             gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes-file notes.md
           fi
-          # The exact Qt and PySide source (qt-source/, made by the Linux job) goes with the packages: the LGPL asks for it from the place that distributes the libraries
-          EXTRA=""
-          if [ -d files/qt-source ]; then EXTRA="files/qt-source/*"; fi
-          gh release upload "$TAG" files/PCB-Thermal-Lab-* $EXTRA files/SHA256SUMS.txt --clobber
+          # The exact Qt and PySide source goes with the packages, always: the LGPL asks for it from the place that distributes the libraries. Never delete a release
+          # or one of its assets, never move its tag; the packages are never published before these files are attached (the release is a draft until then).
+          gh release upload "$TAG" files/PCB-Thermal-Lab-* files/qt-source/* files/SHA256SUMS.txt --clobber
+      - name: The release lists the source tarballs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | tee assets.txt
+          for f in files/qt-source/*; do grep -qx "$(basename "$f")" assets.txt || { echo "::error::$(basename "$f") is not attached"; exit 1; }; done

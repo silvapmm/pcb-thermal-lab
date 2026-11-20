@@ -1,6 +1,6 @@
 # packaging: the downloadable packages
 
-How the packages of a release (`PCB-Thermal-Lab-<version>-windows-x64.zip`, `-linux-x64.tar.gz`, `-macos-arm64.zip`) are built, what is in them and what must be checked.
+How the packages of a release (`PCB-Thermal-Lab-<version>-windows-x64.zip`, `-linux-x64.tar.gz` (a tar.gz keeps the execute bits; never a zip on Linux), `-macos-arm64.zip`) are built, one folder each (onedir; never a single file), what is in them and what must be checked.
 Not legal advice (see CLAUDE.md section 5 for the rule).
 
 ## Build it here
@@ -9,7 +9,7 @@ Not legal advice (see CLAUDE.md section 5 for the rule).
 python3 packaging/build.py --selftest     # own environment packaging/.venv-build, PyInstaller, package, archive, then --selftest of the unpacked archive
 ```
 
-Output in `packaging/dist/` (git-ignored): the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, and on Linux `qt-source/` (the Qt and PySide source tarballs). The build
+Output in `packaging/dist/` (git-ignored): the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, and on Linux `qt-source/` (the Qt and PySide source tarballs, attached to every release). The build
 needs the network (PyPI, download.qt.io) and about 1.5 GB of disk; it installs the run-time lines of `requirements.txt` (PySide6 replaced by PySide6-Essentials, the same
 QtCore/QtGui/QtWidgets without the add-ons) and `requirements-build.txt`. `build.py --reuse-venv` keeps the environment.
 
@@ -21,7 +21,8 @@ QtCore/QtGui/QtWidgets without the add-ons) and `requirements-build.txt`. `build
 | `qt_sources.py` | downloads and checks the Qt and PySide source tarballs of a release (the release assets) and makes the Qt third-party notices from them |
 | `release_notes.py` | extracts the CHANGELOG section of a version (the text of a release) |
 | `licenses/Qt/` | the LGPL-3.0 and GPL-3.0 texts (third-party, no header); `licenses/_fallback/` the licence text of a library whose wheel carries none (pyamg) |
-| `requirements-build.txt` | PyInstaller (pinned to a major version) |
+| `requirements-build.txt` | PySide6-Essentials, shiboken6 and PyInstaller, pinned EXACTLY (`build.py` fails when the installed versions differ; the three Qt/PySide numbers move together) |
+| `check_release.py` | the release job's guard: the three packages carry the same Qt and PySide versions, equal to the attached tarballs |
 
 The workflow `.github/workflows/build-release.yml` runs `build.py` on Windows, Ubuntu 22.04 and macOS (arm64), runs the packed program's `--selftest` there, and on a tag
 `v*` attaches the files to the release: it never creates a public release (if none exists it creates a DRAFT with the CHANGELOG notes), never marks Latest, never uses
@@ -36,11 +37,22 @@ generated notes. A push to a branch `build-test/**` builds and self-tests only. 
 - [ ] nothing that matches `FORBIDDEN` in `build.py` (the GPL-3-only Qt modules, FFmpeg, QtPdf and its image plug-in, WebEngine, QML and Quick, the TLS plug-ins): the build fails if one is there
 - [ ] the versions agree: `SOURCE-OFFER.txt` = `BUILD-INFO.txt` = Help - About (live) = the tarballs attached to the release (`QT-SOURCE-SHA256.txt`)
 - [ ] no EULA text, no encryption, no hash check of the Qt files, no static Qt: nothing may block replacing the Qt files
-- [ ] **the source tarballs on the release are the reviewer's recommendation, awaiting the maintainer** (Qt says a link to its own servers is not sufficient; `qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup`, and `qtwayland` for Linux, about 76 MB once per release). `SOURCE-OFFER.txt` is a template with a switch: `build.py --attach-source` (workflow: `ATTACH_QT_SOURCE: 'true'`) makes it say the files are on the release page and puts them in `packaging/dist/qt-source/` for the workflow to attach; the default (off) lists the Qt Project links and the written offer, with the GitHub Issues page as the contact. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` downloads and checks them by hand. Nothing is uploaded by the scripts except through the workflow's release job.
-- [ ] fresh machine (a VM or a second account without Python): download through a browser, clear Gatekeeper or SmartScreen, unzip, run, solve a board; replace `QtGui` (the file from a `PySide6_Essentials` wheel), on macOS re-sign as `REPLACING-QT.txt` says, run again; Help - About shows the Qt version that was loaded; `--selftest` exits 0
+- [ ] **the Qt and PySide source tarballs are attached to EVERY release** (maintainer's decision; Qt says a link to its own servers is not sufficient): `qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup` and `qtwayland` (Linux), about 76 MB once per release, with `QT-SOURCE-SHA256.txt`, NOT committed to git. There is no mode without them. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` downloads and checks them by hand. The release notes list them (`release_notes.py --build-result BUILD-RESULT-linux-x64.json` appends the paragraph; use it for the notes of `gh release create` too).
+- [ ] the release job checked `check_release.py` (the Qt and PySide versions of the three `BUILD-RESULT-*.json` equal each other and the tarballs); after the upload **`gh release view vX.Y.Z --json assets --jq '.assets[].name'` shows the five tarballs and `QT-SOURCE-SHA256.txt`** before the release is called closed
+- [ ] no `.qm` file (the Qt translations: English-only program, their source is not attached) and no forbidden file in the package nor inside the `.app`; read the file list of every new build (top two levels, and `find . -name '*.qm'`), because a new PyInstaller hook or PySide version can bring in something the scan does not know
+- [ ] **the second contact** of the written offer (`SECOND_CONTACT` in `build.py`, a way to reach the maintainer that does not depend on GitHub) is given: a tag build fails while it is `None`; a trial build writes "TODO second contact" in `SOURCE-OFFER.txt`
+- [ ] **once per system before the first public release** a fresh machine (a VM or a second account without Python): download through a browser, clear Gatekeeper or SmartScreen, unzip, run, solve a board; replace `QtGui` with a REAL swap (the file from a `PySide6_Essentials` wheel of another patch version), on macOS re-sign as `REPLACING-QT.txt` says, run again; Help - About shows the Qt version that was loaded; `--selftest` exits 0
+
+## Rules for releases (never broken)
+
+Never delete a release, never remove one of its assets, never move or re-push its tag to other code, and never publish a package before the source assets are attached (the workflow only creates a DRAFT; the release is made public after `gh release view` shows the tarballs). The written offer runs three years and depends on the files staying there.
+
+## Unsigned packages
+
+macOS and Windows packages are UNSIGNED (macOS: ad hoc only, which Apple silicon requires). The README Download section explains Gatekeeper (right click, Open; or `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"`) and SmartScreen (More info, Run anyway). `THIRD-PARTY-NOTICES.txt` is made from all the Qt modules' attribution files, so it is over-inclusive (the Qt attribution data does not say which component ends in which library); it lists every component of qtbase, qtsvg, qtimageformats and qtwayland, with the licence texts, and says so in its heading.
 
 ## Signing (constraint for later)
 
-The packages are unsigned (macOS: ad hoc only, which Apple silicon requires); whether to sign is undecided (the maintainer will think about it). **If a Developer ID and the hardened runtime are ever used** (needed for notarisation), library
+The hardened-runtime constraint, recorded for the future. **If a Developer ID and the hardened runtime are ever used** (needed for notarisation), library
 validation would block a Qt library built by the user unless the entitlement `com.apple.security.cs.disable-library-validation` is kept, or `REPLACING-QT.txt` tells
 users to re-sign the whole app ad hoc. Do not sign in a way that stops the replacement of the Qt files.

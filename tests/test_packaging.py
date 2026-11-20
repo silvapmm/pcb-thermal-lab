@@ -95,6 +95,7 @@ def test_forbidden_files_are_recognised():
     build = load("build")
     for bad in ("PySide6/Qt/lib/QtGraphs.framework/QtGraphs", "PySide6/Qt/lib/libavcodec.so.61", "PySide6/Qt/plugins/imageformats/libqpdf.so", "PySide6/Qt6Pdf.dll",
                 "PySide6/Qt/plugins/tls/libqopensslbackend.so", "PySide6/QtWebEngineCore.abi3.so", "PySide6/Qt6QuickControls2.dll", "PySide6/Qt6HttpServer.dll",
+                "PySide6/Qt/translations/qt_de.qm", "PCB Thermal Lab.app/Contents/Resources/PySide6/Qt/translations/qtbase_fr.qm",
                 "PySide6/Qt6VirtualKeyboard.dll", "PySide6/Qt6Lottie.dll", "PySide6/Qt6NetworkAuth.dll", "PySide6/Qt6Qml.dll"):
         assert build.FORBIDDEN.search(bad), bad
     for good in ("PySide6/QtCore.abi3.so", "PySide6/Qt6Gui.dll", "PySide6/Qt/lib/libQt6Widgets.so.6", "PySide6/Qt/plugins/platforms/libqxcb.so",
@@ -131,7 +132,8 @@ def test_workflow_triggers_and_gates(workflow):
     assert "--generate-notes" not in workflow and "--latest" not in workflow and "--draft" in release and "--notes-file" in release
     assert "secrets." not in workflow.replace("secrets.GITHUB_TOKEN", "")
     assert "packaging/release_notes.py" in release
-    assert "ATTACH_QT_SOURCE: 'false'" in workflow            # The Qt source on the release is the maintainer's pending decision: off until he decides
+    assert "ATTACH_QT_SOURCE" not in workflow and "attach-source" not in workflow     # The Qt source is always on the release: no switch
+    assert "--release" in workflow and "check_release.py" in release and "qt-source/*" in release and "--json assets" in release
 
 
 def test_workflow_checks_the_tag_and_runs_the_selftest(workflow):
@@ -140,3 +142,66 @@ def test_workflow_checks_the_tag_and_runs_the_selftest(workflow):
     for needle in ("windows-latest", "ubuntu-22.04", "macos-latest", "libegl1", "libxkbcommon-x11-0", "libxcb-cursor0", "Start-Process", "-Wait", "-PassThru", "ExitCode",
                    "--selftest"):
         assert needle in workflow
+
+
+def test_build_pins_are_exact_and_the_second_contact_gates_a_release(tmp_path):
+    """The build requirements pin PySide6-Essentials, shiboken6 and PyInstaller with ==; a release build refuses while SECOND_CONTACT is None."""
+    build = load("build")
+    pins = build.pinned_versions()
+    assert {"pyside6_essentials", "shiboken6", "pyinstaller"} <= set(pins)
+    assert pins["pyside6_essentials"] == pins["shiboken6"]
+    assert build.SECOND_CONTACT is None or isinstance(build.SECOND_CONTACT, str)
+    if build.SECOND_CONTACT is None:
+        with pytest.raises(SystemExit):
+            build.main(["--release"])
+
+
+def test_source_offer_always_names_the_attached_tarballs_and_flags_the_missing_contact(tmp_path, monkeypatch):
+    """SOURCE-OFFER.txt says the tarballs are attached to the release; a trial build shows the TODO second contact, a release build with a contact shows it."""
+    build = load("build")
+    monkeypatch.setattr(build, "qt_versions", lambda: ("6.12.0", "6.12.0"))
+    monkeypatch.setattr(build, "SECOND_CONTACT", None)
+    build.write_notice_files(tmp_path, False)
+    text = (tmp_path / "SOURCE-OFFER.txt").read_text(encoding="utf-8")
+    assert "attached to the release page" in text and "qtbase-everywhere-src-6.12.0.tar.xz" in text and "TODO second contact" in text
+    assert "https://github.com/silvapmm/pcb-thermal-lab/issues" in text and "Pedro Silva (PMS Labs)" in text
+    monkeypatch.setattr(build, "SECOND_CONTACT", "e-mail: test@example.org")
+    build.write_notice_files(tmp_path, True)
+    text = (tmp_path / "SOURCE-OFFER.txt").read_text(encoding="utf-8")
+    assert "test@example.org" in text and "TODO" not in text
+
+
+def test_check_release_compares_the_packages_and_the_source(tmp_path):
+    """The release job's check: equal Qt and PySide versions in the three results, and every source tarball present."""
+    import json
+    check = load("check_release")
+    names = ["qtbase-everywhere-src-6.12.0.tar.xz", "pyside-setup-everywhere-src-6.12.0.tar.xz"]
+    (tmp_path / "qt-source").mkdir()
+    for n in names + ["QT-SOURCE-SHA256.txt"]:
+        (tmp_path / "qt-source" / n).write_text("x")
+    for system in check.SYSTEMS:
+        (tmp_path / f"PCB-Thermal-Lab-9.9.9-{system}.zip").write_text("x")
+        res = {"version": "9.9.9", "qt": "6.12.0", "pyside": "6.12.0", "archive": f"PCB-Thermal-Lab-9.9.9-{system}.zip", "source_assets": names}
+        (tmp_path / f"BUILD-RESULT-{system}.json").write_text(json.dumps(res))
+    assert check.check(tmp_path) == []
+    bad = json.loads((tmp_path / "BUILD-RESULT-linux-x64.json").read_text())
+    bad["pyside"] = "6.12.1"
+    (tmp_path / "BUILD-RESULT-linux-x64.json").write_text(json.dumps(bad))
+    assert any("pyside differs" in p for p in check.check(tmp_path))
+    (tmp_path / "qt-source" / names[0]).unlink()
+    assert any(names[0] in p for p in check.check(tmp_path))
+
+
+def test_release_notes_list_the_source_tarballs():
+    """The notes of a release name the Qt and PySide versions, the attached tarballs and the checksum file."""
+    notes = load("release_notes")
+    text = notes.source_section("6.12.0", "6.12.0", ["qtbase-everywhere-src-6.12.0.tar.xz"])
+    assert "Qt 6.12.0" in text and "qtbase-everywhere-src-6.12.0.tar.xz" in text and "QT-SOURCE-SHA256.txt" in text
+
+
+def test_gpl_text_is_the_spdx_text():
+    """The GPL-3.0 text is the byte-exact SPDX text (its checksum and source are recorded in licenses/Qt/SOURCES.txt)."""
+    import hashlib
+    qt = PKG / "licenses" / "Qt"
+    digest = hashlib.sha256((qt / "GPL-3.0.txt").read_bytes()).hexdigest()
+    assert digest in (qt / "SOURCES.txt").read_text(encoding="utf-8")

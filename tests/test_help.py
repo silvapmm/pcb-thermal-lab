@@ -146,6 +146,29 @@ def test_about_box_states_qt_and_opens_the_licences(qtbot):
     dlg = LicencesDialog(about)
     qtbot.addWidget(dlg)
     assert dlg.names.count() >= 2 and "MIT License" in dlg.view.toPlainText()          # From source the first entry is the LICENSE of the program
+    assert all(len(e) == 3 and e[2] for e in dlg.entries)                              # Every entry has a tooltip text (the full path or a description)
+
+
+def test_packaged_licences_are_listed_by_library(tmp_path, monkeypatch):
+    """!
+    @brief In a packaged build the Licences list has one entry per library folder (its files joined under headings), not one per file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    lic = tmp_path / "licenses"
+    for sub, files in {"Qt": ["LGPL-3.0.txt", "GPL-3.0.txt"], "numpy-2.5.5": ["licenses/LICENSE.txt"], "scipy-1.18.1": ["LICENSE.txt", "LICENSES_bundled.txt"]}.items():
+        for f in files:
+            (lic / sub / f).parent.mkdir(parents=True, exist_ok=True)
+            (lic / sub / f).write_text(f"text of {f}")
+    (lic / "INDEX.txt").write_text("index")
+    (tmp_path / "LICENSE").write_text("MIT")
+    monkeypatch.setattr(bundle_info, "packaged", lambda: True)
+    monkeypatch.setattr(bundle_info, "licences_folder", lambda: lic)
+    titles = [e[0] for e in bundle_info.licence_entries()]
+    assert titles.count("numpy-2.5.5") == 1 and "scipy-1.18.1" in titles and any(t.startswith("Qt and PySide") for t in titles)
+    assert not any("/" in t and t != "licenses/INDEX.txt" for t in titles)
+    scipy_text = next(e[1] for e in bundle_info.licence_entries() if e[0] == "scipy-1.18.1")
+    assert "===== LICENSE.txt =====" in scipy_text and "===== LICENSES_bundled.txt =====" in scipy_text
 
 
 def test_library_table_covers_every_runtime_requirement_with_a_licence():

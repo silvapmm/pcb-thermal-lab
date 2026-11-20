@@ -194,8 +194,10 @@ def _read(path):
 
 def licence_entries():
     """!
-    @brief What the Licences window lists: (title, text) pairs. A packaged build shows the files of its package; from source, the LICENSE of the program, the table of the libraries and where the Qt texts are.
-    @return list of (str, str).
+    @brief What the Licences window lists: (title, text, tooltip) triples, one entry per library. A packaged build shows the files of its package (the top-level
+           notices, the table of the libraries and one entry per folder of licenses/, whose licence files are joined under headings); from source, the LICENSE
+           of the program, the table of the libraries and where the Qt texts are.
+    @return list of (str title, str text, str tooltip with the full path or a short description).
     """
     entries = []
     folder = licences_folder()
@@ -203,15 +205,21 @@ def licence_entries():
         top = folder.parent
         for name in TEXT_FILES:
             if (top / name).is_file():
-                entries.append((name, _read(top / name)))
-        entries.append(("Libraries bundled in this build", table_text()))
-        for p in sorted(folder.rglob("*")):
-            if p.is_file():
-                entries.append(("licenses/" + p.relative_to(folder).as_posix(), _read(p)))
+                entries.append((name, _read(top / name), str(top / name)))
+        entries.append(("Libraries bundled in this build", table_text(), "Name, version and licence of every library in this package."))
+        index = folder / "INDEX.txt"
+        if index.is_file():
+            entries.append(("licenses/INDEX.txt", _read(index), str(index)))
+        for sub in sorted((p for p in folder.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
+            files = sorted(p for p in sub.rglob("*") if p.is_file())
+            body = "\n\n".join(f"===== {p.relative_to(sub).as_posix()} =====\n{_read(p)}" for p in files)
+            title = "Qt and PySide (LGPL-3.0, GPL-3.0, notices)" if sub.name == "Qt" else sub.name
+            entries.append((title, body, f"{sub}  ({len(files)} file(s))"))
         return entries
-    entries.append(("LICENSE", _read(root_folder() / "LICENSE")))
-    entries.append(("Libraries (installed in this Python)", table_text()))
+    entries.append(("LICENSE", _read(root_folder() / "LICENSE"), str(root_folder() / "LICENSE")))
+    entries.append(("Libraries (installed in this Python)", table_text(), "Name, version and licence of every library installed in this Python."))
     entries.append(("Qt and PySide (installed by pip)", "Run from source, Qt and PySide are installed by pip from PyPI under their own licence, the GNU LGPL v3 "
                     "(or GPL v2 or v3, or a commercial licence). The texts: https://www.gnu.org/licenses/lgpl-3.0.html and https://www.gnu.org/licenses/gpl-3.0.html. "
-                    "The downloadable packages carry the texts, the Qt notices, SOURCE-OFFER.txt and REPLACING-QT.txt (see the Download section of the README)."))
+                    "The downloadable packages carry the texts, the Qt notices, SOURCE-OFFER.txt and REPLACING-QT.txt (see the Download section of the README).",
+                    "Where the Qt licence texts are when the program runs from source."))
     return entries

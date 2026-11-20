@@ -15,7 +15,7 @@
             (`.zip` on Windows and macOS, `.tar.gz` on Linux, which keeps the execute bits) and writes `SHA256SUMS.txt` and `BUILD-RESULT.json`;
          5. with `--selftest`, extracts the archive and runs `--selftest` of the program from it.
          Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json` and `qt-source/`, the exact Qt and PySide source that the release
-         carries as assets) and `packaging/build/` (git-ignored). Nothing is uploaded or published here.
+         carries as assets, always) and `packaging/build/` (git-ignored). Nothing is uploaded or published here.
 """
 
 import argparse
@@ -48,10 +48,16 @@ APP_NAME = "PCB Thermal Lab.app"
 SUBSTITUTIONS = {"pyside6": "PySide6-Essentials"}
 BUILD_TOOLS = ("pyinstaller",)                 # Distributions installed for the build whose licence is also quoted (the bootloader is part of the program)
 # Files that must not be in the package: the GPL-3-only Qt modules (a bundle containing one would have to be GPL-3), FFmpeg (Qt Multimedia), QtPdf (and the image-format
-# plug-in that links it), WebEngine, the QML and Quick modules, the TLS plug-ins (OpenSSL). The program imports QtCore, QtGui and QtWidgets only.
+# plug-in that links it), WebEngine, the QML and Quick modules, the TLS plug-ins (OpenSSL), and the Qt translations (`.qm`: the program is English only, and their source, qttranslations, is not among the attached
+# tarballs). The program imports QtCore, QtGui and QtWidgets only.
 FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisualization|Quick|VirtualKeyboard|Lottie|HttpServer|NetworkAuth|Qml|CanvasPainter|Grpc|Mqtt|Coap)"
-                       r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\", re.IGNORECASE)
+                       r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$", re.IGNORECASE)
 QT_COVERED = ("pyside6_essentials", "pyside6", "shiboken6")        # Distributions whose licence texts are licenses/Qt (their wheels carry none)
+# THE SECOND CONTACT of the written offer (SOURCE-OFFER.txt): a way to reach the maintainer that does not depend on GitHub (an e-mail address of PMS Labs), for the case
+# that the repository is deleted or made private while the offer (three years) is still running. NOT GIVEN YET: a build of a tag (`--release`) FAILS while it is None;
+# a trial build passes and writes a visible "TODO second contact" line in SOURCE-OFFER.txt. Put the text here, for example "e-mail: name@example.org".
+SECOND_CONTACT = None
+ISSUES_URL = "https://github.com/silvapmm/pcb-thermal-lab/issues"
 LICENCE_PATTERNS = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.IGNORECASE)
 
 
@@ -261,25 +267,58 @@ def source_assets(qt, pyside):
     return [name for name, _ in qt_sources.urls(qt, pyside, wayland=True)]
 
 
-def write_notice_files(staging, attach):
+def pinned_versions():
+    """!
+    @brief The exact versions pinned in packaging/requirements-build.txt (name == version lines).
+    @return dict normalised name -> version string.
+    """
+    out = {}
+    for raw in (PKG / "requirements-build.txt").read_text(encoding="utf-8").splitlines():
+        m = re.match(r"\s*([A-Za-z0-9._-]+)\s*==\s*([A-Za-z0-9.+!-]+)", raw)
+        if m:
+            out[normalise(m.group(1))] = m.group(2)
+    return out
+
+
+def verify_pins():
+    """!
+    @brief Check that the libraries installed in the build environment are exactly the pinned ones, and that the Qt version they load is the one whose tarballs the release attaches.
+    @return tuple (PySide6 version, Qt version).
+    @throws SystemExit When an installed version differs from the pin, or PySide6 and Qt are not the same version (the tarballs are named by the Qt version read from the loaded library).
+    """
+    site = site_packages()
+    found = {normalise(d.metadata["Name"]): d.version for d in metadata.distributions(path=[str(site)])}
+    pins = pinned_versions()
+    for needed in ("pyside6_essentials", "shiboken6", "pyinstaller"):
+        if needed not in pins:
+            raise SystemExit(f"error: {needed} is not pinned with == in packaging/requirements-build.txt")
+    bad = [f"{n}: installed {found.get(n)}, pinned {v}" for n, v in pins.items() if found.get(n) != v]
+    if bad:
+        raise SystemExit("error: the build environment does not match packaging/requirements-build.txt:\n  " + "\n  ".join(bad))
+    pyside, qt = qt_versions()
+    if pyside != pins["pyside6_essentials"] or qt != pyside:
+        raise SystemExit(f"error: PySide6 {pyside} loads Qt {qt}; the pin is {pins['pyside6_essentials']} and Qt and PySide must be the same version (the attached source is named by it)")
+    return pyside, qt
+
+
+def write_notice_files(staging, release):
     """!
     @brief Write NOTICE.txt (LGPL 4(a)), SOURCE-OFFER.txt and REPLACING-QT.txt of the package.
     @param staging Staging folder.
-    @param attach True when the release carries the source tarballs as assets (the switch --attach-source): the offer then lists them as available on the release page;
-           False (the default, until the maintainer decides) the offer is the links to the Qt Project and the written offer.
+    @param release True for the build of a tag (SECOND_CONTACT is then required and was checked); False for a trial build, where a missing second contact is written as a visible TODO.
     """
     pyside, qt = qt_versions()
     minor = ".".join(qt.split(".")[:2])
     tag = f"v{version()}"
     assets = "\n".join(f"    {n}" for n in source_assets(qt, pyside))
-    # THE SWITCH: the first text is used only when the release carries the tarballs (build.py --attach-source); until then the second one
-    if attach:
-        where = (f"The complete corresponding source of exactly these versions is available on the release page of this version of the program:\n"
-                 f"  https://github.com/silvapmm/pcb-thermal-lab/releases/tag/{tag}\nas these files (their SHA-256 sums are in QT-SOURCE-SHA256.txt in the same place):\n{assets}\n"
-                 "(qtwayland is needed only for the Linux package.) The Qt Project publishes the same files, and you may use them too:")
+    # Every release carries the exact tarballs (maintainer's decision): there is no mode without them
+    where = (f"The complete corresponding source of exactly these versions is attached to the release page of this version of the program:\n"
+             f"  https://github.com/silvapmm/pcb-thermal-lab/releases/tag/{tag}\nas these files (their SHA-256 sums are in QT-SOURCE-SHA256.txt in the same place):\n{assets}\n"
+             "(qtwayland is needed only for the Linux package.) The Qt Project publishes the same files, and you may use them too:")
+    if SECOND_CONTACT:
+        contact = f"Contact: the Issues page, {ISSUES_URL}, or {SECOND_CONTACT}"
     else:
-        where = ("The complete corresponding source of exactly these versions is published by the Qt Project, as these files:\n" + assets +
-                 "\n(qtwayland is needed only for the Linux package.) Where to download them:")
+        contact = f"Contact: the Issues page, {ISSUES_URL}\n(TODO second contact: a way to reach the maintainer that does not depend on GitHub is still to be given; this is a trial build, a release build refuses this text)"
     (staging / "NOTICE.txt").write_text(f"""PCB Thermal Lab {version()}: notice
 =====================================
 This program uses Qt {qt} and PySide6 {pyside} (Qt for Python), Copyright (c) The Qt Company Ltd. and other contributors, under the GNU Lesser General
@@ -302,7 +341,8 @@ Git: https://code.qt.io/cgit/qt/ and https://code.qt.io/cgit/pyside/pyside-setup
 
 Written offer. I, Pedro Silva (PMS Labs), who distribute this package, will give you or any third party, on request and for at least three (3) years from the date
 of the release of this package, the complete corresponding source of Qt {qt} and PySide 6 {pyside} as used in this package, for no more than the cost of physically
-performing the distribution. Ask on the Issues page, https://github.com/silvapmm/pcb-thermal-lab/issues, naming this package and its version.
+performing the distribution. Name this package and its version in your request. The offer is valid whether or not the release page is still online.
+{contact}
 """, encoding="utf-8")
     (staging / "REPLACING-QT.txt").write_text(f"""How to use your own build of Qt or PySide with this package
 ==========================================================
@@ -507,11 +547,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Build the downloadable package of PCB Thermal Lab for this system.")
     ap.add_argument("--reuse-venv", action="store_true", help="keep packaging/.venv-build if it exists (default: make it again)")
     ap.add_argument("--selftest", action="store_true", help="unpack the archive and run --selftest of the program from it (exit code 1 when it fails)")
-    ap.add_argument("--attach-source", action="store_true", help="the release carries the Qt and PySide source tarballs as assets: say so in SOURCE-OFFER.txt and put them in "
-                    "packaging/dist/qt-source/ (default off: the offer is the links to the Qt Project plus the written offer)")
+    ap.add_argument("--release", action="store_true", help="the build of a release tag: fails while SECOND_CONTACT (the contact of the written offer that does not depend on GitHub) is not given")
     args = ap.parse_args(argv)
+    if args.release and not SECOND_CONTACT:
+        raise SystemExit("error: SECOND_CONTACT in packaging/build.py is still None: a release build needs a contact for the written offer that does not depend on GitHub (an e-mail address of PMS Labs)")
     t0 = time.time()
     make_venv(args.reuse_venv)
+    verify_pins()
     staging = WORK / "staging"
     if staging.exists():
         shutil.rmtree(staging)
@@ -524,19 +566,19 @@ def main(argv=None):
     sources = qt_sources.fetch(WORK / "qt-source", qt, pyside, wayland=True)
     n = qt_sources.notices(sources, qt, staging / "licenses" / "Qt" / "THIRD-PARTY-NOTICES.txt")
     print(f"Qt third-party notices: {n} components")
-    write_notice_files(staging, args.attach_source)
+    write_notice_files(staging, args.release)
     write_build_info(staging)
     make_icns(staging)
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
-    if args.attach_source and sys.platform.startswith("linux"):   # The source is one set per release, not per system: the Linux job carries it to the release job
+    if sys.platform.startswith("linux"):   # The source is one set per release, not per system: the Linux job carries it to the release job
         shutil.rmtree(DIST / "qt-source", ignore_errors=True)
         shutil.copytree(WORK / "qt-source", DIST / "qt-source")
     (DIST / "SHA256SUMS.txt").write_text(f"{sha256(out)}  {out.name}\n", encoding="utf-8")
     osname, arch, _ = platform_tag()
-    result = {"version": version(), "os": osname, "arch": arch, "archive": out.name, "folder": folder.name, "executable": exe, "qt": qt, "pyside": pyside, "seconds": round(time.time() - t0),
+    result = {"version": version(), "os": osname, "arch": arch, "archive": out.name, "folder": folder.name, "executable": exe, "qt": qt, "pyside": pyside, "source_assets": source_assets(qt, pyside), "seconds": round(time.time() - t0),
               "archive_bytes": out.stat().st_size, "licence_index": index}
     (DIST / "BUILD-RESULT.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"built {out} ({out.stat().st_size / 1e6:.1f} MB) in {time.time() - t0:.0f} s")
