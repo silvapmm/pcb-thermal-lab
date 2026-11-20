@@ -5,8 +5,8 @@
 @brief Three-dimensional finite-volume model of the board as a solid: the comparison that does not use the "one node per copper layer" idea.
 
 @details The board is cut into the cells of the plan grid (same nx by ny as the FVM) and, across its thickness, into **real slabs**: every copper
-         layer is a slab of its own thickness, every dielectric gap is cut into `n_diel` slabs, and a metal block is a pad slab (the interface, of
-         thickness R'' times 1 W/mK) plus `n` slabs of metal. The unknown is the temperature of every cell of every slab, so the heat spreads in
+         layer is one slab of its own thickness up to 105 um and `ceil(t / 70 um)` equal slabs (at most 8) above it (the rule of the FEM), every dielectric gap
+         is cut into `n_diel` slabs, and a metal block is a pad slab (the interface, of thickness R'' times 1 W/mK) plus `n` slabs of metal. The unknown is the temperature of every cell of every slab, so the heat spreads in
          the gaps and inside the blocks and a heater feels the real vertical path.
 
          Material of a cell (volume-averaged on the structured grid, as in the tiled conductivity maps used for PCB models [Electronics Cooling 2010]):
@@ -19,7 +19,9 @@
          inside its polygon, a block hiding the board face under it and losing heat on its exposed face and its sides, the heater power distributed
          exactly over its footprint on the copper slab of its layer.
 
-         The result has the same layout as the FVM (one temperature per copper layer: the temperature of its slab), so the plots and tables work.
+         The result has the same layout as the FVM (one temperature per copper layer: the mean of its slabs, the column), so the plots and tables work. The heat of a part on a thick OUTER
+         copper layer enters the outer slab of that layer (the face the part sits on, as the FEM feeds a flux through that face); on an inner layer, or one of a single slab, it
+         is spread over the whole thickness as before.
          Only the steady state is implemented. The model needs no other package than SciPy; the offline FEM script (research/solid3d-verification/scripts/fem3d_validation.py,
          scikit-fem) checks this model in turn.
 """
@@ -52,6 +54,11 @@ K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is 
 SLAB_MM = 0.2
 SLABS_MIN = 4
 SLABS_MAX = 16
+# Slabs across a COPPER layer (the rule of the FEM, femmesh.copper_slab_count, which the tests keep equal): one up to 105 um (35 and 70 um boards are unchanged), ceil(t / 70 um) above, at most 8.
+# A thick layer then has its own through-thickness cells, so it has a temperature profile across it and the 3D solid has a surface (the outer sub-slab) to read.
+CU_ONE_MAX = 105e-6
+CU_SLAB = 70e-6
+CU_SLABS_MAX = 8
 
 
 @contextlib.contextmanager
@@ -76,6 +83,17 @@ def slab_rule(d):
     @return int.
     """
     return int(min(SLABS_MAX, max(SLABS_MIN, math.ceil(d * 1e3 / SLAB_MM - 1e-9))))
+
+
+def copper_slab_count(t):
+    """!
+    @brief Number of equal slabs across a copper layer of thickness t: 1 up to 105 um, otherwise ceil(t / 70 um), at most 8 (the same rule as `femmesh.copper_slab_count`).
+    @param t Copper thickness in m.
+    @return int.
+    """
+    if t <= CU_ONE_MAX:
+        return 1
+    return int(min(CU_SLABS_MAX, math.ceil(t / CU_SLAB - 1e-9)))
 
 
 def slabs_per_gap(problem, n_diel=None):
@@ -120,7 +138,8 @@ def unknowns(problem, cell_mm=2.0, n_diel=None):
     L = b.layers
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    ns = L + sum(slabs_per_gap(problem, n_diel))                 # A copper slab per layer and the slabs of every gap (the laminate under a one-layer board's copper)
+    # The slabs of every copper layer (one up to 105 um, as before) and of every gap (the laminate under a one-layer board's copper)
+    ns = sum(copper_slab_count(t) for t in np.asarray(b.copper_thickness, float)) + sum(slabs_per_gap(problem, n_diel))
     thick = {}
     for s in problem.heatsinks:
         if s.is_block():
@@ -261,13 +280,17 @@ class Solid:
             for kind, dz, kx, kz in reversed(block_slabs(0)):
                 add(kind, 0, np.maximum(dz, 1e-9), kx, kz)
         first_board = len(slabs)
-        self.board_slab = []                                    # Index of the copper slab of every layer
+        self.board_slab = []                                    # Index of the first (top) copper slab of every layer: the only one up to 105 um
+        self.copper_slabs = []                                  # Indices of ALL the copper slabs of every layer, from the top down (several for a layer above 105 um)
         for l in range(L):
             f_eff = np.minimum(fill[l] + via_frac, 1.0)
             kx = fill[l] * m.k_copper + (1.0 - fill[l]) * k_lam[l]
             kz = f_eff * m.k_copper + (1.0 - f_eff) * kz_lam[l]
             self.board_slab.append(len(slabs))
-            add("cu", l, tc[l], kx, kz)
+            n_cu = copper_slab_count(tc[l])
+            self.copper_slabs.append(list(range(len(slabs), len(slabs) + n_cu)))
+            for _ in range(n_cu):
+                add("cu", l, tc[l] / n_cu, kx, kz)                # Equal slabs: the same material in each, so the column is their plain mean
             if l < L - 1:
                 kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
                 for _ in range(self.n_gap[l]):
@@ -424,7 +447,14 @@ class Solid:
                 w[nearest_active_cell(self.active, cx, cy, dx, dy)] = 1.0
             tot_w = w.sum()
             if tot_w > 0:
-                Q.reshape(ns, ny, nx)[self.board_slab[h.layer]] += h.power * w / tot_w
+                cs = self.copper_slabs[h.layer]
+                if len(cs) > 1 and (h.layer == 0 or h.layer == L - 1):
+                    # A thick OUTER copper layer takes the heat of a part where the part sits, in the outer sub-slab (the face of the layer), as the FEM feeds a prescribed flux
+                    # through that face; an inner layer, or a layer of one slab, takes it through the whole thickness (the volumetric source, as before)
+                    Q.reshape(ns, ny, nx)[cs[0] if h.layer == 0 else cs[-1]] += h.power * w / tot_w
+                else:
+                    for c in cs:
+                        Q.reshape(ns, ny, nx)[c] += h.power * w / tot_w / len(cs)
         self.Q = Q
 
     def solve(self):
@@ -445,7 +475,7 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
     @param n_diel Slabs across the dielectric gaps: None (default) is the rule by thickness, ceil(d / 0.2 mm) between 4 and 16 per gap (slabs_per_gap); an int gives every gap the same count (the studies; 4 was the
                   fixed count before the rule and is too few under a part whose side is under about 6.7 times the slab); a sequence gives one count per gap.
     @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
-    @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
+    @return SteadyResult with the column temperature of every copper layer (the mean of its copper slabs; layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does. A part over absent copper on an outer layer also gets the face terms (arrays "face_peak" and "face_mean", the
             half layer of laminate between the node and the face, laminate.face_terms) as the FVM and FDM, so the temperature read under it is that of its face.
     @throws memory.MemoryGuardError (a ValueError) If the model is too large for the memory guard.
@@ -454,7 +484,8 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
     b = problem.board
     theta_all, res = net.solve()
     L = b.layers
-    theta = theta_all[net.board_slab]                           # The copper slabs, one per layer
+    # The column of a layer: the mean of its copper slabs (equal thicknesses and material, so the volume mean); a layer of one slab is that slab itself
+    theta = np.stack([theta_all[cs].mean(axis=0) if len(cs) > 1 else theta_all[cs[0]] for cs in net.copper_slabs])
     T = theta + b.ambient
     A = net.area_b
     cells = net.nx * net.ny
@@ -473,7 +504,12 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
         # The heat of a part enters the copper slab at mid-thickness: over absent copper the half layer of laminate between that node and the face of the part is not in the
         # slabs (the same term as the layered models, applied to the peak and mean read under the part; a board with a metal block keeps the earlier reading, as they do).
         # It is right only together with the slab rule (research/laminate-slabs-and-local-rule 5.1): with 4 slabs per gap alone it makes the solid hotter than the reference
-        q_layers = net.Q.reshape(net.ns, net.ny, net.nx)[net.board_slab]
+        # Heat of every layer, ALL of it (the sum over its slabs). The term is added to the COLUMN (the mean of the slabs), not to the outer sub-slab: when the heat of a part
+        # enters the outer sub-slab of a thick layer over absent copper and crosses the layer, face minus column mean is q t / (2 k) whatever the slab count (the outer sub-slab
+        # is already (n - 1) q t / (2 n k) above the mean, and the half sub-slab above its node adds q t / (2 n k)); the same term as the FVM, exact for a 1D layer
+        # (tests/test_solid3d_copper_slabs.py). A term of q t / (2 n k) on the column read a 420 um outer layer 17 K too cool under a part over absent copper
+        qs = net.Q.reshape(net.ns, net.ny, net.nx)
+        q_layers = np.stack([qs[cs].sum(axis=0) for cs in net.copper_slabs])
         terms = laminate.face_terms(b, net.fill, q_layers, net.area_b, net.dx)
         if terms is not None:
             out.arrays["face_peak"], out.arrays["face_mean"] = terms

@@ -1576,7 +1576,7 @@ class SolverPanel(QWidget):
                 "lumped": "Fast network (milliseconds), within about 4 % in most cases. Weak where a copper edge crosses a heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, a few percent with vias, heatsinks and partial copper; "
                             "unreliable where a copper edge crosses a heater.",
-                "solid3d": off + "The board as a real 3D solid (a slab per layer and gap). Steady state only; within about 1 % of the FVM on ordinary boards; "
+                "solid3d": off + "The board as a real 3D solid (slabs for every layer and gap; copper above 105 µm as several). Steady state only; within about 1 % of the FVM on ordinary boards; "
                            "slower and larger (example board: 15 s, 3.5 GB). Skipped above the memory limit.",
                 "fdm": off + "Node-centred finite differences of the same model (steady, animation, profiles); within about 1 % of the FVM.",
                 # (at most eight full stops, decimals included: the details are in the guide, tests/test_fem_gui.py)
