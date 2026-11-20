@@ -107,6 +107,8 @@ def test_without_pyamg_a_mesh_above_the_direct_limit_is_refused_with_the_reason(
     p = _board()
     monkeypatch.setattr(femcore, "available", lambda: False)
     monkeypatch.setattr(femcore, "FEM_TRANSIENT_DIRECT_MAX", 100)
+    monkeypatch.setattr(femcore, "FEM_DIRECT_MAX", 100)
+    monkeypatch.setattr(memory, "FEM_DIRECT_MAX", 100)
     monkeypatch.setattr(memory, "check", lambda *a, **k: [])
     with pytest.raises(femcore.FemUnavailable, match="pyamg"):
         fem.solve_transient(p, 100.0, n_out=10, cell_mm=4.0)
@@ -118,17 +120,75 @@ def test_the_time_prediction_grows_with_unknowns_and_steps_and_the_cg_path_costs
     @return None.
     """
     s = memory.fem_transient_seconds
-    assert s(20_000, 2000) == pytest.approx(2 * s(20_000, 1000)) and s(40_000, 1000) > s(20_000, 1000)
+    assert s(20_000, 2000, 0) == pytest.approx(2 * s(20_000, 1000, 0)) and s(40_000, 1000) > s(20_000, 1000)
     assert s(100_000, 1000) / 100_000 > s(20_000, 1000) / 20_000
 
 
-def test_the_transient_direct_limit_does_not_outrun_the_direct_memory_law():
+# (unknowns, direct growth in bytes) of the run of `measure_fem_transient_direct_limit.py` (example board, tree ec15bdc0) and the direct cases of `measure_fem_transient_law.py`
+DIRECT_ROWS = [(20930, 0.32e9), (32637, 0.55e9), (46644, 0.92e9), (67229, 1.95e9), (106122, 3.11e9), (14400, 0.21e9), (15632, 0.24e9), (11007, 0.12e9), (29413, 0.51e9), (67229, 2.15e9)]
+CG_ROWS = [(67229, 0.55e9), (53181, 0.42e9), (55488, 0.46e9), (40140, 0.30e9), (67229, 0.49e9), (57600, 0.47e9), (40328, 0.31e9), (275724, 2.06e9), (106122, 0.90e9), (20930, 0.19e9)]
+
+
+def test_the_direct_time_law_covers_every_measured_row_above_the_steady_limit():
     """!
-    @brief `femcore.FEM_TRANSIENT_DIRECT_MAX` stays at or below `femcore.FEM_DIRECT_MAX` while `memory.estimate_bytes` has a direct law only below the steady limit: a time run on the
-           direct path above it would be estimated with the conjugate-gradient law (6.7 kB per unknown against 24 kB measured for a direct factor at 67 229 unknowns, DESIGN.md 14.3).
-           Raising the transient limit (after `measure_fem_transient_direct_limit.py`) must come with a direct law above 30 000 unknowns in `estimate_bytes`, and this test changes then.
+    @brief `estimate_bytes("fem_time")` (the direct factor times FEM_TRANSIENT_FACTOR_DIRECT, 36.7 kB per unknown) is at least the measured growth of every direct row, with at least the
+           15 % margin of the fit on the worst one (2.15 GB at 67 229 unknowns), up to `FEM_TRANSIENT_DIRECT_MAX`; the CG law with its factor covers the CG rows.
     @return None.
     """
-    assert femcore.FEM_TRANSIENT_DIRECT_MAX <= femcore.FEM_DIRECT_MAX
+    assert femcore.FEM_TRANSIENT_DIRECT_MAX >= 100_000 and memory.FEM_TRANSIENT_DIRECT_MAX == femcore.FEM_TRANSIENT_DIRECT_MAX
+    for n, growth in DIRECT_ROWS:
+        # (the 106 122-unknown row is above the transient limit of 100 000, where the estimate switches to the CG law: its direct law is the same formula)
+        direct = memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT
+        assert direct >= growth, n
+        if n <= femcore.FEM_TRANSIENT_DIRECT_MAX:
+            assert memory.estimate_bytes("fem_time", n, n / 10.0, base=0.0) == pytest.approx(direct)
+    assert memory.estimate_bytes("fem_time", 67229, 6000.0, base=0.0) >= 1.14 * 2.15e9
+    for n, growth in CG_ROWS:
+        assert memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0) >= growth, n
+    assert memory.estimate_bytes("fem_time_cg", 67229, 6700.0, base=0.0) >= 1.14 * 0.55e9
+
+
+def test_above_the_transient_direct_limit_a_time_run_is_estimated_by_the_cg_law():
+    """!
+    @brief One unknown above `FEM_TRANSIENT_DIRECT_MAX` the estimate is the CG time law (a tenth of the direct bytes), so a mesh that only fits by conjugate gradients is not refused.
+    @return None.
+    """
     n = femcore.FEM_TRANSIENT_DIRECT_MAX
-    assert memory.estimate_bytes("fem", n, n / 10.0, base=0.0) == pytest.approx(memory.FEM_DIRECT_BYTES * n)
+    below, above = memory.estimate_bytes("fem_time", n, n / 10.0, base=0.0), memory.estimate_bytes("fem_time", n + 1, n / 10.0, base=0.0)
+    assert above == pytest.approx(memory.estimate_bytes("fem_time_cg", n + 1, n / 10.0, base=0.0)) and above < below
+
+
+def test_the_path_follows_the_memory_budget_and_the_guard_refuses_before_the_run(monkeypatch):
+    """!
+    @brief `fem_time_law` is direct while its factor fits the limit and falls back to CG when it does not (a mesh at or below the steady direct limit is always direct); `check` of a time
+           run refuses a mesh that fits by neither law BEFORE anything is built.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    n = 90_000
+    big, small = 64e9, 3.5e9                                            # the direct law needs 3.3 GB at 90 000 unknowns
+    assert memory.fem_time_law(n, n / 10.0, 0.0, big) == "fem_time"
+    assert memory.fem_time_law(n, n / 10.0, 0.0, 2.0e9) == "fem_time_cg"
+    assert memory.fem_time_law(20_000, 2000.0, 0.0, 1.0) == "fem_time"
+    p = _board(120.0, 100.0)
+    called = []
+    monkeypatch.setattr(femmesh, "build", lambda *a, **k: called.append(1))
+    with pytest.raises(memory.MemoryGuardError):
+        fem.solve_transient(p, 100.0, n_out=10, cell_mm=0.5, memory_fraction=memory.MIN_FRACTION * 1e-6)
+    assert not called
+
+
+def test_the_time_model_has_a_setup_per_stage_and_a_cost_per_step_and_matches_the_measured_table():
+    """!
+    @brief `fem_transient_seconds` is a setup term per stage plus a per-step term; on the direct path it is at least the measured stage time (factorisation plus eight steps) of every
+           row of the direct-limit table and within a factor 3 of it above 30 000 unknowns, and on the CG path it covers the measured per-step time.
+    @return None.
+    """
+    s = memory.fem_transient_seconds
+    # (unknowns, measured stage seconds with 8 steps): setup + 8 steps
+    for n, measured in ((20930, 0.58), (32637, 1.39), (46644, 3.23), (67229, 7.57)):
+        pred = s(n, 8, 1)
+        assert pred >= measured and (n < 30000 or pred <= 3.0 * measured), (n, pred, measured)
+    assert s(67229, 52, 11) > s(67229, 52, 1) + 9 * 7.0                # ten more stages cost ten more factorisations
+    for n, step in ((20930, 1.148), (67229, 3.155), (106122, 4.236)):
+        assert s(n + 100000, 1, 0) / (n + 100000) * n >= step * 0.9     # CG: per-unknown cost covers the measured step (above the direct limit)

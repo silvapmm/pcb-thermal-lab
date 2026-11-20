@@ -147,7 +147,7 @@ def test_a_run_longer_than_twice_the_limit_is_stopped_while_it_steps(monkeypatch
     @return None.
     """
     p, d = _plate()
-    monkeypatch.setattr(memory, "fem_transient_seconds", lambda n, s: 0.0)       # the prediction lets it start
+    monkeypatch.setattr(memory, "fem_transient_seconds", lambda n, s, st=1.0: 0.0)       # the prediction lets it start
     monkeypatch.setattr(memory, "FEM_RUN_SECONDS_MAX", 1e-9)                       # and the wall clock stops it at the first step
     with pytest.raises(ProfileError, match="was stopped after"):
         profiles.run_fem(p, d, ProfileOptions(), CELL, gap_elements=GAP)

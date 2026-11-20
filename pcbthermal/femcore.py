@@ -28,9 +28,11 @@ log = logging.getLogger(__name__)
 ## Largest unknown count solved by the direct (SuperLU symmetric) factorisation; above it the CG + AMG path is used (needs pyamg).
 FEM_DIRECT_MAX = 30000
 
-## Largest unknown count whose transient is stepped by a direct factorisation (one factor serves every step of a stage; the CG path costs about the steady iteration count at
-## EVERY step, DESIGN.md 14.3). Shipped conservative, equal to the steady limit; the measurement that may raise it is `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py`.
-FEM_TRANSIENT_DIRECT_MAX = 30000
+## Largest unknown count whose transient is stepped by a direct factorisation (one factor serves every step of a stage; the CG path costs 330 to 475 iterations, 1.1 to 4.2 s, at EVERY
+## step, against 5 to 53 ms for a direct step). Set from `releases/2.9.0/fem-transient/MEASURED.md`: the direct run was cheaper than the CG run per stage at every size measured, up to 106 122
+## unknowns (3.11 GB of growth), and is memory limited; 100 000 is inside the measurement. `fem._prepare_time` falls back to CG when the direct factor does not fit the memory budget
+## (`memory.fem_time_law`).
+FEM_TRANSIENT_DIRECT_MAX = 100000
 
 # signs of the eight local nodes (counter-clockwise quad at zeta = -1, then at zeta = +1)
 SX = np.array([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0])

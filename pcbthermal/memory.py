@@ -49,19 +49,25 @@ SLOW_SECONDS = 30.0                 # Predicted solve time above which the verdi
 TRANSIENT_FACTOR = 2.0              # Time simulation and animation: one factor of the matrix plus the previous stage while the next is built (measured 1.9, one-factor fix)
 PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measured)
 # The FEM transient is NOT two factors (one factor or one hierarchy is alive, femcore.Stepper): a factor per solver path, applied to the steady law of that path (DESIGN.md 14.3).
-# SHIPPED CONSERVATIVE at 2.0 (it only makes the guard refuse earlier) until `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` has been run on a quiet machine
-# (the review measured 1.07 on the CG path and 1.14 to 1.28 on the direct path on one mesh); the constants then become the largest measured ratio times 1.1.
-FEM_TRANSIENT_FACTOR_CG = 2.0
-FEM_TRANSIENT_FACTOR_DIRECT = 2.0
-# Time of a FEM time simulation (DESIGN.md 14.3; NOT a fit): seconds per unknown and step on the direct path (a back substitution) and on the CG path (about the steady iteration count
-# at EVERY step: 155 s for 44 steps at 67 229 unknowns in the review's prototype, 5.2e-5), and the longest run the guard accepts, in seconds. The direct figure is kept about ten times
-# above what the review timed (`Stepper.step` alone: 0.21 to 0.41 us per unknown and step at 14 400 to 39 204 unknowns, fill 480 to 920 entries of L and U per unknown, on a loaded
-# machine), so that the build, the read-out of every step and a slower machine stay inside it. A profile run above FEM_RUN_SECONDS_MAX is refused with the ProfileError text; the
-# step response of an animation is only warned "slow" (SLOW_SECONDS). FEM_RUN_SECONDS_MAX is 10 minutes (review): a project saved with the FEM ticked for its steady comparison now
-# also runs the FEM in its power profiles, inside Run simulation and without a progress of its own, so a run longer than that is refused rather than made to wait. Shipped
-# conservative; `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` refits the two costs.
-FEM_STEP_SECONDS_DIRECT = 3.0e-6
-FEM_STEP_SECONDS_CG = 5.2e-5
+# REFITTED from the measurements of `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` (15 fresh-process cases) and `measure_fem_transient_direct_limit.py`
+# (example board, five cells), tree ec15bdc0, see `releases/2.9.0/fem-transient/MEASURED.md`: the factor is the largest measured ratio of the growth over the steady law of the path
+# times 1.15. Direct: largest ratio 2.011 (example board 2 mm, 67 229 unknowns, a step response, 2.15 GB against 15.9 kB per unknown) times 1.15 = 2.31; CG: 1.065 times 1.15 = 1.22.
+# The earlier 2.0 for the direct path UNDER-predicted that case. The direct law holds up to FEM_TRANSIENT_DIRECT_MAX (`estimate_bytes` model "fem_time").
+FEM_TRANSIENT_FACTOR_CG = 1.22
+FEM_TRANSIENT_FACTOR_DIRECT = 2.31
+# Time of a FEM time simulation, from the same measurements (a model of the STEPPING: the build, 2 to 15 s, is the steady law's `TIME_LAWS["fem"]`). A run is a setup per stage (the
+# factorisation on the direct path, the AMG hierarchy on CG) plus a cost per step. Direct: the factorisation of 20 930 / 32 637 / 46 644 / 67 229 / 106 122 unknowns took 0.54 / 1.31 /
+# 3.09 / 7.31 / 10.95 s (superlinear fill), modelled as 7.31 s (n / 67 229)^1.7 (1.0 / 2.1 / 3.9 / 7.3 / 15.9 s: above every measured value); a step is 5 / 10 / 18 / 33 / 53 ms (0.25 to 0.5 us
+# per unknown), modelled as 5.7e-7 s per unknown. CG: the hierarchy is 0.06 to 0.16 s (neglected: 0.2 s per stage) and a step takes 1.15 / 1.84 / 2.41 / 3.16 / 4.24 s with 330 to 475
+# iterations (5.5e-5 to 4.0e-5 s per unknown), modelled as 6.0e-5 s per unknown. A profile run above FEM_RUN_SECONDS_MAX is refused with the ProfileError text (and the wall clock
+# stops it at twice that); the step response of an animation is only warned "slow" (SLOW_SECONDS). FEM_RUN_SECONDS_MAX stays 10 minutes (review): a project saved with the FEM ticked
+# also runs the FEM in its power profiles, inside Run simulation and without a progress of its own, so a longer run is refused rather than made to wait.
+FEM_SETUP_SECONDS_DIRECT_REF = 7.31         # factorisation at FEM_SETUP_REF_UNKNOWNS unknowns, s
+FEM_SETUP_REF_UNKNOWNS = 67229.0
+FEM_SETUP_EXPONENT_DIRECT = 1.7
+FEM_SETUP_SECONDS_CG = 0.2
+FEM_STEP_SECONDS_DIRECT = 5.7e-7
+FEM_STEP_SECONDS_CG = 6.0e-5
 FEM_RUN_SECONDS_MAX = 600.0
 SOR_BLOCK_SHARE = 0.25              # Share of the limit that ALL the dense SOR blocks together (the sum of 75 n^2) may take (sor_block_fits)
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
@@ -357,13 +363,27 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     @return Bytes.
     @throws KeyError If the model has no law (lumped, analytic).
     """
+    if model == "fem_time":
+        # A FEM time run (femcore.Stepper): the direct factor up to FEM_TRANSIENT_DIRECT_MAX with its own law, the conjugate gradients above it. The direct law is the steady direct
+        # bytes per unknown times FEM_TRANSIENT_FACTOR_DIRECT at EVERY size, the conservative top of the measured 15.3 to 29.3 kB per unknown (rising with the size: superlinear
+        # fill; 32 kB at the worst case, 36.7 kB here); measured 3.11 GB at 106 122 unknowns against 3.90 GB here. No floor against the steady law (the search for a cell does not bisect)
+        n = max(float(unknowns), 1.0)
+        b = baseline_bytes() if base is None else base
+        if n <= FEM_TRANSIENT_DIRECT_MAX:
+            return b + FEM_DIRECT_BYTES * n * FEM_TRANSIENT_FACTOR_DIRECT
+        return estimate_bytes("fem_time_cg", n, cells, b, 1.0, via_footprint_cells)
+    if model == "fem_time_cg":
+        # the conjugate-gradient time run, whatever the size (used above the direct limit, and below it when the direct factor does not fit the memory)
+        k1c, pc, ac, sc = CONTINUOUS["fem"]
+        nc = max(float(unknowns), 1.0)
+        tc = nc / max(float(cells), 1.0)
+        tc_eff = max(min(tc, float(cells) / tc), 1.0)
+        return (baseline_bytes() if base is None else base) + k1c * tc_eff ** ac * nc * (nc / N_REF) ** (pc - 1.0) * sc * FEM_TRANSIENT_FACTOR_CG * via_gain("fem", via_footprint_cells)
     k1, p, a, safety = CONTINUOUS[model]
     n = max(float(unknowns), 1.0)
     if model == "fem" and n <= FEM_DIRECT_MAX:
         # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth.
-        # The time stepping takes the direct path up to femcore.FEM_TRANSIENT_DIRECT_MAX, which is equal to FEM_DIRECT_MAX today; raising it without a direct law above 30 000
-        # unknowns here would estimate a direct time run with the CG law (6.7 against 24 kB per unknown measured at 67 229): tests/test_fem_transient_memory.py holds the two equal
-        # until that law is fitted (review)
+        # (a time run has its own law, model "fem_time", with the direct factor up to femcore.FEM_TRANSIENT_DIRECT_MAX, which may be above this steady limit)
         return (baseline_bytes() if base is None else base) + FEM_DIRECT_BYTES * n * factor
     t = n / max(float(cells), 1.0)
     t_eff = max(min(t, float(cells) / t), 1.0)
@@ -810,6 +830,25 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
     return head + (f"; use a cell of {cell_fit:.1f} mm or more" if cell_fit else "; no cell up to 50 mm fits")
 
 
+def fem_time_law(unknowns: float, cells: float, base: Optional[float], limit: float) -> str:
+    """!
+    @brief The law of a FEM time run: "fem_time" (the direct factor) while it fits the memory limit, "fem_time_cg" when the mesh is above the transient direct limit or the direct factor
+           would not fit and the conjugate gradients (which take about a tenth of the bytes, at the price of the iterations at every step) would.
+    @details `fem._prepare_time` takes the same decision, so that the guard and the stepper agree: a mesh at or below the steady direct limit is always direct.
+    @param unknowns Unknowns of the mesh, count.
+    @param cells Plan cells, count.
+    @param base Resident bytes of the process (None: baseline_bytes()).
+    @param limit Limit in bytes.
+    @return "fem_time" or "fem_time_cg".
+    """
+    n = float(unknowns)
+    if n <= FEM_DIRECT_MAX:
+        return "fem_time"
+    if n > FEM_TRANSIENT_DIRECT_MAX or estimate_bytes("fem_time", n, cells, base) > limit:
+        return "fem_time_cg"
+    return "fem_time"
+
+
 def fem_transient_factor(unknowns: float) -> float:
     """!
     @brief Multiplier of the steady law for a FEM time simulation, by the solver path the stepper will take for that many unknowns.
@@ -819,15 +858,20 @@ def fem_transient_factor(unknowns: float) -> float:
     return FEM_TRANSIENT_FACTOR_DIRECT if unknowns <= FEM_TRANSIENT_DIRECT_MAX else FEM_TRANSIENT_FACTOR_CG
 
 
-def fem_transient_seconds(unknowns: float, steps: float) -> float:
+def fem_transient_seconds(unknowns: float, steps: float, stages: float = 1.0) -> float:
     """!
-    @brief Predicted seconds of the time stepping of a FEM run (without the build and the factorisations), from the per-step costs of the solver path.
+    @brief Predicted seconds of the time stepping of a FEM run (without the build): a setup per stage (factorisation or hierarchy) plus a cost per step, by solver path.
+    @details The numbers are the model fitted to the measured table (see the constants above and `releases/2.9.0/fem-transient/MEASURED.md`).
     @param unknowns Unknowns of the FEM mesh, count.
     @param steps Time steps of the run, count.
+    @param stages Matrices factored or hierarchies built, count (a power-step response has 10 stages and the steady solve; a profile run has the steady solve and one step matrix).
     @return float Seconds.
     """
-    per = FEM_STEP_SECONDS_DIRECT if unknowns <= FEM_TRANSIENT_DIRECT_MAX else FEM_STEP_SECONDS_CG
-    return float(unknowns) * float(steps) * per
+    n = float(unknowns)
+    if n <= FEM_TRANSIENT_DIRECT_MAX:
+        setup = FEM_SETUP_SECONDS_DIRECT_REF * (n / FEM_SETUP_REF_UNKNOWNS) ** FEM_SETUP_EXPONENT_DIRECT
+        return stages * setup + n * float(steps) * FEM_STEP_SECONDS_DIRECT
+    return stages * FEM_SETUP_SECONDS_CG + n * float(steps) * FEM_STEP_SECONDS_CG
 
 
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
@@ -904,15 +948,17 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             out.append(Verdict(model, 0, 0.0, limit, "refuse", 0.0, None, str(exc), False, True))
             continue
         exact = model in ("solid3d", "fem")                                     # The 3D and FEM counts are exact and cheap; the layered ones sample the copper
-        if accepted is not None or estimate_bytes(model, n, cells, base, (fem_transient_factor(n) if time_run else 1.0) if model == "fem" else mult) <= limit:
+        law = fem_time_law(n, cells, base, limit) if (model == "fem" and time_run) else model      # a FEM time run has its own law (direct factor above the steady limit, factor per path)
+        if accepted is not None or estimate_bytes(law, n, cells, base, 1.0 if law == "fem_time" else mult) <= limit:
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
         layered = model in ("fvm", "fdm")
         vc = via_cells(problem, cell_mm) if layered and exact else 0.0                   # The via term goes with the exact count; the bound stays a lower bound
         # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only; the search for the cell that fits adds it at every cell it tries)
         drawn = drawn_run_bytes(problem, cell_mm) if layered and exact else 0.0
-        m_mult = (fem_transient_factor(n) if time_run else 1.0) if model == "fem" else mult
-        est = estimate_bytes(model, n, cells, base + drawn, m_mult, vc) + (frames_bytes if model == "fem" else 0.0)
+        law = fem_time_law(n, cells, base, limit) if (model == "fem" and time_run) else model
+        m_mult = 1.0 if law.startswith("fem_time") else mult
+        est = estimate_bytes(law, n, cells, base + drawn, m_mult, vc) + (frames_bytes if model == "fem" else 0.0)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
             v, why = "refuse", "ceiling"
@@ -922,7 +968,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
         else:
             v = verdict(est, limit, secs)
             why = v
-        fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, m_mult, max_unknowns=accepted if accepted is not None else
+        fit = (cell_that_fits(count, law, math.inf if accepted is not None else limit, cell_mm, base, m_mult, max_unknowns=accepted if accepted is not None else
                               (CEILING_3D if model == "solid3d" else None), bound=bound,
                               vias=(lambda c, _p=problem: via_cells(_p, c)) if layered else None,
                               extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if layered else None)

@@ -610,16 +610,20 @@ def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, fo
     @param memory_fraction Share of the physical memory allowed (None: default).
     @param force_solver None, "direct" or "cg".
     @param frames_bytes Bytes of the frames the run will hold, added to the estimate (not multiplied by the time factor).
-    @return Unknown count of the mesh.
+    @return Tuple (unknown count of the mesh, largest unknown count the stepper factorises directly): the transient direct limit while the direct factor fits the memory budget
+            (`memory.fem_time_law`, the same decision as the guard's estimate), otherwise 0 (conjugate gradients).
     @throws memory.MemoryGuardError If the estimate is above the limit.
     @throws femcore.FemUnavailable If the mesh needs the conjugate gradients and pyamg is not installed.
     """
     memory.check(problem, ("fem",), cell_mm, fraction=memory_fraction, transient=True, fem_params=(gap_elements, refine), quiet=True, frames_bytes=frames_bytes)
     unknowns = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
-    if unknowns > femcore.FEM_TRANSIENT_DIRECT_MAX and force_solver != "direct" and not femcore.available():
-        raise femcore.FemUnavailable(f"the FEM mesh has {unknowns} unknowns, above the {femcore.FEM_TRANSIENT_DIRECT_MAX} that the direct time stepping takes, and the package "
-                                     "pyamg is not installed (pip install pyamg): use a coarser cell or install it")
-    return unknowns
+    nx, ny, _, _ = _grid_shape(problem, cell_mm)
+    law = memory.fem_time_law(unknowns, nx * ny, None, memory.limit_bytes(memory_fraction if memory_fraction is not None else memory.default_fraction()))
+    direct_max = femcore.FEM_TRANSIENT_DIRECT_MAX if law == "fem_time" else 0
+    if unknowns > direct_max and unknowns > femcore.FEM_DIRECT_MAX and force_solver != "direct" and not femcore.available():
+        raise femcore.FemUnavailable(f"the FEM mesh has {unknowns} unknowns, above what the direct time stepping takes here ({femcore.FEM_TRANSIENT_DIRECT_MAX} unknowns, less when the "
+                                     "factor would not fit the memory), and the package pyamg is not installed (pip install pyamg): use a coarser cell or install it")
+    return unknowns, max(direct_max, femcore.FEM_DIRECT_MAX if unknowns <= femcore.FEM_DIRECT_MAX else 0)
 
 
 def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver, frames_bytes=0.0):
@@ -636,7 +640,7 @@ def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cance
     @return dict: mesh, asm (the assembled dict), stepper, Rcol, active, cover, nx, ny, gam (on the unknowns), used.
     @throws memory.MemoryGuardError, femcore.FemUnavailable, femcore.FemCancelled, ValueError as `solve_steady`.
     """
-    _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver, frames_bytes)
+    _, direct_max = _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver, frames_bytes)
     mesh = femmesh.build(problem, cell_mm, gap_elements, refine)
     try:
         asm = mesh.model.assemble(cancel=cancel, capacity=True)
@@ -644,7 +648,7 @@ def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cance
         raise
     nx, ny, _, _ = _grid_shape(problem, cell_mm)
     Rcol, active, cover = column_operator(problem, mesh, nx, ny)
-    stepper = femcore.Stepper(asm["A"], asm["M"], direct_max=femcore.FEM_TRANSIENT_DIRECT_MAX, cancel=cancel, force=force_solver)
+    stepper = femcore.Stepper(asm["A"], asm["M"], direct_max=direct_max, cancel=cancel, force=force_solver)
     return {"mesh": mesh, "asm": asm, "stepper": stepper, "Rcol": Rcol, "active": active, "cover": cover, "nx": nx, "ny": ny, "gam": asm["gam"][asm["used"]]}
 
 
@@ -734,7 +738,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     t_mean = (frames * cover).sum(axis=(1, 2, 3)) / (L * cover.sum())
     inv = capacity_inventory(problem, mesh)
     warnings = list(mesh.warnings)
-    predicted = memory.fem_transient_seconds(asm["rhs"].size, hs.size)
+    predicted = memory.fem_transient_seconds(asm["rhs"].size, hs.size, 11)         # ten stages and the steady factor
     if predicted > memory.SLOW_SECONDS:
         # an animation is not refused for its time (a profile run is, `profiles.run_fem`): the verdict is a note that says how long the stepping alone was expected to take
         warnings.append(f"the finite-element time simulation of this mesh ({asm['rhs'].size} unknowns, {hs.size} steps) was predicted to take about {predicted / 60.0:.0f} minutes of stepping")

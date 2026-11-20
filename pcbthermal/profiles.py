@@ -1226,7 +1226,7 @@ def run_fem(problem, decisions, options, cell_mm=1.0, progress=None, gap_element
     plan = plan_run(problem, decisions, options)
     if plan["resolved"]:
         unknowns = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
-        secs = memory.fem_transient_seconds(unknowns, plan["steps"])
+        secs = memory.fem_transient_seconds(unknowns, plan["steps"], 2)             # the steady factor and the step matrix
         if secs > memory.FEM_RUN_SECONDS_MAX:
             raise ProfileError(f"the time simulation needs about {plan['steps']} steps on a finite-element mesh of {unknowns} unknowns, about {secs / 60.0:.0f} minutes (limit "
                                f"{memory.FEM_RUN_SECONDS_MAX / 60.0:.0f} minutes). Use a coarser cell, raise the oscillation threshold so that the fastest heater is averaged, or "
