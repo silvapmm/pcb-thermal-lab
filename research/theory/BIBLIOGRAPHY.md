@@ -2145,9 +2145,45 @@ R. Rannacher, *Finite element solution of diffusion problems with irregular data
 
 ### [NAFEMS-T3]
 
-**Licence:** all rights reserved. **Source URL:** not recorded (not opened).
+**Licence:** all rights reserved. **Source URL:** the primary publication is not open: the NAFEMS publication page https://nafems.org/publications/browse_buy/browse_by_topic/benchmark/p18 (a catalogue entry); the case and the value are read in the open secondary sources [MOOSE-T3], [Abaqus-T3], [Altair-T3] and [Wolfram-T3].
 
-NAFEMS, the one-dimensional linear transient heat conduction benchmark (named T3 in memory; NAFEMS *Standard Benchmark Tests*; title, number and year not checked): a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC; reference 36.60 degC at x = 0.08 m, t = 32 s. **Status M** (the case and the value are remembered, the publication was not opened). The program's stepper gives 36.611 degC (100 elements, 3 200 Crank-Nicolson steps, `tests/test_fem_transient_closed_forms.py`), the review's independent line 36.605; the agreement with the remembered value is not a reproduction of a published case until the publication is read (release gate of 2.9.0, DESIGN.md 14.6).
+NAFEMS, the one-dimensional linear transient heat conduction benchmark T3 ("one-dimensional transient heat transfer", sinusoidal temperature at one end), in *The Standard NAFEMS Benchmarks* (TNSB, Rev. 3, October 1990, as cited by [Abaqus-T3]; publication P18 of the NAFEMS catalogue; the catalogue says the original T3 "proved unsatisfactory", explained in A. Welsh, *Benchmark* magazine, January 1989, p. 23, and that Revision 2 corrected LE8, LE10, LE11 and T3); [Wolfram-T3] cites it as A. D. Cameron, J. A. Casey and G. B. Simpson, *Benchmark Tests for Thermal Analysis*, NAFEMS. **Status N for the primary publication** (a paid NAFEMS document, not obtained); **status S for the case and the value**: a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC, no flux across the bar, reference 36.60 degC at x = 0.08 m, t = 32 s, read in four independent third-party documents that agree ([MOOSE-T3] 36.6 with its input and result files; [Abaqus-T3] 36.60 with its input decks; [Altair-T3] 36.60; [Wolfram-T3] 36.6, the bar mirrored). The end condition is sinusoidal in all four (a search summary of the Abaqus page that described a constant 100 degC was wrong: its equation image and its deck give 100 sin(pi t / 40)). The exact value is 36.6031 degC (eigenfunction series and, independently, the method of lines, `research/transient-published-case` README 2); the program's FEM gives 36.6106 degC (100 elements) and 36.6050 (200), and on the meshes of MOOSE it equals MOOSE's results to 1e-5 K (README 2). The stated accuracy of the target is not given in any page read.
+
+### [MOOSE-T3]
+
+**Licence:** LGPL-2.1. **Source URL:** https://github.com/idaholab/moose (documentation of the MOOSE framework, only numbers quoted here), file `modules/heat_transfer/doc/content/modules/heat_transfer/nafems_t3_verif.md` (rendered at https://mooseframework.inl.gov/modules/heat_transfer/nafems_t3_verif.html).
+
+Idaho National Laboratory, MOOSE heat transfer module, "NAFEMS Benchmark 1D Transient Heat Conduction T3": the problem (bar 0.1 m, cross section 0.01 m, uniform elements, 32 s), the boundary conditions as equations (0 degC left, 100 sin(pi t / 40) degC right, initial 0 degC), the material (k 35.0, c 440.5, rho 7200), "the target solution ... should be 36.6 degC" at 0.08 m after 32 s, and a table of the MOOSE results (5 elements: 40.3 for the linear types, 35.9 for the quadratic; 10 elements: 36.9 and 36.1). It cites NAFEMS (key `nafems_std_bench`, bibliography entry not retrieved). **Status R** (the Markdown source of the page, the input template `modules/heat_transfer/test/tests/NAFEMS/transient/T3/nafems_t3_edge_template.i` (`FunctionDirichletBC` `100.0 * sin(pi*t/40)` on the right, `DirichletBC` 0 on the left, `dt = 1`, `end_time = 32`) and the result files `gold/nafems_t3_edge2_coarse_out.csv` and `..._fine_out.csv` (40.280676316568 and 36.893144830594 at t = 32 s) were read in full). The MOOSE linear-element values are a mesh result of another program (5 and 10 elements, consistent capacity, 32 implicit-Euler steps), not a reference; the program's FEM reproduces them to 1e-5 K (`research/transient-published-case` README 2).
+
+### [Altair-T3]
+
+**Licence:** all rights reserved. **Source URL:** https://help.altair.com/hwsolvers/os/topics/solvers/os/nafems_test_problem_t3_r.htm
+
+Altair OptiStruct verification problem OS-V 0110 "One-Dimensional Transient Heat Transfer (NAFEMS Test T3)": the same material, the boundary conditions (zero at one end, 100 sin(pi t / 40) degC at the other for t > 0), initial zero, reference 36.60 degC at point C, 0.08 m from A, t = 32 s; OptiStruct results 33.6 / 34.58 (beam and Quad4, 5 / 10 elements) and 35.1 / 35.19 (Quad8). The page cites "NAFEMS R0015, Selected benchmarks for natural frequency analysis", a title that does not match a heat-transfer test (a mistaken citation on the page; not used). **Status R** (the page text was read in full).
+
+### [Abaqus-T3]
+
+**Licence:** all rights reserved. **Source URL:** Abaqus (Dassault Systemes) Benchmarks Guide (2016), 4.3.3 "T3: One-dimensional transient heat transfer", mirrored at https://ceae-server.colorado.edu/v2016/books/bmk/ch04s03anf14.html, and its input deck https://ceae-server.colorado.edu/v2016/books/eif/nt3xx12c.inp (only numbers quoted here).
+
+The same case: bar 0.1 m (nodes at 0 and 0.1 m in the deck), 0.01 x 0.01 m section, conductivity 35.0, specific heat 440.5, density 7200, 0 degC at end A and 100 sin(pi t / 40) degC at end B (the sinusoid is an equation image in the text; the deck applies `*AMPLITUDE, DEFINITION=PERIODIC` with circular frequency 0.07854 = pi/40 and coefficient 100 to the end node), initial 0 degC, target "36.60 degC at 0.08 m at 32 secs", source "Test T3 from NAFEMS publication TNSB, Rev. 3, 'The Standard NAFEMS Benchmarks,' October 1990". Results: DC1D2 34.54 (coarse, 5 elements) and 35.51 (fine, 10), quadratic DC1D3 35.88 and 36.09, and many 2D and coupled elements; the deck steps 32 fixed increments of 1 s. **Status R** (the page, the equation image and the deck were read by the reviewer). The DC1D2 values are reproduced by an own linear element with a lumped capacity and 32 implicit-Euler steps (34.5383 and 35.5063; `research/transient-published-case` README 2).
+
+### [Wolfram-T3]
+
+**Licence:** all rights reserved. **Source URL:** Wolfram Research, https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html (only numbers quoted here).
+
+Wolfram PDEModels, "Heat Transfer Model Verification Tests", test HeatTransfer-FEM-Transient-1D-Single-HeatTransfer-0001: a 0.1 m line, conductivity 35, density 7200, specific heat 440.5, `100 Sin[pi t / 40]` at x = 0 and a fixed temperature at x = 0.1 m, `T[0, x] == 0`, end time 32, `TRef = 36.6` read at x = 0.02 m (the T3 bar mirrored), passed when the relative error is below 1e-3; cites A. D. Cameron, J. A. Casey and G. B. Simpson, *Benchmark Tests for Thermal Analysis*, NAFEMS. **Status R** (the page code read; the value of the fixed end and Mathematica's computed value are in images that were not read).
+
+### [Lienhard-AHTT]
+
+**Licence:** all rights reserved. **Source URL:** https://ahtt.mit.edu/wp-content/uploads/2024/04/AHTTv600.pdf (free download from the authors' page, not stored here)
+
+J. H. Lienhard IV and J. H. Lienhard V, *A Heat Transfer Textbook*, version 6.00 (2024), 810 pp. Section 5.6 "Transient heat conduction to a semi-infinite region", page 229 of the book (PDF page 243): the semi-infinite solid with a suddenly applied wall flux q_w has the wall temperature T_w(t) = T_i + (2 q_w / k) sqrt(alpha t / pi), eqn (5.56), derived on the page from eqn (5.55) `(q_w - q) / q_w = erf(x / (2 sqrt(alpha t)))`. **Status R** (the page was read in full from the downloaded PDF; the text layer was extracted). It is the open source of the closed form that `tests/test_fem_transient_closed_forms.py` uses (the earlier source of that closed form in the program documents is [CarslawJaeger], M).
+
+### [Muzychka2023Transient]
+
+**Licence:** all rights reserved. **Source URL:** https://doi.org/10.1109/itherm55368.2023.10177640 (IEEE; no open copy found).
+
+Y. S. Muzychka and M. M. Yovanovich, *Compact Models for Transient Thermal Spreading Resistance in Half-space, Flux Tube, and Flux Channel Regions*, 2023 22nd IEEE ITherm Conference, 30 May 2023 (title, venue and DOI from Crossref; no open full text found at the Waterloo laboratory archive, at Memorial University's repository or by search; the transient chapter of their Wiley book *Thermal Spreading and Contact Resistance* (2023) is paid). **Status N** (not obtained). Candidate for a published transient spreading case of a heat source on a flux channel, not reproduced.
 
 ## Sources of `research/muzychka-influence-coefficients/` (reviewed)
 
