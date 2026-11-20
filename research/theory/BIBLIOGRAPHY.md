@@ -2133,6 +2133,22 @@ J. C. Maxwell, the geometric mean distance of a rectangle from itself (Trans. R.
 
 The installed package is pyamg 5.4.1 (metadata read in the environment: licence MIT, authors N. Bell, J. Schroder, B. Southworth; `requirements.txt` asks for 5.4 or later); the entry above recorded 5.3.0 from the package index of an earlier session. **Status R for the metadata, N for the paper.**
 
+## Sources named by the finite-element transient (`feature/fem-transient`, docs/theory.md 4b)
+
+Named by the FEM in time and its design note (`releases/2.9.0/fem-transient/DESIGN.md` 13 and 14.6); nothing was opened for them. Their content is checked without them: the start by the exact one-step values derived on the continuum (`sqrt(pi)/2 - 1` and `sqrt(pi/2) - 1`) and the 1D table of `tests/test_fem_transient_closed_forms.py`, the benchmark value by an independent 1D finite-element line (`releases/2.9.0/fem-transient/scripts/check_benchmark_1d.py`, 36.605 degC at 200 elements and 12 800 steps).
+
+### [Rannacher1984]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (not obtained).
+
+R. Rannacher, *Finite element solution of diffusion problems with irregular data*, Numer. Math. 43 (1984) 309-327 (citation from memory). Named for the start of the Crank-Nicolson stepping by implicit-Euler half steps after a jump of the load (`fem.march`, `femcore.Stepper.euler_half_step`). **Status N** (not obtained); the use rests on the derivation and the tests named above.
+
+### [NAFEMS-T3]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (not opened).
+
+NAFEMS, the one-dimensional linear transient heat conduction benchmark (named T3 in memory; NAFEMS *Standard Benchmark Tests*; title, number and year not checked): a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC; reference 36.60 degC at x = 0.08 m, t = 32 s. **Status M** (the case and the value are remembered, the publication was not opened). The program's stepper gives 36.611 degC (100 elements, 3 200 Crank-Nicolson steps, `tests/test_fem_transient_closed_forms.py`), the review's independent line 36.605; the agreement with the remembered value is not a reproduction of a published case until the publication is read (release gate of 2.9.0, DESIGN.md 14.6).
+
 ## Sources of `research/muzychka-influence-coefficients/` (reviewed)
 
 ### [Muzychka2004Influence]

@@ -52,8 +52,9 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.interpolate import PchipInterpolator
 
-from . import fdm, fvm, laminate, stackimpedance
+from . import fdm, fem, femcore, femmesh, fvm, laminate, memory, stackimpedance
 from .fvm import lu_factor
+from .geometry import cell_index_of_point, nearest_active_cell, part_weights, polygon_centroid
 from .numfmt import num
 
 
@@ -286,6 +287,20 @@ def step_response_fdm(problem, cell_mm=2.0):
     """
     times, z, rth = fdm.step_responses(problem, cell_mm=cell_mm)
     return StepResponse("fdm", times, z, rth, face_resistances(problem, cell_mm, "fdm"))
+
+
+def step_response_fem(problem, cell_mm=2.0, gap_elements=6, refine=2.0, memory_fraction=None):
+    """!
+    @brief Unit-step responses of every heater computed with the finite-element model (Crank-Nicolson with the Rannacher start, the hottest column cell of each heater).
+    @param problem A Problem with at least one heater.
+    @param cell_mm Plan cell in millimetres.
+    @param gap_elements Elements across every dielectric gap, count.
+    @param refine Ratio of the cell to the fine element near the heaters and via patches.
+    @param memory_fraction Share of the physical memory the run may use (None: default).
+    @return StepResponse (no face term: the mesh resolves the laminate under a part).
+    """
+    times, z, rth = fem.step_responses(problem, cell_mm=cell_mm, gap_elements=gap_elements, refine=refine, memory_fraction=memory_fraction)
+    return StepResponse("fem", times, z, rth, None)
 
 
 def _cumulative_response(resp, i, period, sigma, terms):
@@ -1024,3 +1039,197 @@ def run_fvm(problem, decisions, options, cell_mm=1.0, progress=None):
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
     return run_windows(problem, decisions, options, _FVMAdapter(problem, cell_mm), "fvm", progress)
+
+
+class _FEMAdapter:
+    """!
+    @brief Adapter that advances the finite-element model in time (see run_windows for the interface).
+    @details The same semi-discrete system as `fem.solve_transient` (consistent mass, one `femcore.Stepper`, one factor or hierarchy for the whole run: the step is constant), with the
+             load `F p_bar` of every step, `p_bar` the exact mean of the waves over the step that `run_windows` passes, for implicit Euler and for Crank-Nicolson alike (no Rannacher
+             start: the load changes at every step). The steady states of the average, the start and the peak powers are three right-hand sides of one steady factor. The hottest
+             value of the board and under every heater is read on the column read-out (`fem.column_operator`), like for like with the node of the FVM; no face term is needed, the
+             mesh resolves the laminate under a part.
+    """
+
+    offset = 0.5                                # Samples sit at cell centres of the run grid
+
+    def __init__(self, problem, cell_mm, gap_elements=6, refine=2.0, memory_fraction=None, cancel=None, force_solver=None):
+        """!
+        @param problem A Problem (heater powers equal the averages).
+        @param cell_mm Plan cell in mm (the grid of the frames and of the read-out).
+        @param gap_elements Elements across every dielectric gap, count.
+        @param refine Ratio of the cell to the fine element near the heaters and via patches.
+        @param memory_fraction Share of the physical memory the run may use (None: default).
+        @param cancel Optional cancel callable (checked before every solve).
+        @param force_solver None, "direct" or "cg" (tests and studies).
+        @throws memory.MemoryGuardError, femcore.FemUnavailable, femcore.FemCancelled, ValueError as `fem.solve_transient`.
+        """
+        b = problem.board
+        self.ambient = b.ambient
+        ctx = fem._prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver)
+        self.stepper, self.Rcol, self.asm, self.mesh = ctx["stepper"], ctx["Rcol"], ctx["asm"], ctx["mesh"]
+        self.nx, self.ny, self.L = ctx["nx"], ctx["ny"], b.layers
+        self.dx, self.dy = b.width / self.nx, b.height / self.ny
+        self.shape = (self.L, self.ny, self.nx)
+        self.warnings = list(self.mesh.warnings)
+        self._last = (None, None)                                               # (state, its column read-out): the cache of `_column`
+        self.theta = 1.0
+        self._deadline = None                                                   # wall-clock end of the stepping, set by `begin`
+        self._rows = np.tile(ctx["active"].ravel(), self.L)                     # the rows of the column read-out that are on the board
+        self.F = fem.heater_loads(self.mesh)
+        self.footprints = self._footprints(problem, ctx["active"], ctx["cover"])
+        self.p_avg = np.array([h.average_power() for h in problem.heaters])
+        p_init = np.array([h.initial_power() for h in problem.heaters])        # Start state: average, or first power of a one-shot
+        p_peak = np.array([h.peak_power() for h in problem.heaters])
+        # three right-hand sides of ONE steady factor (the steady matrix, `Stepper.prepare(0)`)
+        th = fem._steady_field(self.stepper, np.column_stack([self.F @ self.p_avg, self.F @ p_init, self.F @ p_peak]))
+        self.th_avg = th[:, 0]
+        self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else th[:, 1]
+        self.steady_average_max = self._hottest(self.th_avg)[0]
+        self.steady_peak_max = self._hottest(th[:, 2])[0]
+
+    def _footprints(self, problem, active, cover):
+        """!
+        @brief The flat indices (rows of the column read-out) of the cells under every heater, in the layer of the heater: the cells covered by its polygon and the board, or the cell
+               of its centroid (the nearest board cell for a part off the board), as the FVM network builds them.
+        @param problem A Problem.
+        @param active bool (ny, nx) of the cells on the board.
+        @param cover Share of every cell that is board, (ny, nx).
+        @return List of index arrays, one per heater.
+        """
+        b = problem.board
+        out = []
+        for h in problem.heaters:
+            cov = part_weights(h.polygon, b.outline, self.nx, self.ny, self.dx, self.dy, cover=cover) * active
+            if cov.sum() <= 0:
+                cx, cy = polygon_centroid(h.polygon)
+                i, j = cell_index_of_point(cx, cy, self.nx, self.ny, self.dx, self.dy)
+                if not active[i, j]:
+                    i, j = nearest_active_cell(active, cx, cy, self.dx, self.dy)
+                cov = np.zeros((self.ny, self.nx))
+                cov[i, j] = 1.0
+            out.append(h.layer * self.ny * self.nx + np.flatnonzero(cov.ravel() > 0))
+        return out
+
+    def _column(self, x):
+        """!
+        @brief The column read-out of a state in K of rise, computed once per state (observe, frame and peak_values are called on the same one).
+        @param x State on the unknowns.
+        @return numpy.ndarray (L ny nx,) flat.
+        """
+        if self._last[0] is not x:
+            self._last = (x, self.Rcol @ x)
+        return self._last[1]
+
+    def _hottest(self, x):
+        """!
+        @brief Hottest temperature of the board and under every heater.
+        @param x State (rise above ambient on the unknowns).
+        @return Tuple (hottest degC, array of per-heater hottest degC).
+        """
+        y = self._column(x)
+        under = np.array([y[idx].max() for idx in self.footprints]) + self.ambient
+        hottest = float(y[self._rows].max() + self.ambient)
+        return (max(hottest, float(under.max())) if len(under) else hottest), under
+
+    def prepare(self, dt):
+        """!
+        @brief Factorise (or build the hierarchy of) the step matrix for the time step, freeing the steady factor first.
+        @param dt Time step in seconds.
+        """
+        self.dt = dt
+        self.stepper.prepare(dt, self.theta)
+
+    def begin(self, options):
+        """!
+        @brief Initial state.
+        @param options ProfileOptions.
+        @return Tuple (state, reported initial temperature in degC).
+        """
+        self.theta = options.theta
+        # A hard ceiling on the wall time of the stepping (review): the bound of `run_fem` is a prediction from the planned steps, and a run "until stable" can take up to
+        # max_windows windows instead of the 12 the plan counts; past twice the limit the run stops with the ProfileError text, so a FEM ticked beside the FVM never holds Run
+        # simulation for long (the other models' curves stand, `api._run_fem_profile`)
+        self._deadline = time.monotonic() + 2.0 * memory.FEM_RUN_SECONDS_MAX
+        if options.initial == "average":
+            return self.th_init.copy(), float(self._hottest(self.th_init)[0])
+        t0 = self.ambient if options.initial_c is None else float(options.initial_c)
+        return np.full_like(self.th_avg, t0 - self.ambient), t0
+
+    def advance(self, x, dt, powers):
+        """!
+        @brief One theta step with the exact step-mean power.
+        @param x State (rise above ambient on the unknowns).
+        @param dt Time step (s), equal to the prepared one.
+        @param powers Mean power of every heater over the step (W).
+        @return New state.
+        @throws ProfileError If the stepping has run for more than twice `memory.FEM_RUN_SECONDS_MAX`.
+        """
+        if self._deadline is not None and time.monotonic() > self._deadline:
+            raise ProfileError(f"the finite-element time simulation was stopped after {2.0 * memory.FEM_RUN_SECONDS_MAX / 60.0:.0f} minutes, twice its limit (the run needed more "
+                               "windows than planned to become periodic). Use a coarser cell, shorten the duration or start from the average state; the other models can run it.")
+        load = self.F @ powers
+        return self.stepper.step(x, dt, self.theta, load, load)
+
+    def observe(self, x):
+        """!
+        @brief Hottest temperature of the board and under every heater (column read-out).
+        @param x State.
+        @return Tuple (hottest degC, array of per-heater hottest degC).
+        """
+        return self._hottest(x)
+
+    def frame(self, x):
+        """!
+        @brief Field in degC.
+        @param x State.
+        @return Array (layers, ny, nx).
+        """
+        return self._column(x).reshape(self.shape) + self.ambient
+
+    def peak_values(self, x):
+        """!
+        @brief Values whose running maximum is the peak map.
+        @param x State.
+        @return Flat array in degC.
+        """
+        return self._column(x) + self.ambient
+
+    def shape_field(self, flat):
+        """!
+        @brief Reshape a flat field.
+        @param flat Flat array.
+        @return Array (layers, ny, nx).
+        """
+        return flat.reshape(self.shape)
+
+
+def run_fem(problem, decisions, options, cell_mm=1.0, progress=None, gap_elements=6, refine=2.0, memory_fraction=None, cancel=None, force_solver=None):
+    """!
+    @brief Time simulation of a problem with power profiles using the finite-element model.
+    @details Refuses BEFORE the mesh is built a run whose predicted time (`memory.fem_transient_seconds`, unknowns x steps) is above `memory.FEM_RUN_SECONDS_MAX`, with the
+             ProfileError text of `plan_run`; the memory guard and the missing pyamg refuse in `fem._prepare_time`. `plan_run` itself is not changed.
+    @param problem A Problem (heater powers equal the averages).
+    @param decisions Decisions from decide().
+    @param options ProfileOptions.
+    @param cell_mm Plan cell in mm.
+    @param progress Optional callback progress(message, fraction).
+    @param gap_elements Elements across every dielectric gap, count (2 to 24).
+    @param refine Ratio of the cell to the fine element near the heaters and via patches (1 to 4).
+    @param memory_fraction Share of the physical memory the run may use (None: default).
+    @param cancel Optional cancel callable; True raises femcore.FemCancelled.
+    @param force_solver None, "direct" or "cg" (tests and studies).
+    @return ProfileResult.
+    @throws ProfileError If the run needs more than options.max_steps steps or the predicted time is above the limit of the FEM.
+    @throws memory.MemoryGuardError, femcore.FemUnavailable, femcore.FemCancelled, ValueError as `fem.solve_transient`.
+    """
+    plan = plan_run(problem, decisions, options)
+    if plan["resolved"]:
+        unknowns = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
+        secs = memory.fem_transient_seconds(unknowns, plan["steps"], 2)             # the steady factor and the step matrix
+        if secs > memory.FEM_RUN_SECONDS_MAX:
+            raise ProfileError(f"the time simulation needs about {plan['steps']} steps on a finite-element mesh of {unknowns} unknowns, about {secs / 60.0:.0f} minutes (limit "
+                               f"{memory.FEM_RUN_SECONDS_MAX / 60.0:.0f} minutes). Use a coarser cell, raise the oscillation threshold so that the fastest heater is averaged, or "
+                               "shorten the duration; the other models can run it.")
+    adapter = _FEMAdapter(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver)
+    return run_windows(problem, decisions, options, adapter, "fem", progress)

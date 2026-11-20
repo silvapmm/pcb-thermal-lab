@@ -178,6 +178,14 @@ def cmd_transient(args):
     if args.model == "fdm":
         from . import fdm
         tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+    elif args.model == "fem":
+        from . import fem, femcore
+        try:
+            tr = fem.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+        except (femcore.FemUnavailable, ValueError) as exc:
+            # no pyamg above the direct limit, no mesh for the outline, a failed solve: the reason, not a traceback (review), with the exit code of a refusal
+            print(f"error: FEM: refused ({exc})", file=sys.stderr)
+            return memory.EXIT_CODE
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
@@ -402,7 +410,7 @@ def build_parser():
     common(t)
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
-    t.add_argument("--model", choices=("fvm", "fdm", "analytic"), default="fvm", help="model of the transient (default: fvm)")
+    t.add_argument("--model", choices=("fvm", "fdm", "fem", "analytic"), default="fvm", help="model of the transient (default: fvm; fem: finite elements, resolves the board thickness)")
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
