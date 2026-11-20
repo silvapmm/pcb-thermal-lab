@@ -26,7 +26,7 @@ Times at manual h (example board, one call and the band at design level *hand*):
 
 | Point | What it is | Needs | Typical use |
 | :-- | :-- | :-- | :-- |
-| Board ring (1 mm around the part) | mean board temperature 0.5 to 1.5 mm outside the package outline (the program's own band, all four sides): an approximation of the board point of ψJB, which TI SPRA953 (read on the page image, PDF page 11, section 5) defines as the temperature of the centre package pin, measured by JESD51-6 (not read); the 1 mm from the package edge is the reading of vendor summaries (Renesas, S), not of a page read | nothing from the datasheet | thermocouple taped on the copper next to the part |
+| Board ring (0.5 to 1.5 mm around the part) | mean board temperature 0.5 to 1.5 mm outside the package outline (the program's own band, all four sides): an approximation of the board point of ψJB, which TI SPRA953 (read on the page image, PDF page 11, section 5) defines as the temperature of the centre package pin, measured by JESD51-6 (not read); the 1 mm from the package edge is the reading of vendor summaries (Renesas, S), not of a page read | nothing from the datasheet | thermocouple taped on the copper next to the part |
 | Hottest board point under the part | maximum board temperature under the footprint | nothing | a probe under the package |
 | Mean board temperature under the part | average under the footprint | nothing | comparison with the model's mean |
 | Junction | `Tj = T_board,max + θ·P` | θ of the part | a sense diode or the part's own sensor |
