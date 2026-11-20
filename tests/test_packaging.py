@@ -144,31 +144,34 @@ def test_workflow_checks_the_tag_and_runs_the_selftest(workflow):
         assert needle in workflow
 
 
-def test_build_pins_are_exact_and_the_second_contact_gates_a_release(tmp_path):
-    """The build requirements pin PySide6-Essentials, shiboken6 and PyInstaller with ==; a release build refuses while SECOND_CONTACT is None."""
+def test_build_pins_are_exact_and_the_second_contact_is_given_and_guarded(tmp_path, monkeypatch):
+    """The build requirements pin PySide6-Essentials, shiboken6 and PyInstaller with ==; the second contact is the published address and an empty one stops every build."""
+    import pcbthermal
     build = load("build")
     pins = build.pinned_versions()
     assert {"pyside6_essentials", "shiboken6", "pyinstaller"} <= set(pins)
     assert pins["pyside6_essentials"] == pins["shiboken6"]
-    assert build.SECOND_CONTACT is None or isinstance(build.SECOND_CONTACT, str)
-    if build.SECOND_CONTACT is None:
+    assert build.SECOND_CONTACT == "silva.pmm@gmail.com" == pcbthermal.__contact__
+    monkeypatch.setattr(build, "SECOND_CONTACT", None)
+    for args in (["--release"], []):
         with pytest.raises(SystemExit):
-            build.main(["--release"])
+            build.main(args)
+    monkeypatch.setattr(build, "qt_versions", lambda: ("6.12.0", "6.12.0"))
+    with pytest.raises(ValueError):
+        build.write_notice_files(tmp_path, True)
 
 
-def test_source_offer_always_names_the_attached_tarballs_and_flags_the_missing_contact(tmp_path, monkeypatch):
-    """SOURCE-OFFER.txt says the tarballs are attached to the release; a trial build shows the TODO second contact, a release build with a contact shows it."""
+def test_source_offer_names_the_attached_tarballs_and_the_second_contact(tmp_path, monkeypatch):
+    """SOURCE-OFFER.txt says the tarballs are attached to the release and gives the Issues page and the e-mail address, in a trial and a release build; no TODO text."""
     build = load("build")
     monkeypatch.setattr(build, "qt_versions", lambda: ("6.12.0", "6.12.0"))
-    monkeypatch.setattr(build, "SECOND_CONTACT", None)
-    build.write_notice_files(tmp_path, False)
-    text = (tmp_path / "SOURCE-OFFER.txt").read_text(encoding="utf-8")
-    assert "attached to the release page" in text and "qtbase-everywhere-src-6.12.0.tar.xz" in text and "TODO second contact" in text
-    assert "https://github.com/silvapmm/pcb-thermal-lab/issues" in text and "Pedro Silva (PMS Labs)" in text
-    monkeypatch.setattr(build, "SECOND_CONTACT", "e-mail: test@example.org")
-    build.write_notice_files(tmp_path, True)
-    text = (tmp_path / "SOURCE-OFFER.txt").read_text(encoding="utf-8")
-    assert "test@example.org" in text and "TODO" not in text
+    for release in (False, True):
+        build.write_notice_files(tmp_path, release)
+        text = (tmp_path / "SOURCE-OFFER.txt").read_text(encoding="utf-8")
+        assert "attached to the release page" in text and "qtbase-everywhere-src-6.12.0.tar.xz" in text
+        assert "https://github.com/silvapmm/pcb-thermal-lab/issues" in text and "Pedro Silva (PMS Labs)" in text
+        assert "by e-mail at silva.pmm@gmail.com" in text and "TODO" not in text
+        assert "silva.pmm@gmail.com" in (tmp_path / "NOTICE.txt").read_text(encoding="utf-8")
 
 
 def test_check_release_compares_the_packages_and_the_source(tmp_path):

@@ -63,10 +63,10 @@ FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisuali
                        r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$"
                        r"|opengl32sw|libqgtk3|libgtk-3|libgdk-3", re.IGNORECASE)
 QT_COVERED = ("pyside6_essentials", "pyside6", "shiboken6")        # Distributions whose licence texts are licenses/Qt (their wheels carry none)
-# THE SECOND CONTACT of the written offer (SOURCE-OFFER.txt): a way to reach the maintainer that does not depend on GitHub (an e-mail address of PMS Labs), for the case
-# that the repository is deleted or made private while the offer (three years) is still running. NOT GIVEN YET: a build of a tag (`--release`) FAILS while it is None;
-# a trial build passes and writes a visible "TODO second contact" line in SOURCE-OFFER.txt. Put the text here, for example "e-mail: name@example.org".
-SECOND_CONTACT = None
+# THE SECOND CONTACT of the written offer (SOURCE-OFFER.txt): a way to reach the maintainer that does not depend on GitHub, for the case that the repository is deleted
+# or made private while the offer (three years) is still running. Given by the maintainer, who authorised publishing this address in the packages, the repository and the
+# About box. Every build refuses to run if it is ever emptied.
+SECOND_CONTACT = "silva.pmm@gmail.com"
 ISSUES_URL = "https://github.com/silvapmm/pcb-thermal-lab/issues"
 LICENCE_PATTERNS = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.IGNORECASE)
 
@@ -362,7 +362,8 @@ def write_notice_files(staging, release):
     """!
     @brief Write NOTICE.txt (LGPL 4(a)), SOURCE-OFFER.txt and REPLACING-QT.txt of the package.
     @param staging Staging folder.
-    @param release True for the build of a tag (SECOND_CONTACT is then required and was checked); False for a trial build, where a missing second contact is written as a visible TODO.
+    @param release True for the build of a tag, False for a trial build (both carry the same contact; SECOND_CONTACT may never be empty).
+    @throws ValueError If SECOND_CONTACT is empty.
     """
     pyside, qt = qt_versions()
     minor = ".".join(qt.split(".")[:2])
@@ -372,17 +373,17 @@ def write_notice_files(staging, release):
     where = (f"The complete corresponding source of exactly these versions is attached to the release page of this version of the program:\n"
              f"  https://github.com/silvapmm/pcb-thermal-lab/releases/tag/{tag}\nas these files (their SHA-256 sums are in QT-SOURCE-SHA256.txt in the same place):\n{assets}\n"
              "(qtwayland is needed only for the Linux package.) The Qt Project publishes the same files, and you may use them too:")
-    if SECOND_CONTACT:
-        contact = f"Contact: the Issues page, {ISSUES_URL}, or {SECOND_CONTACT}"
-    else:
-        contact = f"Contact: the Issues page, {ISSUES_URL}\n(TODO second contact: a way to reach the maintainer that does not depend on GitHub is still to be given; this is a trial build, a release build refuses this text)"
+    # The written offer needs a second contact that does not depend on GitHub: never write an offer without it
+    if not SECOND_CONTACT:
+        raise ValueError("SECOND_CONTACT in packaging/build.py is empty: the written offer needs a contact that does not depend on GitHub")
+    contact = f"Contact: the Issues page, {ISSUES_URL}, or by e-mail at {SECOND_CONTACT}"
     (staging / "NOTICE.txt").write_text(f"""PCB Thermal Lab {version()}: notice
 =====================================
 This program uses Qt {qt} and PySide6 {pyside} (Qt for Python), Copyright (c) The Qt Company Ltd. and other contributors, under the GNU Lesser General
 Public License version 3. The texts are in licenses/Qt/ (LGPL-3.0.txt and GPL-3.0.txt). Source: see SOURCE-OFFER.txt. You may replace the Qt and PySide
 libraries of this package with your own build: see REPLACING-QT.txt. The notices of the third-party code inside Qt are in licenses/Qt/THIRD-PARTY-NOTICES.txt and
 the licences of the other libraries in licenses/ (INDEX.txt lists them). The program itself, PCB Thermal Lab, is Copyright (c) 2025-2026 Pedro Silva (PMS Labs)
-under the MIT License (LICENSE).
+under the MIT License (LICENSE). Contact: {SECOND_CONTACT}, or the Issues page, {ISSUES_URL}.
 """, encoding="utf-8")
     (staging / "SOURCE-OFFER.txt").write_text(f"""Source of Qt and PySide 6 in this package, and the written offer
 =================================================================
@@ -627,10 +628,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Build the downloadable package of PCB Thermal Lab for this system.")
     ap.add_argument("--reuse-venv", action="store_true", help="keep packaging/.venv-build if it exists (default: make it again)")
     ap.add_argument("--selftest", action="store_true", help="unpack the archive and run --selftest of the program from it (exit code 1 when it fails)")
-    ap.add_argument("--release", action="store_true", help="the build of a release tag: fails while SECOND_CONTACT (the contact of the written offer that does not depend on GitHub) is not given")
+    ap.add_argument("--release", action="store_true", help="the build of a release tag (the contact of the written offer, SECOND_CONTACT, is checked before anything is built)")
     args = ap.parse_args(argv)
-    if args.release and not SECOND_CONTACT:
-        raise SystemExit("error: SECOND_CONTACT in packaging/build.py is still None: a release build needs a contact for the written offer that does not depend on GitHub (an e-mail address of PMS Labs)")
+    if not SECOND_CONTACT:
+        raise SystemExit("error: SECOND_CONTACT in packaging/build.py is empty: a build needs a contact for the written offer that does not depend on GitHub")
     t0 = time.time()
     make_venv(args.reuse_venv)
     verify_pins()

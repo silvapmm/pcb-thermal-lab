@@ -139,6 +139,7 @@ def test_about_box_states_qt_and_opens_the_licences(qtbot):
     txt = about.text.text()
     assert "Qt" in txt and "GNU Lesser General Public License version 3" in txt and "The Qt Company Ltd." in txt and qVersion() in txt
     assert "from source" in txt or "packaged build" in txt
+    assert 'href="mailto:silva.pmm@gmail.com"' in txt and "Pedro Silva (PMS Labs)" in txt      # The contact line, published on purpose (maintainer)
     assert about.b_licences.toolTip() and about.b_licences.text().startswith("Licences")
     about.copy_version_info()
     clip = QGuiApplication.clipboard().text()

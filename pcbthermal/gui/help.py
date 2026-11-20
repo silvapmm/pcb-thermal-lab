@@ -14,7 +14,7 @@ from PySide6.QtCore import QObject, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QTextBrowser, QVBoxLayout
 
-from .. import __author__, __project_url__, __version__
+from .. import __author__, __contact__, __project_url__, __version__
 
 GUIDE = Path(__file__).resolve().parents[1] / "help" / "index.html"
 LOGO = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
@@ -150,6 +150,7 @@ class AboutDialog(QDialog):
             "<p>The models are checked against independent solutions (a resolved 3D solid, finite elements, closed forms, published cases and one datasheet board), not against a measured board.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
+            f"Contact: <a href=\"mailto:{__contact__}\">{__contact__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
             f"<p style=\"margin-bottom:8px\">{bundle_info.qt_sentence()}</p>"
             + (f"<p>Custom defaults in use: {defaults.diff_text()}<br>{defaults.user_file()}</p>" if defaults.has_user_file() and defaults.diff_text() else ""))
