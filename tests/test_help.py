@@ -146,7 +146,7 @@ def test_about_box_states_qt_and_opens_the_licences(qtbot):
     assert __version__ in clip and qVersion() in clip
     dlg = LicencesDialog(about)
     qtbot.addWidget(dlg)
-    assert dlg.names.count() >= 2 and "MIT License" in dlg.view.toPlainText()          # From source the first entry is the LICENSE of the program
+    assert len(dlg.leaves) >= 3 and "MIT License" in dlg.view.toPlainText()            # From source the first entry is the LICENSE of the program
     assert all(len(e) == 3 and e[2] for e in dlg.entries)                              # Every entry has a tooltip text (the full path or a description)
 
 
@@ -166,10 +166,128 @@ def test_packaged_licences_are_listed_by_library(tmp_path, monkeypatch):
     monkeypatch.setattr(bundle_info, "packaged", lambda: True)
     monkeypatch.setattr(bundle_info, "licences_folder", lambda: lic)
     titles = [e[0] for e in bundle_info.licence_entries()]
-    assert titles.count("numpy-2.5.5") == 1 and "scipy-1.18.1" in titles and any(t.startswith("Qt and PySide") for t in titles)
+    assert titles.count("numpy-2.5.5") == 1 and "scipy-1.18.1" in titles and "LGPL-3.0, GPL-3.0 and notices" in titles
     assert not any("/" in t and t != "licenses/INDEX.txt" for t in titles)
     scipy_text = next(e[1] for e in bundle_info.licence_entries() if e[0] == "scipy-1.18.1")
     assert "===== LICENSE.txt =====" in scipy_text and "===== LICENSES_bundled.txt =====" in scipy_text
+
+
+def _fake_package(tmp_path, monkeypatch):
+    """!
+    @brief A fake packaged build: the top-level notices, licenses/INDEX.txt, a Qt folder and two library folders.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @return pathlib.Path of the licenses folder.
+    """
+    lic = tmp_path / "licenses"
+    for sub, files in {"Qt": ["LGPL-3.0.txt", "GPL-3.0.txt"], "numpy-2.5.5": ["LICENSE.txt"], "scipy-1.18.1": ["LICENSE.txt"]}.items():
+        for f in files:
+            (lic / sub / f).parent.mkdir(parents=True, exist_ok=True)
+            (lic / sub / f).write_text(f"text of {sub}/{f}")
+    (lic / "INDEX.txt").write_text("index")
+    for name in bundle_info.TEXT_FILES:
+        (tmp_path / name).write_text(f"text of {name}")
+    monkeypatch.setattr(bundle_info, "packaged", lambda: True)
+    monkeypatch.setattr(bundle_info, "licences_folder", lambda: lic)
+    return lic
+
+
+def test_licences_groups_packaged_and_from_source(tmp_path, monkeypatch):
+    """!
+    @brief The Licences window has three groups in a fixed order; every packaged entry is under the right one and none is lost from the flat list.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    names = {g: [e[0] for e in items] for g, items in bundle_info.licence_groups()}      # From source: LICENSE, Qt, the table
+    assert list(names) == list(bundle_info.GROUPS)
+    assert names["The package"] == ["LICENSE"] and len(names["Qt and PySide"]) == 1 and names["Bundled libraries"] == [bundle_info.TABLE_TITLES[1]]
+    _fake_package(tmp_path, monkeypatch)
+    groups = dict(bundle_info.licence_groups())
+    assert [e[0] for e in groups["The package"]] == list(bundle_info.TEXT_FILES)
+    assert [e[0] for e in groups["Qt and PySide"]] == ["LGPL-3.0, GPL-3.0 and notices"]
+    assert [e[0] for e in groups["Bundled libraries"]] == [bundle_info.TABLE_TITLES[0], "licenses/INDEX.txt", "numpy-2.5.5", "scipy-1.18.1"]
+    flat = [e[0] for e in bundle_info.licence_entries()]
+    assert flat == [e[0] for _, items in bundle_info.licence_groups() for e in items] and len(flat) == 5 + 1 + 4      # Nothing lost, nothing twice
+
+
+def test_licences_window_is_a_tree_with_headers(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The window shows three non-selectable headers with the entries as children; choosing a child shows its text, a header shows none, the keyboard skips headers.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    from PySide6.QtCore import Qt
+
+    _fake_package(tmp_path, monkeypatch)
+    dlg = LicencesDialog()
+    qtbot.addWidget(dlg)
+    dlg.show()
+    tree = dlg.tree
+    assert [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())] == list(bundle_info.GROUPS)
+    assert [tree.topLevelItem(i).childCount() for i in range(3)] == [5, 1, 4]
+    for i in range(3):
+        assert not (tree.topLevelItem(i).flags() & Qt.ItemIsSelectable)
+    assert len(dlg.leaves) == len(dlg.entries) == 10
+    assert all(leaf.toolTip(0) for leaf in dlg.leaves)
+    assert dlg.leaves[0].toolTip(0).endswith("LICENSE") and dlg.view.toPlainText() == "text of LICENSE"       # The first entry is selected at the start
+    qtbot.keyClick(tree, Qt.Key_Down)
+    assert tree.currentItem() is dlg.leaves[1]
+    for _ in range(4):
+        qtbot.keyClick(tree, Qt.Key_Down)
+    assert tree.currentItem().parent().text(0) == "Qt and PySide"                    # Down from the last of the package jumps the header, to the first of the next group
+    assert "text of Qt/" in dlg.view.toPlainText()
+    qtbot.keyClick(tree, Qt.Key_Up)
+    assert tree.currentItem() is dlg.leaves[4]                                        # Up skips the header too
+    for _ in range(12):
+        qtbot.keyClick(tree, Qt.Key_Up)
+    assert tree.currentItem() is dlg.leaves[0]                                        # At the top it stays on the first entry, not on a header
+    dlg.show_entry(tree.topLevelItem(0))
+    assert dlg.view.toPlainText() == ""
+
+
+def test_library_table_wrapping_keeps_every_word_and_the_limit():
+    """!
+    @brief The wrapped table has no line longer than the width, keeps every library, version and licence word of the unwrapped one, and continuation lines sit under the licence column.
+    @return None
+    """
+    flat = bundle_info.table_text(None)
+    for width in (100, 80, 60):
+        wrapped = bundle_info.table_text(width)
+        assert max(len(ln) for ln in wrapped.splitlines()) <= width
+        assert wrapped.split() == flat.split()                                       # The same words in the same order: nothing lost, nothing cut
+        assert len(wrapped.splitlines()) >= len(flat.splitlines())
+    narrow = bundle_info.table_text(60).splitlines()
+    lead = max(len(r[0]) for r in bundle_info.libraries()) + 14
+    continuation = [ln for ln in narrow if ln.startswith(" ")]
+    assert continuation and all(ln.startswith(" " * lead) and not ln[lead].isspace() for ln in continuation)
+    assert len(flat.splitlines()) == len(bundle_info.libraries())                   # Unwrapped: one line per library
+
+
+def test_licences_table_needs_no_horizontal_scroll_at_natural_size(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief At the natural size (900 x 600) and at the minimum size the library table fits the text view with no horizontal scroll bar, and the window can be that small.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    _fake_package(tmp_path, monkeypatch)
+    dlg = LicencesDialog()
+    qtbot.addWidget(dlg)
+    dlg.show()
+    table = next(leaf for leaf in dlg.leaves if leaf.text(0) in bundle_info.TABLE_TITLES)
+    for size in ((900, 600), (dlg.minimumWidth(), dlg.minimumHeight())):
+        dlg.resize(*size)
+        dlg.tree.setCurrentItem(dlg.leaves[0])
+        dlg.tree.setCurrentItem(table)
+        qtbot.wait(20)
+        text = dlg.view.toPlainText()
+        char = dlg.view.fontMetrics().horizontalAdvance("0")
+        longest = max(len(ln) for ln in text.splitlines())
+        assert longest * char <= dlg.view.viewport().width(), (size, longest, char, dlg.view.viewport().width())
+        assert not dlg.view.horizontalScrollBar().isVisible() or dlg.view.horizontalScrollBar().maximum() == 0
+        assert text.split() == bundle_info.table_text(None).split()
+    assert dlg.minimumSizeHint().width() <= 900 and dlg.minimumSizeHint().height() <= 600
 
 
 def test_library_table_covers_every_runtime_requirement_with_a_licence():
