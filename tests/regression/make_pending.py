@@ -18,8 +18,11 @@
 
          A NEW model (one that no frozen record has, a comparison model added by a feature) adds records and moves none: `--new-model fem --cell 2 --cell 1` runs it on the named boards
          at those cells, keeps what finishes (a board it refuses or a run above the cap of the harness is left out, not recorded) and writes the pending file with `"new_models"`
-         naming it, so that the test knows the records are additions and not shifts. Since 2.9.0 the new model also adds its TIME records (`board|model` -> time to 63 % per part, the
-         read-out of `regress_harness.t63`) for the boards it runs, unless `--no-times`; a time record of a model that is not in `new_models` is still refused by the test.
+         naming it, so that the test knows the records are additions and not shifts.
+
+         NEW TIME RECORDS of a model that already has frozen steady records (the FEM after 2.9.0 gets a time simulation): `--new-times fem` runs `regress_harness.t63` for the named
+         boards and adds `board|fem` (time to 63 % per part) to `transients`, writing `"new_time_models"` into the file; the test accepts a time record of a model listed there (or in
+         `new_models`) that the frozen file does not hold, and still refuses any other time record it does not hold or one it already holds.
 """
 
 import argparse
@@ -66,6 +69,7 @@ def main(argv=None):
     ap.add_argument("--board", action="append", required=True, help="board name (repeat for several)")
     ap.add_argument("--model", action="append", default=[], help="model key (repeat for several)")
     ap.add_argument("--new-model", action="append", default=[], help="a model that the frozen file does not hold: its records are ADDED (needs --cell)")
+    ap.add_argument("--new-times", action="append", default=[], help="a model whose time records the frozen file does not hold (its steady records may be frozen): ADDS board|model times to 63 %%")
     ap.add_argument("--cell", action="append", type=float, default=[], help="cell in mm of the added records (repeat); a record is added only when it finishes")
     ap.add_argument("--item", required=True, help="the change that moves the records")
     ap.add_argument("--branch", required=True, help="branch of the change")
@@ -79,9 +83,26 @@ def main(argv=None):
     frozen = F.load(T.FROZEN_FILE)
     s = frozen["settings"]
     records, transients, skipped = {}, {}, {}
-    if not a.model and not a.new_model and not a.new_readouts:
-        print("refused: name --model (existing records) or --new-model with --cell")
+    if not a.model and not a.new_model and not a.new_readouts and not a.new_times:
+        print("refused: name --model (existing records), --new-model with --cell or --new-times")
         return 2
+    for board in a.board if a.new_times else []:
+        if board not in frozen["boards"]:
+            print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
+            return 2
+        p = B.build(board)
+        for model in a.new_times:
+            tk = f"{board}|{model}"
+            if tk in frozen["transients"]:
+                print(f"refused: {tk} is already in {T.FROZEN_FILE.name}: it is not a new time record")
+                return 2
+            if not p.heaters:
+                continue
+            t = H.t63(p, model, s["transient_cell"])
+            if t["status"] == "ok":
+                transients[tk] = {"class": "new", "t63": {q["name"]: q["t63_s"] for q in t["parts"] if q["t63_s"] is not None}}
+            else:
+                print(f"left out: {tk} time to 63 %: {t['status']} {t.get('reason', '')}")
     if a.new_readouts:
         if not a.model:
             print("refused: --new-readouts needs --model")
@@ -154,6 +175,8 @@ def main(argv=None):
            "records": records, "transients": transients}
     if a.new_model:
         out["new_models"] = sorted(a.new_model)
+    if a.new_times:
+        out["new_time_models"] = sorted(a.new_times)
     if a.new_readouts:
         out["new_readouts"] = True
     if skipped:

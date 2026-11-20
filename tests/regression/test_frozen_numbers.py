@@ -224,12 +224,12 @@ def test_pending_shifts_belong_to_the_frozen_release():
 def pending_time_problem(pend, data):
     """!
     @brief The first thing wrong with the times to 63 % of a pending file, or None: a time record must be one the frozen file holds (a shift) or an ADDITION of a model listed in
-           the file's `new_models` (a new comparison model's time) that the frozen file does not hold.
+           the file's `new_models` (a new comparison model) or `new_time_models` (a model that gets a time simulation: `make_pending.py --new-times`) that the frozen file does not hold.
     @param pend Content of the pending file.
     @param data Content of the frozen file.
     @return str or None.
     """
-    new = set(pend.get("new_models", []))
+    new = set(pend.get("new_models", [])) | set(pend.get("new_time_models", []))
     times = set(pend.get("transients", {}))
     added = {k for k in times if k.split("|")[1] in new}
     if added & set(data["transients"]):
@@ -242,7 +242,7 @@ def pending_time_problem(pend, data):
 
 def test_a_pending_file_may_add_the_time_records_of_a_new_model_and_nothing_else():
     """!
-    @brief The time records of a model listed in `new_models` are accepted as additions; a time record of a model that is not listed, or one the frozen file already holds, is refused.
+    @brief The time records of a model listed in `new_models` or `new_time_models` are accepted as additions; a time record of a model that is not listed, or one the frozen file already holds, is refused.
     @return None.
     """
     data = {"version": "9.9.9", "transients": {"a|fvm": {"class": "bit", "t63": {"U": 1.0}}}}
@@ -252,6 +252,7 @@ def test_a_pending_file_may_add_the_time_records_of_a_new_model_and_nothing_else
     held = {"version": "9.9.9", "transients": {"a|fem": {"class": "bit", "t63": {"U": 1.0}}}}
     assert pending_time_problem(ok, held) is not None                                                                  # a time the frozen file already holds is not an addition
     assert pending_time_problem({"transients": {"a|fvm": {"class": "moved", "t63": {"U": 1.1}}}}, data) is None        # a shift of a frozen time stays valid
+    assert pending_time_problem({"new_time_models": ["fem"], "transients": {"a|fem": {"class": "new", "t63": {"U": 2.0}}}}, data) is None
     assert with_pending_adds_times(ok, data) == {"a|fvm", "a|fem"}
 
 
