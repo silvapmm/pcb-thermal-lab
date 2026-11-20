@@ -135,6 +135,47 @@ Tree 9d1ebb1e, program 2.8.0, harness `tests/regression/regress_harness.py`, ste
 | drawn_stripes_pad | 73.465 (+1.4) | 72.574 (+0.2) | 54.740 (-24.4) | 54.227 (-25.1) | 70.795 (-2.3) | 72.432 |
 | drawn_ell | 64.887 (+2.9) | 61.386 (-2.7) | 54.444 (-13.7) | 52.040 (-17.5) | 66.763 (+5.9) | 63.070 |
 
+### Summary against the FEM by group of boards: mean of the absolute differences and the largest (board), signed range, [% of the FEM value]
+
+| group | cell mm | model | read-out | boards | mean abs | largest abs (board) | signed range |
+| :-- | --: | :-- | :-- | --: | --: | :-- | :-- |
+| all | 1 | FVM | peak | 19 | 1.80 | 17.82 (drawn_ell) | -0.3 to +17.8 |
+| all | 1 | FVM | part mean | 19 | 1.12 | 2.88 (drawn_ell) | -0.1 to +2.9 |
+| all | 1 | FDM | peak | 19 | 1.79 | 20.34 (drawn_ell) | -20.3 to +2.4 |
+| all | 1 | FDM | part mean | 19 | 0.69 | 2.67 (drawn_ell) | -2.7 to +0.7 |
+| all | 1 | 3D solid | peak | 19 | 3.31 | 35.42 (drawn_ell) | -1.9 to +35.4 |
+| all | 1 | 3D solid | part mean | 19 | 1.64 | 5.86 (drawn_ell) | -2.3 to +5.9 |
+| all | 0.5 | FVM | peak | 15 | 0.83 | 8.02 (drawn_ell) | -8.0 to +0.6 |
+| all | 0.5 | FVM | part mean | 15 | 0.40 | 1.00 (drawn_ell) | -1.0 to +1.0 |
+| all | 0.5 | FDM | peak | 15 | 0.88 | 8.90 (drawn_ell) | -8.9 to +0.5 |
+| all | 0.5 | FDM | part mean | 15 | 0.60 | 2.76 (drawn_ell) | -2.8 to +0.8 |
+| all | 0.5 | 3D solid | peak | 13 | 1.03 | 5.76 (drawn_ell) | +0.1 to +5.8 |
+| all | 0.5 | 3D solid | part mean | 13 | 0.72 | 2.33 (plate_pad) | +0.1 to +2.3 |
+| without the three drawn boards | 1 | FVM | peak | 16 | 0.86 | 2.74 (one_layer_pad) | -0.3 to +2.7 |
+| without the three drawn boards | 1 | FVM | part mean | 16 | 0.97 | 2.88 (one_layer_pad) | -0.1 to +2.9 |
+| without the three drawn boards | 1 | FDM | peak | 16 | 0.64 | 2.40 (plate_vias) | -0.9 to +2.4 |
+| without the three drawn boards | 1 | FDM | part mean | 16 | 0.61 | 1.30 (one_layer_pad) | -1.3 to +0.7 |
+| without the three drawn boards | 1 | 3D solid | peak | 16 | 1.40 | 4.81 (plate_pad) | +0.1 to +4.8 |
+| without the three drawn boards | 1 | 3D solid | part mean | 16 | 1.23 | 5.03 (plate_pad) | +0.2 to +5.0 |
+| without the three drawn boards | 0.5 | FVM | peak | 12 | 0.22 | 0.63 (one_layer_pad) | -0.5 to +0.6 |
+| without the three drawn boards | 0.5 | FVM | part mean | 12 | 0.28 | 0.99 (hatched_copper) | -0.4 to +1.0 |
+| without the three drawn boards | 0.5 | FDM | peak | 12 | 0.29 | 0.70 (plate_pad) | -0.7 to +0.5 |
+| without the three drawn boards | 0.5 | FDM | part mean | 12 | 0.40 | 0.80 (plate_pad) | -0.8 to +0.8 |
+| without the three drawn boards | 0.5 | 3D solid | peak | 10 | 0.68 | 2.23 (plate_pad) | +0.1 to +2.2 |
+| without the three drawn boards | 0.5 | 3D solid | part mean | 10 | 0.73 | 2.33 (plate_pad) | +0.1 to +2.3 |
+| without the drawn and the pad boards | 1 | FVM | peak | 14 | 0.60 | 1.41 (example_cut_to_T) | -0.3 to +1.4 |
+| without the drawn and the pad boards | 1 | FVM | part mean | 14 | 0.70 | 1.36 (example_board) | -0.1 to +1.4 |
+| without the drawn and the pad boards | 1 | FDM | peak | 14 | 0.62 | 2.40 (plate_vias) | -0.3 to +2.4 |
+| without the drawn and the pad boards | 1 | FDM | part mean | 14 | 0.52 | 1.16 (part_top_path) | -1.2 to +0.7 |
+| without the drawn and the pad boards | 1 | 3D solid | peak | 14 | 0.93 | 2.16 (example_board) | +0.1 to +2.2 |
+| without the drawn and the pad boards | 1 | 3D solid | part mean | 14 | 0.70 | 1.64 (part_top_path) | +0.2 to +1.6 |
+| without the drawn and the pad boards | 0.5 | FVM | peak | 10 | 0.15 | 0.46 (finned_block) | -0.5 to +0.4 |
+| without the drawn and the pad boards | 0.5 | FVM | part mean | 10 | 0.21 | 0.99 (hatched_copper) | -0.4 to +1.0 |
+| without the drawn and the pad boards | 0.5 | FDM | peak | 10 | 0.21 | 0.51 (plate_vias) | -0.5 to +0.5 |
+| without the drawn and the pad boards | 0.5 | FDM | part mean | 10 | 0.32 | 0.79 (hatched_copper) | -0.5 to +0.8 |
+| without the drawn and the pad boards | 0.5 | 3D solid | peak | 8 | 0.30 | 0.77 (plate_lone_via) | +0.1 to +0.8 |
+| without the drawn and the pad boards | 0.5 | 3D solid | part mean | 8 | 0.34 | 0.91 (hatched_copper) | +0.1 to +0.9 |
+
 ### Against the independent layered 3D solver (`tests/helpers/layered3d.py`, the same cell as the model), rise of the hottest top-copper cell under the source [% of the reference rise]
 
 | board | cell mm | reference K | FVM | FDM | Lumped | Analytic | 3D solid | FEM |

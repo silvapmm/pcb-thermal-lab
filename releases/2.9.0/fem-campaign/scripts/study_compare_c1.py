@@ -232,6 +232,38 @@ def report():
             row.append("-" if v is None else (f"{v:.3f}" if m == "fem" else f"{v:.3f} ({_pct(v, ref_v)})"))
         lines.append(f"| {b} | " + " | ".join(row) + " |")
     lines.append("")
+    # summary by board group: the three drawn boards (a feature below the cell), the pad boards (bare laminate round a copper window) and the rest
+    lines += ["### Summary against the FEM by group of boards: mean of the absolute differences and the largest (board), signed range, [% of the FEM value]", "",
+              "| group | cell mm | model | read-out | boards | mean abs | largest abs (board) | signed range |", "| :-- | --: | :-- | :-- | --: | --: | :-- | :-- |"]
+    groups = (("all", lambda b: True), ("without the three drawn boards", lambda b: not b.startswith("drawn")),
+              ("without the drawn and the pad boards", lambda b: not b.startswith("drawn") and "pad" not in b))
+
+    def first_part(b, m, c):
+        """!
+        @brief Part mean rise of the first part of a board for one model.
+        @param b Board name.
+        @param m Model key.
+        @param c Cell in mm.
+        @return float or None.
+        """
+        r = idx.get((b, m, c))
+        if r is None or r["status"] != "ok" or not r.get("parts") or r["parts"][0].get("t_mean") is None:
+            return None
+        return r["parts"][0]["t_mean"] - r["ambient"]
+
+    for gname, sel in groups:
+        for c in (1.0, 0.5):
+            for m in ("fvm", "fdm", "solid3d"):
+                for kind, fn in (("peak", lambda b, mm, cc: _rise(idx.get((b, mm, cc)))), ("part mean", first_part)):
+                    vals = []
+                    for b in boards:
+                        v, ref_v = fn(b, m, c), fn(b, "fem", c)
+                        if sel(b) and v is not None and ref_v:
+                            vals.append((100.0 * (v / ref_v - 1.0), b))
+                    if vals:
+                        w = max(vals, key=lambda t: abs(t[0]))
+                        lines.append(f"| {gname} | {c:g} | {LABEL[m]} | {kind} | {len(vals)} | {sum(abs(t[0]) for t in vals) / len(vals):.2f} | {abs(w[0]):.2f} ({w[1]}) | {min(t[0] for t in vals):+.1f} to {max(t[0] for t in vals):+.1f} |")
+    lines.append("")
     # the independent layered 3D solver of tests/helpers/layered3d.py on the four boards that it can represent, solved on the same cell as the model
     ref_rise = json.loads(REFS.read_text(encoding="utf-8")) if REFS.exists() else {}
     if REFS.exists():

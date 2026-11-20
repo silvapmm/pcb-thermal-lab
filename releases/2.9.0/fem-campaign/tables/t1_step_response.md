@@ -96,9 +96,10 @@ example_board, part U2: the steady resistance (plateau) and the time to 63 %, th
 | reference_board | FEM | 18.7 | 18.8 | -0.67 | 0.15 |
 
 ## T1c. plate_uniform at the 1 mm cell (module functions, one element or cell per mm), part 1, K/W
-| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) % | z(1 s) % | z(3 s) % | z(10 s) % | z(30 s) % | z(100 s) % | run s |
+normalised response z(t)/plateau, model minus FEM, in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
-| FEM | 26.8013 | +0.0 | 19 | +0.0 | - | - | - | - | - | - | 27.0 |
-| FVM | 26.9032 | +0.4 | 18.8 | -1.0 | -52.9 | -24.3 | -6.0 | +0.4 | +0.4 | +0.4 | 0.2 |
-| FDM | 26.9032 | +0.4 | 18.8 | -1.0 | -52.9 | -24.3 | -6.0 | +0.4 | +0.4 | +0.4 | 0.2 |
+| FEM | 26.8013 | +0.0 | 19 | +0.0 | - | - | - | - | - | - | 28.9 |
+| FVM | 26.9032 | +0.4 | 18.8 | -1.0 | -12.9 | -8.6 | -2.9 | -0.0 | +0.0 | +0.0 | 0.2 |
+| FDM | 26.9032 | +0.4 | 18.8 | -1.0 | -12.9 | -8.6 | -2.9 | -0.0 | +0.0 | +0.0 | 0.2 |
 
