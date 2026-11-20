@@ -27,6 +27,7 @@ from matplotlib.figure import Figure
 from scipy import ndimage
 
 from .analysis import extreme_points
+from .compare import readout_name
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
 from .results import model_color, model_label, model_order, short_name
@@ -764,6 +765,33 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
         # The trap of the patterned thin copper: over bare laminate under a source the surface includes the rise across the laminate, which the column node does not
         ax.text(0.01, 0.01, "difference includes the rise across bare laminate under a source (copper absent)", transform=ax.transAxes, fontsize=6,
                 color="white", va="bottom", zorder=7, bbox={"facecolor": "black", "alpha": 0.5, "pad": 1.5, "edgecolor": "none"})
+
+
+DIFFERENCE_CMAP = "RdBu_r"      # Diverging, centred on zero by symmetric limits: red where the model is above the reference, blue where it is below
+
+
+@_with_engineering_ticks
+def draw_difference(fig, diff, problem):
+    """!
+    @brief The Difference view: the field of (model - reference) in K, on the grid of the reference, with a diverging scale centred on zero.
+    @details The two ringed points are the largest (red) and the smallest (blue) difference; the title names both models and the read-out they share, and
+             quotes the maximum, the minimum and the RMS difference with their positions. The colour limits are symmetric (plus and minus the largest absolute
+             difference), so that white is zero whatever the data.
+    @param fig Target Figure (cleared first).
+    @param diff A `compare.DifferenceField`.
+    @param problem The Problem.
+    @return The axes.
+    """
+    ref_name, name = model_label(diff.reference), model_label(diff.model)
+    what = readout_name(diff.readout, diff.layer, diff.face)
+    title = (f"{name} − {ref_name}, {what} (K)\n"
+             f"max {signed_fixed(diff.maximum, 2)} K at ({diff.where_max[0]:.1f}, {diff.where_max[1]:.1f}) mm\n"
+             f"min {signed_fixed(diff.minimum, 2)} K at ({diff.where_min[0]:.1f}, {diff.where_min[1]:.1f}) mm   RMS {diff.rms:.2f} K")
+    ax = draw_field(fig, diff.values, problem, diff.dx, diff.dy, cmap=DIFFERENCE_CMAP, vmin=-diff.limit, vmax=diff.limit, layer=diff.layer,
+                    label=f"{name} − {ref_name} (K)", title=title, extremes=True)
+    ax.title.set_fontsize(9)
+    ax.title.set_wrap(True)                                                 # A narrow canvas wraps the three lines at the figure edge instead of cutting them
+    return ax
 
 
 @_with_engineering_ticks
