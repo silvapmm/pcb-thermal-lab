@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, copper, fvm, laminate, memory
+from . import __version__, copper, fvm, laminate, memory, thickness
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -158,7 +158,7 @@ def cmd_run(args):
         # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
         if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
             bottom = r.extras.get("t_max_surface_bottom")
-            print(f"{model_label(name)} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+            print(f"{model_label(name)} surface ({thickness.surface_kind(r)}): top {r.extras['t_max_surface_top']:.1f} °C"
                   + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
     files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")

@@ -34,7 +34,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import blocks, copper, laminate, memory, viawell
+from . import blocks, copper, laminate, memory, thickness, viawell
 from .fvm import ORDERING
 from .geometry import (part_weights, coverage_fraction, edge_length_on_board, face_apertures, nearest_active_cell, polygon_centroid,
                        signed_distance_to_outline)
@@ -520,6 +520,9 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
         terms = laminate.face_terms(b, net.fill, q_layers, net.area_b, net.dx)
         if terms is not None:
             out.arrays["face_peak"], out.arrays["face_mean"] = terms
+    # The surface of the two outer faces beside the column (the half slab of a copper layer cut into slabs, or the parabola fed by the solid's own links for one slab): a view,
+    # the arrays are added after the face terms it reads and no number above changes
+    thickness.attach_solid(out, net, theta_all)
     if net.faces:
         out.power_out["blocks"] = float(((net.g["blocks"] + net.g_leak) * theta_all.ravel()).sum())
         covs, temps = [], []
