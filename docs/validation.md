@@ -11,7 +11,7 @@ Every table here is produced by a script in `research/<topic>/` (one folder per 
 
 * **Each table names the tree it was measured on**; a table without a tree is of the program of the section's branch. The 2.8.0 items that move numbers are the Lumped part read-out (48) and the images of the sides in its first link (53: every Lumped record), the drawn copper read as imported copper (51: FVM and FDM where a copper edge cuts a cell, mostly at 2 mm and on drawn pads, and the FDM much more than the FVM), the exact block cover (54: Analytic of the finned block, blocks across an outline) and the film through the half copper layer (55: 10⁻⁵ K on PCB copper, up to 0.04 K with a block, 1 K on a 10 mm copper plate). A Lumped column measured before section 53, or an FDM column of a drawn copper edge measured before section 51, is history unless a note says it was re-run.
 * **What moved between 2.7.x and 2.8.0, board by board**: [`releases/2.8.0/WHAT_MOVED.md`](../releases/2.8.0/WHAT_MOVED.md) (the 17 frozen boards, five models, 2, 1 and 0.5 mm: the frozen numbers of 2.7.0 against the pending files of 2.8.0, with the item of each shift, and the shifts the reproduction pass found outside the frozen boards: +0.93 K on a 10 mm plate, +7.1 % of the rise for the LPTN on an isolated 10 mm part, 74.6 to 83.5 K/W on the calculator's JEDEC board without vias).
-* **The finite-element model of the program (2.8.0)** has no section of its own yet: its checks are in `docs/theory.md` 4a, the `CHANGELOG.md` entries of the FEM branches and their reviews (`releases/2.8.0/fem-model/`), the comparison with the FVM on the frozen boards in `WHAT_MOVED.md` 3, and 55.6 for the surface. **Sections 56 and 57 are reserved for the comparison campaign** of every model against the FEM and the 3D solid (`releases/2.8.0/fem-model/COMPARE_PLAN.md`), which the maintainer moved to 2.9.0 (`releases/2.9.0/PLAN.md` 1.1 c); they are not written.
+* **The finite-element model of the program (2.8.0)** has no section of its own yet: its checks are in `docs/theory.md` 4a, the `CHANGELOG.md` entries of the FEM branches and their reviews (`releases/2.8.0/fem-model/`), the comparison with the FVM on the frozen boards in `WHAT_MOVED.md` 3, and 55.6 for the surface. **Sections 56 and 57** are the comparison campaign of every model against the FEM and the 3D solid (`releases/2.8.0/fem-model/COMPARE_PLAN.md`, `releases/2.9.0/fem-campaign/DESIGN.md`): 56 the steady FEM, 57 the FEM in time with the published NAFEMS T3 case.
 
 **Part A. Current tables: which numbers are of which tree.** One row per status; the sections and the tree are named in the cell, the reference in each section.
 
@@ -2754,3 +2754,575 @@ The lateral spread under a source is still the column mean; the 1D half block ov
 Case 2 of Muzychka, Culham and Yovanovich (2003), the program's FVM and FDM `T_surface` against the independent 3D surface (layered3d, 8 sub-slabs, 97.41 / 103.85 / 101.31 / 99.95 degC at the centroids of the 10 / 25 / 20 / 15 W sources): at 0.5 mm FVM and FDM both +0.56 / +1.26 / +1.03 / +0.80 K (the research prototype printed +0.57 for the first source; the column mean reads 1.96 / 4.62 / 3.73 / 2.85 K below the same surface, so the two read-outs differ by 2.5 to 5.9 K), at 1 mm FVM +0.51 / +1.26 / +1.01 / +0.77 K and FDM +0.51 / +1.21 / +0.98 / +0.79 K (FDM nodes 0.5 mm off the centroids; **re-run by the final opinion of 2.8.0 on `development` b4ee3955**, reading the 1 mm cell whose centre is the centroid: FVM +0.56 / +1.26 / +1.03 / +0.80 K, the values quoted above for 0.5 mm, so the 1 mm FVM row of this sentence is not reproduced to 0.05 K; the column 95.44 / 99.23 / 97.57 / 97.10 °C and the FEM surface 97.47 / 103.85 / 101.33 / 99.99 °C of the same run equal `releases/2.8.0/fem-model/REVIEW_BRANCH4.md`), flagged 'upper side' (`t/a` = 1) (`tests/test_thickness.py`, `tests/test_published_cases.py::test_t3b_muzychka_case_2_surface_read_out` at 1 mm). **Review, six more plates against layered3d** (0.5 mm in the plane, 12 sub-slabs, top insulated, the program at 1 and 0.5 mm, hottest surface under the source): 1 mm Cu, 2 mm source, `h` 10 (`t/a` 0.5) +0.01 to +0.03 K on a term of 0.4 K; 3 mm Cu, 5 mm, `h` 100 (0.6) +0.05 to +0.09 K on 1.0 K; 10 mm Al (k 200), 10 mm, `h` 1000 (1.0) +1.91 K on 6.8 K; 10 mm Cu, 10 mm, `h` 400 (1.0) +0.51 K on 1.7 K; 5 mm Al, 2 mm, `h` 400 (2.5) +5.6 K on 4.9 K (the column reads 4.9 K low: an upper estimate, as flagged); a two-layer board with 2 mm of top copper, 1 mm of laminate, a 4 mm source, `h` 50, without and with a 1 mm filled via under the source (the 3D via a 1 mm square of the same copper area) +0.01 / +0.02 K and +0.03 to +0.33 K on 0.5 and 0.6 K. Heat balance of the face fluxes (sum of `q_top + q_bot` of a layer against its sideways losses) exact to 1e-6 W on the example board with 210 um outer copper, an outline, a block on either face, a thick bottom layer with vias, a pad over bare laminate, imported copper and a one-layer board with a heatsink and a top path; none crashes, cells off the outline are blank. Shown (report line, table columns, Layer entries) only when the surface differs from the column by at least max(0.1 K, 1 % of the rise): case 2 (3 to 8 % of the rise) shows it, a 1 mm copper plate under a 2 mm source at `h` 10 (0.43 K, 0.2 % of 224 K) and 140 to 210 um outer copper on the example board (0.01 K) do not. Closed form: a one-dimensional column reads `q t/(2k)` exactly (test). Ordinary boards (35 to 105 µm): no array, nothing changes; the frozen numbers (317 records at 2, 1 and 0.5 mm) are untouched. On a one-layer board the 'bottom' surface is the face of the copper against the laminate, not the bottom of the board. Not verified here: partly filled cells against an independent 3D with patterned copper, metal blocks, imported copper on a thick layer against a reference.
 
 **The Analytic and the 3D solid** (`feature/surface-readout-models`; tree: that branch on `development` db6244b1, 1 mm cell, reference `tests/helpers/layered3d.py` with 8 and 16 sub-slabs; re-run by its review): surface minus column under the source, 3D solid / FVM / Analytic / independent (8, 16 sub-slabs): case 2 4.50 / 5.68 / 5.68 / 4.50, 4.46 K; 10 mm Al 13.50 / 17.09 / 17.09 / 13.53, 13.39 K; 5 mm Al with a 2 mm source 1.97 / 4.17 / 4.17 / 2.02, 1.92 K; 2 mm Cu on FR-4 0.512 / 0.543 / 0.543 / 0.519, 0.515 K; with a via 0.515 / 0.557 / 0.543 / 0.539, 0.536 K. The surface of the solid is within -0.06 to +0.10 K of the independent one (8 sub-slabs); the FVM and Analytic parabola is the flagged upper estimate there. The rules, their range and the Lumped text: `theory.md` 1.2 ('The surface read-out in the Analytic, the 3D solid and the Lumped'); tests `tests/test_surface_models.py`.
+
+
+## 56. The FEM against the other models: the steady comparison campaign
+
+**What was measured.** Every model of the program (FVM, FDM, Lumped, Analytic, 3D solid, FEM) on the 20 boards of the frozen suite (`tests/regression/regress_boards.py`) at 2, 1 and 0.5 mm, and on the published plate cases, the strong-edge plate and the via boards of the independent finite-element tool. **Tree**: the program of `development` 7886ac42 (the branch `release/2.9.0-fem-campaign` changes no file of `pcbthermal/`; the numbers were printed on its commits 9d1ebb1e (the steady tables of `tables/c1_steady_all_models.md`), 0fbabbec and 595b3eb0, all with the program of 7886ac42; the review checked that the 332 steady records the campaign shares with the frozen set equal `tests/regression/data/v2.8.0.json` with its pending files to 2.3e-10 K on the peak, and that the 15 others are the FEM records above the harness's cap), version string 2.8.0, macOS arm64, Python 3.13. **References**: the independent layered 3D solver of `tests/helpers/layered3d.py` (four boards), the independent finite elements of `research/independent-fem-edge` and `research/independent-fem-extensions` (their numbers are QUOTED from their READMEs and the tests that store them, not re-run: their outputs are not in the repository), the exact thin-plate series, and the printed numbers of Muzychka, Culham and Yovanovich (2003). The campaign never edits the program: what it finds is in `releases/2.9.0/fem-campaign/INTEGRATION.md`. Scripts, definition and open questions: `releases/2.9.0/fem-campaign/DESIGN.md`, `scripts/study_compare_c1.py` (rows 56.1, 56.2, 56.6), `study_compare_c3.py`, `study_compare_c4.py`, `study_compare_c7.py`; every table below is the script's own output (the files are in `releases/2.9.0/fem-campaign/tables/`, where the 2 and 0.5 mm tables are too). Differences are signed (model minus reference) as a share of the reference value; **the read-out of a number is named in its table** (hottest column temperature 'peak', column mean under the first part 'part mean', 'surface').
+
+**Caps.** The harness skips a model above its cap and lists the record: FVM and FDM 400 000 unknowns, 3D solid 150 000, and here the FEM 300 000 (the harness's 130 000 was raised so that the 1 mm column is complete). Skipped: the 3D solid at 0.5 mm on the example, profile, reference and cut boards (400 000 to 512 000 unknowns) and on `t_outline` and `two_layer_partial` (192 000); the FEM at 0.5 mm on the same four large boards (580 644 to 1 054 251 unknowns; the plate boards, 202 500 unknowns and less, ran), and the FEM on `round_outline` at every cell (the slanted or curved side, item d of 2.9.0). Heat balance (power out over power in, minus one, worst of the boards): FVM 5.3e-12, FDM 5.2e-12, Lumped 2.6e-13, Analytic 9.0e-07, 3D solid 3.4e-12, FEM 5.3e-11.
+
+### 56.1 Every board, every model (peak and part mean)
+
+Hottest column rise above the ambient ('peak', K) and its difference to the FEM in % of the FEM rise, cell 1 mm (the 2 and 0.5 mm tables are in `tables/c1_steady_all_models.md`):
+
+| board | FVM | FDM | Lumped | Analytic | 3D solid | FEM |
+| :-- | --: | --: | --: | --: | --: | --: |
+| example_board | 60.465 (+1.3) | 60.400 (+1.2) | 61.905 (+3.7) | 59.796 (+0.2) | 60.975 (+2.2) | 59.687 |
+| profile_board | 60.465 (+1.3) | 60.400 (+1.2) | 61.905 (+3.7) | 59.796 (+0.2) | 60.975 (+2.2) | 59.687 |
+| reference_board | 65.136 (-0.1) | 65.135 (-0.1) | 65.794 (+0.9) | 65.090 (-0.2) | 65.267 (+0.1) | 65.191 |
+| example_cut_to_T | 69.742 (+1.4) | 69.619 (+1.2) | 69.390 (+0.9) | 66.109 (-3.9) | 69.838 (+1.5) | 68.774 |
+| plate_uniform | 134.516 (+0.4) | 134.516 (+0.4) | 136.629 (+2.0) | 134.082 (+0.1) | 134.718 (+0.5) | 134.006 |
+| plate_pad | 328.384 (+2.6) | 317.510 (-0.8) | 283.578 (-11.4) | 145.997 (-54.4) | 335.493 (+4.8) | 320.087 |
+| plate_vias | 110.682 (+0.9) | 112.310 (+2.4) | 111.139 (+1.3) | 110.940 (+1.2) | 110.395 (+0.7) | 109.673 |
+| plate_lone_via | 125.432 (+0.5) | 124.918 (+0.1) | 130.634 (+4.6) | 125.369 (+0.4) | 127.345 (+2.0) | 124.855 |
+| round_outline | 150.460 (-) | 150.462 (-) | 155.801 (-) | 150.329 (-) | 151.091 (-) | skipped |
+| t_outline | 161.987 (+0.1) | 161.630 (-0.1) | 110.810 (-31.5) | 111.772 (-30.9) | 162.168 (+0.2) | 161.793 |
+| two_layer_partial | 138.474 (+0.5) | 137.919 (+0.1) | 137.317 (-0.4) | 127.713 (-7.3) | 138.969 (+0.8) | 137.827 |
+| one_layer_full | 30.441 (+0.5) | 30.441 (+0.5) | 30.938 (+2.2) | 30.280 (+0.0) | 30.450 (+0.6) | 30.278 |
+| one_layer_pad | 68.716 (+2.7) | 66.287 (-0.9) | 62.417 (-6.7) | 45.863 (-31.4) | 69.925 (+4.5) | 66.883 |
+| finned_block | 104.941 (-0.3) | 104.939 (-0.3) | 107.798 (+2.5) | 104.826 (-0.4) | 105.504 (+0.3) | 105.211 |
+| part_top_path | 49.099 (+0.6) | 48.679 (-0.3) | 48.056 (-1.6) | 44.222 (-9.4) | 49.484 (+1.4) | 48.820 |
+| hatched_copper | 87.240 (+0.4) | 87.239 (+0.4) | 90.691 (+4.4) | 86.503 (-0.5) | 87.168 (+0.3) | 86.910 |
+| part_across_outline | 204.829 (+0.2) | 205.414 (+0.5) | 183.103 (-10.5) | 183.928 (-10.1) | 205.133 (+0.3) | 204.491 |
+| drawn_inset_square | 59.186 (+1.4) | 59.581 (+2.1) | 53.040 (-9.1) | 51.362 (-12.0) | 60.238 (+3.2) | 58.372 |
+| drawn_stripes_pad | 75.449 (+1.3) | 75.459 (+1.3) | 56.720 (-23.8) | 57.198 (-23.2) | 73.020 (-1.9) | 74.454 |
+| drawn_ell | 99.035 (+17.8) | 66.955 (-20.3) | 56.624 (-32.6) | 54.686 (-34.9) | 113.831 (+35.4) | 84.056 |
+
+Part mean under the first part, cell 1 mm:
+
+| board | FVM | FDM | Lumped | Analytic | 3D solid | FEM |
+| :-- | --: | --: | --: | --: | --: | --: |
+| example_board | 55.256 (+1.4) | 54.892 (+0.7) | 56.500 (+3.6) | 54.573 (+0.1) | 54.857 (+0.6) | 54.515 |
+| profile_board | 55.256 (+1.4) | 54.892 (+0.7) | 56.500 (+3.6) | 54.573 (+0.1) | 54.857 (+0.6) | 54.515 |
+| reference_board | 56.231 (+0.0) | 56.079 (-0.3) | 56.603 (+0.7) | 56.169 (-0.1) | 56.330 (+0.2) | 56.230 |
+| example_cut_to_T | 64.255 (+1.2) | 63.830 (+0.6) | 63.793 (+0.5) | 62.607 (-1.4) | 63.841 (+0.6) | 63.479 |
+| plate_uniform | 122.840 (+0.5) | 121.622 (-0.5) | 124.794 (+2.1) | 122.344 (+0.1) | 122.998 (+0.7) | 122.202 |
+| plate_pad | 317.345 (+2.7) | 305.258 (-1.2) | 272.143 (-11.9) | 132.894 (-57.0) | 324.435 (+5.0) | 308.885 |
+| plate_vias | 104.919 (+1.2) | 104.113 (+0.4) | 104.609 (+0.9) | 104.667 (+0.9) | 104.693 (+1.0) | 103.702 |
+| plate_lone_via | 116.959 (+0.4) | 115.768 (-0.6) | 119.530 (+2.6) | 116.494 (+0.0) | 117.254 (+0.7) | 116.487 |
+| round_outline | 139.164 (-) | 137.987 (-) | 144.397 (-) | 142.220 (-) | 139.658 (-) | - |
+| t_outline | 152.744 (+0.2) | 152.860 (+0.3) | 102.038 (-33.1) | 107.095 (-29.7) | 152.856 (+0.3) | 152.445 |
+| two_layer_partial | 125.683 (+0.6) | 124.525 (-0.4) | 124.343 (-0.5) | 114.051 (-8.7) | 126.189 (+1.0) | 124.969 |
+| one_layer_full | 27.831 (+0.6) | 27.563 (-0.3) | 28.315 (+2.4) | 27.670 (+0.1) | 27.838 (+0.7) | 27.655 |
+| one_layer_pad | 66.265 (+2.9) | 63.574 (-1.3) | 59.925 (-7.0) | 40.903 (-36.5) | 67.479 (+4.8) | 64.413 |
+| finned_block | 93.119 (-0.1) | 92.570 (-0.7) | 95.824 (+2.8) | 92.944 (-0.3) | 93.551 (+0.4) | 93.194 |
+| part_top_path | 46.883 (+0.8) | 45.978 (-1.2) | 45.689 (-1.8) | 40.795 (-12.3) | 47.280 (+1.6) | 46.517 |
+| hatched_copper | 77.237 (+1.3) | 76.678 (+0.6) | 80.053 (+5.0) | 75.984 (-0.3) | 77.177 (+1.2) | 76.240 |
+| part_across_outline | 187.483 (+0.2) | 186.614 (-0.2) | 171.562 (-8.3) | 169.969 (-9.1) | 187.844 (+0.4) | 187.067 |
+| drawn_inset_square | 57.217 (+1.6) | 56.610 (+0.5) | 51.042 (-9.4) | 49.142 (-12.8) | 58.232 (+3.4) | 56.327 |
+| drawn_stripes_pad | 73.465 (+1.4) | 72.574 (+0.2) | 54.740 (-24.4) | 54.227 (-25.1) | 70.795 (-2.3) | 72.432 |
+| drawn_ell | 64.887 (+2.9) | 61.386 (-2.7) | 54.444 (-13.7) | 52.040 (-17.5) | 66.763 (+5.9) | 63.070 |
+
+Summary against the FEM (the FEM at the same cell is not the truth; the table below it gives the limits):
+
+| group | cell mm | model | read-out | boards | mean abs | largest abs (board) | signed range |
+| :-- | --: | :-- | :-- | --: | --: | :-- | :-- |
+| all | 1 | FVM | peak | 19 | 1.80 | 17.82 (drawn_ell) | -0.3 to +17.8 |
+| all | 1 | FVM | part mean | 19 | 1.12 | 2.88 (drawn_ell) | -0.1 to +2.9 |
+| all | 1 | FDM | peak | 19 | 1.79 | 20.34 (drawn_ell) | -20.3 to +2.4 |
+| all | 1 | FDM | part mean | 19 | 0.69 | 2.67 (drawn_ell) | -2.7 to +0.7 |
+| all | 1 | 3D solid | peak | 19 | 3.31 | 35.42 (drawn_ell) | -1.9 to +35.4 |
+| all | 1 | 3D solid | part mean | 19 | 1.64 | 5.86 (drawn_ell) | -2.3 to +5.9 |
+| all | 0.5 | FVM | peak | 15 | 0.83 | 8.02 (drawn_ell) | -8.0 to +0.6 |
+| all | 0.5 | FVM | part mean | 15 | 0.40 | 1.00 (drawn_ell) | -1.0 to +1.0 |
+| all | 0.5 | FDM | peak | 15 | 0.88 | 8.90 (drawn_ell) | -8.9 to +0.5 |
+| all | 0.5 | FDM | part mean | 15 | 0.60 | 2.76 (drawn_ell) | -2.8 to +0.8 |
+| all | 0.5 | 3D solid | peak | 13 | 1.03 | 5.76 (drawn_ell) | +0.1 to +5.8 |
+| all | 0.5 | 3D solid | part mean | 13 | 0.72 | 2.33 (plate_pad) | +0.1 to +2.3 |
+| without the three drawn boards | 1 | FVM | peak | 16 | 0.86 | 2.74 (one_layer_pad) | -0.3 to +2.7 |
+| without the three drawn boards | 1 | FVM | part mean | 16 | 0.97 | 2.88 (one_layer_pad) | -0.1 to +2.9 |
+| without the three drawn boards | 1 | FDM | peak | 16 | 0.64 | 2.40 (plate_vias) | -0.9 to +2.4 |
+| without the three drawn boards | 1 | FDM | part mean | 16 | 0.61 | 1.30 (one_layer_pad) | -1.3 to +0.7 |
+| without the three drawn boards | 1 | 3D solid | peak | 16 | 1.40 | 4.81 (plate_pad) | +0.1 to +4.8 |
+| without the three drawn boards | 1 | 3D solid | part mean | 16 | 1.23 | 5.03 (plate_pad) | +0.2 to +5.0 |
+| without the three drawn boards | 0.5 | FVM | peak | 12 | 0.22 | 0.63 (one_layer_pad) | -0.5 to +0.6 |
+| without the three drawn boards | 0.5 | FVM | part mean | 12 | 0.28 | 0.99 (hatched_copper) | -0.4 to +1.0 |
+| without the three drawn boards | 0.5 | FDM | peak | 12 | 0.29 | 0.70 (plate_pad) | -0.7 to +0.5 |
+| without the three drawn boards | 0.5 | FDM | part mean | 12 | 0.40 | 0.80 (plate_pad) | -0.8 to +0.8 |
+| without the three drawn boards | 0.5 | 3D solid | peak | 10 | 0.68 | 2.23 (plate_pad) | +0.1 to +2.2 |
+| without the three drawn boards | 0.5 | 3D solid | part mean | 10 | 0.73 | 2.33 (plate_pad) | +0.1 to +2.3 |
+| without the drawn and the pad boards | 1 | FVM | peak | 14 | 0.60 | 1.41 (example_cut_to_T) | -0.3 to +1.4 |
+| without the drawn and the pad boards | 1 | FVM | part mean | 14 | 0.70 | 1.36 (example_board) | -0.1 to +1.4 |
+| without the drawn and the pad boards | 1 | FDM | peak | 14 | 0.62 | 2.40 (plate_vias) | -0.3 to +2.4 |
+| without the drawn and the pad boards | 1 | FDM | part mean | 14 | 0.52 | 1.16 (part_top_path) | -1.2 to +0.7 |
+| without the drawn and the pad boards | 1 | 3D solid | peak | 14 | 0.93 | 2.16 (example_board) | +0.1 to +2.2 |
+| without the drawn and the pad boards | 1 | 3D solid | part mean | 14 | 0.70 | 1.64 (part_top_path) | +0.2 to +1.6 |
+| without the drawn and the pad boards | 0.5 | FVM | peak | 10 | 0.15 | 0.46 (finned_block) | -0.5 to +0.4 |
+| without the drawn and the pad boards | 0.5 | FVM | part mean | 10 | 0.21 | 0.99 (hatched_copper) | -0.4 to +1.0 |
+| without the drawn and the pad boards | 0.5 | FDM | peak | 10 | 0.21 | 0.51 (plate_vias) | -0.5 to +0.5 |
+| without the drawn and the pad boards | 0.5 | FDM | part mean | 10 | 0.32 | 0.79 (hatched_copper) | -0.5 to +0.8 |
+| without the drawn and the pad boards | 0.5 | 3D solid | peak | 8 | 0.30 | 0.77 (plate_lone_via) | +0.1 to +0.8 |
+| without the drawn and the pad boards | 0.5 | 3D solid | part mean | 8 | 0.34 | 0.91 (hatched_copper) | +0.1 to +0.9 |
+
+**Reading.** (1) On the boards without a drawn feature and without a bare window round a copper pad (14 boards) the FVM, FDM and 3D solid read the FEM peak within 1.4, 2.4 and 2.2 % at 1 mm (means of the magnitudes 0.60, 0.62, 0.93 %) and within 0.46, 0.51 and 0.77 % at 0.5 mm (0.15, 0.21, 0.30 %): the acceptance criterion of about 1 % of `COMPARE_PLAN.md` holds at 0.5 mm and not always at 1 mm (the FDM on `plate_vias` +2.4 %, the 3D solid on the example board +2.2 %). The part means agree as well (largest 1.36, 1.16 and 1.64 % at 1 mm). (2) The Lumped and the Analytic are not cell models and are not expected to meet 1 %: at 1 mm the Lumped is +0.9 to +4.6 % of the FEM peak on nine boards without an outline or a bare window (and -1.6 and -0.4 % on two), the Analytic -0.5 to +1.2 % on nine boards without the features it does not hold, and each is far off on the boards named in 56.1.2. (3) The heat balance of every model closes to 1e-6 or better.
+
+#### 56.1.1 The boards with bare laminate round a copper window (`plate_pad`, `one_layer_pad`) and the cell sequence
+
+| board | cell mm | reference K | FVM | FDM | Lumped | Analytic | 3D solid | FEM |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: |
+| plate_uniform | 2 | 134.251 | -0.1 | -0.1 | +1.8 | -0.1 | +0.0 | -2.1 |
+| plate_uniform | 1 | 134.718 | -0.1 | -0.1 | +1.4 | -0.5 | +0.0 | -0.5 |
+| plate_uniform | 0.5 | 134.839 | -0.1 | -0.1 | -0.0 | -0.2 | +0.0 | -0.1 |
+| plate_pad | 2 | 347.761 | -2.9 | -10.5 | -18.5 | -58.0 | +0.0 | -9.7 |
+| plate_pad | 1 | 335.493 | -2.1 | -5.4 | -15.5 | -56.5 | +0.0 | -4.6 |
+| plate_pad | 0.5 | 330.066 | -1.7 | -2.9 | -15.8 | -55.6 | +0.0 | -2.2 |
+| one_layer_full | 2 | 30.363 | -0.0 | -0.0 | +1.9 | -0.3 | +0.0 | -2.3 |
+| one_layer_full | 1 | 30.450 | -0.0 | -0.0 | +1.6 | -0.6 | +0.0 | -0.6 |
+| one_layer_full | 0.5 | 30.472 | -0.0 | -0.0 | -0.3 | -0.3 | +0.0 | -0.1 |
+| one_layer_pad | 2 | 72.012 | -2.0 | -10.2 | -13.3 | -36.3 | +0.0 | -9.3 |
+| one_layer_pad | 1 | 69.925 | -1.7 | -5.2 | -10.7 | -34.4 | +0.0 | -4.4 |
+| one_layer_pad | 0.5 | 68.957 | -1.5 | -2.7 | -12.0 | -33.2 | +0.0 | -2.1 |
+
+Limit of the cell sequence 2, 1, 0.5 mm of the peak rise (K; Richardson with the observed order in brackets; '-' where a cell is skipped or the sequence is not monotone with an order between 0.3 and 3):
+
+| board | FVM | FDM | 3D solid | FEM | layered 3D reference (four boards) |
+| :-- | --: | --: | --: | --: | --: |
+| example_board | - | - | - | - | - |
+| profile_board | - | - | - | - | - |
+| reference_board | 65.16 (2.0) | 65.16 (2.0) | - | - | - |
+| example_cut_to_T | - | - | - | - | - |
+| plate_uniform | 134.68 (1.9) | 134.68 (1.9) | 134.88 (1.9) | 134.88 (2.0) | 134.88 (1.9) |
+| plate_pad | 321.97 (1.3) | 323.76 (1.0) | 325.76 (1.2) | 325.27 (1.1) | 325.76 (1.2) |
+| plate_vias | - | - | - | - | - |
+| plate_lone_via | 125.27 (3.0) | 125.14 (2.7) | - | 126.03 (0.8) | - |
+| round_outline | 150.62 (1.9) | 150.61 (2.0) | 151.26 (1.9) | - | - |
+| t_outline | 161.74 (0.9) | 161.78 (1.4) | - | 162.00 (2.1) | - |
+| two_layer_partial | - | - | - | 138.44 (1.8) | - |
+| one_layer_full | 30.47 (1.9) | 30.47 (1.9) | 30.48 (1.9) | 30.48 (2.0) | 30.48 (1.9) |
+| one_layer_pad | 67.36 (1.2) | 67.79 (1.0) | 68.12 (1.1) | 67.91 (1.3) | 68.12 (1.1) |
+| finned_block | 105.03 (2.0) | 105.03 (2.0) | 105.58 (2.2) | 105.59 (2.0) | - |
+| part_top_path | 48.93 (2.2) | 48.87 (2.3) | 49.24 (1.8) | - | - |
+| hatched_copper | 87.32 (2.0) | 87.32 (2.0) | 87.25 (2.0) | 87.24 (2.0) | - |
+| part_across_outline | - | - | - | 205.06 (2.3) | - |
+| drawn_inset_square | - | 59.09 (1.7) | - | 59.93 (1.3) | - |
+| drawn_stripes_pad | 74.50 (1.1) | - | 77.07 (2.1) | 76.48 (1.3) | - |
+| drawn_ell | - | - | - | 110.51 (0.8) | - |
+
+On the four boards that the independent layered solver can hold, the 3D solid is that solver to four digits (it is the same scheme: 0.0 % at every cell); the FEM and the FDM approach the limit from below, the FVM, the 3D solid and the layered solver from above: on `plate_pad` the Richardson limits of the sequence 2, 1, 0.5 mm are 325.27 K (FEM, observed order 1.1), 325.76 K (3D solid and the layered solver, 1.2), 323.76 K (FDM, 1.0) and 321.97 K (FVM, 1.3); on `one_layer_pad` 67.91, 68.12, 67.79 and 67.36 K. So the FEM and the independent solver agree to 0.15 % on the limit of the sequence (review: the observed orders are 1.1 and 1.2, not the asymptotic 2, so each limit carries the uncertainty of its order: with p = 1 the limits would be 325.66 and 324.64 K; the two sides bracket a limit of about 325 K within 0.3 % either way), the FVM is 1.2 % and the FDM 0.6 % below the independent solver's limit (the known one-sided FVM pad, section 21.3); at a given cell the pad boards differ by up to +4.8 % (3D solid, 1 mm), +2.7 % (FVM, 1 mm) from the FEM because the FEM is the coldest of them at a coarse cell (-9.7 / -4.6 / -2.2 % of the layered solver at 2 / 1 / 0.5 mm). The plain boards (`plate_uniform`, `one_layer_full`) have a limit of 134.88 / 30.48 K in the FEM, the 3D solid and the layered solver, 134.68 and 30.47 K in the FVM and FDM (0.15 and 0.03 % below).
+
+#### 56.1.2 Differences above 3 % at 1 mm, by model (classification)
+
+| model | where | size at 1 mm | classification |
+| :-- | :-- | :-- | :-- |
+| Analytic | `plate_pad`, `one_layer_pad`, `part_top_path`, `two_layer_partial` (copper varies round the part) | -54.4, -31.4, -9.4, -7.3 % | known limit, **warned** ('copper coverage varies around the heaters', sections 14 to 17) |
+| Analytic, Lumped | `t_outline`, `part_across_outline`, `example_cut_to_T` (an outline) | Lumped -31.5, -10.5; Analytic -30.9, -10.1, -3.9 % | known limit, **warned** ('computed on a rectangle of the same area') |
+| Analytic, Lumped | `drawn_inset_square`, `drawn_stripes_pad`, `drawn_ell` | -9.1 to -34.9 % | known limit (the edge film of the laminate at the copper edge), **warned** |
+| Lumped | `plate_pad`, `one_layer_pad` | -11.4 and -6.7 % (-15.5 and -10.7 % of the independent layered solver) | **silent: the run printed no warning** (a finding, INTEGRATION.md 1); the Lumped is also -15.5 / -15.8 % of the layered solver at 1 / 0.5 mm on `plate_pad`, so it does not converge to it with the cell |
+| Lumped | example board, `plate_lone_via`, `hatched_copper` | +3.7, +4.6, +4.4 % | warned (vias under the footprint, a copper edge crossing it) |
+| 3D solid | `plate_pad`, `one_layer_pad`, `drawn_inset_square` | +4.8, +4.5, +3.2 % | silent; on the two pad boards the 3D solid equals the independent layered solver to four digits (same scheme), so it is the cell error of that scheme (+2.2 % at 0.5 mm on `plate_pad`), not a defect against the reference |
+| FVM, FDM, 3D solid, FEM | `drawn_ell` | FVM +17.8, FDM -20.3, 3D solid +35.4 % | **no order in the cell for the FVM, FDM and 3D solid** (FVM 67.8 / 99.0 / 87.7, FDM 74.3 / 67.0 / 86.8, 3D solid 62.4 / 113.8 / 100.8 K at 2 / 1 / 0.5 mm); **the FEM rises monotonically but slowly** (64.4 / 84.1 / 95.3 K, -38.8 / -20.1 / -9.4 % of the converged 105.2 K; its Richardson value 110.5 K at an order of 0.8 overshoots the converged peak by 5 %, so the FEM is not yet in its asymptotic range either; review): a point read-out on a 1.2 mm corner of bare laminate, converged peak 105.2 K in the independent tool; `research/drawn-ell-fvm-fdm` README (this campaign reproduces its FVM 99.035 and FDM 66.955 K at 1 mm to the digit); the part means agree within 3 to 6 % (2.9 / -2.7 / +5.9 % at 1 mm) |
+
+### 56.2 The surface read-out beside the column
+
+Top-face surface peak minus column peak at 1 mm, in K (table 'Surface read-out' of `tables/c1_steady_all_models.md`): 0.00 on every board for every model that has a surface map, except `hatched_copper` (FVM, FDM and 3D solid +1.22, FEM +0.00) and `drawn_ell` (FVM, FDM and 3D solid +3.65, FEM +2.28). On a 35 µm board the surface and the column are the same number, so the comparison that matters is the thick plate: 56.3 and 56.4. **The two differences are the documented rules of the read-outs, not a defect** (review). The FVM, FDM and 3D solid add the laminate face term `q t_cu/(2 k_z)` to the board-level surface under a source over absent copper (`docs/theory.md` 1.2): 3 W on 12 x 12 mm and 35 µm of laminate at 0.3 W/mK give 20 833 W/m² x 35 µm / 0.6 W/mK = 1.215 K on `hatched_copper` (the hottest point of the hatch is over its openings), and 1 W on 4 x 4 mm gives 3.646 K on `drawn_ell`; the numbers of the table are these terms. The FEM meshes a hatched layer as elements of the smeared fill (`docs/theory.md` 4a: the fill of every element equals `copper._zone_union`), that is a parallel mixture of copper and laminate with no opening to read, so its face term is that of copper (0.00 K); on `drawn_ell`, where the copper edge is drawn, it resolves the bare laminate with one element through the layer and reads 2.28 K, 0.63 of the full term, inside the 0.44 to 0.66 that `docs/theory.md` 4a states for one element through thin copper. The part read-outs agree (theory 1.2: for the part the difference is at most the copper term), so neither board-level number is used to decide anything. Whether the FEM should read the openings of a smeared hatch is a question of definition (`releases/2.9.0/fem-campaign/INTEGRATION.md` 5), not of accuracy.
+
+### 56.3 Case 2 of Muzychka, Culham and Yovanovich (2003), every model
+
+Plate 50 x 50 x 10 mm, k 150 W/mK, h 400 W/m²K, four sources (10, 25, 20, 15 W); references: the independent 3D solver's column mean (0.5 mm, 8 sub-slabs) and the printed surface centroids (97.40 / 103.82 / 101.28 / 99.94 °C, Table 4). Tree 0fbabbec.
+
+paper (Table 4) centroid 97.40 / 103.82 / 101.28 / 99.94, mean 96.85 / 102.33 / 100.10 / 99.07 degC
+
+#### Column read-out: centroid of each source minus the column mean of the independent 3D solver, K (S1 / S2 / S3 / S4)
+| model | 2 mm | 1 mm | 0.5 mm |
+| :-- | :-- | :-- | :-- |
+| FEM | -0.00 / -0.01 / -0.01 / -0.00 | +0.03 / +0.09 / +0.07 / +0.06 | +0.09 / +0.09 / +0.09 / +0.09 |
+| FVM | +0.03 / +0.04 / +0.03 / +0.03 | +0.04 / +0.09 / +0.07 / +0.06 | +0.10 / +0.08 / +0.09 / +0.09 |
+| FDM | -0.13 / -0.09 / -0.11 / -0.11 | +0.08 / +0.05 / +0.06 / +0.07 | +0.07 / +0.10 / +0.09 / +0.08 |
+| 3D solid | +0.02 / +0.05 / +0.04 / +0.04 | +0.04 / +0.10 / +0.07 / +0.06 | +0.09 / +0.09 / +0.09 / +0.09 |
+| Analytic | +0.04 / +0.09 / +0.07 / +0.06 | +0.04 / +0.09 / +0.07 / +0.06 | +0.10 / +0.08 / +0.09 / +0.09 |
+| Lumped | +0.30 / -0.74 / -0.20 / -0.24 | +0.30 / -0.74 / -0.20 / -0.24 | +0.40 / -0.70 / -0.14 / -0.16 |
+
+#### Surface read-out: centroid of each source on the surface map minus the paper's printed centroid, K (S1 / S2 / S3 / S4); the independent 3D solver's own surface minus the paper is +0.01 / +0.03 / +0.03 / +0.01
+| model | 2 mm | 1 mm | 0.5 mm |
+| :-- | :-- | :-- | :-- |
+| FEM | -0.08 / -0.21 / -0.17 / -0.12 | -0.00 / -0.00 / -0.00 / -0.00 | +0.07 / +0.03 / +0.05 / +0.05 |
+| FVM | +0.50 / +1.25 / +1.00 / +0.75 | +0.52 / +1.29 / +1.04 / +0.78 | +0.57 / +1.29 / +1.06 / +0.81 |
+| FDM | +0.35 / +1.12 / +0.86 / +0.61 | +0.56 / +1.25 / +1.03 / +0.79 | +0.55 / +1.30 / +1.06 / +0.80 |
+| 3D solid | -0.02 / -0.04 / -0.03 / -0.02 | +0.03 / +0.08 / +0.06 / +0.05 | +0.10 / +0.12 / +0.12 / +0.11 |
+
+The Lumped has no surface map (the Analytic has one, shown in study_compare_c4.py). The column minus the paper is not a comparison (the paper prints the surface).
+
+The FEM column read-out is within 0.09 K of the independent column mean at every cell (-0.01 to 0.00 K at 2 mm, 0.03 to 0.09 K at 1 mm, 0.09 K at 0.5 mm); the FEM surface read-out is within 0.21 K of the paper at 2 mm, 0.00 K at 1 mm and 0.03 to 0.07 K at 0.5 mm, and the 3D solid's within 0.12 K at every cell. The FVM and FDM surface is the estimate of 55.6: +0.4 to +1.3 K above the paper (the documented upper side), the FEM is not worse than the 3D solid (the criterion of row C4).
+
+### 56.4 The published plates of `tests/test_published_cases.py` in every model
+
+Shortfall = paper minus model, as a share of the paper's rise above 25 °C (positive: the model is below the paper). Tree 0fbabbec.
+
+#### case 3, cross (100 x 100 x 10 mm, k 50, h 50), cell 1 mm; printed centroids 80.61 degC (the paper prints the surface)
+| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source) | seconds |
+| :-- | :-- | :-- | :-- | --: |
+| FEM | column | 79.70 | +1.6 | 8.2 |
+| FEM | surface | 80.61 | -0.0 | 8.2 |
+| FVM | column | 79.69 | +1.6 | 0.0 |
+| FVM | surface | 80.62 | -0.0 | 0.0 |
+| FDM | column | 79.69 | +1.7 | 0.0 |
+| FDM | surface | 80.61 | -0.0 | 0.0 |
+| 3D solid | column | 79.70 | +1.6 | 3.4 |
+| 3D solid | surface | 80.63 | -0.0 | 3.4 |
+| Analytic | column | 79.69 | +1.7 | 0.0 |
+| Analytic | surface | 80.62 | -0.0 | 0.0 |
+| Lumped | column | 79.41 | +2.2 | 0.1 |
+
+#### case 2, baseplate (50 x 50 x 10 mm, k 150, h 400), cell 1 mm; printed centroids 97.40 / 103.82 / 101.28 / 99.94 degC (the paper prints the surface)
+| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+| :-- | :-- | :-- | :-- | --: |
+| FEM | column | 95.38 / 99.24 / 97.55 / 97.06 | +2.8 / +5.8 / +4.9 / +3.8 | 1.3 |
+| FEM | surface | 97.40 / 103.82 / 101.28 / 99.94 | +0.0 / +0.0 / +0.0 / +0.0 | 1.3 |
+| FVM | column | 95.39 / 99.23 / 97.56 / 97.07 | +2.8 / +5.8 / +4.9 / +3.8 | 0.0 |
+| FVM | surface | 97.92 / 105.11 / 102.32 / 100.72 | -0.7 / -1.6 / -1.4 / -1.0 | 0.0 |
+| FDM | column | 95.43 / 99.19 / 97.54 / 97.08 | +2.7 / +5.9 / +4.9 / +3.8 | 0.0 |
+| FDM | surface | 97.96 / 105.07 / 102.31 / 100.73 | -0.8 / -1.6 / -1.3 / -1.0 | 0.0 |
+| 3D solid | column | 95.38 / 99.24 / 97.56 / 97.07 | +2.8 / +5.8 / +4.9 / +3.8 | 0.5 |
+| 3D solid | surface | 97.43 / 103.90 / 101.34 / 99.99 | -0.0 / -0.1 / -0.1 / -0.1 | 0.5 |
+| Analytic | column | 95.39 / 99.24 / 97.56 / 97.07 | +2.8 / +5.8 / +4.9 / +3.8 | 0.0 |
+| Analytic | surface | 97.92 / 105.12 / 102.32 / 100.72 | -0.7 / -1.6 / -1.4 / -1.0 | 0.0 |
+| Lumped | column | 95.65 / 98.40 / 97.29 / 96.76 | +2.4 / +6.9 / +5.2 / +4.2 | 0.0 |
+
+#### case 1a, thick plate (300 x 300 x 10 mm, k 10, h 10), cell 2.5 mm; printed centroids 84.97 / 108.43 degC (the paper prints the surface)
+| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+| :-- | :-- | :-- | :-- | --: |
+| FEM | column | 79.97 / 100.94 | +8.3 / +9.0 | 13.6 |
+| FEM | surface | 85.24 / 108.83 | -0.4 / -0.5 | 13.6 |
+| FVM | column | 80.09 / 101.11 | +8.1 / +8.8 | 0.1 |
+| FVM | surface | 85.51 / 109.24 | -0.9 / -1.0 | 0.1 |
+| FDM | column | 79.84 / 100.81 | +8.6 / +9.1 | 0.1 |
+| FDM | surface | 85.26 / 108.94 | -0.5 / -0.6 | 0.1 |
+| 3D solid | column | 80.13 / 101.18 | +8.1 / +8.7 | 4.4 |
+| 3D solid | surface | 85.45 / 109.15 | -0.8 / -0.9 | 4.4 |
+| Analytic | column | 80.09 / 101.12 | +8.1 / +8.8 | 0.1 |
+| Analytic | surface | 85.52 / 109.25 | -0.9 / -1.0 | 0.1 |
+| Lumped | column | 78.39 / 95.56 | +11.0 / +15.4 | 0.2 |
+
+#### case 1b, spreader (2 mm, k 350, on 10 mm, k 10), cell 2.5 mm; printed centroids 56.55 / 59.94 degC (the paper prints the surface)
+| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+| :-- | :-- | :-- | :-- | --: |
+| FEM | column | 56.51 / 59.89 | +0.1 / +0.1 | 51.4 |
+| FEM | surface | 56.54 / 59.94 | +0.0 / +0.0 | 51.4 |
+| FVM | column | 56.51 / 59.89 | +0.1 / +0.2 | 0.1 |
+| FVM | surface | 56.54 / 59.93 | +0.0 / +0.0 | 0.1 |
+| FDM | column | 56.47 / 59.86 | +0.2 / +0.2 | 0.1 |
+| FDM | surface | 56.50 / 59.90 | +0.1 / +0.1 | 0.1 |
+| 3D solid | - | not run: MemoryGuardError: the 3D solid (finite volumes) model would have 360000 unknowns and nee | | |
+| Analytic | column | 56.51 / 59.89 | +0.1 / +0.2 | 0.1 |
+| Analytic | surface | 56.54 / 59.93 | +0.0 / +0.0 | 0.1 |
+| Lumped | column | 56.58 / 59.07 | -0.1 / +2.5 | 0.2 |
+
+The Lumped has no surface map. A shortfall of the column read-out is the through-thickness term that one node per layer cannot hold (docs/validation.md 55.1).
+
+The FEM surface equals the paper's printed number on case 3 (80.61 °C), on case 2 (0.0 % on the four sources) and on case 1b (0.0 %), and reads 0.4 and 0.5 % above it on case 1a; the column read-outs of every model sit 1.6 to 1.7 % (case 3), 2.7 to 5.9 % (case 2) and 8.1 to 9.1 % (case 1a) below the paper for the FEM, FVM, FDM, 3D solid and Analytic (the Lumped 2.2, 2.4 to 6.9 and 11.0 / 15.4 %), the through-thickness term of one node (55.1). The 3D solid was refused on case 1b by the memory guard (360 000 unknowns at 2.5 mm).
+
+### 56.5 Thick plates and blocks
+
+Covered by the thick plates of 56.3 and 56.4 (the FEM surface within 0.5 % of the paper's rise on the 10 mm plates, the column below it by the stated through-thickness term, every model alike) and by `finned_block` of 56.1 (FEM 105.211 K at 1 mm: FVM -0.3 %, FDM -0.3 %, 3D solid +0.3 %, Analytic -0.4 %, Lumped +2.5 %; part mean within 0.7 % for the FVM, FDM, 3D solid and Analytic, the Lumped +2.8 %). **Not run in the FEM**: the thick-plate bound of `checks.check_thick_plates` against the independent finite elements, and the Lee plate of `test_t1_seri_lee_plate_through_the_block_model` (the FEM reads a block as its mean, so the maximum minus the mean is not a read-out of it).
+
+### 56.6 Thin copper boards
+
+Row C6 of `COMPARE_PLAN.md` (no difference beyond 1 % expected on the plain thin-copper boards) is a subset of the records of 56.1, not a separate run: on the 14 boards without a drawn feature or a bare pad window the FVM, FDM and 3D solid peaks are within 1.41, 2.40 and 2.16 % of the FEM at 1 mm and within 0.46, 0.51 and 0.77 % at 0.5 mm (56.1, summary table). So the 1 % of the plan holds at 0.5 mm and not at 1 mm; the largest at 1 mm are the FDM on `plate_vias` (+2.4 %) and the 3D solid on the example board (+2.2 %).
+
+### 56.7 Vias: the via effect against the independent finite elements
+
+#### hollow barrel (fill_k 0)
+| case | h_side | independent E K | cell mm | FVM E K (%) | FDM E K (%) | 3D solid E K (%) | FEM E K (%) |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| via 0.16 mm from the wall | 200 | 0.9852 | 1 | 1.0202 (+3.6) | 0.9215 (-6.5) | 1.2383 (+25.7) | 1.2149 (+23.3) |
+| via 0.16 mm from the wall | 200 | 0.9852 | 0.5 | 0.9859 (+0.1) | 0.9106 (-7.6) | 1.0810 (+9.7) | 1.0917 (+10.8) |
+| via 0.16 mm from the wall | 200 | 0.9852 | 0.25 | 0.9707 (-1.5) | 0.9501 (-3.6) | 1.0168 (+3.2) | 1.0245 (+4.0) |
+| via 3 mm from the wall | 200 | 1.4340 | 1 | 1.4759 (+2.9) | 1.3758 (-4.1) | 1.5478 (+7.9) | 1.4609 (+1.9) |
+| via 3 mm from the wall | 200 | 1.4340 | 0.5 | 1.4263 (-0.5) | 1.3789 (-3.8) | 1.4612 (+1.9) | 1.4464 (+0.9) |
+| via 3 mm from the wall | 200 | 1.4340 | 0.25 | 1.4039 (-2.1) | 1.3845 (-3.4) | 1.4513 (+1.2) | 1.4572 (+1.6) |
+| via 0.16 mm from the wall | 1000 | 0.4309 | 1 | 0.4231 (-1.8) | 0.3319 (-23.0) | 0.6997 (+62.4) | 0.5146 (+19.4) |
+| via 0.16 mm from the wall | 1000 | 0.4309 | 0.5 | 0.3923 (-9.0) | 0.3351 (-22.2) | 0.5420 (+25.8) | 0.4685 (+8.7) |
+| via 0.16 mm from the wall | 1000 | 0.4309 | 0.25 | 0.3761 (-12.7) | 0.3639 (-15.5) | 0.4723 (+9.6) | 0.4482 (+4.0) |
+| via 3 mm from the wall | 1000 | 0.6942 | 1 | 0.7046 (+1.5) | 0.5886 (-15.2) | 0.9206 (+32.6) | 0.6542 (-5.8) |
+| via 3 mm from the wall | 1000 | 0.6942 | 0.5 | 0.6584 (-5.2) | 0.5992 (-13.7) | 0.7898 (+13.8) | 0.6812 (-1.9) |
+| via 3 mm from the wall | 1000 | 0.6942 | 0.25 | 0.6340 (-8.7) | 0.6240 (-10.1) | 0.7404 (+6.7) | 0.7033 (+1.3) |
+| 3 x 3 array | 200 | 5.0909 | 1 | 5.2272 (+2.7) | 4.9599 (-2.6) | 5.1544 (+1.2) | 5.5478 (+9.0) |
+| 3 x 3 array | 200 | 5.0909 | 0.5 | 5.1168 (+0.5) | 4.9734 (-2.3) | 5.1211 (+0.6) | 5.2073 (+2.3) |
+| 3 x 3 array | 200 | 5.0909 | 0.25 | 5.0572 (-0.7) | 4.9985 (-1.8) | 5.1548 (+1.3) | 5.1702 (+1.6) |
+| 3 x 3 array | 1000 | 2.6317 | 1 | 2.7188 (+3.3) | 2.2899 (-13.0) | 3.2334 (+22.9) | 2.8601 (+8.7) |
+| 3 x 3 array | 1000 | 2.6317 | 0.5 | 2.5460 (-3.3) | 2.3293 (-11.5) | 2.9237 (+11.1) | 2.6405 (+0.3) |
+| 3 x 3 array | 1000 | 2.6317 | 0.25 | 2.4580 (-6.6) | 2.3944 (-9.0) | 2.7911 (+6.1) | 2.6454 (+0.5) |
+
+#### copper core (fill_k 385)
+| case | h_side | independent E K | cell mm | FVM E K (%) | FDM E K (%) | 3D solid E K (%) | FEM E K (%) |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| via 0.16 mm from the wall | 200 | 1.5759 | 1 | 1.6084 (+2.1) | 1.4342 (-9.0) | 2.0572 (+30.5) | 2.1325 (+35.3) |
+| via 0.16 mm from the wall | 200 | 1.5759 | 0.5 | 1.5565 (-1.2) | 1.4035 (-10.9) | 1.7199 (+9.1) | 1.7921 (+13.7) |
+| via 0.16 mm from the wall | 200 | 1.5759 | 0.25 | 1.5332 (-2.7) | 1.4941 (-5.2) | 1.5872 (+0.7) | 1.6231 (+3.0) |
+| via 3 mm from the wall | 200 | 2.5288 | 1 | 2.5987 (+2.8) | 2.4290 (-3.9) | 2.7626 (+9.2) | 2.5952 (+2.6) |
+| via 3 mm from the wall | 200 | 2.5288 | 0.5 | 2.5148 (-0.6) | 2.4336 (-3.8) | 2.5539 (+1.0) | 2.5500 (+0.8) |
+| via 3 mm from the wall | 200 | 2.5288 | 0.25 | 2.4766 (-2.1) | 2.4430 (-3.4) | 2.5436 (+0.6) | 2.5548 (+1.0) |
+| via 0.16 mm from the wall | 1000 | 0.6821 | 1 | 0.6724 (-1.4) | 0.5206 (-23.7) | 1.1710 (+71.7) | 0.8966 (+31.5) |
+| via 0.16 mm from the wall | 1000 | 0.6821 | 0.5 | 0.6246 (-8.4) | 0.5204 (-23.7) | 0.8649 (+26.8) | 0.7620 (+11.7) |
+| via 0.16 mm from the wall | 1000 | 0.6821 | 0.25 | 0.5992 (-12.2) | 0.5770 (-15.4) | 0.7367 (+8.0) | 0.7030 (+3.1) |
+| via 3 mm from the wall | 1000 | 1.2249 | 1 | 1.2471 (+1.8) | 1.0437 (-14.8) | 1.6560 (+35.2) | 1.1833 (-3.4) |
+| via 3 mm from the wall | 1000 | 1.2249 | 0.5 | 1.1670 (-4.7) | 1.0624 (-13.3) | 1.3904 (+13.5) | 1.2046 (-1.7) |
+| via 3 mm from the wall | 1000 | 1.2249 | 0.25 | 1.1240 (-8.2) | 1.1050 (-9.8) | 1.3063 (+6.6) | 1.2310 (+0.5) |
+| 3 x 3 array | 200 | 6.2833 | 1 | 6.3330 (+0.8) | 6.0453 (-3.8) | 6.1998 (-1.3) | 6.8266 (+8.6) |
+| 3 x 3 array | 200 | 6.2833 | 0.5 | 6.2126 (-1.1) | 6.0621 (-3.5) | 6.1902 (-1.5) | 6.3783 (+1.5) |
+| 3 x 3 array | 200 | 6.2833 | 0.25 | 6.1523 (-2.1) | 6.0935 (-3.0) | 6.2586 (-0.4) | 6.3089 (+0.4) |
+| 3 x 3 array | 1000 | 3.2928 | 1 | 3.3736 (+2.5) | 2.8482 (-13.5) | 3.9442 (+19.8) | 3.6137 (+9.7) |
+| 3 x 3 array | 1000 | 3.2928 | 0.5 | 3.1612 (-4.0) | 2.8966 (-12.0) | 3.6009 (+9.4) | 3.3113 (+0.6) |
+| 3 x 3 array | 1000 | 3.2928 | 0.25 | 3.0543 (-7.2) | 2.9714 (-9.8) | 3.4530 (+4.9) | 3.2908 (-0.1) |
+
+The FVM and FDM rows reproduce the errors printed in `research/independent-fem-extensions` README 8.1 to the digit (FVM +3.6 / +0.1 / -1.5 % for the via 0.16 mm from the wall at 200 W/m²K, FDM -6.5 / -7.6 / -3.6 %), so the script and the board are the study's. The FEM via effect at 0.25 mm is +4.0, +1.6, +4.0, +1.3, +1.6 and +0.5 % of the independent value for the hollow barrel (via 0.16 mm and 3 mm from the wall at 200 W/m²K, the same at 1000, the 3 x 3 array at 200 and 1000), and the array at 0.5 mm is +2.3 and +0.3 %; at 1 mm it is up to +23.3 % (the barrel next to the wall). At 0.25 mm and 1000 W/m²K the FEM is the closest of the four to the independent value in all three geometries (+4.0, +1.3 and +0.5 % against the FVM's -12.7, -8.7 and -6.6 %, the FDM's -15.5, -10.1 and -9.0 %, the 3D solid's +9.6, +6.7 and +6.1 %); at 200 W/m²K the FVM is closer for the barrel next to the wall and the array (-1.5 and -0.7 % against +4.0 and +1.6 %) and the 3D solid for the barrel 3 mm from the wall (+1.2 against +1.6 %). The FEM error falls with the cell and is on the hot side for the barrel next to the wall and for the array (the barrel next to the wall at 200 W/m²K: +23.3 / +10.8 / +4.0 % at 1 / 0.5 / 0.25 mm), but not everywhere (review: the barrel 3 mm from the wall at 1000 W/m²K is -5.8 / -1.9 / +1.3 % and at 200 W/m²K +1.9 / +0.9 / +1.6 %, so it crosses the reference or is not monotone; the copper core behaves the same: -3.4 / -1.7 / +0.5 %). The copper core at 0.25 mm and 1000 W/m²K confirms the ranking (FEM +3.1, +0.5, -0.1 %; FVM -12.2, -8.2, -7.2 %; FDM -15.4, -9.8, -9.8 %; 3D solid +8.0, +6.6, +4.9 %). The independent values are quoted from the committed README of `research/independent-fem-extensions` (8.1, its mesh sequences and orders), reviewed there; they do not depend on the program, and the FVM and FDM rows reproduce that study's errors to the digit, which shows the boards are the same. The Lumped and Analytic via effects are in the README of that study, not repeated.
+
+### 56.8 The cooled edge: the strong-edge plate
+
+The plate: 10 x 10 mm, four layers, 1.6 mm, 35 um copper to the wall, h_top 10, h_bottom 200 W/m2K, a 0.5 W part of 3 x 2 mm; finite-element limits (quoted): {200.0: 36.981, 1000.0: 24.332}
+| h_side W/m2K | cell mm | FVM rise K (% of the limit) | FDM rise K (% of the limit) | 3D solid rise K (% of the limit) | FEM rise K (% of the limit) |
+| --: | --: | --: | --: | --: | --: |
+| 200 | 0.5 | 36.969 (-0.0) | 36.450 (-1.4) | 37.763 (+2.1) | 36.580 (-1.1) |
+| 200 | 0.25 | 36.772 (-0.6) | 36.573 (-1.1) | 37.301 (+0.9) | 36.846 (-0.4) |
+| 500 | 0.5 | 29.008 | 28.070 | 30.831 | 28.572 |
+| 500 | 0.25 | 28.655 | 28.305 | 29.873 | 28.943 |
+| 1000 | 0.5 | 23.852 (-2.0) | 22.787 (-6.4) | 26.677 (+9.6) | 23.624 (-2.9) |
+| 1000 | 0.25 | 23.476 (-3.5) | 23.085 (-5.1) | 25.389 (+4.3) | 24.064 (-1.1) |
+| 2000 | 0.5 | 19.765 | 18.823 | 23.595 | 20.002 |
+| 2000 | 0.25 | 19.463 | 19.132 | 22.153 | 20.477 |
+
+Against the finite-element limits quoted from `research/independent-fem-edge` README 3(a) (36.981 and 24.332 K, the point maximum of the top face; the program reads the hottest cell mean), the FEM at 0.25 mm is -0.4 % (200 W/m²K) and -1.1 % (1000), the FVM -0.6 and -3.5 %, the FDM -1.1 and -5.1 %, the 3D solid +0.9 and +4.3 %; the FVM and FDM numbers are those of section 46 and `tests/test_published_cases.py`. The FEM is the nearest of the four at 0.25 mm at both films; at 0.5 mm the FVM is nearer (-0.0 against -1.1 % at 200 W/m²K, -2.0 against -2.9 % at 1000). Edge boards of the frozen suite (`drawn_*`): 56.1.2.
+
+### 56.9 What the campaign did not do
+
+The independent finite elements were not re-run (their numbers are quoted); the Lumped and Analytic via effect was not repeated; `round_outline` and the large boards at 0.5 mm have no FEM record; the Lee plate and the thick-plate bound were not run in the FEM; no cell finer than 0.25 mm was run; no number was compared with a measurement of a physical board. The proposals that follow from the findings are in `releases/2.9.0/fem-campaign/INTEGRATION.md`. Cost of the records (1 mm, one machine, seconds and unknowns, from the last table of `tables/c1_steady_all_models.md`): the example board FVM 0.3 s (39 052), 3D solid 6.4 s (128 000), FEM 11.3 s (275 724); the plate boards FVM 0.0 s, FEM 1.6 to 2.1 s (about 52 000 unknowns).
+
+
+## 57. The FEM transient: the published case and the board-level comparison
+
+One published transient case is reproduced: the NAFEMS one-dimensional transient T3 (a bar with a sinusoidal end temperature), 36.60 degC at 0.08 m after 32 s. The NAFEMS publication itself was not obtained; the case and the value were read in four open verification documents that quote it (MOOSE, Abaqus, Altair OptiStruct, Wolfram), two of them with their input files. The exact value is 36.6031 degC (an eigenfunction series and, independently, the method of lines); the program's FEM gives 36.6106 with 100 elements and 36.6050 with 200, and on the five- and ten-element meshes of MOOSE it equals MOOSE's published results to 1e-5 K. The FVM, FDM and Analytic transients cannot hold a prescribed time-varying temperature and did not run T3; on a plate with held edges and a power step they meet an exact series (Analytic 0.01 %, FVM and FDM 0.1 to 0.4 % with fine steps). No published transient case with a heat source on a board could be opened.
+
+**Tree and references.** The program of `development` 7886ac42 (this branch changes no file of `pcbthermal/`; numbers printed on its commits 0fbabbec and later), the default stepping of 2.9.0 in every model (Crank-Nicolson with the Rannacher start, the first logarithmic stage in quarter steps; for the FEM the same). References: the exact series and the method of lines (`research/transient-published-case/lib/exact1d.py`, importing nothing from the program), the published mesh results of MOOSE and Abaqus, the exact Robin double series of a plate, the closed form of a flux step on a semi-infinite solid (Lienhard, eqn 5.56, [Lienhard-AHTT]), and the program's own FEM with finer steps or a finer gap mesh. The independent finite-element transient tool of `research/independent-fem-extensions` is quoted, not re-run. Scripts: `releases/2.9.0/fem-campaign/scripts/study_compare_t0.py` to `t3.py`; the tables are in `releases/2.9.0/fem-campaign/tables/`. The 3D solid has no time simulation; the Lumped and Analytic have none with a metal block or an outline.
+
+### 57.0 The published case NAFEMS T3 and the plate with held edges (tree 0fbabbec)
+
+```
+A1 exact series (4000 / 20000 terms): 36.603116 / 36.603116 degC; published 36.6; difference +0.0031
+A1b method of lines (Radau, tol 1e-11), 200 / 400 intervals: 36.601236 / 36.602646; Richardson limit 36.603116 degC (independent of the series)
+A2 FEM, Crank-Nicolson, 3200 steps, elements -> T(0.08, 32), error vs exact
+   n=  20    36.7969   +0.1938
+   n=  50    36.6333   +0.0302
+   n= 100    36.6106   +0.0075
+   n= 200    36.6050   +0.0019
+   n= 400    36.6036   +0.0005
+A3 FEM, n = 100, steps -> CN and implicit Euler
+   steps=  100  CN   36.6090 ( +0.0059)   Euler   36.4515 ( -0.1516)
+   steps=  400  CN   36.6105 ( +0.0074)   Euler   36.5708 ( -0.0323)
+   steps= 1600  CN   36.6106 ( +0.0075)   Euler   36.6007 ( -0.0024)
+   steps= 3200  CN   36.6106 ( +0.0075)   Euler   36.6057 ( +0.0025)
+A4 FEM, n = 100, 3200 steps, held end as film h
+   h=   1e+04    30.2580   -6.3451
+   h=   1e+06    36.5408   -0.0623
+   h=   1e+10    36.6106   +0.0075
+A5 published mesh results, 5 / 10 linear elements, 32 implicit-Euler steps of 1 s
+   n=  5  MOOSE EDGE2 40.280676: program FEM 40.280668 (-8.2e-06), own 1D consistent 40.280676;  Abaqus DC1D2 34.54: own 1D lumped 34.5383
+   n= 10  MOOSE EDGE2 36.893145: program FEM 36.893138 (-7.1e-06), own 1D consistent 36.893145;  Abaqus DC1D2 35.51: own 1D lumped 35.5063
+```
+
+The exact value is 36.603116 °C; the program's FEM reads 36.6106 (100 elements, 3 200 Crank-Nicolson steps), 36.6050 (200) and 36.6036 (400), implicit Euler 36.6057 at 3 200 steps; the five- and ten-element meshes give 40.280668 and 36.893138 against MOOSE's published 40.280676 and 36.893145 (differences -8.2e-06 and -7.1e-06 K, the penalty film of 1e10 W/m²K). The FVM, FDM and Analytic cannot hold a time-varying temperature and did not run T3.
+
+A held-edge plate with a power step is their representable neighbour (the 0.1 m plate of the bar's material, 10 W uniform, edge film 1e5 W/m²K, run to 92 s, 20 frames, default stepping; largest error of the centre column temperature after 10 s against the exact Robin double series):
+
+   largest relative error of the centre column temperature over the frames after 10 s, against the exact Robin double series
+| model | 5 mm | 2.5 mm | 1.25 mm |
+| :-- | --: | --: | --: |
+| FVM | 0.54 % | 0.46 % | 0.43 % |
+| FDM | 0.31 % | 0.36 % | 0.41 % |
+| FEM | 0.32 % | 0.40 % | 0.42 % |
+| Analytic | 0.00 % | 0.01 % | 0.01 % |
+
+The FVM, FDM and FEM differ from the series by 0.3 to 0.5 % at every cell and do not improve with it: it is the 20-frame logarithmic grid of the default stepping and not the model. **Measured by the review on this tree with the 2.9.0 default (Crank-Nicolson, Rannacher start; `study_compare_t0.py --stepping`, table B1 of `tables/t0_published_case_and_plate.md`)**: the largest error falls on the last, longest steps (91.8 s; the FEM at 68.8 s), and the same runs with 40 linear frames of 16 steps read FVM -0.036 / -0.013 %, FDM -0.080 / -0.023 % at 2.5 / 1.25 mm and FEM -0.034 % at 2.5 mm, against the default's +0.456 / +0.435, +0.363 / +0.412 and +0.398 %. (`substeps` does not act on a logarithmic grid, one step per frame there, as its docstring says.) The earlier measurement of `research/transient-published-case` part B (0.01 and 0.02 % at 1.25 mm) was made on the 2.8.0 stepping and is confirmed here at the new default. The Analytic is within 0.01 %. *The research study's own part B prints two lines per model labelled implicit Euler and Crank-Nicolson; since 2.9.0 the default of the program is Crank-Nicolson with the start, so those two lines print the same digits (this campaign runs the default only).*
+
+### 57.1 Step response (tree 0fbabbec; `study_compare_t1.py`)
+
+Hottest column cell under each part, K/W, the program's `api.step_response` at the response cell (at least 2 mm), the five models against the FEM. The difference of a normalised response z(t)/plateau is in points of the plateau, so that a steady difference of the same mesh (56) does not hide the law in time.
+
+plate_uniform, part U: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 26.2815 | +0.0 | 20.5 | +0.0 | - | - | - | - | - | - | 3.5 |
+| FVM | 26.8105 | +2.0 | 19.1 | -6.6 | -12.5 | -8.2 | -2.3 | +0.6 | +0.5 | +0.3 | 0.0 |
+| FDM | 26.8105 | +2.0 | 19.1 | -6.6 | -12.5 | -8.2 | -2.3 | +0.6 | +0.5 | +0.3 | 0.0 |
+| Lumped | 27.3259 | +4.0 | 17.8 | -12.8 | -10.6 | -6.9 | -1.5 | +1.4 | +1.1 | +0.6 | 0.0 |
+| Analytic | 26.8164 | +2.0 | 19.2 | -6.0 | -12.2 | -7.9 | -2.3 | +0.6 | +0.5 | +0.3 | 0.1 |
+
+
+plate_vias, part U: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 21.7251 | +0.0 | 32.9 | +0.0 | - | - | - | - | - | - | 3.5 |
+| FVM | 22.5629 | +3.9 | 29.5 | -10.4 | -3.6 | -0.8 | +0.8 | +1.6 | +1.3 | +0.7 | 0.1 |
+| FDM | 21.7009 | -0.1 | 33.3 | +1.0 | -4.8 | -3.3 | -1.6 | -0.3 | -0.1 | -0.0 | 0.1 |
+| Lumped | 22.2278 | +2.3 | 31.3 | -4.9 | -2.7 | -0.6 | +0.5 | +1.0 | +0.6 | +0.4 | 0.0 |
+| Analytic | 22.1881 | +2.1 | 31.4 | -4.8 | -3.8 | -1.6 | -0.2 | +0.8 | +0.6 | +0.4 | 0.1 |
+
+
+one_layer_pad, part U: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 65.3031 | +0.0 | 59.3 | +0.0 | - | - | - | - | - | - | 1.9 |
+| FVM | 70.5649 | +8.1 | 58.8 | -0.8 | -5.3 | -4.0 | -1.9 | -0.5 | -0.1 | +0.3 | 0.2 |
+| FDM | 64.6830 | -0.9 | 58.7 | -1.0 | -4.9 | -3.0 | -0.2 | +0.7 | +0.4 | +0.2 | 0.3 |
+| Lumped | 62.4166 | -4.4 | 57.2 | -3.6 | -1.2 | +0.8 | +1.7 | +1.8 | +1.4 | +0.6 | 0.0 |
+| Analytic | 45.8633 | -29.8 | 19.4 | -67.2 | -5.7 | -2.1 | +8.1 | +21.7 | +25.2 | +11.4 | 0.0 |
+
+
+part_top_path, part Q1: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 45.2412 | +0.0 | 15.9 | +0.0 | - | - | - | - | - | - | 2.3 |
+| FVM | 47.9116 | +5.9 | 14.5 | -9.0 | -9.0 | -4.8 | -0.9 | +1.2 | +1.4 | +0.7 | 0.2 |
+| FDM | 43.5832 | -3.7 | 17.3 | +8.6 | -7.7 | -3.6 | -1.8 | -1.4 | -1.0 | -0.5 | 0.2 |
+| Lumped | 43.8516 | -3.1 | 17.2 | +7.9 | -7.7 | -5.1 | -3.0 | -1.4 | -1.0 | -0.4 | 0.0 |
+| Analytic | 35.9270 | -20.6 | 19.3 | +21.3 | -5.4 | +1.2 | +5.2 | +1.4 | -4.7 | -3.5 | 0.1 |
+
+   finned_block Lumped: not run (ValueError: this calculation does not support a metal block (the transient of the lumped and analytic )
+   finned_block Analytic: not run (ValueError: this calculation does not support a metal block (the transient of the lumped and analytic )
+
+finned_block, part U: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 17.3498 | +0.0 | 14.6 | +0.0 | - | - | - | - | - | - | 5.3 |
+| FVM | 17.4479 | +0.6 | 15.3 | +4.6 | -13.3 | -11.5 | -4.9 | -0.9 | +0.1 | +0.1 | 0.0 |
+| FDM | 17.4471 | +0.6 | 15.3 | +4.5 | -13.3 | -11.5 | -4.9 | -0.9 | +0.1 | +0.1 | 0.1 |
+| Lumped | - | - | - | - | - | - | - | - | - | - | 0.0 |
+| Analytic | - | - | - | - | - | - | - | - | - | - | 0.0 |
+
+
+reference_board, part 1: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 12.9798 | +0.0 | 18.7 | +0.0 | - | - | - | - | - | - | 17.1 |
+| FVM | 13.0138 | +0.3 | 18.7 | +0.1 | -8.3 | -10.1 | -5.8 | -0.6 | +0.1 | +0.1 | 0.3 |
+| FDM | 13.0135 | +0.3 | 18.7 | +0.1 | -8.3 | -10.1 | -5.8 | -0.6 | +0.1 | +0.1 | 0.3 |
+| Lumped | 13.1587 | +1.4 | 17.6 | -5.9 | -6.2 | -6.6 | -3.0 | +0.9 | +0.8 | +0.2 | 0.0 |
+| Analytic | 13.0181 | +0.3 | 18.8 | +0.7 | -8.3 | -10.1 | -5.8 | -0.6 | +0.0 | -0.0 | 0.1 |
+
+
+example_board, part U1: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 13.1838 | +0.0 | 11.6 | +0.0 | - | - | - | - | - | - | 175.2 |
+| FVM | 13.6166 | +3.3 | 10.5 | -9.2 | -1.7 | +1.1 | +1.3 | +0.9 | +0.7 | +0.4 | 1.5 |
+| FDM | 13.4385 | +1.9 | 11 | -5.2 | -2.2 | +0.5 | +0.7 | +0.5 | +0.4 | +0.2 | 1.5 |
+| Lumped | 13.7691 | +4.4 | 8.81 | -24.0 | +0.9 | +2.8 | +3.1 | +2.5 | +1.9 | +0.7 | 0.0 |
+| Analytic | 13.4741 | +2.2 | 10.1 | -12.6 | -1.9 | +0.8 | +1.5 | +1.3 | +0.6 | +0.1 | 5.2 |
+
+example_board, part U2: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 20.5624 | +0.0 | 2.47 | +0.0 | - | - | - | - | - | - | 175.2 |
+| FVM | 21.0295 | +2.3 | 2.3 | -6.9 | -3.9 | -0.1 | +0.6 | +0.6 | +0.4 | +0.2 | 1.5 |
+| FDM | 20.2918 | -1.3 | 2.67 | +8.0 | -5.3 | -1.5 | -0.5 | -0.3 | -0.2 | -0.1 | 1.5 |
+| Lumped | 21.5215 | +4.7 | 1.93 | -22.0 | -1.5 | +1.2 | +2.3 | +2.4 | +2.0 | +0.9 | 0.0 |
+| Analytic | 20.9288 | +1.8 | 2.14 | -13.4 | -3.1 | +0.5 | +1.3 | +1.1 | +0.5 | +0.1 | 5.2 |
+
+Stepping error of each model against itself (`per_stage` 4 against 16 on the same 2 mm mesh; the read-out is the hottest column cell under the part):
+
+| board | model | t63 default s | t63 fine s | change of t63 % | largest change of z over 0.3, 1, 3, 10, 30, 100 s [%] |
+| :-- | :-- | --: | --: | --: | --: |
+| plate_uniform | FVM | 19.1 | 19.3 | -0.83 | 0.22 |
+| plate_uniform | FDM | 19.1 | 19.3 | -0.83 | 0.22 |
+| plate_uniform | FEM | 20.5 | 20.6 | -0.80 | 0.20 |
+| finned_block | FVM | 15.3 | 15.4 | -0.72 | 0.24 |
+| finned_block | FDM | 15.3 | 15.4 | -0.72 | 0.24 |
+| finned_block | FEM | 14.6 | 14.7 | -0.71 | 0.20 |
+| reference_board | FVM | 18.7 | 18.9 | -0.77 | 0.19 |
+| reference_board | FDM | 18.7 | 18.9 | -0.77 | 0.19 |
+| reference_board | FEM | 18.7 | 18.8 | -0.67 | 0.15 |
+
+
+
+The plate at the 1 mm cell:
+
+Normalised response z(t)/plateau, model minus FEM, in points of the plateau:
+
+| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | z(0.3 s) | z(1 s) | z(3 s) | z(10 s) | z(30 s) | z(100 s) | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 26.8013 | +0.0 | 19 | +0.0 | - | - | - | - | - | - | 28.9 |
+| FVM | 26.9032 | +0.4 | 18.8 | -1.0 | -12.9 | -8.6 | -2.9 | -0.0 | +0.0 | +0.0 | 0.2 |
+| FDM | 26.9032 | +0.4 | 18.8 | -1.0 | -12.9 | -8.6 | -2.9 | -0.0 | +0.0 | +0.0 | 0.2 |
+
+
+
+**Reading.** (1) The default stepping error is small and the same in the three cell models: the time to 63 % moves by -0.83 / -0.72 / -0.77 % (FVM and FDM on the plate, the finned block, the reference board) and -0.80 / -0.71 / -0.67 % (FEM) with four times the steps, the response at fixed times by at most 0.24 %. So the differences between models below are model differences and the first seconds, not stepping. (2) From 10 s on the normalised responses of the FVM and FDM agree with the FEM's within 1.6 points of the plateau on every board of the table (largest: the FVM on `plate_vias` +1.6 at 10 s, the FDM on `part_top_path` -1.4); in the first seconds the layered models are below the FEM by up to 12.5 to 13.3 points at 0.3 s on the plate and the finned block (the one node per copper layer, 57.3). (3) The plateau is the steady difference of 56 at the same cell (the plate +2.0 % at 2 mm, +0.4 % at 1 mm). (4) The time to 63 % differs from the FEM's by -6.6 % (FVM and FDM, plate, 2 mm), -1.0 % at 1 mm, +0.1 % on the reference board, -9.2 / -5.2 % (FVM / FDM) for the example board's U1, and -24.0 / -22.0 % for the Lumped on the example board; this is the spread that `releases/2.9.0/fem-transient/DESIGN.md` 15 announced (-5 to +15 %, a 0.7 % difference of the normalised response near 63 % turning into about 7 % of time); it shrinks with the cell (the plate: -6.6 % at 2 mm, -1.0 % at 1 mm) and, by (1), is not the stepping. (5) The Analytic is off on `one_layer_pad` (plateau -29.8 %, time to 63 % -67.2 %): the pad board of 56.1.1, warned. (6) The FEM step response of the example board at 2 mm took 175 s on this machine (67 229 unknowns, direct, two parts as two right-hand sides; the review measured 174.7 s with the machine otherwise quiet), 3.5 s on the plate, 28.9 s on the plate at 1 mm; the FVM 1.5 s and the FDM 1.5 s on the example board.
+
+### 57.2 Profiles (tree 0fbabbec; `study_compare_t2.py`)
+
+The regime is forced to 'resolved' (so that the average-or-resolve decision does not hide the wave) and the program's default profile options are used. Reference: the FEM of the same cell with 8 times the steps per period (it removes the stepping error, not the model error). The read-out is the hottest column cell under the part in the last window; the curve difference is the largest difference over the window at the model's own sample times, as a share of the reference swing (the reference interpolated periodically).
+
+#### plate, slow wave: period 100 s, duty 0.5, 6 windows, cell 2 mm; part peak = hottest column cell under the part, last window
+reference: FEM, 160 steps per period (8 times the rule), peak 244.6496 degC, swing 157.5945 K, 1.9 s
+| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 20 | 244.1413 | -0.5082 | 156.5621 | -0.7 | 6.5 | 0.5 |
+| FEM, 12 elements across a gap | 20 | 244.1508 | -0.4987 | 156.5786 | -0.6 | 6.4 | 1.4 |
+| FVM | 20 | 243.6709 | -0.9787 | 155.8953 | -1.1 | 12.9 | 0.0 |
+| FDM | 20 | 243.6181 | -1.0314 | 155.8320 | -1.1 | 12.9 | 0.0 |
+| Lumped | 20 | 252.9312 | +8.2817 | 165.0522 | +4.7 | 13.4 | 0.0 |
+| Analytic | 20 | 246.7801 | +2.1306 | 159.4234 | +1.2 | 1.6 | 0.1 |
+
+#### plate, fast wave (20 Hz): period 0.05 s, duty 0.3, 12 windows, cell 1 mm; part peak = hottest column cell under the part, last window
+reference: FEM, 272 steps per period (8 times the rule), peak 113.1603 degC, swing 5.0083 K, 36.0 s
+| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 34 | 113.0688 | -0.0915 | 4.8977 | -2.2 | 0.4 | 6.5 |
+| FEM, 12 elements across a gap | 34 | 113.8361 | +0.6758 | 6.0734 | +21.3 | 15.0 | 16.3 |
+| FVM | 34 | 110.9729 | -2.1874 | 0.7464 | -85.1 | 42.1 | 0.2 |
+| FDM | 34 | 110.9689 | -2.1914 | 0.7464 | -85.1 | 42.2 | 0.2 |
+| Lumped | 34 | 113.0571 | -0.1032 | 1.2621 | -74.8 | 72.7 | 0.0 |
+| Analytic | 34 | 110.8056 | -2.3547 | 0.7465 | -85.1 | 45.5 | 0.4 |
+independent reference of this wave (axisymmetric stack solver of research/fast-wave-oscillation README 1, quoted, not re-run): swing 6.3 K (the program's closed form of the decision 6.35 K against 6.37 K)
+
+#### example board, first part on a 20 s wave: period 20 s, duty 0.5, 4 windows, cell 2 mm; part peak = hottest column cell under the part, last window
+reference: FEM, 160 steps per period (8 times the rule), peak 72.6325 degC, swing 29.9381 K, 38.9 s
+| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| FEM | 20 | 72.4734 | -0.1591 | 29.6278 | -1.0 | 7.7 | 21.0 |
+| FVM | 20 | 74.2066 | +1.5741 | 31.3553 | +4.7 | 12.4 | 0.2 |
+| FDM | 20 | 73.4707 | +0.8382 | 30.4876 | +1.8 | 12.1 | 0.1 |
+| Lumped | 20 | 75.9997 | +3.3672 | 32.8371 | +9.7 | 13.9 | 0.1 |
+| Analytic | 20 | 73.9355 | +1.3030 | 31.8369 | +6.3 | 4.4 | 2.5 |
+
+**Reading.** (1) Slow waves (a 100 s wave on the plate and a 20 s wave on the example board): the FEM, FVM and FDM peaks are within 1.1 K of the converged FEM peak on the plate (-0.5, -1.0, -1.0 K), the Analytic +2.1 K and the Lumped +8.3 K, and the swings are -0.7, -1.1, -1.1, +1.2 and +4.7 % (FEM, FVM, FDM, Analytic, Lumped); on the example board the FEM is -0.16 K and -1.0 % of its converged reference, the FDM +0.84 K and +1.8 %, the FVM +1.57 K and +4.7 %, the Analytic +1.30 K and +6.3 %, the Lumped +3.37 K and +9.7 %. The curve differences are 6.4 to 13.4 % of the swing on the plate (1.6 % for the Analytic) and 7.7 to 13.9 % on the example board (4.4 % for the Analytic); the FEM against its own fine run is 6.5 and 7.7 %, so most of it is probably the coarse steps at the edges of the wave (20 steps per period, the program's own rule), which was not separated further. (2) **A fast wave (20 Hz, 30 %, 10 W on a 10 mm part of the 60 x 40 mm board) is the stated limit**: the FVM, FDM and Analytic swing is 0.75 K, the Lumped 1.26 K, the FEM at the default mesh 4.90 K (-2.2 % of its own converged-in-time swing, 5.01 K), the FEM with 12 elements across a gap 6.07 K; the independent axisymmetric solver of `research/fast-wave-oscillation` gives 6.3 K (quoted), so the FEM at the default mesh is 22 % below it and with 12 elements 3.6 % below it: the FEM resolves the thickness, the layered models cannot, and the default mesh is not fine enough for 20 Hz (the penetration depth in the laminate at 20 Hz is about 53 µm against a first element of 175 µm); the program's closed form for the decision (`stackimpedance`) is what covers this wave in a normal run (section 37), not the resolved FEM, and `checks.check_fast_wave` warns. (3) The reference is not the truth: the FEM against its own 8x steps is 2.2 % low on the fast swing, in line with the 0.5 to 3.5 % of the research.
+
+### 57.3 The first seconds (tree 0fbabbec; `study_compare_t3.py`)
+
+#### T3a. plate_uniform, 8 mm part of 5 W, response cell 2 mm; hottest column cell under the part, K/W at the sample time nearest to the nominal time; % = model against the FEM (6 gap elements)
+| nominal t s | sample t s (FEM) | FEM 6 gap elements | FEM 12 gap elements (% vs 6) | FVM (%) | FDM (%) | Lumped (%) | Analytic (%) |
+| --: | --: | --: | --: | --: | --: | --: | --: |
+| 0.1 | 0.113 | 4.137 | 4.197 (+1.4) | 1.235 (-70.2) | 1.235 (-70.2) | 1.692 (-59.1) | 1.254 (-69.7) |
+| 0.3 | 0.34 | 6.493 | 6.519 (+0.4) | 3.319 (-48.9) | 3.319 (-48.9) | 3.901 (-39.9) | 3.401 (-47.6) |
+| 1 | 1.02 | 9.067 | 9.079 (+0.1) | 7.089 (-21.8) | 7.089 (-21.8) | 7.556 (-16.7) | 7.151 (-21.1) |
+| 3 | 3.06 | 11.772 | 11.776 (+0.0) | 11.422 (-3.0) | 11.422 (-3.0) | 11.842 (+0.6) | 11.429 (-2.9) |
+| 10 | 9.18 | 14.559 | 14.559 (+0.0) | 15.006 (+3.1) | 15.006 (+3.1) | 15.494 (+6.4) | 14.996 (+3.0) |
+
+plateau K/W: FEM 26.281, FVM 26.810, FDM 26.810, Lumped 27.326, Analytic 26.816, FEM 12 gap elements 26.282
+
+#### T3b. board without copper (60 x 60 mm, laminate k 0.3 W/mK, rho c 1.665e+06 J/m3K, thickness 1.53 mm, 8 mm part), hottest column cell under the part (the top layer, here laminate), K/W (review: the script's caption said 'surface of the part', which is not what `step_responses` reads)
+closed form z(t) = 2 sqrt(t/pi) / (e A), e = 706.8 W s^0.5/m2K, A = 64 mm2; holds for t below about 0.3 thickness^2/alpha = 3.9 s and while the penetration sqrt(alpha t) is below the source size
+| nominal t s | sample t s | closed form | FEM 6 (%) | FEM 12 (%) | FVM (%) | FDM (%) |
+| --: | --: | --: | --: | --: | --: | --: |
+| 0.1 | 0.104 | 8.039 | 6.901 (-14.2) | 7.127 (-11.3) | 3.902 (-51.5) | 3.902 (-51.5) |
+| 0.3 | 0.312 | 13.924 | 12.758 (-8.4) | 12.920 (-7.2) | 9.905 (-28.9) | 9.905 (-28.9) |
+| 1 | 0.935 | 24.117 | 22.775 (-5.6) | 22.902 (-5.0) | 21.119 (-12.4) | 21.119 (-12.4) |
+| 3 | 2.8 | 41.772 | 39.665 (-5.0) | 39.757 (-4.8) | 38.797 (-7.1) | 38.797 (-7.1) |
+| 10 | 10.5 | 80.891 | 72.898 (-9.9) | 72.997 (-9.8) | 72.864 (-9.9) | 72.864 (-9.9) |
+
+The same runs against the closed form of what the models read (review, tree 721bf828, the program of 7886ac42; `study_compare_t3.py --part b`):
+
+#### T3c. the same runs against the closed form of the read-out (review): mean over the top 35 um layer, top film h 10 W/m2K, in-plane k 0.9 W/mK
+each factor is a ratio to the plain face value: layer mean = mean of 2 q sqrt(alpha t)/k ierfc(z / 2 sqrt(alpha t)) over 0 < z < t_cu (Carslaw and Jaeger 2.9); film = (1 - exp(b^2) erfc(b)) / (2 b / sqrt(pi)) with b = h sqrt(t)/e (Lienhard eqn 5.56 family); spreading = the centre of a square source on an anisotropic half-space, integral of erf(a / (4 sqrt(alpha_in s)))^2 / sqrt(s) over s against the same integral without it
+| nominal t s | sample t s | layer mean | film | spreading | reference | FEM 6 (%) | FEM 12 (%) | FVM (%) | FDM (%) |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 0.1 | 0.104 | 0.8921 | 0.9960 | 1.0000 | 7.142 | 6.901 (-3.38) | 7.127 (-0.21) | 3.902 (-45.37) | 3.902 (-45.37) |
+| 0.3 | 0.312 | 0.9364 | 0.9930 | 1.0000 | 12.947 | 12.758 (-1.46) | 12.920 (-0.21) | 9.905 (-23.49) | 9.905 (-23.49) |
+| 1 | 0.935 | 0.9628 | 0.9880 | 1.0000 | 22.941 | 22.775 (-0.72) | 22.902 (-0.17) | 21.119 (-7.94) | 21.119 (-7.94) |
+| 3 | 2.8 | 0.9784 | 0.9794 | 0.9949 | 39.822 | 39.665 (-0.39) | 39.757 (-0.16) | 38.797 (-2.57) | 38.797 (-2.57) |
+
+**Reading.** On a board with copper the FVM, FDM and Analytic are 70 % (0.1 s), 49 % (0.3 s), 22 % (1 s) and 3 % (3 s) below the FEM and the Lumped 59, 40, 17 % below and +0.6 % at 3 s (one node per copper layer, as stated in `docs/theory.md` 4b); the FEM with 12 elements across a gap is +1.4 % (0.1 s), +0.4, +0.1 and +0.0 % from it, so the default mesh is converged from 0.3 s as the theory says. On a laminate board without copper the plain closed form of a flux switched on at the face of a semi-infinite solid (T3b) puts the FEM 14.2 / 8.4 / 5.6 / 5.0 % below it at 0.1 / 0.3 / 1 / 3 s with the default mesh and 11.3 / 7.2 / 5.0 / 4.8 % with 12 elements. **The campaign's first text called the 4.8 % at 3 s 'not explained'; it is the reference, not the FEM** (review): the plain form is the face of a half-space without a film, while the models read the column of the top layer (its 35 µm, here laminate: the mean sits a constant `q t_cu/(2k)` = 0.91 K/W below the face, -10.8 % at 0.1 s and -2.2 % at 3 s), lose heat through `h_top` = 10 W/m²K (-0.4 % at 0.1 s, -2.1 % at 3 s) and spread sideways through the in-plane 0.9 W/mK (-0.5 % at 3 s, nil before). With these three closed-form factors (T3c) the FEM with 12 gap elements is -0.21 / -0.21 / -0.17 / -0.16 % of the reference at 0.1 / 0.3 / 1 / 3 s, and with the default 6 elements -3.38 / -1.46 / -0.72 / -0.39 %, the gap-mesh limit that `docs/theory.md` 4b states (the default mesh is believed from about 0.3 s). The FVM and FDM are -45.4 / -23.5 / -7.9 / -2.6 % of it (one node per layer, the limit of 4b). At 10 s the closed form no longer holds (the back face, 3.9 s). The row stays the stated limit of the layered models and not a pass criterion.
+
+### 57.4 Cost
+
+The FEM transient law, measured on the tree ec15bdc0 by the tester of `feature/fem-transient` (`releases/2.9.0/fem-transient/MEASURED.md`, quoted, not re-measured here): the direct path costs 0.005 to 0.053 s per step from 20 930 to 106 122 unknowns with 0.32 to 3.11 GB, the conjugate-gradient path 1.1 to 4.2 s per step; a whole direct step response of the example board at 2 mm 82 s. **The 175 s of 57.1 is not the same run** (review): the 82 s of `MEASURED.md` is a 40-frame `fem.solve_transient` (10 stages, 52 steps, 11 factorisations with the steady one), while `api.step_response` calls `fem.step_responses` with its default 18 stages (72 frames, 84 steps, 19 factorisations); for that run the law gives 142 s of stepping (`memory.fem_transient_seconds(67 229, 84, 19)`, without the mesh and the assembly) and the review measured 174.7 s alone, so the earlier comparison was of different runs, and the law is about 20 % short of a whole step response including its build. The law sets only notes and the 600 s refusal of a profile run; no step response is refused by it. The steady cost per record is in 56.9.
