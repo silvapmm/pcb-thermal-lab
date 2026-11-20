@@ -88,12 +88,12 @@ def part_b():
     from pcbthermal.profiles import StepResponse
     p = bare_board()
     # The laminate between the two layers: the through-thickness conductivity and the volumetric heat capacity of the program, for the closed form
-    kz, _, rc = p.board.dielectric_arrays()
+    kz, _, rc = p.board.gap_properties()
     k, rho_c = float(kz[0]), float(rc[0])
     eff = math.sqrt(k * rho_c)
     area = 0.008 * 0.008
     q = 1.0 / area                                                   # W/m2 per watt of the part
-    thick = float(p.board.thickness) if hasattr(p.board, "thickness") else 1.6e-3
+    thick = float(p.board.dielectric_thickness())
     alpha = k / rho_c
     print(f"### T3b. board without copper (60 x 60 mm, laminate k {k:.3g} W/mK, rho c {rho_c:.4g} J/m3K, thickness {thick * 1e3:.2f} mm, 8 mm part), surface of the part, K/W")
     print(f"closed form z(t) = 2 sqrt(t/pi) / (e A), e = {eff:.1f} W s^0.5/m2K, A = {area * 1e6:.0f} mm2; holds for t below about 0.3 thickness^2/alpha = {0.3 * thick ** 2 / alpha:.1f} s and while the penetration sqrt(alpha t) is below the source size")

@@ -85,7 +85,7 @@ def main():
     for m in ("fem", "fvm", "fdm", "solid3d"):
         row = [fmt(np.array(surf[(m, c)]) - np.array(C.PAPER_CENTROID)) if (m, c) in surf else "-" for c in (2.0, 1.0, 0.5)]
         print(f"| {LABEL[m]} | " + " | ".join(row) + " |")
-    print("\nThe Lumped and Analytic have no surface map. The column minus the paper is not a comparison (the paper prints the surface).")
+    print("\nThe Lumped has no surface map (the Analytic has one, shown in study_compare_c4.py). The column minus the paper is not a comparison (the paper prints the surface).")
 
 
 if __name__ == "__main__":

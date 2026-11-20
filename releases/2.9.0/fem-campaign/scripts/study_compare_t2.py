@@ -27,7 +27,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "regression"))
-LABEL = {"fvm": "FVM", "fdm": "FDM", "lumped": "Lumped", "analytic": "Analytic", "fem": "FEM"}
+LABEL = {"fvm": "FVM", "fdm": "FDM", "lumped": "Lumped", "analytic": "Analytic", "fem": "FEM", "fem12": "FEM, 12 elements across a gap"}
 
 
 def plate(period, duty):
@@ -48,14 +48,17 @@ def plate(period, duty):
 
 def example_profile():
     """!
-    @brief The example board with its square-wave profile (`profile_board`) and every decision forced to 'resolved'.
+    @brief The example board (`example_board`, two parts) with the first part on a slow square wave (4 W, 20 s, 50 %) and the other on its constant power, the decision forced to 'resolved'.
+    @details The wave of the shipped `profile_board` (100 Hz) needs 266 668 steps, above the program's own limit of 200 000 (`profiles.plan_run` refuses it), so it is not a case the
+             program runs; this one is about 80 steps per model.
     @return tuple (problem, decisions).
     """
     import regress_boards as B
-    from pcbthermal import profiles
-    p = B.build("profile_board")
+    from pcbthermal import SquareWave, profiles
+    p = B.build("example_board")
+    p.heaters[0].set_profile(SquareWave(p_on=4.0, period=20.0, duty=0.5))
     d = profiles.decide(p, profiles.step_response_fvm(p, 2.0), 0.001)
-    return p, [dataclasses.replace(x, regime="resolved") for x in d]
+    return p, [dataclasses.replace(x, regime="resolved") if x.index == 0 else x for x in d]
 
 
 def run(problem, decisions, model, cell, cycles, n_per=None):
@@ -96,6 +99,8 @@ def run(problem, decisions, model, cell, cycles, n_per=None):
             r = profiles.run_fdm(problem, decisions, opts, cell)
         elif model == "fem":
             r = profiles.run_fem(problem, decisions, opts, cell)
+        elif model == "fem12":
+            r = profiles.run_fem(problem, decisions, opts, cell, gap_elements=12)
         elif model == "lumped":
             r = lumped.run_profile(problem, decisions, opts, 10, lumped.cell_for(problem, cell))
         else:
@@ -130,9 +135,13 @@ def case(name, problem, decisions, cell, cycles, models):
         except Exception as exc:
             print(f"| {LABEL[m]} | not run: {type(exc).__name__}: {str(exc)[:80]} | | | | | | |")
             continue
-        yi = np.interp((tref - tref[0]) / (tref[-1] - tref[0]), (t - t[0]) / (t[-1] - t[0]), y)          # the window mapped to 0..1 and sampled at the reference's times
+        # the reference (8 times the steps) is interpolated onto the model's own sample times of the window, so that the sampling of a coarse run is not counted as an error
+        # (periodic: the window of a coarse run may start one step away from the reference's, so the phase inside the window is what is compared)
+        win = float(w.period)
+        order = np.argsort(tref % win)
+        yi = np.interp(t % win, (tref % win)[order], yref[order], period=win)
         sw = float(y.max() - y.min())
-        print(f"| {LABEL[m]} | {n} | {y.max():.4f} | {y.max() - yref.max():+.4f} | {sw:.4f} | {100 * (sw / swing_ref - 1):+.1f} | {100 * np.abs(yi - yref).max() / swing_ref:.1f} | {s:.1f} |")
+        print(f"| {LABEL[m]} | {n} | {y.max():.4f} | {y.max() - yref.max():+.4f} | {sw:.4f} | {100 * (sw / swing_ref - 1):+.1f} | {100 * np.abs(y - yi).max() / swing_ref:.1f} | {s:.1f} |")
 
 
 def main():
@@ -148,7 +157,7 @@ def main():
     H.use_program(ROOT)
     tree = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     print(f"tree {tree}, program {sys.modules['pcbthermal'].__version__}; default stepping of the program (Crank-Nicolson with the Rannacher start)")
-    models = ("fem", "fvm", "fdm", "lumped", "analytic")
+    models = ("fem", "fem12", "fvm", "fdm", "lumped", "analytic")
     for c in a.cases.split(","):
         if c == "plate_slow":
             p, d = plate(100.0, 0.5)
@@ -156,9 +165,10 @@ def main():
         elif c == "plate_fast":
             p, d = plate(0.05, 0.3)
             case("plate, fast wave (20 Hz)", p, d, 1.0 if a.cell > 1.0 else a.cell, 12, models)
+            print("independent reference of this wave (axisymmetric stack solver of research/fast-wave-oscillation README 1, quoted, not re-run): swing 6.3 K (the program's closed form of the decision 6.35 K against 6.37 K)")
         elif c == "profile_board":
             p, d = example_profile()
-            case("example board with its profile (FEM and the layered models)", p, d, a.cell, 4, ("fem", "fvm", "fdm"))
+            case("example board, first part on a 20 s wave", p, d, a.cell, 4, ("fem", "fvm", "fdm", "lumped", "analytic"))
 
 
 if __name__ == "__main__":

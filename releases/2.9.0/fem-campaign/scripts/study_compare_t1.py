@@ -4,7 +4,9 @@
 @file study_compare_t1.py
 @brief Row T1 of the FEM campaign (validation 57.1): the unit-step response of every part in the five models that run in time (FVM, FDM, Lumped, Analytic, FEM), the plateau
        (steady resistance), the time to 63 % and the response at fixed times, against the FEM, and the time-stepping error of each model against itself with finer steps.
-@details The response is `api.step_response` (the route of the Animation tab and of the profile decision, cell of the step response at least 2 mm, the 2.9.0 default stepping:
+@details Part A prints, for each model, the plateau and the time to 63 % against the FEM (percent) and the normalised response z(t) / plateau of the model minus the FEM's, in points of
+         the plateau at 0.3, 1, 3, 10, 30 and 100 s: normalised so that the steady difference of the same mesh (section 56) does not hide the law in time.
+         The response is `api.step_response` (the route of the Animation tab and of the profile decision, cell of the step response at least 2 mm, the 2.9.0 default stepping:
          Crank-Nicolson with the Rannacher start, first stage in quarter steps), read at the hottest column cell of each part, in K/W. The Lumped and Analytic have no time
          simulation with an outline or a metal block: those cells are '-'. Part B repeats the FVM, FDM and FEM with the finer stepping `per_stage` 16 instead of 4 on the same mesh,
          so that a difference between models is not mistaken for a stepping error (the same network without its time-step error is the reference of
@@ -94,8 +96,8 @@ def part_a(boards, cell):
                 print(f"   {name} {LABEL[m]}: not run ({why})")
         ref = res.get("fem")
         for i, h in enumerate(problem.heaters):
-            print(f"\n{name}, part {h.name or i + 1}: the steady resistance (plateau) and the time to 63 %, then the response at fixed times")
-            print("| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | " + " | ".join(f"z({t:g} s) %" for t in TIMES) + " | run s |")
+            print(f"\n{name}, part {h.name or i + 1}: the steady resistance (plateau) and the time to 63 %, then the normalised response z(t)/plateau at fixed times, model minus FEM in points of the plateau")
+            print("| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | " + " | ".join(f"z({t:g} s)" for t in TIMES) + " | run s |")
             print("| :-- | --: | --: | --: | --: | " + " | ".join("--:" for _ in TIMES) + " | --: |")
             for m in MODELS:
                 r = res[m]
@@ -111,8 +113,9 @@ def part_a(boards, cell):
                     d2 = f"{100 * (tt / t_ref - 1):+.1f}" if tt and t_ref else "-"
                 zs = []
                 for t in TIMES:
-                    v = float(r.z_at(i, t))
-                    zs.append("-" if ref is None or m == "fem" else f"{100 * (v / float(ref.z_at(i, t)) - 1):+.1f}")
+                    # the normalised response z(t) / plateau of each model: its difference to the FEM's is in points of the plateau, so a steady difference does not hide the time law
+                    v = float(r.z_at(i, t)) / rt
+                    zs.append("-" if ref is None or m == "fem" else f"{100 * (v - float(ref.z_at(i, t)) / float(ref.rth[i])):+.1f}")
                 print(f"| {LABEL[m]} | {rt:.4f} | {d1} | {tt:.3g} | {d2} | " + " | ".join(zs) + f" | {sec[m]:.1f} |" if tt else f"| {LABEL[m]} | {rt:.4f} | {d1} | - | - | " + " | ".join(zs) + f" | {sec[m]:.1f} |")
         print()
 
@@ -171,11 +174,12 @@ def part_c(cell):
         t, z, rth = fn(problem, cell_mm=cell)
         res[label] = (StepResponse(label, t, z, rth), time.perf_counter() - t0)
     ref = res["FEM"][0]
-    print("| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | " + " | ".join(f"z({t:g} s) %" for t in TIMES) + " | run s |")
+    print("normalised response z(t)/plateau, model minus FEM, in points of the plateau")
+    print("| model | plateau K/W | (vs FEM %) | t63 s | (vs FEM %) | " + " | ".join(f"z({t:g} s)" for t in TIMES) + " | run s |")
     print("| :-- | --: | --: | --: | --: | " + " | ".join("--:" for _ in TIMES) + " | --: |")
     for label, (r, s) in res.items():
         tt, tr = t63(r, 0), t63(ref, 0)
-        zs = ["-" if label == "FEM" else f"{100 * (float(r.z_at(0, t)) / float(ref.z_at(0, t)) - 1):+.1f}" for t in TIMES]
+        zs = ["-" if label == "FEM" else f"{100 * (float(r.z_at(0, t)) / float(r.rth[0]) - float(ref.z_at(0, t)) / float(ref.rth[0])):+.1f}" for t in TIMES]
         print(f"| {label} | {float(r.rth[0]):.4f} | {100 * (float(r.rth[0]) / float(ref.rth[0]) - 1):+.1f} | {tt:.3g} | {100 * (tt / tr - 1):+.1f} | " + " | ".join(zs) + f" | {s:.1f} |")
     print()
 

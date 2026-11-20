@@ -7,7 +7,7 @@
 @details It re-runs, unchanged, parts A and B of `research/transient-published-case/scripts/study_t3_and_plate.py` (the exact series and the helper `lib/exact1d.py` import nothing
          from the program), so the numbers of the first line of validation 57 are printed by the tree that ships and not quoted. Sources by key of
          `research/theory/BIBLIOGRAPHY.md`: [NAFEMS-T3] (the primary publication was not obtained), [MOOSE-T3], [Abaqus-T3], [Altair-T3], [Wolfram-T3].
-         Run from the repository root: `.venv/bin/python -u releases/2.9.0/fem-campaign/scripts/study_compare_t0.py` (about 3 min, light; output also in out/t0.txt).
+         Run from the repository root: `.venv/bin/python -u releases/2.9.0/fem-campaign/scripts/study_compare_t0.py` (about 1 min, light; output also in out/t0.txt).
 """
 
 import importlib.util
@@ -20,6 +20,37 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 STUDY = ROOT / "research" / "transient-published-case" / "scripts" / "study_t3_and_plate.py"
+
+
+def part_b_fem(mod):
+    """!
+    @brief The plate with held edges and a power step in the FVM, FDM, FEM and Analytic at the program's default stepping, the centre temperature against the exact Robin double series.
+    @details The part B of the research study labels its runs 'implicit Euler' and 'Crank-Nicolson' by the keyword `theta_scheme`; since 2.9.0 the default is Crank-Nicolson with the
+             Rannacher start and the first stage in quarter steps, so its 'implicit Euler' line IS that default (the two lines print the same digits); this part runs the default only
+             and adds the FEM, which holds the edge as a film of 1e5 W/m2K like the others.
+    @param mod The imported study module (the plate, the exact series and the edge film).
+    @return None.
+    """
+    import numpy as np
+    from pcbthermal import analytic, fdm, fem, fvm
+    p, rc, k, th, power = mod.plate_problem()
+    qvol = power / (0.1 * 0.1 * th)
+    tau = rc * 0.1 ** 2 / (k * np.pi ** 2 * 2)
+    t_end = 2.0 * tau
+    print(f"B0 plate 0.1 m square, 1 mm, k 35, rho c {rc:.4g}, P {power} W, edge film {mod.H_EDGE:.0e} W/m2K, slowest-mode tau {tau:.1f} s, run to {t_end:.0f} s, 20 frames, default stepping")
+    print("   largest relative error of the centre column temperature over the frames after 10 s, against the exact Robin double series")
+    print("| model | 5 mm | 2.5 mm | 1.25 mm |\n| :-- | --: | --: | --: |")
+    for name, m in (("FVM", fvm), ("FDM", fdm), ("FEM", fem), ("Analytic", analytic)):
+        row = []
+        for cell in (5.0, 2.5, 1.25):
+            r = m.solve_transient(p, t_end, n_out=20, cell_mm=cell)
+            fr = np.asarray(r.frames)[:, 0]
+            ny, nx = fr.shape[1:]
+            xs = np.linspace(0.0, 0.1, nx) if r.grid == "nodes" else (np.arange(nx) + 0.5) * 0.1 / nx
+            i = ny // 2
+            errs = [float(fr[j, i, i] / mod.E.square_plate_robin_heating(xs[i], xs[i], t, 0.1, k, rc, qvol, mod.H_EDGE, n_roots=40) - 1.0) for j, t in enumerate(r.times) if t > 10.0]
+            row.append(f"{100 * max(abs(e) for e in errs):.2f} %")
+        print(f"| {name} | " + " | ".join(row) + " |")
 
 
 def main():
@@ -37,8 +68,8 @@ def main():
         print(f"tree {tree}")
         print("== Part A: NAFEMS T3 (36.60 degC at x = 0.08 m, t = 32 s)")
         mod.part_a(False)
-        print("== Part B: plate with held edges and a power step, centre temperature against the exact double series")
-        mod.part_b(False)
+        print("== Part B: plate with held edges and a power step, centre temperature against the exact double series (default stepping of 2.9.0, the FEM added)")
+        part_b_fem(mod)
     text = buf.getvalue()
     out = HERE.parent / "out"
     out.mkdir(exist_ok=True)
