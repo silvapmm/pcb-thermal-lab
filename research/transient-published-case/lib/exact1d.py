@@ -4,7 +4,8 @@
 @file exact1d.py
 @brief Independent exact solutions (imports nothing from the program) of the transient benchmark cases of the study: the bar with a sinusoidal end temperature (the case of the
        published benchmark T3), the semi-infinite solid with a flux step, and the uniformly heated square plate with held edges.
-@details Eigenfunction expansions with the time integral done in closed form, so the only error is the truncation of the series (checked by doubling the number of terms).
+@details Eigenfunction expansions with the time integral done in closed form, so the only error is the truncation of the series (checked by doubling the number of terms);
+         plus an own 1D linear finite-element run of the bar (`fe1d_bar`) that reproduces the mesh results other programs publish for the same case.
 """
 import numpy as np
 from scipy.special import erfc  # noqa: F401  (kept for readers extending the file)
@@ -34,6 +35,73 @@ def bar_sinusoidal_end(x, t, length=0.1, k=35.0, rho=7200.0, cp=440.5, amp=100.0
     c = 2.0 * (-1.0) ** (n + 1) / (n * np.pi)
     b = -c * amp * w * (mu * np.cos(w * t) + w * np.sin(w * t) - mu * np.exp(-mu * t)) / (mu ** 2 + w ** 2)
     return float((x / length) * amp * np.sin(w * t) + np.sum(b * np.sin(n * np.pi * x / length)))
+
+
+def bar_sinusoidal_end_lines(n, length=0.1, k=35.0, rho=7200.0, cp=440.5, x_probe=0.08, t_end=32.0):
+    """!
+    @brief A second, numerical route to the T3 value that shares nothing with the series: the method of lines (second-order central differences on n intervals, the held
+           ends exact) integrated in time by an implicit Runge-Kutta method (Radau IIA) to a tolerance of 1e-11, so the only error is the space error, of order (L/n)^2.
+    @details Two values at n and 2n give the Richardson limit (4 T(2n) - T(n)) / 3, an estimate of the exact value independent of the eigenfunction expansion.
+    @param n Intervals along the bar (count; x_probe must be a node: n a multiple of 5 for 0.08 m).
+    @param length Bar length in m.
+    @param k Conductivity in W/mK.
+    @param rho Density in kg/m3.
+    @param cp Specific heat in J/kgK.
+    @param x_probe Read-out position in m.
+    @param t_end Final time in s.
+    @return float Temperature at x_probe and t_end in degC.
+    """
+    import scipy.sparse as sp
+    from scipy.integrate import solve_ivp
+    a = k / (rho * cp)
+    dx = length / n
+    m = n - 1
+    lap = sp.diags([np.ones(m - 1), -2.0 * np.ones(m), np.ones(m - 1)], [-1, 0, 1]) * (a / dx ** 2)
+
+    def rhs(t, u):
+        r = lap @ u
+        r[-1] += a * 100.0 * np.sin(np.pi * t / 40.0) / dx ** 2      # the held end at x = L enters the last interior row
+        return r
+
+    sol = solve_ivp(rhs, (0.0, t_end), np.zeros(m), method="Radau", jac=lap.tocsc(), rtol=1e-11, atol=1e-11, t_eval=[t_end])
+    u = np.concatenate([[0.0], sol.y[:, -1], [100.0 * np.sin(np.pi * t_end / 40.0)]])
+    return float(np.interp(x_probe, np.linspace(0.0, length, n + 1), u))
+
+
+def fe1d_bar(n, steps, theta=1.0, lumped=False, length=0.1, k=35.0, rho_c=7200.0 * 440.5, x_probe=0.08, t_end=32.0):
+    """!
+    @brief An own 1D linear finite-element run of the T3 bar (two-node elements, held ends imposed exactly, theta method with equal steps), to reproduce the MESH results
+           that other programs publish for the same case (the Abaqus DC1D2 rows with a lumped capacity and the MOOSE EDGE2 rows with a consistent one, both 1 s implicit-Euler
+           steps per their input files).
+    @param n Elements along the bar (count).
+    @param steps Equal time steps over t_end (count).
+    @param theta 1.0 implicit Euler, 0.5 Crank-Nicolson.
+    @param lumped True for the row-sum (lumped) capacity matrix, False for the consistent one.
+    @param length Bar length in m.
+    @param k Conductivity in W/mK.
+    @param rho_c Volumetric heat capacity in J/m3K.
+    @param x_probe Read-out position in m (linear interpolation between nodes).
+    @param t_end Final time in s.
+    @return float Temperature at x_probe and t_end in degC.
+    """
+    h = length / n
+    kk = np.zeros((n + 1, n + 1))
+    mm = np.zeros((n + 1, n + 1))
+    me = rho_c * h * (np.diag([0.5, 0.5]) if lumped else np.array([[1.0 / 3.0, 1.0 / 6.0], [1.0 / 6.0, 1.0 / 3.0]]))
+    for e in range(n):
+        idx = np.ix_([e, e + 1], [e, e + 1])
+        kk[idx] += k / h * np.array([[1.0, -1.0], [-1.0, 1.0]])
+        mm[idx] += me
+    dt = t_end / steps
+    temp = np.zeros(n + 1)
+    for s in range(steps):
+        a = mm / dt + theta * kk
+        b = (mm / dt - (1.0 - theta) * kk) @ temp
+        # held ends: row replaced by the identity (an exact Dirichlet condition, as in the input decks)
+        a[0, :], a[0, 0], b[0] = 0.0, 1.0, 0.0
+        a[-1, :], a[-1, -1], b[-1] = 0.0, 1.0, 100.0 * np.sin(np.pi * (s + 1) * dt / 40.0)
+        temp = np.linalg.solve(a, b)
+    return float(np.interp(x_probe, np.linspace(0.0, length, n + 1), temp))
 
 
 def semi_infinite_flux_step(t, q, k, rho_c):

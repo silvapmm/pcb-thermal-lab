@@ -29,18 +29,18 @@ def fig_01():
     @brief Drawing of the two geometries with their boundary conditions.
     @return None.
     """
-    fig, ax = plt.subplots(1, 2, figsize=(11, 3.6))
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4.2), gridspec_kw={"width_ratios": [1.5, 1]})
     a = ax[0]
     a.add_patch(Rectangle((0, 0), 10, 1, fc="#d9e4f2", ec="k"))
-    a.axvline(8, color="C3", ls="--")
-    a.text(8, 1.15, "probe x = 0.08 m", color="C3", ha="center")
+    a.plot([8, 8], [-0.15, 1.5], color="C3", ls="--")                # stops above the end labels
+    a.text(8.15, 1.35, "probe x = 0.08 m", color="C3", ha="left")
     a.text(0, -0.5, "x = 0: 0 degC (held)", ha="left")
     a.text(10, -0.5, "x = 0.1 m: 100 sin(pi t / 40) degC", ha="right")
     a.text(5, 0.45, "k 35, rho 7200, c 440.5, T(x, 0) = 0, sides insulated", ha="center", fontsize=8)
     a.set_xlim(-0.5, 10.5)
     a.set_ylim(-1, 2)
     a.axis("off")
-    a.set_title("T3 bar (published benchmark; femcore: held ends as films of h = 1e10)")
+    a.set_title("NAFEMS T3 bar (program FEM: held ends as films of h = 1e10)", fontsize=10)
     b = ax[1]
     b.add_patch(Rectangle((0, 0), 10, 10, fc="#f6dcc8", ec="k"))
     b.text(5, 5, "uniform heater, 10 W\nstep at t = 0\n1 mm, k 35, rho c = 7200 x 440.5\nfaces insulated", ha="center", va="center")
@@ -49,7 +49,7 @@ def fig_01():
     b.set_ylim(-1.8, 11)
     b.set_aspect("equal")
     b.axis("off")
-    b.set_title("Plate for the FVM, FDM, Analytic (exact Robin double series)")
+    b.set_title("Plate for the FVM, FDM, Analytic\n(exact Robin double series)", fontsize=10)
     fig.tight_layout()
     fig.savefig(os.path.join(OUT, "fig_01_geometries.png"), dpi=130)
     plt.close(fig)
@@ -76,7 +76,10 @@ def fig_02():
     ax[1].set_xlabel("elements along the bar")
     ax[1].set_ylabel("|T - exact| at 0.08 m, 32 s (K)")
     ax[1].legend()
-    ax[1].grid(alpha=.3, which="both")
+    ax[1].set_xticks(ns)
+    ax[1].set_xticklabels([str(n) for n in ns])
+    ax[1].minorticks_off()
+    ax[1].grid(alpha=.3)
     fig.tight_layout()
     fig.savefig(os.path.join(OUT, "fig_02_t3_curve_and_fem_convergence.png"), dpi=130)
     plt.close(fig)
@@ -84,7 +87,7 @@ def fig_02():
 
 def fig_03():
     """!
-    @brief Centre rise of the plate in time: exact against the FVM default, the FVM with Crank-Nicolson and the Analytic.
+    @brief Centre rise of the plate in time: exact against the FVM with 20 logarithmic frames (implicit Euler and Crank-Nicolson) and the Analytic.
     @return None.
     """
     from pcbthermal import fvm, analytic
@@ -94,7 +97,7 @@ def fig_03():
     tt = np.linspace(0.1, 92, 120)
     cen = 0.05
     ax.plot(tt, [float(E.square_plate_robin_heating(cen, cen, s, 0.1, k, rc, q, S.H_EDGE, 40)) for s in tt], "k", label="exact (Robin series)")
-    for name, mod, kw in (("FVM default (log, Euler, 20 frames)", fvm, dict(n_out=20)), ("FVM log, Crank-Nicolson", fvm, dict(n_out=20, theta_scheme=0.5)),
+    for name, mod, kw in (("FVM log, implicit Euler, 20 frames", fvm, dict(n_out=20)), ("FVM log, Crank-Nicolson, 20 frames", fvm, dict(n_out=20, theta_scheme=0.5)),
                           ("Analytic", analytic, dict(n_out=20))):
         r = mod.solve_transient(p, 92.0, cell_mm=2.5, **kw)
         fr = np.asarray(r.frames)[:, 0]
