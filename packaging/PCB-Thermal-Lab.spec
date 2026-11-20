@@ -51,10 +51,12 @@ excludes = [
     "PySide6.QtQmlCompiler", "PySide6.QtQuick3D", "PySide6.QtQuickTest", "PySide6.QtQuickTimeline", "PySide6.QtVirtualKeyboard", "PySide6.QtGrpc", "PySide6.QtProtobuf",
     "PySide6.QtMqtt", "PySide6.QtCoap", "PySide6.QtNetwork", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
     "ssl", "_ssl", "_hashlib", "PySide6.QtWaylandCompositor", "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtPrintSupport", "PySide6.QtUiTools", "PySide6.QtAxContainer",
+    # CPython's line editor: on Linux it links GNU Readline (GPL-3.0), which the package may not carry; the program has no interactive prompt (FORBIDDEN guards it)
+    "readline",
 ]
 
-# pyamg is imported lazily (femcore.available()), so a static scan would miss it and the finite elements would fall back to small meshes silently
-hiddenimports = collect_submodules("pcbthermal") + collect_submodules("pyamg")
+# pyamg is imported lazily (femcore.available()), so a static scan would miss it and the finite elements would fall back to small meshes silently; its own tests stay out
+hiddenimports = collect_submodules("pcbthermal") + collect_submodules("pyamg", filter=lambda name: ".tests" not in name)
 
 # The metadata of every bundled distribution: the About box reads the library table from it at run time
 for _dist in bundle_info.closure().values():
@@ -64,6 +66,28 @@ a = Analysis([str(ROOT / "packaging" / "entry.py")], pathex=[str(ROOT)], datas=d
 # A hook that collects a whole plug-in folder can bring a forbidden library with it (the qpdf image plug-in links QtPdf, the tls plug-ins load OpenSSL): drop them here
 a.binaries = [b for b in a.binaries if not packaging_build.FORBIDDEN.search(b[0].replace("\\", "/"))]
 a.datas = [d for d in a.datas if not packaging_build.FORBIDDEN.search(d[0].replace("\\", "/"))]
+# The plug-ins the program never loads (VNC, TUIO touch: they bring QtNetwork)
+a.binaries = [b for b in a.binaries if not packaging_build.UNUSED_PLUGINS.search(b[0].replace("\\", "/"))]
+# Linux: what was collected only for a binary dropped above (the GTK 3 theme brought GTK, cairo, Pango, GdkPixbuf, ATK and their dependencies from the build machine)
+# is linked by nothing that stays: drop it, so the package carries no library it does not use (and no licence it does not need)
+if sys.platform.startswith("linux"):
+    from PyInstaller.depend import bindepend
+
+    def _imports(src):
+        """!
+        @brief The names a binary links (ldd through PyInstaller).
+        @param src Path of the binary on the build machine.
+        @return list of str.
+        @throws SystemExit When they cannot be read: guessing would drop a library the binary needs, so the build stops instead.
+        """
+        try:
+            return [name for name, _ in bindepend.get_imports(src)]
+        except Exception as exc:
+            raise SystemExit(f"error: the libraries {src} links could not be read ({exc}); the unreferenced libraries cannot be pruned safely")
+
+    _unused = packaging_build.unreferenced_libraries(a.binaries, _imports)
+    print("unreferenced libraries dropped: " + (", ".join(sorted(_unused)) or "none"), flush=True)
+    a.binaries = [b for b in a.binaries if b[0] not in _unused]
 pyz = PYZ(a.pure)                                                                                                                                   # noqa: F821
 
 if sys.platform == "win32":

@@ -73,10 +73,12 @@ def test_build_requirements_drop_the_tests_and_substitute_pyside():
 def test_spec_excludes_and_includes():
     """The spec ships the data, the user guide, the icon and the licences, includes pyamg, and keeps the unused Qt modules and the developer folders out."""
     spec = (PKG / "PCB-Thermal-Lab.spec").read_text(encoding="utf-8")
-    for needle in ('"pcbthermal/data"', '"pcbthermal/help"', '"ico"', '"licenses"', 'collect_submodules("pyamg")', "SOURCE-OFFER.txt", "BUILD-INFO.txt", "copy_metadata"):
+    for needle in ('"pcbthermal/data"', '"pcbthermal/help"', '"ico"', '"licenses"', 'collect_submodules("pyamg", filter=lambda name: ".tests" not in name)', "SOURCE-OFFER.txt",
+                   "BUILD-INFO.txt", "copy_metadata", "UNUSED_PLUGINS.search", "unreferenced_libraries(a.binaries", "bindepend.get_imports"):
         assert needle in spec
     for module in ("tools", "research", "releases", "tests", "PySide6.QtWebEngineCore", "PySide6.QtPdf", "PySide6.QtQuick", "PySide6.QtGraphs", "PySide6.QtHttpServer",
-                   "PySide6.QtLottie", "PySide6.QtNetworkAuth", "PySide6.QtCanvasPainter", "PySide6.QtQmlCompiler", "PySide6.QtQuick3D", "PySide6.QtVirtualKeyboard"):
+                   "PySide6.QtLottie", "PySide6.QtNetworkAuth", "PySide6.QtCanvasPainter", "PySide6.QtQmlCompiler", "PySide6.QtQuick3D", "PySide6.QtVirtualKeyboard",
+                   "readline"):
         assert f'"{module}"' in spec
     assert "exclude_binaries=True" in spec and "onefile" not in spec.lower()      # One folder: the Qt libraries stay replaceable files
 
@@ -174,6 +176,73 @@ def test_source_offer_names_the_attached_tarballs_and_the_second_contact(tmp_pat
         assert "silva.pmm@gmail.com" in (tmp_path / "NOTICE.txt").read_text(encoding="utf-8")
 
 
+EXECUTABLES = {"windows-x64": "PCB-Thermal-Lab.exe", "linux-x64": "PCB-Thermal-Lab", "macos-arm64": "PCB Thermal Lab.app/Contents/MacOS/PCB-Thermal-Lab"}
+
+
+def package_archive(system):
+    """!
+    @brief The archive name of a fake package of version 9.9.9.
+    @param system One of check_release.SYSTEMS.
+    @return str.
+    """
+    return f"PCB-Thermal-Lab-9.9.9-{system}" + (".tar.gz" if system.startswith("linux") else ".zip")
+
+
+def make_package(folder, system, drop=(), extra=(), offer=None):
+    """!
+    @brief Write a small package archive with the documents check_release.py looks for.
+    @param folder Where to write it.
+    @param system One of check_release.SYSTEMS.
+    @param drop Members (relative to the package folder) to leave out.
+    @param extra Further members (relative to the package folder) to add.
+    @param offer Text of SOURCE-OFFER.txt (default: one with both contacts).
+    @return pathlib.Path of the archive.
+    """
+    import io
+    import tarfile
+    import zipfile
+    check = load("check_release")
+    top = f"PCB-Thermal-Lab-9.9.9-{system}"
+    texts = {m: "text" for m in check.REQUIRED + (EXECUTABLES[system],)}
+    if system.startswith("windows"):
+        texts["PCB-Thermal-Lab-cli.exe"] = "exe"
+    texts["SOURCE-OFFER.txt"] = offer if offer is not None else f"Contact: the Issues page, {check.build.ISSUES_URL}, or by e-mail at {check.build.SECOND_CONTACT}"
+    texts["NOTICE.txt"] = f"Contact: {check.build.SECOND_CONTACT}"
+    texts.update({m: "x" for m in extra})
+    path = folder / package_archive(system)
+    members = {f"{top}/{m}": t.encode() for m, t in texts.items() if m not in drop}
+    if path.suffix == ".zip":
+        with zipfile.ZipFile(path, "w") as z:
+            for name, data in members.items():
+                z.writestr(name, data)
+    else:
+        with tarfile.open(path, "w:gz") as t:
+            for name, data in members.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                t.addfile(info, io.BytesIO(data))
+    return path
+
+
+def test_check_release_looks_inside_the_archives(tmp_path):
+    """Every package must carry the LGPL documents and the licences at the top, its program (and the console program on Windows), no forbidden file, and the
+    written offer with both contacts (the trial packages of 2.8.0 still had the TODO text and the Linux one GNU Readline: both are refused)."""
+    check = load("check_release")
+    results = {s: {"folder": f"PCB-Thermal-Lab-9.9.9-{s}", "executable": EXECUTABLES[s], "os": s.split("-")[0]} for s in check.SYSTEMS}
+    for system in check.SYSTEMS:
+        assert check.archive_problems(make_package(tmp_path, system), results[system]) == [], system
+    assert any("NOTICE.txt is missing" in p for p in check.archive_problems(make_package(tmp_path, "linux-x64", drop=("NOTICE.txt",)), results["linux-x64"]))
+    assert any("PCB-Thermal-Lab-cli.exe" in p for p in check.archive_problems(make_package(tmp_path, "windows-x64", drop=("PCB-Thermal-Lab-cli.exe",)),
+                                                                             results["windows-x64"]))
+    assert any("THIRD-PARTY-NOTICES" in p for p in check.archive_problems(make_package(tmp_path, "macos-arm64", drop=("licenses/Qt/THIRD-PARTY-NOTICES.txt",)),
+                                                                         results["macos-arm64"]))
+    assert any("must not be shipped" in p for p in check.archive_problems(make_package(tmp_path, "linux-x64", extra=("_internal/libreadline.so.8",)),
+                                                                         results["linux-x64"]))
+    todo = "Contact: the Issues page, https://github.com/silvapmm/pcb-thermal-lab/issues\n(TODO second contact: ...)"
+    assert any("written offer" in p for p in check.archive_problems(make_package(tmp_path, "windows-x64", offer=todo), results["windows-x64"]))
+    assert check.archive_problems(make_package(tmp_path, "linux-x64", extra=("licenses/Qt/libreadline-notice.so",)), results["linux-x64"]) == []
+
+
 def test_check_release_compares_the_packages_and_the_source(tmp_path):
     """The release job's check: equal Qt and PySide versions in the three results, and every source tarball present."""
     import hashlib
@@ -185,8 +254,9 @@ def test_check_release_compares_the_packages_and_the_source(tmp_path):
         (tmp_path / "qt-source" / n).write_text("x" + n)
     (tmp_path / "qt-source" / "QT-SOURCE-SHA256.txt").write_text("".join(f"{hashlib.sha256(('x' + n).encode()).hexdigest()}  {n}\n" for n in names))
     for system in check.SYSTEMS:
-        (tmp_path / f"PCB-Thermal-Lab-9.9.9-{system}.zip").write_text("x")
-        res = {"version": "9.9.9", "qt": "6.12.0", "pyside": "6.12.0", "archive": f"PCB-Thermal-Lab-9.9.9-{system}.zip", "source_assets": names}
+        make_package(tmp_path, system)
+        res = {"version": "9.9.9", "qt": "6.12.0", "pyside": "6.12.0", "archive": package_archive(system), "source_assets": names, "os": system.split("-")[0],
+               "folder": f"PCB-Thermal-Lab-9.9.9-{system}", "executable": EXECUTABLES[system]}
         (tmp_path / f"BUILD-RESULT-{system}.json").write_text(json.dumps(res))
     assert check.check(tmp_path) == [] and check.check(tmp_path, "9.9.9") == []
     assert any("the tag says 9.9.8" in p for p in check.check(tmp_path, "9.9.8"))          # The packages must be the version of the tag
@@ -291,9 +361,97 @@ def test_file_list_names_native_libraries_outside_qt(tmp_path):
 def test_files_without_attached_source_are_refused():
     """Mesa's software OpenGL (Windows) and the GTK 3 theme with its libraries (Linux) stay out: their source is not among the attached tarballs."""
     build = load("build")
-    for bad in ("_internal/PySide6/opengl32sw.dll", "_internal/PySide6/Qt/plugins/platformthemes/libqgtk3.so", "_internal/libgtk-3.so.0"):
+    for bad in ("_internal/PySide6/opengl32sw.dll", "_internal/PySide6/Qt/plugins/platformthemes/libqgtk3.so", "_internal/libgtk-3.so.0",
+                "_internal/libreadline.so.8"):                       # GNU Readline is GPL-3.0 (the Linux trial build of 2.8.0 carried it through CPython's readline module)
         assert build.FORBIDDEN.search(bad), bad
     assert not build.FORBIDDEN.search("_internal/PySide6/Qt/plugins/platformthemes/libqxdgdesktopportal.so")
+    for unused in ("PySide6/Qt/plugins/platforms/libqvnc.so", "PySide6/plugins/generic/qtuiotouchplugin.dll", "PySide6/Qt/plugins/generic/libqtuiotouchplugin.so"):
+        assert build.UNUSED_PLUGINS.search(unused), unused
+    for used in ("PySide6/Qt/plugins/platforms/libqxcb.so", "PySide6/plugins/platforms/qwindows.dll", "PySide6/Qt/plugins/generic/libqevdevmouseplugin.so"):
+        assert not build.UNUSED_PLUGINS.search(used), used
+
+
+def test_libraries_left_by_a_dropped_plugin_are_pruned():
+    """The libraries collected only for a binary the spec dropped (the GTK 3 theme: GTK, cairo, Pango, ATK) go; what a kept binary links, directly or not, stays;
+    libpython (opened by name by the bootloader), extension modules and plug-ins are never pruned. The graph is a cut of the Linux trial build of 2.8.0."""
+    build = load("build")
+    links = {"PySide6/Qt/plugins/platforms/libqxcb.so": ["libQt6XcbQpa.so.6"], "PySide6/Qt/lib/libQt6XcbQpa.so.6": ["libxcb-cursor.so.0", "libQt6DBus.so.6"],
+             "PySide6/Qt/lib/libQt6DBus.so.6": ["libdbus-1.so.3"], "libdbus-1.so.3": ["libsystemd.so.0"], "libxcb-cursor.so.0": [], "libsystemd.so.0": [],
+             "libatk-bridge-2.0.so.0": ["libatk-1.0.so.0", "libdbus-1.so.3"], "libatk-1.0.so.0": [], "libpangocairo-1.0.so.0": ["libcairo.so.2"], "libcairo.so.2": [],
+             "libpython3.13.so.1.0": [], "PySide6/QtCore.abi3.so": ["libQt6Core.so.6"], "PySide6/Qt/lib/libQt6Core.so.6": [], "PySide6/Qt/lib/libQt6Network.so.6": [],
+             "numpy.libs/libscipy_openblas64_-4b78795a.so": []}
+    binaries = [(dest, "/src/" + dest, "BINARY") for dest in links]
+    dropped = build.unreferenced_libraries(binaries, lambda src: links[src[len("/src/"):]])
+    assert dropped == {"libatk-bridge-2.0.so.0", "libatk-1.0.so.0", "libpangocairo-1.0.so.0", "libcairo.so.2", "PySide6/Qt/lib/libQt6Network.so.6"}
+    assert not build.prunable_library("libpython3.13.so.1.0") and not build.prunable_library("PySide6/Qt/plugins/platforms/libqxcb.so")
+    assert not build.prunable_library("numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so") and build.prunable_library("libX11.so.6")
+
+
+def test_native_libraries_need_a_notice_and_a_release_build_stops_without_one(tmp_path):
+    """Qt, a wheel's vendored libraries, CPython and the libraries its notices cover, ICU and the Microsoft run-time have their notice in the package; a library
+    of the build machine (Linux) does not, and a release build stops on it while a trial build only reports it."""
+    build = load("build")
+    covered = ["_internal/PySide6/Qt/lib/libQt6Core.so.6", "_internal/PySide6/Qt/lib/libicuuc.so.73", "_internal/numpy.libs/libscipy_openblas64_-4b78795a.so",
+               "_internal/pillow.libs/libjpeg-6dc8d115.so.62.4.0", "PCB Thermal Lab.app/Contents/Frameworks/PIL/__dot__dylibs/libwebp.7.dylib",
+               "_internal/libpython3.13.so.1.0", "_internal/python313.dll", "_internal/python3.dll", "_internal/libffi-8.dll", "_internal/libffi.so.8",
+               "_internal/libexpat.so.1", "_internal/libz.so.1", "_internal/VCRUNTIME140_1.dll", "_internal/ucrtbase.dll", "_internal/api-ms-win-crt-math-l1-1-0.dll",
+               "_internal/numpy.libs/msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll", "_internal/PySide6/MSVCP140_2.dll",
+               "_internal/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so", "_internal/_ctypes.pyd", "_internal/PySide6/pyside6.abi3.dll"]
+    uncovered = ["_internal/libX11.so.6", "_internal/libglib-2.0.so.0", "_internal/libstdc++.so.6", "_internal/libreadline.so.8"]
+    assert build.uncovered_native_libraries(covered + uncovered + ["LICENSE", "_internal/base_library.zip"]) == sorted(uncovered)
+    pkg = tmp_path / "pkg"
+    for rel in covered[:3] + uncovered[:1]:
+        (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
+        (pkg / rel).write_text("x")
+    assert build.check_notices(pkg, release=False) == ["_internal/libX11.so.6"]
+    with pytest.raises(SystemExit):
+        build.check_notices(pkg, release=True)
+    (pkg / uncovered[0]).unlink()
+    assert build.check_notices(pkg, release=True) == []
+
+
+def test_qt_wheels_are_quoted_through_licenses_qt_on_every_system(monkeypatch, tmp_path):
+    """A Qt wheel that carries LicenseRef-Qt-Commercial.txt (Windows) is quoted like the others: '(covered by Qt/)', no copy of the commercial note."""
+    build = load("build")
+    note = tmp_path / "site" / "shiboken6-6.12.0.dist-info" / "licenses" / "LicenseRef-Qt-Commercial.txt"
+    note.parent.mkdir(parents=True)
+    note.write_text("Licensees holding valid commercial Qt licenses")
+
+    class Dist:
+        """!
+        @brief A fake installed distribution with one licence file.
+        """
+
+        metadata = {"Name": "shiboken6", "License-Expression": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only"}
+        version = "6.12.0"
+        files = [pathlib.PurePosixPath("shiboken6-6.12.0.dist-info/licenses/LicenseRef-Qt-Commercial.txt")]
+
+        def locate_file(self, f):
+            """!
+            @brief Where a file of the distribution is.
+            @param f Relative path.
+            @return pathlib.Path.
+            """
+            return tmp_path / "site" / f
+
+    import sys
+    base = tmp_path / "base"
+    stdlib = base / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}"
+    stdlib.mkdir(parents=True)
+    (stdlib / "LICENSE.txt").write_text("PSF")
+    (base / "LICENSE.txt").write_text("PSF")
+    monkeypatch.setattr(build.sys, "base_prefix", str(base))
+    monkeypatch.setattr(build, "python_notices", lambda v: "notices")
+    monkeypatch.setattr(build, "system_notices", lambda root: [])
+    index = build.collect_licences(tmp_path / "staging", {"shiboken6": Dist()})
+    assert "shiboken6-6.12.0: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only; 0 licence file(s) (covered by Qt/)" in index
+    assert not (tmp_path / "staging" / "licenses" / "shiboken6-6.12.0").exists()
+
+
+def test_licence_texts_keep_their_bytes_on_every_checkout():
+    """The licence texts are not converted to CRLF on a Windows checkout (the Windows trial package of 2.8.0 carried a GPL text whose SHA-256 was not the one
+    licenses/Qt/SOURCES.txt records)."""
+    assert "packaging/licenses/** -text" in (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
 
 
 def test_workflow_pins_actions_and_attaches_the_source_first(workflow):

@@ -10,8 +10,10 @@
             `qt_sources.py`), the licence files of every bundled package copied from its `dist-info` (the build FAILS when one has none), `NOTICE.txt`,
             `SOURCE-OFFER.txt`, `REPLACING-QT.txt`, `BUILD-INFO.txt` (the exact versions) and, on macOS, the `.icns` icon;
          3. runs PyInstaller on `packaging/PCB-Thermal-Lab.spec` (one folder, not one file; a `.app` on macOS) and FAILS when the output holds a file of a Qt
-            module or library that must not be shipped (GPL-3-only modules, FFmpeg, QtPdf, WebEngine, TLS plug-ins: `FORBIDDEN`);
-         4. assembles `PCB-Thermal-Lab-<version>-<os>-<arch>/` (the program, `LICENSE`, `licenses/`, `SOURCE-OFFER.txt`, `BUILD-INFO.txt`), archives it
+            module or library that must not be shipped (GPL-3-only modules, FFmpeg, QtPdf, WebEngine, TLS plug-ins, GNU Readline: `FORBIDDEN`); the spec also drops
+            the unused plug-ins (`UNUSED_PLUGINS`) and, on Linux, the libraries that nothing kept links any more (`unreferenced_libraries`);
+         4. assembles `PCB-Thermal-Lab-<version>-<os>-<arch>/` (the program, `LICENSE`, `licenses/`, `SOURCE-OFFER.txt`, `BUILD-INFO.txt`), lists the native
+            libraries without a licence notice (`check_notices`: a release build STOPS when there is one, a trial build warns), archives it
             (`.zip` on Windows and macOS, `.tar.gz` on Linux, which keeps the execute bits) and writes `SHA256SUMS.txt` and `BUILD-RESULT.json`;
          5. with `--selftest`, extracts the archive and runs `--selftest` of the program from it.
          Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, `FILES.txt` (the file list, native libraries outside Qt first) and `qt-source/`, the exact Qt and PySide source that the release
@@ -59,9 +61,20 @@ PYTHON_NOTICES_URL = "https://raw.githubusercontent.com/python/cpython/v{version
 # plug-in that links it), WebEngine, the QML and Quick modules, the TLS plug-ins (OpenSSL), and the Qt translations (`.qm`: the program is English only, and their source, qttranslations, is not among the attached
 # tarballs). The program imports QtCore, QtGui and QtWidgets only. Two more whose code is not in the attached Qt source: opengl32sw.dll (Windows: Mesa's software
 # OpenGL, which a widgets program never loads) and the GTK 3 platform theme (Linux: it would bring the GTK, GLib, Pango and cairo libraries of the build machine).
+# GNU Readline (Linux): GPL-3.0, which the MIT program may not ship; the readline module of CPython links it, the program never uses it (excluded in the spec).
 FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisualization|Quick|VirtualKeyboard|Lottie|HttpServer|NetworkAuth|Qml|CanvasPainter|Grpc|Mqtt|Coap)"
                        r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$"
-                       r"|opengl32sw|libqgtk3|libgtk-3|libgdk-3", re.IGNORECASE)
+                       r"|opengl32sw|libqgtk3|libgtk-3|libgdk-3|libreadline", re.IGNORECASE)
+# Qt plug-ins the program never loads and that would bring a library with them: the VNC platform and the TUIO touch input (both link QtNetwork, and through it Kerberos
+# on Linux). Not forbidden (their source is attached), only left out; the spec drops them before the unreferenced libraries are pruned.
+UNUSED_PLUGINS = re.compile(r"(^|/)(libqvnc\.so|qvnc\.dll|libqvnc\.dylib|libqtuiotouchplugin\.(so|dylib)|qtuiotouchplugin\.dll)$", re.IGNORECASE)
+# Native libraries whose licence notice is in the package without a file of their own in packaging/licenses/_system (see uncovered_native_libraries):
+# the Qt wheel's (licenses/Qt, and ICU through SYSTEM_NOTICES), a Python wheel's vendored folder (numpy.libs, scipy.libs, pillow.libs, PIL/.dylibs: listed in the
+# wheel's own licence file), CPython itself and the libraries CPython's notices cover (libffi, expat, zlib, mpdec), and the Microsoft C/C++ run-time that the CPython
+# Windows build redistributes (Python/LICENSE.txt quotes the conditions of the Microsoft Distributable Code).
+COVERED_NATIVE = re.compile(r"(^|/)(PySide6|shiboken6)/|(^|/)[\w-]+\.libs/|(^|/)PIL/(\.|__dot__)dylibs/"
+                            r"|(^|/)(python3\d*\.dll|libpython3[\d.]*\.(so|dylib)[\d.]*|libffi[-.][\w.]*|libexpat\.so[\d.]*|libz\.so[\d.]*|libmpdec[\w.]*)$"
+                            r"|(^|/)(vcruntime140(_\d)?|msvcp140(_\d)?|concrt140|ucrtbase|api-ms-win-[\w-]+)\.dll$", re.IGNORECASE)
 QT_COVERED = ("pyside6_essentials", "pyside6", "shiboken6")        # Distributions whose licence texts are licenses/Qt (their wheels carry none)
 # THE SECOND CONTACT of the written offer (SOURCE-OFFER.txt): a way to reach the maintainer that does not depend on GitHub, for the case that the repository is deleted
 # or made private while the offer (three years) is still running. Given by the maintainer, who authorised publishing this address in the packages, the repository and the
@@ -227,7 +240,9 @@ def collect_licences(staging, dists):
     missing = []
     for name, d in sorted(dists.items()):
         label = f"{d.metadata['Name']}-{d.version}"
-        files = [(rel, src) for rel, src in licence_files(d) if src.is_file()]
+        # Qt and PySide: licenses/Qt holds their texts on every system. Some wheels (Windows) also carry LicenseRef-Qt-Commercial.txt, a note for holders of a
+        # commercial licence, which does not apply to this package: it is not copied, so the three packages quote Qt the same way
+        files = [] if name in QT_COVERED else [(rel, src) for rel, src in licence_files(d) if src.is_file()]
         for rel, src in files:
             dest = root / label / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -509,6 +524,76 @@ def check_forbidden(folder):
         print("note: OpenSSL libraries are bundled (" + ", ".join(extra) + "): their notice must be in licenses/Python")
 
 
+def prunable_library(dest):
+    """!
+    @brief Whether a bundled binary is a shared library that is kept only because something else links it (Linux): a library of the build machine at the top of the
+           bundle, or a Qt library. Never libpython (the bootloader opens it by name), a Python extension module or a Qt plug-in (Qt opens those by name).
+    @param dest Destination path of the binary inside the bundle, as PyInstaller lists it.
+    @return bool.
+    """
+    dest = dest.replace("\\", "/")
+    if re.search(r"(^|/)libpython3", dest) or re.search(r"cpython-|\.abi3\.", dest):
+        return False
+    return bool(re.fullmatch(r"[^/]+\.so(\.\d+)*", dest) or re.fullmatch(r"PySide6/Qt/lib/[^/]+\.so(\.\d+)*", dest))
+
+
+def unreferenced_libraries(binaries, imports_of, prunable=prunable_library):
+    """!
+    @brief The libraries that no kept binary links any more. PyInstaller collects the dependencies of every binary it finds; when the spec then drops a binary
+           (a forbidden or unused plug-in, the GTK 3 theme), the libraries that only it needed stay in the bundle. They are found here by walking the link-time
+           dependencies from every binary that is not prunable (extension modules, plug-ins, executables, libpython).
+    @param binaries List of PyInstaller TOC entries (dest, src, typecode).
+    @param imports_of Function src -> iterable of the names (SONAME or file name) that binary links.
+    @param prunable Function dest -> bool, the binaries that may be dropped when nothing links them.
+    @return set of str, the dest names to drop.
+    """
+    by_name = {}
+    for dest, src, _ in binaries:
+        by_name.setdefault(Path(dest.replace("\\", "/")).name, []).append((dest, src))
+    alive = {dest for dest, _, _ in binaries if not prunable(dest)}
+    todo = [(dest, src) for dest, src, _ in binaries if dest in alive]
+    while todo:
+        _, src = todo.pop()
+        for name in imports_of(src):
+            for dest, other in by_name.get(Path(str(name)).name, []):
+                if dest not in alive:
+                    alive.add(dest)
+                    todo.append((dest, other))
+    return {dest for dest, _, _ in binaries if dest not in alive}
+
+
+def uncovered_native_libraries(paths):
+    """!
+    @brief The native libraries of a package whose licence notice is not in it: every shared library that is not a Python extension module and is not covered by
+           COVERED_NATIVE (Qt, a wheel's vendored folder, CPython and what its notices cover, the Microsoft run-time) or by a text in packaging/licenses/_system.
+    @param paths Relative paths (posix) of the files of the package.
+    @return list of str, the paths without a notice (sorted).
+    """
+    native = re.compile(r"\.(so(\.\d+)*|dylib|dll)$", re.IGNORECASE)
+    extension = re.compile(r"cpython-|\.abi3\.|\.pyd$", re.IGNORECASE)
+    system = [pattern for pattern, _ in SYSTEM_NOTICES.values()]
+    return sorted(p for p in paths if native.search(p) and not extension.search(p) and not COVERED_NATIVE.search(p)
+                  and not any(s.match(Path(p).name) for s in system))
+
+
+def check_notices(folder, release):
+    """!
+    @brief Stop a release build whose package holds a native library without its licence notice; a trial build only reports them.
+    @param folder The assembled package folder.
+    @param release True for the build of a tag.
+    @return list of str, the libraries without a notice.
+    @throws SystemExit In a release build, when the list is not empty.
+    """
+    missing = uncovered_native_libraries([p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file() and not p.is_symlink()])
+    if missing:
+        text = (f"{len(missing)} native libraries without a licence notice in the package (add the text under packaging/licenses/_system/ or keep the library out):\n  "
+                + "\n  ".join(missing))
+        if release:
+            raise SystemExit("error: " + text)
+        print("warning (a release build stops here): " + text, flush=True)
+    return missing
+
+
 def assemble(built):
     """!
     @brief Make the package folder from the PyInstaller output and the licence material.
@@ -652,6 +737,7 @@ def main(argv=None):
     make_icns(staging)
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
+    uncovered = check_notices(folder, args.release)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
     if sys.platform.startswith("linux"):   # The source is one set per release, not per system: the Linux job carries it to the release job
@@ -661,7 +747,7 @@ def main(argv=None):
     print(f"file list: {write_file_list(folder, DIST / 'FILES.txt')} files in {DIST / 'FILES.txt'}")
     osname, arch, _ = platform_tag()
     result = {"version": version(), "os": osname, "arch": arch, "archive": out.name, "folder": folder.name, "executable": exe, "qt": qt, "pyside": pyside, "source_assets": source_assets(qt, pyside), "seconds": round(time.time() - t0),
-              "archive_bytes": out.stat().st_size, "licence_index": index}
+              "archive_bytes": out.stat().st_size, "licence_index": index, "python": platform.python_version(), "without_notice": uncovered}
     (DIST / "BUILD-RESULT.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"built {out} ({out.stat().st_size / 1e6:.1f} MB) in {time.time() - t0:.0f} s")
     return selftest(out, exe) if args.selftest else 0
