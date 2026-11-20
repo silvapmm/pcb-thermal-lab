@@ -1181,5 +1181,5 @@
   }
  },
  "transients": {},
- "why": "On a copper layer of one slab (up to 105 um) the FEM put the power of a part as a volumetric source in that slab; one linear element through the copper carries half of such a load at its bottom node, so the surface minus column term read about half of q t / 2k. The part now enters through the outer face on every outer layer, as on thick copper: the surface of the FEM moves by up to the whole term, the column by a fraction of a milli-kelvin to a few milli-kelvin on the harness boards."
+ "why": "On a copper layer of one slab (up to 105 um) the FEM put the power of a part as a volumetric source in that slab; one linear element through the copper carries half of such a load at its bottom node, so the surface minus column term read about half of q t / 2k. The part now enters through the outer face on every outer layer, as on thick copper: the surface of the FEM moves by up to the whole term, the column by 0.01 to 0.8 mK on the harness boards whose part sits on copper, and by 0.1 to 1.5 K (2 to 0.5 mm) on drawn_ell, whose part straddles a corner without top copper (the laminate slab there now carries the whole through drop; its term matches an independent solver, releases/2.9.0/fem-thin-copper/README.md 4)."
 }

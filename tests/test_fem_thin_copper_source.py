@@ -130,3 +130,50 @@ def test_the_transient_reaches_the_steady_column_on_thin_copper():
     rise = st.t_max - st.ambient
     assert abs(tr.t_max[-1] - st.t_max) < 1e-3 * rise
     assert abs(tr.steady_t_max - st.t_max) < 1e-6 * rise
+
+
+def test_a_bottom_layer_part_enters_through_the_bottom_face():
+    """!
+    @brief A part over the whole BOTTOM face of a one-dimensional board (layer 2 of 2, 35 um): the load is a face flux on the bottom face of the lowest copper slab, so
+           q_dn leaves by the bottom film straight from the face and q_up crosses the bottom copper, the gap and the top copper: q_dn = q B / (1/h_bottom + B),
+           B = 1/h_top + d/k_z + 2 t/k (the mirror of the closed form of tests/test_fem_model.py); the bottom surface minus the bottom column is q_up t / (2 k) and the top
+           surface minus the top column is -q_up t / (2 k), to 1e-6 relative (added by the review: no board of the study had a part on the bottom layer).
+    @return None.
+    """
+    p = Problem.new(20.0, 20.0, layers=2, thickness_mm=1.6, copper_um=35, ambient=25.0, h_top=30.0, h_bottom=12.0, h_side=None)
+    p.add_full_copper(layers=None)
+    P = 4.0
+    p.add_heater(2, P, rect=(0.0, 0.0, 20.0, 20.0), name="B")
+    mesh = femmesh.build(p, 5.0, 3, 2.0)
+    assert mesh.heater_flux[0] is not None and mesh.heater_q[0] is None and not mesh.model.q.any()
+    b = p.board
+    k, t, d, kz = b.materials.k_copper, b.copper_thickness[1], b.gap_thicknesses()[0], b.gap_properties()[0][0]
+    q = P / 4e-4
+    B = 1.0 / b.h_top + d / kz + 2.0 * t / k
+    q_dn = q * B / (1.0 / b.h_bottom + B)
+    q_up = q - q_dn
+    r = fem.solve_steady(p, cell_mm=5.0)
+    assert abs(r.balance_error) < 1e-9 and r.power_in == pytest.approx(P, rel=1e-9)
+    assert np.allclose(r.arrays["T_surface"][1], 25.0 + q_dn / b.h_bottom, rtol=1e-6, atol=0)
+    assert np.allclose(r.arrays["T_surface"][0], 25.0 + q_up / b.h_top, rtol=1e-6, atol=0)
+    term = q_up * t / (2.0 * k)
+    assert float((r.arrays["T_surface"][1] - r.T[1]).mean()) == pytest.approx(term, rel=1e-6)
+    assert float((r.arrays["T_surface"][0] - r.T[0]).mean()) == pytest.approx(-term, rel=1e-6)
+    # The heat leaves by the bottom film mostly (the part sits on that face): the paths match the closed form
+    assert r.power_out["bottom"] == pytest.approx(q_dn * 4e-4, rel=1e-6) and r.power_out["top"] == pytest.approx(q_up * 4e-4, rel=1e-6)
+
+
+def test_an_interior_layer_part_keeps_the_volumetric_source():
+    """!
+    @brief A part on layer 2 of a four-layer board has no face to load: it stays a volumetric source in its copper slab (no 'source' face), and the power is exact.
+    @return None.
+    """
+    p = Problem.new(20.0, 20.0, layers=4, thickness_mm=1.6, copper_um=35, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=None)
+    p.add_full_copper(layers=None)
+    p.add_heater(2, 2.0, rect=(8.0, 8.0, 12.0, 12.0), name="I")
+    mesh = femmesh.build(p, 2.0, 3, 2.0)
+    assert mesh.heater_flux[0] is None and mesh.heater_q[0] is not None
+    assert not any(f.get("label") == "source" for f in mesh.model.faces)
+    assert float(fem.heater_loads(mesh).sum()) == pytest.approx(1.0, rel=1e-12)
+    r = fem.solve_steady(p, cell_mm=2.0)
+    assert abs(r.balance_error) < 1e-9 and r.power_in == pytest.approx(2.0, rel=1e-9)

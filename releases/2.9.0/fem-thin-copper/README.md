@@ -36,7 +36,11 @@ Cause (`femmesh.build`): a layer of one slab (copper up to 105 um) took the powe
 | 105 | 4 | 8.523 | 5.831 (0.68) | 5.781 (0.68) | 0.155 (0.02) | 4.375 (0.51) | +0.155 |
 | 105 | 8 | 2.131 | 1.499 (0.70) | 1.487 (0.70) | 0.102 (0.05) | 1.168 (0.55) | +0.102 |
 
-The FEM energy balance is below 1e-10 in every case, before and after. The FEM column under the part is 0.05 to 5.2 K below the independent column (the largest on the 2 mm part at this 1 mm cell), before and after alike: the fix changes it by the last column only (0.06 to 0.21 mK). The cause of that gap is not investigated here (a column read-out of a coarse mesh against a 1 mm finite-volume cell is a likely part of it).
+The FEM energy balance is below 1e-10 in every case, before and after. The FEM column under the part is 0.05 to 5.2 K below the independent column (the largest on the 2 mm part at this 1 mm cell), before and after alike: the fix changes it by the last column only (0.06 to 0.21 mK).
+
+**Review: the 5.2 K is the resolution of the 1 mm finite-volume reference, not an FEM defect.** Thin copper under a small part has a steep, nearly logarithmic in-plane profile (the sheet conductance of 18 um of copper is 0.007 W/K), and a cell-centred finite-volume cell of 1 mm reads it high. The independent solver on the 18 um, 2 mm case, its column averaged over the same 1 mm cells (scratch probe of the review, not committed; 4 sub-slabs through the copper): 115.72 degC at a 1 mm cell, 112.30 at 0.5 mm, 111.39 at 0.25 mm (converging toward about 111.1); the FEM at a 1 mm cell reads 110.52, so it is about 0.6 to 0.9 K below the converged area mean, not 5.2 K; the FVM at 1 mm reads 115.47, like the finite-volume reference at the same cell. The term of the reference at those cells is 4.13, 4.12, 4.12 mK.
+
+**Review: what the remaining 0.2 of the term is.** The same three cases with more elements through the copper (a scratch probe of the review that replaced `femmesh.copper_slab_count` by at least 2 or 4; not a program change), cell 1 mm, term in mK: 18 um / 2 mm: 2.678 (1 element), 3.267 (2), 3.414 (4), reference 4.046; 35 um / 4 mm: 1.529, 1.850, 1.930, reference 1.992; 105 um / 2 mm: 14.846, 18.461, 19.366, reference 23.027. The column moves by less than 0.1 mK. So most of the residual is the one element through the copper, as stated; the rest on the 2 mm parts is the plan resolution (the 18 um / 2 mm term is 3.076 mK with one element at a 0.5 mm cell).
 
 The FEM term now reads 0.44 to 0.66 of `q t / (2 k)` against 0.68 to 0.78 for the independent solver: the sideways spreading inside the copper (heat that leaves the face sideways rather than down) cannot be represented by one linear element through the copper, which reads `q_down t / (2 k)` with `q_down` the local flux that goes down. This stays after the fix; it is a mesh matter (two or more elements in thin copper would remove it, at a cost on every FEM number and on the memory law), a proposal and not done here.
 
@@ -44,8 +48,8 @@ The FEM term now reads 0.44 to 0.66 of `q t / (2 k)` against 0.68 to 0.78 for th
 
 Frozen FEM steady records (`v2.8.0.json`, 38 records, cells 2, 1 and 0.5 mm) against the tree after (`tests/regression/data/pending/fem-thin-copper-source.json`; part rows, column `t_max` and the term `t_max_surface - t_max`):
 
-| record | part | column t_max before (degC) | after | shift (mK) | term before (mK) | term after (mK) |
-|:--|:--|--:|--:|--:|--:|--:|
+| board | model | cell (mm) | part | column t_max before (degC) | after (degC) | shift (mK) |
+|:--|:--|--:|:--|--:|--:|--:|
 | drawn_ell | fem | 0.5 | U | 118.8488 | 120.3247 | +1475.86 |
 | drawn_ell | fem | 1 | U | 108.0215 | 109.0556 | +1034.17 |
 | drawn_ell | fem | 2 | U | 89.3190 | 89.4254 | +106.37 |
@@ -88,7 +92,24 @@ Frozen FEM steady records (`v2.8.0.json`, 38 records, cells 2, 1 and 0.5 mm) aga
 | two_layer_partial | fem | 1 | U | 162.8268 | 162.8270 | +0.21 |
 | two_layer_partial | fem | 2 | U | 161.2795 | 161.2797 | +0.20 |
 
-Explanation of the shifts. (1) The column rises by 0.01 to 0.8 mK on the boards whose part sits on copper (the face load sits at the top of the slab, and the column is the slab mean), and the term grows by roughly its own size (0.1 to 2.5 mK). (2) `drawn_ell`: its 4 mm part straddles the corner where the top copper is absent; there the slab under the part is a 35 um laminate slab (k 0.3 W/mK through) and the face flux now crosses it entirely: the term of the hottest cell goes from 1.48 to 3.30 K at 0.5 mm and the column of that cell by +0.106, +1.034, +1.476 K at 2, 1, 0.5 mm. Independent check (this branch, scratch probe, the board with the edge film removed since `layered3d` has insulated sides, 0.4 and 0.2 mm cells, copper patterned per cell): term of the independent solver 3.44 K (0.4 mm) and 3.45 K (0.2 mm); the FEM 3.34 K and 3.41 K after the fix against 1.57 and 1.59 K before; the FVM's surface read-out equals its column there. The hottest-cell column value of a corner cell depends on the cell (259.8 K at 0.2 mm, 263.9 K at 0.4 mm in the independent solver); the FEM after the fix reads 247.3 and 244.7 K, before 245.7 and 243.1 K, the FVM 242.4 and 244.2 K: the shift is toward the reference by half of the term and the remaining gap is the resolution of the corner. (3) `plate_lone_via` and `plate_vias` have the largest terms among the copper boards (1.1 to 1.5 mK before, 2.9 to 3.3 mK after at the finer cells); the reason (a via under the part changes the local flux through the copper) was not investigated.
+Explanation of the shifts. (1) The column rises by 0.01 to 0.8 mK on the boards whose part sits on copper (the face load sits at the top of the slab, and the column is the slab mean), and the term grows by roughly its own size (0.1 to 2.5 mK). (2) `drawn_ell`: its 4 mm part straddles the corner where the top copper is absent (1.2 x 1.2 mm of the 4 x 4 mm footprint); there the slab under the part is a 35 um laminate slab (k 0.3 W/mK through) and the face flux now crosses it entirely: the term of the hottest cell goes from 1.48 to 3.30 K at 0.5 mm and the column of that cell by +0.106, +1.034, +1.476 K at 2, 1, 0.5 mm (at 2 mm the corner is averaged into cells that are partly copper, hence the small move). The independent check is now a committed script (`scripts/study_drawn_ell_corner.py`, run by the review on the tree before, `development` db6244b1, and on this branch). Part A is the board of `drawn_ell` with no edge film (the sides of `layered3d` are insulated) and a laminate of 0.3 W/mK in every direction; the reference has 8 sub-slabs through the top copper, 6 through the laminate, the copper patterned per cell and the film under the part (hottest column and hottest surface under the part, degC; term in K):
+
+| cell (mm) | reference column | term | FVM column | term | FEM before: column | term | FEM after: column | term |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 0.4 | 260.246 | 3.441 | 244.240 | 0.000 | 243.084 | 1.564 | 244.675 | 3.338 |
+| 0.2 | 255.824 | 3.447 | 242.444 | 0.000 | 245.673 | 1.588 | 247.288 | 3.408 |
+
+The FEM term now matches the reference within 3 % (it was half of it), and the FEM column moves toward the reference by 1.6 K (gap 17.2 -> 15.6 K at 0.4 mm, 10.2 -> 8.5 K at 0.2 mm). The column of the hottest cell of a corner is not converged in any model at these cells: the reference falls with the cell (260.2 -> 255.8) and the FEM rises (244.7 -> 247.3), so the converged value lies between them; it is not a quantity to read to the kelvin. The FVM's surface read-out over absent copper equals its column (term 0.000 K, the estimate of `thickness.py` uses the copper of the layer); the reference says 3.4 K: a limit of the FVM's surface estimate over bare laminate, recorded here and not part of this fix.
+
+Part B, the frozen board as it is (edge film 200 W/m2K, default materials), hottest column under the part (degC) and FEM term (K):
+
+| cell (mm) | FVM | 3D solid | FEM before | term | FEM after | term |
+|--:|--:|--:|--:|--:|--:|--:|
+| 2 | 96.432 | 91.074 | 89.319 | 0.105 | 89.425 | 0.232 |
+| 1 | 127.681 | 142.477 | 108.022 | 1.029 | 109.056 | 2.280 |
+| 0.5 | 116.327 | 129.457 | 118.849 | 1.481 | 120.325 | 3.296 |
+
+On this board the column under the part depends strongly on the cell in every model (the FVM 96 -> 128 -> 116, the 3D solid 91 -> 142 -> 129: the copper edge at 10.8 mm cuts cells of 2 and 1 mm differently); only the FEM rises monotonically, and its move by the fix (+0.1, +1.0, +1.5 K) is small against the spread of the models. The record is a stress case for cut cells, not a converged number. (3) `plate_lone_via` and `plate_vias` have the largest terms among the copper boards (1.1 to 1.5 mK before, 2.9 to 3.3 mK after at the finer cells); the reason (a via under the part changes the local flux through the copper) was not investigated.
 
 Times to 63 % of the FEM step response (the 16 `fem|` entries of `fem-transient`, moved in the same pass: one record in one file, so `fem-transient.json` was regenerated with `make_pending.py --new-times fem` on the tree after and carries them; the note in its `why` says so):
 
@@ -115,7 +136,7 @@ The biggest shift is `drawn_ell` (the laminate slab under the corner, as above);
 
 ## 5. Proof
 
-* `tests/test_fem_thin_copper_source.py`: six tests, three of them fail on the tree before (the mesh holds a face flux; the one-dimensional board reads `q t / 2k` to 1e-6 relative at 5 and 2 mm; the 4 mm part within 0.6 to 1.05 of the independent term and above 8 times the old volumetric term) and pass after; the column against the numbers of the tree before to 1e-3 K (1076.001026 and 299.588221 degC at cell 2 mm; after: 1076.001253 and 299.588338); the energy balance below 1e-9; `F @ powers` equals the steady load; the FEM power step ends on the steady column within 1e-3 of the rise.
+* `tests/test_fem_thin_copper_source.py`: six tests of the executor (the review added two, section 8), three of them fail on the tree before (the mesh holds a face flux; the one-dimensional board reads `q t / 2k` to 1e-6 relative at 5 and 2 mm; the 4 mm part within 0.6 to 1.05 of the independent term and above 8 times the old volumetric term) and pass after; the column against the numbers of the tree before to 1e-3 K (1076.001026 and 299.588221 degC at cell 2 mm; after: 1076.001253 and 299.588338); the energy balance below 1e-9; `F @ powers` equals the steady load; the FEM power step ends on the steady column within 1e-3 of the rise.
 * Tests that changed because the load moved: `test_a_one_dimensional_column_is_exact_and_the_film_is_the_plain_h` (the closed form now has the part at the top face: `q_up = q B / (1/h_top + B)` with `B = 1/h_bottom + d/k_z + 2 t / k`, met to the same 1e-6), the surface lines of two tests of `tests/test_fem_model.py` (`+0.001 K`, `-0.001 K` instead of `+0.000 K`), and the two mesh tests that summed `q * V` (now `_power_loaded`, the unit loads times the powers).
 * `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_fem_model.py tests/test_fem_mesh.py tests/test_fem_port.py tests/test_fem_transient_load.py tests/test_fem_transient_port.py tests/test_fem_transient_closed_forms.py tests/test_fem_profile_adapter.py tests/test_fem_thin_copper_source.py` green; `tests/test_published_cases.py`, `tests/test_solid3d_pad_inplane.py`, `tests/test_solid3d_copper_slabs.py`, `tests/test_models_part_table.py`, `tests/test_fem_memory.py`, `tests/test_fem_transient_memory.py`: 78 passed, 1 skipped.
 * Frozen: `PCBT_FROZEN_CELLS=2,1,0.5 .venv/bin/python -m pytest -q tests/regression -k "fem or pending"`: 58 passed (38 steady FEM records, 16 FEM times, the pending-file tests).
@@ -123,16 +144,27 @@ The biggest shift is `drawn_ell` (the laminate slab under the corner, as above);
 ## 6. Commands
 
 * `.venv/bin/python research/surface-readout-models/scripts/study_fem_thin_source.py` (section 1).
-* `.venv/bin/python releases/2.9.0/fem-thin-copper/scripts/study_fem_thin_copper.py --tree <tree> [--json file]` (section 3; "before" with `--tree /Volumes/SSD/PROJETOS/pcb-thermal-lab`, the `development` checkout).
+* `.venv/bin/python releases/2.9.0/fem-thin-copper/scripts/study_fem_thin_copper.py --tree <tree> [--json file]` (section 3; "before" with `--tree` the root of a checkout of `development` db6244b1).
+* `.venv/bin/python releases/2.9.0/fem-thin-copper/scripts/study_drawn_ell_corner.py --tree <tree> [--json file]` (section 4, `drawn_ell`; about 30 s).
 * `.venv/bin/python tests/regression/make_pending.py fem-thin-copper-source --board <the 19> --model fem --no-times ...` and `... fem-transient --board <the 16> --new-times fem ...`.
 
 ## 7. The documents
 
 `docs/theory.md` 4a: the sentence "through 35 um the volumetric source and the face flux differ by micro-kelvin" is corrected (item e21): true for the column of a part over copper (0.06 to 0.2 mK on the plates), not for the surface minus column term, which read 0.50 of `q t / 2k` (one-dimensional) and 0.02 to 0.16 under a small part before the fix; what holds after: the face flux, `q'' = P s / W`, the exact one-dimensional term, 0.44 to 0.66 under a small part (limit of one element through the copper). `docs/theory.md` 4a "Sources and films" and "Range and limits", `docs/models.md` (the FEM read-outs and limits), `CHANGELOG.md` (Unreleased, Fixed), `docs/versions.md`, `docs/decisions-log.md`. `docs/USER_MANUAL.md` and `pcbthermal/help/index.html` were searched for FEM surface numbers and thin-copper behaviour (`FEM`, `surface`, `thin`, `volumetric`, `105`, `micro-kelvin`): they quote none (only "resolved" for the FEM surface), so they are unchanged. The research folders (`research/surface-readout-models`, among them its `INTEGRATION.md` section 9) are not edited: this fix is the adoption of its proposal D (a face flux for every part on an outer copper layer, with a pending file); the research folder stays as the record.
 
-## 8. What was not verified
+## 8. Review
 
-* Only the tests listed in section 5 were run, not the whole battery. The GUI tests of the FEM, `test_gui_stress.py` and `test_help.py`/`test_user_manual.py` are the maintainer's battery.
-* Item e21 of `releases/2.9.0/PLAN.md` and the `PLAN.md` rows of e20 and e21 are not marked done here (the main checkout has uncommitted edits to `PLAN.md`).
-* The remaining 0.2 of the term under a small part (one element through thin copper) and the corner values of `drawn_ell` against a fully resolved reference are open; the independent check of `drawn_ell` is a scratch probe, not committed as a script.
-* A bottom-layer part (`h.layer == L - 1`) has the same code path (face nodes on the bottom of the lowest slab); no board of the studies has a part there, and no test covers it.
+Done by the reviewer on this branch (the numbers of sections 1, 3 and 4 re-run and reproduced to the printed digits: the twelve plates, the 38 frozen records and 16 times through `PCBT_FROZEN_CELLS=2,1,0.5 pytest tests/regression -k "fem or pending"`, 58 passed; `tests/test_fem_*.py`, 151 passed):
+
+* The load is right in sign, place and size: the closed form of the one-dimensional board is met to 1e-6 for a part on the top face (`tests/test_fem_model.py`) and, added by the review, for a part on the BOTTOM face (`test_a_bottom_layer_part_enters_through_the_bottom_face`: the bottom film, the top film and the term `q_up t / (2 k)` of both faces, mirrored); a part on an interior layer keeps the volumetric source (`test_an_interior_layer_part_keeps_the_volumetric_source`). A one-layer board has its copper on top, so the face is the top face (`femmesh._slabs`). A part under a top block loads the copper face that the pad also touches, as the thick-copper path of 2.8.0 did and as the FVM puts the source in the copper node.
+* The three test changes of the executor are legitimate: the closed form was re-derived for the face load (same 1e-6 tolerance), the surface lines now pin the new rounded values (+0.001 K, -0.001 K) instead of +0.000 K, and the two mesh tests sum the unit loads instead of `q V` (a face flux has no `q`); none is looser than before.
+* `fem-transient.json`: only the 16 `t63` values (class `new`, records that no frozen file holds) and the `why` changed; regenerating them in that file is the rule of one record in one file (`CLAUDE.md` 6), so it is legitimate.
+* The 5.2 K column gap and the residual 0.2 of the term are explained in section 3; `drawn_ell` in section 4 with a committed script.
+* Wording: the FEM surface was called *resolved, not an estimate* everywhere; through copper of one element (up to 105 um) its difference to the column is about a third low under a part a few millimetres wide. The help, the tooltip of the surface column, the user manual and `docs/theory.md` now say so.
+* Decision of the review: ship this fix in 2.9.0 with the residual stated; two or more elements through thin copper is a proposal for later (it would move every FEM term and unknown count and the memory law, for a difference of 0.04 to 8 mK per watt on the plates; the comparison campaign measures it).
+
+## 9. What was not verified
+
+* Only the tests listed in section 5 and the review's runs were run, not the whole battery. The GUI tests of the FEM, `test_gui_stress.py` and `test_help.py`/`test_user_manual.py` are the maintainer's battery (the review ran `test_help.py`, `test_tooltips.py`, `test_user_manual.py` and `test_docs.py` after its wording changes).
+* The independent reference for `drawn_ell` at 0.1 mm (640 000 unknowns) was started and stopped for the load of the machine; the corner column is therefore bracketed (section 4), not converged.
+* The convergence probes of section 3 (reference at 0.5 and 0.25 mm, two and four elements through the copper) are scratch probes of the review, not committed scripts.

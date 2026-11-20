@@ -912,6 +912,9 @@ The program always computes and shows both, each with its name:
   path, the power coefficient and the Power Calculator use. Every map is titled *column mean*.
 - **Surface** is an estimate of the outer face (FVM, FDM) or a resolved value (FEM). It is a
   *view*, never a mode: it changes nothing that is solved and nothing is saved in the project.
+  The FEM has one element through copper up to 105 µm, so on ordinary copper its small
+  difference between surface and column reads about a third low under a part a few
+  millimetres wide (milli-kelvin per watt); through a thick plate it is resolved.
 
 Where you find the surface:
 
