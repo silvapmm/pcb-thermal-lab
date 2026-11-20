@@ -1,0 +1,68 @@
+{
+ "base_version": "2.8.0",
+ "branch": "fix/solid3d-pad-inplane",
+ "evidence": "releases/2.9.0/solid3d-pad-inplane/README.md",
+ "format": 1,
+ "item": "3D solid interface pad conducts across only",
+ "records": {
+  "finned_block|solid3d|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -3.3525774748947392e-12,
+    "layer_mean[0]": 75.9380429406044,
+    "layer_mean[1]": 65.92652426311975,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 6.0,
+    "part:U:t_max": 130.5603055210147,
+    "part:U:t_mean": 118.3095638751676,
+    "power_in": 6.0,
+    "t_max": 130.5603055210147,
+    "t_mean": 70.93228360186207,
+    "t_min": 63.44852200634313,
+    "t_sum": 1361899.8451557518,
+    "t_sumsq": 98959731.799618,
+    "unknowns": 134400
+   }
+  },
+  "finned_block|solid3d|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -2.675193400136777e-12,
+    "layer_mean[0]": 75.94691923462776,
+    "layer_mean[1]": 65.93571846344436,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 6.0,
+    "part:U:t_max": 130.5035101762594,
+    "part:U:t_mean": 118.5505938441339,
+    "power_in": 6.0,
+    "t_max": 130.5035101762594,
+    "t_mean": 70.94131884903605,
+    "t_min": 63.46146813570013,
+    "t_sum": 340518.3304753731,
+    "t_sumsq": 24747749.914638277,
+    "unknowns": 33600
+   }
+  },
+  "finned_block|solid3d|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -9.993487518992576e-13,
+    "layer_mean[0]": 75.95149441816517,
+    "layer_mean[1]": 65.94006470435122,
+    "part:U:power_top_w": 0.0,
+    "part:U:power_w": 6.0,
+    "part:U:t_max": 130.2512913647002,
+    "part:U:t_mean": 119.46395657264823,
+    "power_in": 6.0,
+    "t_max": 130.2512913647002,
+    "t_mean": 70.94577956125819,
+    "t_min": 63.47227614556858,
+    "t_sum": 85134.93547350983,
+    "t_sumsq": 6189421.650824448,
+    "unknowns": 8400
+   }
+  }
+ },
+ "transients": {},
+ "why": "The pad slab of a metal block had 1 W/mK in its plane and spread heat sideways; it now has 1e-3 W/mK in its plane (the FEM's value), so a part under a top block reads up to 0.9 percent hotter at 5e-3 m2K/W; on the frozen finned_block (bottom block, 5e-4) the shift is 0.002 K at most."
+}
