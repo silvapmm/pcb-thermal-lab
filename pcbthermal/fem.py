@@ -247,9 +247,9 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
         lab = f.get("label") or "other"
         lab = "blocks" if lab.startswith("block") else lab
         if lab == "source":
-            continue                                               # the face flux of a part on a thick outer layer: heat in, not a path out
+            continue                                               # the face flux of a part on an outer layer: heat in, not a path out
         paths[lab] = paths.get(lab, 0.0) + _film_heat(model, th, f)
-    power_in = float(sol["q_in"])                                  # the volumetric sources plus the face fluxes of the parts on a thick outer layer
+    power_in = float(sol["q_in"])                                  # the volumetric sources plus the face fluxes of the parts on an outer layer
     out = SteadyResult(
         model="fem", ambient=amb, power_in=power_in, t_max=float(T[:, inside].max()), t_min=float(T[:, inside].min()),
         t_mean=float((T * cover[None]).sum() / (L * cover.sum())), layer_mean=layer_mean,
