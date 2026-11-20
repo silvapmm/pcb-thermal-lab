@@ -8,6 +8,7 @@ Usage: python examples/make_screenshots.py [output_folder]   (default: docs/imag
        python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
        python examples/make_screenshots.py --surface [output_folder]   (the surface read-out of thick copper: the map of Surface (top) and the Components table)
        python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
+       python examples/make_screenshots.py --manual [output_folder]   (the manual_*.png pictures of the user manual: numbered window, start window, dialogs)
 """
 
 import os
@@ -644,7 +645,142 @@ def main_fem(out_dir):
     return [path1, path2]
 
 
+def _number_marks(pixmap, marks, radius=22):
+    """!
+    @brief Draw numbered round marks on a screenshot (the numbers of the legend that follows the figure in the user manual).
+    @param pixmap QPixmap of the window, drawn on in place.
+    @param marks List of (number, x, y) in pixels of the pixmap: the centre of each mark.
+    @param radius Radius of a mark in pixels.
+    @return None
+    """
+    from PySide6.QtGui import QColor, QFont, QPen
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    font = QFont()
+    font.setBold(True)
+    font.setPixelSize(int(radius * 1.1))
+    painter.setFont(font)
+    for number, x, y in marks:
+        # An amber disc with a dark ring reads on the dark and the light theme alike
+        painter.setPen(QPen(QColor("#1f1f1e"), 3))
+        painter.setBrush(QColor("#f2a900"))
+        painter.drawEllipse(int(x - radius), int(y - radius), 2 * radius, 2 * radius)
+        painter.setPen(QColor("#1f1f1e"))
+        painter.drawText(int(x - radius), int(y - radius), 2 * radius, 2 * radius, Qt.AlignCenter, str(number))
+    painter.end()
+
+
+def main_manual(out_dir):
+    """!
+    @brief The screenshots that only the user manual (docs/USER_MANUAL.md) uses: the window with numbered areas, the empty start window, the New board dialog, the Properties of a heatsink and of a via, Preferences (first section) and the keyboard list.
+    @param out_dir Folder that receives the manual_*.png pictures (the other screenshots are not remade).
+    @return List of written file paths.
+    """
+    from pcbthermal.gui.main_window import NewBoardDialog
+    from pcbthermal.gui.preferences import PreferencesDialog
+    from pcbthermal.gui.shortcuts_dialog import ShortcutsDialog
+
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    written = []
+
+    def save_pixmap(pix, name):
+        path = os.path.join(out_dir, name)
+        pix.save(path)
+        shrink(path)
+        written.append(path)
+
+    # 1. The empty window of a first start, light theme: the first-step hint on the board
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")
+    win = MainWindow(settings=settings)
+    win.resize(2400, 1363)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    app.processEvents()
+    win.canvas.fit()
+    app.processEvents()
+    save_pixmap(win.grab(), "manual_start.png")
+    win.doc.stack.setClean()
+    win.close()
+
+    # 2. The example board in the dark theme with the areas of the window numbered (the legend is in the manual, chapter 3)
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "dark")
+    win = MainWindow(settings=settings)
+    win._load_problem(example_board(), "example-4layer")
+    win.resize(2400, 1363)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+    app.processEvents()
+    win.canvas.fit()
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    app.processEvents()
+    pix = win.grab()
+
+    def centre(widget, dx=0.5, dy=0.5):
+        """Point of a widget in window pixels (dx, dy: fractions of its width and height)."""
+        top_left = widget.mapTo(win, widget.rect().topLeft())
+        return top_left.x() + widget.width() * dx, top_left.y() + widget.height() * dy
+
+    ratio = pix.devicePixelRatio()
+    marks = [(1, *centre(win.menuBar(), 0.11, 0.5)), (2, *centre(win.toolbar, 0.62, 0.5)),
+             (3, *centre(win.dock_board, 0.85, 0.12)), (4, *centre(win.dock_elements, 0.85, 0.25)),
+             (5, *centre(win.tabs, 0.33, 0.03)), (6, *centre(win.tabs, 0.5, 0.55)),
+             (7, *centre(win.dock_sim, 0.85, 0.30)), (8, *centre(win.dock_inspector, 0.85, 0.20)),
+             (9, *centre(win.statusBar(), 0.25, 0.5))]
+    radius = 26
+    # A mark keeps a margin from the edges of the window, so that the one of the menu bar and the one of the status bar are not cut
+    marks = [(n, min(max(x, radius + 4), win.width() - radius - 4), min(max(y, radius + 4), win.height() - radius - 4)) for n, x, y in marks]
+    _number_marks(pix, [(n, x * ratio, y * ratio) for n, x, y in marks], radius=int(radius * ratio))
+    save_pixmap(pix, "manual_window_tour.png")
+
+    # 3. The Properties dock of the heatsink and of a via of the example board
+    for kind, name in (("heatsink", "manual_properties_heatsink.png"), ("via", "manual_properties_via.png")):
+        win.canvas.set_selection([(kind, 0)])
+        win._on_canvas_selection([(kind, 0)])
+        app.processEvents()
+        save_pixmap(win.dock_inspector.grab(), name)
+
+    # 4. The New board dialog (shown, not executed: exec() would wait for a click)
+    dlg = NewBoardDialog(win)
+    dlg.show()
+    app.processEvents()
+    save_pixmap(dlg.grab(), "manual_new_board.png")
+    dlg.close()
+
+    # 5. Preferences on its first section (the libraries)
+    pref = PreferencesDialog(win)
+    pref.resize(980, 520)
+    pref.show()
+    pref.sections.setCurrentRow(0)
+    app.processEvents()
+    save_pixmap(pref.grab(), "manual_preferences.png")
+    pref.close()
+
+    # 6. The keyboard list (Help - Keyboard shortcuts)
+    keys = ShortcutsDialog(win.SHORTCUTS_HTML, win.theme_name, win)
+    keys.resize(1100, 700)
+    keys.show()
+    app.processEvents()
+    save_pixmap(keys.grab(), "manual_shortcuts.png")
+    keys.close()
+
+    win.doc.stack.setClean()
+    win.close()
+    return written
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--manual":
+        for f in main_manual(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "--fem":
         for f in main_fem(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
             print(f)
