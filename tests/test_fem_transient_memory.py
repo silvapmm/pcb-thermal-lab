@@ -4,8 +4,9 @@
 @file test_fem_transient_memory.py
 @brief The memory and time guard of the FEM time simulation: the factor per model and per solver path, the frames added in bytes, the law against the recorded transient peaks of
        the design review, the refusal BEFORE the run (never a crash), the time prediction and its limit.
-@details The two recorded peaks are those of DESIGN.md 14.3 (the example board at 2 mm, 67 229 unknowns, one run per case in a fresh process on a loaded machine): the constants
-         shipped now (2.0) must cover them; the measurement that refits them is `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py`, which is NOT run here.
+@details The two recorded peaks are those of DESIGN.md 14.3 (the example board at 2 mm, 67 229 unknowns, one run per case in a fresh process on a loaded machine) and the measured
+         rows are those of `releases/2.9.0/fem-transient/MEASURED.md` (tree ec15bdc0): the fitted constants (direct 2.31, CG 1.22) must cover them all. The measuring scripts
+         (`releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py`, `measure_fem_transient_direct_limit.py`) are NOT run here.
 """
 
 import numpy as np
@@ -69,8 +70,8 @@ def test_the_frames_are_added_in_bytes_not_multiplied():
 @pytest.mark.parametrize("path,n,growth", RECORDED)
 def test_the_shipped_factor_covers_the_recorded_transient_peaks(path, n, growth):
     """!
-    @brief The estimate of the transient (without the base) is at least the recorded growth of the review's prototype on both paths at the recorded size, the way the
-           constants are meant to be refitted: largest measured ratio times 1.1, never below.
+    @brief The estimate of the transient (without the base) is at least the recorded growth of the review's prototype on both paths at the recorded size (the fitted constants
+           are the largest measured ratio times 1.15, MEASURED.md 3).
     @param path "cg" or "direct".
     @param n Unknowns of the recorded run.
     @param growth Recorded growth in bytes.
@@ -80,7 +81,7 @@ def test_the_shipped_factor_covers_the_recorded_transient_peaks(path, n, growth)
     if path == "cg":
         est = memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=mult)
     else:
-        est = memory.FEM_DIRECT_BYTES * n * mult                        # the steady direct law applied above its fitted range, as the guard would until refitted
+        est = memory.estimate_bytes("fem_time", n, n / 10.0, base=0.0)  # the direct time law (36.7 kB per unknown up to FEM_TRANSIENT_DIRECT_MAX)
     assert est >= growth
 
 
@@ -132,7 +133,8 @@ CG_ROWS = [(67229, 0.55e9), (53181, 0.42e9), (55488, 0.46e9), (40140, 0.30e9), (
 def test_the_direct_time_law_covers_every_measured_row_above_the_steady_limit():
     """!
     @brief `estimate_bytes("fem_time")` (the direct factor times FEM_TRANSIENT_FACTOR_DIRECT, 36.7 kB per unknown) is at least the measured growth of every direct row, with at least the
-           15 % margin of the fit on the worst one (2.15 GB at 67 229 unknowns), up to `FEM_TRANSIENT_DIRECT_MAX`; the CG law with its factor covers the CG rows.
+           15 % margin of the fit on the worst one (2.15 GB at 67 229 unknowns), up to `FEM_TRANSIENT_DIRECT_MAX`; the CG law with its factor covers the CG rows, with the same margin above
+           the steady direct limit.
     @return None.
     """
     assert femcore.FEM_TRANSIENT_DIRECT_MAX >= 100_000 and memory.FEM_TRANSIENT_DIRECT_MAX == femcore.FEM_TRANSIENT_DIRECT_MAX
@@ -145,7 +147,10 @@ def test_the_direct_time_law_covers_every_measured_row_above_the_steady_limit():
     assert memory.estimate_bytes("fem_time", 67229, 6000.0, base=0.0) >= 1.14 * 2.15e9
     for n, growth in CG_ROWS:
         assert memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0) >= growth, n
-    assert memory.estimate_bytes("fem_time_cg", 67229, 6700.0, base=0.0) >= 1.14 * 0.55e9
+        if n > memory.FEM_DIRECT_MAX:
+            # where a run can take CG the law keeps the 15 % margin of the fit over every row (review: 1.22 left 11 % at 106 122 unknowns, the ratio had been taken over the
+            # steady law with its floor at the direct limit, which the time law does not have)
+            assert memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0) >= 1.14 * growth, n
 
 
 def test_above_the_transient_direct_limit_a_time_run_is_estimated_by_the_cg_law():
@@ -192,3 +197,45 @@ def test_the_time_model_has_a_setup_per_stage_and_a_cost_per_step_and_matches_th
     assert s(67229, 52, 11) > s(67229, 52, 1) + 9 * 7.0                # ten more stages cost ten more factorisations
     for n, step in ((20930, 1.148), (67229, 3.155), (106122, 4.236)):
         assert s(n + 100000, 1, 0) / (n + 100000) * n >= step * 0.9     # CG: per-unknown cost covers the measured step (above the direct limit)
+
+
+def test_a_run_that_falls_back_to_cg_agrees_with_the_direct_run(monkeypatch):
+    """!
+    @brief A REAL fallback: with the direct factor made too big for the budget (and the steady direct limit lowered so that the small mesh is not direct by size), the guard
+           accepts the run by the CG law, the stepper takes the conjugate gradients, and every frame agrees with the direct run within the solver tolerance (review: 1.2e-10 K,
+           3e-12 of the rise, on this board).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    pytest.importorskip("pyamg")
+    p = _board(40.0, 30.0)
+    direct = fem.solve_transient(p, 100.0, n_out=10, cell_mm=2.0)
+    assert direct.extras["solver"] == "direct"
+    monkeypatch.setattr(memory, "FEM_DIRECT_MAX", 10)
+    monkeypatch.setattr(femcore, "FEM_DIRECT_MAX", 10)
+    monkeypatch.setattr(memory, "FEM_TRANSIENT_FACTOR_DIRECT", 1e6)       # the direct factor no longer fits any machine
+    assert memory.check(p, ("fem",), 2.0, transient=True, refuse="return", quiet=True)[0].verdict != "refuse"
+    cg = fem.solve_transient(p, 100.0, n_out=10, cell_mm=2.0)
+    assert cg.extras["solver"] == "cg" and cg.extras["iterations"] > 0
+    rise = float(direct.frames.max() - direct.ambient)
+    assert np.abs(cg.frames - direct.frames).max() <= 1e-7 * rise
+    assert cg.steady_t_max == pytest.approx(direct.steady_t_max, rel=1e-9)
+
+
+def test_the_frames_count_in_the_choice_of_the_path_so_a_run_that_cg_takes_is_not_refused(monkeypatch):
+    """!
+    @brief The frames are added to the FEM estimate, so the path is chosen against the limit less the frames: a direct factor that fits only without the frames falls back to the CG
+           law (which fits with them) instead of refusing the run (review: the path was chosen without the frames and the guard refused it).
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(memory, "FEM_DIRECT_MAX", 10)
+    p = _board(40.0, 30.0)
+    n = femmesh.unknowns(p, 2.0)[0]
+    base, frames = 0.1e9, 0.1e9
+    direct = memory.estimate_bytes("fem_time", n, n / 10.0, base=0.0)
+    limit = base + direct + 0.5 * frames                                 # the direct factor fits alone, not with the frames
+    kw = dict(refuse="return", ram=int(limit / 0.6) + 1, available=64 * 10 ** 9, base=base, quiet=True, transient=True, fraction=0.6)
+    v = memory.check(p, ("fem",), 2.0, frames_bytes=frames, **kw)[0]
+    assert v.verdict != "refuse", v.message
+    assert v.estimate < base + direct + frames                          # estimated by the CG law

@@ -618,7 +618,11 @@ def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, fo
     memory.check(problem, ("fem",), cell_mm, fraction=memory_fraction, transient=True, fem_params=(gap_elements, refine), quiet=True, frames_bytes=frames_bytes)
     unknowns = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
     nx, ny, _, _ = _grid_shape(problem, cell_mm)
-    law = memory.fem_time_law(unknowns, nx * ny, None, memory.limit_bytes(memory_fraction if memory_fraction is not None else memory.default_fraction()))
+    # The same decision as the guard's (`memory._check`): the base it uses (the process plus the imported copper masks) and the limit less the frames the run holds, so that the
+    # stepper never takes the direct path on a mesh the guard estimated by the CG law (or the reverse)
+    base = memory.baseline_bytes() + memory.copper_run_bytes(problem)
+    limit = memory.limit_bytes(memory_fraction if memory_fraction is not None else memory.default_fraction()) - frames_bytes
+    law = memory.fem_time_law(unknowns, nx * ny, base, limit)
     direct_max = femcore.FEM_TRANSIENT_DIRECT_MAX if law == "fem_time" else 0
     if unknowns > direct_max and unknowns > femcore.FEM_DIRECT_MAX and force_solver != "direct" and not femcore.available():
         raise femcore.FemUnavailable(f"the FEM mesh has {unknowns} unknowns, above what the direct time stepping takes here ({femcore.FEM_TRANSIENT_DIRECT_MAX} unknowns, less when the "

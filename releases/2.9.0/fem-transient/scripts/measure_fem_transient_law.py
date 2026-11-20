@@ -4,13 +4,14 @@
 @file measure_fem_transient_law.py
 @brief Measures the peak memory and the time of the program's FEM time simulation (`fem.solve_transient`, `profiles.run_fem`) on boards of the regression harness, each case in a fresh
        process, to refit `memory.FEM_TRANSIENT_FACTOR_CG`, `FEM_TRANSIENT_FACTOR_DIRECT`, `FEM_STEP_SECONDS_DIRECT`, `FEM_STEP_SECONDS_CG`, `FEM_RUN_SECONDS_MAX` and `femcore.FEM_TRANSIENT_DIRECT_MAX`.
-@details HEAVY: do not run it beside another heavy job (one case at a time; the largest case peaks at about 2 GB of resident memory by the steady law times the shipped factor, see `--dry-run`).
+@details HEAVY: do not run it beside another heavy job (one case at a time; the largest case peaks at about 2.7 GB of resident memory by the program's time law, see `--dry-run`).
          A case is a harness board at a plan cell, a solver path ('direct' or 'cg'; CG needs pyamg) and a kind: 'step' (a power-step response of 40 frames, `fem.solve_transient`) or 'profile'
          (two windows of a 60 s square wave through `profiles.run_fem`). The peak is `ru_maxrss` of the child minus the resident size read after the imports, as `releases/2.8.0/fem-model/scripts/measure_fem_law.py`.
-         The ratio is the peak growth over the STEADY law of the same mesh (`memory.estimate_bytes('fem', n, cells, base=0)` for CG, `FEM_DIRECT_BYTES x n` for direct): the constants become the
-         largest measured ratio of each path times 1.1 (never below 1.0). The seconds per unknown and step are the stepping time over unknowns x steps. Usage from the repository root:
+         The ratio is the peak growth over the law of the path WITHOUT its time factor (`FEM_DIRECT_BYTES x n` for direct; for CG the law of `memory.estimate_bytes('fem_time_cg')`
+         divided by `FEM_TRANSIENT_FACTOR_CG`, i.e. the steady CG law without the floor that the steady estimate puts at the direct limit): the constants become the largest measured
+         ratio of each path times 1.15 (never below 1.0), the CG one over the cases above `FEM_DIRECT_MAX` (below it a time run is always direct; review). The seconds per unknown and step are the stepping time over unknowns x steps. Usage from the repository root:
 
-         .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py --dry-run      # list the cases with the expected peak of the shipped law, run nothing
+         .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py --dry-run      # list the cases with the expected peak of the program's time law, run nothing
          .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py                # every case, a table and the fitted constants (optionally --json FILE)
          .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py --one example_board 2 cg step   # one case, one JSON line
 """
@@ -48,7 +49,8 @@ def _import():
 
 def expected_peak(name, cell, path):
     """!
-    @brief The peak growth the SHIPPED law predicts for a case (what the guard would estimate without the base), for the dry run.
+    @brief The peak growth the program's time law predicts for a case (`memory.estimate_bytes` models 'fem_time' and 'fem_time_cg', what the guard estimates without the base and
+           the frames), for the dry run and the script's own memory guard.
     @param name Harness board.
     @param cell Plan cell in mm.
     @param path 'direct' or 'cg'.
@@ -58,8 +60,17 @@ def expected_peak(name, cell, path):
     p = rb.build(name)
     n = femmesh.unknowns(p, cell)[0]
     if path == "direct":
-        return n, memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT
-    return n, memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
+        return n, memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT       # the direct law of 'fem_time' at every size (forced direct above the limit too)
+    return n, memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0)
+
+
+def memory_factors():
+    """!
+    @brief The time factors and the steady direct limit of the program under test, for the texts of the script.
+    @return Tuple (FEM_TRANSIENT_FACTOR_DIRECT, FEM_TRANSIENT_FACTOR_CG, FEM_DIRECT_MAX).
+    """
+    rb, fem, femmesh, memory, profiles = _import()
+    return memory.FEM_TRANSIENT_FACTOR_DIRECT, memory.FEM_TRANSIENT_FACTOR_CG, memory.FEM_DIRECT_MAX
 
 
 def available_now():
@@ -102,7 +113,8 @@ def one(name, cell, path, kind):
     secs = time.time() - t0
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024)
     growth = peak - start
-    steady = memory.FEM_DIRECT_BYTES * n if solver == "direct" else memory.estimate_bytes("fem", n, n / 10.0, base=0.0)
+    # the law of the path without its time factor (for CG without the floor of the steady estimate at the direct limit, which the time law does not have)
+    steady = memory.FEM_DIRECT_BYTES * n if solver == "direct" else memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0) / memory.FEM_TRANSIENT_FACTOR_CG
     return {"board": name, "cell": cell, "kind": kind, "solver": solver, "n": n, "steps": int(steps), "factorisations": int(facts), "iterations": int(iters), "seconds": secs,
             "growth": growth, "ratio": growth / steady, "sec_per_unknown_step": secs / (n * max(steps, 1))}
 
@@ -117,7 +129,8 @@ def main():
         print(json.dumps(one(sys.argv[i + 1], float(sys.argv[i + 2]), sys.argv[i + 3], sys.argv[i + 4])))
         return
     if "--dry-run" in sys.argv:
-        print("dry run: nothing is run; expected peak growth of the shipped law (resident bytes, without the base of the process)")
+        print(f"dry run: nothing is run; expected peak growth of the program's time law (direct {memory_factors()[0]:.2f} x 15.9 kB per unknown, CG the steady CG law x "
+              f"{memory_factors()[1]:.2f}; resident bytes, without the base of the process)")
         for name, cell, path, kind in CASES:
             n, est = expected_peak(name, cell, path)
             print(f"{name:16s} {cell:4.1f} mm {path:6s} {kind:7s} unknowns {n:8d}  expected peak growth {est / 1e9:5.2f} GB")
@@ -139,11 +152,13 @@ def main():
         print(f"{r['board']:16s} {r['cell']:4.1f} mm {r['solver']:6s} {r['kind']:7s} n={r['n']:8d} steps {r['steps']:5d} {r['seconds']:7.1f} s growth {r['growth'] / 1e9:5.2f} GB "
               f"ratio {r['ratio']:5.2f} {r['sec_per_unknown_step']:.2e} s/unknown/step", flush=True)
     for how in ("direct", "cg"):
-        sel = [r for r in rows if r["solver"] == how]
+        # the CG factor only from the cases where a time run can take CG (above the steady direct limit)
+        sel = [r for r in rows if r["solver"] == how and (how == "direct" or r["n"] > memory_factors()[2])]
         if sel:
             worst = max(r["ratio"] for r in sel)
             per = max(r["sec_per_unknown_step"] for r in sel)
-            print(f"{how}: largest ratio {worst:.3f} -> FEM_TRANSIENT_FACTOR_{how.upper()} = {max(worst * 1.1, 1.0):.2f}; slowest {per:.2e} s per unknown and step -> FEM_STEP_SECONDS_{how.upper()}")
+            print(f"{how}: largest ratio {worst:.3f} -> FEM_TRANSIENT_FACTOR_{how.upper()} = {max(worst * 1.15, 1.0):.2f}; slowest {per:.2e} s per unknown and step (a whole run over "
+                  "unknowns x steps; the program's time model is a setup per stage plus a cost per step, MEASURED.md 3)")
     if "--json" in sys.argv:
         with open(sys.argv[sys.argv.index("--json") + 1], "w") as fh:
             json.dump(rows, fh, indent=1)

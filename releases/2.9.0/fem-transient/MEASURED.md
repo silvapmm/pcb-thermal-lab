@@ -39,17 +39,19 @@ Direct growth per unknown: 15.3, 16.9, 19.7, 29.0, 29.3 kB (superlinear fill). T
 | one_layer_pad | 1.0 | cg | step | 40 328 | 52 | 36.1 | 0.31 | 0.65 |
 | example_board | 1.0 | cg | step | 275 724 | 52 | 364.2 | 2.06 | 0.97 |
 
-The ratio is the growth over the steady law of the path (15.9 kB per unknown direct, the CG law of `memory.py` otherwise). The largest direct ratio is 2.011 and the largest CG ratio 1.065. The direct-path rows of the two scripts differ at 67 229 unknowns (1.95 and 2.15 GB): the allocator reuse of freed factors moves the direct growth by about 10 %, as the review saw (DESIGN.md 14.3); the fit takes the larger.
+The ratio is the growth over the steady law of the path as the script printed it (15.9 kB per unknown direct, the steady CG estimate of `memory.py` otherwise). The largest direct ratio is 2.011. **Review**: the steady CG estimate has a floor at the direct limit (15.9 kB x 30 000 = 0.48 GB) that the CG time law (`estimate_bytes` model `fem_time_cg`) does not have, so the CG column above is low for the meshes under about 62 000 unknowns; over the law actually used the CG ratios are 1.065 / 1.032 / 1.084 / 0.966 / 0.954 / 1.064 / 0.998 / 0.970 (rows 8 to 15) and 1.18 / 1.03 / 1.06 / 1.06 / 1.10 on the CG rows of table 1 (20 930 to 106 122 unknowns; growth rounded to 0.01 GB there). The largest where a time run can take CG (above 30 000 unknowns) is 1.10, at 106 122 unknowns. The direct-path rows of the two scripts differ at 67 229 unknowns (1.95 and 2.15 GB): the allocator reuse of freed factors moves the direct growth by about 10 %, as the review saw (DESIGN.md 14.3); the fit takes the larger.
 
 ## 3. Fitted constants (each with its margin)
 
 | constant | was | now | from |
 | :-- | --: | --: | :-- |
 | `FEM_TRANSIENT_FACTOR_DIRECT` | 2.0 | **2.31** | 2.011 x 1.15; the old 2.0 under-predicted the 2.15 GB case (it gave 2.14 GB) |
-| `FEM_TRANSIENT_FACTOR_CG` | 2.0 | **1.22** | 1.065 x 1.15 |
+| `FEM_TRANSIENT_FACTOR_CG` | 2.0 | **1.27** | 1.10 x 1.15 over the CG time law above 30 000 unknowns (review; the first refit, 1.22 = 1.065 x 1.15 over the floored steady estimate, left 11 % at 106 122 unknowns) |
 | `FEM_TRANSIENT_DIRECT_MAX` | 30 000 | **100 000** | measured to 106 122 unknowns (3.11 GB), direct cheaper than CG at every size; memory limited: `memory.fem_time_law` falls back to CG when the direct factor (36.7 kB per unknown, 3.9 GB at 106 000) does not fit the budget |
 | direct time | 3e-6 s per unknown and step | setup 7.31 s (n/67 229)^1.7 per stage + 5.7e-7 s per unknown and step | factorisation 0.54 to 10.95 s (model 1.0 / 2.1 / 3.9 / 7.3 / 15.9 s), step 0.25 to 0.5 us per unknown |
 | CG time | 5.2e-5 s per unknown and step | setup 0.2 s per stage + 6.0e-5 s per unknown and step | step 5.5e-5 down to 4.0e-5 s per unknown, 330 to 475 iterations |
 | `FEM_RUN_SECONDS_MAX` | 600 | 600 (unchanged) | the data does not change the rule; the setup term makes the prediction honest for large direct meshes |
 
 The estimate of a direct time run is 36.7 kB per unknown at every size (the conservative top of the measured 15.3 to 32 kB per unknown; 3.90 GB predicted against 3.11 GB measured at 106 122 unknowns). Not measured: a direct case above 106 122 unknowns (no upper bound for the direct limit was found), the CG path on a mesh below 40 000 unknowns with a profile, and any other machine.
+
+Review of the refit (second review of `feature/fem-transient`): every number of tables 1 and 2 was compared with the raw outputs (`direct_limit_table.txt`, `law_stdout.txt`, `law.json`) and agrees; the direct factor, the direct law and the time model follow the tables (the setup model gives 1.0 / 2.1 / 3.9 / 7.3 / 15.9 s against 0.54 / 1.31 / 3.09 / 7.31 / 10.95 s measured, 14.4 s at 100 000 unknowns; the whole direct step response of the example board at 2 mm is predicted at 82.4 s against 82.2 s measured, no margin, which only sets a note or the 600 s refusal). The CG factor was refitted to 1.27 (above). The CG cost per step, 6.0e-5 s per unknown, is the small-mesh figure and is about 2.4 times the measured cost at 275 724 unknowns (`DESIGN.md` 16).

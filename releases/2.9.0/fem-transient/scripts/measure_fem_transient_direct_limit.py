@@ -7,7 +7,7 @@
 @details HEAVY (the direct path at 100 000 unknowns holds a factor of about 2.5 GB by the superlinear fill of DESIGN.md 14.3): one case at a time, never beside another heavy job. Each case is a
          fresh process. Usage from the repository root:
 
-         .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_direct_limit.py --dry-run       # the cases and the expected peak of the shipped steady direct law
+         .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_direct_limit.py --dry-run       # the cases and the expected peak of the program's time law
          .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_direct_limit.py                 # all cases, a table of seconds per stage on both paths
          .venv/bin/python releases/2.9.0/fem-transient/scripts/measure_fem_transient_direct_limit.py --one 2.5 cg    # one case, one JSON line
 """
@@ -74,11 +74,12 @@ def main():
         return
     if "--dry-run" in sys.argv:
         p, memory, femmesh, femcore, fem = _setup()
-        print("dry run: nothing is run; the expected peak is the steady direct law (FEM_DIRECT_BYTES x n) or the CG law, times the shipped transient factor")
+        print(f"dry run: nothing is run; the expected peak is the program's time law: direct {memory.FEM_TRANSIENT_FACTOR_DIRECT:.2f} x FEM_DIRECT_BYTES x n at every size, CG the "
+              f"steady CG law x {memory.FEM_TRANSIENT_FACTOR_CG:.2f} (memory.estimate_bytes 'fem_time', 'fem_time_cg')")
         for cell in CELLS:
             n = femmesh.unknowns(p, cell)[0]
             for path in PATHS:
-                est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
+                est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0)
                 print(f"cell {cell:3.1f} mm {path:6s} unknowns {n:8d}  expected peak growth {est / 1e9:5.2f} GB")
         return
     p, memory, femmesh, femcore, fem = _setup()
@@ -86,9 +87,9 @@ def main():
     for cell in CELLS:
         n = femmesh.unknowns(p, cell)[0]
         for path in PATHS:
-            # a guard of the script itself (review): the expected peak (the shipped law, or the last direct case scaled by sqrt(n) for the superlinear fill) times 1.5 must be
+            # a guard of the script itself (review): the expected peak (the program's time law, or the last direct case scaled by sqrt(n) for the superlinear fill) times 1.5 must be
             # below the memory available now, or the case is not started
-            est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem", n, n / 10.0, base=0.0, factor=memory.FEM_TRANSIENT_FACTOR_CG)
+            est = (memory.FEM_DIRECT_BYTES * n * memory.FEM_TRANSIENT_FACTOR_DIRECT) if path == "direct" else memory.estimate_bytes("fem_time_cg", n, n / 10.0, base=0.0)
             if path == "direct" and grown:
                 n0, b0 = grown["n"], grown["bytes"]
                 est = max(est, b0 / n0 * (n / n0) ** 0.5 * n)
