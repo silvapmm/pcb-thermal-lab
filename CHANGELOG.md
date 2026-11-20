@@ -7,6 +7,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Changed
 
+- **The size of the time-step error of the default stepping is stated** (`fix/transient-default-stepping`, stage 1; documents only, no number moves): implicit Euler at the default frames reads the hottest cell of the FVM and FDM 0.7 to 1.9 % low after the first seconds and the first frame -12.4 % (Animation) / -16.5 % (command line) on the example board; Crank-Nicolson is under 0.1 %. Sources: `research/transient-published-case` 4; `docs/theory.md` 2.4, `docs/models.md`, `docs/validation.md` 7, guide and manual 4.11 and 12.3.
+
 - **The README and manual screenshots are in the light theme** (`docs/readme-images-light`; pictures and text only, no number moves): 14 window pictures of `docs/images` made by `examples/make_screenshots.py` (default mode) and 6 of its `--manual` mode were dark and are now light (same windows, same data); the README shows the light pictures of the imported board in place of the two dark ones. The explicit `_dark` pictures used by the in-app guide stay.
 
 - **README badges** (`docs/readme-badges`): five static shields.io badges at the top (version, tests passed, Python 3.13, MIT licence, Windows, macOS and Linux), replacing the two of before; `tests/test_version.py` checks the version badge against `pcbthermal.__version__` and the tests badge against the battery recorded in `CLAUDE.md` section 14. The images are loaded from shields.io only when the README is viewed on GitHub; the program requests nothing.

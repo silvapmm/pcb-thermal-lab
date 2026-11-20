@@ -37,7 +37,7 @@ Four of them are layered models (one node per copper layer); the **3D solid** (s
 Cell-centred finite volumes (`fvm.py`). One node per layer and cell; between neighbouring cells the conductance uses the harmonic mean of the two sheet
 conductances (`G_x = 2 S₁S₂/(S₁+S₂)·dy/dx`), so a copper/FR-4 jump is a series combination. The steady problem is the sparse symmetric positive definite system `K θ = Q`
 (`θ = T − T_amb`) solved with a **direct sparse LU** (default, with a symmetric minimum-degree ordering: half the fill and about 40 % less time than the default ordering, factorised in SuperLU's symmetric mode with a residual-checked fallback to the default mode: same temperatures to 1e-11 K, much less time and memory on via-dense boards), conjugate gradients, or red-black SOR (kept for
-comparison). Transient: `C dθ/dt + K θ = Q`, theta-method (implicit Euler or Crank-Nicolson), time step doubling in ten stages so that only ten factorisations are needed.
+comparison). Transient: `C dθ/dt + K θ = Q`, theta-method (implicit Euler or Crank-Nicolson), time step doubling in ten stages so that only ten factorisations are needed. With implicit Euler at the default frames (Animation tab 60, command line 40) the hottest cell reads 0.7 to 1.9 % low after the first seconds and the first frame, one Euler step, -12 to -17 % on the example board; Crank-Nicolson with the same frames is under 0.1 % (`docs/theory.md` 2.4).
 
 *Use it* for final temperatures, any geometry (partial or hatched copper, copper edges anywhere, via arrays, thin or L-shaped heaters), whenever a warning appears, and to
 confirm the fast models. Cost grows with cells × layers; the **Auto** cell size (about four cells across the smallest heater) is a good start.
