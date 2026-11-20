@@ -205,6 +205,7 @@ def test_licences_groups_packaged_and_from_source(tmp_path, monkeypatch):
     groups = dict(bundle_info.licence_groups())
     assert [e[0] for e in groups["The package"]] == list(bundle_info.TEXT_FILES)
     assert [e[0] for e in groups["Qt and PySide"]] == ["LGPL-3.0, GPL-3.0 and notices"]
+    assert groups["Qt and PySide"][0][1].startswith("===== LGPL-3.0.txt =====")                      # The LGPL text first (the licence Qt is used under), then the GPL
     assert [e[0] for e in groups["Bundled libraries"]] == [bundle_info.TABLE_TITLES[0], "licenses/INDEX.txt", "numpy-2.5.5", "scipy-1.18.1"]
     flat = [e[0] for e in bundle_info.licence_entries()]
     assert flat == [e[0] for _, items in bundle_info.licence_groups() for e in items] and len(flat) == 5 + 1 + 4      # Nothing lost, nothing twice
@@ -288,6 +289,80 @@ def test_licences_table_needs_no_horizontal_scroll_at_natural_size(qtbot, tmp_pa
         assert not dlg.view.horizontalScrollBar().isVisible() or dlg.view.horizontalScrollBar().maximum() == 0
         assert text.split() == bundle_info.table_text(None).split()
     assert dlg.minimumSizeHint().width() <= 900 and dlg.minimumSizeHint().height() <= 600
+
+
+def test_library_table_edge_cases():
+    """!
+    @brief No metadata gives a sentence instead of an exception (the Licences window must still open); a version longer than 10 characters widens its column so that
+           every licence line, first or continued, starts in the same column; a single word longer than the licence column is kept whole.
+    @return None
+    """
+    assert "No library metadata" in bundle_info.table_text(80, [])
+    rows = [("a", "1.0", "MIT"), ("longer-name", "2026.10.1.post12", "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only AND ünïcödé ≥ 1"),
+            ("b", "2.0", "X" * 90 + " AND MIT")]
+    lines = bundle_info.table_text(60, rows).splitlines()
+    lead = len("longer-name") + 2 + len("2026.10.1.post12") + 2
+    assert all(len(ln) > lead and not ln[lead].isspace() and not ln[lead - 1].strip() for ln in lines)       # Every licence fragment starts at the same column
+    assert "X" * 90 in bundle_info.table_text(60, rows)                                                      # Not cut inside the word
+    assert bundle_info.table_text(60, rows).split() == bundle_info.table_text(None, rows).split()
+
+
+def test_licences_window_home_end_page_keys_and_header_clicks(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief Home, End and the page keys land on entries, never on a header (Home from the last entry once stayed there); a click on a header opens the first entry of that
+           group; a resize re-wraps the table from the rows read once, without reading the metadata again.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    from PySide6.QtCore import Qt
+
+    _fake_package(tmp_path, monkeypatch)
+    dlg = LicencesDialog()
+    qtbot.addWidget(dlg)
+    dlg.show()
+    tree = dlg.tree
+    qtbot.keyClick(tree, Qt.Key_End)
+    assert tree.currentItem() is dlg.leaves[-1]
+    qtbot.keyClick(tree, Qt.Key_Home)
+    assert tree.currentItem() is dlg.leaves[0]
+    for key in (Qt.Key_PageDown, Qt.Key_PageUp, Qt.Key_PageDown):
+        qtbot.keyClick(tree, key)
+        assert tree.currentItem().parent() is not None
+    for i, first in ((0, 0), (1, 5), (2, 6), (0, 0)):
+        tree.setCurrentItem(dlg.leaves[3 if i else -1])
+        qtbot.mouseClick(tree.viewport(), Qt.LeftButton, pos=tree.visualItemRect(tree.topLevelItem(i)).center())
+        assert tree.currentItem() is dlg.leaves[first], (i, tree.currentItem().text(0))
+    calls = []
+    monkeypatch.setattr(bundle_info, "libraries", lambda: calls.append(1) or [])
+    tree.setCurrentItem(dlg.leaves[6])                                                # The library table
+    for w in range(780, 900, 20):
+        dlg.resize(w, 500)
+        qtbot.wait(5)
+    assert not calls and "numpy" in dlg.view.toPlainText().lower()                   # Re-wrapped from the rows read when the window opened
+
+
+def test_licences_table_fits_with_a_proportional_fallback_font(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief If none of the fixed-width fonts of the style sheet exists and a proportional font stands in, the wrapped table still needs no horizontal scroll bar
+           (the width is measured in pixels, not assumed from the advance of one character).
+    @param qtbot pytest-qt fixture.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    """
+    _fake_package(tmp_path, monkeypatch)
+    dlg = LicencesDialog()
+    qtbot.addWidget(dlg)
+    dlg.rows = [("numpy", "2.5.5", "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 " * 3), ("PySide6", "6.12.0", "WWWW MMMM " * 12)]
+    dlg.view.setStyleSheet("font-family: 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; font-size: 15px;")
+    dlg.show()
+    dlg.resize(760, 400)
+    dlg.tree.setCurrentItem(dlg.leaves[0])
+    dlg.tree.setCurrentItem(dlg.leaves[6])
+    qtbot.wait(20)
+    fm = dlg.view.fontMetrics()
+    widest = max(fm.horizontalAdvance(ln) for ln in dlg.view.toPlainText().splitlines())
+    assert widest <= dlg.view.viewport().width(), (widest, dlg.view.viewport().width(), dlg.view.font().family())
 
 
 def test_library_table_covers_every_runtime_requirement_with_a_licence():

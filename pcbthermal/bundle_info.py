@@ -134,18 +134,24 @@ def libraries():
     return [(d.metadata["Name"], d.version, licence_of(d)) for d in closure().values()]
 
 
-def table_text(width=TABLE_WIDTH):
+def table_text(width=TABLE_WIDTH, rows=None):
     """!
     @brief The table of the libraries as plain text: name, version and licence in aligned columns; a long licence expression continues on the next lines under the licence column (hanging indent).
-    @param width Line width in characters (the table is wrapped at spaces so that no line is longer, as far as one word allows); None for one line per library.
-    @return str.
+    @param width Line width in characters (the table is wrapped at spaces so that no line is longer, as far as one word allows: a single word longer than the
+                 licence column is kept whole and makes its line longer); None for one line per library.
+    @param rows  List of (name, version, licence) tuples as libraries() returns them; None reads them now (the Licences window passes the rows it read once,
+                 because reading the metadata takes about 0.1 s and the table is re-wrapped at every resize).
+    @return str (a sentence instead of the table when no library metadata is found, so that the Licences window still opens in a build that lost it).
     """
-    rows = libraries()
+    rows = libraries() if rows is None else rows
+    if not rows:
+        return "No library metadata was found in this build or this Python, so the table of the libraries cannot be shown."
     name_w = max(len(r[0]) for r in rows)
-    lead = name_w + 2 + 10 + 2                                       # Where the licence column starts
+    ver_w = max(10, max(len(r[1]) for r in rows))                    # A version longer than 10 characters (2026.10.1.post12) widens the column instead of shifting the licence
+    lead = name_w + 2 + ver_w + 2                                    # Where the licence column starts
     out = []
     for n, v, lic in rows:
-        head = f"{n:<{name_w}}  {v:<10}  "
+        head = f"{n:<{name_w}}  {v:<{ver_w}}  "
         lic = lic or "not stated"
         # break_long_words off: a licence name is never cut inside a word, so the words of the wrapped table are those of the unwrapped one
         lines = [lic] if width is None else textwrap.wrap(lic, max(width - lead, 20), break_long_words=False, break_on_hyphens=False) or [lic]
