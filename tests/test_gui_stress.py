@@ -1939,3 +1939,70 @@ def test_models_tab_parts_tables_with_one_three_and_six_models_clear_and_themes(
     win.toggle_theme()
     run(win, qtbot, models=("fvm", "fdm"), cell=3.0)         # and a new run fills it again
     assert tab.models_shown == ["fvm", "fdm"] and tab.table_mean.rowCount() == len(win.sim.problem.heaters)
+
+
+def _fem_plate():
+    """!
+    @brief A small two-layer plate with one heater on a 60 s square wave (resolved by the decision): a few thousand FEM unknowns at a 4 mm cell, the direct path.
+    @return Problem.
+    """
+    p = Problem.new(40.0, 30.0, layers=2)
+    p.add_full_copper()
+    p.add_heater(1, 3.0, rect=(15.0, 10.0, 25.0, 20.0))
+    p.heaters[0].set_profile(SquareWave(p_on=10.0, period=60.0, duty=0.3))
+    return p
+
+
+def test_fem_time_run_with_one_three_and_six_models_clear_and_themes(win, qtbot):
+    """!
+    @brief The FEM in time (feature/fem-transient): the Power profile tab through runs with 1, 3 and 6 models (the FEM alone says it needs another model; with the others its curve is
+           in the list), the FEM in the model chooser of the Animation while it is ticked and gone when it is not, an animation computed with it, a clear and theme toggles.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    win.resize(1200, 800)
+    load(win, _fem_plate())
+    rv = win.results
+    anim = rv.animation
+    for models in (("fem",), ("fvm", "lumped", "fem"), MODELS_WITH_FEM):
+        run(win, qtbot, models=models, cell=4.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        assert (anim.model.findData("fem") >= 0)                    # ticked: the chooser offers it
+        rv.tabs.setCurrentWidget(rv.time_sim)
+        qtbot.wait(30)
+        if models == ("fem",):
+            assert "FEM runs in time beside" in (win.sim.profile_error or "") and not win.sim.profile_results
+            continue
+        assert "fem" in win.sim.profile_results and win.sim.profile_results["fem"].resolved
+        assert win.sim.profile_reference == "fvm" and "FEM" in [rv.time_sim.model.itemText(i) for i in range(rv.time_sim.model.count())]
+        for _ in range(2):
+            win.toggle_theme()
+            qtbot.wait(20)
+            for j in range(rv.time_sim.view.count()):
+                rv.time_sim.view.setCurrentIndex(j)
+    animate(win, qtbot, "fem")                                      # the animation with the FEM, played
+    assert anim.tr is not None and "capacity" in anim.tr.extras
+    win.doc.set_options(models=("fvm",))
+    qtbot.wait(30)
+    assert anim.model.findData("fem") < 0                          # not ticked: not offered
+    rv.clear()
+    win.toggle_theme()
+
+
+def test_fem_animation_is_cancelled_in_the_middle_of_a_stage(win, qtbot):
+    """!
+    @brief The animation with the FEM on a board large enough to take seconds (the example board at 2 mm, the conjugate-gradient path, needs pyamg) is stopped by the Stop button; the
+           button returns to Run and the tab says so.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    from pcbthermal import femcore
+    if not femcore.available():
+        pytest.skip("pyamg not installed")
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=2.0)
+    win.compute_animation({"t_end": 300.0, "n_out": 40, "theta_scheme": 0.5, "model": "fem", "log_times": True})
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=60000)
+    win.solver_panel.run.click()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=60000)
+    assert win._anim_worker is not None and not win._anim_worker.isRunning()

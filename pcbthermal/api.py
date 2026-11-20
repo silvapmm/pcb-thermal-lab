@@ -43,7 +43,8 @@ MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Models off by default; the reference of the decisions is the first ticked of MODEL_NAMES + COMPARISON_MODELS (a main model when one runs)
 SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
-TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that can be the REFERENCE of the time decisions (the FEM runs in time but is never the reference; the 3D solid is steady only)
+TIME_RUN_MODELS = TIME_MODELS + ("fem",)         # Models that run the power profiles (the comparison FEM since 2.9.0, DESIGN.md 14.4)
 INTEGER_COUNT_KEYS = ("lumped_rings", "laminate_n_max", "fem_gap_elements")   # Counts of SolverOptions that a JSON file may hold as an integer-valued float
 
 
@@ -372,7 +373,7 @@ class Simulation:
         """!
         @brief Models that contribute a column to the parts table: the steady results with a field, the reference first and the others in the program order.
         @details The program order is that of results.MODEL_LABELS (FVM, LPTN, Analytic, FDM, 3D solid, FEM); a model that was not run is simply absent. The profile (time)
-                 results never appear: the 3D solid and the FEM are steady state only, so the table is a steady-state one for every model.
+                 results never appear: the parts table is a steady-state one for every model (the FEM also runs in time since 2.9.0, in the profile tab).
         @return List of model keys (empty when the reference has no field).
         """
         ref = self.reference
@@ -1204,9 +1205,10 @@ def step_response(problem, model, options):
     """!
     @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
     @param problem A Problem with at least one heater.
-    @param model "fvm", "lumped" or "analytic".
+    @param model "fvm", "fdm", "fem", "lumped" or "analytic".
     @param options SolverOptions.
     @return profiles.StepResponse.
+    @throws ValueError For a model with no step response.
     """
     with laminate.using(*options.laminate_params()):
         return _step_response(problem, model, options)
@@ -1254,17 +1256,23 @@ def _step_response(problem, model, options):
     """!
     @brief Body of step_response(), run with the laminate numbers of the options in force.
     @param problem A Problem with at least one heater.
-    @param model "fvm", "fdm", "lumped" or "analytic".
+    @param model "fvm", "fdm", "fem", "lumped" or "analytic".
     @param options SolverOptions.
     @return profiles.StepResponse.
+    @throws ValueError For a model that has no step response (the 3D solid, an unknown key): it used to be answered by the Analytic without a word.
     """
     if model in ("fvm", "fdm"):
         cell = response_cell_mm(problem, model, options)
         return (profiles.step_response_fvm if model == "fvm" else profiles.step_response_fdm)(problem, cell_mm=cell)
+    if model == "fem":
+        cell = response_cell_mm(problem, model, options)
+        return profiles.step_response_fem(problem, cell_mm=cell, gap_elements=options.fem_gap_elements, refine=float(options.fem_refine), memory_fraction=options.memory_fraction)
     if model == "lumped":
         t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=lumped.cell_for(problem, options.cell_mm))
-    else:
+    elif model == "analytic":
         t, z, r = analytic.step_responses(problem, cell_mm=min(max(options.cell_mm, 0.5), 1.0), n_terms=options.analytic_modes)
+    else:
+        raise ValueError(f"no step response for the model {model!r}")
     return profiles.StepResponse(model, t, z, r)
 
 
@@ -1285,9 +1293,10 @@ def _run_profiles(sim, progress, start):
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
         sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(RESULT_MODEL_LABELS.get(m, m) for m in left_out) + " (no time simulation with a metal block or an outline)"))
-    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
+    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation; the FEM is never the reference
     if ref is None:
-        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = ("select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation: the FEM runs in time beside one of them but never "
+                             "decides, and the 3D solid is steady state only")
         return
     sim.profile_reference = ref
     if progress:
@@ -1298,11 +1307,13 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in usable:
-            if name in SKIPPABLE_MODELS:
-                continue
+            if name not in TIME_RUN_MODELS:
+                continue                                          # the 3D solid: steady state only
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
-            if name == "fvm":
+            if name == "fem":
+                _run_fem_profile(sim, p, o)                       # its own refusals: the other models' results stand
+            elif name == "fvm":
                 sim.profile_results[name] = profiles.run_fvm(p, sim.decisions, o.profile, o.cell_mm)
             elif name == "fdm":
                 sim.profile_results[name] = profiles.run_fdm(p, sim.decisions, o.profile, o.cell_mm)
@@ -1315,6 +1326,26 @@ def _run_profiles(sim, progress, start):
     except profiles.ProfileError as exc:
         sim.profile_error = str(exc)
     sim.seconds["profile"] = time.time() - t0
+
+
+def _run_fem_profile(sim, p, o):
+    """!
+    @brief The power-profile run of the comparison FEM, with its own refusals: a refusal is a warning that names the FEM and leaves the other models' profiles in place.
+    @details The FEM can be refused by the memory guard, by a missing pyamg above the direct limit, by an outline it has no mesh for (a ValueError with the reason), by the work
+             limit of the time run (a ProfileError) or stopped by the user (a cancel is a cancel, not a warning: it propagates).
+    @param sim Simulation being filled (profile_results, problem_warnings).
+    @param p The problem of the run (the effective one).
+    @param o SolverOptions.
+    @return None.
+    @throws femcore.FemCancelled If the user cancelled the run.
+    """
+    try:
+        sim.profile_results["fem"] = profiles.run_fem(p, sim.decisions, o.profile, o.cell_mm, gap_elements=o.fem_gap_elements, refine=float(o.fem_refine),
+                                                      memory_fraction=o.memory_fraction)
+    except femcore.FemCancelled:
+        raise
+    except (memory.MemoryGuardError, femcore.FemUnavailable, profiles.ProfileError, ValueError) as exc:
+        sim.problem_warnings.append(warn(f"FEM: refused ({exc})"))
 
 
 def default_options():

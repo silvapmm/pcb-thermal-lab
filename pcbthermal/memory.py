@@ -33,7 +33,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
-from .femcore import FEM_DIRECT_MAX
+from .femcore import FEM_DIRECT_MAX, FEM_TRANSIENT_DIRECT_MAX
 from .results import MODEL_FULL
 
 log = logging.getLogger(__name__)
@@ -48,6 +48,18 @@ CEILING_3D = 2_000_000              # Unknowns of the 3D solid that no machine i
 SLOW_SECONDS = 30.0                 # Predicted solve time above which the verdict is "slow"
 TRANSIENT_FACTOR = 2.0              # Time simulation and animation: one factor of the matrix plus the previous stage while the next is built (measured 1.9, one-factor fix)
 PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measured)
+# The FEM transient is NOT two factors (one factor or one hierarchy is alive, femcore.Stepper): a factor per solver path, applied to the steady law of that path (DESIGN.md 14.3).
+# SHIPPED CONSERVATIVE at 2.0 (it only makes the guard refuse earlier) until `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` has been run on a quiet machine
+# (the review measured 1.07 on the CG path and 1.14 to 1.28 on the direct path on one mesh); the constants then become the largest measured ratio times 1.1.
+FEM_TRANSIENT_FACTOR_CG = 2.0
+FEM_TRANSIENT_FACTOR_DIRECT = 2.0
+# Time of a FEM time simulation (DESIGN.md 14.3, hand arithmetic, NOT a fit: the CG figure from the review's prototype, the direct one from the fill of the factor, 15.9 kB per unknown,
+# about 1 300 entries of L and U per unknown read twice at roughly 1 GFlop/s, so 55 ms for a step at 21 000 unknowns): seconds per unknown and step on the direct path (a back substitution) and on
+# the CG path (about the steady iteration count at EVERY step: 155 s for 44 steps at 67 229 unknowns), and the longest run the guard accepts, in seconds. A profile run above it is
+# refused with the ProfileError text; the step response of an animation is only warned "slow" (SLOW_SECONDS). Shipped conservative; the measurement script refits them.
+FEM_STEP_SECONDS_DIRECT = 3.0e-6
+FEM_STEP_SECONDS_CG = 5.2e-5
+FEM_RUN_SECONDS_MAX = 1200.0
 SOR_BLOCK_SHARE = 0.25              # Share of the limit that ALL the dense SOR blocks together (the sum of 75 n^2) may take (sor_block_fits)
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
 VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
@@ -792,10 +804,30 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
     return head + (f"; use a cell of {cell_fit:.1f} mm or more" if cell_fit else "; no cell up to 50 mm fits")
 
 
+def fem_transient_factor(unknowns: float) -> float:
+    """!
+    @brief Multiplier of the steady law for a FEM time simulation, by the solver path the stepper will take for that many unknowns.
+    @param unknowns Unknowns of the FEM mesh, count.
+    @return float FEM_TRANSIENT_FACTOR_DIRECT up to FEM_TRANSIENT_DIRECT_MAX, otherwise FEM_TRANSIENT_FACTOR_CG.
+    """
+    return FEM_TRANSIENT_FACTOR_DIRECT if unknowns <= FEM_TRANSIENT_DIRECT_MAX else FEM_TRANSIENT_FACTOR_CG
+
+
+def fem_transient_seconds(unknowns: float, steps: float) -> float:
+    """!
+    @brief Predicted seconds of the time stepping of a FEM run (without the build and the factorisations), from the per-step costs of the solver path.
+    @param unknowns Unknowns of the FEM mesh, count.
+    @param steps Time steps of the run, count.
+    @return float Seconds.
+    """
+    per = FEM_STEP_SECONDS_DIRECT if unknowns <= FEM_TRANSIENT_DIRECT_MAX else FEM_STEP_SECONDS_CG
+    return float(unknowns) * float(steps) * per
+
+
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
           base: Optional[float] = None, n_diel=None, quiet: bool = False,
-          laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None) -> List[Verdict]:
+          laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None, frames_bytes: float = 0.0) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
     @details The LPTN and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the LPTN) and the Analytic has its own guard of
@@ -818,15 +850,16 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule the run will use (SolverOptions.laminate_params()), or None for the values in force: the sub-gaps add
                            node layers, so they change the unknowns that are counted.
     @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM mesh (SolverOptions.fem_gap_elements, fem_refine), or None for the defaults (6, 2).
+    @param frames_bytes Bytes of the output frames a FEM time run holds (n_out x layers x ny x nx float64), added to the FEM estimate and NOT multiplied by the time factor.
     @return List of Verdict, one per checked model. A problem that has no FEM mesh (a slanted outline, too many break lines) is a "refuse" verdict of the FEM whose message is the reason.
     @throws MemoryGuardError If refuse is "raise" and a model is refused.
     """
     from . import laminate
     with laminate.using(*(laminate_params or (None, None))):
-        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params)
+        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params, frames_bytes)
 
 
-def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params=None) -> List[Verdict]:
+def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params=None, frames_bytes=0.0) -> List[Verdict]:
     """!
     @brief Body of check(), run with the laminate numbers in force.
     @param problem A Problem.
@@ -842,10 +875,12 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @param quiet True: no log lines.
     @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM, or None.
+    @param frames_bytes Bytes of the FEM output frames (see check).
     @return List of Verdict.
     """
     f = default_fraction() if fraction is None else fraction
     mult = factor if factor is not None else (TRANSIENT_FACTOR if transient else 1.0)
+    time_run = factor is not None or transient                                  # a time simulation or a profile run: the FEM has its own factor per solver path
     r = ram if ram is not None else ram_bytes()
     limit = limit_bytes(f, r)
     avail = available if available is not None else available_bytes()
@@ -863,14 +898,15 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             out.append(Verdict(model, 0, 0.0, limit, "refuse", 0.0, None, str(exc), False, True))
             continue
         exact = model in ("solid3d", "fem")                                     # The 3D and FEM counts are exact and cheap; the layered ones sample the copper
-        if accepted is not None or estimate_bytes(model, n, cells, base, mult) <= limit:
+        if accepted is not None or estimate_bytes(model, n, cells, base, (fem_transient_factor(n) if time_run else 1.0) if model == "fem" else mult) <= limit:
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
         layered = model in ("fvm", "fdm")
         vc = via_cells(problem, cell_mm) if layered and exact else 0.0                   # The via term goes with the exact count; the bound stays a lower bound
         # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only; the search for the cell that fits adds it at every cell it tries)
         drawn = drawn_run_bytes(problem, cell_mm) if layered and exact else 0.0
-        est = estimate_bytes(model, n, cells, base + drawn, mult, vc)
+        m_mult = (fem_transient_factor(n) if time_run else 1.0) if model == "fem" else mult
+        est = estimate_bytes(model, n, cells, base + drawn, m_mult, vc) + (frames_bytes if model == "fem" else 0.0)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
             v, why = "refuse", "ceiling"
@@ -880,7 +916,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
         else:
             v = verdict(est, limit, secs)
             why = v
-        fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, mult, max_unknowns=accepted if accepted is not None else
+        fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, m_mult, max_unknowns=accepted if accepted is not None else
                               (CEILING_3D if model == "solid3d" else None), bound=bound,
                               vias=(lambda c, _p=problem: via_cells(_p, c)) if layered else None,
                               extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if layered else None)

@@ -600,7 +600,7 @@ def capacity_inventory(problem, mesh, cell_mm=None):
             "difference": parts["total"] / desc_total - 1.0 if desc_total > 0 else 0.0}
 
 
-def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver, extra_bytes=0.0):
+def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver, frames_bytes=0.0):
     """!
     @brief The refusals that come before any heavy work of a transient: the memory guard (exact unknown count, the time factor) and the missing pyamg above the direct limit.
     @param problem A Problem.
@@ -609,12 +609,12 @@ def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, fo
     @param refine Ratio of the cell to the fine element, at least 1.
     @param memory_fraction Share of the physical memory allowed (None: default).
     @param force_solver None, "direct" or "cg".
-    @param extra_bytes Bytes of the frames the run will hold, added to the estimate (not multiplied by the factor).
+    @param frames_bytes Bytes of the frames the run will hold, added to the estimate (not multiplied by the time factor).
     @return Unknown count of the mesh.
     @throws memory.MemoryGuardError If the estimate is above the limit.
     @throws femcore.FemUnavailable If the mesh needs the conjugate gradients and pyamg is not installed.
     """
-    memory.check(problem, ("fem",), cell_mm, fraction=memory_fraction, transient=True, fem_params=(gap_elements, refine), quiet=True)
+    memory.check(problem, ("fem",), cell_mm, fraction=memory_fraction, transient=True, fem_params=(gap_elements, refine), quiet=True, frames_bytes=frames_bytes)
     unknowns = femmesh.unknowns(problem, cell_mm, gap_elements, refine)[0]
     if unknowns > femcore.FEM_TRANSIENT_DIRECT_MAX and force_solver != "direct" and not femcore.available():
         raise femcore.FemUnavailable(f"the FEM mesh has {unknowns} unknowns, above the {femcore.FEM_TRANSIENT_DIRECT_MAX} that the direct time stepping takes, and the package "
@@ -622,7 +622,7 @@ def _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, fo
     return unknowns
 
 
-def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver):
+def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver, frames_bytes=0.0):
     """!
     @brief Mesh, matrices, stepper and read-out operator shared by the power step and the step responses.
     @param problem A Problem.
@@ -632,10 +632,11 @@ def _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cance
     @param memory_fraction Share of the physical memory allowed (None: default).
     @param cancel Optional cancel callable.
     @param force_solver None, "direct" or "cg".
+    @param frames_bytes Bytes of the frames the run will hold (see `_check_transient`).
     @return dict: mesh, asm (the assembled dict), stepper, Rcol, active, cover, nx, ny, gam (on the unknowns), used.
     @throws memory.MemoryGuardError, femcore.FemUnavailable, femcore.FemCancelled, ValueError as `solve_steady`.
     """
-    _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver)
+    _check_transient(problem, cell_mm, gap_elements, refine, memory_fraction, force_solver, frames_bytes)
     mesh = femmesh.build(problem, cell_mm, gap_elements, refine)
     try:
         asm = mesh.model.assemble(cancel=cancel, capacity=True)
@@ -690,7 +691,9 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @throws femcore.FemCancelled If `cancel` returned True.
     @throws ValueError With the reason when no mesh can be built, or the solve fails.
     """
-    ctx = _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver)
+    gx, gy, _, _ = _grid_shape(problem, cell_mm)
+    frames_bytes = 8.0 * (max(n_out, 1) + 11) * problem.board.layers * gx * gy        # the frames of the run, held beside the factor (the guard adds them, no time factor)
+    ctx = _prepare_time(problem, cell_mm, gap_elements, refine, memory_fraction, cancel, force_solver, frames_bytes)
     mesh, asm, stepper, Rcol = ctx["mesh"], ctx["asm"], ctx["stepper"], ctx["Rcol"]
     L, ny, nx = problem.board.layers, ctx["ny"], ctx["nx"]
     amb = problem.board.ambient
@@ -731,6 +734,10 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     t_mean = (frames * cover).sum(axis=(1, 2, 3)) / (L * cover.sum())
     inv = capacity_inventory(problem, mesh)
     warnings = list(mesh.warnings)
+    predicted = memory.fem_transient_seconds(asm["rhs"].size, hs.size)
+    if predicted > memory.SLOW_SECONDS:
+        # an animation is not refused for its time (a profile run is, `profiles.run_fem`): the verdict is a note that says how long the stepping alone was expected to take
+        warnings.append(f"the finite-element time simulation of this mesh ({asm['rhs'].size} unknowns, {hs.size} steps) was predicted to take about {predicted / 60.0:.0f} minutes of stepping")
     if abs(inv["difference"]) > CAPACITY_TOLERANCE:
         warnings.append(f"the heat capacity of the FEM mesh ({inv['fem']['total']:.4g} J/K) differs by {inv['difference'] * 100:+.1f} % from the capacity computed from the "
                         "description: check the stack-up and the copper")

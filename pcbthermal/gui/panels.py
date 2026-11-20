@@ -1579,9 +1579,11 @@ class SolverPanel(QWidget):
                 "solid3d": off + "The board as a real 3D solid (a slab per layer and gap). Steady state only; within about 1 % of the FVM on ordinary boards; "
                            "slower and larger (example board: 15 s, 3.5 GB). Skipped above the memory limit.",
                 "fdm": off + "Node-centred finite differences of the same model (steady, animation, profiles); within about 1 % of the FVM.",
-                "fem": off + "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap). Steady state only. On plain boards it reads 0.4 to 0.9 % "
+                "fem": off + "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap). Steady state, animation and power profiles. On plain boards it reads 0.4 to 0.9 % "
                        "below the FVM at the same cell (mostly the finite volumes' own error). The surface of thick copper is resolved, not estimated; a metal block is "
-                       "reported as its mean, with no surface. Slower than the 3D solid; left out above the memory limit, or when a large mesh needs the package pyamg."}
+                       "reported as its mean, with no surface. In time it resolves the thickness of the board, so with the default mesh it is the one to believe from about "
+                       "0.3 s after a power step (the other models carry one node per layer); it never decides the profile regime. Slower than the 3D solid, and a time run can be "
+                       "refused for its size; left out above the memory limit, or when a large mesh needs the package pyamg."}
         for k, c in self.cb.items():
             c.setToolTip(tips[k])
             c.toggled.connect(self._apply)

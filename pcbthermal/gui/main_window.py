@@ -1324,6 +1324,7 @@ class MainWindow(QMainWindow):
         """!
         @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
         """
+        self.results.animation.set_ticked_models(self.doc.options.models)      # the FEM is a choice of the animation while it is ticked
         key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
         if key != self._checks_key:
             self._checks_key = key
@@ -1834,10 +1835,12 @@ class MainWindow(QMainWindow):
         problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0), laminate=self.doc.options.laminate_params())
         # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
-        if kwargs.get("model", "fvm") in ("fvm", "fdm"):
+        if kwargs.get("model", "fvm") == "fem":
+            kwargs.update(gap_elements=self.doc.options.fem_gap_elements, refine=float(self.doc.options.fem_refine), memory_fraction=self.doc.options.memory_fraction)
+        if kwargs.get("model", "fvm") in ("fvm", "fdm", "fem"):
             try:
                 memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT,
-                             laminate_params=self.doc.options.laminate_params())
+                             laminate_params=self.doc.options.laminate_params(), fem_params=self.doc.options.fem_params())
             except memory.MemoryGuardError as exc:
                 anim.computing_failed(str(exc))
                 return
