@@ -16,7 +16,7 @@ import time
 import numpy as np
 from scipy import ndimage
 
-from . import blocks, convection, copper, femcore, femmesh, laminate, lumped, solid3d, stackimpedance, viaconstriction, viawell
+from . import blocks, convection, copper, femcore, femmesh, laminate, lumped, solid3d, stackimpedance, thickness, viaconstriction, viawell
 from .geometry import OUTLINE_MAX_CROSSINGS, outline_crossings, coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 from .uicontext import cell_where, laminate_where, using_ui
@@ -1499,10 +1499,11 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                 est = ""
                 # The numbers that set the size of the surface term (research/readout-conventions: the Biot number of the plate, t/a and the side of the source;
                 # the width of the plate around the source changes it too): the film is the larger of the two faces that the run used (or the typed ones)
-                side = float(np.sqrt(area))
+                # The length a is the one the surface flag uses (thickness.source_width: the narrowest width of the part, at most sqrt(A)), so the t/a quoted here and the flag agree
+                side = float(thickness.source_width(h.polygon)) or float(np.sqrt(area))
                 hf = [float(x) for x in (h_faces or (b.h_top, b.h_bottom)) if x is not None]
                 h_film = max(hf) if hf else 0.0
-                shape = (f" Bi = h t/k = {num(h_film * t / k, 3)} (h {num(h_film)} W/m2K), t/a = {num(t / side, 3)}, source side a = {num(1000 * side, 3)} mm; "
+                shape = (f" Bi = h t/k = {num(h_film * t / k, 3)} (h {num(h_film)} W/m2K), t/a = {num(t / side, 3)}, a = {num(1000 * side, 3)} mm the narrowest width of the source; "
                          "the surface term grows with Bi, with t/a and with the width of the plate around the source.")
                 # The finite elements resolve the copper of the part through its thickness: the column read-out is their headline, the surface is resolved, not estimated
                 resolved = model == "fem" and what.startswith("the copper")
@@ -1512,7 +1513,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                 elif what.startswith("the copper") and "t_max_surface" in row:
                     # The surface read-out of the result (FVM, FDM), beside the column one: a number instead of the bound alone
                     est = (f" The surface estimate of this model under the part is {row['t_max_surface'] - row['t_max']:.1f} K above the column mean "
-                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is small against the plate' if row['surface_upper'] else ''}).")
+                           f"(surface max {row['t_max_surface']:.1f} °C, column max {row['t_max']:.1f} °C{'; upper side: the source is narrow against the plate' if row['surface_upper'] else ''}).")
                 if into_laminate:
                     parts += (f" and {thick_plate_bound(0.0, 1.0, t, k, film):.1f} K at the face where the heat leaves the copper (the half plate between the node and "
                               "that face is not in the model)")

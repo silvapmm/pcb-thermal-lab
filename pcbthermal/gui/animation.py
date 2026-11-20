@@ -56,7 +56,8 @@ class AnimationTab(QWidget):
         self.model.setAccessibleName("Model")
         for key in ("fvm", "fdm", "analytic"):
             self.model.addItem(model_full_label(key), key)
-        self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points.")
+        self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points; FEM (when ticked in the Models list): finite elements "
+                              "that resolve the thickness of the board, the one to believe in the first seconds, slower.")
         self.scheme = QComboBox()
         self.scheme.setAccessibleName("Scheme")
         self.scheme.addItem("Implicit Euler (robust)", 1.0)
@@ -128,6 +129,22 @@ class AnimationTab(QWidget):
         self._set_enabled(False)
         self.fps.valueChanged.connect(lambda v: self.timer.setInterval(int(1000 / v)))
         self.display.changed.connect(lambda _what: self.redraw())       # A change of the shared display choice draws the frame again
+
+    def set_ticked_models(self, models):
+        """!
+        @brief Offer the comparison FEM in the model chooser while it is ticked in the Models list (the choice in force is kept).
+        @param models Model keys ticked in the options.
+        @return None.
+        """
+        have = self.model.findData("fem") >= 0
+        if ("fem" in models) == have:
+            return
+        current = self.model.currentData()
+        if have:
+            self.model.removeItem(self.model.findData("fem"))
+        else:
+            self.model.addItem(model_full_label("fem"), "fem")
+        self.model.setCurrentIndex(max(self.model.findData(current), 0))
 
     def _set_enabled(self, on):
         """!

@@ -172,6 +172,10 @@ class TransientResult:
     ambient: float                               # Ambient temperature (degC)
     grid: str = "cells"                          # "cells" or "nodes": what the frames hold (nodes for the finite-difference model)
     warnings: List[str] = field(default_factory=list)   # Limits of the model met by this run (the Analytic with a heatsink); empty for the FVM and FDM
+    # Optional additions of a model that has more to say (the FEM): empty for the FVM, FDM and Analytic, never written to a project file. `arrays["T_surface"]` is reserved for the
+    # surface read-out of the transient, shape (len(times), 2, ny, nx) aligned with `times` (not filled by any model yet); `extras` holds numbers and series of the run
+    arrays: Dict[str, np.ndarray] = field(default_factory=dict)
+    extras: Dict[str, object] = field(default_factory=dict)
 
     def time_constant(self):
         """!
