@@ -43,7 +43,8 @@ def _error(p, tau, exact, scheme, substeps):
     @param substeps Substeps per output interval.
     @return float Largest absolute error in K.
     """
-    tr = fvm.solve_transient(p, t_end=3 * tau, n_out=6, cell_mm=12.5, substeps=substeps, theta_scheme=scheme, log_times=False)
+    tr = fvm.solve_transient(p, t_end=3 * tau, n_out=6, cell_mm=12.5, substeps=substeps, theta_scheme=scheme, log_times=False,
+                            rannacher=False)          # the plain theta method: the order of the scheme itself, without the Euler half steps of the start
     return float(np.abs(tr.t_max - exact(tr.times)).max())
 
 

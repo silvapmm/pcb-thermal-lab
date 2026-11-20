@@ -654,10 +654,10 @@ A worked example with CSV tables (a motor driver cycle and a regulator start-up)
    heaters switched on at t = 0.
 2. Choose the **Model** (FVM, FDM, Analytic and, while it is ticked in the Models box, the FEM),
    the **Duration** (default 300 s) and the number of **Frames** (10 to 400, default 60).
-3. Choose the **Scheme** (**Implicit Euler (robust)** or **Crank-Nicolson (accurate)**; Euler
-   reads the hottest cell 0.7 to 1.9 % low after the first seconds and its first frame 12 to
-   17 % low on the example board, section 12.3) and the **Spacing** of the frames
-   (**Logarithmic time** or **Linear time**).
+3. Choose the **Scheme** (**Crank-Nicolson (accurate)**, the default, or **Implicit Euler
+   (robust)**; Euler reads the hottest cell 0.7 to 1.9 % low after the first seconds and its
+   first frame 12 to 17 % low on the example board, section 12.3) and the **Spacing** of the
+   frames (**Logarithmic time** or **Linear time**).
 4. Press **Compute**. When it is ready, press **Play**, drag the slider, change the **Speed**, or
    press **Export GIF…** to save the animation.
 
@@ -1580,7 +1580,8 @@ Every command is `python -m pcbthermal <command>` with the Python of the environ
 ### 11.4 Options of transient and calibrate
 
 `transient`: `--t-end` (s), `--steps` (number of output times), `--model fvm|fdm|fem|analytic`,
-`--theta` (1 = implicit Euler, 0.5 = Crank-Nicolson), `--gif`.
+`--theta` (0.5 = Crank-Nicolson, the default since 2.9.0; 1 = implicit Euler, the default
+before), `--gif`.
 
 `calibrate`: `--measured` (°C, required), `--heater` (the heater whose footprint maximum was
 measured; default the board maximum), `--model fvm|lumped|analytic`, `--cell-mm`,
@@ -1651,12 +1652,13 @@ board about 58 % too low at 0.3 s, 30 % at 1 s, 9 % at 3 s); later it agrees. Re
 seconds of a time result of these models as a lower estimate, or use the FEM in time
 (section 7.8).
 
-The implicit Euler scheme of the Animation tab and of `transient` has its own error, from the
-size of the time step: with the default 60 frames (40 on the command line) the hottest cell
-reads 0.7 to 1.9 % low after the first seconds, and the first frame is a single Euler step that
-reads 12 to 17 % low on the example board. **Crank-Nicolson** with the same frames is under
-0.1 % after the first seconds. Choose it (Scheme, or `--theta 0.5`) when the early frames
-matter.
+The time stepping has its own, smaller error. Up to 2.9.0 the Animation tab and `transient`
+used implicit Euler: with 60 frames (40 on the command line) the hottest cell read 0.7 to
+1.9 % low after the first seconds, and the first frame, a single Euler step, read 12 to 17 %
+low on the example board. They now use **Crank-Nicolson** (first frames in quarter steps, the
+run opened by two half steps): the first frame is within 0.6 % and the hottest cell within
+0.13 % after the first seconds. Choose **Implicit Euler** (Scheme, or `--theta 1`) to get the
+old stepping.
 
 ### 12.4 Fast power waves
 

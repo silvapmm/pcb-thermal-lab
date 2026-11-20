@@ -1049,8 +1049,50 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     return _result_from_theta(net, theta, res)
 
 
-def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=1.0,
-                    log_times=True):
+## Theta of the default power-step run: 0.5 is Crank-Nicolson (with the Rannacher start), 1.0 implicit Euler (1.0 up to 2.9.0)
+DEFAULT_THETA = 0.5
+## Steps per frame of the first stage of the logarithmic grid (the FEM's `fem.FIRST_STAGE_SPLIT`): one implicit-Euler step of a flux switched on reads -11.4 % at the face, four -3.1 %
+FIRST_STAGE_SPLIT = 4
+
+
+def transient_grid(t_end, n_out=40, substeps=4, log_times=True, split=FIRST_STAGE_SPLIT):
+    """!
+    @brief The steps of a power-step run and the frames they produce.
+    @details The OUTPUT times are the nominal grid of the program: logarithmic, ten stages with the step doubling (`per_stage = ceil(n_out / 10)`, `dt0 = t_end / (per_stage (2^10 - 1))`,
+             every step of the nominal grid a frame), or linear with `substeps` steps per frame. Only the first stage of the logarithmic grid is walked in `split` steps per frame,
+             so that no frame has fewer than `split` steps behind it (before 2.9.0 the first frame was one implicit-Euler step: -12 to -17 % of the peak rise on the example board).
+    @param t_end Final time in s.
+    @param n_out Frames excluding t = 0 (the logarithmic grid rounds it up to a multiple of 10).
+    @param substeps Implicit steps between two frames (linear mode only).
+    @param log_times True for the doubling step.
+    @param split Steps per frame of the first stage of the logarithmic grid, count (1 for one step per frame, as before 2.9.0).
+    @return Tuple (h (n_steps,) the step sizes in s, emit (n_steps,) bool True where a step ends at an output time, times (n_frames,) the output times in s with t = 0).
+    """
+    if log_times:
+        stages = 10
+        per_stage = max(int(np.ceil(n_out / stages)), 1)
+        dt0 = t_end / (per_stage * (2 ** stages - 1))
+        dts = np.concatenate([np.full(per_stage, dt0 * 2.0 ** j) for j in range(stages)])
+        step_times = np.concatenate([[0.0], np.cumsum(dts)])
+        step_times[-1] = t_end                              # Remove round-off at the end
+        hs, emit = [], []
+        for k, dt in enumerate(dts):
+            m = max(int(split), 1) if k < per_stage else 1
+            hs += [dt / m] * m
+            emit += [False] * (m - 1) + [True]
+        return np.asarray(hs), np.asarray(emit), step_times
+    sub = max(substeps, 1)
+    count = max(n_out, 1) * sub
+    dts = np.full(count, t_end / count)
+    step_times = np.concatenate([[0.0], np.cumsum(dts)])
+    step_times[-1] = t_end
+    emit = np.zeros(count, bool)
+    emit[sub - 1::sub] = True
+    return dts, emit, step_times[np.concatenate([[0], np.flatnonzero(emit) + 1])]
+
+
+def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=DEFAULT_THETA,
+                    log_times=True, first_stage_split=FIRST_STAGE_SPLIT, rannacher=True):
     """!
     @brief Transient response to a power step starting from a board at ambient temperature.
     @details Uses the theta-method: (C/dt + theta*K) x1 = (C/dt - (1-theta)*K) x0 + Q.
@@ -1061,17 +1103,19 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param n_out Number of output frames (excluding t = 0); in logarithmic mode it is rounded up to a multiple of 10.
     @param cell_mm Target cell size in millimetres.
     @param substeps Implicit steps between two output frames (linear mode only; logarithmic mode uses one step per frame).
-    @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
+    @param theta_scheme 0.5 for Crank-Nicolson (the default since 2.9.0, opened by the Rannacher half steps), 1.0 for implicit Euler.
     @param log_times If True the time step doubles in ten stages (resolves fast and slow parts with few factorisations).
+    @param first_stage_split Steps per frame of the first logarithmic stage, count (4; 1 gives the one-step first frame of 2.9.0 and before).
+    @param rannacher True to open a Crank-Nicolson run with two implicit-Euler half steps.
     @return TransientResult.
     """
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    return transient_from_network(Network(problem, nx, ny), b.ambient, t_end, n_out, substeps, theta_scheme, log_times)
+    return transient_from_network(Network(problem, nx, ny), b.ambient, t_end, n_out, substeps, theta_scheme, log_times, first_stage_split=first_stage_split, rannacher=rannacher)
 
 
-def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_scheme=1.0, log_times=True, grid="cells"):
+def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_scheme=DEFAULT_THETA, log_times=True, grid="cells", first_stage_split=FIRST_STAGE_SPLIT, rannacher=True):
     """!
     @brief Power-step transient of any thermal network with the attributes of Network (also the finite-difference one).
     @details The network provides K (sparse conductances), C (heat capacity per unknown), Q (source), nl, ny, nx and solve_steady().
@@ -1080,9 +1124,11 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     @param t_end Final time in seconds.
     @param n_out Number of output frames (excluding t = 0).
     @param substeps Implicit steps between two frames (linear mode only).
-    @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
+    @param theta_scheme 0.5 for Crank-Nicolson, 1.0 for implicit Euler.
     @param log_times True for the doubling time step.
     @param grid "cells" or "nodes": what the frames hold.
+    @param first_stage_split Steps per frame of the first logarithmic stage, count (`transient_grid`).
+    @param rannacher True to open a Crank-Nicolson run with two implicit-Euler half steps.
     @return TransientResult.
     """
     ny, nx = net.ny, net.nx
@@ -1090,40 +1136,37 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     steady_theta, _ = net.solve_steady()
     weights = mean_weights(net)                             # Board area of every cell or node: the mean leaves out what is off the board
 
-    # --- Time grid: every frame is one time step, and the steps are built so that few distinct dt occur
-    # (one LU factorisation per distinct dt). Linear: one dt. Logarithmic: dt doubles stage after stage.
-    if log_times:
-        stages = 10
-        per_stage = max(int(np.ceil(n_out / stages)), 1)
-        dt0 = t_end / (per_stage * (2 ** stages - 1))
-        dts = np.concatenate([np.full(per_stage, dt0 * 2.0 ** j) for j in range(stages)])
-    else:
-        dts = np.full(max(n_out, 1) * max(substeps, 1), t_end / (max(n_out, 1) * max(substeps, 1)))
-    step_times = np.concatenate([[0.0], np.cumsum(dts)])
-    step_times[-1] = t_end                                  # Remove round-off at the end
-    keep = np.arange(len(step_times)) if log_times else np.arange(0, len(step_times), max(substeps, 1))
-    times = step_times[keep]
+    # --- Time grid: the output times are the nominal grid of the program (every step of the nominal grid is a frame); the first stage is walked in `first_stage_split` steps per
+    # frame so that no frame has fewer steps behind it, and a Crank-Nicolson run opens with two implicit-Euler half steps (the Rannacher start, below)
+    dts, emit, times = transient_grid(t_end, n_out, substeps, log_times, first_stage_split)
 
     N = net.nl * ny * nx
     Cd = net.C.ravel()
     q = net.Q.ravel()
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
-    frames = {0: x.reshape(net.nl, ny, nx)[:nb] + ambient}
+    frames = [x.reshape(net.nl, ny, nx)[:nb] + ambient]
     # Only the factor of the current step size is kept: the steps of a stage are equal and a stage never comes back, so an old factor is dead
     # weight (ten factors were held before; the peak memory of an animation fell from about 3.5 to 1.9 times a steady solve).
     current_key, lu, B = None, None, None
-    kept = set(keep.tolist())
-    for k, dt in enumerate(dts, start=1):
+    for k, dt in enumerate(dts):
         key = round(float(dt), 12)
         if key != current_key:
             lu = B = None                                   # Free the old factor before the new one is built
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
             lu, current_key = lu_factor(A), key
-        x = lu.solve(B @ x + q)
-        if k in kept:
-            frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient
-    frames = np.asarray([frames[k] for k in keep])
+        if k == 0 and rannacher and theta_scheme < 1.0:
+            # Crank-Nicolson is not L-stable: a stiff mode excited by the jump of the power at t = 0 is not damped and rings. The first step is replaced by two implicit-Euler steps
+            # of half its size; (C/(dt/2) + K) x1 = C/(dt/2) x0 + q is the same system as (C/dt + K/2) x1 = C/dt x0 + q/2, so for theta = 1/2 the factor of the step serves
+            half = lu if theta_scheme == 0.5 else lu_factor((sp.diags(Cd / dt) + 0.5 * net.K).tocsc())
+            for _ in range(2):
+                x = half.solve(Cd / dt * x + 0.5 * q)
+            half = None
+        else:
+            x = lu.solve(B @ x + q)
+        if emit[k]:
+            frames.append(x.reshape(net.nl, ny, nx)[:nb] + ambient)
+    frames = np.asarray(frames)
     inside = weights > 0
     return TransientResult(
         times=times, t_max=frames[:, :, inside].reshape(len(times), -1).max(axis=1),

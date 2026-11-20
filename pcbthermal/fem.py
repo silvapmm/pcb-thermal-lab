@@ -684,7 +684,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param n_out Output frames excluding t = 0 (the logarithmic grid rounds it up to a multiple of 10).
     @param cell_mm Plan cell in mm (the coarse element and the grid of the frames).
     @param substeps Implicit steps between two frames (linear mode only).
-    @param theta_scheme 1.0 implicit Euler (as the FVM default), 0.5 Crank-Nicolson with the Rannacher start.
+    @param theta_scheme 1.0 implicit Euler (the default of this function; the FVM and FDM default to Crank-Nicolson since 2.9.0, the Animation tab and `transient` pass their own), 0.5 Crank-Nicolson with the Rannacher start.
     @param log_times True for the doubling step in ten stages.
     @param gap_elements Elements across every dielectric gap, count (2 to 24).
     @param refine Ratio of the cell to the fine element near the heaters and via patches (1 to 4).

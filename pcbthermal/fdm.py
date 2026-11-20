@@ -513,7 +513,8 @@ def _power_out(net, theta):
     return out
 
 
-def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=1.0, log_times=True):
+def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=fvm.DEFAULT_THETA, log_times=True,
+                    first_stage_split=fvm.FIRST_STAGE_SPLIT, rannacher=True):
     """!
     @brief Power-step transient of the finite-difference model, from a board at ambient temperature.
     @details The same theta-method as fvm.solve_transient on the finite-difference network; the frames hold the values at the nodes.
@@ -522,12 +523,14 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param n_out Number of output frames after t = 0.
     @param cell_mm Target grid spacing in millimetres.
     @param substeps Implicit steps between two frames (linear mode only).
-    @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
+    @param theta_scheme 0.5 for Crank-Nicolson (the default since 2.9.0, with the Rannacher start), 1.0 for implicit Euler.
     @param log_times True for the doubling time step.
+    @param first_stage_split Steps per frame of the first logarithmic stage, count (1 for the one-step first frame of 2.9.0 and before).
+    @param rannacher True to open a Crank-Nicolson run with two implicit-Euler half steps.
     @return TransientResult with grid "nodes".
     """
     return fvm.transient_from_network(Network(problem, cell_mm), problem.board.ambient, t_end, n_out, substeps, theta_scheme,
-                                      log_times, grid="nodes")
+                                      log_times, grid="nodes", first_stage_split=first_stage_split, rannacher=rannacher)
 
 
 def step_responses(problem, cell_mm=2.0, **kwargs):

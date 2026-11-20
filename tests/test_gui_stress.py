@@ -650,6 +650,30 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     qtbot.waitUntil(lambda: win.sim is not None and not win.worker.isRunning(), timeout=240000)
 
 
+def test_animation_scheme_box_defaults_to_crank_nicolson_and_both_schemes_compute(win, qtbot):
+    """The Scheme box of the Animation tab offers Crank-Nicolson first and as the default (implicit Euler until 2.9.0); both schemes compute with the FVM and the FDM, the frames start
+    at the ambient, the peak rises at every frame, and the first frame of Crank-Nicolson is above that of implicit Euler (which reads low)."""
+    load(win, example_board())
+    anim = win.results.animation
+    assert anim.scheme.currentData() == 0.5 and [anim.scheme.itemData(i) for i in range(anim.scheme.count())] == [0.5, 1.0]
+    win.results.tabs.setCurrentWidget(anim)
+    peaks = {}
+    for model in ("fvm", "fdm"):
+        anim.model.setCurrentIndex(anim.model.findData(model))
+        for i in range(anim.scheme.count()):
+            anim.scheme.setCurrentIndex(i)
+            anim.t_end.setValue(60.0)
+            anim.frames.setValue(20)
+            anim.tr = None
+            anim.compute.click()
+            qtbot.waitUntil(lambda: anim.tr is not None, timeout=120000)
+            peaks[(model, anim.scheme.currentData())] = anim.tr.t_max.copy()
+            assert anim.tr.t_max[0] == pytest.approx(win.doc.problem.board.ambient) and np.all(np.diff(anim.tr.t_max) > 0.0)
+    for model in ("fvm", "fdm"):
+        cn, euler = peaks[(model, 0.5)], peaks[(model, 1.0)]
+        assert cn[1] > euler[1]                                         # the first frame of implicit Euler reads low (one step), the default does not
+
+
 def test_metal_block_in_the_application(win, qtbot):
     """A heatsink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
     load(win, example_block_board())

@@ -114,12 +114,16 @@ def test_missing_copper_still_finite():
 
 def test_transient_reaches_steady_state_and_is_monotonic():
     p = reference_problem()
-    tr = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0)
-    assert np.all(np.diff(tr.t_max) >= -1e-9)
+    tr = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0, theta_scheme=1.0)
+    assert np.all(np.diff(tr.t_max) >= -1e-9)                      # implicit Euler never rings
+    cn = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0)          # the default since 2.9.0: Crank-Nicolson with the start and the quarter steps
+    rise = cn.t_max[-1] - cn.t_max[0]
+    assert np.diff(cn.t_max).min() > -1e-4 * rise                  # its ringing at 28 time constants (a run far longer than the default) is under 0.01 % of the rise (measured 0.0014 %)
+    assert cn.t_max.max() - cn.steady_t_max < 1e-3 * rise
     assert tr.t_max[-1] == pytest.approx(tr.steady_t_max, abs=0.05)
     assert tr.t_max[0] == pytest.approx(p.board.ambient)
     # Crank-Nicolson and implicit Euler agree on the final state
-    tr2 = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0, theta_scheme=0.5)
+    tr2 = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0, theta_scheme=0.5)      # (the default; the first run is implicit Euler)
     assert tr2.t_max[-1] == pytest.approx(tr.t_max[-1], abs=0.05)
     assert np.isfinite(tr.time_constant())
 
@@ -165,7 +169,7 @@ def test_transient_matches_exact_exponential_and_has_the_right_order(monkeypatch
     for scheme, name in ((1.0, "euler"), (0.5, "cn")):
         for sub in (1, 4):
             tr = fvm.solve_transient(p, t_end=3 * tau, n_out=6, cell_mm=12.5, substeps=sub, theta_scheme=scheme,
-                                     log_times=False)
+                                     log_times=False, rannacher=False)          # the plain theta method (the start is tested in test_transient_default_stepping.py)
             errs[(name, sub)] = float(np.abs(tr.t_max - exact(tr.times)).max())
     assert errs[("euler", 4)] < errs[("euler", 1)] / 3.0          # first order: error falls with the step
     assert errs[("cn", 1)] < errs[("euler", 1)] / 5.0             # Crank-Nicolson is more accurate
@@ -233,7 +237,7 @@ def test_transient_keeps_one_factor_and_same_fields(monkeypatch, kind):
             live[0] -= 1
 
     monkeypatch.setattr(fvm.spla, "splu", lambda *a, **k: Counted(real(*a, **k)))
-    r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True)
+    r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True, theta_scheme=1.0, first_stage_split=1)      # the stepping of 2.9.0 and before, bit for bit
     monkeypatch.undo()
     assert peak[0] == 1          # the old factor is released before the new one is built, never ten at once
     ref = _transient_all_factors(net, p.board.ambient, 600.0, 40)
