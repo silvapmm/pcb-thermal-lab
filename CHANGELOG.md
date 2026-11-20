@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+
+- **A user manual** (`docs/USER_MANUAL.md`, about 100 KB, and its PDF, about 70 pages): installation, a tour of every window, step-by-step tutorials (draw a board, parts, vias, heatsinks, outline, stack-up, models, cell check, power profiles, animation, Gerber import, files, exports, the Power Calculator), how to read every Results page and the warnings, every setting, the models from the user's side, the files and the command line, the limits with pointers to `docs/theory.md` and `docs/validation.md`, troubleshooting, a glossary and the keys; 38 figures. The PDF is built by `tools/manual/build_manual_pdf.py` (reportlab, BSD, in the new `requirements-docs.txt`, not needed to run the program) with the program version on its cover, and attached to each GitHub release as `PCB-Thermal-Lab-User-Manual.pdf`.
+
 ### Fixed
 
 - **The 'estimate (upper side)' flag of the surface read-out uses the narrow side of a part, not only `sqrt(A)`** (`fix/surface-flag-narrow-part`, item e13; moves no number, only the flag: the surface and column values are bit-identical on the 20 regression boards and no part there changes flag): measured against the independent 3D solver, the overshoot of the parabola on a rectangular source depends on its narrow side alone (2 x 10, 2 x 20 and 2 x 40 mm on a 2 mm plate all read 1.15 times the true term), so a 2 x 20 mm part on 2 mm copper, whose `sqrt(A)` gave t/a 0.32 and no flag, is now flagged (t/a 1). `thickness.source_width` takes the smallest of the minimum width of the convex hull, the narrowest local width of the polygon (the arm of an L or a U, which the hull bridges: an L of 2 mm arms on 2 mm copper overshoots 1.19 times against an exact series and was missed by the hull alone, found in review) and `sqrt(A)`; squares and discs are unchanged. The thick-plate warning quotes `t/a` with the same length.

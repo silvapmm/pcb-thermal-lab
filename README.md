@@ -151,6 +151,8 @@ PCB Thermal Lab reads Gerber, Excellon and placement files with its own reader, 
 
 ## Documentation
 
+**User manual**: [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) (installation, a tour of the window, step-by-step tutorials, every setting, the results, the command line, troubleshooting) and its PDF, [`PCB-Thermal-Lab-User-Manual.pdf`](https://github.com/silvapmm/pcb-thermal-lab/releases/latest/download/PCB-Thermal-Lab-User-Manual.pdf), attached to each release from 2.9.0 on (build it yourself with `.venv/bin/python -m tools.manual.build_manual_pdf` after `pip install -r requirements-docs.txt`).
+
 In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/index.html`) explains every parameter, model and result. In the repository:
 [`docs/versions.md`](docs/versions.md) (what was implemented in every version, where and how it is tested, and what is planned),
 [`docs/models.md`](docs/models.md) (the models, power profiles, computed heat transfer, which model to use),
@@ -198,6 +200,7 @@ The results are a design aid and have not been validated against measurements of
 | Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |
+| reportlab 5.1 (`requirements-docs.txt`, documentation only: the PDF of the user manual, never imported by `pcbthermal`) | laying out the PDF of `docs/USER_MANUAL.md` (`tools/manual/`) | BSD (the `License` field and the classifier of the installed metadata, 2026-11-20: 'BSD license', 'OSI Approved :: BSD License'); it needs Pillow (brought by Matplotlib) and charset-normalizer (MIT) |
 | **pypdfium2 5.15.2** (developer tool only: `tools/ocr/`, never imported by `pcbthermal`, not in `requirements.txt`) | rendering PDF pages and reading their text layer for the OCR tool | **BSD-3-Clause or Apache-2.0** (the `License` field of the metadata of the package installed from PyPI in a scratch virtual environment outside the repository reads `BSD-3-Clause, Apache-2.0, dependency licenses`, with the notices in `licenses/` of the wheel; checked on 2026-11-12, version 5.15.2); it bundles the Google PDFium library (Apache-2.0 / BSD-3-Clause) and permissive third-party libraries whose notices ship in the wheel; no Python dependency |
 
 The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`). The developer tool `tools/ocr/` (not part of the program, never imported by `pcbthermal`) uses the standard library for its providers (Gemini, Anthropic and OpenRouter over HTTPS, key in the environment or `.ocr_keys`); its page rendering, text-layer, `assemble` and `map` commands import pypdfium2 (and Pillow, which Matplotlib already brings; Pillow 13.0.0 reads `MIT-CMU` in its metadata, the permissive HPND-style licence), which is not in `requirements.txt` and not installed in the project environments (the tool is run from the git-ignored `.venv-research`, `.venv-research/bin/python -m tools.ocr ...`). pypdfium2 is permissive (BSD-3-Clause or Apache-2.0) and is **installed with `pip` and imported, never copied or vendored into the repository**.
