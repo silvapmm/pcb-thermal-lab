@@ -557,3 +557,76 @@ def test_workflow_pins_actions_and_attaches_the_source_first(workflow):
     assert "(cd qt-source && sha256sum *.tar.xz)" in release and "--version \"${GITHUB_REF_NAME#v}\"" in release
     assert "--prerelease" in release and "prerelease=true" in workflow
     assert "PCB-Thermal-Lab-cli.exe" in workflow and "xvfb-run -a" in workflow and "FILES-*.txt" in workflow
+
+
+def test_only_the_qt_modules_the_program_imports_are_allowed():
+    """A positive list of Qt modules: the three the program imports (and only those, checked in pcbthermal/), Svg and the Linux platform support are allowed; every GPL-3-only
+    module and every other add-on (Graphs, Charts, Quick3D, SpatialAudio, Network, ...) is reported, whatever the file name style of the system."""
+    build = load("build")
+    imported = set()
+    for path in (ROOT / "pcbthermal").rglob("*.py"):
+        imported |= set(re.findall(r"(?:from|import)\s+PySide6\.(Qt\w+)", path.read_text(encoding="utf-8")))
+    assert imported == {"QtCore", "QtGui", "QtWidgets"}
+    assert {m for m in ("Core", "Gui", "Widgets") if m in build.ALLOWED_QT_MODULES} == {"Core", "Gui", "Widgets"}
+    for bad in ("PySide6/Qt/lib/libQt6Graphs.so.6", "PySide6/Qt6Charts.dll", "PySide6/Qt/lib/QtQuick3D.framework/QtQuick3D", "PySide6/QtSpatialAudio.abi3.so",
+                "PySide6/Qt6DataVisualization.dll", "PySide6/Qt/lib/libQt6HttpServer.so.6.12.0", "PySide6/Qt6NetworkAuth.dll", "PySide6/Qt6Network.dll"):
+        assert build.unexpected_qt_modules([bad]), bad
+    for good in ("PySide6/Qt/lib/libQt6Core.so.6", "PySide6/Qt/lib/libQt6Core.so.6.12.0", "PySide6/Qt6Gui.dll", "PySide6/QtWidgets.abi3.so",
+                 "PySide6/Qt/lib/QtSvg.framework/QtSvg", "PySide6/Qt/lib/libQt6XcbQpa.so.6", "PySide6/Qt/lib/libQt6DBus.so.6", "PySide6/Qt/lib/libQt6WaylandClient.so.6",
+                 "PySide6/Qt/plugins/platforms/libqxcb.so", "licenses/Qt/LGPL-3.0.txt"):
+        assert not build.unexpected_qt_modules([good]), good
+    # A licence folder is never a module
+    assert not build.unexpected_qt_modules(["licenses/Qt/Qt6Graphs.dll"])
+
+
+def test_every_forbidden_family_is_in_the_forbidden_list_and_the_spec_excludes():
+    """FORBIDDEN names the GPL-3-only Qt modules, FFmpeg, QtPdf, WebEngine, the TLS plug-ins and Readline; the spec excludes the same modules from the analysis."""
+    build = load("build")
+    for bad in ("Qt6Graphs", "Qt6Charts", "Qt6DataVisualization", "Qt6Quick3D", "Qt6HttpServer", "Qt6Lottie", "Qt6VirtualKeyboard", "Qt6CanvasPainter", "Qt6NetworkAuth",
+                "Qt6QmlCompiler", "Qt6WebEngineCore", "Qt6Pdf", "libqpdf.so", "libavcodec.so.61", "libswscale.so.8", "libqopensslbackend.so", "plugins/tls/x", "libreadline.so.8"):
+        assert build.FORBIDDEN.search(bad), bad
+    spec = (PKG / "PCB-Thermal-Lab.spec").read_text(encoding="utf-8")
+    for module in ("QtGraphs", "QtCharts", "QtDataVisualization", "QtQuick3D", "QtHttpServer", "QtLottie", "QtVirtualKeyboard", "QtCanvasPainter", "QtNetworkAuth",
+                   "QtQmlCompiler", "QtWebEngineCore", "QtPdf", "QtSpatialAudio", "QtMultimedia"):
+        assert f"PySide6.{module}" in spec, module
+    assert "check_qt_modules(folder, args.release)" in (PKG / "build.py").read_text(encoding="utf-8")
+
+
+def test_release_notes_have_a_first_run_section_with_the_checksums(tmp_path):
+    """The draft notes keep the CHANGELOG section and add the macOS and Windows confirmations, the glibc requirement, the SHA-256 of each package, the versions of Qt and
+    PySide and the pointer to REPLACING-QT.txt; the tarballs of the sums file are not repeated in the table; without a package line the call fails."""
+    notes = load("release_notes")
+    d1, d2, d3 = "a" * 64, "b" * 64, "c" * 64
+    sums = f"{d1}  PCB-Thermal-Lab-2.9.0-windows-x64.zip\n{d2}  PCB-Thermal-Lab-2.9.0-linux-x64.tar.gz\n{d3}  PCB-Thermal-Lab-2.9.0-macos-arm64.zip\n{'d' * 64}  qtbase-everywhere-src-6.12.0.tar.xz\n"
+    pairs = notes.package_sums(sums)
+    assert [n for n, _ in pairs] == ["PCB-Thermal-Lab-2.9.0-windows-x64.zip", "PCB-Thermal-Lab-2.9.0-linux-x64.tar.gz", "PCB-Thermal-Lab-2.9.0-macos-arm64.zip"]
+    text = notes.first_run_section(pairs, "6.12.0", "6.12.0")
+    for must in ("Open Anyway", "Privacy & Security", "macOS 14", "authenticate", "More info", "Run anyway", "glibc 2.35", "Ubuntu 22.04", "Debian 12", "Fedora 36",
+                 "Ubuntu 20.04", "Debian 11", "RHEL", "run from source", d1, d2, d3, "Qt 6.12.0", "PySide6 6.12.0", "REPLACING-QT.txt"):
+        assert must in text, must
+    assert "qtbase" not in text
+    # With the real CHANGELOG: the section of the version is kept at the top and the new sections follow it
+    log = tmp_path / "sums.txt"
+    log.write_text(sums, encoding="utf-8")
+    info = tmp_path / "info.json"
+    info.write_text('{"qt": "6.12.0", "pyside": "6.12.0", "source_assets": ["qtbase-everywhere-src-6.12.0.tar.xz"]}', encoding="utf-8")
+    out = tmp_path / "notes.md"
+    changelog = ROOT / "CHANGELOG.md"
+    assert notes.main(["2.9.0rc1", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(log), "-o", str(out)]) == 0
+    body = out.read_text(encoding="utf-8")
+    unreleased = notes.extract(changelog.read_text(encoding="utf-8"), "Unreleased")
+    assert body.startswith(unreleased) and body.index("## Qt and PySide source") < body.index("## First run") and d3 in body
+    empty = tmp_path / "empty.txt"
+    empty.write_text("nothing\n", encoding="utf-8")
+    assert notes.main(["2.9.0rc1", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(empty), "-o", str(out)]) == 1
+    assert "--sums files/SHA256SUMS.txt" in WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_packaging_readme_keeps_the_never_rules_and_states_the_glibc_requirement():
+    """packaging/README.md and the README Download section say what the Linux package needs and what is never done."""
+    text = (PKG / "README.md").read_text(encoding="utf-8")
+    for rule in ("never add an EULA that forbids reverse engineering", "never check Qt file hashes at run time", "never switch to onefile", "glibc 2.35 or newer",
+                 "Ubuntu 22.04+, Debian 12+, Fedora 36+", "run from source with pip"):
+        assert rule in text, rule
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "glibc 2.35" in readme and "Ubuntu 20.04" in readme and "run from source" in readme

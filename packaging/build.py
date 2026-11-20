@@ -74,6 +74,13 @@ PYTHON_NOTICES_URL = "https://raw.githubusercontent.com/python/cpython/v{version
 FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisualization|Quick|VirtualKeyboard|Lottie|HttpServer|NetworkAuth|Qml|CanvasPainter|Grpc|Mqtt|Coap)"
                        r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$"
                        r"|opengl32sw|libqgtk3|libgtk-3|libgdk-3|libreadline", re.IGNORECASE)
+# The Qt modules a package may contain (a positive list, the conservative reading of the module licences): the three the program imports, Svg (the icon and image
+# plug-ins) and the Linux platform support (DBus, XcbQpa, Wayland client). Every other Qt module is either GPL-3-only or an add-on the program never imports, so a file of
+# one that is not on this list is reported (a release build stops); FORBIDDEN names the known GPL-3-only ones, this list catches the ones a new Qt version adds.
+ALLOWED_QT_MODULES = frozenset({"Core", "Gui", "Widgets", "Svg", "DBus", "XcbQpa", "WaylandClient", "WaylandEglClientHwIntegration", "WlShellIntegration",
+                                "EglFSDeviceIntegration", "EglFsKmsSupport", "EglFsKmsGbmSupport"})
+# A file that is a Qt module: libQt6Core.so.6, Qt6Core.dll, QtCore.abi3.so, QtCore.pyi, QtCore.framework/QtCore (macOS)
+QT_MODULE_FILE = re.compile(r"(?:lib)?Qt6?([A-Z][A-Za-z0-9]*?)(?:6)?(?:\.abi3)?(?:\.(?:so|dll|dylib|pyd|pyi|framework)(?:\.\d+)*)?")
 # Qt plug-ins the program never loads and that would bring a library with them: the VNC platform and the TUIO touch input (both link QtNetwork, and through it Kerberos
 # on Linux). Not forbidden (their source is attached), only left out; the spec drops them before the unreferenced libraries are pruned.
 UNUSED_PLUGINS = re.compile(r"(^|/)(libqvnc\.so|qvnc\.dll|libqvnc\.dylib|libqtuiotouchplugin\.(so|dylib)|qtuiotouchplugin\.dll)$", re.IGNORECASE)
@@ -629,6 +636,41 @@ def check_shipped(folder):
                          + ". Install libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxkbcommon0 libxkbcommon-x11-0 and build again.")
 
 
+def unexpected_qt_modules(paths):
+    """!
+    @brief The Qt modules among the files of a package that are not on ALLOWED_QT_MODULES (a possible GPL-3-only or add-on module).
+    @param paths Relative paths of the files of the package (a licence folder is skipped).
+    @return list of str, the module names (for example "Graphs"), sorted, without duplicates.
+    """
+    found = set()
+    for path in paths:
+        path = "/" + path.replace("\\", "/")
+        if "/licenses/" in path:
+            continue
+        for part in path.split("/"):
+            m = QT_MODULE_FILE.fullmatch(part)
+            if m and m.group(1) not in ALLOWED_QT_MODULES:
+                found.add(m.group(1))
+    return sorted(found)
+
+
+def check_qt_modules(folder, release):
+    """!
+    @brief Stop a release build whose package holds a Qt module that is not on ALLOWED_QT_MODULES; a trial build only reports it.
+    @param folder The assembled package folder.
+    @param release True for the build of a tag.
+    @return list of str, the unexpected modules.
+    @throws SystemExit In a release build, when the list is not empty.
+    """
+    unexpected = unexpected_qt_modules([p.relative_to(folder).as_posix() for p in folder.rglob("*")])
+    if unexpected:
+        text = "Qt modules in the package that are not on ALLOWED_QT_MODULES (check each one's licence: LGPL-3.0 is fine, GPL-3-only is not): " + ", ".join(unexpected)
+        if release:
+            raise SystemExit("error: " + text)
+        print("warning (a release build stops here): " + text, flush=True)
+    return unexpected
+
+
 def check_notices(folder, release):
     """!
     @brief Stop a release build whose package holds a native library without its licence notice; a trial build only reports them.
@@ -791,6 +833,7 @@ def main(argv=None):
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
     check_shipped(folder)
+    check_qt_modules(folder, args.release)
     uncovered = check_notices(folder, args.release)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
