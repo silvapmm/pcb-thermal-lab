@@ -8,7 +8,7 @@
             PySide6-Essentials, the same Qt modules without QtWebEngine and the other add-ons) and PyInstaller (`packaging/requirements-build.txt`);
          2. prepares the licence material (a staging folder): `licenses/Qt` (LGPL-3.0, GPL-3.0 and the Qt third-party notices made from the Qt source tarballs,
             `qt_sources.py`), the licence files of every bundled package copied from its `dist-info` (the build FAILS when one has none), `NOTICE.txt`,
-            `SOURCE-OFFER.txt`, `REPLACING-QT.txt`, `BUILD-INFO.txt` (the exact versions) and, on macOS, the `.icns` icon;
+            `SOURCE-OFFER.txt`, `REPLACING-QT.txt`, `BUILD-INFO.txt` (the exact versions); the icons are the committed `ico/pcb-board.ico` (Windows) and `ico/pcb-board.icns` (macOS);
          3. runs PyInstaller on `packaging/PCB-Thermal-Lab.spec` (one folder, not one file; a `.app` on macOS) and FAILS when the output holds a file of a Qt
             module or library that must not be shipped (GPL-3-only modules, FFmpeg, QtPdf, WebEngine, TLS plug-ins, GNU Readline: `FORBIDDEN`); the spec also drops
             the unused plug-ins (`UNUSED_PLUGINS`) and, on Linux, the libraries that nothing kept links any more (`unreferenced_libraries`);
@@ -483,26 +483,6 @@ def write_build_info(staging):
         f"Python: {py}\n\nInstalled packages of the build environment (pip freeze):\n{freeze}", encoding="utf-8")
 
 
-def make_icns(staging):
-    """!
-    @brief Make the macOS icon (.icns) from ico/pcb-board.png with sips and iconutil (macOS only).
-    @param staging Staging folder.
-    """
-    if sys.platform != "darwin":
-        return
-    iconset = staging / "pcb-board.iconset"
-    iconset.mkdir(parents=True, exist_ok=True)
-    src = ROOT / "ico" / "pcb-board.png"
-    for size in (16, 32, 128, 256, 512):
-        for scale in (1, 2):
-            px = size * scale
-            if px > 1024:
-                continue
-            name = f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
-            run(["sips", "-z", px, px, src, "--out", iconset / name], stdout=subprocess.DEVNULL)
-    run(["iconutil", "-c", "icns", iconset, "-o", staging / "pcb-board.icns"])
-
-
 def sha256(path):
     """!
     @brief SHA-256 of a file.
@@ -829,7 +809,6 @@ def main(argv=None):
     print(f"Qt third-party notices: {n} components")
     write_notice_files(staging, args.release)
     write_build_info(staging)
-    make_icns(staging)
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
     check_shipped(folder)

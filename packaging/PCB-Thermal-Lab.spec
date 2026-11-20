@@ -1,7 +1,7 @@
 #  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # PyInstaller specification of PCB Thermal Lab (one folder, not one file: the Qt libraries stay ordinary, replaceable files, which the LGPL asks for).
-# Run through packaging/build.py, which makes the venv, the licence staging folder (PCBT_STAGING) and the icons first:
+# Run through packaging/build.py, which makes the venv, the licence staging folder (PCBT_STAGING) first:
 #   python packaging/build.py
 # A spec file is Python: SPECPATH, DISTPATH and the classes below are provided by PyInstaller.
 import os
@@ -14,7 +14,7 @@ import importlib.util
 from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parent                       # noqa: F821  (SPECPATH is set by PyInstaller): the repository
-STAGING = Path(os.environ["PCBT_STAGING"])                   # licences, SOURCE-OFFER.txt, BUILD-INFO.txt and the icons made by build.py
+STAGING = Path(os.environ["PCBT_STAGING"])                   # licences, SOURCE-OFFER.txt, BUILD-INFO.txt made by build.py
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', (ROOT / "pcbthermal" / "__init__.py").read_text(encoding="utf-8")).group(1)   # Read, not imported
 NAME = "PCB-Thermal-Lab"
 sys.path.insert(0, str(ROOT))                                # The build environment imports the program (bundle_info lists the libraries to bundle)
@@ -95,9 +95,9 @@ if sys.platform.startswith("linux"):
 pyz = PYZ(a.pure)                                                                                                                                   # noqa: F821
 
 if sys.platform == "win32":
-    icon = str(ROOT / "ico" / "pcb-board_256x256.ico")
+    icon = str(ROOT / "ico" / "pcb-board.ico")
 elif sys.platform == "darwin":
-    icon = str(STAGING / "pcb-board.icns")
+    icon = str(ROOT / "ico" / "pcb-board.icns")
 else:
     icon = None                                                                       # An ELF file has no icon; the window icon comes from the code
 

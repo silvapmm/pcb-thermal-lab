@@ -81,6 +81,10 @@ def test_spec_excludes_and_includes():
                    "readline"):
         assert f'"{module}"' in spec
     assert "exclude_binaries=True" in spec and "onefile" not in spec.lower()      # One folder: the Qt libraries stay replaceable files
+    # The icons are the committed files of ico/ (the old size-named .ico files no longer exist)
+    assert '"ico" / "pcb-board.ico"' in spec and '"ico" / "pcb-board.icns"' in spec
+    assert "256x256" not in spec and "make_icns" not in (PKG / "build.py").read_text(encoding="utf-8")
+    assert (PKG.parent / "ico" / "pcb-board.ico").exists() and (PKG.parent / "ico" / "pcb-board.icns").exists()
 
 
 def test_qt_licence_texts_are_in_the_repository():

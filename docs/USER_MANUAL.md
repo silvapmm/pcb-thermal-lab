@@ -136,9 +136,9 @@ optional at run time) and pytest (the tests).
 
 ### 2.2 Ready-to-run packages
 
-Ready-to-run packages (no Python needed) are being prepared for version 2.9.0; no earlier
-version has them. When a release carries them, they are attached to the release on the
-project's GitHub page (*Releases*), one per system:
+Ready-to-run packages (no Python needed) come with version 2.9.0 (their build is in the
+development tree; no earlier version has them). A release that carries them attaches them to
+the release on the project's GitHub page (*Releases*), one per system:
 
 | System | Package |
 | :-- | :-- |
@@ -149,6 +149,10 @@ project's GitHub page (*Releases*), one per system:
 Each package is a **folder**, not a single file. Unpack the whole archive somewhere you can
 write to and start the program inside it. Keep the folder intact: the files next to the program
 are needed. Nothing is installed on the system.
+
+To check a package, run `PCB-Thermal-Lab --selftest` (on Windows the `PCB-Thermal-Lab-cli`
+program prints the result). It checks the imports, the files, the window, a solve through the
+calculation process and the energy balance, and exits with a code that says the result.
 
 **First run.** The packages are not signed, so the first start asks for a confirmation:
 
@@ -200,7 +204,9 @@ steps above install it.
 .venv/bin/python -m pcbthermal --version
 ```
 
-prints `PCB Thermal Lab 2.8.0` (the version you installed). Then start the window:
+prints `PCB Thermal Lab 2.8.0` (the version you installed). `.venv/bin/python -m pcbthermal gui
+--selftest` checks the installation without leaving a window open (imports, files, a solve and
+the energy balance). Then start the window:
 
 ```
 .venv/bin/python -m pcbthermal gui
