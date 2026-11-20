@@ -328,7 +328,7 @@ def test_profile_run_with_each_kind_and_model_subset(win, qtbot):
         run(win, qtbot, models)
         walk_results(win, qtbot)
         if models in (("solid3d",), ("fem",)):
-            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid and the FEM have no time simulation
+            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid has no time simulation; the FEM alone has no reference to decide (its message also says the 3D solid is steady state only)
     # One-shot table, a step limit that is too small, a computed h
     pr.heaters[1].set_profile(TableProfile([0, 0.01, 20], [0.0, 5.0], False))   # A 10 ms stretch in 20 s: 20,000 steps
     win.doc.options.profile.max_steps = 200

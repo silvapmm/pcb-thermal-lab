@@ -1,0 +1,104 @@
+{
+ "base_version": "2.8.0",
+ "branch": "feature/fem-transient",
+ "evidence": "releases/2.9.0/fem-transient/MEASURED.md, docs/theory.md 4b",
+ "format": 1,
+ "item": "FEM time simulation",
+ "new_time_models": [
+  "fem"
+ ],
+ "records": {},
+ "transients": {
+  "drawn_ell|fem": {
+   "class": "new",
+   "t63": {
+    "U": 23.167882775734103
+   }
+  },
+  "drawn_inset_square|fem": {
+   "class": "new",
+   "t63": {
+    "U": 27.275696525957176
+   }
+  },
+  "drawn_stripes_pad|fem": {
+   "class": "new",
+   "t63": {
+    "U": 22.94382896579721
+   }
+  },
+  "finned_block|fem": {
+   "class": "new",
+   "t63": {
+    "U": 14.64231251240482
+   }
+  },
+  "hatched_copper|fem": {
+   "class": "new",
+   "t63": {
+    "U": 18.483912338776314
+   }
+  },
+  "one_layer_full|fem": {
+   "class": "new",
+   "t63": {
+    "U": 22.05680702907076
+   }
+  },
+  "one_layer_pad|fem": {
+   "class": "new",
+   "t63": {
+    "U": 59.30856923456977
+   }
+  },
+  "part_across_outline|fem": {
+   "class": "new",
+   "t63": {
+    "U": 34.27022042467865
+   }
+  },
+  "part_top_path|fem": {
+   "class": "new",
+   "t63": {
+    "Q1": 15.980478967230173
+   }
+  },
+  "plate_lone_via|fem": {
+   "class": "new",
+   "t63": {
+    "U": 21.667234304478338
+   }
+  },
+  "plate_pad|fem": {
+   "class": "new",
+   "t63": {
+    "U": 60.301267427368714
+   }
+  },
+  "plate_uniform|fem": {
+   "class": "new",
+   "t63": {
+    "U": 20.45966788065516
+   }
+  },
+  "plate_vias|fem": {
+   "class": "new",
+   "t63": {
+    "U": 32.948049556208005
+   }
+  },
+  "t_outline|fem": {
+   "class": "new",
+   "t63": {
+    "U": 48.207176642822176
+   }
+  },
+  "two_layer_partial|fem": {
+   "class": "new",
+   "t63": {
+    "U": 24.940921991083805
+   }
+  }
+ },
+ "why": "The FEM gets a time simulation in 2.9.0 (step responses, animation, power profiles): the time to 63 % of its step response (hottest column cell of the footprint, Crank-Nicolson with the Rannacher start, the response cell 2 mm) is ADDED for the boards that take the direct path; no existing record moves."
+}
