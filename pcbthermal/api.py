@@ -198,6 +198,9 @@ def surface_report_lines(res):
     """
     out = []
     for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
+        if "T_surface" in res.arrays and key not in res.extras and thickness.surface_na_reason(res, face):
+            out.append(f"Hottest surface ({name}): n/a ({thickness.surface_na_reason(res, face)})")      # The Analytic under a part over absent copper: the reason, never a number
+            continue
         if key not in res.extras or "T_surface" not in res.arrays:
             continue
         surf = float(res.extras[key])

@@ -934,8 +934,11 @@ surface is above the column value by at most about *q″t/2k*, a measured upper 
 term, **not a guarantee** (it can fail for heat from a hotter neighbouring part, a part over
 absent copper and thick plates, and it does not contain the model's own error). The Analytic
 reads its estimate from its own field and the uniform conductances of its sheet: vias, blocks
-and heatsinks are not in its heat fluxes and a part over a copper window has no bare-laminate
-term, so the surface is never better than its column. The Animation and Power profile pages show
+and heatsinks are not in its heat fluxes, and it has no bare-laminate term under a part over a
+copper window, so on a face where a part sits over absent copper it shows no surface (n/a, the
+reason in the report and the tooltip). On a thick plate under a narrow part the 3D solid, which
+computes the face from its copper slabs, is the closer number; the FVM, FDM and Analytic parabola
+is then the upper estimate (10 mm aluminium plate: 13.5 K above the column against 17.1 K). The Animation and Power profile pages show
 the column; the surface of a time simulation is n/a in this version. The full explanation and its limits are in the user guide
 (*Surface temperature and column mean*) and in `docs/theory.md` 1.2c.
 

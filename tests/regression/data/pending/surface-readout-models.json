@@ -9,46 +9,28 @@
   "drawn_ell|analytic|0.5": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 80.16829840188542,
-    "part:U:t_mean_surface": 76.8513819947803,
     "surface:bottom:mean_max": 56.98452777453424,
     "surface:bottom:t_max": 56.98452777453424,
     "surface:bottom:t_mean": 54.19785637794796,
-    "surface:bottom:t_sum": 86716.57020471673,
-    "surface:top:mean_max": 80.16829840188542,
-    "surface:top:t_max": 80.16829840188542,
-    "surface:top:t_mean": 60.17112222350325,
-    "surface:top:t_sum": 96273.79555760519
+    "surface:bottom:t_sum": 86716.57020471673
    }
   },
   "drawn_ell|analytic|1": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 79.68755456466322,
-    "part:U:t_mean_surface": 77.04240414109154,
     "surface:bottom:mean_max": 56.95793779250219,
     "surface:bottom:t_max": 56.95793779250219,
     "surface:bottom:t_mean": 54.20250655613388,
-    "surface:bottom:t_sum": 21681.002622453554,
-    "surface:top:mean_max": 79.68755456466322,
-    "surface:top:t_max": 79.68755456466322,
-    "surface:top:t_mean": 60.17658656992735,
-    "surface:top:t_sum": 24070.63462797094
+    "surface:bottom:t_sum": 21681.002622453554
    }
   },
   "drawn_ell|analytic|2": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 79.68755456466322,
-    "part:U:t_mean_surface": 77.04240414109154,
     "surface:bottom:mean_max": 56.95793779250219,
     "surface:bottom:t_max": 56.95793779250219,
     "surface:bottom:t_mean": 54.20250655613388,
-    "surface:bottom:t_sum": 21681.002622453554,
-    "surface:top:mean_max": 79.68755456466322,
-    "surface:top:t_max": 79.68755456466322,
-    "surface:top:t_mean": 60.17658656992735,
-    "surface:top:t_sum": 24070.63462797094
+    "surface:bottom:t_sum": 21681.002622453554
    }
   },
   "drawn_ell|solid3d|0.5": {
@@ -539,46 +521,28 @@
   "hatched_copper|analytic|0.5": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 111.67116111694519,
-    "part:U:t_mean_surface": 100.9218522107883,
     "surface:bottom:mean_max": 77.73350885099913,
     "surface:bottom:t_max": 77.73350885099913,
     "surface:bottom:t_mean": 56.234922914975975,
-    "surface:bottom:t_sum": 809782.8899756541,
-    "surface:top:mean_max": 111.67116111694519,
-    "surface:top:t_max": 111.67116111694519,
-    "surface:top:t_mean": 58.695344025481084,
-    "surface:top:t_sum": 845212.9539669276
+    "surface:bottom:t_sum": 809782.8899756541
    }
   },
   "hatched_copper|analytic|1": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 111.5035443832038,
-    "part:U:t_mean_surface": 100.98427281126263,
     "surface:bottom:mean_max": 77.67928035494799,
     "surface:bottom:t_max": 77.67928035494799,
     "surface:bottom:t_mean": 56.234967050531814,
-    "surface:bottom:t_sum": 202445.88138191454,
-    "surface:top:mean_max": 111.5035443832038,
-    "surface:top:t_max": 111.5035443832038,
-    "surface:top:t_mean": 58.695400909161364,
-    "surface:top:t_sum": 211303.44327298092
+    "surface:bottom:t_sum": 202445.88138191454
    }
   },
   "hatched_copper|analytic|2": {
    "class": "added",
    "metrics": {
-    "part:U:t_max_surface": 111.5035443832038,
-    "part:U:t_mean_surface": 100.98427281126263,
     "surface:bottom:mean_max": 77.67928035494799,
     "surface:bottom:t_max": 77.67928035494799,
     "surface:bottom:t_mean": 56.234967050531814,
-    "surface:bottom:t_sum": 202445.88138191454,
-    "surface:top:mean_max": 111.5035443832038,
-    "surface:top:t_max": 111.5035443832038,
-    "surface:top:t_mean": 58.695400909161364,
-    "surface:top:t_sum": 211303.44327298092
+    "surface:bottom:t_sum": 202445.88138191454
    }
   },
   "hatched_copper|solid3d|0.5": {
@@ -676,10 +640,10 @@
    "metrics": {
     "part:U:t_max_surface": 55.47266929862284,
     "part:U:t_mean_surface": 52.72011966592709,
-    "surface:bottom:mean_max": 55.47216505867234,
-    "surface:bottom:t_max": 55.47216505867234,
-    "surface:bottom:t_mean": 36.6169467565233,
-    "surface:bottom:t_sum": 527284.0332939355,
+    "surface:bottom:mean_max": 55.471932933244744,
+    "surface:bottom:t_max": 55.471932933244744,
+    "surface:bottom:t_mean": 36.616944307912476,
+    "surface:bottom:t_sum": 527283.9980339396,
     "surface:top:mean_max": 55.47266929862284,
     "surface:top:t_max": 55.47266929862284,
     "surface:top:t_mean": 36.61695899957739,
@@ -691,10 +655,10 @@
    "metrics": {
     "part:U:t_max_surface": 55.45024853891473,
     "part:U:t_mean_surface": 52.8383468065898,
-    "surface:bottom:mean_max": 55.44974437851949,
-    "surface:bottom:t_max": 55.44974437851949,
-    "surface:bottom:t_mean": 36.61694675652183,
-    "surface:bottom:t_sum": 131821.00832347857,
+    "surface:bottom:mean_max": 55.44951224969481,
+    "surface:bottom:t_max": 55.44951224969481,
+    "surface:bottom:t_mean": 36.61694430791101,
+    "surface:bottom:t_sum": 131820.99950847964,
     "surface:top:mean_max": 55.45024853891473,
     "surface:top:t_max": 55.45024853891473,
     "surface:top:t_mean": 36.61695899957592,
@@ -706,10 +670,10 @@
    "metrics": {
     "part:U:t_max_surface": 55.363800768208534,
     "part:U:t_mean_surface": 53.30146576700199,
-    "surface:bottom:mean_max": 55.36329690349942,
-    "surface:bottom:t_max": 55.36329690349942,
-    "surface:bottom:t_mean": 36.616946756520214,
-    "surface:bottom:t_sum": 32955.252080868195,
+    "surface:bottom:mean_max": 55.36306476157661,
+    "surface:bottom:t_max": 55.36306476157661,
+    "surface:bottom:t_mean": 36.61694430790939,
+    "surface:bottom:t_sum": 32955.249877118455,
     "surface:top:mean_max": 55.363800768208534,
     "surface:top:t_max": 55.363800768208534,
     "surface:top:t_mean": 36.6169589995743,
@@ -766,10 +730,10 @@
    "metrics": {
     "part:U:t_max_surface": 93.95741579751395,
     "part:U:t_mean_surface": 91.37500571016557,
-    "surface:bottom:mean_max": 93.95690017805636,
-    "surface:bottom:t_max": 93.95690017805636,
-    "surface:bottom:t_mean": 36.61683176021236,
-    "surface:bottom:t_sum": 527282.3773470579,
+    "surface:bottom:mean_max": 93.95667388364892,
+    "surface:bottom:t_max": 93.95667388364892,
+    "surface:bottom:t_mean": 36.61682855695484,
+    "surface:bottom:t_sum": 527282.3312201498,
     "surface:top:mean_max": 93.95741579751395,
     "surface:top:t_max": 93.95741579751395,
     "surface:top:t_mean": 36.61684729289069,
@@ -781,10 +745,10 @@
    "metrics": {
     "part:U:t_max_surface": 94.92559229793366,
     "part:U:t_mean_surface": 92.47944054702506,
-    "surface:bottom:mean_max": 94.9250764540988,
-    "surface:bottom:t_max": 94.9250764540988,
-    "surface:bottom:t_mean": 36.61675395392394,
-    "surface:bottom:t_sum": 131820.31423412618,
+    "surface:bottom:mean_max": 94.92485030638471,
+    "surface:bottom:t_max": 94.92485030638471,
+    "surface:bottom:t_mean": 36.61675076795797,
+    "surface:bottom:t_sum": 131820.3027646487,
     "surface:top:mean_max": 94.92559229793366,
     "surface:top:t_max": 94.92559229793366,
     "surface:top:t_mean": 36.61676951896273,
@@ -796,10 +760,10 @@
    "metrics": {
     "part:U:t_max_surface": 97.01232489318375,
     "part:U:t_mean_surface": 95.0881541464162,
-    "surface:bottom:mean_max": 97.01180863379498,
-    "surface:bottom:t_max": 97.01180863379498,
-    "surface:bottom:t_mean": 36.616714597038005,
-    "surface:bottom:t_sum": 32955.04313733421,
+    "surface:bottom:mean_max": 97.0115828022524,
+    "surface:bottom:t_max": 97.0115828022524,
+    "surface:bottom:t_mean": 36.616711448945104,
+    "surface:bottom:t_sum": 32955.04030405059,
     "surface:top:mean_max": 97.01232489318375,
     "surface:top:t_max": 97.01232489318375,
     "surface:top:t_mean": 36.616730057423446,
@@ -1748,5 +1712,5 @@
   }
  },
  "transients": {},
- "why": "The Analytic (rule F) and the 3D solid (half slab above 105 um, rule S on one slab) get a surface read-out beside the column: the surface statistics are ADDED to their existing records; no frozen number moves (a view)."
+ "why": "The Analytic (rule F) and the 3D solid (half slab above 105 um, rule S on one slab) get a surface read-out beside the column: the surface statistics are ADDED to their existing records; no frozen number moves (a view). Review: the Analytic face of a part over absent copper is n/a (no surface metrics for drawn_ell and hatched_copper top), and the bottom face of a one-layer board of one slab in the 3D solid keeps the source (one_layer_full, one_layer_pad); those 12 records were re-run."
 }

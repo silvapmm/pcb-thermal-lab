@@ -177,10 +177,31 @@ def test_the_analytic_says_a_part_over_absent_copper_has_no_bare_laminate_term()
     p.add_heater(1, 2.0, rect=(27, 17, 33, 23), name="U")
     a, f = run(p, "analytic"), run(p, "fvm")
     assert a.extras.get("surface_part_over_bare_laminate") == 1.0 and "surface_part_over_bare_laminate" not in run(plates.problem(plates.PLATES[0]), "analytic").extras
-    assert "no bare-laminate term" in thickness.surface_how(a)
-    # the finite-volume column holds the face term (287 degC measured on the branch), the Analytic does not (110 degC): the surface of the Analytic is the sheet's, never better than its column
+    # the finite-volume column holds the face term (287 degC measured), the Analytic does not (110 degC): a surface 2 mK above that column is not shown (review): the face is n/a
     assert f.t_max > 250.0 and a.t_max < 120.0
-    assert 0 < float(np.nanmax(a.arrays["T_surface"][0] - a.T[0])) < 0.01
+    assert not np.isfinite(a.arrays["T_surface"][0]).any() and "t_max_surface_top" not in a.extras
+    assert np.isfinite(a.arrays["T_surface"][1]).any() and "t_max_surface_bottom" in a.extras      # the bottom face, all copper and no part, keeps its value
+    assert "absent copper" in thickness.surface_na_reason(a, 0) and thickness.surface_na_reason(a, 1) is None
+    assert "no bare-laminate term" not in thickness.surface_how(a, False, 1)
+    sim = simulate(copy.deepcopy(p), SolverOptions(models=("fvm", "analytic"), cell_mm=1.0))
+    rows = {r["model"]: r for r in sim.table()}
+    assert rows["analytic"]["t_max_surface_c"] is None and rows["fvm"]["t_max_surface_c"] > 250.0
+    assert "t_max_surface" not in analysis.heater_stats(a, p)[0] and analysis.heater_stats(f, p)[0]["t_max_surface"] > 250.0
+    sa = simulate(copy.deepcopy(p), SolverOptions(models=("analytic",), cell_mm=1.0))
+    assert "Hottest surface (top): n/a (A part on this face sits over absent copper" in sa.report()
+
+
+def test_the_solid_on_a_one_layer_board_of_one_slab_reads_both_faces_of_the_fvm():
+    # Review: the bottom face of the copper of a one-layer board (the interface with the laminate) dropped the heat of the part from the parabola of its single slab and read
+    # a quarter of the FVM's term (-0.74 mK against -2.93 mK on 105 um); both faces now use both fluxes of the slab
+    p = Problem.new(30.0, 30.0, layers=1, thickness_mm=1.6, copper_um=105.0, ambient=25.0, h_top=10.0, h_bottom=500.0, h_side=None)
+    p.add_full_copper()
+    p.add_heater(1, 5.0, rect=(10, 10, 20, 20), name="S")
+    s, f = run(p, "solid3d"), run(p, "fvm")
+    assert s.extras["surface_copper_slabs_bottom"] == 1.0
+    for face, pick in ((0, np.nanmax), (1, np.nanmin)):
+        ds, df = float(pick(s.arrays["T_surface"][face] - s.T[0])), float(pick(f.arrays["T_surface"][face] - f.T[0]))
+        assert ds == pytest.approx(df, rel=0.05), (face, ds, df)
 
 
 # ---------------------------------------------------------------- a view: no column read-out moves
@@ -188,8 +209,10 @@ def test_the_analytic_says_a_part_over_absent_copper_has_no_bare_laminate_term()
 @pytest.mark.parametrize("board", ["example", "plate", "two_layer_via"])
 def test_no_column_number_moves_with_the_surface_arrays_switched_off(monkeypatch, board):
     p = {"example": example_board, "plate": lambda: plates.problem(plates.PLATES[0]), "two_layer_via": lambda: plates.problem(plates.PLATES[7])}[board]()
-    models = ("lumped", "analytic", "solid3d")
+    # The FVM and the FDM too (review): one call of each attach is switched off; the FEM fills its own arrays and is not touched by this branch
+    models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
     on = simulate(copy.deepcopy(p), SolverOptions(models=models, cell_mm=2.0))
+    monkeypatch.setattr(thickness, "attach", lambda *a, **k: None)
     monkeypatch.setattr(thickness, "attach_field", lambda *a, **k: None)
     monkeypatch.setattr(thickness, "attach_solid", lambda *a, **k: None)
     off = simulate(copy.deepcopy(p), SolverOptions(models=models, cell_mm=2.0))
@@ -197,8 +220,9 @@ def test_no_column_number_moves_with_the_surface_arrays_switched_off(monkeypatch
         assert on.results[m].t_max == off.results[m].t_max and np.array_equal(on.results[m].T, off.results[m].T), m
         assert on.results[m].power_out == off.results[m].power_out and on.power_used.get(m) == off.power_used.get(m)
     assert "T_surface" in on.results["analytic"].arrays and "T_surface" not in off.results["analytic"].arrays
-    for a, b in zip(on.heater_rows(), off.heater_rows()):
-        assert {k: v for k, v in a.items() if "surface" not in k} == {k: v for k, v in b.items() if "surface" not in k}
+    for m in models:                                                          # the part rows of every model, not only the reference's
+        for a, b in zip(analysis.heater_stats(on.results[m], on.problem), analysis.heater_stats(off.results[m], off.problem)):
+            assert {k: v for k, v in a.items() if "surface" not in k} == {k: v for k, v in b.items() if "surface" not in k}, m
 
 
 def test_the_words_the_summary_and_the_files_carry_the_new_surfaces(tmp_path):

@@ -474,8 +474,8 @@ class PlotTab(QWidget):
     def surface_faces(self):
         """!
         @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
-        @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
-                 a view of the map, never a mode: no number of any table changes with it. Models without it (LPTN, Analytic, 3D solid) give no entry.
+        @details Present for the steady FVM, FDM, Analytic, 3D solid and FEM results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
+                 a view of the map, never a mode: no number of any table changes with it. The LPTN and a time simulation give no entry, nor a face the Analytic leaves n/a (a part over absent copper).
         @return Sorted list of 0 (top) and 1 (bottom).
         """
         if self.sim is None:
@@ -1205,6 +1205,9 @@ class ResultsView(QWidget):
                     notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM, Analytic, 3D solid and FEM only); the column is the only read-out.")
                 elif 1 < h["layer"] < n_layers:
                     notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
+                elif thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1):
+                    # The Analytic does not show a surface on a face with a part over absent copper (thickness.attach_field): say why
+                    notes.append("No surface value: " + thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1) + ".")
                 else:
                     notes.append("No surface value under this part.")
             rows.append(row)

@@ -769,6 +769,20 @@ def test_surface_read_out_of_the_analytic_the_solid_and_the_lumped_text_in_the_a
                 for data in (200, 201, 0):
                     win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))
         walk_results(win, qtbot)
+    # Review: the Analytic under a part over a copper window shows no surface (n/a, the reason in the tooltip), the top face leaves the Layer box, the bottom stays
+    w = Problem.new(60.0, 40.0, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=None)
+    for rect in ((0, 0, 25, 40), (35, 0, 60, 40), (25, 0, 35, 15), (25, 25, 35, 40)):
+        w.add_zone(1, rect=rect, fill=1.0)
+    w.add_zone(2, rect=(0, 0, 60, 40), fill=1.0)
+    w.add_heater(1, 2.0, rect=(27, 17, 33, 23), name="U")
+    load(win, w)
+    run(win, qtbot, ("analytic",), cell=2.0)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    cell = rv.heater_table.item(0, 9)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert cell.text() == "n/a" and "absent copper" in cell.toolTip() and "Surface (top)" not in texts and "Surface (bottom)" in texts
+    walk_results(win, qtbot)
 
 
 def test_component_fields_in_the_application(win, qtbot):
