@@ -230,7 +230,8 @@ def t63(problem, model, cell=TRANSIENT_CELL):
     """!
     @brief Time to 63.2 % of the steady resistance in the unit-step response of every part (the short transient).
     @param problem A Problem with at least one part.
-    @param model "fvm", "fdm", "lumped" or "analytic".
+    @param model "fvm", "fdm", "fem", "lumped" or "analytic". The FEM time is the hottest column cell of the footprint (the FVM's read-out), Crank-Nicolson with the Rannacher start;
+           a revision that has no FEM time simulation (before 2.9.0: `api.step_response` answered ANY model that it did not know with the Analytic) is "skipped", never recorded.
     @param cell Cell size in mm of the options (the FVM and FDM step responses use at least 2 mm).
     @return dict: model, cell_mm, status, reason, parts (list of dicts name, rth, t63_s, reached).
     """
@@ -239,6 +240,12 @@ def t63(problem, model, cell=TRANSIENT_CELL):
     from pcbthermal.api import step_response
     p = steady_problem(problem)
     out = {"model": model, "cell_mm": cell, "status": "ok", "reason": "", "parts": []}
+    if model == "fem":
+        import importlib
+        import importlib.util
+        if importlib.util.find_spec("pcbthermal.fem") is None or not hasattr(importlib.import_module("pcbthermal.fem"), "step_responses"):
+            out.update(status="skipped", reason="the FEM has no time simulation in this version")
+            return out
     t0 = time.perf_counter()
     try:
         sr = step_response(p, model, SolverOptions(models=(model,), cell_mm=cell))
@@ -316,7 +323,7 @@ def run_suite(program_root, out_path, label, boards=None, models=MODELS, cells=C
                 log(f"{name:22s} {model:8s} {cell:4.2f} mm  {rec['status']:7s} " +
                     (f"Tmax {rec['t_max']:8.3f}  Tmean {rec['t_mean']:8.3f}  {rec['seconds']:6.1f} s" if rec["status"] == "ok" else rec["reason"][:80]))
         if transients and problem.heaters:
-            for model in ("fvm", "fdm", "lumped", "analytic"):
+            for model in ("fvm", "fdm", "lumped", "analytic", "fem"):
                 if model in models:
                     tr = t63(problem, model)
                     tr["board"] = name

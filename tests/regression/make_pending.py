@@ -18,7 +18,8 @@
 
          A NEW model (one that no frozen record has, a comparison model added by a feature) adds records and moves none: `--new-model fem --cell 2 --cell 1` runs it on the named boards
          at those cells, keeps what finishes (a board it refuses or a run above the cap of the harness is left out, not recorded) and writes the pending file with `"new_models"`
-         naming it, so that the test knows the records are additions and not shifts.
+         naming it, so that the test knows the records are additions and not shifts. Since 2.9.0 the new model also adds its TIME records (`board|model` -> time to 63 % per part, the
+         read-out of `regress_harness.t63`) for the boards it runs, unless `--no-times`; a time record of a model that is not in `new_models` is still refused by the test.
 """
 
 import argparse
@@ -117,6 +118,13 @@ def main(argv=None):
                     print(f"refused: {k} did not run ({rec['status']}: {rec.get('reason', '')})")
                     return 2
                 records[k] = {"class": "new", "metrics": C.metrics_of(rec)}
+            tk = f"{board}|{model}"
+            if tk not in frozen["transients"] and not a.no_times and p.heaters and any(k.startswith(f"{board}|{model}|") for k in records):
+                t = H.t63(p, model, s["transient_cell"])
+                if t["status"] == "ok":
+                    transients[tk] = {"class": "new", "t63": {q["name"]: q["t63_s"] for q in t["parts"] if q["t63_s"] is not None}}
+                else:
+                    print(f"left out: {tk} time to 63 %: {t['status']} {t.get('reason', '')}")
     for board in [] if a.new_readouts else a.board:
         if board not in frozen["boards"]:
             print(f"refused: board {board} is not in {T.FROZEN_FILE.name}")
