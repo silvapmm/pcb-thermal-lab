@@ -12,6 +12,7 @@
 import platform
 import re
 import sys
+import textwrap
 from importlib import metadata
 from pathlib import Path
 
@@ -22,6 +23,9 @@ ALIASES = {"pyside6": ("PySide6", "PySide6_Essentials")}            # A packaged
 LICENCE_OF = {"pyamg": "MIT"}                                       # Metadata of a library that states nothing usable (checked in its wheel and repository)
 CLASSIFIERS = {"BSD License": "BSD", "MIT License": "MIT", "Apache Software License": "Apache-2.0", "Python Software Foundation License": "PSF-based",
                "GNU Lesser General Public License v3 (LGPLv3)": "LGPL-3.0", "ISC License (ISCL)": "ISC", "Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0"}
+GROUPS = ("The package", "Qt and PySide", "Bundled libraries")         # The headers of the Licences window, in this order
+TABLE_TITLES = ("Libraries bundled in this build", "Libraries (installed in this Python)")   # The entries that hold the library table (the window re-wraps them to its width)
+TABLE_WIDTH = 100                                                   # Default line width of the table in characters
 TEXT_FILES = ("LICENSE", "NOTICE.txt", "SOURCE-OFFER.txt", "REPLACING-QT.txt", "BUILD-INFO.txt")   # At the top of a package, in this order
 
 
@@ -130,14 +134,30 @@ def libraries():
     return [(d.metadata["Name"], d.version, licence_of(d)) for d in closure().values()]
 
 
-def table_text():
+def table_text(width=TABLE_WIDTH, rows=None):
     """!
-    @brief The table of the libraries as plain text.
-    @return str.
+    @brief The table of the libraries as plain text: name, version and licence in aligned columns; a long licence expression continues on the next lines under the licence column (hanging indent).
+    @param width Line width in characters (the table is wrapped at spaces so that no line is longer, as far as one word allows: a single word longer than the
+                 licence column is kept whole and makes its line longer); None for one line per library.
+    @param rows  List of (name, version, licence) tuples as libraries() returns them; None reads them now (the Licences window passes the rows it read once,
+                 because reading the metadata takes about 0.1 s and the table is re-wrapped at every resize).
+    @return str (a sentence instead of the table when no library metadata is found, so that the Licences window still opens in a build that lost it).
     """
-    rows = libraries()
-    width = max(len(r[0]) for r in rows)
-    return "\n".join(f"{n:<{width}}  {v:<10}  {lic or 'not stated'}" for n, v, lic in rows)
+    rows = libraries() if rows is None else rows
+    if not rows:
+        return "No library metadata was found in this build or this Python, so the table of the libraries cannot be shown."
+    name_w = max(len(r[0]) for r in rows)
+    ver_w = max(10, max(len(r[1]) for r in rows))                    # A version longer than 10 characters (2026.10.1.post12) widens the column instead of shifting the licence
+    lead = name_w + 2 + ver_w + 2                                    # Where the licence column starts
+    out = []
+    for n, v, lic in rows:
+        head = f"{n:<{name_w}}  {v:<{ver_w}}  "
+        lic = lic or "not stated"
+        # break_long_words off: a licence name is never cut inside a word, so the words of the wrapped table are those of the unwrapped one
+        lines = [lic] if width is None else textwrap.wrap(lic, max(width - lead, 20), break_long_words=False, break_on_hyphens=False) or [lic]
+        out.append(head + lines[0])
+        out += [" " * lead + ln for ln in lines[1:]]
+    return "\n".join(out)
 
 
 def versions():
@@ -192,35 +212,46 @@ def _read(path):
         return ""
 
 
-def licence_entries():
+def licence_groups():
     """!
-    @brief What the Licences window lists: (title, text, tooltip) triples, one entry per library. A packaged build shows the files of its package (the top-level
-           notices, the table of the libraries and one entry per folder of licenses/, whose licence files are joined under headings); from source, the LICENSE
-           of the program, the table of the libraries and where the Qt texts are.
-    @return list of (str title, str text, str tooltip with the full path or a short description).
+    @brief What the Licences window lists, in three groups. A packaged build shows the files of its package: "The package" (LICENSE, NOTICE.txt, SOURCE-OFFER.txt,
+           REPLACING-QT.txt, BUILD-INFO.txt), "Qt and PySide" (the folder licenses/Qt: the LGPL and GPL texts and the Qt notices) and "Bundled libraries" (the library
+           table, licenses/INDEX.txt and one entry per other folder of licenses/, whose licence files are joined under headings). From source: the LICENSE of the program,
+           Qt and PySide (where the texts are) and the library table.
+    @return list of (str group title, list of (str title, str text, str tooltip with the full path or a short description)); the groups are in the order of GROUPS.
     """
-    entries = []
+    package, qt, libs = [], [], []
     folder = licences_folder()
     if folder is not None:
         top = folder.parent
         for name in TEXT_FILES:
             if (top / name).is_file():
-                entries.append((name, _read(top / name), str(top / name)))
-        entries.append(("Libraries bundled in this build", table_text(), "Name, version and licence of every library in this package."))
+                package.append((name, _read(top / name), str(top / name)))
+        libs.append((TABLE_TITLES[0], table_text(), "Name, version and licence of every library in this package."))
         index = folder / "INDEX.txt"
         if index.is_file():
-            entries.append(("licenses/INDEX.txt", _read(index), str(index)))
+            libs.append(("licenses/INDEX.txt", _read(index), str(index)))
         for sub in sorted((p for p in folder.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
             # The LGPL first: it is the licence Qt is used under here (the GPL text is shipped because the LGPL refers to it)
             files = sorted((p for p in sub.rglob("*") if p.is_file()), key=lambda p: (not p.name.startswith("LGPL"), p.relative_to(sub).as_posix().lower()))
             body = "\n\n".join(f"===== {p.relative_to(sub).as_posix()} =====\n{_read(p)}" for p in files)
-            title = "Qt and PySide (LGPL-3.0, GPL-3.0, notices)" if sub.name == "Qt" else sub.name
-            entries.append((title, body, f"{sub}  ({len(files)} file(s))"))
-        return entries
-    entries.append(("LICENSE", _read(root_folder() / "LICENSE"), str(root_folder() / "LICENSE")))
-    entries.append(("Libraries (installed in this Python)", table_text(), "Name, version and licence of every library installed in this Python."))
-    entries.append(("Qt and PySide (installed by pip)", "Run from source, Qt and PySide are installed by pip from PyPI under their own licence, the GNU LGPL v3 "
-                    "(or GPL v2 or v3, or a commercial licence). The texts: https://www.gnu.org/licenses/lgpl-3.0.html and https://www.gnu.org/licenses/gpl-3.0.html. "
-                    "The downloadable packages carry the texts, the Qt notices, SOURCE-OFFER.txt and REPLACING-QT.txt (see the Download section of the README).",
-                    "Where the Qt licence texts are when the program runs from source."))
-    return entries
+            if sub.name == "Qt":
+                qt.append(("LGPL-3.0, GPL-3.0 and notices", body, f"{sub}  ({len(files)} file(s))"))
+            else:
+                libs.append((sub.name, body, f"{sub}  ({len(files)} file(s))"))
+    else:
+        package.append(("LICENSE", _read(root_folder() / "LICENSE"), str(root_folder() / "LICENSE")))
+        qt.append(("Installed by pip", "Run from source, Qt and PySide are installed by pip from PyPI under their own licence, the GNU LGPL v3 "
+                   "(or GPL v2 or v3, or a commercial licence). The texts: https://www.gnu.org/licenses/lgpl-3.0.html and https://www.gnu.org/licenses/gpl-3.0.html. "
+                   "The downloadable packages carry the texts, the Qt notices, SOURCE-OFFER.txt and REPLACING-QT.txt (see the Download section of the README).",
+                   "Where the Qt licence texts are when the program runs from source."))
+        libs.append((TABLE_TITLES[1], table_text(), "Name, version and licence of every library installed in this Python."))
+    return [(g, items) for g, items in zip(GROUPS, (package, qt, libs))]
+
+
+def licence_entries():
+    """!
+    @brief The entries of the Licences window as one flat list (the groups of licence_groups() one after the other).
+    @return list of (str title, str text, str tooltip with the full path or a short description).
+    """
+    return [e for _, items in licence_groups() for e in items]

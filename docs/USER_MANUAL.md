@@ -283,7 +283,7 @@ box is remembered between sessions.
 | **Edit** | Undo (`Ctrl+Z`), Redo (`Ctrl+Shift+Z` or `Ctrl+Y`), Duplicate (`Ctrl+D`), Delete (`Del`), Select all on layer (`Ctrl+A`), Filter elements (`Ctrl+F`), Preferences… (`Ctrl+,`). |
 | **View** | Fit board (`Ctrl+0`), Zoom in, Zoom out, Grid (`G`), Solver grid (`Shift+G`), Temperature map on the board (`T`), Display settings… (`D`), Model of the map… (`M`), Next layer (`L`), Previous layer (`Shift+L`), Imported copper, Holes (vias, component, non-plated), Element names, Background image…, Light / dark theme (`Ctrl+Shift+T`), the four tabs (`Ctrl+1` to `Ctrl+4`), and the four docks. |
 | **Simulation** | Run simulation (`F5`), Stop calculation (`Ctrl+.`), Power Calculator…. |
-| **Help** | User guide (`F1`), User guide in the browser, Keyboard shortcuts, About PCB Thermal Lab. |
+| **Help** | User guide (`F1`), User guide in the browser, Keyboard shortcuts, About PCB Thermal Lab (version, system, loaded Qt and PySide versions, **Copy version info** for a bug report, and **Licences…**, a window with three groups: the package (LICENSE and notices), Qt and PySide (LGPL and GPL texts) and the bundled libraries (table of names, versions and licences, one entry per library); choose an entry to read it). |
 
 On macOS, `Ctrl` in this manual is the Command key (⌘).
 

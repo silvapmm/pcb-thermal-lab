@@ -11,8 +11,8 @@ from pathlib import Path
 from .. import bundle_info, defaults
 from . import theme as th
 from PySide6.QtCore import QObject, QSize, QUrl, Qt
-from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon, QTextCursor
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QTextBrowser, QVBoxLayout
+from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QTextCursor
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout
 
 from .. import __author__, __contact__, __project_url__, __version__
 
@@ -209,7 +209,7 @@ class AboutDialog(QDialog):
 
 class LicencesDialog(QDialog):
     """!
-    @brief The licence texts: a list with one entry per library (or, from source, the LICENSE and the library table) and the text of the chosen one.
+    @brief The licence texts: a tree with three groups (the package, Qt and PySide, the bundled libraries), the entries under them, and the text of the chosen entry.
     """
 
     def __init__(self, parent=None):
@@ -219,27 +219,158 @@ class LicencesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Licences")
         self.resize(900, 600)
+        self.setMinimumSize(760, 400)                           # Narrower than this the library table (wrapped to the window) would need a horizontal scroll bar
         lay = QVBoxLayout(self)
         row = QHBoxLayout()
-        self.entries = bundle_info.licence_entries()
-        self.names = QListWidget()
-        self.names.addItems([e[0] for e in self.entries])
-        for i, e in enumerate(self.entries):
-            self.names.item(i).setToolTip(e[2])                 # The full name or path: the list is narrow and cuts long names
-        self.names.setToolTip("One entry per library (and the notices of the package); choose one to read its licence files.")
-        self.names.setFixedWidth(320)
+        self.groups = bundle_info.licence_groups()
+        self.entries = [e for _, items in self.groups for e in items]      # The flat list; a leaf of the tree holds its index in Qt.UserRole
+        self.rows = bundle_info.libraries()                     # Read once: the table is re-wrapped from these rows at every resize (the metadata scan takes about 0.1 s)
+        self.shown_width = None                                 # Width of the view when the library table was last wrapped (None: another text is shown)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.setRootIsDecorated(False)
+        self.tree.setIndentation(14)
+        self.tree.setFixedWidth(260)
+        self.tree.setToolTip("The notices of the package, Qt and PySide, and the bundled libraries; choose an entry to read its licence files.")
+        bold = QFont(self.tree.font())
+        bold.setBold(True)
+        self.leaves = []
+        index = 0
+        for group, items in self.groups:
+            head = QTreeWidgetItem([group])
+            head.setFlags(Qt.ItemIsEnabled)                      # A header: not selectable, the keyboard and the mouse skip it
+            head.setFont(0, bold)
+            self.tree.addTopLevelItem(head)
+            for e in items:
+                leaf = QTreeWidgetItem([e[0]])
+                leaf.setData(0, Qt.UserRole, index)
+                leaf.setToolTip(0, e[2])                         # The full name or path: the list is narrow and cuts long names
+                head.addChild(leaf)
+                self.leaves.append(leaf)
+                index += 1
+            head.setExpanded(True)
+        self.tree.setItemsExpandable(False)                      # Three short groups: always open
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
-        self.view.setLineWrapMode(QPlainTextEdit.NoWrap)       # A long licence name must not wrap into the next row of the table
+        self.view.setLineWrapMode(QPlainTextEdit.NoWrap)       # The table is wrapped by hand (hanging indent), the licence texts keep their own lines
         # The library table is padded text: a fixed-width font keeps its columns aligned (a style sheet, because the theme's own style sheet would override setFont alone)
         self.view.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
         self.view.setStyleSheet("font-family: Menlo, Consolas, 'DejaVu Sans Mono', monospace;")
         self.view.setToolTip("The text of the chosen licence file.")
-        self.names.currentRowChanged.connect(lambda i: self.view.setPlainText(self.entries[i][1] if 0 <= i < len(self.entries) else ""))
-        row.addWidget(self.names)
+        self.tree.currentItemChanged.connect(self.on_current_changed)
+        self.tree.itemPressed.connect(self.on_item_pressed)
+        self.tree.setAccessibleName("Licence entries")
+        self.view.setAccessibleName("Licence text")
+        row.addWidget(self.tree)
         row.addWidget(self.view, 1)
         lay.addLayout(row, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
         box.rejected.connect(self.reject)
         lay.addWidget(box)
-        self.names.setCurrentRow(0)
+        if self.leaves:
+            self.tree.setCurrentItem(self.leaves[0])
+
+    def usable_width(self):
+        """!
+        @brief The width in pixels that a line of the text view can take without a horizontal scroll bar.
+        @return int pixels: the view minus its frame, the document margins and a vertical scroll bar (reserved even if not shown yet: the table may need one).
+        """
+        return (self.view.width() - 2 * self.view.frameWidth() - 2 * int(self.view.document().documentMargin())
+                - self.view.verticalScrollBar().sizeHint().width() - 2)
+
+    def table_width(self):
+        """!
+        @brief How many characters of the text font fit in the text view, so that the library table needs no horizontal scroll bar.
+        @return int, at least 60 (the name and version columns alone take about 35).
+        @note The widest of a few broad glyphs is used, not the advance of "0": if the fixed-width fonts of the style sheet are all missing and a proportional
+              font stands in, the estimate stays on the safe side; show_entry() then checks the real pixel width of the wrapped lines.
+        """
+        fm = self.view.fontMetrics()
+        char = max(max(fm.horizontalAdvance(c) for c in "0MWm_-"), 1)
+        return max(self.usable_width() // char, 60)
+
+    def wrapped_table(self):
+        """!
+        @brief The library table wrapped to the text view: the width from table_width(), then narrowed while a measured line is still wider than the view.
+        @return str.
+        """
+        fm = self.view.fontMetrics()
+        usable = self.usable_width()
+        width = self.table_width()
+        text = bundle_info.table_text(width, self.rows)
+        for _ in range(8):                                        # A few passes at most: each removes the measured overflow in characters
+            over = max((fm.horizontalAdvance(ln) for ln in text.splitlines()), default=0) - usable
+            if over <= 0 or width <= 40:
+                break
+            width -= max(1, -(-over // max(fm.horizontalAdvance("0"), 1)))
+            text = bundle_info.table_text(width, self.rows)
+        return text
+
+    def target_of_header(self, head, going_up):
+        """!
+        @brief The entry the tree moves to when a group header becomes current (headers hold no text).
+        @param head     int index of the group header.
+        @param going_up bool, True when the move came from an entry below the header (Up, PageUp, Home).
+        @return QTreeWidgetItem or None (no entry at all).
+        """
+        before = [leaf for leaf in self.leaves if self.tree.indexOfTopLevelItem(leaf.parent()) < head]
+        after = [leaf for leaf in self.leaves if self.tree.indexOfTopLevelItem(leaf.parent()) >= head]
+        if going_up and before:                                   # Up: the last entry of the groups above
+            return before[-1]
+        # Down, Home at the top, the first time or a click: the first entry of this group (or of the next one that has entries), else the last above
+        return after[0] if after else (before[-1] if before else None)
+
+    def on_current_changed(self, cur, prev):
+        """!
+        @brief Keep the keyboard on the entries: when an arrow key, Home, End or a page key lands on a group header, move on to the nearest entry in the direction of
+               travel (Home goes to the first entry); otherwise show the text of the entry.
+        @param cur QTreeWidgetItem now current (may be a header).
+        @param prev QTreeWidgetItem that was current (None at the start).
+        """
+        if cur is not None and cur.parent() is None:
+            head = self.tree.indexOfTopLevelItem(cur)
+            going_up = prev is not None and prev.parent() is not None and self.tree.indexOfTopLevelItem(prev.parent()) >= head
+            target = self.target_of_header(head, going_up)
+            if target is not None:
+                self.tree.setCurrentItem(target)                  # Raises currentItemChanged again with an entry, which shows its text
+            else:
+                self.show_entry(None)
+            return
+        self.show_entry(cur)
+
+    def on_item_pressed(self, item, column):
+        """!
+        @brief A click on a group header opens the first entry of that group (currentItemChanged alone cannot tell a click from the Up key).
+        @param item   QTreeWidgetItem under the mouse.
+        @param column int column (always 0).
+        """
+        if item is not None and item.parent() is None:
+            target = self.target_of_header(self.tree.indexOfTopLevelItem(item), False)
+            if target is not None and target is not self.tree.currentItem():
+                self.tree.setCurrentItem(target)
+
+    def show_entry(self, item):
+        """!
+        @brief Show the text of a tree item (nothing for a group header or no item); the library table is wrapped to the width of the view.
+        @param item QTreeWidgetItem or None.
+        """
+        i = item.data(0, Qt.UserRole) if item is not None else None
+        self.shown_width = None
+        if i is None:
+            self.view.setPlainText("")
+            return
+        title, text, _ = self.entries[i]
+        if title in bundle_info.TABLE_TITLES:
+            text = self.wrapped_table()
+            self.shown_width = self.view.width()                  # The re-wrap on resize is skipped while the view keeps this width
+        self.view.setPlainText(text)
+
+    def resizeEvent(self, event):
+        """!
+        @brief Wrap the library table again when the text view changed width (the children are laid out before this handler runs).
+        @param event QResizeEvent.
+        """
+        super().resizeEvent(event)
+        item = self.tree.currentItem()
+        if self.shown_width is not None and item is not None and self.view.width() != self.shown_width:
+            self.show_entry(item)

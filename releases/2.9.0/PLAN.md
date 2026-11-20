@@ -56,7 +56,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | README badges (done, merged into `development`) | The five static shields.io badges and their test | `docs/readme-badges` | S |
 | User manual (done, merged) | `docs/USER_MANUAL.md` and its tools | `docs/user-manual` | M |
 | New application icon (done, merged) | the thermometer on a green board, all sizes | `feature/new-icon` | S |
-| e36 | Licences window: the list has 23 flat entries, group by library with headers; the library table licence column is clipped (long expressions: numpy, PySide6): widen/wrap | `fix/licences-window` | S |
+| e36 (done on `fix/licences-window`) | Licences window: the list has 23 flat entries, group by library with headers; the library table licence column is clipped (long expressions: numpy, PySide6): widen/wrap | `fix/licences-window` | S |
 | e37 | User manual: Portuguese version not requested; kept as an option | optional | S |
 
 ### 1.2 NOT in 2.9.0, with the reason
