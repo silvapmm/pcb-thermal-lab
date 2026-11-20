@@ -25,6 +25,16 @@ from pcbthermal.gui.main_window import MainWindow
 from pcbthermal.model import DIELECTRICS
 
 
+def test_guide_says_what_each_model_gives_for_the_surface():
+    """!
+    @brief The 'Surface temperature and column mean' section names the surface of the Analytic and the 3D solid and the limits of the Lumped text (feature/surface-readout-models).
+    """
+    html = GUIDE.read_text(encoding="utf-8")
+    section = html[html.index('id="surface"'):html.index('id="surface"') + 12000]
+    for word in ("not a guarantee", "no bare-laminate term", "half slab", "no surface temperature", "hotter neighbouring part", "computed"):
+        assert word in section, word
+
+
 def test_guide_file_links_and_content():
     html = GUIDE.read_text(encoding="utf-8")
     ids = set(re.findall(r'id="([^"]+)"', html))

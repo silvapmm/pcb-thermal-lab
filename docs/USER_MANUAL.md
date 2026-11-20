@@ -746,7 +746,7 @@ The Summary page (Figure 3) has three parts.
 | :-- | :-- |
 | Model | The short name of the model. |
 | Tmax °C (column) | The hottest layer-mean value of any copper layer (for the LPTN, the peak of its ring network at the heater). |
-| Tmax °C (surface) | The hottest point of the top face of the copper: an estimate for the FVM and FDM, resolved for the FEM, n/a for the others (section 5.10). The column is left out when no model has it. |
+| Tmax °C (surface) | The hottest point of the top face of the copper: an estimate for the FVM, FDM and Analytic (and the 3D solid on one slab), computed for the 3D solid above 105 µm of copper, resolved for the FEM, n/a for the Lumped (section 5.10). The column is left out when no model has it. |
 | Tmean °C (all layers) | The mean over all copper layers, each layer counting equally. |
 | ΔT K | Tmax (column) minus the ambient. |
 | Rθ K/W | The rise of the hottest point divided by the total power: a board resistance, not a junction value. |
@@ -910,8 +910,10 @@ The program always computes and shows both, each with its name:
 
 - **Column** is what every table, the junction temperature, the margin, the power limit, the top
   path, the power coefficient and the Power Calculator use. Every map is titled *column mean*.
-- **Surface** is an estimate of the outer face (FVM, FDM) or a resolved value (FEM). It is a
-  *view*, never a mode: it changes nothing that is solved and nothing is saved in the project.
+- **Surface** is an estimate of the outer face (FVM, FDM, Analytic, the 3D solid on one slab), a
+  value computed from the copper slabs (the 3D solid above 105 µm of copper) or a resolved value
+  (FEM). It is a *view*, never a mode: it changes nothing that is solved and nothing is saved in
+  the project.
 
 Where you find the surface:
 
@@ -926,8 +928,15 @@ Where you find the surface:
 On 35 µm copper the two differ by milli-kelvin and the difference is written out (for example
 +0.001 K). On a thick plate or a metal core it can be several kelvin. **If your result differs
 from a paper or a thermocouple that reports the surface, compare it with the surface number, not
-with the column.** The LPTN, the Analytic and the 3D solid show n/a; the Animation and Power
-profile pages show the column. The full explanation and its limits are in the user guide
+with the column.** The LPTN gives **no surface temperature** (it has no heat flux through the face
+of the copper): for a part on an outer face its Components cell and the report say that the
+surface is above the column value by at most about *q″t/2k*, a measured upper value for that
+term, **not a guarantee** (it can fail for heat from a hotter neighbouring part, a part over
+absent copper and thick plates, and it does not contain the model's own error). The Analytic
+reads its estimate from its own field and the uniform conductances of its sheet: vias, blocks
+and heatsinks are not in its heat fluxes and a part over a copper window has no bare-laminate
+term, so the surface is never better than its column. The Animation and Power profile pages show
+the column; the surface of a time simulation is n/a in this version. The full explanation and its limits are in the user guide
 (*Surface temperature and column mean*) and in `docs/theory.md` 1.2c.
 
 ![The surface read-out of thick copper](images/results_surface.png)
@@ -1201,7 +1210,7 @@ user. The equations are in `docs/theory.md`; the measured errors in `docs/valida
 | Board outline | yes | yes | equivalent rectangle (warned) | equivalent rectangle (warned) | yes | sides parallel to the axes (slanted or curved refused) |
 | Metal blocks and fins | yes | yes | steady only | steady only | yes | yes |
 | Imported copper | read exactly (faces) | read exactly (faces) | cell average (too cool, warned) | cell average (too cool, warned) | cell fraction | element mean (warned) |
-| Surface read-out | estimate | estimate | n/a | n/a | n/a | resolved |
+| Surface read-out | estimate | estimate | n/a (a text only) | estimate | computed above 105 µm, estimate on one slab | resolved |
 | Memory checked | yes | yes | no | no | yes | yes |
 | Typical time (example board) | 0.1 to a few s | similar | about 10 ms | about 50 ms (with vias a few tenths) | 0.1 to 10 s | seconds |
 
@@ -1743,7 +1752,7 @@ first line of every report, and `--version`.
 | Rθ | The rise of the hottest point divided by the total power, K/W: a board resistance. |
 | Reference model | The model the others are compared with: the FVM when it runs. |
 | Stack-up | The layers of the board from top to bottom: copper and dielectric thicknesses and materials. |
-| Surface (read-out) | The temperature of the outer face of the copper: an estimate (FVM, FDM) or resolved (FEM). |
+| Surface (read-out) | The temperature of the outer face of the copper: an estimate (FVM, FDM, Analytic, 3D solid on one slab), computed (3D solid above 105 µm) or resolved (FEM); the Lumped has none. |
 | θ junction-pad | Junction-to-pad resistance of a part, K/W, from its datasheet (not θJA). |
 | θSA | Sink-to-ambient resistance of a heatsink, K/W. |
 | Top path | The heat that leaves a part through the top of its package into a heatsink. |
