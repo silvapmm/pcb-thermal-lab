@@ -274,7 +274,7 @@ def _err_text(r, ref):
     return "reference" if r["model"] == ref else f"{r['error_vs_reference'] * 100:+.1f} %"
 
 
-SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM). "
+SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM; through copper up to 105 µm one element, so its small surface-column difference reads about a third low under a small part). "
                "It is a view of the same solution, not another model; the LPTN, Analytic and 3D solid models have no surface read-out (n/a). The bottom face and the "
                "hottest mesh node of the FEM are in the report.")
 SUMMARY_COLUMNS = (
