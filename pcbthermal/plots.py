@@ -17,7 +17,7 @@ from dataclasses import dataclass, field as dc_field
 
 import matplotlib
 import numpy as np
-from matplotlib import ticker
+from matplotlib import ticker, transforms
 from matplotlib.backends.backend_agg import FigureCanvasAgg, RendererAgg
 from matplotlib.cm import ScalarMappable
 from matplotlib import patheffects
@@ -968,12 +968,14 @@ def profile_has_strip(fig):
     return fig.get_figwidth() < INSET_MIN_WIDTH_IN
 
 
-NARROW_FIGURE_PX = 300.0     # Figures narrower than this (pixels) get a title centred on the figure and smaller type
+NARROW_FIGURE_PX = 300.0     # Figures narrower than this (logical pixels) get a title centred on the figure and smaller type
+_FIT_ATTR = "_pcbt_text_fit"  # Attribute of an axes that holds the title lines and the y label to fit again when the canvas changes size (`refit_texts`)
 
 
 def _wrapped(artist, text, budget_px, renderer, vertical=False):
     """!
     @brief Break a text at its spaces into the fewest lines that each fit in a width.
+    @details A number and its unit ("40.0 mm)") are one word, so a unit never starts a line on its own; a text that fits whole costs one measurement.
     @param artist Matplotlib Text whose font and rotation measure the text (its text is changed while measuring).
     @param text One paragraph, no line breaks.
     @param budget_px Largest extent of a line along the reading direction, in figure pixels.
@@ -985,8 +987,10 @@ def _wrapped(artist, text, budget_px, renderer, vertical=False):
         artist.set_text(candidate)
         box = artist.get_window_extent(renderer)
         return box.height if vertical else box.width
+    if extent(text) <= budget_px:
+        return text                                     # The usual case in a wide figure: no word-by-word measuring
     lines, line = [], ""
-    for word in text.split():
+    for word in re.split(r" (?!mm\b)", text):          # Review: the greedy break left "mm)" alone on a third line at 900 x 700
         trial = f"{line} {word}" if line else word
         if line and extent(trial) > budget_px:
             lines.append(line)
@@ -1000,21 +1004,37 @@ def _wrapped(artist, text, budget_px, renderer, vertical=False):
 def _fit_title_and_ylabel(fig, ax, title_lines, ylabel):
     """!
     @brief Set the title (one or two given lines) and the y label of a curves axes so that both lie inside the figure, wrapping them at their spaces where they would not.
-    @details The title is centred on the axes, not on the figure, and the label runs along the axes: the room is measured after one layout pass (constrained layout
-             when the figure has it) with short stand-ins, because the real texts must not move the axes while they are measured. The words are never changed.
+    @details The title is centred on the axes, not on the figure, and the label runs along the axes: the room is measured after a layout pass (constrained layout
+             when the figure has it) with a short stand-in label, because the real label must not move the axes while it is measured. The words are never changed.
+             When nothing has to be wrapped one pass is enough (the label is one line, as thick as the stand-in); otherwise the passes repeat until the texts
+             stop changing (at most three), since a wrapped label is thicker and moves the axes. In a figure narrower than NARROW_FIGURE_PX the title is centred
+             on the figure through a transform whose x is a figure fraction, so a later layout (the draw, a legend) cannot shift it off the figure.
+             Call it after everything else of the figure is drawn (legend, cut picture, tick format): they move the axes too. The texts are kept on the axes so that
+             `refit_texts` fits them again when the canvas changes size.
     @param fig Figure of the axes.
-    @param ax Axes with the curves (its title font size is kept).
+    @param ax Axes with the curves.
     @param title_lines The lines of the title (the second one is a note); each is wrapped further only if it does not fit.
     @param ylabel Y axis label.
     """
+    setattr(ax, _FIT_ATTR, (list(title_lines), ylabel))
     renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, "get_renderer") else RendererAgg(int(fig.get_figwidth() * fig.dpi), int(fig.get_figheight() * fig.dpi), fig.dpi)
     ax.set_ylabel(ylabel.split(",")[0])                    # Short stand-in: the layout reserves the room of a label of this width
     engine = fig.get_layout_engine()
     width_px, height_px = fig.get_figwidth() * fig.dpi, fig.get_figheight() * fig.dpi
-    narrow = width_px < NARROW_FIGURE_PX
-    size = 10 if width_px >= NARROW_FIGURE_PX else 9 if width_px >= 0.65 * NARROW_FIGURE_PX else 8     # Smaller type in a narrow figure: fewer lines
+    # The thresholds are logical pixels: a Qt canvas on a high-density screen has fig.dpi times its pixel ratio (the type grows with it, so the measures agree)
+    logical = width_px / (getattr(fig.canvas, "device_pixel_ratio", 1.0) or 1.0)
+    narrow = logical < NARROW_FIGURE_PX
+    size = 10 if not narrow else 9 if logical >= 0.65 * NARROW_FIGURE_PX else 8     # Smaller type in a narrow figure: fewer lines
     ax.yaxis.label.set_fontsize(size if narrow else matplotlib.rcParams["axes.labelsize"])
-    # A wrapped label is wider and moves the axes, which moves the centre of the title: three passes settle it (the last one only checks)
+
+    def place_title(text):
+        # set_title resets the transform of the title (Axes._set_title_offset_trans), so the narrow one is put back after each call
+        ax.set_title(text, fontsize=size)
+        if narrow:
+            # Too little room for a title centred on the axes: centred on the figure (x a figure fraction, y the axes' own, as Matplotlib places titles)
+            ax.title.set_transform(transforms.blended_transform_factory(fig.transFigure, ax.transAxes) + ax.titleOffsetTrans)
+    place_title("\n".join(title_lines))
+    previous = None
     for _ in range(3):
         if engine is not None:
             with warnings.catch_warnings():
@@ -1022,17 +1042,34 @@ def _fit_title_and_ylabel(fig, ax, title_lines, ylabel):
                 engine.execute(fig)
         box = ax.get_position()
         centre = 0.5 * (box.x0 + box.x1) * width_px
-        if narrow:
-            # Too little room for a title centred on the axes: centre it on the figure (as far as the axes allow, the text may overhang the axes but not the figure)
-            room = width_px - 8.0
-            ax.set_title("\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines), fontsize=size)
-            ax.title.set_x((0.5 * width_px - box.x0 * width_px) / max(box.width * width_px, 1.0))
-        else:
-            room = 2.0 * (min(centre, width_px - centre) - 6.0)    # The title is centred on the axes: its half width must fit on the nearer side
-            ax.set_title("\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines), fontsize=size)
+        # The title must fit on the nearer side of its centre: the figure's in a narrow figure, the axes' otherwise
+        room = width_px - 8.0 if narrow else 2.0 * (min(centre, width_px - centre) - 6.0)
+        title = "\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines)
+        place_title(title)
         middle = 0.5 * (box.y0 + box.y1) * height_px
         room_y = 2.0 * (min(middle, height_px - middle) - 6.0)     # The label is centred on the axes along its height
-        ax.set_ylabel(_wrapped(ax.yaxis.label, ylabel, max(room_y, 40.0), renderer, vertical=True))
+        label = _wrapped(ax.yaxis.label, ylabel, max(room_y, 40.0), renderer, vertical=True)
+        ax.set_ylabel(label)
+        if (title, label) == previous or (previous is None and "\n" not in label and title == "\n".join(title_lines)):
+            break                                          # Settled (or nothing wrapped: the axes do not move from the stand-in layout)
+        previous = (title, label)
+
+
+def refit_texts(fig):
+    """!
+    @brief Fit again the title and the y label of every axes of a figure drawn by `draw_profile`, for the present size of its canvas.
+    @details The wrapping is measured for one size; a window resized after the draw kept the old wrapping and the title could be cut again (review: drawn at
+             1600 x 1000, then shrunk to 800 x 600, its left edge at -11 px). The Results tab calls this when its canvas is resized.
+    @param fig Figure.
+    @return bool True when the figure had texts to fit.
+    """
+    found = False
+    for ax in fig.axes:
+        spec = getattr(ax, _FIT_ATTR, None)
+        if spec is not None:
+            _fit_title_and_ylabel(fig, ax, *spec)
+            found = True
+    return found
 
 
 @_with_engineering_ticks
@@ -1097,13 +1134,14 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     if abs(actual - position_mm) >= 0.05:
         title_lines.append(f"(the cell centre nearest to {position_mm:.1f} mm)")
     ax.set_title(title_lines[0], fontsize=10)
+    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
     ax.grid(alpha=0.3)
-    _fit_title_and_ylabel(fig, ax, title_lines, f"Layer {layer + 1} temperature, column mean (°C)")
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
     if picture == "off" or strip:
         ax.legend()
         if strip:
             _draw_cut_picture(tx, problem, layer, axis, actual, picture, underlay, src, cmap, map_alpha, note)
+        _finish_profile_texts(fig, ax, title_lines, layer)
         return
     # The inset covers a corner of the plot: the curves are drawn, so the limits (with a little headroom) are known; then the corner is chosen
     lo, hi = ax.get_ylim()
@@ -1125,6 +1163,21 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     others = [c for c in ("ur", "ll", "lr", "ul") if c != corner]
     load = {c: (lambda sh, rg: sh + (10.0 if rg else 0.0))(*_inset_load(ax, finite, peak, c)) for c in others}     # The legend must not hide the peak either
     ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
+    _finish_profile_texts(fig, ax, title_lines, layer)
+
+
+def _finish_profile_texts(fig, ax, title_lines, layer):
+    """!
+    @brief Last step of `draw_profile`: the tick format of the program, then the title and the y label fitted to the figure.
+    @details The fit comes last because the legend, the cut picture and the tick labels all move the axes (review: fitted before them, the title of a figure of
+             200 x 140 px overhung the right edge by 16 px).
+    @param fig Figure.
+    @param ax Axes with the curves.
+    @param title_lines The lines of the title.
+    @param layer 0-based layer (named in the y label).
+    """
+    engineering_ticks(fig)
+    _fit_title_and_ylabel(fig, ax, title_lines, f"Layer {layer + 1} temperature, column mean (°C)")
 
 
 def _legend_outside(fig, ax, loc="outside right upper", **kw):

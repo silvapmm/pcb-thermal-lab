@@ -82,7 +82,7 @@ def test_the_title_keeps_all_its_words_in_two_lines(sim):
 
 def test_the_natural_form_help_names_the_real_default(capsys):
     """!
-    @brief `run --help` does not call "general" the default: the default is the form stored in the project file (general when absent, laminar in a new project).
+    @brief `run --help` does not call "general" the default: the default is the form stored in the project file (general when absent and in the example board, laminar in a new board of the window).
     @param capsys pytest fixture.
     """
     from pcbthermal import cli
@@ -90,4 +90,82 @@ def test_the_natural_form_help_names_the_real_default(capsys):
         cli.main(["run", "--help"])
     text = " ".join(capsys.readouterr().out.split())
     assert "general (default)" not in text
-    assert "the form stored in the project file" in text and "a file without it reads general" in text and "stores laminar" in text
+    assert "the form stored in the project file" in text and "general when the file has none" in text and "laminar since 2.5.0" in text
+    assert "'example' command" in text                         # Review: the board of the example command stores general, so "a project made in the program" was too broad
+
+
+def _inside(fig, ax):
+    """!
+    @brief The texts of a profile axes that stick out of the canvas of its figure (drawn first).
+    @param fig Figure, drawn.
+    @param ax Axes with the curves.
+    @return list of (name, box) for the title, the y label and the x label that are not inside the canvas.
+    """
+    renderer = fig.canvas.get_renderer()
+    width, height = fig.canvas.get_width_height()
+    out = []
+    for name, artist in (("title", ax.title), ("ylabel", ax.yaxis.label), ("xlabel", ax.xaxis.label)):
+        box = artist.get_window_extent(renderer)
+        if box.x0 < -0.5 or box.x1 > width + 0.5 or box.y0 < -0.5 or box.y1 > height + 0.5:
+            out.append((name, box))
+    return out
+
+
+@pytest.mark.parametrize("picture", ("map", "off"))
+def test_the_texts_fit_at_every_width_without_a_warning(sim, picture):
+    """!
+    @brief Review: a sweep of the figure width from 100 to 1400 px (two heights) keeps the title and the labels inside the canvas and raises no warning except the
+           collapse of a canvas too small for any chart (which the Results canvas paints blank, `plots.draw_unless_collapsed`); the first version fitted the title
+           before the legend, the cut picture and the tick format moved the axes, and the narrow title overhung the right edge by up to 39 px (100 x 315 px; the x label by 20 px).
+    @param sim Simulation fixture.
+    @param picture Cut picture ("map": inset or strip; "off").
+    """
+    import warnings
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    res = {k: r for k, r in sim.results.items() if r.T is not None}
+    bad = []
+    for width in range(100, 1401, 40):
+        for height in (315, int(0.45 * width) + 60):
+            fig = Figure(figsize=(width / 100.0, height / 100.0), dpi=100, layout="constrained")
+            FigureCanvasAgg(fig)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                plots.draw_profile(fig, res, sim.problem, axis="x", position_mm=40.0, picture=picture)
+                if plots.draw_unless_collapsed(fig, fig.canvas.draw):
+                    continue
+            ax = [a for a in fig.axes if a.get_title().startswith("Cut")][0]
+            bad += [(width, height, name) for name, _box in _inside(fig, ax)]
+            assert all(line.strip() != "mm)" and not line.startswith("mm") for line in ax.get_title().split("\n"))   # A unit never starts a line
+    assert not bad, bad
+
+
+def test_a_resize_after_the_draw_fits_the_texts_again(qtbot, tmp_path, sim):
+    """!
+    @brief Review: the wrapping was measured once, at the draw; a window shrunk afterwards (here 1600 x 1000, then 800 x 600) kept the wide title, cut at the left
+           (-11 px). The canvas resize now fits the texts again (`plots.refit_texts`), and back at the wide size the title is two lines again.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param sim Simulation fixture.
+    """
+    doc = Document()
+    doc.open_problem(example_board(), "example")
+    win = MainWindow(doc, QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    win.show()
+    win.sim = sim
+    win.results.set_simulation(sim)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    tab = win.results.profile
+    win.results.tabs.setCurrentWidget(tab)
+    win.resize(1600, 1000)
+    qtbot.wait(150)
+    tab.redraw()
+    tab.canvas.draw()
+    for size in ((800, 600), (1600, 1000)):
+        win.resize(*size)
+        qtbot.wait(150)
+        tab.canvas.draw()                                       # No redraw of the tab: only the resize of the canvas
+        ax = [a for a in tab.fig.axes if a.get_title().startswith("Cut")][0]
+        assert not _inside(tab.fig, ax), (size, _inside(tab.fig, ax))
+    assert ax.get_title().count("\n") == 1                      # Wide again: the two lines, not the narrow wrapping

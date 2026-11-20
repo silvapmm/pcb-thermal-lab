@@ -1556,7 +1556,7 @@ Every command is `python -m pcbthermal <command>` with the Python of the environ
 | `--solver S` | FVM linear solver: `direct`, `cg`, `sor`. |
 | `--laminate-s-max-mm S`, `--laminate-n-max N` | The laminate sub-gaps (FVM and FDM). |
 | `--fem-gap-elements N`, `--fem-refine R` | The FEM mesh (2 to 24; 1 to 4). |
-| `--computed-h`, `--air-speed`, `--orientation`, `--natural-form`, `--emissivity`, `--h-multiplier` | Computed heat transfer (any of them switches to computed mode). `--natural-form` is `general` or `laminar`; without it the form stored in the project file is used (a file without it reads `general`, a project made in the program since 2.5.0 stores `laminar`). |
+| `--computed-h`, `--air-speed`, `--orientation`, `--natural-form`, `--emissivity`, `--h-multiplier` | Computed heat transfer (any of them switches to computed mode). `--natural-form` is `general` or `laminar`; without it the form stored in the project file is used (`general` when the file has none, as in the board written by the `example` command; a new board of the window or of a Gerber import stores the form of the defaults, `laminar` since 2.5.0 unless changed in Preferences). |
 | `--profile HEATER=FILE.csv` | A power profile from a CSV file (heater name or `#number`; repeat for several heaters). |
 | `--steady-power` (average or peak), `--threshold-c`, `--duration` (stable, cycles or time), `--cycles`, `--time-s`, `--initial-c` | The settings of the time simulation of the power profiles (section 4.10). |
 
