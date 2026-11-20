@@ -393,7 +393,8 @@ def build_parser():
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
     hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
-                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1.00E9)")
+                    help="natural convection correlation of a vertical board: general (Churchill and Chu, whole Rayleigh range) or laminar (Ra < 1.00E9). Default: the form stored in the "
+                         "project file (a file without it reads general; a project made in the program since 2.5.0 stores laminar)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")

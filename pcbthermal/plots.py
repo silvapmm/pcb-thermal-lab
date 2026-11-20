@@ -18,7 +18,7 @@ from dataclasses import dataclass, field as dc_field
 import matplotlib
 import numpy as np
 from matplotlib import ticker
-from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.backends.backend_agg import FigureCanvasAgg, RendererAgg
 from matplotlib.cm import ScalarMappable
 from matplotlib import patheffects
 from matplotlib.colors import Normalize
@@ -968,6 +968,73 @@ def profile_has_strip(fig):
     return fig.get_figwidth() < INSET_MIN_WIDTH_IN
 
 
+NARROW_FIGURE_PX = 300.0     # Figures narrower than this (pixels) get a title centred on the figure and smaller type
+
+
+def _wrapped(artist, text, budget_px, renderer, vertical=False):
+    """!
+    @brief Break a text at its spaces into the fewest lines that each fit in a width.
+    @param artist Matplotlib Text whose font and rotation measure the text (its text is changed while measuring).
+    @param text One paragraph, no line breaks.
+    @param budget_px Largest extent of a line along the reading direction, in figure pixels.
+    @param renderer Renderer that measures the text.
+    @param vertical True for a rotated text (the extent that counts is its height).
+    @return str The text with "\\n" at the breaks; a word longer than the budget stays whole.
+    """
+    def extent(candidate):
+        artist.set_text(candidate)
+        box = artist.get_window_extent(renderer)
+        return box.height if vertical else box.width
+    lines, line = [], ""
+    for word in text.split():
+        trial = f"{line} {word}" if line else word
+        if line and extent(trial) > budget_px:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    lines.append(line)
+    return "\n".join(lines)
+
+
+def _fit_title_and_ylabel(fig, ax, title_lines, ylabel):
+    """!
+    @brief Set the title (one or two given lines) and the y label of a curves axes so that both lie inside the figure, wrapping them at their spaces where they would not.
+    @details The title is centred on the axes, not on the figure, and the label runs along the axes: the room is measured after one layout pass (constrained layout
+             when the figure has it) with short stand-ins, because the real texts must not move the axes while they are measured. The words are never changed.
+    @param fig Figure of the axes.
+    @param ax Axes with the curves (its title font size is kept).
+    @param title_lines The lines of the title (the second one is a note); each is wrapped further only if it does not fit.
+    @param ylabel Y axis label.
+    """
+    renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, "get_renderer") else RendererAgg(int(fig.get_figwidth() * fig.dpi), int(fig.get_figheight() * fig.dpi), fig.dpi)
+    ax.set_ylabel(ylabel.split(",")[0])                    # Short stand-in: the layout reserves the room of a label of this width
+    engine = fig.get_layout_engine()
+    width_px, height_px = fig.get_figwidth() * fig.dpi, fig.get_figheight() * fig.dpi
+    narrow = width_px < NARROW_FIGURE_PX
+    size = 10 if width_px >= NARROW_FIGURE_PX else 9 if width_px >= 0.65 * NARROW_FIGURE_PX else 8     # Smaller type in a narrow figure: fewer lines
+    ax.yaxis.label.set_fontsize(size if narrow else matplotlib.rcParams["axes.labelsize"])
+    # A wrapped label is wider and moves the axes, which moves the centre of the title: three passes settle it (the last one only checks)
+    for _ in range(3):
+        if engine is not None:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")            # A collapsed figure only warns that nothing was applied
+                engine.execute(fig)
+        box = ax.get_position()
+        centre = 0.5 * (box.x0 + box.x1) * width_px
+        if narrow:
+            # Too little room for a title centred on the axes: centre it on the figure (as far as the axes allow, the text may overhang the axes but not the figure)
+            room = width_px - 8.0
+            ax.set_title("\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines), fontsize=size)
+            ax.title.set_x((0.5 * width_px - box.x0 * width_px) / max(box.width * width_px, 1.0))
+        else:
+            room = 2.0 * (min(centre, width_px - centre) - 6.0)    # The title is centred on the axes: its half width must fit on the nearer side
+            ax.set_title("\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines), fontsize=size)
+        middle = 0.5 * (box.y0 + box.y1) * height_px
+        room_y = 2.0 * (min(middle, height_px - middle) - 6.0)     # The label is centred on the axes along its height
+        ax.set_ylabel(_wrapped(ax.yaxis.label, ylabel, max(room_y, 40.0), renderer, vertical=True))
+
+
 @_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
@@ -1024,13 +1091,14 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     if actual is None:
         actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
-    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
-    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5)
-    where = f"{'y' if axis == 'x' else 'x'} = {actual:.1f} mm"
+    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5).
+    # The note is the second line of the title (one line of both was 450 px wide and was cut at both ends in a window of 1000 px or less)
+    title_lines = [f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm"]
     if abs(actual - position_mm) >= 0.05:
-        where += f" (the cell centre nearest to {position_mm:.1f} mm)"
-    ax.set_title(f"Cut along {axis} at {where}", fontsize=10)
+        title_lines.append(f"(the cell centre nearest to {position_mm:.1f} mm)")
+    ax.set_title(title_lines[0], fontsize=10)
     ax.grid(alpha=0.3)
+    _fit_title_and_ylabel(fig, ax, title_lines, f"Layer {layer + 1} temperature, column mean (°C)")
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
     if picture == "off" or strip:
         ax.legend()
