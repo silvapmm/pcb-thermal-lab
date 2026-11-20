@@ -249,7 +249,7 @@ example."*
 ![The main window with the example board, its areas numbered](images/manual_window_tour.png)
 
 *Figure 2. The main window with the 4-layer example board (File - Open example - Example 4-layer
-board) in the dark theme, heater U1 selected. The numbers match the list below.*
+board) in the light theme, heater U1 selected. The numbers match the list below.*
 
 1. **Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in
    the menu bar at the top of the screen.
