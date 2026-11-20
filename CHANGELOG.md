@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed
+
+- **README badges** (`docs/readme-badges`): five static shields.io badges at the top (version, tests passed, Python 3.13, MIT licence, Windows, macOS and Linux), replacing the two of before; `tests/test_version.py` checks the version badge against `pcbthermal.__version__` and the tests badge against the battery recorded in `CLAUDE.md` section 14. The images are loaded from shields.io only when the README is viewed on GitHub; the program requests nothing.
+
 ### Fixed
 
 - **The 'estimate (upper side)' flag of the surface read-out uses the narrow side of a part, not only `sqrt(A)`** (`fix/surface-flag-narrow-part`, item e13; moves no number, only the flag: the surface and column values are bit-identical on the 20 regression boards and no part there changes flag): measured against the independent 3D solver, the overshoot of the parabola on a rectangular source depends on its narrow side alone (2 x 10, 2 x 20 and 2 x 40 mm on a 2 mm plate all read 1.15 times the true term), so a 2 x 20 mm part on 2 mm copper, whose `sqrt(A)` gave t/a 0.32 and no flag, is now flagged (t/a 1). `thickness.source_width` takes the smallest of the minimum width of the convex hull, the narrowest local width of the polygon (the arm of an L or a U, which the hull bridges: an L of 2 mm arms on 2 mm copper overshoots 1.19 times against an exact series and was missed by the hull alone, found in review) and `sqrt(A)`; squares and discs are unchanged. The thick-plate warning quotes `t/a` with the same length.
