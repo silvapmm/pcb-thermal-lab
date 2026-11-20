@@ -168,22 +168,63 @@ def _board(boards_cache, name):
     return boards_cache[name]
 
 
-def test_no_record_or_time_is_in_two_pending_files():
+def pending_duplicates(files):
     """!
-    @brief A frozen record (or time to 63 %) that two decided changes move has ONE entry, in one pending file, regenerated with both changes in the tree.
-    @details The files are applied in name order and the last wins, so a record in two files would silently hold the number of whichever sorts later, which neither change
-             produced alone: the branch that moves a record already in a pending file regenerates it into its own file and removes it from the older one.
-    @return None.
+    @brief Every way a frozen record, a metric or a time to 63 % is claimed by two pending files (the rule 'one record in one file only').
+    @details A SHIFT file (classes moved, new) replaces whole records, so a record or a time in two shift files would silently hold the numbers of whichever sorts later,
+             which neither change produced alone: the branch that moves a record already in a pending file regenerates it into its own file and removes it from the older one.
+             A READ-OUT file ("new_readouts") only ADDS metrics that no frozen record holds; `with_pending` merges it after the shifts, and a metric the record already has keeps
+             its value. So a record may be in one shift file AND one read-out file (a moved column and a new surface: `finned_block|solid3d` in solid3d-pad-inplane.json and
+             surface-readout-models.json), but only with DISJOINT metrics, and the added metrics must be measured on a tree that holds the shift (make_pending.py run after the
+             shift is merged). A metric claimed twice (a read-out file and a shift file, or two read-out files) is refused: one of the two numbers would be dropped unseen.
+    @param files List of (file name, content of the pending file).
+    @return List of str, one per duplicate (empty when every claim is unique).
     """
-    seen = {}
-    for path in _pending_files():
-        pend = json.loads(path.read_text(encoding="utf-8"))
-        if pend.get("new_readouts"):                                  # it adds metrics to a record, it does not replace it
+    out, shift, added = [], {}, {}
+    for name, pend in files:
+        if pend.get("new_readouts"):
+            for key, rec in pend.get("records", {}).items():
+                for metric in rec.get("metrics", {}):
+                    if (key, metric) in added:
+                        out.append(f"metric {metric} of {key} is added by both {added[(key, metric)]} and {name}")
+                    added[(key, metric)] = name
             continue
         for kind in ("records", "transients"):
-            for key in pend.get(kind, {}):
-                assert (kind, key) not in seen, f"{kind[:-1]} {key} is in both {seen[(kind, key)]} and {path.name}"
-                seen[(kind, key)] = path.name
+            for key, rec in pend.get(kind, {}).items():
+                if (kind, key) in shift:
+                    out.append(f"{kind[:-1]} {key} is in both {shift[(kind, key)][0]} and {name}")
+                shift[(kind, key)] = (name, set(rec.get("metrics", {})) if kind == "records" else set())
+    for (key, metric), name in added.items():
+        owner = shift.get(("records", key))
+        if owner and metric in owner[1]:
+            out.append(f"metric {metric} of {key} is both shifted by {owner[0]} and added by {name}")
+    return out
+
+
+def test_no_record_or_time_is_in_two_pending_files():
+    """!
+    @brief A frozen record (or time to 63 %) that two decided changes move has ONE entry, in one pending file; a read-out file adds only metrics that no other file claims.
+    @return None.
+    """
+    files = [(p.name, json.loads(p.read_text(encoding="utf-8"))) for p in _pending_files()]
+    problems = pending_duplicates(files)
+    assert not problems, "; ".join(problems[:5])
+
+
+def test_the_duplicate_check_refuses_every_double_claim():
+    """!
+    @brief The check of the pending files fails on a record in two shift files, a time in two shift files, a metric added twice and a metric both shifted and added, and passes
+           a shifted record with disjoint added metrics (the designed case of a moved column and a new surface).
+    @return None.
+    """
+    moved = {"records": {"b|solid3d|1": {"class": "moved", "metrics": {"t_max": 50.0}}}, "transients": {"b|fvm": {"class": "moved", "t63": {"U": 3.0}}}}
+    surf = {"new_readouts": True, "records": {"b|solid3d|1": {"class": "added", "metrics": {"surface:top:t_max": 51.0}}}}
+    assert pending_duplicates([("a.json", moved), ("s.json", surf)]) == []
+    assert any("records" not in p and "record b|solid3d|1 is in both" in p for p in pending_duplicates([("a.json", moved), ("c.json", moved)]))
+    assert any("transient b|fvm is in both" in p for p in pending_duplicates([("a.json", moved), ("c.json", moved)]))
+    assert any("added by both" in p for p in pending_duplicates([("s.json", surf), ("t.json", surf)]))
+    clash = {"new_readouts": True, "records": {"b|solid3d|1": {"class": "added", "metrics": {"t_max": 49.0}}}}
+    assert any("both shifted by a.json and added by x.json" in p for p in pending_duplicates([("a.json", moved), ("x.json", clash)]))
 
 
 def test_pending_shifts_belong_to_the_frozen_release():

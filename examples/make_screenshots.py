@@ -5,7 +5,7 @@
 @brief Renders the application off-screen and saves the screenshots used in the README and the docs.
 
 Usage: python examples/make_screenshots.py [output_folder]   (default: docs/images)
-       python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
+       python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences; light pictures plus the `_dark` pairs used by the help)
        python examples/make_screenshots.py --surface [output_folder]   (the surface read-out of thick copper: the map of Surface (top) and the Components table)
        python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
        python examples/make_screenshots.py --manual [output_folder]   (the manual_*.png pictures of the user manual: numbered window, start window, dialogs)
@@ -73,7 +73,7 @@ def shrink(path, max_width=1400):
 
 def main(out_dir):
     """!
-    @brief Produce the screenshots.
+    @brief Produce the screenshots of the README and the user manual, all in the LIGHT theme (the dark pictures are only the explicit `_dark` files of --import and --views).
     @param out_dir Folder that receives the PNG files.
     @return List of written file paths.
     """
@@ -81,7 +81,7 @@ def main(out_dir):
     os.makedirs(out_dir, exist_ok=True)
     app = QApplication.instance() or QApplication([])
     settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
-    settings.setValue("theme", "dark")
+    settings.setValue("theme", "light")                                      # README and manual pictures are in the light theme (maintainer, 2.9.0); the dark ones are the explicit _dark files of --import and --views
     win = MainWindow(settings=settings)
     win._load_problem(example_board(), "example-4layer")
     win.resize(2400, 1363)
@@ -707,9 +707,9 @@ def main_manual(out_dir):
     win.doc.stack.setClean()
     win.close()
 
-    # 2. The example board in the dark theme with the areas of the window numbered (the legend is in the manual, chapter 3)
+    # 2. The example board in the light theme with the areas of the window numbered (the legend is in the manual, chapter 3)
     settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
-    settings.setValue("theme", "dark")
+    settings.setValue("theme", "light")
     win = MainWindow(settings=settings)
     win._load_problem(example_board(), "example-4layer")
     win.resize(2400, 1363)

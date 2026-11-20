@@ -249,7 +249,7 @@ example."*
 ![The main window with the example board, its areas numbered](images/manual_window_tour.png)
 
 *Figure 2. The main window with the 4-layer example board (File - Open example - Example 4-layer
-board) in the dark theme, heater U1 selected. The numbers match the list below.*
+board) in the light theme, heater U1 selected. The numbers match the list below.*
 
 1. **Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in
    the menu bar at the top of the screen.
@@ -914,6 +914,9 @@ The program always computes and shows both, each with its name:
   value computed from the copper slabs (the 3D solid above 105 µm of copper) or a resolved value
   (FEM). It is a *view*, never a mode: it changes nothing that is solved and nothing is saved in
   the project.
+  The FEM has one element through copper up to 105 µm, so on ordinary copper its small
+  difference between surface and column reads about a third low under a part a few
+  millimetres wide (milli-kelvin per watt); through a thick plate it is resolved.
 
 Where you find the surface:
 

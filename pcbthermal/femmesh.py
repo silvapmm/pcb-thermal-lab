@@ -130,7 +130,7 @@ class FemMesh:
     volume_board: float = 0.0         # Volume of the board slabs (elements of copper and gaps), m3
     rho_c: Optional[np.ndarray] = None            # Volumetric heat capacity of every element (E,), J/m3K (the same array as `model.rho_c`)
     heater_q: Optional[list] = None               # Per heater: (element ids, source density for 1 W in W/m3 per W) of its volumetric source, or None
-    heater_flux: Optional[list] = None            # Per heater: (face nodes (F, 4), flux for 1 W in W/m2 per W) of its face flux on a thick outer layer, or None
+    heater_flux: Optional[list] = None            # Per heater: (face nodes (F, 4), flux for 1 W in W/m2 per W) of its face flux on an outer layer, or None
     capacity_parts: Optional[dict] = None         # The capacity of the mesh by category in J/K (copper, laminate, blocks) and what is not counted (see build)
 
 
@@ -1168,8 +1168,8 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
     """!
     @brief Build the finite-element model of a problem, or refuse with the reason.
     @details Materials per element (the 3D solid's rule where the geometry is not resolved: a copper slab of fill f has kx = f k_cu + (1 - f) k_lam, kz likewise with the
-             through-thickness conductivity of the adjacent gaps), the barrel of a via as copper elements (a patch) or a rod added to kz (the others), the heaters as a volumetric
-             source in the copper slabs of their layer with the exact area under the polygon, the films on the top and bottom faces (`h_top`, `h_bottom`, plus the `h_extra`
+             through-thickness conductivity of the adjacent gaps), the barrel of a via as copper elements (a patch) or a rod added to kz (the others), the heaters as a face flux
+             through the outer face (a part on the top or the bottom layer, any thickness) or a volumetric source in the copper slabs of an interior layer, with the exact area under the polygon, the films on the top and bottom faces (`h_top`, `h_bottom`, plus the `h_extra`
              of a plain heatsink under its polygon, none under a block), the edge film on every wall of the outline in every board slab, and the blocks with their pad, exposed
              face and walls (the fin ratio on the exposed face only, `blocks.exposed_h`, `blocks.wall_h`). The temperatures are rises over the ambient.
     @param problem A Problem.
@@ -1300,7 +1300,7 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
     elem_quad = np.concatenate(quad_of)
     copper_slabs = [[s for s, sl in enumerate(zs) if sl["kind"] == "cu" and sl["layer"] == l and sl["region"] == "board"] for l in range(L)]
 
-    # --- Heaters: a volumetric source in the copper slabs of the layer, exact area under the polygon
+    # --- Heaters: a face flux on an outer layer, a volumetric source in the copper slabs of an interior layer; exact area under the polygon
     heater_elems = []
     heater_q, heater_flux = [], []                                 # the unit-power loads of every heater, for the transient (`femcore.Model.load_vector`)
     cu_total = {l: sum(zs[s]["dz"] for s in copper_slabs[l]) for l in range(L)}
@@ -1319,11 +1319,12 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             tot = float(w.sum())
             warnings.append(f"the heater {h.name or ''} has no area on the board: its power goes to the nearest element")
         ids_all = []
-        # A thick outer copper layer (several slabs) takes the heat of a part through its face, as a prescribed flux over the footprint: the part sits on that face, and the
-        # surface read-out of a thick plate (case 2 of Muzychka, Culham and Yovanovich, docs/validation.md 55) is the point of the model. A thin layer (one slab) keeps the
-        # volumetric source: through 35 um the two differ by micro-kelvin, and the mesh and the frozen numbers of the boards of the harness do not change.
+        # A part on an OUTER copper layer (top or bottom, any thickness) injects its heat through the face, as a prescribed flux over the footprint: the part sits on that face,
+        # and the surface read-out (case 2 of Muzychka, Culham and Yovanovich, docs/validation.md 55) is the point of the model. Until 2.9.0 a layer of one slab (up to 105 um) kept
+        # a volumetric source: a single linear element through the copper then carries half of that load at its bottom node and the surface minus column term read about half
+        # of q t / 2k (0.50 on a one-dimensional board, 0.05 on a 4 mm part where the physical value is 0.67 to 1.00). An interior layer has no face to load: it keeps the source.
         slabs_l = copper_slabs[h.layer]
-        if len(slabs_l) > 1 and (h.layer == 0 or h.layer == L - 1):
+        if len(slabs_l) >= 1 and (h.layer == 0 or h.layer == L - 1):
             top = h.layer == 0
             a, c = ranges[slabs_l[0] if top else slabs_l[-1]]
             q_s = elem_quad[a:c]
