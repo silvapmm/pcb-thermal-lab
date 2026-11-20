@@ -261,15 +261,25 @@ def source_assets(qt, pyside):
     return [name for name, _ in qt_sources.urls(qt, pyside, wayland=True)]
 
 
-def write_notice_files(staging):
+def write_notice_files(staging, attach):
     """!
     @brief Write NOTICE.txt (LGPL 4(a)), SOURCE-OFFER.txt and REPLACING-QT.txt of the package.
     @param staging Staging folder.
+    @param attach True when the release carries the source tarballs as assets (the switch --attach-source): the offer then lists them as available on the release page;
+           False (the default, until the maintainer decides) the offer is the links to the Qt Project and the written offer.
     """
     pyside, qt = qt_versions()
     minor = ".".join(qt.split(".")[:2])
     tag = f"v{version()}"
     assets = "\n".join(f"    {n}" for n in source_assets(qt, pyside))
+    # THE SWITCH: the first text is used only when the release carries the tarballs (build.py --attach-source); until then the second one
+    if attach:
+        where = (f"The complete corresponding source of exactly these versions is available on the release page of this version of the program:\n"
+                 f"  https://github.com/silvapmm/pcb-thermal-lab/releases/tag/{tag}\nas these files (their SHA-256 sums are in QT-SOURCE-SHA256.txt in the same place):\n{assets}\n"
+                 "(qtwayland is needed only for the Linux package.) The Qt Project publishes the same files, and you may use them too:")
+    else:
+        where = ("The complete corresponding source of exactly these versions is published by the Qt Project, as these files:\n" + assets +
+                 "\n(qtwayland is needed only for the Linux package.) Where to download them:")
     (staging / "NOTICE.txt").write_text(f"""PCB Thermal Lab {version()}: notice
 =====================================
 This program uses Qt {qt} and PySide6 {pyside} (Qt for Python), Copyright (c) The Qt Company Ltd. and other contributors, under the GNU Lesser General
@@ -285,18 +295,14 @@ PCB Thermal Lab {version()} is a Python program (MIT License, see LICENSE) that 
 under the GNU Lesser General Public License version 3. NO Qt or PySide file in this package was modified: the libraries are the files of the official PyPI wheels
 PySide6_Essentials {pyside} and shiboken6 {pyside} for this system, as published by The Qt Company.
 
-The complete corresponding source of exactly these versions is attached to the release of this package on GitHub:
-  https://github.com/silvapmm/pcb-thermal-lab/releases/tag/{tag}
-as these files (their SHA-256 sums are in QT-SOURCE-SHA256.txt in the same place):
-{assets}
-(qtwayland is needed only for the Linux package.) The Qt Project publishes the same files, and you may use them too:
+{where}
   https://download.qt.io/official_releases/qt/{minor}/{qt}/submodules/
   https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-{pyside}-src/
 Git: https://code.qt.io/cgit/qt/ and https://code.qt.io/cgit/pyside/pyside-setup.git (tag v{pyside}).
 
 Written offer. I, Pedro Silva (PMS Labs), who distribute this package, will give you or any third party, on request and for at least three (3) years from the date
 of the release of this package, the complete corresponding source of Qt {qt} and PySide 6 {pyside} as used in this package, for no more than the cost of physically
-performing the distribution. Ask in the issues of https://github.com/silvapmm/pcb-thermal-lab naming this package and its version.
+performing the distribution. Ask on the Issues page, https://github.com/silvapmm/pcb-thermal-lab/issues, naming this package and its version.
 """, encoding="utf-8")
     (staging / "REPLACING-QT.txt").write_text(f"""How to use your own build of Qt or PySide with this package
 ==========================================================
@@ -501,6 +507,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Build the downloadable package of PCB Thermal Lab for this system.")
     ap.add_argument("--reuse-venv", action="store_true", help="keep packaging/.venv-build if it exists (default: make it again)")
     ap.add_argument("--selftest", action="store_true", help="unpack the archive and run --selftest of the program from it (exit code 1 when it fails)")
+    ap.add_argument("--attach-source", action="store_true", help="the release carries the Qt and PySide source tarballs as assets: say so in SOURCE-OFFER.txt and put them in "
+                    "packaging/dist/qt-source/ (default off: the offer is the links to the Qt Project plus the written offer)")
     args = ap.parse_args(argv)
     t0 = time.time()
     make_venv(args.reuse_venv)
@@ -516,14 +524,14 @@ def main(argv=None):
     sources = qt_sources.fetch(WORK / "qt-source", qt, pyside, wayland=True)
     n = qt_sources.notices(sources, qt, staging / "licenses" / "Qt" / "THIRD-PARTY-NOTICES.txt")
     print(f"Qt third-party notices: {n} components")
-    write_notice_files(staging)
+    write_notice_files(staging, args.attach_source)
     write_build_info(staging)
     make_icns(staging)
     built = run_pyinstaller(staging)
     folder, exe = assemble(built)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
-    if sys.platform.startswith("linux"):                  # The source is one set per release, not per system: the Linux job carries it to the release job
+    if args.attach_source and sys.platform.startswith("linux"):   # The source is one set per release, not per system: the Linux job carries it to the release job
         shutil.rmtree(DIST / "qt-source", ignore_errors=True)
         shutil.copytree(WORK / "qt-source", DIST / "qt-source")
     (DIST / "SHA256SUMS.txt").write_text(f"{sha256(out)}  {out.name}\n", encoding="utf-8")

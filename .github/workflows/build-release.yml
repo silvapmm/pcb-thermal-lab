@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # THE SWITCH (maintainer's decision pending): 'true' makes the release carry the Qt and PySide source tarballs as assets and SOURCE-OFFER.txt say so; 'false' keeps
+  # the offer as links to the Qt Project plus the written offer
+  ATTACH_QT_SOURCE: 'false'
+
 jobs:
   check:
     name: Tag matches the version
@@ -62,7 +67,8 @@ jobs:
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libdbus-1-3 libfontconfig1
       - name: Build the package
-        run: python packaging/build.py
+        shell: bash
+        run: python packaging/build.py ${{ env.ATTACH_QT_SOURCE == 'true' && '--attach-source' || '' }}
       - name: Self-test the packed program (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -117,7 +123,7 @@ jobs:
       - name: Checksums of every package
         run: |
           cd files
-          sha256sum PCB-Thermal-Lab-* qt-source/* > SHA256SUMS.txt
+          sha256sum PCB-Thermal-Lab-* $(ls -d qt-source/* 2>/dev/null) > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Attach to the release (a draft with the CHANGELOG notes if none exists)
         env:
@@ -130,4 +136,6 @@ jobs:
             gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes-file notes.md
           fi
           # The exact Qt and PySide source (qt-source/, made by the Linux job) goes with the packages: the LGPL asks for it from the place that distributes the libraries
-          gh release upload "$TAG" files/PCB-Thermal-Lab-* files/qt-source/* files/SHA256SUMS.txt --clobber
+          EXTRA=""
+          if [ -d files/qt-source ]; then EXTRA="files/qt-source/*"; fi
+          gh release upload "$TAG" files/PCB-Thermal-Lab-* $EXTRA files/SHA256SUMS.txt --clobber

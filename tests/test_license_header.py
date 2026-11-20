@@ -64,7 +64,7 @@ def python_files():
     for folder in FOLDERS:
         for p in (ROOT / folder).rglob("*.py"):
             parts = set(p.relative_to(ROOT).parts)
-            if parts & {".venv", ".venv-research", "__pycache__", "out", "data", "pylib", "variant"}:
+            if parts & {".venv", ".venv-research", ".venv-build", "build", "dist", "__pycache__", "out", "data", "pylib", "variant"}:
                 continue
             out.append(p)
     return sorted(out)

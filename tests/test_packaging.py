@@ -131,6 +131,7 @@ def test_workflow_triggers_and_gates(workflow):
     assert "--generate-notes" not in workflow and "--latest" not in workflow and "--draft" in release and "--notes-file" in release
     assert "secrets." not in workflow.replace("secrets.GITHUB_TOKEN", "")
     assert "packaging/release_notes.py" in release
+    assert "ATTACH_QT_SOURCE: 'false'" in workflow            # The Qt source on the release is the maintainer's pending decision: off until he decides
 
 
 def test_workflow_checks_the_tag_and_runs_the_selftest(workflow):

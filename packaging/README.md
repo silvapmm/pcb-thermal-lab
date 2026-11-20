@@ -36,11 +36,11 @@ generated notes. A push to a branch `build-test/**` builds and self-tests only. 
 - [ ] nothing that matches `FORBIDDEN` in `build.py` (the GPL-3-only Qt modules, FFmpeg, QtPdf and its image plug-in, WebEngine, QML and Quick, the TLS plug-ins): the build fails if one is there
 - [ ] the versions agree: `SOURCE-OFFER.txt` = `BUILD-INFO.txt` = Help - About (live) = the tarballs attached to the release (`QT-SOURCE-SHA256.txt`)
 - [ ] no EULA text, no encryption, no hash check of the Qt files, no static Qt: nothing may block replacing the Qt files
-- [ ] the release carries the source tarballs (`qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup`, and `qtwayland` for Linux), once per release, about 76 MB; the workflow attaches them from `packaging/dist/qt-source/`. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` makes them by hand.
+- [ ] **the source tarballs on the release are the reviewer's recommendation, awaiting the maintainer** (Qt says a link to its own servers is not sufficient; `qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup`, and `qtwayland` for Linux, about 76 MB once per release). `SOURCE-OFFER.txt` is a template with a switch: `build.py --attach-source` (workflow: `ATTACH_QT_SOURCE: 'true'`) makes it say the files are on the release page and puts them in `packaging/dist/qt-source/` for the workflow to attach; the default (off) lists the Qt Project links and the written offer, with the GitHub Issues page as the contact. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` downloads and checks them by hand. Nothing is uploaded by the scripts except through the workflow's release job.
 - [ ] fresh machine (a VM or a second account without Python): download through a browser, clear Gatekeeper or SmartScreen, unzip, run, solve a board; replace `QtGui` (the file from a `PySide6_Essentials` wheel), on macOS re-sign as `REPLACING-QT.txt` says, run again; Help - About shows the Qt version that was loaded; `--selftest` exits 0
 
 ## Signing (constraint for later)
 
-The packages are unsigned (macOS: ad hoc only, which Apple silicon requires). **If a Developer ID and the hardened runtime are ever used** (needed for notarisation), library
+The packages are unsigned (macOS: ad hoc only, which Apple silicon requires); whether to sign is undecided (the maintainer will think about it). **If a Developer ID and the hardened runtime are ever used** (needed for notarisation), library
 validation would block a Qt library built by the user unless the entitlement `com.apple.security.cs.disable-library-validation` is kept, or `REPLACING-QT.txt` tells
 users to re-sign the whole app ad hoc. Do not sign in a way that stops the replacement of the Qt files.

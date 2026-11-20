@@ -50,7 +50,7 @@ excludes = [
     "PySide6.QtGraphs", "PySide6.QtGraphsWidgets", "PySide6.QtHttpServer", "PySide6.QtLottie", "PySide6.QtNetworkAuth", "PySide6.QtCanvasPainter",
     "PySide6.QtQmlCompiler", "PySide6.QtQuick3D", "PySide6.QtQuickTest", "PySide6.QtQuickTimeline", "PySide6.QtVirtualKeyboard", "PySide6.QtGrpc", "PySide6.QtProtobuf",
     "PySide6.QtMqtt", "PySide6.QtCoap", "PySide6.QtNetwork", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
-    "PySide6.QtWaylandCompositor", "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtPrintSupport", "PySide6.QtUiTools", "PySide6.QtAxContainer",
+    "ssl", "_ssl", "_hashlib", "PySide6.QtWaylandCompositor", "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtPrintSupport", "PySide6.QtUiTools", "PySide6.QtAxContainer",
 ]
 
 # pyamg is imported lazily (femcore.available()), so a static scan would miss it and the finite elements would fall back to small meshes silently
