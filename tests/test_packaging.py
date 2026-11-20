@@ -173,17 +173,30 @@ def test_source_offer_always_names_the_attached_tarballs_and_flags_the_missing_c
 
 def test_check_release_compares_the_packages_and_the_source(tmp_path):
     """The release job's check: equal Qt and PySide versions in the three results, and every source tarball present."""
+    import hashlib
     import json
     check = load("check_release")
     names = ["qtbase-everywhere-src-6.12.0.tar.xz", "pyside-setup-everywhere-src-6.12.0.tar.xz"]
     (tmp_path / "qt-source").mkdir()
-    for n in names + ["QT-SOURCE-SHA256.txt"]:
-        (tmp_path / "qt-source" / n).write_text("x")
+    for n in names:
+        (tmp_path / "qt-source" / n).write_text("x" + n)
+    (tmp_path / "qt-source" / "QT-SOURCE-SHA256.txt").write_text("".join(f"{hashlib.sha256(('x' + n).encode()).hexdigest()}  {n}\n" for n in names))
     for system in check.SYSTEMS:
         (tmp_path / f"PCB-Thermal-Lab-9.9.9-{system}.zip").write_text("x")
         res = {"version": "9.9.9", "qt": "6.12.0", "pyside": "6.12.0", "archive": f"PCB-Thermal-Lab-9.9.9-{system}.zip", "source_assets": names}
         (tmp_path / f"BUILD-RESULT-{system}.json").write_text(json.dumps(res))
-    assert check.check(tmp_path) == []
+    assert check.check(tmp_path) == [] and check.check(tmp_path, "9.9.9") == []
+    assert any("the tag says 9.9.8" in p for p in check.check(tmp_path, "9.9.8"))          # The packages must be the version of the tag
+    (tmp_path / "qt-source" / names[1]).write_text("tampered")
+    assert any("SHA-256 differs" in p for p in check.check(tmp_path))                     # A tarball that is not the one whose sum was checked at download
+    (tmp_path / "qt-source" / names[1]).write_text("x" + names[1])
+    newer = json.loads((tmp_path / "BUILD-RESULT-linux-x64.json").read_text())
+    for system in check.SYSTEMS:                                                          # All three agree with each other but not with the tarballs' version
+        (tmp_path / f"BUILD-RESULT-{system}.json").write_text(json.dumps(dict(newer, qt="6.12.1", pyside="6.12.1")))
+    assert any("not the source of version 6.12.1" in p for p in check.check(tmp_path))
+    for system in check.SYSTEMS:
+        (tmp_path / f"BUILD-RESULT-{system}.json").write_text(json.dumps(newer))
+    assert check.main([str(tmp_path), "--version", "v9.9.9"]) == 0 and check.main([str(tmp_path), "--version", "9.9.8"]) == 1
     bad = json.loads((tmp_path / "BUILD-RESULT-linux-x64.json").read_text())
     bad["pyside"] = "6.12.1"
     (tmp_path / "BUILD-RESULT-linux-x64.json").write_text(json.dumps(bad))
@@ -205,3 +218,87 @@ def test_gpl_text_is_the_spdx_text():
     qt = PKG / "licenses" / "Qt"
     digest = hashlib.sha256((qt / "GPL-3.0.txt").read_bytes()).hexdigest()
     assert digest in (qt / "SOURCES.txt").read_text(encoding="utf-8")
+
+
+def test_release_notes_of_a_pre_release_fall_back_to_unreleased(tmp_path):
+    """A pre-release version without its own section takes the Unreleased section; a final version without a section still fails."""
+    notes = load("release_notes")
+    log = tmp_path / "CHANGELOG.md"
+    log.write_text("# Changelog\n\n## [Unreleased]\n\nnew things\n\n## [2.8.0] - x\n\nold\n", encoding="utf-8")
+    out = tmp_path / "notes.md"
+    assert notes.main(["2.9.0rc1", "--changelog", str(log), "-o", str(out)]) == 0 and out.read_text(encoding="utf-8") == "new things\n"
+    assert notes.main(["2.9.0", "--changelog", str(log), "-o", str(out)]) == 1
+
+
+def test_licence_set_is_what_ships(monkeypatch, tmp_path):
+    """The licences quoted are the run-time closure plus PyInstaller itself (its bootloader is in the program), never the requirements of the build tools."""
+    build = load("build")
+
+    class Dist:
+        """!
+        @brief A fake installed distribution.
+        """
+
+        def __init__(self, name, requires=()):
+            """!
+            @param name Distribution name.
+            @param requires Requirement lines.
+            """
+            self.metadata, self.requires = {"Name": name}, list(requires)
+
+    fakes = [Dist("numpy"), Dist("scipy", ["numpy>=2"]), Dist("pyamg", ["numpy", "scipy"]), Dist("matplotlib", ["numpy", "packaging"]), Dist("packaging"),
+             Dist("PySide6_Essentials", ["shiboken6==6.12.0"]), Dist("shiboken6"), Dist("pyinstaller", ["altgraph", "macholib", "setuptools", "pyinstaller-hooks-contrib", "packaging"]),
+             Dist("altgraph"), Dist("macholib", ["altgraph"]), Dist("setuptools"), Dist("pyinstaller-hooks-contrib", ["setuptools"])]
+    monkeypatch.setattr(build.metadata, "distributions", lambda path=None: fakes)
+    names = set(build.bundled_distributions(tmp_path))
+    assert {"numpy", "scipy", "pyamg", "matplotlib", "packaging", "pyside6_essentials", "shiboken6", "pyinstaller"} <= names
+    assert not names & {"altgraph", "macholib", "setuptools", "pyinstaller_hooks_contrib"}
+
+
+def test_icu_notice_follows_the_qt_wheel(monkeypatch, tmp_path):
+    """The ICU licence is copied when the Qt wheel bundles ICU 73 (Linux), skipped when it bundles none, and another ICU major stops the build."""
+    build = load("build")
+    site = tmp_path / "site"
+    lib = site / "PySide6" / "Qt" / "lib"
+    lib.mkdir(parents=True)
+    monkeypatch.setattr(build, "site_packages", lambda: site)
+    out = tmp_path / "licenses"
+    out.mkdir()
+    assert build.system_notices(out) == [] and not (out / "ICU").exists()
+    (lib / "libicuuc.so.73").write_text("x")
+    assert [n for n, _ in build.system_notices(out)] == ["ICU"] and "UNICODE" in (out / "ICU" / "LICENSE").read_text(encoding="utf-8")
+    (lib / "libicuuc.so.74").write_text("x")
+    with pytest.raises(SystemExit):
+        build.system_notices(out)
+
+
+def test_file_list_names_native_libraries_outside_qt(tmp_path):
+    """FILES.txt lists every file and, first, the native libraries that are neither Qt nor a Python extension module (each needs its notice)."""
+    build = load("build")
+    pkg = tmp_path / "PCB-Thermal-Lab-9.9.9-linux-x64"
+    for rel in ("_internal/PySide6/Qt/lib/libQt6Core.so.6", "_internal/libffi.so.8", "_internal/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so",
+                "_internal/PySide6/QtCore.abi3.so", "LICENSE"):
+        (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
+        (pkg / rel).write_text("x")
+    assert build.write_file_list(pkg, tmp_path / "FILES.txt") == 5
+    head = (tmp_path / "FILES.txt").read_text(encoding="utf-8").split("All files")[0]
+    assert "libffi.so.8" in head and "libQt6Core" not in head and "_multiarray_umath" not in head and "QtCore.abi3" not in head
+
+
+def test_files_without_attached_source_are_refused():
+    """Mesa's software OpenGL (Windows) and the GTK 3 theme with its libraries (Linux) stay out: their source is not among the attached tarballs."""
+    build = load("build")
+    for bad in ("_internal/PySide6/opengl32sw.dll", "_internal/PySide6/Qt/plugins/platformthemes/libqgtk3.so", "_internal/libgtk-3.so.0"):
+        assert build.FORBIDDEN.search(bad), bad
+    assert not build.FORBIDDEN.search("_internal/PySide6/Qt/plugins/platformthemes/libqxdgdesktopportal.so")
+
+
+def test_workflow_pins_actions_and_attaches_the_source_first(workflow):
+    """Every action is pinned to a commit; the source is uploaded before the packages; checksums use the flat names; pre-releases, the Windows console program and the Linux X server are covered."""
+    uses = re.findall(r"uses:\s*(\S+)", workflow)
+    assert uses and all(re.fullmatch(r"[\w-]+/[\w-]+@[0-9a-f]{40}", u) for u in uses), uses
+    release = workflow.split("\n  release:")[1]
+    assert release.index("files/qt-source/* --clobber") < release.index("files/PCB-Thermal-Lab-* files/SHA256SUMS.txt --clobber")
+    assert "(cd qt-source && sha256sum *.tar.xz)" in release and "--version \"${GITHUB_REF_NAME#v}\"" in release
+    assert "--prerelease" in release and "prerelease=true" in workflow
+    assert "PCB-Thermal-Lab-cli.exe" in workflow and "xvfb-run -a" in workflow and "FILES-*.txt" in workflow

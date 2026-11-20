@@ -211,7 +211,8 @@ def licence_entries():
         if index.is_file():
             entries.append(("licenses/INDEX.txt", _read(index), str(index)))
         for sub in sorted((p for p in folder.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
-            files = sorted(p for p in sub.rglob("*") if p.is_file())
+            # The LGPL first: it is the licence Qt is used under here (the GPL text is shipped because the LGPL refers to it)
+            files = sorted((p for p in sub.rglob("*") if p.is_file()), key=lambda p: (not p.name.startswith("LGPL"), p.relative_to(sub).as_posix().lower()))
             body = "\n\n".join(f"===== {p.relative_to(sub).as_posix()} =====\n{_read(p)}" for p in files)
             title = "Qt and PySide (LGPL-3.0, GPL-3.0, notices)" if sub.name == "Qt" else sub.name
             entries.append((title, body, f"{sub}  ({len(files)} file(s))"))

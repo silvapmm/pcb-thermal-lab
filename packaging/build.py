@@ -14,7 +14,7 @@
          4. assembles `PCB-Thermal-Lab-<version>-<os>-<arch>/` (the program, `LICENSE`, `licenses/`, `SOURCE-OFFER.txt`, `BUILD-INFO.txt`), archives it
             (`.zip` on Windows and macOS, `.tar.gz` on Linux, which keeps the execute bits) and writes `SHA256SUMS.txt` and `BUILD-RESULT.json`;
          5. with `--selftest`, extracts the archive and runs `--selftest` of the program from it.
-         Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json` and `qt-source/`, the exact Qt and PySide source that the release
+         Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, `FILES.txt` (the file list, native libraries outside Qt first) and `qt-source/`, the exact Qt and PySide source that the release
          carries as assets, always) and `packaging/build/` (git-ignored). Nothing is uploaded or published here.
 """
 
@@ -46,12 +46,22 @@ PRODUCT = "PCB-Thermal-Lab"
 APP_NAME = "PCB Thermal Lab.app"
 # The wheel "PySide6" pulls the add-ons (QtWebEngine alone is 645 MB); the program imports only QtCore, QtGui and QtWidgets, which PySide6-Essentials has
 SUBSTITUTIONS = {"pyside6": "PySide6-Essentials"}
-BUILD_TOOLS = ("pyinstaller",)                 # Distributions installed for the build whose licence is also quoted (the bootloader is part of the program)
+# Build tools whose own code goes into the program (the PyInstaller bootloader and run-time hooks): their licence is quoted, but NOT that of their requirements
+# (altgraph, macholib, setuptools, pyinstaller-hooks-contrib run only at build time and are not in the package; checked in the Analysis table of a build)
+BUILD_TOOLS = ("pyinstaller",)
+# Native libraries that a Qt wheel brings for one system and whose source is not in the attached Qt tarballs: their licence text comes from
+# packaging/licenses/_system/<name>/ (ICU, which QtCore links on Linux; the file is for the ICU major version named here, the build fails on another one)
+SYSTEM_NOTICES = {"ICU": (re.compile(r"^libicu(data|uc|i18n)\.so\.(\d+)"), "73")}
+# The incorporated-software notices of CPython (libmpdec, expat, libffi, zlib, mimalloc, HACL*, ...): the LICENSE file of the interpreter does NOT list them;
+# they are in Doc/license.rst of the exact CPython release, fetched by the build (the build fails when it cannot be fetched)
+PYTHON_NOTICES_URL = "https://raw.githubusercontent.com/python/cpython/v{version}/Doc/license.rst"
 # Files that must not be in the package: the GPL-3-only Qt modules (a bundle containing one would have to be GPL-3), FFmpeg (Qt Multimedia), QtPdf (and the image-format
 # plug-in that links it), WebEngine, the QML and Quick modules, the TLS plug-ins (OpenSSL), and the Qt translations (`.qm`: the program is English only, and their source, qttranslations, is not among the attached
-# tarballs). The program imports QtCore, QtGui and QtWidgets only.
+# tarballs). The program imports QtCore, QtGui and QtWidgets only. Two more whose code is not in the attached Qt source: opengl32sw.dll (Windows: Mesa's software
+# OpenGL, which a widgets program never loads) and the GTK 3 platform theme (Linux: it would bring the GTK, GLib, Pango and cairo libraries of the build machine).
 FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisualization|Quick|VirtualKeyboard|Lottie|HttpServer|NetworkAuth|Qml|CanvasPainter|Grpc|Mqtt|Coap)"
-                       r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$", re.IGNORECASE)
+                       r"|libqpdf|qpdf\.|libav(codec|format|util|filter|device)|libsw(resample|scale)|qopenssl|/tls/|\\tls\\|\.qm$"
+                       r"|opengl32sw|libqgtk3|libgtk-3|libgdk-3", re.IGNORECASE)
 QT_COVERED = ("pyside6_essentials", "pyside6", "shiboken6")        # Distributions whose licence texts are licenses/Qt (their wheels carry none)
 # THE SECOND CONTACT of the written offer (SOURCE-OFFER.txt): a way to reach the maintainer that does not depend on GitHub (an e-mail address of PMS Labs), for the case
 # that the repository is deleted or made private while the offer (three years) is still running. NOT GIVEN YET: a build of a tag (`--release`) FAILS while it is None;
@@ -165,13 +175,15 @@ def normalise(name):
 
 def bundled_distributions(site):
     """!
-    @brief The distributions that go into the program: the run-time requirements and everything they require (without extras), plus the build tools quoted.
+    @brief The distributions that go into the program: the run-time requirements and everything they require (without extras), plus the build tools quoted
+           (BUILD_TOOLS alone, not their requirements).
     @param site Folder of the packages of the build environment.
     @return dict normalised name -> metadata.Distribution.
     """
     found = {normalise(d.metadata["Name"]): d for d in metadata.distributions(path=[str(site)])}
-    todo = [normalise(re.match(r"[A-Za-z0-9._-]+", r).group(0)) for r in runtime_requirements()] + [normalise(t) for t in BUILD_TOOLS]
-    out = {}
+    todo = [normalise(re.match(r"[A-Za-z0-9._-]+", r).group(0)) for r in runtime_requirements()]
+    # The build tools themselves only: their requirements are build-time code, not in the package
+    out = {normalise(t): found[normalise(t)] for t in BUILD_TOOLS if normalise(t) in found}
     while todo:
         name = todo.pop()
         if name in out or name not in found:
@@ -242,9 +254,54 @@ def collect_licences(staging, dists):
         raise SystemExit(f"error: the PSF licence text of Python was not found at {psf}")
     (root / "Python").mkdir(parents=True, exist_ok=True)
     shutil.copy2(psf, root / "Python" / "LICENSE.txt")
-    index.append("Python: PSF licence, Python/LICENSE.txt (it lists the notices of the C libraries CPython bundles)")
+    # LICENSE.txt holds the PSF licence and the history only; the notices of the code CPython incorporates are in its documentation
+    (root / "Python" / "INCORPORATED-SOFTWARE.rst").write_text(python_notices(platform.python_version()), encoding="utf-8")
+    index.append(f"Python {platform.python_version()}: PSF licence, Python/LICENSE.txt; the notices of the software CPython incorporates (libmpdec, expat, libffi, zlib, "
+                 "OpenSSL, mimalloc, HACL*, ...) in Python/INCORPORATED-SOFTWARE.rst (Doc/license.rst of that CPython release)")
+    for name, line in system_notices(root):
+        index.append(f"{name}: {line}")
     (root / "INDEX.txt").write_text("\n".join(index) + "\n", encoding="utf-8")
     return index
+
+
+def python_notices(py_version):
+    """!
+    @brief The section "Licenses and Acknowledgements for Incorporated Software" (with the PSF terms before it) of Doc/license.rst of one CPython release.
+    @param py_version Python version, for example "3.13.5".
+    @return str The text of Doc/license.rst of that release.
+    @throws SystemExit When it cannot be fetched or does not hold the incorporated-software section (the package must not ship without these notices).
+    """
+    import urllib.request
+
+    url = PYTHON_NOTICES_URL.format(version=py_version)
+    try:
+        text = urllib.request.urlopen(url, timeout=60).read().decode("utf-8")
+    except OSError as exc:
+        raise SystemExit(f"error: the CPython notices could not be fetched from {url}: {exc}")
+    if "Licenses and Acknowledgements for Incorporated Software" not in text:
+        raise SystemExit(f"error: {url} has no section on the incorporated software")
+    return f"Fetched from {url} by packaging/build.py\n\n{text}"
+
+
+def system_notices(root):
+    """!
+    @brief Copy the licence of a native library that the Qt wheel of this system bundles and whose source is not in the Qt tarballs (SYSTEM_NOTICES; ICU on Linux).
+    @param root The licenses/ folder of the staging area.
+    @return list of (name, line of INDEX.txt) for the notices copied.
+    @throws SystemExit When the wheel bundles another major version than the text in packaging/licenses/_system/ is for.
+    """
+    qt_lib = site_packages() / "PySide6" / "Qt" / "lib"
+    names = [p.name for p in qt_lib.iterdir()] if qt_lib.is_dir() else []
+    out = []
+    for name, (pattern, major) in SYSTEM_NOTICES.items():
+        majors = {m.group(2) for m in (pattern.match(n) for n in names) if m}
+        if not majors:
+            continue
+        if majors != {major}:
+            raise SystemExit(f"error: the Qt wheel bundles {name} {sorted(majors)}, the text in packaging/licenses/_system/{name} is for {major}: replace it")
+        shutil.copytree(PKG / "licenses" / "_system" / name, root / name, dirs_exist_ok=True)
+        out.append((name, f"{name} {major} (bundled by the Qt wheel of this system), {name}/LICENSE"))
+    return out
 
 
 def qt_versions():
@@ -478,6 +535,29 @@ def assemble(built):
     return folder, exe
 
 
+def write_file_list(folder, out):
+    """!
+    @brief Write the list of the files of the package (path and size) and, first, the native libraries that do not belong to Qt: the file a reviewer reads to
+           see what a new build brought in (a library from the build machine needs its notice in licenses/).
+    @param folder Package folder.
+    @param out File to write.
+    @return int Number of files.
+    """
+    files = sorted(p for p in folder.rglob("*") if p.is_file() and not p.is_symlink())
+    native = re.compile(r"\.(so(\.\d+)*|dylib|dll)$", re.IGNORECASE)
+    extension = re.compile(r"cpython-|\.abi3\.|\.pyd$", re.IGNORECASE)        # Python extension modules: covered by the licence of their package
+    qt = re.compile(r"(^|/)(PySide6|shiboken6)/|Qt6?[A-Z]\w*\.(dll|framework)|/Qt[A-Z]\w*\.framework/", re.IGNORECASE)
+    # A copy of the same library in two places of a macOS bundle (Frameworks and Resources) is listed once
+    others = sorted({p.name: p.relative_to(folder).as_posix() for p in files if native.search(p.name) and not extension.search(p.name)
+                     and not qt.search(p.relative_to(folder).as_posix())}.values())
+    lines = [f"Files of {folder.name}: {len(files)} files, {sum(p.stat().st_size for p in files) / 1e6:.1f} MB", "",
+             "Native libraries outside PySide6 (each needs a licence in licenses/: a Python package's own, Python/, or packaging/licenses/_system/):"]
+    lines += ["  " + r for r in others] + ["", "All files (bytes  path):"]
+    lines += [f"{p.stat().st_size:>11}  {p.relative_to(folder).as_posix()}" for p in files]
+    Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return len(files)
+
+
 def archive(folder):
     """!
     @brief Archive the package folder (zip with ditto on macOS, which keeps symbolic links and permissions; zip on Windows; tar.gz on Linux).
@@ -559,7 +639,7 @@ def main(argv=None):
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
     # The Qt texts of the repository are the same for every package; the rest is made from the environment that is about to be bundled
-    shutil.copytree(PKG / "licenses", staging / "licenses", ignore=shutil.ignore_patterns("_fallback"))
+    shutil.copytree(PKG / "licenses", staging / "licenses", ignore=shutil.ignore_patterns("_fallback", "_system"))
     index = collect_licences(staging, bundled_distributions(site_packages()))
     pyside, qt = qt_versions()
     # The exact Qt and PySide source of the release (the assets) and, made from the same tarballs, the notices of the third-party code inside Qt
@@ -577,6 +657,7 @@ def main(argv=None):
         shutil.rmtree(DIST / "qt-source", ignore_errors=True)
         shutil.copytree(WORK / "qt-source", DIST / "qt-source")
     (DIST / "SHA256SUMS.txt").write_text(f"{sha256(out)}  {out.name}\n", encoding="utf-8")
+    print(f"file list: {write_file_list(folder, DIST / 'FILES.txt')} files in {DIST / 'FILES.txt'}")
     osname, arch, _ = platform_tag()
     result = {"version": version(), "os": osname, "arch": arch, "archive": out.name, "folder": folder.name, "executable": exe, "qt": qt, "pyside": pyside, "source_assets": source_assets(qt, pyside), "seconds": round(time.time() - t0),
               "archive_bytes": out.stat().st_size, "licence_index": index}

@@ -4,7 +4,7 @@
 @file release_notes.py
 @brief Extract the section of one version from CHANGELOG.md: the text of a release (`gh release create --notes-file`).
 @details Usage: `python packaging/release_notes.py 2.8.0 [-o notes.md] [--changelog CHANGELOG.md]`. The section starts at the heading `## [X.Y.Z]` and ends
-         before the next `## [` heading; the heading itself is not part of the notes. With `--build-result` the paragraph about the attached Qt source is appended. Exit code 1 when the version has no section (never a silent empty
+         before the next `## [` heading; the heading itself is not part of the notes. A pre-release version (2.9.0rc1) without a section of its own takes the `## [Unreleased]` section. With `--build-result` the paragraph about the attached Qt source is appended. Exit code 1 when the version has no section (never a silent empty
          file), so that a release without its CHANGELOG entry stops the workflow.
 """
 
@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PRERELEASE = re.compile(r"[0-9](a|b|rc)[0-9]+$")          # A pre-release version such as 2.9.0rc1 (tag v2.9.0rc1)
 
 
 def extract(text, version):
@@ -57,7 +58,12 @@ def main(argv=None):
     ap.add_argument("--build-result", help="a BUILD-RESULT*.json of the release: append the paragraph that lists the attached Qt and PySide source tarballs")
     ap.add_argument("--changelog", default=str(ROOT / "CHANGELOG.md"), help="CHANGELOG.md to read")
     args = ap.parse_args(argv)
-    notes = extract(Path(args.changelog).read_text(encoding="utf-8"), args.version.lstrip("v"))
+    text = Path(args.changelog).read_text(encoding="utf-8")
+    version = args.version.lstrip("v")
+    notes = extract(text, version)
+    if not notes.strip() and PRERELEASE.search(version):
+        # A pre-release (2.9.0rc1) has no section of its own: its notes are the Unreleased section that will become the release's
+        notes = extract(text, "Unreleased")
     if not notes.strip():
         print(f"error: no section '## [{args.version}]' in {args.changelog}", file=sys.stderr)
         return 1

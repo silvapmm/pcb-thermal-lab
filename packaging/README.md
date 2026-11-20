@@ -9,7 +9,7 @@ Not legal advice (see CLAUDE.md section 5 for the rule).
 python3 packaging/build.py --selftest     # own environment packaging/.venv-build, PyInstaller, package, archive, then --selftest of the unpacked archive
 ```
 
-Output in `packaging/dist/` (git-ignored): the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, and on Linux `qt-source/` (the Qt and PySide source tarballs, attached to every release). The build
+Output in `packaging/dist/` (git-ignored): the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, `FILES.txt` (every file of the package, with the native libraries outside Qt listed first), and on Linux `qt-source/` (the Qt and PySide source tarballs, attached to every release). The build
 needs the network (PyPI, download.qt.io) and about 1.5 GB of disk; it installs the run-time lines of `requirements.txt` (PySide6 replaced by PySide6-Essentials, the same
 QtCore/QtGui/QtWidgets without the add-ons) and `requirements-build.txt`. `build.py --reuse-venv` keeps the environment.
 
@@ -20,24 +20,25 @@ QtCore/QtGui/QtWidgets without the add-ons) and `requirements-build.txt`. `build
 | `entry.py` | entry point of the frozen program: `multiprocessing.freeze_support()` first, the window by default, any command of `python -m pcbthermal` after it |
 | `qt_sources.py` | downloads and checks the Qt and PySide source tarballs of a release (the release assets) and makes the Qt third-party notices from them |
 | `release_notes.py` | extracts the CHANGELOG section of a version (the text of a release) |
-| `licenses/Qt/` | the LGPL-3.0 and GPL-3.0 texts (third-party, no header); `licenses/_fallback/` the licence text of a library whose wheel carries none (pyamg) |
+| `licenses/Qt/` | the LGPL-3.0 and GPL-3.0 texts (third-party, no header); `licenses/_fallback/` the licence text of a library whose wheel carries none (pyamg); `licenses/_system/` the licence of a native library a Qt wheel bundles from outside Qt (ICU on Linux) |
 | `requirements-build.txt` | PySide6-Essentials, shiboken6 and PyInstaller, pinned EXACTLY (`build.py` fails when the installed versions differ; the three Qt/PySide numbers move together) |
 | `check_release.py` | the release job's guard: the three packages carry the same Qt and PySide versions, equal to the attached tarballs |
 
 The workflow `.github/workflows/build-release.yml` runs `build.py` on Windows, Ubuntu 22.04 and macOS (arm64), runs the packed program's `--selftest` there, and on a tag
 `v*` attaches the files to the release: it never creates a public release (if none exists it creates a DRAFT with the CHANGELOG notes), never marks Latest, never uses
-generated notes. A push to a branch `build-test/**` builds and self-tests only. It runs no test battery. Executables before 2.9.0 do not exist (no retroactive builds).
+generated notes; a pre-release tag (`v2.9.0rc1`, with `__version__` 2.9.0rc1; notes from the Unreleased section when it has no section of its own) makes a draft marked pre-release. The actions are pinned to the commit of an exact release. A push to a branch `build-test/**` builds and self-tests only. It runs no test battery. Executables before 2.9.0 do not exist (no retroactive builds).
 
 ## What a package contains (the LGPL checklist, per system)
 
 - [ ] onedir: the Qt libraries are separate files (`_internal/PySide6` on Windows and Linux, `PCB Thermal Lab.app/Contents/Frameworks/PySide6` on macOS)
 - [ ] at the top of the archive and inside the program: `LICENSE`, `NOTICE.txt`, `SOURCE-OFFER.txt`, `REPLACING-QT.txt`, `BUILD-INFO.txt`, `licenses/`
 - [ ] `licenses/Qt/LGPL-3.0.txt` and `GPL-3.0.txt` (verbatim), `licenses/Qt/THIRD-PARTY-NOTICES.txt` (names FreeType with its credit line, libjpeg with the IJG sentence, libpng, zlib, PCRE2, HarfBuzz, double-conversion, MD4C, libtiff, libwebp, Unicode)
-- [ ] a folder in `licenses/` for every bundled library (the build fails otherwise), `licenses/Python/`, `licenses/INDEX.txt`
-- [ ] nothing that matches `FORBIDDEN` in `build.py` (the GPL-3-only Qt modules, FFmpeg, QtPdf and its image plug-in, WebEngine, QML and Quick, the TLS plug-ins): the build fails if one is there
+- [ ] a folder in `licenses/` for every bundled library (the build fails otherwise) and for PyInstaller (its bootloader is in the program), but not for the build-only tools (altgraph, macholib, setuptools, pyinstaller-hooks-contrib are not in the package); `licenses/Python/` with the PSF `LICENSE.txt` and `INCORPORATED-SOFTWARE.rst` (Doc/license.rst of the exact CPython release: libmpdec, expat, libffi, zlib, mimalloc, HACL*, ...; fetched by the build, which fails without it); on Linux `licenses/ICU/` (the Qt wheel bundles ICU 73, whose source is not in the Qt tarballs; the text is `licenses/_system/ICU/LICENSE`, ICU release-73-2, and the build fails on another ICU major); `licenses/INDEX.txt`
+- [ ] the section 'Native libraries outside PySide6' of `FILES-<system>.txt` (an artifact of every workflow run) read for each system: every library there has its notice (macOS: the Pillow libraries are in Pillow's own licence file, libmpdec in the CPython notices). Windows (MSVC run-time DLLs, Microsoft's redistributable terms) and Linux (libraries of the build machine pulled by the xcb and wayland plug-ins) are checked on the first run in Actions
+- [ ] nothing that matches `FORBIDDEN` in `build.py` (the GPL-3-only Qt modules, FFmpeg, QtPdf and its image plug-in, WebEngine, QML and Quick, the TLS plug-ins, `opengl32sw.dll` (Mesa, Windows) and the GTK 3 platform theme (Linux)): the build fails if one is there
 - [ ] the versions agree: `SOURCE-OFFER.txt` = `BUILD-INFO.txt` = Help - About (live) = the tarballs attached to the release (`QT-SOURCE-SHA256.txt`)
 - [ ] no EULA text, no encryption, no hash check of the Qt files, no static Qt: nothing may block replacing the Qt files
-- [ ] **the Qt and PySide source tarballs are attached to EVERY release** (maintainer's decision; Qt says a link to its own servers is not sufficient): `qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup` and `qtwayland` (Linux), about 76 MB once per release, with `QT-SOURCE-SHA256.txt`, NOT committed to git. There is no mode without them. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` downloads and checks them by hand. The release notes list them (`release_notes.py --build-result BUILD-RESULT-linux-x64.json` appends the paragraph; use it for the notes of `gh release create` too).
+- [ ] **the Qt and PySide source tarballs are attached to EVERY release** (maintainer's decision; Qt says a link to its own servers is not sufficient): `qtbase`, `qtsvg`, `qtimageformats`, `pyside-setup` and `qtwayland` (Linux), about 76 MB once per release, with `QT-SOURCE-SHA256.txt`, NOT committed to git. There is no mode without them. `python3 packaging/qt_sources.py --qt X --pyside Y --out DIR` downloads and checks them by hand. The release notes list them (`release_notes.py --build-result BUILD-RESULT-linux-x64.json` appends the paragraph; the draft the workflow creates carries it, so the release is never created by hand before the workflow).
 - [ ] the release job checked `check_release.py` (the Qt and PySide versions of the three `BUILD-RESULT-*.json` equal each other and the tarballs); after the upload **`gh release view vX.Y.Z --json assets --jq '.assets[].name'` shows the five tarballs and `QT-SOURCE-SHA256.txt`** before the release is called closed
 - [ ] no `.qm` file (the Qt translations: English-only program, their source is not attached) and no forbidden file in the package nor inside the `.app`; read the file list of every new build (top two levels, and `find . -name '*.qm'`), because a new PyInstaller hook or PySide version can bring in something the scan does not know
 - [ ] **the second contact** of the written offer (`SECOND_CONTACT` in `build.py`, a way to reach the maintainer that does not depend on GitHub) is given: a tag build fails while it is `None`; a trial build writes "TODO second contact" in `SOURCE-OFFER.txt`
@@ -45,11 +46,11 @@ generated notes. A push to a branch `build-test/**` builds and self-tests only. 
 
 ## Rules for releases (never broken)
 
-Never delete a release, never remove one of its assets, never move or re-push its tag to other code, and never publish a package before the source assets are attached (the workflow only creates a DRAFT; the release is made public after `gh release view` shows the tarballs). The written offer runs three years and depends on the files staying there.
+Never delete a release, never remove one of its assets, never move or re-push its tag to other code, and never publish a package before the source assets are attached (the workflow only creates a DRAFT and uploads the source before the packages; the release is made public with `gh release edit vX.Y.Z --draft=false --latest` after `gh release view` shows the tarballs, never created by hand before the workflow). `SHA256SUMS.txt` on the release lists the packages and the tarballs by their flat names (`sha256sum -c SHA256SUMS.txt` in the download folder). The written offer runs three years and depends on the files staying there.
 
 ## Unsigned packages
 
-macOS and Windows packages are UNSIGNED (macOS: ad hoc only, which Apple silicon requires). The README Download section explains Gatekeeper (right click, Open; or `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"`) and SmartScreen (More info, Run anyway). `THIRD-PARTY-NOTICES.txt` is made from all the Qt modules' attribution files, so it is over-inclusive (the Qt attribution data does not say which component ends in which library); it lists every component of qtbase, qtsvg, qtimageformats and qtwayland, with the licence texts, and says so in its heading.
+macOS and Windows packages are UNSIGNED (macOS: ad hoc only, which Apple silicon requires). The README Download section explains Gatekeeper (System Settings, Privacy & Security, Open Anyway, which since macOS 15 replaces the right click, Open of older systems (Apple, "Updates to runtime protection in macOS Sequoia", and the Mac User Guide "Open a Mac app from an unknown developer"); or `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"`) and SmartScreen (More info, Run anyway). `THIRD-PARTY-NOTICES.txt` is made from all the Qt modules' attribution files, so it is over-inclusive (the Qt attribution data does not say which component ends in which library); it lists every component of qtbase, qtsvg, qtimageformats and qtwayland, with the licence texts, and says so in its heading.
 
 ## Signing (constraint for later)
 
