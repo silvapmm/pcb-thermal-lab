@@ -1456,11 +1456,14 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
              0.34 % of the rise, and 35 um of copper is of the order of 1e-4 K, so the check does not fire on the boards the program is built for. The bound
              is never added to the result. When the rows come from the finite elements (model "fem"), the copper of the part is resolved through its thickness:
              the bound then measures how far the surface can sit above the column read-out (the headline), and the text quotes the resolved surface instead of an estimate.
+             When they come from the 3D solid (model "solid3d"), the copper of the part is slabs whose vertical links pass the half slab (several slabs above 105 um, the heat of
+             the part in the outer one), so the half plate towards the laminate and the other copper layers are in the model: only the through-thickness term is left, worded
+             against the column mean (the solid has no surface read-out yet).
     @param problem The Problem that was solved.
     @param rows Heater rows of the reference model (Simulation.heater_rows(): name, power_board_w, t_max), one per heater in order.
     @param result The reference SteadyResult that produced the rows (gives the flux into the blocks), or None.
     @param h_faces (h_top, h_bottom) in W/m2K that the solve used (computed coefficients), or None for the typed ones; only for the Biot number quoted in the text (the film is inside the model).
-    @param model Key of the model that produced the rows (None: a layered model); "fem" words the text for a resolved plate.
+    @param model Key of the model that produced the rows (None: a layered model); "fem" words the text for a resolved plate, "solid3d" for the slabs of the 3D solid.
     @return List of warning strings (empty when no plate is thick).
     """
     out = []
@@ -1478,9 +1481,12 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
         # thick plates over a thin film: 17.9 K measured in an independent 3D solver against 9.4 K for the through-thickness term alone)
         # The other copper layers are one node each too: the heat that crosses them (at most q'') loses its whole drop t_l / k in the model, so they are
         # added with the full thickness (the same review: 14.9 K measured against 9.4 K when the source covers most of the plate)
-        others = float(np.sum(b.copper_thickness)) - float(b.copper_thickness[h.layer]) if b.layers > 1 else 0.0
+        # The 3D solid has none of these two missing pieces: its vertical links pass half of every copper slab, and a copper layer above 105 um is several slabs with the
+        # heat of a part entering the outer one (solid3d.copper_slab_count), so only the through-thickness term (surface over the column mean) is left
+        solid = model == "solid3d"
+        others = float(np.sum(b.copper_thickness)) - float(b.copper_thickness[h.layer]) if (b.layers > 1 and not solid) else 0.0
         plates = [(f"the copper of layer {h.layer + 1}", b.copper_thickness[h.layer], b.materials.k_copper, footprint_flux, "",
-                   b.layers > 1, others)]
+                   b.layers > 1 and not solid, others)]
         cx, cy = polygon_centroid(h.polygon)
         for j, s in enumerate(problem.heatsinks):
             if s.is_block() and bool(points_in_polygon(np.array([cx]), np.array([cy]), s.polygon)[0]):
@@ -1520,7 +1526,7 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                     if across > 0:
                         parts += f" and {across:.1f} K across the other copper layers (each is one node too)"
                 # What to do (text only): read the surface where the model has it; a copper layer gets its surface from the FVM and the FDM, a block only from the 3D solid,
-                # which cuts a block into slabs of about 1 mm (it keeps ONE cell through a copper slab, so it does not resolve a copper plate)
+                # which cuts a block into slabs of about 1 mm (a copper layer is one slab up to 105 um and at most 8 above, and the solid reads no surface of it yet)
                 if est and resolved:
                     todo = (" What to do: compare the resolved surface, not the column mean, with a thermocouple or a paper that reports the surface; it is in the Layer box "
                             "(Surface (top) / Surface (bottom)) and in the surface column of the Components table. Tj, margin and power limit stay on the column mean.")
@@ -1534,7 +1540,10 @@ def check_thick_plates(problem, rows, result=None, h_faces=None, model=None):
                     todo = (" What to do: read the bound as the largest surface excess of the block; the 3D solid cuts a block into slabs of about 1 mm and gives the "
                             "temperature through it.")
                 shows, keeps = (("than its column mean (the headline read-out)", "the column read-out is the mean through the thickness, which the finite elements resolve")
-                                if resolved else ("than the model shows", "the models keep one temperature through the thickness"))
+                                if resolved else
+                                ("than its column mean (the headline read-out)", "the 3D solid has the copper as slabs (several above 105 um) and reads the column, "
+                                 "the mean through the thickness, with no surface read-out yet")
+                                if model == "solid3d" and what.startswith("the copper") else ("than the model shows", "the models keep one temperature through the thickness"))
                 out.append(warn(f"{row['name'] or 'Heater'}: {what} is thick and poorly conducting ({num(1000 * t, 3)} mm, {num(k)} W/mK) for the heat flux under the part: the surface "
                            f"under the source can be hotter {shows} by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K): {parts}{note}; {keeps}. "
                            "The value is an upper estimate from conduction straight through the plate, not added to the results. Where the part and the face film share a face, the film "

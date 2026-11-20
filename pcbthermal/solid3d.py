@@ -475,7 +475,7 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
     @param n_diel Slabs across the dielectric gaps: None (default) is the rule by thickness, ceil(d / 0.2 mm) between 4 and 16 per gap (slabs_per_gap); an int gives every gap the same count (the studies; 4 was the
                   fixed count before the rule and is too few under a part whose side is under about 6.7 times the slab); a sequence gives one count per gap.
     @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
-    @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
+    @return SteadyResult with the column temperature of every copper layer (the mean of its copper slabs; layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does. A part over absent copper on an outer layer also gets the face terms (arrays "face_peak" and "face_mean", the
             half layer of laminate between the node and the face, laminate.face_terms) as the FVM and FDM, so the temperature read under it is that of its face.
     @throws memory.MemoryGuardError (a ValueError) If the model is too large for the memory guard.
@@ -504,9 +504,12 @@ def solve_steady(problem, cell_mm=2.0, n_diel=None, memory_fraction=None):
         # The heat of a part enters the copper slab at mid-thickness: over absent copper the half layer of laminate between that node and the face of the part is not in the
         # slabs (the same term as the layered models, applied to the peak and mean read under the part; a board with a metal block keeps the earlier reading, as they do).
         # It is right only together with the slab rule (research/laminate-slabs-and-local-rule 5.1): with 4 slabs per gap alone it makes the solid hotter than the reference
-        # Heat of every layer (all its slabs); the part of an outer thick layer enters the outer sub-slab, so the laminate between that node and the face is its t / (2 n), not t / 2
+        # Heat of every layer, ALL of it (the sum over its slabs). The term is added to the COLUMN (the mean of the slabs), not to the outer sub-slab: when the heat of a part
+        # enters the outer sub-slab of a thick layer over absent copper and crosses the layer, face minus column mean is q t / (2 k) whatever the slab count (the outer sub-slab
+        # is already (n - 1) q t / (2 n k) above the mean, and the half sub-slab above its node adds q t / (2 n k)); the same term as the FVM, exact for a 1D layer
+        # (tests/test_solid3d_copper_slabs.py). A term of q t / (2 n k) on the column read a 420 um outer layer 17 K too cool under a part over absent copper
         qs = net.Q.reshape(net.ns, net.ny, net.nx)
-        q_layers = np.stack([qs[cs].sum(axis=0) / len(cs) for cs in net.copper_slabs])
+        q_layers = np.stack([qs[cs].sum(axis=0) for cs in net.copper_slabs])
         terms = laminate.face_terms(b, net.fill, q_layers, net.area_b, net.dx)
         if terms is not None:
             out.arrays["face_peak"], out.arrays["face_mean"] = terms

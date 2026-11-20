@@ -211,3 +211,59 @@ def test_the_memory_law_follows_the_slabs_and_refuses_before_the_run(monkeypatch
     assert ok.verdict != "refuse" and bad.verdict == "refuse"
     with pytest.raises(memory.MemoryGuardError):
         solid3d.Solid(thick, 1.0, memory_fraction=0.5)           # the constructor checks too (api.simulate and the studies reach it)
+
+
+def test_the_face_of_a_part_over_absent_thick_copper_is_the_column_plus_the_whole_half_layer():
+    """!
+    @brief Closed form (the reviewer's regression): a one-layer board without copper, its 420 um copper layer all laminate, heated over its whole area from the top. The read-out under the
+           part (column plus face term) is the 1D face temperature q (1 / h + t_lam / k + t / k): the term on the column is q t / (2 k) whatever the slab count, as the FVM's. The branch
+           first added q t / (2 n k) to the column, which read this board (n = 6) 5 / 12 of q t / k too cool.
+    @return None.
+    """
+    t_cu, w, P, h = 420e-6, 12.0e-3, 2.0, 250.0
+    p = Problem.new(w * 1e3, w * 1e3, layers=1, thickness_mm=1.6, copper_um=t_cu * 1e6, ambient=20.0, h_top=1e-9, h_bottom=h, h_side=None)
+    p.add_heater(1, P, rect=(0.0, 0.0, w * 1e3, w * 1e3), name="U")
+    r = solid3d.solve_steady(p, cell_mm=2.0)
+    assert len(solid3d.Solid(p, 2.0).copper_slabs[0]) == 6
+    k = p.board.materials.k_fr4_through
+    q = P / (w * w)
+    t_lam = float(p.board.slab_thicknesses()[0] - t_cu)
+    face = 20.0 + q * (1.0 / h + t_lam / k + t_cu / k)
+    got = r.T[0] + r.arrays["face_peak"][0]
+    assert got[2, 2] == pytest.approx(face, rel=1e-6)
+    assert r.arrays["face_peak"][0][2, 2] == pytest.approx(q * t_cu / (2.0 * k), rel=1e-9)
+
+
+def test_the_face_term_of_a_thick_outer_layer_is_the_term_of_the_fvm():
+    """The face terms of the 3D solid and of the FVM are the same arrays on a two-layer 420 um board with a part over absent top copper (both laminate.face_terms of the whole heat of the layer)."""
+    from pcbthermal import fvm
+    p = Problem.new(30, 30, layers=2, thickness_mm=1.6 + 2 * 0.385, copper_um=420.0)
+    p.board.h_top = p.board.h_bottom = 10.0
+    p.add_full_copper(layers=[2])
+    p.add_heater(1, 0.5, rect=(13, 13, 17, 17), name="U")
+    a, b = solid3d.solve_steady(p, cell_mm=1.0), fvm.solve_steady(p, cell_mm=1.0)
+    assert float(a.arrays["face_peak"].max()) > 10.0
+    assert np.allclose(a.arrays["face_peak"], b.arrays["face_peak"], rtol=1e-12, atol=1e-12)
+    assert np.allclose(a.arrays["face_mean"], b.arrays["face_mean"], rtol=1e-12, atol=1e-12)
+
+
+def test_the_thick_plate_warning_of_the_3d_solid_counts_only_the_through_thickness_term():
+    """!
+    @brief The 3D solid as the reference model: the warning for a part on a thick, poorly conducting copper layer counts only q t / (2 k) (the half plate towards the laminate and
+           the other copper layers are slabs of the solid, not missing nodes) and says that the solid reads the column; a layered model keeps the larger bound and its words.
+    @return None.
+    """
+    from pcbthermal.checks import check_thick_plates
+    mat = Materials(k_copper=5.0)
+    p = Problem.new(20, 20, layers=2, thickness_mm=1.6 + 2 * 1.965, copper_um=2000.0, h_top=20.0, h_bottom=20.0, materials=mat)
+    p.add_full_copper(layers=None)
+    p.add_heater(1, 2.0, rect=(8, 8, 12, 12), name="U")
+    r = solid3d.solve_steady(p, cell_mm=1.0)
+    rows = [{"name": "U", "power_board_w": 2.0, "t_max": float(r.T[0].max())}]
+    w3 = check_thick_plates(p, rows, None, model="solid3d")
+    wl = check_thick_plates(p, rows, None, model="fvm")
+    assert len(w3) == 1 and len(wl) == 1
+    assert "3D solid has the copper as slabs" in w3[0] and "keep one temperature" not in w3[0]
+    assert "keep one temperature" in wl[0]
+    q = 2.0 / 16e-6
+    assert f"up to {q * 2e-3 / (2 * 5.0):.1f} K" in w3[0]

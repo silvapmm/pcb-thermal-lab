@@ -7,7 +7,8 @@
          (the unknown count that the law reads is exact, `solid3d.unknowns`, so only the bytes per unknown and the dependence on the slabs can change)? The peak is `ru_maxrss` of the child
          minus the resident size after the imports (bytes on macOS), the same measure as `releases/2.8.0/fem-model/scripts/measure_fem_law.py`; the estimate is `memory.estimate_bytes("solid3d", n, cells,
          base=0)`, which carries the safety factor, so `measured / estimate` must stay below 1.
-         Usage, from the repository root, ONE heavy job at a time (`--heavy` cases peak at 2 to 6 GB and take minutes: the maintainer schedules them):
+         Usage, from the repository root, ONE heavy job at a time (`--heavy` cases: the law estimates 3.7 GB for the two of 200 000 unknowns and 11.7 to 14.1 GB for the three of 250 000 to 425 000, so on a 16 GB machine at the default
+         memory fraction of 0.6 (9.6 GB) the guard of the constructor refuses those three before building anything; run the two 200 000 cases first, on a quiet machine):
 
              .venv/bin/python releases/2.9.0/solid3d-copper-slabs/scripts/measure_solid3d_memory.py --dry-run          # list the cases and their unknowns, run nothing
              .venv/bin/python releases/2.9.0/solid3d-copper-slabs/scripts/measure_solid3d_memory.py                    # the light cases
@@ -25,8 +26,8 @@ import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-# (copper layers, copper um of every layer, cell mm, side mm); light: up to about 250 000 unknowns, heavy: above
-LIGHT = [(2, 35.0, 2.0, 100.0), (2, 210.0, 2.0, 100.0), (2, 420.0, 2.0, 100.0), (4, 140.0, 2.0, 100.0), (4, 420.0, 2.0, 100.0), (6, 210.0, 3.0, 100.0), (2, 420.0, 1.5, 100.0)]
+# (copper layers, copper um of every layer, cell mm, side mm); light: up to 100 000 unknowns (the eleven rows of the README), heavy: 200 000 and above
+LIGHT = [(2, 35.0, 2.0, 100.0), (2, 140.0, 2.0, 100.0), (2, 210.0, 2.0, 100.0), (2, 280.0, 2.0, 100.0), (2, 350.0, 2.0, 100.0), (2, 420.0, 2.0, 100.0), (4, 140.0, 2.0, 100.0), (4, 420.0, 2.0, 100.0), (6, 210.0, 3.0, 100.0), (2, 420.0, 1.5, 100.0), (2, 35.0, 1.0, 100.0)]
 HEAVY = [(2, 420.0, 1.0, 100.0), (4, 140.0, 1.0, 100.0), (4, 420.0, 1.0, 100.0), (6, 420.0, 1.5, 100.0), (2, 560.0, 0.75, 100.0)]
 
 
