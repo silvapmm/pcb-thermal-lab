@@ -31,7 +31,7 @@ from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
-from .help import AboutDialog, GuideWindow, open_guide_in_browser
+from .help import AboutDialog, GuideWindow, app_icon, open_guide_in_browser
 from .preferences import PreferencesDialog
 from .canvas import BoardView
 from . import compute
@@ -741,9 +741,7 @@ class MainWindow(QMainWindow):
         self.display_button.set_dot(self.display.active())
         self.display_popover.apply_theme(self.theme_name)
         self._refresh_display_context()
-        logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
-        if logo.exists():
-            self.setWindowIcon(QIcon(str(logo)))
+        self.setWindowIcon(app_icon())
 
     # ------------------------------------------------------------------ canvas glue
     def _set_tool(self, name):

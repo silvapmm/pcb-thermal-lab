@@ -10,14 +10,33 @@ from pathlib import Path
 
 from .. import defaults
 from . import theme as th
-from PySide6.QtCore import QObject, QUrl, Qt
+from PySide6.QtCore import QObject, QSize, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout
 
 from .. import __author__, __project_url__, __version__
 
 GUIDE = Path(__file__).resolve().parents[1] / "help" / "index.html"
-LOGO = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
+ICON_DIR = Path(__file__).resolve().parents[2] / "ico"
+LOGO = ICON_DIR / "pcb-board.png"
+## Sizes in px of the PNG set `ico/png/pcb-board_<size>.png` (the small ones are hand-tuned, see `examples/make_icon.py`).
+ICON_SIZES = (16, 24, 32, 48, 64, 128, 256, 512, 1024)
+
+
+def app_icon():
+    """!
+    @brief Build the application icon from the PNG set of `ico/png/`, so that every size uses its own drawing.
+    @return QIcon The icon with one file per size; only the 1024 px master if the folder `ico/png/` is missing; an empty icon without `ico/`.
+    """
+    icon = QIcon()
+    for size in ICON_SIZES:
+        path = ICON_DIR / "png" / f"pcb-board_{size}.png"
+        if path.exists():
+            icon.addFile(str(path), QSize(size, size))
+    # Fallback: the master, scaled by Qt, when the set of sizes is not shipped
+    if icon.isNull() and LOGO.exists():
+        icon.addFile(str(LOGO))
+    return icon
 
 
 class _PageReloader(QObject):
@@ -138,9 +157,9 @@ class AboutDialog(QDialog):
         self.setWindowTitle("About PCB Thermal Lab")
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
-        if LOGO.exists():
+        if not app_icon().isNull():
             logo = QLabel()
-            logo.setPixmap(QIcon(str(LOGO)).pixmap(72, 72))
+            logo.setPixmap(app_icon().pixmap(72, 72))
             top.addWidget(logo)
         self.text = QLabel(
             f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"

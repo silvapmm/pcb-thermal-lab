@@ -1,5 +1,7 @@
 # PCB Thermal Lab
 
+<img src="ico/png/pcb-board_128.png" alt="PCB Thermal Lab icon" width="96" align="right">
+
 [![Version](https://img.shields.io/badge/version-2.8.0-4f46e5)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-4306%20passed-2da44e)](tests)
 ![Python](https://img.shields.io/badge/python-3.13-3776ab)
