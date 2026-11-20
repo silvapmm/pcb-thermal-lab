@@ -110,7 +110,7 @@ TIPS = {
     "duration": "Length of the animated power step, s.",
     "frames": "Number of frames computed.",
     "model": "Model whose result is shown.",
-    "scheme": "Time stepping: implicit Euler (robust) or Crank-Nicolson (more accurate).",
+    "scheme": "Time stepping: Crank-Nicolson (the default, second order) or implicit Euler (first order, 0.7 to 1.9 % low at the default frames).",
     "spacing": "Frame spacing in time: logarithmic (more frames early) or uniform.",
     "colour map": "Colour scale of the map.",
     "axis": "Direction of the cut through the board.",
