@@ -6,7 +6,7 @@
 @details Two independent routes, one per tab (docs/calculators.md, and the Help button of the window):
          * **From the drawn board** (inverse.power_from_temperature / power_band, run in the calculation process): the board you drew (its copper, vias, stack-up, heat transfer)
            is solved at two powers and the power that makes the model read your temperature at the chosen point is found. The copper does not "give" the heat: it decides how
-           many kelvin each watt raises at that point (the board resistance shown in the result). Points: the board ring 1 mm around the part, the hottest board point or the
+           many kelvin each watt raises at that point (the board resistance shown in the result). Points: the board ring 0.5 to 1.5 mm around the part, the hottest board point or the
            mean under it, the junction (needs the part's theta) or the top of the package (needs theta and the datasheet psi_JT). The result has a band: best case, nominal and
            worst case, and the selector says which one is written into the part.
          * **From a datasheet parameter**: P = (Tj - T_reference) / parameter for a known junction temperature (a sense diode) with psi_JB, psi_JT or theta.
@@ -31,7 +31,7 @@ DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band cover
           ("Drawn from the real fabrication files", "cad", "Drawn from the fabrication files: small doubt (20 % of the 'estimated' amplitudes by default)."),
           ("Drawn by hand from the layout", "hand", "Drawn by hand from the layout: half the 'estimated' amplitudes by default."),
           ("Estimated (no layout at hand)", "estimated", "The board is a guess (copper, planes or vias unknown): the full amplitudes of Preferences - Power Calculator."))
-POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
+POINTS = (("Board temperature 0.5 to 1.5 mm around the part (ring)", "ring",
            "The mean board temperature 0.5 to 1.5 mm outside the package (an approximation of the board point of ψJB, which TI SPRA953 defines at the centre package pin), e.g. a thermocouple on the copper. No datasheet value needed."),
           ("Hottest board point under the part", "max",
            "The hottest copper under the footprint. No datasheet value needed."),

@@ -1125,8 +1125,9 @@ def _solve_computed_h(problem, name, o):
     if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
         # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
         # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
-        res.warnings.append(f"the bottom-face (turned down) Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
-                            "where the law of the face turned down has published support; the coefficient is an extrapolation")
+        res.warnings.append(f"the bottom-face Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
+                            "where the law of that face has published support (the 1/5 law of a face turned down; a board colder than the air uses the face-up law there); "
+                            "the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
