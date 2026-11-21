@@ -80,7 +80,7 @@ jobs:
         shell: bash
         # Every build refuses to run if SECOND_CONTACT in packaging/build.py (the contact of the written offer) is ever emptied.
         # Every build puts the exact Qt and PySide source in packaging/dist/qt-source (Linux) for the release job: the release always carries it.
-        run: python packaging/build.py ${{ startsWith(github.ref, 'refs/tags/v') && '--release' || '' }}
+        run: python packaging/build.py --release
       - name: Remove the shipped libraries from the runner (Linux)
         if: runner.os == 'Linux'
         shell: bash

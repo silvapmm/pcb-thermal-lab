@@ -657,3 +657,51 @@ def test_packaging_readme_keeps_the_never_rules_and_states_the_glibc_requirement
         assert rule in text, rule
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "glibc 2.35" in readme and "Ubuntu 20.04" in readme and "run from source" in readme
+
+
+def test_build_step_always_enforces_the_checks_and_write_permission_stays_on_the_release_job():
+    """The 'Build the package' step has no tag condition and always passes --release (a trial must fail where a tag would); contents: write is only on the release job."""
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    step = workflow[workflow.index("- name: Build the package"):]
+    run = [line for line in step.splitlines() if line.strip().startswith("run:")][0]
+    assert run.strip() == "run: python packaging/build.py --release"
+    assert "startsWith" not in run
+    assert workflow.count("contents: write") == 1
+    assert workflow.index("contents: write") > workflow.index("release:")
+
+
+def test_qt_module_list_refuses_network_accepts_opengl_and_is_closed_under_needs(tmp_path):
+    """Network is not on the list (a release check names it); OpenGL is; every module an allowed one needs is allowed too."""
+    build = load("build")
+    assert "Network" not in build.ALLOWED_QT_MODULES and "OpenGL" in build.ALLOWED_QT_MODULES
+    (tmp_path / "Qt6Network.dll").write_text("x")
+    (tmp_path / "libQt6OpenGL.so.6").write_text("x")
+    with pytest.raises(SystemExit, match="Network"):
+        build.check_qt_modules(tmp_path, True)
+    assert build.check_qt_modules(tmp_path, False) == ["Network"]
+    (tmp_path / "Qt6Network.dll").unlink()
+    assert build.check_qt_modules(tmp_path, True) == []
+    for module, needs in build.QT_MODULE_NEEDS.items():
+        assert module in build.ALLOWED_QT_MODULES
+        assert set(needs) <= build.ALLOWED_QT_MODULES, module
+
+
+def test_unused_qt_network_files_are_dropped_by_the_spec_pattern():
+    """The pattern of the spec matches every QtNetwork entry of the three systems and nothing of the other modules."""
+    build = load("build")
+    for name in ("PySide6/Qt6Network.dll", "PySide6/Qt/lib/libQt6Network.so.6", "libQt6Network.so.6", "PySide6/Qt/lib/QtNetwork.framework/Versions/A/QtNetwork",
+                 "PySide6/Qt/lib/QtNetwork.framework", "QtNetwork"):
+        assert build.UNUSED_QT_LIBRARIES.search(name), name
+    for name in ("PySide6/Qt6Core.dll", "libQt6OpenGL.so.6", "PySide6/QtNetworkAuth.abi3.so", "QtCore.framework/QtCore"):
+        assert not build.UNUSED_QT_LIBRARIES.search(name), name
+
+
+def test_a_broken_symbolic_link_stops_the_build(tmp_path):
+    """check_symlinks fails on a link to a missing target and accepts a good one."""
+    build = load("build")
+    (tmp_path / "real.so").write_text("x")
+    (tmp_path / "good.so.6").symlink_to("real.so")
+    build.check_symlinks(tmp_path)
+    (tmp_path / "libQt6Network.so.6").symlink_to("PySide6/Qt/lib/libQt6Network.so.6")
+    with pytest.raises(SystemExit, match="libQt6Network.so.6"):
+        build.check_symlinks(tmp_path)

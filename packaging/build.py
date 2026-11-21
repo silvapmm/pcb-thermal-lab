@@ -78,12 +78,22 @@ FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisuali
 # plug-ins) and the Linux platform support (DBus, XcbQpa, Wayland client). Every other Qt module is either GPL-3-only or an add-on the program never imports, so a file of
 # one that is not on this list is reported (a release build stops); FORBIDDEN names the known GPL-3-only ones, this list catches the ones a new Qt version adds.
 ALLOWED_QT_MODULES = frozenset({"Core", "Gui", "Widgets", "Svg", "DBus", "XcbQpa", "WaylandClient", "WaylandEglClientHwIntegration", "WlShellIntegration",
-                                "EglFSDeviceIntegration", "EglFsKmsSupport", "EglFsKmsGbmSupport"})
+                                "EglFSDeviceIntegration", "EglFsKmsSupport", "EglFsKmsGbmSupport",
+                                # OpenGL (QtOpenGL): linked by the EGL platform plug-ins on Linux (eglfs, minimalegl, the Wayland graphics integrations). Licence read in
+                                # the qtbase 6.12.0 source (src/opengl/qopenglbuffer.cpp): SPDX "LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only";
+                                # https://doc.qt.io/qt-6/qtopengl-index.html (LGPL-3.0); in qtbase, so the attached source covers it
+                                "OpenGL"})
+# The allowed Qt modules that need another Qt module at run time (read with objdump -p, NEEDED, on the Linux package): the second must be on ALLOWED_QT_MODULES too,
+# or the list would allow a library while refusing what it cannot start without (tests/test_packaging.py checks it)
+QT_MODULE_NEEDS = {"EglFSDeviceIntegration": ("OpenGL",), "EglFsKmsSupport": ("OpenGL",), "WaylandEglClientHwIntegration": ("OpenGL",)}
 # A file that is a Qt module: libQt6Core.so.6, Qt6Core.dll, QtCore.abi3.so, QtCore.pyi, QtCore.framework/QtCore (macOS)
 QT_MODULE_FILE = re.compile(r"(?:lib)?Qt6?([A-Z][A-Za-z0-9]*?)(?:6)?(?:\.abi3)?(?:\.(?:so|dll|dylib|pyd|pyi|framework)(?:\.\d+)*)?")
 # Qt plug-ins the program never loads and that would bring a library with them: the VNC platform and the TUIO touch input (both link QtNetwork, and through it Kerberos
 # on Linux). Not forbidden (their source is attached), only left out; the spec drops them before the unreferenced libraries are pruned.
 UNUSED_PLUGINS = re.compile(r"(^|/)(libqvnc\.so|qvnc\.dll|libqvnc\.dylib|libqtuiotouchplugin\.(so|dylib)|qtuiotouchplugin\.dll)$", re.IGNORECASE)
+# QtNetwork: nothing in the program or in a kept plug-in links it (checked with otool -L, objdump -p and the DLL imports on the 2.9.0 trial packages); PyInstaller collected it only as a
+# dependency of the VNC and TUIO plug-ins dropped above, and on Linux left a dangling symlink. The spec drops every file of it, so the package ships no Qt module it does not use.
+UNUSED_QT_LIBRARIES = re.compile(r"(^|/)(Qt6Network\.dll|libQt6Network\.so(\.\d+)*|QtNetwork\.framework(/.*)?|QtNetwork)$")
 # Native libraries whose licence notice is in the package without a file of their own in packaging/licenses/_system (see uncovered_native_libraries):
 # the Qt wheel's (licenses/Qt, and ICU through SYSTEM_NOTICES), a Python wheel's vendored folder (numpy.libs, scipy.libs, pillow.libs, PIL/.dylibs: listed in the
 # wheel's own licence file), CPython itself and the libraries CPython's notices cover (libffi, expat, zlib, mpdec), and the Microsoft C/C++ run-time that the CPython
@@ -640,11 +650,32 @@ def unexpected_qt_modules(paths):
     return sorted(found)
 
 
+def broken_symlinks(folder):
+    """!
+    @brief The symbolic links of a package whose target does not exist (a library pruned while its link stayed).
+    @param folder The assembled package folder.
+    @return list of str, the relative paths (sorted).
+    """
+    return sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_symlink() and not p.exists())
+
+
+def check_symlinks(folder):
+    """!
+    @brief Stop a build (trial or release) whose package holds a broken symbolic link.
+    @param folder The assembled package folder.
+    @return None.
+    @throws SystemExit When a link points to nothing.
+    """
+    broken = broken_symlinks(folder)
+    if broken:
+        raise SystemExit("error: broken symbolic links in the package: " + ", ".join(broken))
+
+
 def check_qt_modules(folder, release):
     """!
-    @brief Stop a release build whose package holds a Qt module that is not on ALLOWED_QT_MODULES; a trial build only reports it.
+    @brief Stop a build whose package holds a Qt module that is not on ALLOWED_QT_MODULES (the workflow passes release=True in every build; a local build may report only).
     @param folder The assembled package folder.
-    @param release True for the build of a tag.
+    @param release True to stop, False to only print a warning.
     @return list of str, the unexpected modules.
     @throws SystemExit In a release build, when the list is not empty.
     """
@@ -819,6 +850,7 @@ def main(argv=None):
     folder, exe = assemble(built)
     check_shipped(folder)
     check_qt_modules(folder, args.release)
+    check_symlinks(folder)
     uncovered = check_notices(folder, args.release)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
