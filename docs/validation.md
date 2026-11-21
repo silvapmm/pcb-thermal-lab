@@ -2921,7 +2921,7 @@ Top-face surface peak minus column peak at 1 mm, in K (table 'Surface read-out' 
 
 Plate 50 x 50 x 10 mm, k 150 W/mK, h 400 W/m²K, four sources (10, 25, 20, 15 W); references: the independent 3D solver's column mean (0.5 mm, 8 sub-slabs) and the printed surface centroids (97.40 / 103.82 / 101.28 / 99.94 °C, Table 4). Tree 0fbabbec.
 
-paper (Table 4) centroid 97.40 / 103.82 / 101.28 / 99.94, mean 96.85 / 102.33 / 100.10 / 99.07 degC
+paper (Table 4) centroid 97.40 / 103.82 / 101.28 / 99.94, mean 96.85 / 102.33 / 100.10 / 99.07 °C
 
 #### Column read-out: centroid of each source minus the column mean of the independent 3D solver, K (S1 / S2 / S3 / S4)
 | model | 2 mm | 1 mm | 0.5 mm |
@@ -2949,8 +2949,8 @@ The FEM column read-out is within 0.09 K of the independent column mean at every
 
 Shortfall = paper minus model, as a share of the paper's rise above 25 °C (positive: the model is below the paper). Tree 0fbabbec.
 
-#### case 3, cross (100 x 100 x 10 mm, k 50, h 50), cell 1 mm; printed centroids 80.61 degC (the paper prints the surface)
-| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source) | seconds |
+#### case 3, cross (100 x 100 x 10 mm, k 50, h 50), cell 1 mm; printed centroids 80.61 °C (the paper prints the surface)
+| model | read-out | centroids °C | shortfall paper - model, % of the paper rise (first source) | seconds |
 | :-- | :-- | :-- | :-- | --: |
 | FEM | column | 79.70 | +1.6 | 8.2 |
 | FEM | surface | 80.61 | -0.0 | 8.2 |
@@ -2964,8 +2964,8 @@ Shortfall = paper minus model, as a share of the paper's rise above 25 °C (posi
 | Analytic | surface | 80.62 | -0.0 | 0.0 |
 | Lumped | column | 79.41 | +2.2 | 0.1 |
 
-#### case 2, baseplate (50 x 50 x 10 mm, k 150, h 400), cell 1 mm; printed centroids 97.40 / 103.82 / 101.28 / 99.94 degC (the paper prints the surface)
-| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+#### case 2, baseplate (50 x 50 x 10 mm, k 150, h 400), cell 1 mm; printed centroids 97.40 / 103.82 / 101.28 / 99.94 °C (the paper prints the surface)
+| model | read-out | centroids °C | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
 | :-- | :-- | :-- | :-- | --: |
 | FEM | column | 95.38 / 99.24 / 97.55 / 97.06 | +2.8 / +5.8 / +4.9 / +3.8 | 1.3 |
 | FEM | surface | 97.40 / 103.82 / 101.28 / 99.94 | +0.0 / +0.0 / +0.0 / +0.0 | 1.3 |
@@ -2979,8 +2979,8 @@ Shortfall = paper minus model, as a share of the paper's rise above 25 °C (posi
 | Analytic | surface | 97.92 / 105.12 / 102.32 / 100.72 | -0.7 / -1.6 / -1.4 / -1.0 | 0.0 |
 | Lumped | column | 95.65 / 98.40 / 97.29 / 96.76 | +2.4 / +6.9 / +5.2 / +4.2 | 0.0 |
 
-#### case 1a, thick plate (300 x 300 x 10 mm, k 10, h 10), cell 2.5 mm; printed centroids 84.97 / 108.43 degC (the paper prints the surface)
-| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+#### case 1a, thick plate (300 x 300 x 10 mm, k 10, h 10), cell 2.5 mm; printed centroids 84.97 / 108.43 °C (the paper prints the surface)
+| model | read-out | centroids °C | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
 | :-- | :-- | :-- | :-- | --: |
 | FEM | column | 79.97 / 100.94 | +8.3 / +9.0 | 13.6 |
 | FEM | surface | 85.24 / 108.83 | -0.4 / -0.5 | 13.6 |
@@ -2994,8 +2994,8 @@ Shortfall = paper minus model, as a share of the paper's rise above 25 °C (posi
 | Analytic | surface | 85.52 / 109.25 | -0.9 / -1.0 | 0.1 |
 | Lumped | column | 78.39 / 95.56 | +11.0 / +15.4 | 0.2 |
 
-#### case 1b, spreader (2 mm, k 350, on 10 mm, k 10), cell 2.5 mm; printed centroids 56.55 / 59.94 degC (the paper prints the surface)
-| model | read-out | centroids degC | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
+#### case 1b, spreader (2 mm, k 350, on 10 mm, k 10), cell 2.5 mm; printed centroids 56.55 / 59.94 °C (the paper prints the surface)
+| model | read-out | centroids °C | shortfall paper - model, % of the paper rise (first source ... all) | seconds |
 | :-- | :-- | :-- | :-- | --: |
 | FEM | column | 56.51 / 59.89 | +0.1 / +0.1 | 51.4 |
 | FEM | surface | 56.54 / 59.94 | +0.0 / +0.0 | 51.4 |
@@ -3091,15 +3091,15 @@ The independent finite elements were not re-run (their numbers are quoted); the 
 
 ## 57. The FEM transient: the published case and the board-level comparison
 
-One published transient case is reproduced: the NAFEMS one-dimensional transient T3 (a bar with a sinusoidal end temperature), 36.60 degC at 0.08 m after 32 s. The NAFEMS publication itself was not obtained; the case and the value were read in four open verification documents that quote it (MOOSE, Abaqus, Altair OptiStruct, Wolfram), two of them with their input files. The exact value is 36.6031 degC (an eigenfunction series and, independently, the method of lines); the program's FEM gives 36.6106 with 100 elements and 36.6050 with 200, and on the five- and ten-element meshes of MOOSE it equals MOOSE's published results to 1e-5 K. The FVM, FDM and Analytic transients cannot hold a prescribed time-varying temperature and did not run T3; on a plate with held edges and a power step they meet an exact series (Analytic 0.01 %, FVM and FDM 0.1 to 0.4 % with fine steps). No published transient case with a heat source on a board could be opened.
+One published transient case is reproduced: the NAFEMS one-dimensional transient T3 (a bar with a sinusoidal end temperature), 36.60 °C at 0.08 m after 32 s. The NAFEMS publication itself was not obtained; the case and the value were read in four open verification documents that quote it (MOOSE, Abaqus, Altair OptiStruct, Wolfram), two of them with their input files. The exact value is 36.6031 °C (an eigenfunction series and, independently, the method of lines); the program's FEM gives 36.6106 with 100 elements and 36.6050 with 200, and on the five- and ten-element meshes of MOOSE it equals MOOSE's published results to 1e-5 K. The FVM, FDM and Analytic transients cannot hold a prescribed time-varying temperature and did not run T3; on a plate with held edges and a power step they meet an exact series (Analytic 0.01 %, FVM and FDM 0.1 to 0.4 % with fine steps). No published transient case with a heat source on a board could be opened.
 
 **Tree and references.** The program of `development` 7886ac42 (this branch changes no file of `pcbthermal/`; numbers printed on its commits 0fbabbec and later), the default stepping of 2.9.0 in every model (Crank-Nicolson with the Rannacher start, the first logarithmic stage in quarter steps; for the FEM the same). References: the exact series and the method of lines (`research/transient-published-case/lib/exact1d.py`, importing nothing from the program), the published mesh results of MOOSE and Abaqus, the exact Robin double series of a plate, the closed form of a flux step on a semi-infinite solid (Lienhard, eqn 5.56, [Lienhard-AHTT]), and the program's own FEM with finer steps or a finer gap mesh. The independent finite-element transient tool of `research/independent-fem-extensions` is quoted, not re-run. Scripts: `releases/2.9.0/fem-campaign/scripts/study_compare_t0.py` to `t3.py`; the tables are in `releases/2.9.0/fem-campaign/tables/`. The 3D solid has no time simulation; the Lumped and Analytic have none with a metal block or an outline.
 
 ### 57.0 The published case NAFEMS T3 and the plate with held edges (tree 0fbabbec)
 
 ```
-A1 exact series (4000 / 20000 terms): 36.603116 / 36.603116 degC; published 36.6; difference +0.0031
-A1b method of lines (Radau, tol 1e-11), 200 / 400 intervals: 36.601236 / 36.602646; Richardson limit 36.603116 degC (independent of the series)
+A1 exact series (4000 / 20000 terms): 36.603116 / 36.603116 °C; published 36.6; difference +0.0031
+A1b method of lines (Radau, tol 1e-11), 200 / 400 intervals: 36.601236 / 36.602646; Richardson limit 36.603116 °C (independent of the series)
 A2 FEM, Crank-Nicolson, 3200 steps, elements -> T(0.08, 32), error vs exact
    n=  20    36.7969   +0.1938
    n=  50    36.6333   +0.0302
@@ -3253,8 +3253,8 @@ Normalised response z(t)/plateau, model minus FEM, in points of the plateau:
 The regime is forced to 'resolved' (so that the average-or-resolve decision does not hide the wave) and the program's default profile options are used. Reference: the FEM of the same cell with 8 times the steps per period (it removes the stepping error, not the model error). The read-out is the hottest column cell under the part in the last window; the curve difference is the largest difference over the window at the model's own sample times, as a share of the reference swing (the reference interpolated periodically).
 
 #### plate, slow wave: period 100 s, duty 0.5, 6 windows, cell 2 mm; part peak = hottest column cell under the part, last window
-reference: FEM, 160 steps per period (8 times the rule), peak 244.6496 degC, swing 157.5945 K, 1.9 s
-| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+reference: FEM, 160 steps per period (8 times the rule), peak 244.6496 °C, swing 157.5945 K, 1.9 s
+| model | steps per period | peak °C | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
 | FEM | 20 | 244.1413 | -0.5082 | 156.5621 | -0.7 | 6.5 | 0.5 |
 | FEM, 12 elements across a gap | 20 | 244.1508 | -0.4987 | 156.5786 | -0.6 | 6.4 | 1.4 |
@@ -3264,8 +3264,8 @@ reference: FEM, 160 steps per period (8 times the rule), peak 244.6496 degC, swi
 | Analytic | 20 | 246.7801 | +2.1306 | 159.4234 | +1.2 | 1.6 | 0.1 |
 
 #### plate, fast wave (20 Hz): period 0.05 s, duty 0.3, 12 windows, cell 1 mm; part peak = hottest column cell under the part, last window
-reference: FEM, 272 steps per period (8 times the rule), peak 113.1603 degC, swing 5.0083 K, 36.0 s
-| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+reference: FEM, 272 steps per period (8 times the rule), peak 113.1603 °C, swing 5.0083 K, 36.0 s
+| model | steps per period | peak °C | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
 | FEM | 34 | 113.0688 | -0.0915 | 4.8977 | -2.2 | 0.4 | 6.5 |
 | FEM, 12 elements across a gap | 34 | 113.8361 | +0.6758 | 6.0734 | +21.3 | 15.0 | 16.3 |
@@ -3276,8 +3276,8 @@ reference: FEM, 272 steps per period (8 times the rule), peak 113.1603 degC, swi
 independent reference of this wave (axisymmetric stack solver of research/fast-wave-oscillation README 1, quoted, not re-run): swing 6.3 K (the program's closed form of the decision 6.35 K against 6.37 K)
 
 #### example board, first part on a 20 s wave: period 20 s, duty 0.5, 4 windows, cell 2 mm; part peak = hottest column cell under the part, last window
-reference: FEM, 160 steps per period (8 times the rule), peak 72.6325 degC, swing 29.9381 K, 38.9 s
-| model | steps per period | peak degC | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
+reference: FEM, 160 steps per period (8 times the rule), peak 72.6325 °C, swing 29.9381 K, 38.9 s
+| model | steps per period | peak °C | (K vs ref) | swing K | (% of ref swing) | curve: largest difference, % of ref swing | run s |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
 | FEM | 20 | 72.4734 | -0.1591 | 29.6278 | -1.0 | 7.7 | 21.0 |
 | FVM | 20 | 74.2066 | +1.5741 | 31.3553 | +4.7 | 12.4 | 0.2 |
