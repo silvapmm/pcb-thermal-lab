@@ -46,15 +46,17 @@ def read(path):
 def legacy_surface_rows(r):
     """!
     @brief The rows that the writer of every earlier version made for a result (the first seven columns), re-implemented here as the reference of the compatibility test.
+    @details The positions are the sample positions of the field (cell centres; the grid points of a node field, the FDM, since the correction of its export positions).
     @param r SteadyResult with the surface arrays.
     @return List of lists of the seven values.
     """
     out = []
+    off = 0.0 if r.grid == "nodes" else 0.5
     for face, tag, layer in ((0, "top", 0), (1, "bottom", r.T.shape[0] - 1)):
         for i in range(r.T.shape[1]):
             for j in range(r.T.shape[2]):
                 if np.isfinite(r.arrays["T_surface"][face, i, j]):
-                    out.append([tag, round((j + 0.5) * r.dx * 1000, 4), round((i + 0.5) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
+                    out.append([tag, round((j + off) * r.dx * 1000, 4), round((i + off) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
                                 round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j])])
     return out
 
