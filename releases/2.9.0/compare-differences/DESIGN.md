@@ -4,7 +4,7 @@ Item `compare-differences` of `releases/2.9.0/PLAN.md` (2.2, 2.3, 3) and decisio
 
 ## 1. Where the control goes
 In the **Temperature** page, in the row of the Model box: `Model [LPTN]  [x] Difference to [FVM]`. A checkbox and a combo, both reachable by Tab and the arrow keys, with an accessible name and a tooltip. Not in the Display popover: the popover holds the map style shared by Temperature, Gradients, Animation and the board (`DisplayState`); a difference is a choice of data of one page, like the Model box, so it sits beside it. While the view is on, Hotspot contour, Auto range and the two limits (temperatures in degC) are hidden, because the scale of a difference is symmetric and set by the data.
-Below the row: ~~a note of two lines~~ replaced by section 8 (no permanent note; one conditional caveat line).
+Below the row: ~~a note of two lines~~ replaced by section 8 (one verdict-first line; caveats in the figure title).
 
 ## 2. Data flow (`pcbthermal/compare.py`, no GUI imports)
 `PlotTab.redraw` -> `_difference()` -> `compare.difference_field(model_result, reference_result, problem, readout, layer, face)` -> `plots.draw_difference(fig, diff, problem)`.
@@ -20,7 +20,7 @@ The result has the grid of the **reference**. If the two fields have the same sh
 `RdBu_r`, limits plus and minus the largest absolute difference (white is zero, red the model above the reference, blue below); the red ring marks the largest difference, the blue ring the smallest. Title in three lines: `<model> - <reference>, <read-out>` (K), `max ... K at (x, y) mm`, `min ... K at (x, y) mm   RMS ... K`. Colour-bar label `<model> - <reference> (K)`. The toolbar's copy and save act on this figure. Theme-safe: figure colours come from the theme as for every map; the diverging map is white-centred on both. The histogram was not made: the maximum, minimum, where, mean, RMS and the peak difference carry the numbers (the brief allowed either).
 
 ## 5. The confidence tips and their evidence
-Section 8 moves these tips out of the view into the user guide and the manual; the table and its evidence below stay valid as the content of that chapter.
+Section 8 shortens how these tips are shown (one verdict line, the rest in its tooltip) and copies them into the user guide and the manual; the table and its evidence below stay valid.
 
 Only statements with a documented measurement; a pair without one says nothing. Every number is the hottest point of the 20 scenarios of `docs/validation.md` section 2 (share of the rise above ambient, the FVM as reference), and `tests/test_compare.py` recomputes each range from that table, so a number the table does not hold fails.
 
