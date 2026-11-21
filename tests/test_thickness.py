@@ -92,9 +92,10 @@ def test_thin_copper_has_the_surface_tiny_but_present_and_nothing_else_moves(mon
         d = float(m.extras["t_max_surface_top"]) - float(np.nanmax(m.T[0]))
         print(f"thin copper {k}: surface top minus column max = {d * 1e3:.3f} mK")
         assert 0 < d < 0.02                                                    # tiny, but present (and positive on a heated face)
-    for k in ("lumped", "analytic"):
-        assert "T_surface" not in on.results[k].arrays
+    assert "T_surface" not in on.results["lumped"].arrays                       # the Lumped has no face flux: no surface, only a text
+    assert "T_surface" in on.results["analytic"].arrays                         # the Analytic reads one from its own field (rule F)
     monkeypatch.setattr(thickness, "attach", lambda *a, **k: None)
+    monkeypatch.setattr(thickness, "attach_field", lambda *a, **k: None)
     off = simulate(copy.deepcopy(p), SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
     for k in on.results:
         assert on.results[k].t_max == off.results[k].t_max and np.array_equal(on.results[k].T, off.results[k].T)
@@ -197,11 +198,13 @@ def test_the_cost_of_the_surface_is_milliseconds():
     assert m.arrays["T_surface"].nbytes < 1e6
 
 
-def test_lumped_analytic_and_the_solid_offer_no_surface():
+def test_only_the_lumped_offers_no_surface_the_analytic_and_the_solid_have_one():
     p = plate()
     r = simulate(p, SolverOptions(models=("lumped", "analytic", "solid3d"), cell_mm=2.0))
-    for m in r.results.values():
-        assert "T_surface" not in m.arrays
+    assert "T_surface" not in r.results["lumped"].arrays
+    for k in ("analytic", "solid3d"):
+        m = r.results[k]
+        assert m.arrays["T_surface"].shape[0] == 2 and np.isfinite(m.arrays["T_surface"][0]).any(), k
 
 
 def test_nothing_that_decides_a_number_reads_the_surface(monkeypatch):

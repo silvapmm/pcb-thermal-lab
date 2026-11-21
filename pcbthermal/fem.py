@@ -247,9 +247,9 @@ def solve_steady(problem, cell_mm: float = 2.0, memory_fraction: Optional[float]
         lab = f.get("label") or "other"
         lab = "blocks" if lab.startswith("block") else lab
         if lab == "source":
-            continue                                               # the face flux of a part on a thick outer layer: heat in, not a path out
+            continue                                               # the face flux of a part on an outer layer: heat in, not a path out
         paths[lab] = paths.get(lab, 0.0) + _film_heat(model, th, f)
-    power_in = float(sol["q_in"])                                  # the volumetric sources plus the face fluxes of the parts on a thick outer layer
+    power_in = float(sol["q_in"])                                  # the volumetric sources plus the face fluxes of the parts on an outer layer
     out = SteadyResult(
         model="fem", ambient=amb, power_in=power_in, t_max=float(T[:, inside].max()), t_min=float(T[:, inside].min()),
         t_mean=float((T * cover[None]).sum() / (L * cover.sum())), layer_mean=layer_mean,
@@ -670,7 +670,7 @@ def _steady_field(stepper, rhs):
         raise ValueError(f"the finite-element solve did not converge ({exc}); a coarser cell or a smaller refinement gives a smaller system") from exc
 
 
-def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=1.0, log_times=True, gap_elements: int = 6, refine: float = 2.0,
+def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=0.5, log_times=True, gap_elements: int = 6, refine: float = 2.0,
                     memory_fraction: Optional[float] = None, cancel: Optional[Callable[[], bool]] = None, progress: Optional[Callable[[str, float], None]] = None,
                     force_solver: Optional[str] = None) -> TransientResult:
     """!
@@ -684,7 +684,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     @param n_out Output frames excluding t = 0 (the logarithmic grid rounds it up to a multiple of 10).
     @param cell_mm Plan cell in mm (the coarse element and the grid of the frames).
     @param substeps Implicit steps between two frames (linear mode only).
-    @param theta_scheme 1.0 implicit Euler (as the FVM default), 0.5 Crank-Nicolson with the Rannacher start.
+    @param theta_scheme 0.5 Crank-Nicolson with the Rannacher start (the default since 2.9.0, as `fvm.DEFAULT_THETA`: halving every step moves its frames by at most 0.15 %, docs/theory.md 4b), 1.0 implicit Euler.
     @param log_times True for the doubling step in ten stages.
     @param gap_elements Elements across every dielectric gap, count (2 to 24).
     @param refine Ratio of the cell to the fine element near the heaters and via patches (1 to 4).

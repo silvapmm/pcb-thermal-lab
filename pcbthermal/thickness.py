@@ -36,12 +36,17 @@
          THE THIN-COPPER TRAP: on a patterned board the surface under a source over ABSENT copper includes the rise across the bare laminate (the face term of laminate.face_terms):
          the surface can be 1 to 4 K above the node maximum on 35 um copper although the copper term is milli-kelvin. The part rows already include that term in their 'column' maximum,
          so there surface minus column is the copper term only. Never gate anything on the board-level difference (surface_excess_k).
-         NOT modelled: the Lumped and the Analytic (no per-cell face flux and no face term today), the 3D solid (its own branch), blocks, the transient and the profiles (steady state only).
+         OTHER MODELS (feature/surface-readout-models; the same arrays, every reader shows them): `attach_field` gives the ANALYTIC an estimate (rule F: the parabola fed with the fluxes of its own field and the
+         uniform conductances of its sheet; vias, blocks and heatsinks are not in them and a part over absent copper has no bare-laminate term), `attach_solid` gives the 3D SOLID a value computed from its copper
+         slabs above 105 um (outer slab plus the half slab above it) and an estimate from its own links on one slab; `surface_kind` and `surface_how` word which one a result holds, `lumped_surface_note` is the
+         text of the LUMPED, which has no face flux and so no surface: only the through-thickness term as a measured upper value, not a guarantee.
+         NOT modelled: the Lumped (a text only), the face of a metal block, the transient and the profiles (steady state only).
 """
 
 import numpy as np
 
-from .geometry import points_in_polygon, polygon_area
+from . import copper
+from .geometry import coverage_fraction, points_in_polygon, polygon_area
 
 UPPER_RATIO = 0.5                          # t / a above this: the parabola overshoots, the surface is an upper estimate (research README 4.2)
 
@@ -68,6 +73,60 @@ def column_bound(t, k, q):
     @return Temperature difference in K.
     """
     return np.abs(q) * t / (2.0 * k)
+
+
+def surface_kind(res, face=0):
+    """!
+    @brief How the surface of a result was obtained: "resolved" (the finite elements), "computed" (the 3D solid with its copper cut into slabs) or "estimate" (a parabola, rules F and S, the FVM and FDM).
+    @param res SteadyResult that holds arrays["T_surface"].
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @return str, one of "resolved", "computed", "estimate".
+    """
+    if res.model == "fem":
+        return "resolved"
+    if res.model == "solid3d" and res.extras.get("surface_copper_slabs_top" if face == 0 else "surface_copper_slabs_bottom", 1.0) >= 2.0:
+        return "computed"
+    return "estimate"
+
+
+def surface_how(res, flagged=False, face=0):
+    """!
+    @brief The words that say how a surface number was made, for the report, the Layer box and the tables (every number names its read-out).
+    @param res SteadyResult that holds arrays["T_surface"].
+    @param flagged True when the face is flagged as an upper estimate (t/a above UPPER_RATIO under a part).
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @return str, without brackets: "resolved by the finite elements", "computed from the copper slabs of the 3D solid ...", "estimate from the Analytic model's own field ...", or "estimate"
+            with ", upper side: a source is narrow against the plate (t/a above 0.5, a the narrow side)" when flagged.
+    """
+    kind = surface_kind(res, face)
+    if kind == "resolved":
+        return "resolved by the finite elements"
+    if kind == "computed":
+        return "computed from the copper slabs of the 3D solid (the half slab above the outer one), not a parabola"
+    upper = ", upper side: a source is narrow against the plate (t/a above 0.5, a the narrow side)" if flagged else ""
+    if res.model == "analytic":
+        # A face with a part over absent copper is not read out at all (surface_na_reason), so a face that has a value needs no word about the bare laminate
+        return ("estimate from this model's own field and its uniform conductances (vias, blocks and heatsinks are not in the heat fluxes)" + upper)
+    if res.model == "solid3d":
+        return "estimate from the links of the 3D solid (one copper slab)" + upper
+    return "estimate" + upper
+
+
+def lumped_surface_note(bound_k, layer):
+    """!
+    @brief The text of the Lumped model for a part on an outer face of a copper layer: no surface temperature, only the through-thickness term as a measured upper value.
+    @details The Lumped has no heat flux through the face of the copper and no per-cell field of its own, so it gives NO surface temperature (an absolute upper bound measured 8 of 22 parts
+             too low against the FEM, up to 50 K, because of its column: outlines and copper windows; research/surface-readout-models 4.3 and its review). The term it can quote is the
+             through-thickness term q t / (2 k) of the part's footprint flux: above the true term on 8 of 8 plates and case 2, above the FVM term on 23 of 23 harness parts and the FEM
+             term on 21 of 22 (not over absent copper). It was MEASURED, not proved, and it is a bound on the term (surface minus column), never on the temperature.
+    @param bound_k The term q'' t / (2 k) in K (`column_bound`).
+    @param layer 1-based layer of the part.
+    @return str.
+    """
+    return (f"The Lumped model has no heat flux through the face of the copper, so it gives no surface temperature. The surface of this part (layer {layer}) is above the column value by at most "
+            f"about {bound_k:.3g} K (q'' t / 2k, the through-thickness term of the copper only: a measured upper value on plates and boards, not a guarantee). It can fail for heat that "
+            "arrives from a hotter neighbouring part, for a part over absent copper (the bare laminate adds its own term) and for thick plates, and it does not contain this model's own error. "
+            "Use the FVM, the FDM, the FEM or the 3D solid for the surface.")
 
 
 def _couplings_out(net, theta, layer):
@@ -269,6 +328,179 @@ def _finish(res, problem, d, fill, faces, area):
     for face, key in ((0, "t_max_surface_top"), (1, "t_max_surface_bottom")):
         if np.isfinite(surf[face]).any():
             res.extras[key] = float(np.nanmax(surf[face]))
+
+
+def source_flux(problem, ny, nx, dx, dy):
+    """!
+    @brief Power density of the parts on every layer, spread over the cells of their footprint (a model without a face flux of its own: the Analytic).
+    @param problem The Problem.
+    @param ny Cells along y.
+    @param nx Cells along x.
+    @param dx Cell width in m.
+    @param dy Cell height in m.
+    @return Array (layers, ny, nx) in W/m2: the power of each part over its footprint area, on every cell the footprint touches (partly covered cells too: the same cells as the part rows).
+    """
+    q = np.zeros((problem.board.layers, ny, nx))
+    for h in problem.heaters:
+        area = polygon_area(h.polygon)
+        if area > 0 and h.power > 0:
+            q[h.layer] += h.power / area * (coverage_fraction(h.polygon, nx, ny, dx, dy, 4) > 0)
+    return q
+
+
+def attach_field(res, problem, sheet):
+    """!
+    @brief Add the surface arrays of the outer copper faces to the result of the ANALYTIC model (rule F, "field": an estimate from the model's own field and its uniform conductances).
+    @details The Analytic has a temperature per layer and per cell (the column) but no per-cell face flux, so the fluxes of the parabola are read from that field and from the UNIFORM
+             conductances of its sheet (`analytic._effective_sheet`: the film of each outer face in series with the half copper, `h_top_eff` and `h_bottom_eff`, and the laminate conductance per
+             gap `g_diel`):
+                 top face of layer 1:      q_top = q_src - h_top_eff theta_1,       q_bot = -g_diel[0] (theta_1 - theta_2)     (a one-layer board: q_bot = -h_bottom_eff theta_1)
+                 bottom face of layer L:   q_top = g_diel[L-2] (theta_{L-1} - theta_L),   q_bot = q_src - h_bottom_eff theta_L
+             then `offsets` and the arrays of `_finish`, with no partial cells (fill None: the sheet is uniform). Vias, blocks and heatsinks are NOT in these fluxes (a via carries heat the
+             uniform gap conductance does not see) and a part over a copper window has no bare-laminate face term (the column of the Analytic does not hold one either): the face of such a part
+             is left n/a (NaN, `surface_na_reason`, review); elsewhere the surface is column + copper term, never better than the column, and it is always an ESTIMATE (the flag is the same t/a test as the FVM's). Measured against the FVM parabola:
+             within 0.02 K on the six one-layer plates and case 2, 0.056 K on the via plate; 0.4 to 2.6 mK on the harness boards (research/surface-readout-models 4.1 to 4.4).
+             Nothing that exists is changed: only arrays["T_surface"], ["T_surface_mean"], ["T_surface_flag"] and the extras are added, and no reader of a decided number looks at them.
+    @param res SteadyResult of the Analytic (T in degC, layers x ny x nx).
+    @param problem The Problem that was solved (after the one-layer series laminate).
+    @param sheet The dict returned by analytic._effective_sheet for it.
+    """
+    b = problem.board
+    L = b.layers
+    ny, nx = res.T.shape[1:]
+    th = np.asarray(res.T, dtype=float) - b.ambient
+    q = source_flux(problem, ny, nx, res.dx, res.dy)
+    t_cu = np.asarray(b.copper_thickness, dtype=float)
+    k = b.materials.k_copper
+    g = np.asarray(sheet["g_diel"], dtype=float)
+    ht, hb = sheet["h_top_eff"], sheet["h_bottom_eff"]
+    if L == 1:
+        q_top, q_bot = q[0] - ht * th[0], -hb * th[0]
+        d_top, d_bot = offsets(t_cu[0], k, q_top, q_bot)
+        faces = [(0, 0), (1, 0)]
+    else:
+        d_top, _ = offsets(t_cu[0], k, q[0] - ht * th[0], -g[0] * (th[0] - th[1]))
+        _, d_bot = offsets(t_cu[L - 1], k, g[L - 2] * (th[L - 2] - th[L - 1]), q[L - 1] - hb * th[L - 1])
+        faces = [(0, 0), (1, L - 1)]
+    _finish(res, problem, {0: d_top, 1: d_bot}, None, faces, np.ones((ny, nx)))
+    res.extras["surface_rule_field"] = 1.0                                       # Marks the estimate of rule F for the readers that word it
+    # A part over absent copper (a window, a pad edge): the face term of the bare laminate (laminate.face_terms, which the FVM, the FDM and the 3D solid add) is not in this model's
+    # column and so not in this surface; the sheet smears the copper of the layer into one uniform fill. Measured: a 6 x 6 mm, 2 W part over a 10 x 10 mm window of the top copper of
+    # a 60 x 40 mm board reads 109.6 degC in the Analytic against 287.3 in the FVM, the surface 1.8 mK above the column in both senses of the word (checked on the feature branch)
+    # Review: a surface 2 mK above a column 178 K below the FVM is not a number to show beside the FVM's surface, so the face of such a part is NOT read out (NaN, no extras
+    # key: the Summary, the part table and the map say n/a) and `surface_na_reason` words why; the column and the copper-coverage warning of the model stay as they are
+    fill = copper.problem_fill(problem, nx, ny, res.dx, res.dy, 4)
+    for h in problem.heaters:
+        if h.power > 0 and (h.layer == 0 or h.layer == L - 1):
+            cov = coverage_fraction(h.polygon, nx, ny, res.dx, res.dy, 4) > 0
+            if cov.any() and float(fill[h.layer][cov].min()) < 1.0 - 1e-6:
+                res.extras["surface_part_over_bare_laminate"] = 1.0
+                faces_bare = [0] if L == 1 else [0 if h.layer == 0 else 1]
+                for face in faces_bare:
+                    res.extras["surface_bare_" + ("top" if face == 0 else "bottom")] = 1.0
+                    res.arrays["T_surface"][face] = np.nan
+                    res.arrays["T_surface_mean"][face] = np.nan
+                    res.arrays["T_surface_flag"][face] = False
+                    res.extras.pop("t_max_surface_top" if face == 0 else "t_max_surface_bottom", None)
+    if "surface_part_over_bare_laminate" in res.extras:
+        left = [float(np.nanmax(np.abs(res.arrays["T_surface"][f] - res.T[ly]))) for f, ly in faces if np.isfinite(res.arrays["T_surface"][f]).any()]
+        res.extras["surface_excess_k"] = max(left) if left else 0.0
+
+
+def surface_na_reason(res, face):
+    """!
+    @brief Why a model that has the surface arrays gives no surface on one outer face (the text of the n/a), or None when the face has a value or no reason is known.
+    @param res SteadyResult.
+    @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
+    @return str (a sentence without its final period) or None.
+    """
+    if res.model == "analytic" and res.extras.get("surface_bare_" + ("top" if face == 0 else "bottom")):
+        return ("A part on this face sits over absent copper (a window or a pad edge); the Analytic model spreads the copper into a uniform sheet and has no "
+                "bare-laminate term, so its column there can be far from the FVM (see its copper-coverage warning) and a surface built on it is not shown. "
+                "Use the FVM, the FDM, the FEM or the 3D solid for the surface")
+    return None
+
+
+def attach_solid(res, net, theta_all):
+    """!
+    @brief Add the surface arrays of the outer copper faces to the result of the 3D SOLID (rule S, "solid links", and the half slab of a copper layer cut into several slabs).
+    @details The solid has every conductance of the board in its matrix, so the heat that crosses each face of the outer copper slab is read from its own links: for the slab s of the face,
+                 entering through the face   q_face = Q_s - (g_film + g_heatsink) theta_s + sum over the neighbour slabs on the face side of g (theta_c - theta_s)   (a block above or below)
+                 entering through the other  q_in   = sum over the neighbour slabs on the other side of g (theta_c - theta_s)
+             (the sideways links of the slab and the heat lost at its edge are not face fluxes; Q_s counts on the face the part sits on, so on a one-layer board of one slab the
+             source is in q_in of the bottom face, the copper-to-laminate interface, as in the FVM). The face is then read in one of two ways, by the number n of slabs through the copper of the layer
+             (solid3d.copper_slab_count: one up to 105 um, ceil(t / 70 um) above, at most 8):
+             * n = 1 (every board of 35 to 105 um of copper): the slab IS the node of the layer, so the face is the parabola of `offsets` fed with q_face and q_in, the same rule as the FVM
+               and the FDM (one-layer plates: the FVM parabola to 1 mK; research/surface-readout-models 4.5); an ESTIMATE, flagged like theirs by t/a;
+             * n >= 2: the outer slab is a resolved node a half slab below the face, the heat of a part enters it as a source and flows down, so the face is that node plus the half slab
+               above it, q_face dz / (2 k) with dz = t / n: face minus column mean = theta_s + q_face dz / (2 k) - mean of the slabs. Computed from the slabs (8 slabs: -0.00 to +0.13 K of the
+               independent 3D solver on the eight plates, 4 slabs +0.01 to +0.73 K), not a parabola; no estimate flag. A thick OUTER layer is the only one cut (an inner layer has no face).
+             Over absent copper the laminate face term and the partly filled cells are those of `_finish` (the arrays face_peak and face_mean that the solid already holds), k is the copper's
+             as in the FVM. Nothing that exists is changed: the arrays and extras are added and the column read-outs (mean of the slabs) stay the headline.
+    @param res SteadyResult of the solid (T = column mean of every layer, in degC).
+    @param net The solved solid3d.Solid (K, Q, g, slabs, copper_slabs, fill, area_b, nx, ny).
+    @param theta_all Rise of every slab above the ambient, shape (slabs, ny, nx), in K.
+    """
+    problem = net.problem
+    b = problem.board
+    L = b.layers
+    ny, nx, ns = net.ny, net.nx, net.ns
+    n = ny * nx
+    k = b.materials.k_copper
+    area = np.where(net.area_b > 0, net.area_b, 1.0)
+    theta = theta_all.reshape(ns, n)
+    K = net.K.tocsr()
+    Q = net.Q.reshape(ns, n)
+    g_top = (net.g["top"] + net.g["heatsinks"]).reshape(ns, n)
+    g_bottom = (net.g["bottom"] + net.g["heatsinks"]).reshape(ns, n)
+
+    def links(s):
+        """!
+        @brief Heat entering slab s through its links to the slabs above and to the slabs below (W per cell).
+        @param s Index of the slab.
+        @return Tuple (from_above, from_below), arrays (n,).
+        """
+        sub = K[s * n:(s + 1) * n].tocoo()
+        cl = sub.col // n
+        out = []
+        for sel in (cl < s, cl > s):
+            g = -sub.data[sel]
+            heat = g * (theta[cl[sel], sub.col[sel] - cl[sel] * n] - theta[s][sub.row[sel]])
+            out.append(np.bincount(sub.row[sel], weights=heat, minlength=n))
+        return out[0], out[1]
+
+    d, faces = {}, []
+    for face in (0, 1):
+        layer = 0 if face == 0 else L - 1
+        cs = net.copper_slabs[layer]
+        s = cs[0] if face == 0 else cs[-1]
+        up, down = links(s)
+        # Heat entering the slab through its top and its bottom face: the links above and below, the film of the board face it carries, and the heat of the parts, which
+        # enters the face they sit on (layer 1 and a one-layer board: top; the last layer: bottom). Both fluxes of the SAME slab are needed: on a one-layer board of one
+        # slab the bottom face of the copper is the other face of the slab the part heats (review: the source was dropped there, the bottom term read a quarter of the FVM's)
+        q_top_in = up - (g_top[s] * theta[s] if s == net.board_slab[0] else 0.0)
+        q_bot_in = down - (g_bottom[s] * theta[s] if s == net.last_board else 0.0)
+        if layer == 0:
+            q_top_in = q_top_in + Q[s]
+        else:
+            q_bot_in = q_bot_in + Q[s]
+        q_face, q_in = (q_top_in, q_bot_in) if face == 0 else (q_bot_in, q_top_in)
+        mean = theta_all[cs].mean(axis=0)
+        if len(cs) > 1:
+            dz = float(b.copper_thickness[layer]) / len(cs)
+            top = theta_all[s] + (q_face.reshape(ny, nx) / area) * dz / (2.0 * k)
+            d[face] = top - mean
+        else:
+            q_t, q_b = (q_face, q_in) if face == 0 else (q_in, q_face)
+            d_top, d_bot = offsets(float(b.copper_thickness[layer]), k, q_t.reshape(ny, nx) / area, q_b.reshape(ny, nx) / area)
+            d[face] = d_top if face == 0 else d_bot
+        res.extras["surface_copper_slabs_top" if face == 0 else "surface_copper_slabs_bottom"] = float(len(cs))
+        faces.append((face, layer))
+    _finish(res, problem, d, net.fill, faces, net.area_b)
+    # A face read from several slabs is computed, not a parabola: the t/a overshoot of the estimate does not apply, so it carries no upper flag (research 4.5)
+    for face, layer in faces:
+        if len(net.copper_slabs[layer]) > 1:
+            res.arrays["T_surface_flag"][face] = False
 
 
 def attach(res, net, theta, cell, problem):

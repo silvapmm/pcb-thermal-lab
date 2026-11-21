@@ -70,7 +70,7 @@ def test_one_definition_feeds_the_window_the_text_and_the_markdown(sim):
 
 def test_the_surface_column_is_the_top_face_peak_or_n_a(sim):
     """!
-    @brief Tmax (surface) is the top-face peak of the FVM and the FDM and n/a for the Lumped and the Analytic; it is left out when no model has one.
+    @brief Tmax (surface) is the top-face peak of every model that has one (FVM, FDM, Analytic, 3D solid, FEM) and n/a for the Lumped; it is left out when no model has one.
     @param sim Simulation fixture.
     """
     rows = {r["model"]: r for r in sim.table()}
@@ -78,7 +78,7 @@ def test_the_surface_column_is_the_top_face_peak_or_n_a(sim):
     cols, cells, _ = sim.summary_grid(lambda k: k)          # the keys, to look the rows up
     i = [c.key for c in cols].index("t_max_surface_c")
     by = {r[0]: r[i] for r in cells}
-    assert by["lumped"] == "n/a" and by["analytic"] == "n/a" and by["fvm"] != "n/a"
+    assert by["lumped"] == "n/a" and by["analytic"] != "n/a" and by["fvm"] != "n/a"
     only = simulate(example_board(), SolverOptions(models=("lumped",), cell_mm=2.0))
     assert "t_max_surface_c" not in [c.key for c in only.summary_columns()] and "surface" not in only.to_text()
 

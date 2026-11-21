@@ -34,6 +34,17 @@ def _plain(width=12.0, height=8.0, layers=2):
     return p
 
 
+def _power_loaded(mesh, powers):
+    """!
+    @brief The power the mesh carries into the model, in W: the unit loads of the heaters (volumetric source or face flux, `fem.heater_loads`) times their powers (a part on an outer copper layer is a face flux since 2.9.0).
+    @param mesh FemMesh.
+    @param powers Power of each heater in W.
+    @return float.
+    """
+    from pcbthermal import fem
+    return float((fem.heater_loads(mesh).sum(axis=0) * np.asarray(powers)).sum())
+
+
 def _volumes(mesh):
     """!
     @brief Element volumes of a mesh by the quadrature of the model.
@@ -149,7 +160,7 @@ def test_a_slanted_heater_has_its_exact_area_in_the_source():
     mesh_area = float((femmesh._poly_share(m.plan, tri) * m.plan.area).sum())
     d1, d2 = tri[1] - tri[0], tri[2] - tri[0]
     assert mesh_area == pytest.approx(0.5 * abs(d1[0] * d2[1] - d1[1] * d2[0]), rel=1e-9)
-    assert float((m.model.q * _volumes(m)).sum()) == pytest.approx(3.0, rel=1e-12)
+    assert _power_loaded(m, [3.0]) == pytest.approx(3.0, rel=1e-12)
 
 
 def test_element_volumes_sum_to_the_board_volume():
@@ -392,7 +403,7 @@ def test_a_part_outside_the_board_is_warned_and_does_not_crash():
     p.add_heater(1, 2.0, rect=(30, 30, 31, 31))
     m = femmesh.build(p, 2.0)
     assert any("no area on the board" in w for w in m.warnings)
-    assert float((m.model.q * _volumes(m)).sum()) == pytest.approx(3.0, rel=1e-12)
+    assert _power_loaded(m, [1.0, 2.0]) == pytest.approx(3.0, rel=1e-12)
 
 
 def test_end_to_end_the_mesh_solves_and_conserves_energy():

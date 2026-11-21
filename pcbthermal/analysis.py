@@ -11,7 +11,8 @@ where needed, the Problem that produced it.
 import numpy as np
 from scipy import ndimage
 
-from .geometry import BOARD_SAMPLES, exact_coverage, part_weights, points_in_polygon, polygon_centroid
+from . import thickness
+from .geometry import BOARD_SAMPLES, exact_coverage, part_weights, points_in_polygon, polygon_area, polygon_centroid
 
 
 def _require_field(result):
@@ -148,7 +149,7 @@ def surface_stats(result, polygon, layer, outline=None):
     @brief Surface read-out under a part: the hottest and the mean temperature of the outer face of its layer, and whether the estimate is an upper one.
     @details Beside the column read-out of _footprint_stats, never instead of it: nothing that decides a number (Tj, margin, power limit, top path, power coefficient, Power
              Calculator, calibration) reads these. Only a part on the first layer (top face) or the last (bottom face) has one, and only when the result holds arrays["T_surface"]
-             (thickness.attach: every steady FVM and FDM result, no threshold).
+             (thickness.attach, attach_field, attach_solid: every steady FVM, FDM, Analytic and 3D solid result, no threshold; the FEM fills it itself).
     @param result A SteadyResult with a field.
     @param polygon Footprint vertices (n, 2) in metres.
     @param layer 0-based layer of the part.
@@ -282,7 +283,7 @@ def heater_stats(result, problem, powers=None):
     @param problem The Problem that owns the heaters.
     @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
     @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
-            t_junction_psi (None without psi_jb), power_top_w and power_board_w (split of the power between the top path and the board), r_top (K/W, 0 without a top path), tj_max (0 = none), margin_k (None without tj_max), p_limit_w (None without tj_max), theta, psi_jb, power_tc.
+            t_junction_psi (None without psi_jb), power_top_w and power_board_w (split of the power between the top path and the board), surface_bound_k (Lumped only: the through-thickness term q t / 2k of a part on an outer layer in K, a measured upper value for surface minus column; the Lumped has no surface), r_top (K/W, 0 without a top path), tj_max (0 = none), margin_k (None without tj_max), p_limit_w (None without tj_max), theta, psi_jb, power_tc.
     """
     _require_field(result)
     rows = []
@@ -310,6 +311,9 @@ def heater_stats(result, problem, powers=None):
         surf = surface_stats(result, h.polygon, h.layer, problem.board.outline)
         if surf is not None:
             row["t_max_surface"], row["t_mean_surface"], row["surface_upper"] = surf
+        elif result.model == "lumped" and power > 0 and h.layer in (0, problem.board.layers - 1) and polygon_area(h.polygon) > 0:
+            # The Lumped has no face flux and gives no surface; the through-thickness term q t / 2k of the footprint flux is the only thing it can say (thickness.lumped_surface_note)
+            row["surface_bound_k"] = float(thickness.column_bound(problem.board.copper_thickness[h.layer], problem.board.materials.k_copper, (power - p_top) / polygon_area(h.polygon)))
         rows.append(row)
     return rows
 

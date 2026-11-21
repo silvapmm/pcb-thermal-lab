@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, copper, fvm, laminate, memory
+from . import __version__, copper, fvm, laminate, memory, thickness
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -158,7 +158,7 @@ def cmd_run(args):
         # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
         if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
             bottom = r.extras.get("t_max_surface_bottom")
-            print(f"{model_label(name)} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+            print(f"{model_label(name)} surface ({thickness.surface_kind(r)}): top {r.extras['t_max_surface_top']:.1f} °C"
                   + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
     files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
@@ -393,7 +393,9 @@ def build_parser():
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
     hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
-                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1.00E9)")
+                    help="natural convection correlation of a vertical board: general (Churchill and Chu, whole Rayleigh range) or laminar (Ra < 1.00E9). Default: the form stored in the "
+                         "project file (general when the file has none, as in the board of the 'example' command; a new board of the window or of a Gerber "
+                         "import stores the form of the defaults, laminar since 2.5.0)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
@@ -416,7 +418,7 @@ def build_parser():
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
     t.add_argument("--model", choices=("fvm", "fdm", "fem", "analytic"), default="fvm", help="model of the transient (default: fvm; fem: finite elements, resolves the board thickness)")
-    t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
+    t.add_argument("--theta", type=float, default=0.5, help="0.5 = Crank-Nicolson (default, with the Rannacher start), 1 = implicit Euler (the default before 2.9.0)")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
 

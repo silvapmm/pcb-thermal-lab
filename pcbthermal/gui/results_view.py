@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QFrame, QHeaderView, QLabel, QPlainTextEdit, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import analysis, compare, defaults, plots
+from .. import analysis, compare, defaults, plots, thickness
 from . import layerchoice
 from . import theme as th
 from . import tips
@@ -443,12 +443,15 @@ class PlotTab(QWidget):
 
     def _on_canvas_resized(self, _event):
         """!
-        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them.
+        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them; otherwise fit
+               the title and the y label again to the new size (their wrapping is measured for one size, and a window shrunk after the draw cut them again).
         @param _event Matplotlib ResizeEvent (unused).
         """
         strip = plots.profile_has_strip(self.fig)
         if self._thumb_strip is not None and strip != self._thumb_strip and self.sim is not None:
             self.redraw()
+        elif self.sim is not None:
+            plots.refit_texts(self.fig)                 # The canvas paints right after this event (draw_idle of the Qt canvas)
 
     def map_view(self):
         """!
@@ -507,8 +510,8 @@ class PlotTab(QWidget):
     def surface_faces(self):
         """!
         @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
-        @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
-                 a view of the map, never a mode: no number of any table changes with it. Models without it (LPTN, Analytic, 3D solid) give no entry.
+        @details Present for the steady FVM, FDM, Analytic, 3D solid and FEM results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
+                 a view of the map, never a mode: no number of any table changes with it. The LPTN and a time simulation give no entry, nor a face the Analytic leaves n/a (a part over absent copper).
         @return Sorted list of 0 (top) and 1 (bottom).
         """
         if self.sim is None:
@@ -1290,7 +1293,7 @@ class ResultsView(QWidget):
         # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
         # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
         heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W",
-                 "Max °C\n(surface,\nresolved)" if ref.model == "fem" else "Max °C\n(surface,\nestimate)"]
+                 f"Max °C\n(surface,\n{thickness.surface_kind(ref)})" if "T_surface" in ref.arrays else "Max °C\n(surface)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         hi = self.heater_table.horizontalHeaderItem
@@ -1310,7 +1313,11 @@ class ResultsView(QWidget):
                 d = h["t_max_surface"] - h["t_max"]
                 face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
                 row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
-                how = "Resolved by the finite elements (not an estimate). " if ref.model == "fem" else ""
+                hf = 0 if h["layer"] == 1 else 1
+                kind = thickness.surface_kind(ref, hf)
+                how = ("Resolved by the finite elements (not an estimate). " if kind == "resolved" else
+                       "Computed from the copper slabs of the 3D solid (the half slab above the outer one; not an estimate by a parabola). " if kind == "computed" else
+                       thickness.surface_how(ref, h["surface_upper"], hf)[0].upper() + thickness.surface_how(ref, h["surface_upper"], hf)[1:] + ". ")
                 hot_node = ""
                 if ref.model == "fem" and "T_point" in ref.arrays:
                     # The hottest mesh node under the part, a read-out of its own (the element mean is what the maps and tables show)
@@ -1321,10 +1328,15 @@ class ResultsView(QWidget):
                              "Surface mean " + f"{h['t_mean_surface']:.3f} °C." + hot_node + " " + tips.SURFACE_TRAP_TIP)
             else:
                 row.append("n/a")
-                if ref.model not in ("fvm", "fdm", "fem"):
-                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM and FEM only); the column is the only read-out.")
+                if "surface_bound_k" in h:
+                    notes.append(thickness.lumped_surface_note(h["surface_bound_k"], h["layer"]))
+                elif ref.model not in ("fvm", "fdm", "fem", "analytic", "solid3d"):
+                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM, Analytic, 3D solid and FEM only); the column is the only read-out.")
                 elif 1 < h["layer"] < n_layers:
                     notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
+                elif thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1):
+                    # The Analytic does not show a surface on a face with a part over absent copper (thickness.attach_field): say why
+                    notes.append("No surface value: " + thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1) + ".")
                 else:
                     notes.append("No surface value under this part.")
             rows.append(row)

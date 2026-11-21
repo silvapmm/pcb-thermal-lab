@@ -59,12 +59,12 @@ def test_a_one_dimensional_column_is_exact_and_the_film_is_the_plain_h():
     kz = b.gap_properties()[0][0]
     q = P / A
     ht, hb = b.h_top, b.h_bottom
-    # q_up leaves by the top face, q_dn = q - q_up by the bottom. Going down the temperature changes by dtheta = -(downward flux / k) dz, and the downward flux at depth z of
-    # the source slab is q z / t - q_up: theta_t = q_up / ht; theta_1 = theta_t + q_up t / k - q t / (2 k); then the gap and the bottom copper carry q_dn:
-    # q_dn / hb = theta_1 - q_dn (d / kz + t / k)  =>  q_up = q (B + t / (2 k)) / (B + C),  B = 1 / hb + d / kz + t / k,  C = 1 / ht + t / k
+    # The part enters through the top face of the copper (a face flux, any thickness: 2.9.0; before it was a volumetric source in the 35 um slab). q_up leaves by the top film
+    # straight from the face, q_dn = q - q_up goes down through the copper, the gap and the bottom copper to the bottom film:
+    # q_up / ht = q_dn (1 / hb + d / kz + 2 t / k)  =>  q_up = q B / (1 / ht + B),  B = 1 / hb + d / kz + 2 t / k
     k = m.k_copper
-    B, C = 1.0 / hb + d / kz + t / k, 1.0 / ht + t / k
-    q_up = q * (B + t / (2 * k)) / (B + C)
+    B = 1.0 / hb + d / kz + 2.0 * t / k
+    q_up = q * B / (1.0 / ht + B)
     q_dn = q - q_up
     th_top, th_bot = q_up / ht, q_dn / hb
     r = fem.solve_steady(p, cell_mm=5.0)
@@ -77,10 +77,11 @@ def test_a_one_dimensional_column_is_exact_and_the_film_is_the_plain_h():
 
 def test_the_surface_and_the_column_agree_on_thin_copper_and_the_point_is_the_hottest_node():
     r = fem.solve_steady(small(), cell_mm=2.0)
-    assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)           # 35 um copper: the two read-outs differ by micro-kelvin
+    assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)           # 35 um copper: the two read-outs differ by milli-kelvin (the 6 x 6 mm part: 0.76 mK, 2.9.0)
     assert r.extras["t_max_point"] >= r.t_max and r.extras["t_max_point"] >= r.extras["t_max_surface_top"] - 1e-9
-    lines = api.surface_report_lines(r)                                            # The surface is always reported now: two lines, resolved, a difference of zero to the digit
-    assert len(lines) == 2 and all("resolved by the finite elements" in l and "+0.000 K" in l for l in lines)
+    lines = api.surface_report_lines(r)                                            # The surface is always reported now: two lines, resolved; the top one carries the term of the part (+0.001 K), the bottom none
+    assert len(lines) == 2 and all("resolved by the finite elements" in l for l in lines)
+    assert "+0.001 K" in lines[0] and "+0.000 K" in lines[1]
     assert r.arrays["T_surface"].shape == (2,) + r.T.shape[1:] and not r.arrays["T_surface_flag"].any()
     assert r.t_max_location[0] == 0 and 0.0 < r.t_max_location[1] < 0.04
 
@@ -290,8 +291,9 @@ def test_a_one_layer_board_reads_the_copper_face_not_the_laminate_bottom():
     p.add_heater(1, 1.0, rect=(17, 12, 23, 18), name="U1")
     r = fem.solve_steady(p, cell_mm=2.0)
     assert r.extras["surface_excess_k"] < 0.01 * (r.t_max - r.ambient)
-    lines = api.surface_report_lines(r)                                            # always reported now (feature/surface-always-both), resolved, no difference to the column
-    assert len(lines) == 2 and all("resolved by the finite elements" in l and "0.000 K" in l for l in lines)
+    lines = api.surface_report_lines(r)                                            # always reported now (feature/surface-always-both), resolved; the part's face flux (2.9.0) puts the top face a milli-kelvin above the column mean and the bottom face a milli-kelvin below it
+    assert len(lines) == 2 and all("resolved by the finite elements" in l for l in lines)
+    assert "+0.001 K" in lines[0] and "-0.001 K" in lines[1]
     assert r.extras["t_max_surface_bottom"] == pytest.approx(r.t_max, abs=0.01)
     assert r.extras["bottom_face_mean"] < r.layer_mean[0] - 1.0                    # the laminate carries a drop of kelvins to the bottom face
     assert abs(r.balance_error) < 1e-9

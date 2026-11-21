@@ -249,7 +249,7 @@ example."*
 ![The main window with the example board, its areas numbered](images/manual_window_tour.png)
 
 *Figure 2. The main window with the 4-layer example board (File - Open example - Example 4-layer
-board) in the dark theme, heater U1 selected. The numbers match the list below.*
+board) in the light theme, heater U1 selected. The numbers match the list below.*
 
 1. **Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in
    the menu bar at the top of the screen.
@@ -654,13 +654,15 @@ A worked example with CSV tables (a motor driver cycle and a regulator start-up)
    heaters switched on at t = 0.
 2. Choose the **Model** (FVM, FDM, Analytic and, while it is ticked in the Models box, the FEM),
    the **Duration** (default 300 s) and the number of **Frames** (10 to 400, default 60).
-3. Choose the **Scheme** (**Implicit Euler (robust)** or **Crank-Nicolson (accurate)**) and the
-   **Spacing** of the frames (**Logarithmic time** or **Linear time**).
+3. Choose the **Scheme** (**Crank-Nicolson (accurate)**, the default, or **Implicit Euler
+   (robust)**; Euler reads the hottest cell 0.7 to 1.9 % low after the first seconds and its
+   first frame 12 to 17 % low on the example board, section 12.3) and the **Spacing** of the
+   frames (**Logarithmic time** or **Linear time**).
 4. Press **Compute**. When it is ready, press **Play**, drag the slider, change the **Speed**, or
    press **Export GIF…** to save the animation.
 
 The first seconds after a power step read too slowly in every layered model (section 12.3).
-Choose the FEM with Crank-Nicolson to read the first seconds.
+Choose the FEM, with Crank-Nicolson (the default), to read the first seconds.
 
 ### 4.12 Import a board from its Gerber files
 
@@ -746,7 +748,7 @@ The Summary page (Figure 3) has three parts.
 | :-- | :-- |
 | Model | The short name of the model. |
 | Tmax °C (column) | The hottest layer-mean value of any copper layer (for the LPTN, the peak of its ring network at the heater). |
-| Tmax °C (surface) | The hottest point of the top face of the copper: an estimate for the FVM and FDM, resolved for the FEM, n/a for the others (section 5.10). The column is left out when no model has it. |
+| Tmax °C (surface) | The hottest point of the top face of the copper: an estimate for the FVM, FDM and Analytic (and the 3D solid on one slab), computed for the 3D solid above 105 µm of copper, resolved for the FEM, n/a for the Lumped (section 5.10). The column is left out when no model has it. |
 | Tmean °C (all layers) | The mean over all copper layers, each layer counting equally. |
 | ΔT K | Tmax (column) minus the ambient. |
 | Rθ K/W | The rise of the hottest point divided by the total power: a board resistance, not a junction value. |
@@ -797,7 +799,9 @@ copper underlay; the contour step is picked by the program.*
 
 The temperature along a cut through the board, for every model that ran. Choose **Along x** or
 **Along y** and move the **Cut** slider; the title quotes the position of the row or column
-plotted. The **Cut overlay** box shows a small picture of the board with the cut line, inset in
+plotted (in two lines when the cut asked is not on a cell centre: the position, then
+the note "the cell centre nearest to ..."; in a narrow window the lines break further and
+the title and the axis labels stay inside the chart). The **Cut overlay** box shows a small picture of the board with the cut line, inset in
 the corner with the fewest curve points (Figure 15). The picture is part of the figure, so it is
 also in a saved PNG.
 
@@ -910,8 +914,13 @@ The program always computes and shows both, each with its name:
 
 - **Column** is what every table, the junction temperature, the margin, the power limit, the top
   path, the power coefficient and the Power Calculator use. Every map is titled *column mean*.
-- **Surface** is an estimate of the outer face (FVM, FDM) or a resolved value (FEM). It is a
-  *view*, never a mode: it changes nothing that is solved and nothing is saved in the project.
+- **Surface** is an estimate of the outer face (FVM, FDM, Analytic, the 3D solid on one slab), a
+  value computed from the copper slabs (the 3D solid above 105 µm of copper) or a resolved value
+  (FEM). It is a *view*, never a mode: it changes nothing that is solved and nothing is saved in
+  the project.
+  The FEM has one element through copper up to 105 µm, so on ordinary copper its small
+  difference between surface and column reads about a third low under a part a few
+  millimetres wide (milli-kelvin per watt); through a thick plate it is resolved.
 
 Where you find the surface:
 
@@ -926,8 +935,18 @@ Where you find the surface:
 On 35 µm copper the two differ by milli-kelvin and the difference is written out (for example
 +0.001 K). On a thick plate or a metal core it can be several kelvin. **If your result differs
 from a paper or a thermocouple that reports the surface, compare it with the surface number, not
-with the column.** The LPTN, the Analytic and the 3D solid show n/a; the Animation and Power
-profile pages show the column. The full explanation and its limits are in the user guide
+with the column.** The LPTN gives **no surface temperature** (it has no heat flux through the face
+of the copper): for a part on an outer face its Components cell and the report say that the
+surface is above the column value by at most about *q″t/2k*, a measured upper value for that
+term, **not a guarantee** (it can fail for heat from a hotter neighbouring part, a part over
+absent copper and thick plates, and it does not contain the model's own error). The Analytic
+reads its estimate from its own field and the uniform conductances of its sheet: vias, blocks
+and heatsinks are not in its heat fluxes, and it has no bare-laminate term under a part over a
+copper window, so on a face where a part sits over absent copper it shows no surface (n/a, the
+reason in the report and the tooltip). On a thick plate under a narrow part the 3D solid, which
+computes the face from its copper slabs, is the closer number; the FVM, FDM and Analytic parabola
+is then the upper estimate (10 mm aluminium plate: 13.5 K above the column against 17.1 K). The Animation and Power profile pages show
+the column; the surface of a time simulation is n/a in this version. The full explanation and its limits are in the user guide
 (*Surface temperature and column mean*) and in `docs/theory.md` 1.2c.
 
 ![The surface read-out of thick copper](images/results_surface.png)
@@ -1201,7 +1220,7 @@ user. The equations are in `docs/theory.md`; the measured errors in `docs/valida
 | Board outline | yes | yes | equivalent rectangle (warned) | equivalent rectangle (warned) | yes | sides parallel to the axes (slanted or curved refused) |
 | Metal blocks and fins | yes | yes | steady only | steady only | yes | yes |
 | Imported copper | read exactly (faces) | read exactly (faces) | cell average (too cool, warned) | cell average (too cool, warned) | cell fraction | element mean (warned) |
-| Surface read-out | estimate | estimate | n/a | n/a | n/a | resolved |
+| Surface read-out | estimate | estimate | n/a (a text only) | estimate | computed above 105 µm, estimate on one slab | resolved |
 | Memory checked | yes | yes | no | no | yes | yes |
 | Typical time (example board) | 0.1 to a few s | similar | about 10 ms | about 50 ms (with vias a few tenths) | 0.1 to 10 s | seconds |
 
@@ -1266,8 +1285,8 @@ are refused with the reason; the other models still answer.
 
 **FEM in time** (since 2.9.0): while ticked, the FEM also runs the animation (choose it in the
 Model box of the Animation page) and the power profiles, beside the other curves. With the
-default mesh it is the model to believe from about 0.3 s after a power step. Choose
-Crank-Nicolson to read the first seconds (with implicit Euler its first frames carry a few
+default mesh it is the model to believe from about 0.3 s after a power step. Keep
+Crank-Nicolson, the default, to read the first seconds (with implicit Euler its first frames carry a few
 percent of error). The FEM never decides the regime of a power profile and cannot run alone in
 the Power profile tab. A profile run predicted to take more than 10 minutes is refused before it
 starts.
@@ -1554,14 +1573,15 @@ Every command is `python -m pcbthermal <command>` with the Python of the environ
 | `--solver S` | FVM linear solver: `direct`, `cg`, `sor`. |
 | `--laminate-s-max-mm S`, `--laminate-n-max N` | The laminate sub-gaps (FVM and FDM). |
 | `--fem-gap-elements N`, `--fem-refine R` | The FEM mesh (2 to 24; 1 to 4). |
-| `--computed-h`, `--air-speed`, `--orientation`, `--natural-form`, `--emissivity`, `--h-multiplier` | Computed heat transfer (any of them switches to computed mode). |
+| `--computed-h`, `--air-speed`, `--orientation`, `--natural-form`, `--emissivity`, `--h-multiplier` | Computed heat transfer (any of them switches to computed mode). `--natural-form` is `general` or `laminar`; without it the form stored in the project file is used (`general` when the file has none, as in the board written by the `example` command; a new board of the window or of a Gerber import stores the form of the defaults, `laminar` since 2.5.0 unless changed in Preferences). |
 | `--profile HEATER=FILE.csv` | A power profile from a CSV file (heater name or `#number`; repeat for several heaters). |
 | `--steady-power` (average or peak), `--threshold-c`, `--duration` (stable, cycles or time), `--cycles`, `--time-s`, `--initial-c` | The settings of the time simulation of the power profiles (section 4.10). |
 
 ### 11.4 Options of transient and calibrate
 
 `transient`: `--t-end` (s), `--steps` (number of output times), `--model fvm|fdm|fem|analytic`,
-`--theta` (1 = implicit Euler, 0.5 = Crank-Nicolson), `--gif`.
+`--theta` (0.5 = Crank-Nicolson, the default since 2.9.0; 1 = implicit Euler, the default
+before), `--gif`.
 
 `calibrate`: `--measured` (°C, required), `--heater` (the heater whose footprint maximum was
 measured; default the board maximum), `--model fvm|lumped|analytic`, `--cell-mm`,
@@ -1631,6 +1651,14 @@ Every layered model rises too slowly in the first seconds after a power step (on
 board about 58 % too low at 0.3 s, 30 % at 1 s, 9 % at 3 s); later it agrees. Read the first
 seconds of a time result of these models as a lower estimate, or use the FEM in time
 (section 7.8).
+
+The time stepping has its own, smaller error. Before 2.9.0 the Animation tab and `transient`
+used implicit Euler: with 60 frames (40 on the command line) the hottest cell read 0.7 to
+1.9 % low after the first seconds, and the first frame, a single Euler step, read 12 to 17 %
+low on the example board. They now use **Crank-Nicolson** (first frames in quarter steps, the
+run opened by two half steps): the first frame is within 0.6 % and the hottest cell within
+0.13 % after the first seconds. Choose **Implicit Euler** (Scheme, or `--theta 1`) to get the
+old stepping.
 
 ### 12.4 Fast power waves
 
@@ -1743,7 +1771,7 @@ first line of every report, and `--version`.
 | Rθ | The rise of the hottest point divided by the total power, K/W: a board resistance. |
 | Reference model | The model the others are compared with: the FVM when it runs. |
 | Stack-up | The layers of the board from top to bottom: copper and dielectric thicknesses and materials. |
-| Surface (read-out) | The temperature of the outer face of the copper: an estimate (FVM, FDM) or resolved (FEM). |
+| Surface (read-out) | The temperature of the outer face of the copper: an estimate (FVM, FDM, Analytic, 3D solid on one slab), computed (3D solid above 105 µm) or resolved (FEM); the Lumped has none. |
 | θ junction-pad | Junction-to-pad resistance of a part, K/W, from its datasheet (not θJA). |
 | θSA | Sink-to-ambient resistance of a heatsink, K/W. |
 | Top path | The heat that leaves a part through the top of its package into a heatsink. |

@@ -650,6 +650,30 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     qtbot.waitUntil(lambda: win.sim is not None and not win.worker.isRunning(), timeout=240000)
 
 
+def test_animation_scheme_box_defaults_to_crank_nicolson_and_both_schemes_compute(win, qtbot):
+    """The Scheme box of the Animation tab offers Crank-Nicolson first and as the default (implicit Euler until 2.9.0); both schemes compute with the FVM and the FDM, the frames start
+    at the ambient, the peak rises at every frame, and the first frame of Crank-Nicolson is above that of implicit Euler (which reads low)."""
+    load(win, example_board())
+    anim = win.results.animation
+    assert anim.scheme.currentData() == 0.5 and [anim.scheme.itemData(i) for i in range(anim.scheme.count())] == [0.5, 1.0]
+    win.results.tabs.setCurrentWidget(anim)
+    peaks = {}
+    for model in ("fvm", "fdm"):
+        anim.model.setCurrentIndex(anim.model.findData(model))
+        for i in range(anim.scheme.count()):
+            anim.scheme.setCurrentIndex(i)
+            anim.t_end.setValue(60.0)
+            anim.frames.setValue(20)
+            anim.tr = None
+            anim.compute.click()
+            qtbot.waitUntil(lambda: anim.tr is not None, timeout=120000)
+            peaks[(model, anim.scheme.currentData())] = anim.tr.t_max.copy()
+            assert anim.tr.t_max[0] == pytest.approx(win.doc.problem.board.ambient) and np.all(np.diff(anim.tr.t_max) > 0.0)
+    for model in ("fvm", "fdm"):
+        cn, euler = peaks[(model, 0.5)], peaks[(model, 1.0)]
+        assert cn[1] > euler[1]                                         # the first frame of implicit Euler reads low (one step), the default does not
+
+
 def test_metal_block_in_the_application(win, qtbot):
     """A heatsink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
     load(win, example_block_board())
@@ -744,6 +768,45 @@ def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_no
     win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
     qtbot.wait(50)
     assert "column mean" in rv.temp.fig.axes[0].get_title()
+
+
+def test_surface_read_out_of_the_analytic_the_solid_and_the_lumped_text_in_the_application(win, qtbot):
+    """Analytic and 3D solid hold a surface (map entries, part-table column named by how it was made); the Lumped has none and its cell says why, with the bound on the term only."""
+    from pcbthermal.model import Materials
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
+    p.add_full_copper()
+    p.add_heater(1, 25.0, rect=(20, 20, 30, 30), name="S")
+    load(win, p)
+    for models, word in ((("analytic", "solid3d"), "estimate"), (("solid3d",), "computed"), (("lumped",), None)):
+        run(win, qtbot, models, cell=2.0)
+        rv = win.results
+        rv.tabs.setCurrentWidget(rv.temp)
+        head, cell = rv.heater_table.horizontalHeaderItem(9).text(), rv.heater_table.item(0, 9)
+        texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+        if word is None:
+            assert "Surface (top)" not in texts and cell.text() == "n/a"
+            assert "not a guarantee" in cell.toolTip() and "no surface temperature" in cell.toolTip()
+        else:
+            assert "Surface (top)" in texts and word in head and cell.text() != "n/a"
+            for m in models:
+                rv.temp.model.setCurrentIndex(rv.temp.model.findData(m))
+                for data in (200, 201, 0):
+                    win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))
+        walk_results(win, qtbot)
+    # Review: the Analytic under a part over a copper window shows no surface (n/a, the reason in the tooltip), the top face leaves the Layer box, the bottom stays
+    w = Problem.new(60.0, 40.0, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=None)
+    for rect in ((0, 0, 25, 40), (35, 0, 60, 40), (25, 0, 35, 15), (25, 25, 35, 40)):
+        w.add_zone(1, rect=rect, fill=1.0)
+    w.add_zone(2, rect=(0, 0, 60, 40), fill=1.0)
+    w.add_heater(1, 2.0, rect=(27, 17, 33, 23), name="U")
+    load(win, w)
+    run(win, qtbot, ("analytic",), cell=2.0)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    cell = rv.heater_table.item(0, 9)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert cell.text() == "n/a" and "absent copper" in cell.toolTip() and "Surface (top)" not in texts and "Surface (bottom)" in texts
+    walk_results(win, qtbot)
 
 
 def test_component_fields_in_the_application(win, qtbot):

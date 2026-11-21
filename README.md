@@ -3,7 +3,7 @@
 <img src="ico/png/pcb-board_128.png" alt="PCB Thermal Lab icon" width="96" align="right">
 
 [![Version](https://img.shields.io/badge/version-2.8.0-4f46e5)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-4384%20passed-2da44e)](tests)
+[![Tests](https://img.shields.io/badge/tests-4457%20passed-2da44e)](tests)
 ![Python](https://img.shields.io/badge/python-3.13-3776ab)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20(tested)%20%7C%20Windows%20%7C%20Linux%20(CI%20self--test)-555)
@@ -36,7 +36,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the LPTN and Analytic models read the copper only as the average of a cell, so the pads and narrow tracks of small parts are invisible to them, and they warn that they read too cool (on 42 parts of three imported boards 25 to 82 % and 17 to 77 % at a 0.5 mm cell; a sample, not a bound).
 - **Views of the result maps**: Current, Smooth and Terrain (relief with contour lines), the copper of the layer under the map with an adjustable opacity, and all layers in a 2 x 2 grid (display only). One **Layer** box in the main tool bar is the drawing layer, the layer of the map on the board and the layer of every Results map (Temperature adds All layers, All (2 x 2) and the metal block); the model name in the card of the map on the board opens a menu of the models.
 - **Display control** (display only): the **Map** button (key `T`) shows the temperature map on the board (a card with the model, the maximum and the minimum, and a ring on each point), and the **Display** button of the tool bar sets how every map is drawn: Underlay (nothing, the copper or the background image; only the entries valid for the project), Map opacity (default 70 %), View (Current, Smooth, Terrain), Contour every and Colour map. One choice for the Temperature and Gradients maps, the Animation and the board.
-- **Surface read-out beside the column mean (always)**: the outer-face temperature (an estimate) is always computed and always shown beside the layer mean for every steady FVM and FDM result, on any board and any copper thickness, with no threshold and no switch (on 35 um copper the difference is milli-kelvin and is written out in K and % of the rise); graphs and maps draw the column mean, the surface is one click away in the Layer box (Surface (top) and Surface (bottom), always listed); the part table has one surface column; surface files only on request (`run --surface-files`); Tj, margins and every table stay on the layer mean; the models without it say n/a. Explained in the user guide ('Surface temperature and column mean'), `docs/models.md` 4b.1 and 4b.2, `docs/theory.md` 1.2c and the decisions in `releases/2.8.0/fem-model/SURFACE_DECISIONS.md`; numbers in `docs/validation.md` 55.6.
+- **Surface read-out beside the column mean (always)**: the outer-face temperature (an estimate) is always computed and always shown beside the layer mean for every steady FVM, FDM, Analytic, 3D solid and FEM result (an estimate for the FVM, FDM, Analytic and the 3D solid on one slab, computed from the slabs for the 3D solid above 105 um, resolved for the FEM; the Lumped gives only a measured upper value for the through-thickness term, never a temperature), on any board and any copper thickness, with no threshold and no switch (on 35 um copper the difference is milli-kelvin and is written out in K and % of the rise); graphs and maps draw the column mean, the surface is one click away in the Layer box (Surface (top) and Surface (bottom), always listed); the part table has one surface column; surface files only on request (`run --surface-files`); Tj, margins and every table stay on the layer mean; the Lumped and the time simulation say n/a. Explained in the user guide ('Surface temperature and column mean'), `docs/models.md` 4b.1 and 4b.2, `docs/theory.md` 1.2c and the decisions in `releases/2.8.0/fem-model/SURFACE_DECISIONS.md`; numbers in `docs/validation.md` 55.6.
 - **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the LPTN zone model) is added to the Results summary.
 - **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
@@ -47,11 +47,11 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning with a severity dot and the label of its element at the end, and the first one opened](docs/images/editor_warnings.png)
 
-![The imported board in the dark theme](docs/images/editor_imported_dark.png)
+![The imported board in the editor (light theme)](docs/images/editor_imported.png)
 
-![Temperature of the imported board (FVM, dark theme)](docs/images/results_temperature_imported_dark.png)
+![Temperature of the imported board (FVM)](docs/images/results_temperature_imported.png)
 
-*The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
+*All screenshots are in the light theme (the dark theme is one View menu item away). The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
 
 ![Stack-up](docs/images/stackup.png)
 
