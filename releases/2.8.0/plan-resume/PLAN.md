@@ -94,9 +94,7 @@ Any feature in 2.8.0 must merge **before** the refreeze (one refreeze per versio
 
 Heavy items in the pass: `models-comparison` (`validation_study.py`, about 8 GB with the 3D solid), `solid3d-verification`, `memory-guard`, the two FEM folders (scratch environment), `gerber-real-boards`, `rotated-square-3d`. Folders whose Lumped numbers moved with the side images and the part read-out (component-heatsink, lumped-near-edge, published-cases-followup, paper-case-studies) are expected to shift; the shift is linked to `fix/lumped-edge-first-link` or `fix/lumped-part-readout`. Known before the pass: A44 (3 failing tests of `point-via-convergence`), the removed function read by `analytic-edge-and-transient/lib` (both fixed in R0-2 if done first).
 
-### 2.6 The Thermal Sources Atlas (F10)
-
-Documents only, light on the machine, but it takes reviewer slots (one reviewer per 10 to 15 sources, two at a time). Its gate in `research/ROADMAP.md` (audit, final review and the 2.8.0 fixes closed) is now met. Recommendation: it is **not** a release item; open `research/thermal-sources-atlas` after the final opinion (G-2) has freed the reviewer slots, with a pilot of about five sources run beside the documentation review, and the rest after the release. It may start earlier only with the extra OCR-reviewer slot if the maintainer extends that rule to it.
+### 2.6 Removed
 
 ## 3. Order in waves
 
@@ -109,7 +107,7 @@ Machine rule (`CLAUDE.md`, 'How the main session orchestrates'): heavy jobs in s
 | **T-texts** | the warning and document numbers that T-2, T-4 and T-5 move, on one text branch (no frozen number) | after T; alone, whole battery |
 | **F** (only with the maintainer's word) | the S features of 2.3 (capacity inventory, top-of-case read-out, solder fill) | in series with any text branch that shares `checks.py` or the guide; before the refreeze |
 | **G** | G-0 to G-9 of 2.4: reproduction pass (4 testers, light folders in parallel, heavy ones in series), final opinion, battery, doc review, then the maintainer's word, bump, refreeze, battery, main, tag, GitHub release | strictly in this order |
-| **L** (after 2.8.0) | A18, A30 sector well, A32/A40, A51, A2 P2, the reduced-model edge-laminate correction, B5, paint/erase mask, heater modes, block options, A47, the Atlas in full, G1 when the board exists | - |
+| **L** (after 2.8.0) | A18, A30 sector well, A32/A40, A51, A2 P2, the reduced-model edge-laminate correction, B5, paint/erase mask, heater modes, block options, A47, G1 when the board exists | - |
 
 If time is short, T-2, T-5 and T-6 are the ones that can slip to the reproduction pass as 'not re-run, stated'; T-1 and T-4 should not, because the documents quote their numbers as the main independent evidence.
 
@@ -133,5 +131,5 @@ If time is short, T-2, T-5 and T-6 are the ones that can slip to the reproductio
 4. **Papers to download**: the sources not in the library (`FINAL.md` 4.1); which of them have open copies to fetch, and whether he fetches the paywalled ones (the fin-channel originals block C3).
 5. **The three `tmp/*` branches**: `tmp/article-1319202` (1 commit only on it: a literature note, to be checked against the third-party text guard before anything of it is kept), `tmp/merge-280d` (3 commits only on it: merge resolutions; confirm their content is in `development`, then delete), `tmp/paper-notes-policy` (1 commit: the temporary study of paper notes; its answer feeds F10). Keep, fold or delete each.
 6. **`feature/via-star-coupling`** (no-go in the 2.6.0 review, unmerged, on `origin`): keep as the record unmerged, or merge with `--no-ff` as a record of a rejected design (the code would have to be reverted in the same merge).
-7. The decisions still open in `FINAL.md` 4.5: copper 385 or 398 W/mK (recommended: keep 385), the 10 / 15 / 10 W/m2K default films (keep), the policy 'independent reference first, superseded tables marked' (confirm), the reduced-model edge laminate as a stated limit in 2.8.0 with a research branch (confirm), and the Atlas timing of 2.6.
+7. The decisions still open in `FINAL.md` 4.5: copper 385 or 398 W/mK (recommended: keep 385), the 10 / 15 / 10 W/m2K default films (keep), the policy 'independent reference first, superseded tables marked' (confirm), the reduced-model edge laminate as a stated limit in 2.8.0 with a research branch (confirm).
 8. The real-screen checklist (about one hour of his time) before the release.

@@ -32,3 +32,11 @@ papers/
 # OCR tool: API keys and the papers library never enter the repository
 .ocr_keys
 *.key
+
+# The PDF of the user manual: built by tools/manual/build_manual_pdf.py and attached to the GitHub release, never committed
+docs/USER_MANUAL.pdf
+
+# Downloadable packages (packaging/build.py): its own environment and its outputs; the spec file of packaging/ IS versioned
+packaging/.venv-build/
+packaging/dist/
+packaging/build/

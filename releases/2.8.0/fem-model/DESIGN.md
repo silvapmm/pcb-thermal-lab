@@ -12,7 +12,7 @@ Every number below is either printed by a script of the repository (named with i
 4. **Name**: 'Finite elements (FEM), comparison', key `fem`, short name `FEM`.
 5. **Outlines in stage 1**: slanted and curved outlines are refused with the reason.
 6. **Compare additions** (difference table, difference map, trust hints): in 2.8.0 for every model.
-7. **Order of work**: the surface read-out of the through-thickness study (`research/through-thickness-readout/INTEGRATION.md`, branch `fix/thick-plate-surface-estimate`, size M) is implemented BEFORE the FEM model branch 4, so that the FEM uses the same vocabulary (column, surface, point; `arrays["T_surface"]`, `SolverOptions` `readout`, CLI `--readout`, the Layer entries 'Surface (top/bottom)'); the 3D solid copper slabs (`feature/solid3d-copper-slabs`, size S) follow, with the FEM slab rule.
+7. **Order of work**: the surface read-out is implemented BEFORE the FEM model branch 4, so that the FEM uses the same vocabulary; its final decisions are in `releases/2.8.0/fem-model/SURFACE_DECISIONS.md`. The 3D solid copper slabs (`feature/solid3d-copper-slabs`, size S) follow, with the FEM slab rule.
 8. **'Test everything and compare'**: a comparison campaign of every model against the FEM and the 3D solid, planned in `COMPARE_PLAN.md` (this folder), run after branches 4 and 8; validation sections 56 and 57 are reserved for it.
 
 ## Contents

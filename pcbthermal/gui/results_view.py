@@ -13,21 +13,23 @@ import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QPlainTextEdit, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
+                               QFrame, QHeaderView, QLabel, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from .. import analysis, plots
+from .. import analysis, compare, defaults, plots, thickness
 from . import layerchoice
 from . import theme as th
 from . import tips
+from .elided import ElidedLabel
 from .toolbar_icons import ThemedToolbar
 from .display import DisplayState
 from .flow import FlowLayout
 from .warning_box import WarningAccordion
 from ..api import SUMMARY_COLUMNS
 from ..numfmt import num, signed_fixed
+from ..results import model_full_label, model_label
 
 
 @contextlib.contextmanager
@@ -68,16 +70,17 @@ def _table(headers):
     @return QTableWidget.
     """
     t = QTableWidget(0, len(headers))
-    t.setToolTip("Values of the reference model; hover a column title for its meaning.")
+    t.setToolTip("Values of the reference model; hover a column title for its meaning.")   # _fill_components names the model once there is a run
     t.setHorizontalHeaderLabels(headers)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
-    # Columns as wide as their header or text (at least MIN_SECTION px), only the last one stretches; a narrow window gets a horizontal scroll bar, never a cut header
+    # Columns as wide as their header or text (at least MIN_SECTION px); a narrow window gets a horizontal scroll bar, never a cut header. No column stretches (review: the
+    # appended read-out columns, such as 'Max °C (surface)', took the whole spare width and looked like the main column of the table); the spare width stays empty on the right
     head = t.horizontalHeader()
     head.setMinimumSectionSize(MIN_SECTION)
     head.setSectionResizeMode(QHeaderView.ResizeToContents)
-    head.setStretchLastSection(True)
+    head.setStretchLastSection(False)
     t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     t.setAlternatingRowColors(True)
@@ -227,6 +230,22 @@ def redraw_pending(widget, redraw):
         redraw()
 
 
+class CollapseSafeCanvas(FigureCanvasQTAgg):
+    """!
+    @brief Matplotlib canvas that paints a blank chart, without the Matplotlib warning, while it is too small for its decorations.
+    @details A window dragged very small (or an offscreen test) leaves the constrained layout no room: the base canvas would warn at every paint. See `plots.draw_unless_collapsed`;
+             the chart comes back by itself at the next paint after the canvas grew. Used by every chart of the Results tabs (maps, gradient, profile, Models,
+             Components, power profile): measured in the review, each of them warned at a tiny canvas, and the Components chart already in a window of 900 x 600
+             (its pane is then about 20 px tall). At a size where the layout succeeds the paint is the base one, pixel for pixel.
+    """
+
+    def draw(self):
+        """!
+        @brief Paint the figure, blank when the layout has no room.
+        """
+        plots.draw_unless_collapsed(self.figure, super().draw)
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -234,6 +253,8 @@ class PlotTab(QWidget):
              Display popover of the main toolbar, so the temperature and gradient maps, the Animation and the board can never disagree. The tab keeps Model, Layer,
              Hotspot and the colour limits.
     """
+
+    CUT_SLIDER_MIN_PX = 100                             # Narrowest the Cut slider may be on a line shared with other controls; below it the slider gets a line of its own
 
     def __init__(self, kind, theme="dark", parent=None, display=None):
         """!
@@ -247,7 +268,7 @@ class PlotTab(QWidget):
         self.display = display if display is not None else DisplayState(self)
         self._updating = False
         self.fig = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas = CollapseSafeCanvas(self.fig)      # Blank instead of a Matplotlib warning at every paint while the canvas is too small
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = ThemedToolbar(self.canvas, self, self.theme)
         recolour_toolbar(self.toolbar, self.theme)
@@ -280,6 +301,32 @@ class PlotTab(QWidget):
         self.cut_overlay.setChecked(True)
         self.map_on = lambda: False                      # The main window says whether the Map button (T) is on
         self.model.setToolTip("Model whose result is drawn.")
+        # The Difference view (temperature maps only): the map of (Model - reference) in K, read with the same definition for both models
+        self.diff_on = QCheckBox("Difference to")
+        self.diff_on.setAccessibleName("Show the difference between the model and a reference model")
+        self.diff_ref = QComboBox()
+        self.diff_ref.setAccessibleName("Reference model of the difference")
+        # One line, the verdict first: is the gap between the hottest points usual for this pair (documented range)? The range, the scenarios, the cases outside and the
+        # evidence are in its tooltip; the caveats of the figure are in the figure title. Its width never sets the page width (ElidedLabel).
+        self.diff_note = ElidedLabel("", max_lines=1)
+        self.diff_note.setAccessibleName("Whether the difference of the hottest points is usual for this pair of models")
+        self.diff_row = self.diff_note
+        # Writes the statistics of the Difference on view (largest, smallest, mean, RMS, where, models, read-out, cell, verdict line) as a small CSV; shown with the view only
+        self.diff_export = QPushButton("Export statistics…")
+        self.diff_export.setAccessibleName("Export the statistics of the Difference view to a CSV file")
+        self.diff_export.setToolTip("Write the statistics of the Difference on view to a small CSV file: the largest and the smallest difference with their positions (mm), the mean and the "
+                                    "RMS (K), the difference of the hottest points, the two models, the read-out, the cell and the verdict line. One row, the units are in the header.")
+        self.diff_export.setVisible(False)
+        self._diff_last = None                          # (DifferenceField, cell in mm, Agreement or None) of the view on screen, what the export writes
+        self._ref_chosen = None                         # The reference the user picked (None: the default, `compare.default_reference`, follows the model shown)
+        self.diff_row.setVisible(False)
+        self._diff_tip = ("Draw the map of (Model minus the reference model) in K instead of the temperature: the same read-out for both models "
+                                "(the layer's column mean, or the surface when the toolbar Layer box shows one), a diverging scale centred on zero. "
+                                "Needs two or more models run. A difference between models is not always an error. The line below says whether the gap at the "
+                                "hottest point is usual for that pair (the user guide has the evidence).")
+        self.diff_on.setToolTip(self._diff_tip)
+        self.diff_ref.setToolTip("The model subtracted: the map shows Model minus this one. The FVM is the reference of the program; a model that has no field "
+                                 "or no value of the read-out shown is greyed out, with the reason as its tip.")
         self.equiv.setToolTip("LPTN and Analytic solve an outline board as a rectangle of the same area. Ticked: that rectangle as solved (dashed). "
                               "Unticked: the field stretched back onto the box (parts look larger).")
         self.vmin.setToolTip("Lowest temperature of the colour scale, °C (Auto range off).")
@@ -295,12 +342,16 @@ class PlotTab(QWidget):
             controls.addWidget(self.model)
             controls.addWidget(self.equiv)
             if kind == "temperature":
+                controls.addWidget(self.diff_on)
+                controls.addWidget(self.diff_ref)
+                controls.addWidget(self.diff_export)
                 controls.addWidget(self.hot)
                 controls.addWidget(self.auto)
                 controls.addWidget(self.vmin)
                 controls.addWidget(self.vmax)
         elif kind == "profile":
-            controls.addWidget(QLabel("Cut"))
+            self._cut_label = QLabel("Cut")
+            controls.addWidget(self._cut_label)
             controls.addWidget(self.axis)
             controls.addWidget(self.pos, 1)
             # The position text may be clipped in a very narrow centre area; its width must not set the minimum width of the Results page
@@ -314,10 +365,15 @@ class PlotTab(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(controls)
+        if kind == "temperature":
+            lay.addWidget(self.diff_row)
         self._controls = controls
         if kind == "profile":
+            self._controls3 = QHBoxLayout()             # Slider line, used only in a narrow tab (the slider then has the whole width); placed before the overlay line
+            lay.addLayout(self._controls3)
             self._controls2 = QHBoxLayout()             # Second line of the profile controls, used only when the first does not hold the Cut overlay box
             lay.addLayout(self._controls2)
+            self._cut_mode = None
         lay.addWidget(self.toolbar)
         lay.addWidget(self.canvas, 1)
 
@@ -325,8 +381,10 @@ class PlotTab(QWidget):
             w.currentIndexChanged.connect(self.redraw)
         if kind in ("temperature", "gradient", "profile"):
             self.display.changed.connect(lambda _what: redraw_when_shown(self, self.redraw))     # A change of the shared display choice draws the map again
-        for w in (self.hot, self.auto, self.equiv, self.cut_overlay):
+        for w in (self.hot, self.auto, self.equiv, self.cut_overlay, self.diff_on):
             w.toggled.connect(self.redraw)
+        self.diff_ref.currentIndexChanged.connect(self._on_reference_changed)
+        self.diff_export.clicked.connect(lambda: self.export_difference_statistics())
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
@@ -334,10 +392,12 @@ class PlotTab(QWidget):
             # The cut picture is an inset over the curves or a strip above them by the width of the canvas, so a resize that crosses that width draws the figure again
             self._thumb_strip = None
             self.canvas.mpl_connect("resize_event", self._on_canvas_resized)
+        elif kind == "temperature":
+            self.canvas.mpl_connect("resize_event", self._on_canvas_resized)      # The title of the Difference figure is wrapped for one width: fit it again
 
     def resizeEvent(self, e):
         """!
-        @brief Put the Cut overlay box of the Profiles tab on the first control line when the line holds it at its natural width, on a second line otherwise.
+        @brief Lay out the control lines of the Profiles tab for the new width (`_place_cut_overlay`: one, two or three lines).
         @param e QResizeEvent.
         """
         super().resizeEvent(e)
@@ -346,34 +406,63 @@ class PlotTab(QWidget):
 
     def _place_cut_overlay(self, width):
         """!
-        @brief Move the Cut overlay box between the first control line of the Profiles tab and a second line, by the width of the tab.
+        @brief Lay out the control lines of the Profiles tab by the width of the tab: all on one line, the Cut overlay box on a line of its own, or the
+               slider and its position text on a line of their own as well (a slider squeezed to its handle cannot be used).
         @param width Width of the tab in pixels.
         """
         m = self.layout().contentsMargins()
         row = self._controls
-        # Natural width of the first line with the box: every widget at its size hint (the slider at its minimum), plus the spacing
-        widgets = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget() is not None]
-        widgets += [] if self.cut_overlay in widgets else [self.cut_overlay]
-        need = sum(w.minimumSizeHint().width() if w is self.pos else w.sizeHint().width() for w in widgets if not w.isHidden() or w is self.cut_overlay)
-        need += row.spacing() * len(widgets) + m.left() + m.right()
-        inline = row.indexOf(self.cut_overlay) >= 0
-        if width < need and inline:
-            row.removeWidget(self.cut_overlay)
+        sp = row.spacing()
+        # The position text is measured at a wide value, not at its current text: the text is empty before a run and changes with every move of the slider,
+        # and a threshold that moved with it would put the slider on another line while it is dragged (the layout is chosen again at the next resize only)
+        label_w = max(self.pos_label.sizeHint().width(), self.pos_label.minimumWidth(),
+                      self.pos_label.fontMetrics().horizontalAdvance("y = 888.8 mm") + 2 * self.pos_label.margin())
+        # Natural width of the line without the slider and the box (every widget at its size hint), plus the spacing and the margins
+        base = self._cut_label.sizeHint().width() + self.axis.sizeHint().width() + label_w + m.left() + m.right() + 3 * sp
+        # Mid: Cut, direction, slider, text, with no stretch after them, so the slider takes all the free width
+        mid = base + self.CUT_SLIDER_MIN_PX
+        # Wide (the line of a wide window, kept as it was): the slider shares the free width with the stretch after the box, about half each, so it needs twice
+        wide = base + self.cut_overlay.sizeHint().width() + 2 * sp + 2 * self.CUT_SLIDER_MIN_PX
+        mode = "wide" if width >= wide else "mid" if width >= mid else "narrow"
+        if mode == getattr(self, "_cut_mode", None):
+            return
+        self._cut_mode = mode
+        for lay in (row, self._controls2, self._controls3):
+            while lay.count():
+                lay.takeAt(0)                                                   # The widgets stay children of the tab; they are placed again below
+        row.addWidget(self._cut_label)
+        row.addWidget(self.axis)
+        if mode == "narrow":
+            row.addStretch(1)
+            self._controls3.addWidget(self.pos, 1)
+            self._controls3.addWidget(self.pos_label)
             self._controls2.addWidget(self.cut_overlay)
             self._controls2.addStretch(1)
-        elif width >= need and not inline:
-            while self._controls2.count():
-                self._controls2.takeAt(0)
-            row.insertWidget(row.indexOf(self.pos_label) + 1, self.cut_overlay)
+            return
+        row.addWidget(self.pos, 1)
+        row.addWidget(self.pos_label)
+        if mode == "wide":
+            row.addWidget(self.cut_overlay)
+            row.addStretch(1)
+        else:
+            self._controls2.addWidget(self.cut_overlay)
+            self._controls2.addStretch(1)
 
     def _on_canvas_resized(self, _event):
         """!
-        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them.
+        @brief On the Temperature page fit the title of the Difference figure again to the new size. On the Profiles page draw the figure again when the canvas crossed the width between the inset picture over the curves and the strip above them; otherwise fit
+               the title and the y label again to the new size (their wrapping is measured for one size, and a window shrunk after the draw cut them again).
         @param _event Matplotlib ResizeEvent (unused).
         """
+        if self.kind != "profile":
+            if self.sim is not None:
+                plots.refit_texts(self.fig)             # The Difference figure's title (any other map has nothing to fit: a no-op)
+            return
         strip = plots.profile_has_strip(self.fig)
         if self._thumb_strip is not None and strip != self._thumb_strip and self.sim is not None:
             self.redraw()
+        elif self.sim is not None:
+            plots.refit_texts(self.fig)                 # The canvas paints right after this event (draw_idle of the Qt canvas)
 
     def map_view(self):
         """!
@@ -399,6 +488,7 @@ class PlotTab(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
+        self._diff_last = None                          # A new run: the statistics of the Difference of the old one are not exportable (the redraw sets them again)
         self.display.clear_cache()                      # The copper pictures belong to the problem of the simulation
         self._updating = True
         have = [k for k, r in sim.results.items() if r.T is not None]
@@ -406,6 +496,11 @@ class PlotTab(QWidget):
         for k in have:
             self.model.addItem(tips.model_label(k), k)        # The name of the Simulation panel, the key as data
         self.model.setCurrentIndex(max(self.model.findData("fvm"), 0))
+        self.diff_ref.clear()
+        for k, r in sim.results.items():                # Every model that ran, with or without a field: the ones that cannot be used are greyed out with the reason
+            self.diff_ref.addItem(tips.model_label(k), k)
+        self._ref_chosen = None                         # A new simulation: no choice of the user yet
+        self.diff_ref.setCurrentIndex(max(self.diff_ref.findData(compare.default_reference(sim.results, self.model.currentData()) or ""), 0))
         ref = sim.reference
         if self.kind == "temperature":
             self.vmin.setValue(ref.ambient)
@@ -428,8 +523,8 @@ class PlotTab(QWidget):
     def surface_faces(self):
         """!
         @brief Faces of the outer copper whose surface read-out the result holds (entries 'Surface (top)' and 'Surface (bottom)' of the toolbar Layer box in Temperature).
-        @details Always present for the FVM and FDM steady results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
-                 a view of the map, never a mode: no number of any table changes with it. Models without it (LPTN, Analytic, 3D solid) give no entry.
+        @details Present for the steady FVM, FDM, Analytic, 3D solid and FEM results (no thickness or size threshold; thin copper gives a milli-kelvin difference that the map title states);
+                 a view of the map, never a mode: no number of any table changes with it. The LPTN and a time simulation give no entry, nor a face the Analytic leaves n/a (a part over absent copper).
         @return Sorted list of 0 (top) and 1 (bottom).
         """
         if self.sim is None:
@@ -501,6 +596,142 @@ class PlotTab(QWidget):
         vmax = None if self.auto.isChecked() else self.vmax.value()
         return r.T[layer], r.dx, r.dy, self.display.cmap, vmin, vmax
 
+    def _difference_request(self):
+        """!
+        @brief What the Difference view would compare for the current toolbar Layer choice.
+        @return Tuple (readout, layer, face, why): "column" with the layer shown (the first layer for the All-layers views), or "surface" with its face;
+                `why` is a sentence when the choice has no difference (a metal block), else None.
+        """
+        v = self.layer_value
+        if v >= layerchoice.SURFACE_BASE:
+            return compare.SURFACE, 0, v - layerchoice.SURFACE_BASE, None
+        if v >= layerchoice.BLOCK_BASE:
+            return compare.COLUMN, 0, 0, "the Difference view does not apply to a metal block: choose a copper layer or a surface in the Layer box"
+        return compare.COLUMN, self._layer_index(), 0, None
+
+    def _refresh_difference_controls(self):
+        """!
+        @brief Enable or grey out the Difference controls and their reference items for the current model, layer and read-out; keep the reference valid.
+        @return The key of the reference to use, or None when the view is off or impossible (the note then says why).
+        """
+        sim = self.sim
+        was, self._updating = self._updating, True
+        try:
+            keys = list(sim.results) if sim is not None else []
+            usable = [k for k in keys if sim.results[k].T is not None]
+            self.diff_on.setEnabled(len(usable) >= 2)
+            self.diff_on.setToolTip(self._diff_tip if len(usable) >= 2 else
+                                    "Run two or more models with a field to compare them (Simulation panel). This run has " + (", ".join(tips.model_label(k) for k in usable) or "none") + ".")
+            if sim is None or len(usable) < 2:
+                return None
+            current = self.model.currentData()
+            readout, layer, face, why = self._difference_request()
+            cur_res = sim.results.get(current)
+            item_model = self.diff_ref.model()
+            for i in range(self.diff_ref.count()):
+                key = self.diff_ref.itemData(i)
+                item = item_model.item(i)
+                reason = why or (compare.unavailable_reason(cur_res, sim.results[key], sim.problem, readout, layer, face) if cur_res is not None else "no model shown")
+                if key == current:
+                    reason = "this is the model shown"
+                item.setEnabled(reason is None)
+                item.setToolTip(reason or f"Show {tips.model_label(current)} minus {tips.model_label(key)}")
+            # The user's own choice stays while it is possible; a reference that the user did not choose is the default for the model now shown (the FVM, else the
+            # first other model with a field), whichever model was shown when the box was first filled: moved silently, the title names the pair
+            wanted = self._ref_chosen
+            if wanted is None or wanted == current or not item_model.item(self.diff_ref.findData(wanted)).isEnabled():
+                wanted = compare.default_reference(sim.results, current)
+            enabled = lambda key: key is not None and self.diff_ref.findData(key) >= 0 and item_model.item(self.diff_ref.findData(key)).isEnabled()
+            if not enabled(wanted):
+                # The default cannot be used (an outline board refuses the LPTN and the Analytic against the FVM, a model without a surface ...): the first usable
+                # reference in the order of the box; with none, the default itself, so that the refusal names the real reason and never 'the same model' (review:
+                # the LPTN shown on an outline board kept the LPTN as its reference)
+                usable_refs = [self.diff_ref.itemData(i) for i in range(self.diff_ref.count()) if enabled(self.diff_ref.itemData(i))]
+                fallback = compare.default_reference(sim.results, current)
+                wanted = usable_refs[0] if usable_refs else fallback
+            if wanted is not None and self.diff_ref.findData(wanted) >= 0:
+                self.diff_ref.setCurrentIndex(self.diff_ref.findData(wanted))
+            return self.diff_ref.currentData()
+        finally:
+            self._updating = was
+
+    def _on_reference_changed(self, _index):
+        """!
+        @brief The reference box changed: a change that is not the program's own (those run with `_updating` set) is the user's choice, kept until the model it names is the
+               model shown or becomes impossible.
+        @param _index New index (unused).
+        """
+        if not self._updating:
+            self._ref_chosen = self.diff_ref.currentData()
+        self.redraw()
+
+    def _difference(self):
+        """!
+        @brief The Difference of the model shown and the chosen reference, when the view is on and possible; sets the note under the controls.
+        @return compare.DifferenceField, or None (the map is then drawn as always).
+        """
+        ref = self._refresh_difference_controls()
+        self.diff_row.setVisible(False)
+        self.diff_export.setVisible(False)             # Back on only when a Difference is drawn (below)
+        self._diff_last = None
+        on = self.diff_on.isEnabled() and self.diff_on.isChecked()
+        # The scale of a difference is symmetric and set by the data, and a hotspot contour is a temperature: those controls are hidden while the view is on
+        for w in (self.hot, self.auto, self.vmin, self.vmax):
+            w.setVisible(not on)
+        if not on or self.kind != "temperature":
+            return None
+        sim, r = self.sim, self._result()
+        readout, layer, face, why = self._difference_request()
+        if why is None and ref is not None and r is not None:
+            why = compare.unavailable_reason(r, sim.results[ref], sim.problem, readout, layer, face)
+        if why is not None or ref is None:
+            text = "Difference not shown: " + (why or "no other model has a field") + ". The temperature map is drawn."
+            self._set_difference_line(text, text, True)
+            return None
+        d = compare.difference_field(r, sim.results[ref], sim.problem, readout, layer, face)
+        caveat = ""
+        if layer != self.layer_value and self.layer_value in (layerchoice.ALL_LAYERS, layerchoice.ALL_GRID):
+            caveat = f"The Difference shows one layer at a time: layer {layer + 1} (choose another in the Layer box)."
+        # The cell the user ran (the option, not the spacing of the grid, which round(width / cell) moves off it on a board that is not a whole number of cells)
+        opts = getattr(sim, "options", None)
+        cell = float(opts.cell_mm) if opts is not None else 1000.0 * d.dx
+        agreement = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, cell)
+        if agreement is not None:
+            tip = agreement.tooltip + ("\n" + caveat if caveat else "") + ("\n" + "; ".join(d.notes) if d.notes else "")
+            self._set_difference_line(agreement.line, tip, agreement.outside)
+        elif caveat:
+            self._set_difference_line(caveat, caveat, False)       # No documented range for the pair: no verdict, only the caveat of the layer
+        self._diff_last = (d, cell, agreement)
+        self.diff_export.setVisible(True)
+        return d
+
+    def export_difference_statistics(self, path=None):
+        """!
+        @brief Write the statistics of the Difference on view to a CSV file (`compare.write_statistics_csv`): one row, the units in the header names.
+        @param path Output file path; None asks with a save dialog (tests pass a path).
+        @return The path written, or None when no Difference is on view or the dialog was cancelled.
+        """
+        if self._diff_last is None:
+            return None
+        d, cell, agreement = self._diff_last
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Export Difference statistics", f"difference_{d.model}_minus_{d.reference}.csv", "CSV files (*.csv)")
+            if not path:
+                return None
+        return compare.write_statistics_csv(path, d, cell, agreement)
+
+    def _set_difference_line(self, line, tooltip, warn):
+        """!
+        @brief Show the one line under the Difference controls.
+        @param line The text of the line (the verdict first).
+        @param tooltip Its tooltip (the range, the cases, the evidence).
+        @param warn True for the warning colour of the theme (a gap outside the usual range, or a refusal).
+        """
+        self.diff_note.setText(line)
+        self.diff_note.setToolTip(tooltip)                         # setText of the label puts the line itself in the tooltip
+        self.diff_note.setStyleSheet(f"color: {th.colors(self.theme)['alert_note']};" if warn else "")
+        self.diff_row.setVisible(True)
+
     def redraw(self, *_):
         """!
         @brief Redraw the figure from the current controls.
@@ -517,8 +748,11 @@ class PlotTab(QWidget):
         self.vmin.setEnabled(not self.auto.isChecked())
         self.vmax.setEnabled(not self.auto.isChecked())
         view = self.map_view() if self.kind in ("temperature", "gradient") else None    # None: the original picture, call for call
+        diff = self._difference() if self.kind == "temperature" else None
         with _mpl_theme(self.theme):
-            if self.kind == "temperature" and self._result() is not None:
+            if diff is not None:
+                plots.draw_difference(self.fig, diff, prob)
+            elif self.kind == "temperature" and self._result() is not None:
                 r = self._result()
                 layer = self.layer_value
                 cmap = self.display.cmap
@@ -565,9 +799,234 @@ class PlotTab(QWidget):
                 plots.draw_profile(self.fig, res, prob, layer=self._layer_index(), axis=axis, position_mm=pos,
                                    picture=picture, underlay=under, map_alpha=self.display.value(), cmap=self.display.cmap)
             elif self.kind == "compare":
-                plots.draw_comparison(self.fig, sim.results)
+                plots.draw_comparison(self.fig, sim.results, sim.reference.model)
         _paint_figure(self.fig, self.theme)
         self.canvas.draw_idle()
+
+
+MODELS_FIRST_COLUMN_MAX_PX = 120   # Logical px: the first column of the parts tables (longer part names are elided, the full name is the tooltip)
+MODELS_CHART_MIN_PX = 280          # Logical px: the least height of the chart of the Models tab, toolbar included
+MODELS_TABLES_MAX_PX = 300         # Logical px: the height the tables area asks for at most; beyond it the two tables scroll together in their one area
+
+
+class ModelsTab(PlotTab):
+    """!
+    @brief The Models page: the temperature under every part in every model (two tables) and the whole board in every model (one chart).
+    @details Top: one scroll area with two stacked tables, "Tmax: hottest point under the part" and "Tmean: mean under the part" (column read-out), one row per part and one column
+             per model that ran (the reference first, in bold, headed "FVM (ref.)"). The cells hold plain values with one decimal and no colour; the difference from the reference
+             is in the tooltip of the cell. Below a splitter: the bar chart of the whole board (`plots.draw_comparison`), at least MODELS_CHART_MIN_PX tall with its toolbar.
+             The numbers are those of `Simulation.part_comparison()`, the one definition also used by the report and the CSV file.
+    """
+
+    def __init__(self, theme="dark", parent=None, display=None):
+        """!
+        @param theme Colour theme name.
+        @param parent Qt parent.
+        @param display The shared DisplayState (a private one when None).
+        """
+        super().__init__("compare", theme, parent, display)
+        self.table_max = self._parts_table()
+        self.table_mean = self._parts_table()
+        self.title_max = QLabel("<b>Tmax</b>: hottest point under the part, °C (column)")
+        self.title_mean = QLabel("<b>Tmean</b>: mean under the part, °C (column)")
+        for title in (self.title_max, self.title_mean):
+            # Wrapped: an unwrapped title holds the page at its text width (about 280 px), and in a narrower centre the area (no sideways bar) would cut the tables
+            # and their own scroll bars at the right; wrapped, the tables take the width there is and scroll sideways by themselves
+            title.setWordWrap(True)
+        self.title_max.setToolTip("Hottest point of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
+                                  "hover a cell for the difference from it.")
+        self.title_mean.setToolTip("Mean of the column read-out under the footprint of each part, in every model that ran. The reference model is the first column, in bold; "
+                                   "hover a cell for the difference from it. The LPTN has one node per part (two, the core and the rest, for a part over a group of vias): "
+                                   "its mean is that node painted under the part.")
+        self.message = QLabel("")
+        self.message.setWordWrap(True)
+        self.message.setVisible(False)
+        self.models_shown = []                          # Keys of the model columns now shown (the reference first)
+        inner = QWidget()
+        il = QVBoxLayout(inner)
+        il.setContentsMargins(0, 0, 0, 0)
+        for w in (self.title_max, self.table_max, self.title_mean, self.table_mean, self.message):
+            il.addWidget(w)
+        il.addStretch(1)
+        self._inner = inner
+        self.area = QScrollArea()
+        self.area.setWidget(inner)
+        self.area.setWidgetResizable(True)
+        self.area.setFrameShape(QFrame.NoFrame)
+        self.area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)   # The columns fit the page at 1200 px (tested); a table scrolls by itself in a narrower one
+        # The toolbar and the chart move under a splitter, so that the user gives height to the tables or to the chart
+        lay = self.layout()
+        lay.removeWidget(self.toolbar)
+        lay.removeWidget(self.canvas)
+        self.chart_box = QWidget()
+        cl = QVBoxLayout(self.chart_box)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.addWidget(self.toolbar)
+        cl.addWidget(self.canvas, 1)
+        self.chart_box.setMinimumHeight(MODELS_CHART_MIN_PX)
+        self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.addWidget(self.area)
+        self.splitter.addWidget(self.chart_box)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        lay.addWidget(self.splitter, 1)
+
+    @staticmethod
+    def _parts_table():
+        """!
+        @brief One table of the page: read-only, columns of the width we set (no stretching), no vertical scroll bar (the page's area scrolls).
+        @return QTableWidget.
+        """
+        t = _table(["Part"])
+        t.setToolTip("One row per part, one column per model that ran, the reference model first (in bold). Hover a cell for its value with two decimals and the "
+                     "difference from the reference; hover a column title for the model.")      # Each cell and header says more
+        head = t.horizontalHeader()
+        head.setSectionResizeMode(QHeaderView.Interactive)
+        head.setStretchLastSection(False)
+        t.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        t.setTextElideMode(Qt.ElideRight)
+        t.setSelectionMode(QAbstractItemView.NoSelection)
+        return t
+
+    def clear_results(self):
+        """!
+        @brief Empty the tables (the board was changed: the run no longer belongs to it).
+        """
+        self.models_shown = []
+        for t in (self.table_max, self.table_mean):
+            t.setRowCount(0)
+            t.setColumnCount(1)
+            t.setHorizontalHeaderLabels(["Part"])
+        self.message.setVisible(False)
+        self._fit_heights()
+
+    def set_simulation(self, sim):
+        """!
+        @brief Show a simulation: the chart (as every tab) and the two tables of the parts.
+        @param sim Simulation.
+        """
+        super().set_simulation(sim)
+        self._fill_parts(sim)
+
+    @staticmethod
+    def _cell_tip(model, part, key, value, delta, ref):
+        """!
+        @brief Tooltip of a cell: what the number is, its two decimals and the difference from the reference.
+        @param model Model key of the column.
+        @param part Dict of one part of `Simulation.part_comparison()`.
+        @param key "t_max" or "t_mean".
+        @param value Temperature in degC or None.
+        @param delta Difference from the reference in K or None.
+        @param ref Key of the reference model.
+        @return str.
+        """
+        what = "max under" if key == "t_max" else "mean under"
+        head = f"{model_label(model)}{' (reference)' if model == ref else ''}, {what} {part['name']} (column)"
+        if value is None:
+            return f"{head}: no value in this model."
+        text = f"{head}: {value:.2f} °C"
+        if delta is not None:
+            text += f", {delta:+.2f} K vs {model_label(ref)} (reference)"
+        if model == "lumped":
+            text += ("." + (" The LPTN has one node per part (two, the core and the rest, for a part over a group of vias): the part's mean is that node, "
+                            "painted under the part." if key == "t_mean" else
+                            " The LPTN maximum is the network's own peak of the part: its node plus the peak term plus the rise the other parts give at its centre."))
+        return text
+
+    def _fill_parts(self, sim):
+        """!
+        @brief Fill the two tables from `Simulation.part_comparison()`: the reference column first and in bold, plain numbers, the differences in the tooltips.
+        @param sim Simulation.
+        """
+        cmp = sim.part_comparison()
+        models, ref, parts = cmp["models"], cmp["reference"], cmp["parts"]
+        self.models_shown = list(models)
+        bold = QFont()
+        bold.setBold(True)
+        for t, key in ((self.table_max, "t_max"), (self.table_mean, "t_mean")):
+            t.setRowCount(0)
+            t.setColumnCount(1 + len(models))
+            t.setHorizontalHeaderLabels(["Part"] + [f"{model_label(m)} (ref.)" if m == ref else model_label(m) for m in models])
+            t.horizontalHeaderItem(0).setToolTip("The part (its name and its power, W); a long name is cut here, the whole name is the tooltip of the cell.")
+            for j, m in enumerate(models):
+                head = t.horizontalHeaderItem(1 + j)
+                head.setToolTip(f"{model_full_label(m)}" + (": the reference model, the one of the Components page and the report. Other columns: hover a cell for the difference from it." if m == ref else
+                                                           f". Hover a cell for the difference from {model_label(ref)} (reference)."))
+                if m == ref:
+                    f = head.font()
+                    f.setBold(True)
+                    head.setFont(f)
+            t.setRowCount(len(parts))
+            for r, part in enumerate(parts):
+                label = f"{part['name']}  {part['power_w']:.2f} W"
+                first = QTableWidgetItem(label)
+                first.setToolTip(f"{part['name']} (layer {part['layer']}), {part['power_w']:.2f} W in the reference model")
+                t.setItem(r, 0, first)
+                for j, m in enumerate(models):
+                    v = part[key][m]
+                    cell = QTableWidgetItem("n/a" if v is None else f"{v:.1f}")
+                    cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    cell.setToolTip(self._cell_tip(m, part, key, v, part[key + "_delta"][m], ref))
+                    if m == ref:
+                        cell.setFont(bold)
+                    t.setItem(r, 1 + j, cell)
+        if parts:
+            self.message.setVisible(False)
+        else:
+            self.message.setText("This board has no part (heater), so there is no temperature under a part to compare. The chart below compares the whole board in every model.")
+            self.message.setVisible(True)
+        self._set_widths()
+        self._fit_heights()
+
+    def _set_widths(self):
+        """!
+        @brief Give the two tables the same column widths: each column as wide as its widest text in either table, the first one at most MODELS_FIRST_COLUMN_MAX_PX.
+        """
+        for t in (self.table_max, self.table_mean):
+            t.resizeColumnsToContents()
+        for c in range(self.table_max.columnCount()):
+            w = max(self.table_max.columnWidth(c), self.table_mean.columnWidth(c), MIN_SECTION)
+            if c == 0:
+                w = min(w, MODELS_FIRST_COLUMN_MAX_PX)
+            for t in (self.table_max, self.table_mean):
+                t.setColumnWidth(c, w)
+
+    def _fit_heights(self):
+        """!
+        @brief Give each table the height of its rows (the area scrolls them together) and the area the height of its content up to MODELS_TABLES_MAX_PX.
+        """
+        for t in (self.table_max, self.table_mean):
+            h = t.horizontalHeader().height() + sum(t.rowHeight(r) for r in range(t.rowCount())) + 2 * t.frameWidth() + 2
+            if t.horizontalScrollBar().maximum() > 0:               # A table in a page too narrow for its columns keeps its own bar, and the height for it
+                h += t.horizontalScrollBar().sizeHint().height()
+            t.setFixedHeight(h)
+        # The wrapped titles have a height for the width they get: ask for it at the width of the area (the plain size hint assumes a narrower title on two lines)
+        width = self.area.viewport().width()
+        need = self._inner.heightForWidth(width) if (self._inner.hasHeightForWidth() and width > 0) else -1
+        if need <= 0:
+            need = self._inner.sizeHint().height()
+        self.area.setMinimumHeight(min(need, MODELS_TABLES_MAX_PX))
+
+    def resizeEvent(self, e):
+        """!
+        @brief Refit the table heights when the page changes size (a table that gets a horizontal bar needs the room for it).
+        @param e QResizeEvent.
+        """
+        super().resizeEvent(e)
+        if self.table_max.rowCount() or self.table_max.columnCount() > 1:
+            self._fit_heights()
+
+    def showEvent(self, e):
+        """!
+        @brief Size the tables and give the splitter its first division when the page is first shown (the sizes are those of a shown widget).
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        self._fit_heights()
+        if not getattr(self, "_split_done", False):
+            self._split_done = True
+            self.splitter.setSizes([self.area.minimumHeight(), 10000])
 
 
 class Cover(QLabel):
@@ -668,7 +1127,7 @@ class ResultsView(QWidget):
         self.temp = PlotTab("temperature", theme, display=self.display)
         self.grad = PlotTab("gradient", theme, display=self.display)
         self.profile = PlotTab("profile", theme, display=self.display)
-        self.compare = PlotTab("compare", theme, display=self.display)
+        self.compare = ModelsTab(theme, display=self.display)
         self.tabs.addTab(self.temp, "Temperature")
         self.tabs.addTab(self.grad, "Gradients")
         self.tabs.addTab(self.profile, "Profiles")
@@ -679,6 +1138,11 @@ class ResultsView(QWidget):
         split = QSplitter(Qt.Vertical)
         tables = QWidget()
         tl = QVBoxLayout(tables)
+        # One line naming the model of every number on this page (first widget of the pane the user resizes, so it adds no fixed height to the page);
+        # ElidedLabel never wraps and never asks for width, the long explanation is its tooltip. Hidden until a run.
+        self.reference_line = th.hint(ElidedLabel("", max_lines=1))
+        self.reference_line.setVisible(False)
+        tl.addWidget(self.reference_line)
         self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"])
         # Every temperature the user sees names its read-out: these tables are all column values (the layer mean through the copper thickness), like the part table
         self.zone_table = _table(["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"])
@@ -693,9 +1157,10 @@ class ResultsView(QWidget):
             tl.addWidget(t)
         split.addWidget(tables)
         self.comp_fig = Figure(layout="constrained")
-        self.comp_canvas = FigureCanvasQTAgg(self.comp_fig)
+        self.comp_canvas = CollapseSafeCanvas(self.comp_fig)    # Its pane is about 20 px tall in a 900 x 600 window: blank there, no warning
         split.addWidget(self.comp_canvas)
         split.setSizes([360, 260])
+        split.setStretchFactor(1, 1)            # A taller window gives its extra height to the chart; no minimum height (it would bring the page scroll bar back)
         cl.addWidget(split)
         self.tabs.addTab(comp, "Components")
         self.tabs.addTab(self.compare, "Models")
@@ -798,6 +1263,11 @@ class ResultsView(QWidget):
         @brief Forget the run: another board was opened or created, so the pages that show a run say there are no results for it yet.
         """
         self.sim = None
+        self.reference_line.setVisible(False)       # No run, no reference model to name
+        # The covered Temperature page keeps its old figure: the Difference it showed must not be exportable (nor its button shown) for a board it does not belong to
+        self.temp._diff_last = None
+        self.temp.diff_export.setVisible(False)
+        self.compare.clear_results()
         for cover in self._covers:
             cover.setText(self.CLEARED_NOTE)
             cover.cover(True)
@@ -822,7 +1292,7 @@ class ResultsView(QWidget):
         warns = sim.warnings
         self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
-        self.report.setPlainText(sim.report(inline_warnings=False, table=False))      # The warnings are in the box above it and the models table is the table above
+        self._fill_report()
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_simulation(sim)
         self._fill_components()
@@ -831,20 +1301,61 @@ class ResultsView(QWidget):
         if sim.decisions:
             self.tabs.setCurrentWidget(self.time_sim if sim.profile_results else self.tabs.widget(0))
 
+    def _fill_report(self):
+        """!
+        @brief Write the report text of the Summary page for the shown simulation, following the Preferences setting `results.summary_table_in_report`.
+        @details Off (shipped): no table in the text, since the models table is the widget above it. On: the text also holds the aligned table. The warnings are
+                 never repeated in the text (the box above it shows them). Only the way the text is written depends on the setting; no number does.
+        @return None.
+        """
+        if self.sim is None:
+            return
+        try:
+            # Only a JSON true turns it on: a hand-edited "false" (a non-empty string) must not read as on
+            with_table = defaults.value("results", "summary_table_in_report") is True
+        except (KeyError, TypeError, OSError):
+            with_table = False                                  # An unreadable preference falls back to the shipped behaviour
+        self.report.setPlainText(self.sim.report(inline_warnings=False, table=with_table))
+
+    def refresh_report(self):
+        """!
+        @brief Rewrite the report text after the preferences changed (called by the main window when Preferences were saved); nothing to do without a result.
+        @return None.
+        """
+        self._fill_report()
+
+    def _name_reference(self, key):
+        """!
+        @brief Say which model every number of the Components page comes from: the line above the tables, their tooltips and (in _draw_components) the chart title.
+        @param key Model key of the reference model (fvm, lumped, analytic, fdm, solid3d, fem).
+        """
+        self.reference_line.setText(f"Reference model: {model_full_label(key)}. Other models: the Models tab.")
+        # setText sets the tooltip to the text; the long explanation replaces it
+        self.reference_line.setToolTip(
+            "Every number on this page (heaters, zones, hotspots, metal block and the chart) comes from the reference model: the FVM when it runs, "
+            f"otherwise the first model that ran (here: {model_label(key)}). The Model box of the maps does not change this page; "
+            "compare the models in the Models tab or the Summary.")
+        self.reference_line.setVisible(True)
+        tip = f"Values of the reference model ({model_label(key)}); hover a column title for its meaning."
+        for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
+            t.setToolTip(tip)
+
     def _fill_components(self):
         """!
         @brief Fill the heater, zone and hotspot tables from the reference model.
         """
         sim, ref = self.sim, self.sim.reference
         if ref.T is None:
+            self.reference_line.setVisible(False)       # No field to fill the tables from: never leave the name of the previous run's model on the line
             return
+        self._name_reference(ref.model)
         heaters = sim.heater_rows()
         # Every temperature column names its read-out and ONE surface column always follows (decision: the surface is always shown beside the column mean, no threshold):
         # the hottest point of the outer face under the part, in the face of its source. The difference to the column in K and in % of the rise is in the tooltip of the
         # cell (a narrow column is not worth a second table column). Junction, margin and power limit stay on the column. 'n/a' where the model or the layer has no surface.
         # Two-line headers: the stretched columns of this table are too narrow for one line of these names (they were cut in a screenshot)
         heads = ["Heater", "Layer", "Power W", "Mean °C\n(column)", "Max °C\n(column)", "Junction °C", "Margin K", "Power limit W", "Top path W",
-                 "Max °C\n(surface,\nresolved)" if ref.model == "fem" else "Max °C\n(surface,\nestimate)"]
+                 f"Max °C\n(surface,\n{thickness.surface_kind(ref)})" if "T_surface" in ref.arrays else "Max °C\n(surface)"]
         self.heater_table.setColumnCount(len(heads))
         self.heater_table.setHorizontalHeaderLabels(heads)
         hi = self.heater_table.horizontalHeaderItem
@@ -864,7 +1375,11 @@ class ResultsView(QWidget):
                 d = h["t_max_surface"] - h["t_max"]
                 face = "top face of its layer" if h["layer"] == 1 else "bottom face of its layer"
                 row.append(f"{h['t_max_surface']:.1f}" + (" (upper)" if h["surface_upper"] else ""))
-                how = "Resolved by the finite elements (not an estimate). " if ref.model == "fem" else ""
+                hf = 0 if h["layer"] == 1 else 1
+                kind = thickness.surface_kind(ref, hf)
+                how = ("Resolved by the finite elements (not an estimate). " if kind == "resolved" else
+                       "Computed from the copper slabs of the 3D solid (the half slab above the outer one; not an estimate by a parabola). " if kind == "computed" else
+                       thickness.surface_how(ref, h["surface_upper"], hf)[0].upper() + thickness.surface_how(ref, h["surface_upper"], hf)[1:] + ". ")
                 hot_node = ""
                 if ref.model == "fem" and "T_point" in ref.arrays:
                     # The hottest mesh node under the part, a read-out of its own (the element mean is what the maps and tables show)
@@ -875,10 +1390,15 @@ class ResultsView(QWidget):
                              "Surface mean " + f"{h['t_mean_surface']:.3f} °C." + hot_node + " " + tips.SURFACE_TRAP_TIP)
             else:
                 row.append("n/a")
-                if ref.model not in ("fvm", "fdm", "fem"):
-                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM and FEM only); the column is the only read-out.")
+                if "surface_bound_k" in h:
+                    notes.append(thickness.lumped_surface_note(h["surface_bound_k"], h["layer"]))
+                elif ref.model not in ("fvm", "fdm", "fem", "analytic", "solid3d"):
+                    notes.append(f"The {tips.model_label(ref.model)} model has no surface read-out (steady FVM, FDM, Analytic, 3D solid and FEM only); the column is the only read-out.")
                 elif 1 < h["layer"] < n_layers:
                     notes.append("A part on an inner copper layer has no outer face: its surface is the column (the temperature is continuous across the interface).")
+                elif thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1):
+                    # The Analytic does not show a surface on a face with a part over absent copper (thickness.attach_field): say why
+                    notes.append("No surface value: " + thickness.surface_na_reason(ref, 0 if h["layer"] == 1 else 1) + ".")
                 else:
                     notes.append("No surface value under this part.")
             rows.append(row)
@@ -890,17 +1410,55 @@ class ResultsView(QWidget):
         t = self.heater_table
         t.setMinimumHeight(t.horizontalHeader().sizeHint().height() + min(max(t.rowCount(), 1), 2) * t.verticalHeader().defaultSectionSize()
                            + t.horizontalScrollBar().sizeHint().height() + 2 * t.frameWidth() + 2)
+        # The zone and hotspot tables: column values as always; the surface (and, for the FEM, the hottest node) of the same area or point is APPENDED, never in place of them
         zones = analysis.zone_stats(ref, sim.problem)
-        _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
-                                 f"{z['t_min']:.1f}"] for z in zones])
+        has_surface = "T_surface" in ref.arrays
+        zheads = ["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"] + (["Max °C\n(surface)"] if has_surface else [])
+        self.zone_table.setColumnCount(len(zheads))
+        self.zone_table.setHorizontalHeaderLabels(zheads)
+        for c in (2, 3, 4):
+            self.zone_table.horizontalHeaderItem(c).setToolTip(tips.COLUMN_TABLE_TIP)
+        if has_surface:
+            self.zone_table.horizontalHeaderItem(5).setToolTip(tips.SURFACE_MAX_TIP)
+        zrows = []
+        for z in zones:
+            row = [z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}", f"{z['t_min']:.1f}"]
+            if has_surface:
+                row.append("n/a" if z["t_max_surface"] is None else f"{z['t_max_surface']:.1f}")
+            zrows.append(row)
+        _fill(self.zone_table, zrows)
+        if has_surface:
+            for r, z in enumerate(zones):
+                outer = z["layer"] in (1, sim.problem.board.layers)       # No value on an outer face: the model reads none there (the Analytic over absent copper); an inner layer has no face
+                self.zone_table.item(r, 5).setToolTip(("No surface value under this zone." if outer else "Inner copper layer: no outer face, the surface is the column.") if z["t_max_surface"] is None else
+                                                      f"Surface ({z['surface_kind']}) of the outer face under the zone: mean {z['t_mean_surface']:.3f} °C, max {z['t_max_surface']:.3f} °C. " + tips.SURFACE_TRAP_TIP)
         blocks_ = analysis.block_stats(ref, sim.problem)
         self.block_table.setVisible(bool(blocks_))
         _fill(self.block_table, [[k["name"], k["face"], f"{k['t_mean']:.1f}", f"{k['t_max']:.1f}", f"{k['w_to_block']:.2f}",
                                   f"{k['w_to_air']:.2f}"] for k in blocks_])
-        hs = analysis.hotspots(ref, sim.options.hotspot_c)
-        _fill(self.hot_table, [[f"#{k + 1}", str(h["layer"]), f"{h['t_max']:.1f}", f"{h['x_mm']:.1f}",
-                                f"{h['y_mm']:.1f}", f"{h['area_mm2']:.1f}"] for k, h in enumerate(hs[:50])]
-              or [["none above limit", "", "", "", "", ""]])
+        hs = analysis.hotspots(ref, sim.options.hotspot_c)[:50]
+        has_point = "T_point" in ref.arrays
+        hheads = (["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"] + (["Tmax °C\n(surface)"] if has_surface else []) + (["Node °C\n(point)"] if has_point else []))
+        self.hot_table.setColumnCount(len(hheads))
+        self.hot_table.setHorizontalHeaderLabels(hheads)
+        self.hot_table.horizontalHeaderItem(2).setToolTip(tips.COLUMN_TABLE_TIP)
+        c = 6
+        if has_surface:
+            self.hot_table.horizontalHeaderItem(c).setToolTip("The hottest surface read-out (outer face of the copper) of the SAME hot area, °C; n/a for a hotspot on an "
+                                                              "inner layer. " + tips.SURFACE_MAX_TIP)
+            c += 1
+        if has_point:
+            self.hot_table.horizontalHeaderItem(c).setToolTip("Point read-out (FEM): the hottest mesh node of the hot area, °C, on the outer face; a node value, not a cell mean. "
+                                                              "n/a on an inner layer.")
+        hrows = []
+        for k, h in enumerate(hs):
+            row = [f"#{k + 1}", str(h["layer"]), f"{h['t_max']:.1f}", f"{h['x_mm']:.1f}", f"{h['y_mm']:.1f}", f"{h['area_mm2']:.1f}"]
+            if has_surface:
+                row.append("n/a" if h["t_surface"] is None else f"{h['t_surface']:.1f}")
+            if has_point:
+                row.append("n/a" if h["t_point"] is None else f"{h['t_point']:.1f}")
+            hrows.append(row)
+        _fill(self.hot_table, hrows or [["none above limit"] + [""] * (len(hheads) - 1)])
 
     def _draw_components(self):
         """!
@@ -916,7 +1474,7 @@ class ResultsView(QWidget):
                           "max under footprint (column)": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
                     series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
-                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures (column mean)")
+                plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title=f"Heater temperatures (column mean)\nReference model: {model_label(self.sim.reference.model)}")
             else:
                 self.comp_fig.clear()
         _paint_figure(self.comp_fig, self.theme)

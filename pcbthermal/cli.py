@@ -10,7 +10,7 @@ Commands
 - convergence FVM grid refinement study
 - solvers     compare the linear solvers (direct, CG, SOR) on one board
 - convert     legacy editor JSON -> native JSON; `.pcbt.json` <-> `.pcbtz` package
-- gui         open the graphical application
+- gui         open the graphical application (`--selftest` checks the installation instead and exits)
 - example     write the reference board as a native JSON file
 
 Exit codes: 0 done, 2 usage error (argparse), 3 a run refused by the memory guard (the message names the cell that fits; `--memory-fraction` changes the limit).
@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, copper, fvm, laminate, memory
+from . import __version__, copper, fvm, laminate, memory, thickness
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -158,7 +158,7 @@ def cmd_run(args):
         # One line per model that holds the surface read-out; the table above is the column of every model (like for like)
         if "T_surface" in r.arrays and r.extras.get("t_max_surface_top") is not None:
             bottom = r.extras.get("t_max_surface_bottom")
-            print(f"{model_label(name)} surface ({"resolved" if name == "fem" else "estimate"}): top {r.extras['t_max_surface_top']:.1f} °C"
+            print(f"{model_label(name)} surface ({thickness.surface_kind(r)}): top {r.extras['t_max_surface_top']:.1f} °C"
                   + (f", bottom {bottom:.1f} °C" if bottom is not None else "") + f"; column max {r.t_max:.1f} °C")
     files = sim.save(args.out, plots=not args.no_plots, surface_files=args.surface_files)
     print(f"{len(files)} files written to {args.out}/")
@@ -178,13 +178,21 @@ def cmd_transient(args):
     if args.model == "fdm":
         from . import fdm
         tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+    elif args.model == "fem":
+        from . import fem, femcore
+        try:
+            tr = fem.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
+        except (femcore.FemUnavailable, ValueError) as exc:
+            # no pyamg above the direct limit, no mesh for the outline, a failed solve: the reason, not a traceback (review), with the exit code of a refusal
+            print(f"error: FEM: refused ({exc})", file=sys.stderr)
+            return memory.EXIT_CODE
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
         tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
-    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C, "
-          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C")
+    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C (column), "
+          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C (column)")
     for w in tr.warnings:
         print(f"Warning: {w}")                                            # Limits of the model met by the run (the Analytic with a heatsink), as `run` prints its warnings
     os.makedirs(args.out, exist_ok=True)
@@ -323,6 +331,11 @@ def cmd_gui(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
+    if getattr(args, "selftest", False):
+        # The self-test of an installation or of a downloadable package (pcbthermal/selftest.py): no window stays open, the exit code says the result
+        from .selftest import run as selftest_run
+
+        return selftest_run(args.selftest_out)
     from .gui.app import main as gui_main
 
     return gui_main(["pcbthermal"] + ([args.project] if args.project else []))
@@ -380,7 +393,9 @@ def build_parser():
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
     hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
-                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1.00E9)")
+                    help="natural convection correlation of a vertical board: general (Churchill and Chu, whole Rayleigh range) or laminar (Ra < 1.00E9). Default: the form stored in the "
+                         "project file (general when the file has none, as in the board of the 'example' command; a new board of the window or of a Gerber "
+                         "import stores the form of the defaults, laminar since 2.5.0)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
@@ -402,8 +417,8 @@ def build_parser():
     common(t)
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
-    t.add_argument("--model", choices=("fvm", "fdm", "analytic"), default="fvm", help="model of the transient (default: fvm)")
-    t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
+    t.add_argument("--model", choices=("fvm", "fdm", "fem", "analytic"), default="fvm", help="model of the transient (default: fvm; fem: finite elements, resolves the board thickness)")
+    t.add_argument("--theta", type=float, default=0.5, help="0.5 = Crank-Nicolson (default, with the Rannacher start), 1 = implicit Euler (the default before 2.9.0)")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
 
@@ -432,6 +447,8 @@ def build_parser():
 
     g = sub.add_parser("gui", help="open the graphical application")
     g.add_argument("project", nargs="?", help="project file to open")
+    g.add_argument("--selftest", action="store_true", help="check that the program starts and solves the example board (imports, files, window, calculation process, energy balance), then exit: 0 when all is well")
+    g.add_argument("--selftest-out", metavar="FILE", help="also write the --selftest report to this file (a windowed program on Windows has no console)")
     g.set_defaults(func=cmd_gui)
 
     e = sub.add_parser("example", help="write the reference board JSON")

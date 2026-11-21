@@ -164,7 +164,7 @@ D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir s
 
 **Licence:** not checked. **Source URL:** https://arxiv.org/pdf/2203.10140.
 
-**Status R in part** (sections 1 and 5.1, text extracted from the PDF). A. Ibraguimov, E. Zakirov, I. Indrupskiy, D. Anikeev, *Fundamentals in Peaceman model for well-block radius for non-linear flows near well*, arXiv:2203.10140 (2022), https://arxiv.org/pdf/2203.10140. **Read in part (R for sections 1 and 5.1, text extracted from the PDF)**: the five-point balance (1.1), Peaceman's argument that `p1 - p0 = q α / 4` and the radial Darcy law `p(r) = p_θ + q α ln(r/θ) / (2π)` fix `R0 = Δ e^(-π/2)` (= 0.2079 Δ), independent of the flow rate and the well radius; their Theorem 3 (the same value from the Green function) was **not** read. The study here finds that the exact lattice value is 0.19851 Δ, not 0.2079 Δ: the e^(-π/2) argument takes the four neighbours as equal and the radial law as exact at the first neighbour, which is an approximation (README 2). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
+**Status R in part** (sections 1 and 5.1, text extracted from the PDF). A. Ibraguimov, E. Zakirov, I. Indrupskiy, D. Anikeev, *Fundamentals in Peaceman model for well-block radius for non-linear flows near well*, arXiv:2203.10140 (2022), https://arxiv.org/pdf/2203.10140. **Read in part (R for sections 1 and 5.1, text extracted from the PDF)**: the five-point balance (1.1), Peaceman's argument that `p1 - p0 = q α / 4` and the radial Darcy law `p(r) = p_θ + q α ln(r/θ) / (2π)` fix `R0 = Δ e^(-π/2)` (= 0.2079 Δ), independent of the flow rate and the well radius; their Theorem 1 (section 5.1, printed pp. 11-12) gives `ln(Δ/R0) = π/2` by the radial argument, and Theorem 3 (section 5.2, p. 14, read by image) gives the same value from the Green function. The study here finds that the exact lattice value is 0.19851 Δ, not 0.2079 Δ: the e^(-π/2) argument takes the four neighbours as equal and the radial law as exact at the first neighbour, which is an approximation (README 2). Cited by `research/point-via-convergence/`; the treatment it supports is described in topic 02, section 6 (the via on the grid); topic 02 cites only [Peaceman1978].
 
 ### [Gjerde2019]
 
@@ -1034,7 +1034,13 @@ The section "Application to Orthotropic Systems" (Eqs. 37 to 42, Fig. 9, Eqs. 39
 
 **Licence:** not checked. **Source URL:** not recorded.
 
-**Status S** (abstract only). Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it), and the Memorial University thesis records (research.library.mun.ca/13266). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).**
+**Status S** (abstract only). Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).** Correction: this entry used to add "the Memorial University thesis records (research.library.mun.ca/13266)" as if that record were a thesis of Muzychka; it is not (see [AlKhamaiseh2018Thesis]). Any claim about the orthotropic multilayer solution of Muzychka rests on a source not opened.
+
+### [AlKhamaiseh2018Thesis]
+
+**Licence:** not checked. **Source URL:** https://research.library.mun.ca/13266.
+
+Formerly cited as the Muzychka thesis (MUN 13266), which was wrong. A. Al-Khamaiseh, *Analytical solutions of 3D heat conduction in flux channels with nonuniform properties and complex structures*, PhD thesis, Memorial University of Newfoundland (2018). **Copy held locally, not read** (the file is in the git-ignored papers library, 221 pages). **Status N** (not read; nothing is quoted from it).
 
 ### [MonierVinard2017]
 
@@ -2097,6 +2103,8 @@ Every essential page that has a Claude transcription was compared with its page 
 
 **Not verified**: pages that no progress file lists as compared; [Xu1992] pages 593 to 613; the 2005 published version of [LiSuperLU2005].
 
+**Measured error rate of the machine transcriptions** (four reviewer passes, about 320 whole pages compared with the image; `papers/notes/OCR_QUALITY.md` 2, 7, 8, 9, quoted by the reviewer's method opinion of the closed notes plan): material errors on 7 of 192 equation pages, **about 3.6 %**, all of the scope, symbol or index kind (a root covering one factor too many or too few, `tau` for `t`, a subscript turned into a fraction, `v` for `nu`, `b3` for `b1`) that a comparison of digits does not catch; about 1 300 table cells with no wrong cell; no material error in prose; invented first lines on about 3 % of pages. An equation or number cited from a page still marked `machine` is therefore checked on a crop of the page image.
+
 ## Sources named by the finite-element model and the Lumped self term (final theory review of 2.8.0)
 
 The finite-element section of `docs/theory.md` (4a) and the self term of the Lumped footprint (5) named sources without a key; they get one here, with the status of what was done. Nothing was opened for them in this review.
@@ -2124,3 +2132,83 @@ J. C. Maxwell, the geometric mean distance of a rectangle from itself (Trans. R.
 **Licence:** MIT. **Source URL:** https://github.com/pyamg/pyamg.
 
 The installed package is pyamg 5.4.1 (metadata read in the environment: licence MIT, authors N. Bell, J. Schroder, B. Southworth; `requirements.txt` asks for 5.4 or later); the entry above recorded 5.3.0 from the package index of an earlier session. **Status R for the metadata, N for the paper.**
+
+## Sources named by the finite-element transient (`feature/fem-transient`, docs/theory.md 4b)
+
+Named by the FEM in time and its design note (`releases/2.9.0/fem-transient/DESIGN.md` 13 and 14.6); nothing was opened for them. Their content is checked without them: the start by the exact one-step values derived on the continuum (`sqrt(pi)/2 - 1` and `sqrt(pi/2) - 1`) and the 1D table of `tests/test_fem_transient_closed_forms.py`, the benchmark value by an independent 1D finite-element line (`releases/2.9.0/fem-transient/scripts/check_benchmark_1d.py`, 36.605 degC at 200 elements and 12 800 steps).
+
+### [Rannacher1984]
+
+**Licence:** all rights reserved. **Source URL:** not recorded (not obtained).
+
+R. Rannacher, *Finite element solution of diffusion problems with irregular data*, Numer. Math. 43 (1984) 309-327 (citation from memory). Named for the start of the Crank-Nicolson stepping by implicit-Euler half steps after a jump of the load (`fem.march`, `femcore.Stepper.euler_half_step`). **Status N** (not obtained); the use rests on the derivation and the tests named above.
+
+### [NAFEMS-T3]
+
+**Licence:** all rights reserved. **Source URL:** the primary publication is not open: the NAFEMS publication page https://nafems.org/publications/browse_buy/browse_by_topic/benchmark/p18 (a catalogue entry); the case and the value are read in the open secondary sources [MOOSE-T3], [Abaqus-T3], [Altair-T3] and [Wolfram-T3].
+
+NAFEMS, the one-dimensional linear transient heat conduction benchmark T3 ("one-dimensional transient heat transfer", sinusoidal temperature at one end), in *The Standard NAFEMS Benchmarks* (TNSB, Rev. 3, October 1990, as cited by [Abaqus-T3]; publication P18 of the NAFEMS catalogue; the catalogue says the original T3 "proved unsatisfactory", explained in A. Welsh, *Benchmark* magazine, January 1989, p. 23, and that Revision 2 corrected LE8, LE10, LE11 and T3); [Wolfram-T3] cites it as A. D. Cameron, J. A. Casey and G. B. Simpson, *Benchmark Tests for Thermal Analysis*, NAFEMS. **Status N for the primary publication** (a paid NAFEMS document, not obtained); **status S for the case and the value**: a bar of 0.1 m, k 35 W/mK, rho 7200 kg/m3, c 440.5 J/kgK, from 0 degC, x = 0 held at 0 degC, x = 0.1 m at 100 sin(pi t / 40) degC, no flux across the bar, reference 36.60 degC at x = 0.08 m, t = 32 s, read in four independent third-party documents that agree ([MOOSE-T3] 36.6 with its input and result files; [Abaqus-T3] 36.60 with its input decks; [Altair-T3] 36.60; [Wolfram-T3] 36.6, the bar mirrored). The end condition is sinusoidal in all four (a search summary of the Abaqus page that described a constant 100 degC was wrong: its equation image and its deck give 100 sin(pi t / 40)). The exact value is 36.6031 degC (eigenfunction series and, independently, the method of lines, `research/transient-published-case` README 2); the program's FEM gives 36.6106 degC (100 elements) and 36.6050 (200), and on the meshes of MOOSE it equals MOOSE's results to 1e-5 K (README 2). The stated accuracy of the target is not given in any page read.
+
+### [MOOSE-T3]
+
+**Licence:** LGPL-2.1. **Source URL:** https://github.com/idaholab/moose (documentation of the MOOSE framework, only numbers quoted here), file `modules/heat_transfer/doc/content/modules/heat_transfer/nafems_t3_verif.md` (rendered at https://mooseframework.inl.gov/modules/heat_transfer/nafems_t3_verif.html).
+
+Idaho National Laboratory, MOOSE heat transfer module, "NAFEMS Benchmark 1D Transient Heat Conduction T3": the problem (bar 0.1 m, cross section 0.01 m, uniform elements, 32 s), the boundary conditions as equations (0 degC left, 100 sin(pi t / 40) degC right, initial 0 degC), the material (k 35.0, c 440.5, rho 7200), "the target solution ... should be 36.6 degC" at 0.08 m after 32 s, and a table of the MOOSE results (5 elements: 40.3 for the linear types, 35.9 for the quadratic; 10 elements: 36.9 and 36.1). It cites NAFEMS (key `nafems_std_bench`, bibliography entry not retrieved). **Status R** (the Markdown source of the page, the input template `modules/heat_transfer/test/tests/NAFEMS/transient/T3/nafems_t3_edge_template.i` (`FunctionDirichletBC` `100.0 * sin(pi*t/40)` on the right, `DirichletBC` 0 on the left, `dt = 1`, `end_time = 32`) and the result files `gold/nafems_t3_edge2_coarse_out.csv` and `..._fine_out.csv` (40.280676316568 and 36.893144830594 at t = 32 s) were read in full). The MOOSE linear-element values are a mesh result of another program (5 and 10 elements, consistent capacity, 32 implicit-Euler steps), not a reference; the program's FEM reproduces them to 1e-5 K (`research/transient-published-case` README 2).
+
+### [Altair-T3]
+
+**Licence:** all rights reserved. **Source URL:** https://help.altair.com/hwsolvers/os/topics/solvers/os/nafems_test_problem_t3_r.htm
+
+Altair OptiStruct verification problem OS-V 0110 "One-Dimensional Transient Heat Transfer (NAFEMS Test T3)": the same material, the boundary conditions (zero at one end, 100 sin(pi t / 40) degC at the other for t > 0), initial zero, reference 36.60 degC at point C, 0.08 m from A, t = 32 s; OptiStruct results 33.6 / 34.58 (beam and Quad4, 5 / 10 elements) and 35.1 / 35.19 (Quad8). The page cites "NAFEMS R0015, Selected benchmarks for natural frequency analysis", a title that does not match a heat-transfer test (a mistaken citation on the page; not used). **Status R** (the page text was read in full).
+
+### [Abaqus-T3]
+
+**Licence:** all rights reserved. **Source URL:** Abaqus (Dassault Systemes) Benchmarks Guide (2016), 4.3.3 "T3: One-dimensional transient heat transfer", mirrored at https://ceae-server.colorado.edu/v2016/books/bmk/ch04s03anf14.html, and its input deck https://ceae-server.colorado.edu/v2016/books/eif/nt3xx12c.inp (only numbers quoted here).
+
+The same case: bar 0.1 m (nodes at 0 and 0.1 m in the deck), 0.01 x 0.01 m section, conductivity 35.0, specific heat 440.5, density 7200, 0 degC at end A and 100 sin(pi t / 40) degC at end B (the sinusoid is an equation image in the text; the deck applies `*AMPLITUDE, DEFINITION=PERIODIC` with circular frequency 0.07854 = pi/40 and coefficient 100 to the end node), initial 0 degC, target "36.60 degC at 0.08 m at 32 secs", source "Test T3 from NAFEMS publication TNSB, Rev. 3, 'The Standard NAFEMS Benchmarks,' October 1990". Results: DC1D2 34.54 (coarse, 5 elements) and 35.51 (fine, 10), quadratic DC1D3 35.88 and 36.09, and many 2D and coupled elements; the deck steps 32 fixed increments of 1 s. **Status R** (the page, the equation image and the deck were read by the reviewer). The DC1D2 values are reproduced by an own linear element with a lumped capacity and 32 implicit-Euler steps (34.5383 and 35.5063; `research/transient-published-case` README 2).
+
+### [Wolfram-T3]
+
+**Licence:** all rights reserved. **Source URL:** Wolfram Research, https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html (only numbers quoted here).
+
+Wolfram PDEModels, "Heat Transfer Model Verification Tests", test HeatTransfer-FEM-Transient-1D-Single-HeatTransfer-0001: a 0.1 m line, conductivity 35, density 7200, specific heat 440.5, `100 Sin[pi t / 40]` at x = 0 and a fixed temperature at x = 0.1 m, `T[0, x] == 0`, end time 32, `TRef = 36.6` read at x = 0.02 m (the T3 bar mirrored), passed when the relative error is below 1e-3; cites A. D. Cameron, J. A. Casey and G. B. Simpson, *Benchmark Tests for Thermal Analysis*, NAFEMS. **Status R** (the page code read; the value of the fixed end and Mathematica's computed value are in images that were not read).
+
+### [Lienhard-AHTT]
+
+**Licence:** all rights reserved. **Source URL:** https://ahtt.mit.edu/wp-content/uploads/2024/04/AHTTv600.pdf (free download from the authors' page, not stored here)
+
+J. H. Lienhard IV and J. H. Lienhard V, *A Heat Transfer Textbook*, version 6.00 (2024), 810 pp. Section 5.6 "Transient heat conduction to a semi-infinite region", page 229 of the book (PDF page 243): the semi-infinite solid with a suddenly applied wall flux q_w has the wall temperature T_w(t) = T_i + (2 q_w / k) sqrt(alpha t / pi), eqn (5.56), derived on the page from eqn (5.55) `(q_w - q) / q_w = erf(x / (2 sqrt(alpha t)))`. **Status R** (the page was read in full from the downloaded PDF; the text layer was extracted). It is the open source of the closed form that `tests/test_fem_transient_closed_forms.py` uses (the earlier source of that closed form in the program documents is [CarslawJaeger], M).
+
+### [Muzychka2023Transient]
+
+**Licence:** all rights reserved. **Source URL:** https://doi.org/10.1109/itherm55368.2023.10177640 (IEEE; no open copy found).
+
+Y. S. Muzychka and M. M. Yovanovich, *Compact Models for Transient Thermal Spreading Resistance in Half-space, Flux Tube, and Flux Channel Regions*, 2023 22nd IEEE ITherm Conference, 30 May 2023 (title, venue and DOI from Crossref; no open full text found at the Waterloo laboratory archive, at Memorial University's repository or by search; the transient chapter of their Wiley book *Thermal Spreading and Contact Resistance* (2023) is paid). **Status N** (not obtained). Candidate for a published transient spreading case of a heat source on a flux channel, not reproduced.
+
+## Sources of `research/muzychka-influence-coefficients/` (reviewed)
+
+### [Muzychka2004Influence]
+
+**Licence:** all rights reserved. **Source URL:** https://doi.org/10.1109/ITHERM.2004.1319202 (conference), https://doi.org/10.1109/TCAPT.2006.880477 (journal); no open copy found.
+
+Y. S. Muzychka, *Influence coefficient method for calculating discrete heat source temperature on finite convectively cooled substrates*, Proc. ITherm 2004, pp. 394-402; journal version IEEE Trans. Components and Packaging Technologies 29 (3) (2006) 636-643 (both from Crossref). Superposition of the single-source solution of an eccentric rectangular source on a finite convectively cooled substrate, with influence coefficients for the other sources; isotropic, orthotropic and compound substrates; source-plane convection (abstract). **Status N** (not obtained; paywalled); the abstract and the records are S; the form of the coefficients is known only through [Razavi2016Thesis]. No case or number of the paper is known.
+
+### [Razavi2016Thesis]
+
+**Licence:** not checked. **Source URL:** https://hdl.handle.net/20.500.14783/9133 (the repository lists the thesis as open access; the licence terms were not checked).
+
+S. M. Razavi, *Advanced thermal analysis of microelectronics using spreading resistance models*, PhD thesis, Memorial University of Newfoundland (2016), supervisors S. Kocabiyik and Y. S. Muzychka. **Status R for section 2.4, printed pages 55 and 56 (PDF 78 and 79), compared with the page image**: eq. 2.71 (mean excess of source `j` = sum of `Q_i f_ij`), eq. 2.72 (`f_ij`, the mean over source `j` of the series solution of source `i`: constant, two single cosine series and a double series), eq. 2.73 (`theta = F Q`) and eq. 2.74 (reciprocity `f_ij = f_ji`). The coefficients `B^i` are defined elsewhere in the thesis (not read); the rest of the thesis not read. Its reference list pairs the 2006 journal citation with the 2004 conference DOI once. Used by `research/muzychka-influence-coefficients/` README 2.
+
+## Formula index review: corrections and page-verification notes
+
+Result of the review of the local formula index (a reviewer's check of the index against page images; the program and `docs/theory.md` had no defect). Facts and page numbers only.
+
+* **Point-sink radius.** The program's comment citing Theorem 1 of [Ibraguimov2022] is right: Theorem 1 (pp. 11-12) gives `ln(Δ/R0) = π/2` by the radial argument; Theorem 3 (p. 14) gives the same value by the Green function. The program uses 0.1985 Δ, the exact value on the five-point grid (tested in `tests/test_point_via.py`). Using `exp(-π/2) = 0.2079` instead changes the peak by 0.02 K (0.03 % of the rise) at a 1 mm cell and nothing at 0.5 mm.
+* **Page citations.** Equation 8.13a of [Lienhard2024] is on printed p. 419 (PDF 433), 8.13b on p. 420 (PDF 434). Table A.6 is on printed p. 755 (PDF 769). Table A.1 (PDF 753, printed 739): read by image, no transcription. Equations 39 and 40 of [Muzychka2004Orthotropic] are on PDF 5 (printed 49), not PDF 6.
+* **Read, page verification not recorded.** For these pages the content was confirmed on the image by the reviewer, but the local reading record has no verification entry; they stay as cited, marked "read, page verification not recorded" until the pages are verified: [Lienhard2024] PDF 753; [YovanovichJafarpur1993] PDF 7, 8, 11 (PDF 7 not looked at); [Yovanovich2003] PDF 6; [LeeLemczykYovanovich1992] PDF 2 to 4 and 7 (PDF 2, 3, 7 not looked at); [Muzychka2004Orthotropic] PDF 5; [Saad2003] PDF 147 (equation 4.47, printed 127); [Ibraguimov2022] PDF 11, 12.
+
+### [Muzychka2003] (case 2 read again by `research/surface-readout-models/`)
+
+**Licence:** not checked. **Source URL:** https://www.mhtlab.uwaterloo.ca/pdf_papers/mhtl03-1.pdf (the open copy of the Waterloo group, 8 pages, downloaded to a scratch folder, nothing stored in the repository).
+
+The case 2 paragraph (journal page 183: a = b = 50 mm, k 150 W/mK, t 10 mm, h 400 W/m2K) and Tables 3 and 4 (journal page 184, PDF page 7: the four sources of 10 / 25 / 20 / 15 W, 10 x 10 mm, at (12.5, 12.5), (37.5, 12.5), (12.5, 37.5), (37.5, 37.5) mm; the centroid temperatures 97.40 / 103.82 / 101.28 / 99.94 and the mean source temperatures 96.85 / 102.33 / 100.10 / 99.07 degC) read **from the text layer** of the PDF by the researcher, then **compared with the page images by the reviewer** of the folder (the local copy of the journal paper, PDF pages 6 and 7 = journal pages 183 and 184, the rendered pages of the verification tool): the case 2 paragraph, Tables 3 and 4 and every number quoted here are on the images as written. **Reproduced**: the independent 3D solver reads 97.41 / 103.85 / 101.31 / 99.95 (0.01 to 0.03 K above the paper) and the program's models and rules of the folder are run on it. **Status R** for the case 2 data. Topics 01, 18.

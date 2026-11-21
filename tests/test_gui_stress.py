@@ -328,7 +328,7 @@ def test_profile_run_with_each_kind_and_model_subset(win, qtbot):
         run(win, qtbot, models)
         walk_results(win, qtbot)
         if models in (("solid3d",), ("fem",)):
-            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid and the FEM have no time simulation
+            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid has no time simulation; the FEM alone has no reference to decide (its message also says the 3D solid is steady state only)
     # One-shot table, a step limit that is too small, a computed h
     pr.heaters[1].set_profile(TableProfile([0, 0.01, 20], [0.0, 5.0], False))   # A 10 ms stretch in 20 s: 20,000 steps
     win.doc.options.profile.max_steps = 200
@@ -650,6 +650,30 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     qtbot.waitUntil(lambda: win.sim is not None and not win.worker.isRunning(), timeout=240000)
 
 
+def test_animation_scheme_box_defaults_to_crank_nicolson_and_both_schemes_compute(win, qtbot):
+    """The Scheme box of the Animation tab offers Crank-Nicolson first and as the default (implicit Euler until 2.9.0); both schemes compute with the FVM and the FDM, the frames start
+    at the ambient, the peak rises at every frame, and the first frame of Crank-Nicolson is above that of implicit Euler (which reads low)."""
+    load(win, example_board())
+    anim = win.results.animation
+    assert anim.scheme.currentData() == 0.5 and [anim.scheme.itemData(i) for i in range(anim.scheme.count())] == [0.5, 1.0]
+    win.results.tabs.setCurrentWidget(anim)
+    peaks = {}
+    for model in ("fvm", "fdm"):
+        anim.model.setCurrentIndex(anim.model.findData(model))
+        for i in range(anim.scheme.count()):
+            anim.scheme.setCurrentIndex(i)
+            anim.t_end.setValue(60.0)
+            anim.frames.setValue(20)
+            anim.tr = None
+            anim.compute.click()
+            qtbot.waitUntil(lambda: anim.tr is not None, timeout=120000)
+            peaks[(model, anim.scheme.currentData())] = anim.tr.t_max.copy()
+            assert anim.tr.t_max[0] == pytest.approx(win.doc.problem.board.ambient) and np.all(np.diff(anim.tr.t_max) > 0.0)
+    for model in ("fvm", "fdm"):
+        cn, euler = peaks[(model, 0.5)], peaks[(model, 1.0)]
+        assert cn[1] > euler[1]                                         # the first frame of implicit Euler reads low (one step), the default does not
+
+
 def test_metal_block_in_the_application(win, qtbot):
     """A heatsink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
     load(win, example_block_board())
@@ -744,6 +768,45 @@ def test_surface_is_always_shown_also_on_thin_copper_and_na_where_a_model_has_no
     win.layer_combo.setCurrentIndex(win.layer_combo.findData(0))
     qtbot.wait(50)
     assert "column mean" in rv.temp.fig.axes[0].get_title()
+
+
+def test_surface_read_out_of_the_analytic_the_solid_and_the_lumped_text_in_the_application(win, qtbot):
+    """Analytic and 3D solid hold a surface (map entries, part-table column named by how it was made); the Lumped has none and its cell says why, with the bound on the term only."""
+    from pcbthermal.model import Materials
+    p = Problem.new(50, 50, layers=1, thickness_mm=10.001, copper_um=1e4, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=150.0))
+    p.add_full_copper()
+    p.add_heater(1, 25.0, rect=(20, 20, 30, 30), name="S")
+    load(win, p)
+    for models, word in ((("analytic", "solid3d"), "estimate"), (("solid3d",), "computed"), (("lumped",), None)):
+        run(win, qtbot, models, cell=2.0)
+        rv = win.results
+        rv.tabs.setCurrentWidget(rv.temp)
+        head, cell = rv.heater_table.horizontalHeaderItem(9).text(), rv.heater_table.item(0, 9)
+        texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+        if word is None:
+            assert "Surface (top)" not in texts and cell.text() == "n/a"
+            assert "not a guarantee" in cell.toolTip() and "no surface temperature" in cell.toolTip()
+        else:
+            assert "Surface (top)" in texts and word in head and cell.text() != "n/a"
+            for m in models:
+                rv.temp.model.setCurrentIndex(rv.temp.model.findData(m))
+                for data in (200, 201, 0):
+                    win.layer_combo.setCurrentIndex(win.layer_combo.findData(data))
+        walk_results(win, qtbot)
+    # Review: the Analytic under a part over a copper window shows no surface (n/a, the reason in the tooltip), the top face leaves the Layer box, the bottom stays
+    w = Problem.new(60.0, 40.0, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=25.0, h_top=10.0, h_bottom=10.0, h_side=None)
+    for rect in ((0, 0, 25, 40), (35, 0, 60, 40), (25, 0, 35, 15), (25, 25, 35, 40)):
+        w.add_zone(1, rect=rect, fill=1.0)
+    w.add_zone(2, rect=(0, 0, 60, 40), fill=1.0)
+    w.add_heater(1, 2.0, rect=(27, 17, 33, 23), name="U")
+    load(win, w)
+    run(win, qtbot, ("analytic",), cell=2.0)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    cell = rv.heater_table.item(0, 9)
+    texts = [win.layer_combo.itemText(i) for i in range(win.layer_combo.count())]
+    assert cell.text() == "n/a" and "absent copper" in cell.toolTip() and "Surface (top)" not in texts and "Surface (bottom)" in texts
+    walk_results(win, qtbot)
 
 
 def test_component_fields_in_the_application(win, qtbot):
@@ -1395,6 +1458,68 @@ def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypa
         d.close()
 
 
+def test_summary_table_setting_toggled_through_preferences_with_a_result_shown(win, qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The setting 'Summary table in the report text' flipped twelve times through the real Preferences dialog of the window (Save, then Reset to shipped
+           every third time) with a result on screen: the report text follows each change at once, the models widget keeps its rows, and the project file never
+           holds the key (a machine preference).
+    @param win Main window fixture.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    import json
+    from pcbthermal import defaults
+    from pcbthermal.gui import preferences as prefs
+    from pcbthermal.project import project_to_dict
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    monkeypatch.setattr(prefs.QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)       # Reset asks before deleting the user file
+    sim = simulate(example_board(), SolverOptions(models=("fvm", "lumped"), cell_mm=2.0))
+    win.results.set_simulation(sim)
+    assert "Tmean" not in win.results.report.toPlainText()                                    # Shipped: off, as 2.8.0
+    for i in range(12):
+        want = i % 3 != 2
+
+        def act(dialog, want=want):
+            box = dialog.widgets[("results", "summary_table_in_report")]
+            if want:
+                box.setChecked(True)
+                dialog.save()
+            else:
+                dialog.reset()
+            return 0
+        monkeypatch.setattr(prefs.PreferencesDialog, "exec", act)
+        win.show_preferences()
+        assert defaults.value("results", "summary_table_in_report") is want
+        assert ("Tmean" in win.results.report.toPlainText()) is want
+        assert win.results.model_table.rowCount() == 2
+    assert "summary_table_in_report" not in json.dumps(project_to_dict(win.doc.project))
+
+
+def test_reference_model_named_across_runs_clears_and_theme_switches(win, qtbot):
+    """!
+    @brief Components page naming the reference model: runs of different models in a row, a clear and a theme switch in between; the line, the table tooltip, the
+           chart title and the status line always agree with the model that ran, and the line is hidden while there is no run.
+    @param win Main window fixture.
+    @param qtbot pytest-qt fixture.
+    @return None.
+    """
+    from pcbthermal.results import MODEL_FULL, MODEL_LABELS
+    res = win.results
+    for i, key in enumerate(("fdm", "fvm", "solid3d", "fdm", "fvm", "fdm")):
+        win._on_done(simulate(example_board(), SolverOptions(models=(key,), cell_mm=2.0)))
+        assert not res.reference_line.isHidden() and MODEL_FULL[key] in res.reference_line.text()
+        assert f"({MODEL_LABELS[key]})" in res.heater_table.toolTip()
+        assert res.comp_fig.axes[0].get_title().endswith(f"Reference model: {MODEL_LABELS[key]}")
+        assert win.statusBar().currentMessage().startswith(f"Done: {MODEL_LABELS[key]},")
+        if i % 2:
+            res.clear()
+            assert res.reference_line.isHidden()
+        win.toggle_theme()                                           # the colour of the line follows the theme
+        qtbot.wait(20)
+
+
 def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
     """The live checks (validity, model limits, vias) on a board of 1500 scattered vias and several parts, after every change of the models and the cell: each call stays
     under a second, and the list under Run is checks.check_input, the head of the warnings of a run."""
@@ -1841,3 +1966,235 @@ def test_element_tree_filter_in_the_application(win, qtbot):
     el.filter.setText("heater")
     win.a_find.trigger()
     el.filter.clear()
+
+
+def test_models_tab_parts_tables_with_one_three_and_six_models_clear_and_themes(win, qtbot):
+    """!
+    @brief The Models tab (two tables of the parts, one chart of the board) through runs with 1, 3 and 6 models, a clear and theme toggles, at the 1200 x 800 layout.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    win.resize(1200, 800)
+    load(win, example_board())
+    rv = win.results
+    tab = rv.compare
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), MODELS_WITH_FEM):
+        run(win, qtbot, models=models, cell=3.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        rv.tabs.setCurrentWidget(tab)
+        qtbot.wait(50)
+        ran = [m for m in tab.models_shown]
+        assert ran and ran[0] == win.sim.reference.model and set(ran) <= set(models)      # a model the guard left out is simply absent
+        # every steady model that ran has its column, the 3D solid and the FEM included when they ran
+        assert set(ran) == {m for m, r in win.sim.results.items() if r.T is not None}
+        if models == MODELS_WITH_FEM:
+            assert "solid3d" in ran and ("fem" in ran) == ("fem" in win.sim.results)
+        assert tab.table_max.columnCount() == 1 + len(ran) and tab.table_max.rowCount() == len(win.sim.problem.heaters)
+        assert tab.table_max.horizontalScrollBar().maximum() == 0 and tab.chart_box.height() >= 280
+        for _ in range(2):                                   # Both themes with the tables and the chart on screen
+            win.toggle_theme()
+            qtbot.wait(20)
+            assert tab.table_max.rowCount() == len(win.sim.problem.heaters) and tab.fig.axes
+        assert len(tab.fig.axes[0].patches) == 2 * len(win.sim.results)
+    rv.clear()                                               # A board change: no run belongs to it
+    assert tab.table_max.rowCount() == 0 and tab.models_shown == []
+    win.toggle_theme()
+    win.toggle_theme()
+    run(win, qtbot, models=("fvm", "fdm"), cell=3.0)         # and a new run fills it again
+    assert tab.models_shown == ["fvm", "fdm"] and tab.table_mean.rowCount() == len(win.sim.problem.heaters)
+
+
+def _fem_plate():
+    """!
+    @brief A small two-layer plate with one heater on a 60 s square wave (resolved by the decision): a few thousand FEM unknowns at a 4 mm cell, the direct path.
+    @return Problem.
+    """
+    p = Problem.new(40.0, 30.0, layers=2)
+    p.add_full_copper()
+    p.add_heater(1, 3.0, rect=(15.0, 10.0, 25.0, 20.0))
+    p.heaters[0].set_profile(SquareWave(p_on=10.0, period=60.0, duty=0.3))
+    return p
+
+
+def test_fem_time_run_with_one_three_and_six_models_clear_and_themes(win, qtbot):
+    """!
+    @brief The FEM in time (feature/fem-transient): the Power profile tab through runs with 1, 3 and 6 models (the FEM alone says it needs another model; with the others its curve is
+           in the list), the FEM in the model chooser of the Animation while it is ticked and gone when it is not, an animation computed with it, a clear and theme toggles.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    win.resize(1200, 800)
+    load(win, _fem_plate())
+    rv = win.results
+    anim = rv.animation
+    for models in (("fem",), ("fvm", "lumped", "fem"), MODELS_WITH_FEM):
+        run(win, qtbot, models=models, cell=4.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        assert (anim.model.findData("fem") >= 0)                    # ticked: the chooser offers it
+        rv.tabs.setCurrentWidget(rv.time_sim)
+        qtbot.wait(30)
+        if models == ("fem",):
+            assert "FEM runs in time beside" in (win.sim.profile_error or "") and not win.sim.profile_results
+            continue
+        assert "fem" in win.sim.profile_results and win.sim.profile_results["fem"].resolved
+        assert win.sim.profile_reference == "fvm" and "FEM" in [rv.time_sim.model.itemText(i) for i in range(rv.time_sim.model.count())]
+        for _ in range(2):
+            win.toggle_theme()
+            qtbot.wait(20)
+            for j in range(rv.time_sim.view.count()):
+                rv.time_sim.view.setCurrentIndex(j)
+    animate(win, qtbot, "fem")                                      # the animation with the FEM, played
+    assert anim.tr is not None and "capacity" in anim.tr.extras
+    win.doc.set_options(models=("fvm",))
+    qtbot.wait(30)
+    assert anim.model.findData("fem") < 0                          # not ticked: not offered
+    rv.clear()
+    win.toggle_theme()
+
+
+def test_fem_animation_is_cancelled_in_the_middle_of_a_stage(win, qtbot):
+    """!
+    @brief The animation with the FEM on a board large enough to take seconds (the example board at 2 mm, the conjugate-gradient path, needs pyamg) is stopped by the Stop button; the
+           button returns to Run and the tab says so. The job runs in its own process and the Stop terminates it, so where the FEM is (mesh, assembly, a stage) does not matter; the
+           click comes as soon as the button says Stop, usually before the first stage (review: the in-process cancel between steps is `femcore.Stepper`'s, tested in
+           `tests/test_fem_profile_adapter.py`).
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    from pcbthermal import femcore
+    if not femcore.available():
+        pytest.skip("pyamg not installed")
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "fem"), cell_mm=2.0)
+    win.compute_animation({"t_end": 300.0, "n_out": 40, "theta_scheme": 0.5, "model": "fem", "log_times": True})
+    qtbot.waitUntil(lambda: _is_stop(win), timeout=60000)
+    win.solver_panel.run.click()
+    qtbot.waitUntil(lambda: _is_run(win), timeout=60000)
+    assert win._anim_worker is not None and not win._anim_worker.isRunning()
+
+
+def test_difference_view_every_pair_resize_layer_readouts_clear_and_themes(win, qtbot):
+    """!
+    @brief The Difference view of the Temperature page through every pair of models, every Layer box read-out (a layer, All layers, All 2 x 2, a surface, a metal block),
+           window sizes large and small, a switch off and on, both themes and a clear: nothing raises, the line is one line, the figure holds a title when the map is a difference,
+           and the fields of every model are untouched.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    from pcbthermal.gui import layerchoice
+    win.resize(1200, 800)
+    load(win, example_board())
+    run(win, qtbot, models=ALL_MODELS, cell=3.0)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    t = rv.temp
+    qtbot.wait(50)
+    before = {k: r.T.copy() for k, r in win.sim.results.items() if r.T is not None}
+    keys = [k for k in ALL_MODELS if k in win.sim.results and win.sim.results[k].T is not None]
+    assert len(keys) >= 4
+    t.diff_on.setChecked(True)
+    entries = [0, layerchoice.ALL_LAYERS, layerchoice.ALL_GRID, layerchoice.SURFACE_BASE, layerchoice.SURFACE_BASE + 1, layerchoice.BLOCK_BASE]
+    for shown in keys:
+        t.model.setCurrentIndex(t.model.findData(shown))
+        for ref in keys:
+            t.diff_ref.setCurrentIndex(t.diff_ref.findData(ref))
+            qtbot.wait(5)
+            assert t.diff_note.max_lines == 1 and "\n" not in t.diff_note.text()
+        for data in entries:
+            i = win.layer_combo.findData(data)
+            if i >= 0:
+                win._pick_combo_entry(i)
+            qtbot.wait(5)
+            assert t.diff_note.max_lines == 1 and "\n" not in t.diff_note.text()
+            assert (t.fig._suptitle is not None and " − " in t.fig._suptitle.get_text()) or not t.diff_note.isVisible() or t.diff_note.text().startswith(("Difference not shown", "The Difference shows"))
+    for w, h in ((1600, 1000), (900, 700), (1200, 800), (700, 600)):          # Large, then shrunk, as a user drags the window
+        win.resize(w, h)
+        qtbot.wait(30)
+        if t.fig._suptitle is not None and t.diff_on.isChecked() and " − " in t.fig._suptitle.get_text():
+            b = t.fig._suptitle.get_window_extent(t.fig.canvas.get_renderer())
+            assert b.x0 >= -0.5 and b.x1 <= t.fig.bbox.width + 0.5
+    for _ in range(2):
+        win.toggle_theme()
+        qtbot.wait(20)
+        t.diff_on.setChecked(False)
+        t.diff_on.setChecked(True)
+        qtbot.wait(20)
+    rv.clear()                                                       # A board change: no run belongs to it
+    win.toggle_theme()                                               # The covered page still repaints in the other theme without an error
+    qtbot.wait(20)
+    assert rv.sim is None
+    for k, r in win.sim.results.items():
+        if r.T is not None:
+            assert np.array_equal(r.T, before[k]), k
+
+
+def test_every_export_after_a_run_for_each_model_layer_and_readout(win, qtbot, tmp_path, monkeypatch):
+    """!
+    @brief Every output of the exports after a run of every model, on the four-layer example board and on the block board: Export results to a folder (the surface CSV of every model that has one,
+           the hotspot, zone and part tables), the Difference statistics of every shown/reference pair at every Layer box read-out, and the tables of the Components page, with a clear in
+           between: nothing raises, the CSV files hold what the result objects hold, no field moves.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    @param tmp_path Fixture.
+    @param monkeypatch Fixture.
+    """
+    import csv
+    from pcbthermal import compare
+    from pcbthermal.gui import layerchoice
+    for n, board in enumerate((example_board(), example_block_board())):
+        load(win, board)
+        run(win, qtbot, models=MODELS_WITH_FEM, cell=3.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        rv = win.results
+        t = rv.temp
+        rv.tabs.setCurrentWidget(t)
+        qtbot.wait(30)
+        before = {k: r.T.copy() for k, r in win.sim.results.items() if r.T is not None}
+        out = tmp_path / f"out{n}"
+        out.mkdir()
+        monkeypatch.setattr("pcbthermal.gui.main_window.QFileDialog.getExistingDirectory", lambda *a, **k: str(out))
+        win.export_results()
+        names = {p.name for p in out.iterdir()}
+        for key, r in win.sim.results.items():
+            if r.T is None:
+                continue
+            assert f"field_{key}.csv" in names
+            assert (f"surface_{key}.csv" in names) == ("T_surface" in r.arrays), key
+            if f"surface_{key}.csv" in names:
+                with open(out / f"surface_{key}.csv", newline="") as fh:
+                    rows = list(csv.reader(fh))
+                assert rows[0][:7] == ["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate"] and len(rows) > 1 and rows[1][7] == key
+        assert f"parts_{win.sim.reference.model}.csv" in names
+        keys = [k for k in MODELS_WITH_FEM if k in win.sim.results and win.sim.results[k].T is not None]
+        t.diff_on.setChecked(True)
+        written = 0
+        for shown in keys:
+            t.model.setCurrentIndex(t.model.findData(shown))
+            for ref in keys:
+                if ref == shown:
+                    continue
+                t.diff_ref.setCurrentIndex(t.diff_ref.findData(ref))
+                for data in (0, layerchoice.SURFACE_BASE, layerchoice.SURFACE_BASE + 1, layerchoice.BLOCK_BASE):
+                    i = win.layer_combo.findData(data)
+                    if i >= 0:
+                        win._pick_combo_entry(i)
+                    qtbot.wait(2)
+                    p = tmp_path / f"d{n}_{shown}_{ref}_{data}.csv"
+                    got = t.export_difference_statistics(str(p))
+                    # A pair or read-out that is refused (a note under the controls) has no Difference on view: nothing to write, and the button is hidden
+                    assert (got is not None) == t.diff_export.isVisibleTo(t)
+                    if got is not None:
+                        with open(p, newline="") as fh:
+                            rows = list(csv.reader(fh))
+                        assert rows[0] == compare.STATISTICS_HEADER and len(rows) == 2 and len(rows[1]) == len(rows[0])
+                        written += 1
+        assert written > 0
+        rv._fill_components()
+        win.toggle_theme()
+        rv._fill_components()
+        for k, r in win.sim.results.items():
+            if r.T is not None:
+                assert np.array_equal(r.T, before[k]), k
+        rv.clear()
+        assert t.export_difference_statistics(str(tmp_path / "gone.csv")) is None

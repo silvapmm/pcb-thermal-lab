@@ -1,0 +1,340 @@
+{
+ "base": "cca8aef8",
+ "edits": [
+  {
+   "sec": "1.4",
+   "label": "Edge band: the error lists against the references",
+   "start": "Its width does not matter from one gap thickness on",
+   "end": "(`checks.check_reduced_edge_laminate`; `validation.md` 36.3).",
+   "new": "Its width does not matter from one gap thickness on (`validation.md` 36.2). What is left is the `1/n` error of the four sub-gaps, which grows with `h_side`: at most −2.3 % (FVM) and −2.6 % (FDM) of the hottest rise at 200 W/m²K or less (2-layer boards of 0.8 to 3.2 mm, cells 1 to 0.25 mm, against a converged 3D solver), and −16 % at 2000 W/m²K on 3.2 mm with four sub-gaps; the program warns above 200 W/m²K (`checks.check_edge_laminate`). The error of the default rule depends on the cell (the half-cell film of a coarse cell hides part of the missing sub-gaps), and eight sub-gaps read hot where the cell is wider than the sub-gap (the half-cell film over-corrects), so the default and eight sub-gaps at a finer cell bracket the truth; a sample, not a bound (an independent finite-element solution of a 1.6 mm four-layer board, 0.25 mm cell: the default rule reads −0.4 % at 200 W/m²K and −6.3 % at 2000; the table and the re-derivation by the 2.8.0 audit are in `validation.md` 36.1, 43.2, 44 and 46). On thin gaps that are not cut (under 0.4 mm) the error does not depend on the cell. A board in air has `h_side` of 5 to 50 W/m²K, where the band is enough. The 3D solid, the Lumped and the Analytic are not changed. The Lumped and the Analytic have no laminate nodes, so they keep the edge film at the copper temperature, as the FVM did before the band, and read cool: on a 60 × 40 mm, 1.6 mm board with a corner part the Analytic is −5.2 % at 200 W/m²K against the converged 3D solver, where the FVM with the band is −0.6 % at 0.5 mm; the program warns for these two models when `h_side` times the thickness in mm reaches 150 W/m²K·mm (`checks.check_reduced_edge_laminate`; `validation.md` 36.3).",
+   "point": [
+    [
+     "validation.md",
+     "36"
+    ],
+    [
+     "validation.md",
+     "43"
+    ],
+    [
+     "validation.md",
+     "44"
+    ],
+    [
+     "validation.md",
+     "46"
+    ]
+   ]
+  },
+  {
+   "sec": "1.4",
+   "label": "Small part over a thick laminate: the cost of the finer rules",
+   "start": "`(0.2 mm, 8)` takes 1.4 to 4.6 times the time",
+   "end": "`(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory.",
+   "new": "`(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory, and `(0.2 mm, 8)` still leaves −6 / −9 % in the worst case (2 mm part on 3.2 mm; the times and memories of the boards measured are in `validation-history.md`, 'Theory passages moved by the second simplification', 1.4).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "1.4",
+   "label": "Small part over a pad: the review's measured errors of the pad limit",
+   "start": "measured by the review on the rise of the part in air",
+   "end": "1.3 to 2.3 points smaller)",
+   "new": "measured by the review on the rise of the part in air (FVM at 0.25 mm against the FVM extrapolated in its sub-gaps): bare −3.4 % at `s/w_p` 0.14, over a pad of the part's size −6.3 to −7.4 % at 0.12 to 0.14 (that reference converges at an order near 1 under a pad, so the pad numbers carry about 1.5 points of uncertainty; the other ratios and the comparison with the 16 sub-gap run are in `validation-history.md`, 'Theory passages moved by the second simplification', 1.4)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "1.8",
+   "label": "Heat-source shape: the per-part errors of the hull and the datasheet readings",
+   "start": "reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; RP2040",
+   "end": "so it is an indication, not a check: `validation.md` 29.2)",
+   "new": "reads the hottest point 11 to 44 % too cool (1 W, FVM at 0.5 mm; the value of each part is in `validation-history.md`, 'Theory passages moved by the second simplification', 1.8, and the shapes in `validation.md` 29); on a JEDEC 2s2p board with the TPS7A47 the heater on the exposed pad gives 31.9 K/W against 32.5 on the datasheet (audit 2.8.0: that agreement holds for the JEDEC board drawn without backside copper; on the board as ROHM 64AN113E prints it the readings span 27.6 to 36.4 K/W, so it is an indication, not a check: `validation.md` 29.2)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.2",
+   "label": "Maximum principle: the counts of positive entries",
+   "start": "; audit of 2.8.0; re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts and ratios to the printed digit): 16 positive entries",
+   "end": "at most 0.022 of the sum of the negative entries of the row);",
+   "new": "; audit of 2.8.0, re-run by the final review of 2.8.0 on `development` da16d80f, after the film term, with the same counts): 16 positive entries for the FVM and 64 for the FDM on the example board at 1 mm (largest 0.0178 of the diagonal of its row, both models), 432 / 432 at 0.5 mm and 1872 / 2448 at 0.25 mm under a dense 10 × 10 array of 0.3 mm vias (largest 0.023 / 0.022 of the diagonal; the other ratios are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.2);",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.3",
+   "label": "SOR omega: the sweep counts around the estimate",
+   "start": "`ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps",
+   "end": "7916 sweeps at 1.997)",
+   "new": "`ω_R` − 0.015 / + 0.015 gives 1634 / 1281 sweeps at 1 mm against 726 at `ω_R`; only within about 0.03 of 2 does an overestimate blow up; the 2 mm and 1.997 values are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.3)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.3",
+   "label": "SOR omega: the sweep counts of the example board by version",
+   "start": "the sweep counts (example board 2197 -> 676 at 1 mm",
+   "end": "`python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1` and `2`)",
+   "new": "the sweep counts (example board at 1 mm: 726 sweeps on the 2.7.1 tree and on the 2.8.0 tree with the film term, `python -m pcbthermal solvers examples/example_board.pcbt.json --cell-mm 1`; the 2.4.5 counts, the 2 mm counts and the 2.8.0 count of 2 mm are in `validation.md` 5 and 25 and in `validation-history.md`, 'Theory passages moved by the second simplification', 2.3)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.6",
+   "label": "Via well: the shares of the sheet the well reads",
+   "start": "(only in the cells the rule flags: 0.5 to 1.3 % of the sheet",
+   "end": "equal or closer by at most 0.005 K, so it is kept",
+   "new": "(only in the cells the rule flags). Reading the reduced sheet instead makes the well softer and the hottest rise higher by at most 0.04 K; against a resolved 3D barrel the order used is equal or closer, so it is kept (the shares of the sheet and the measured differences: `validation-history.md`, 'Theory passages moved by the second simplification', 2.6)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.6",
+   "label": "Via well: the limits near a cooled wall (FDM and 3D solid)",
+   "start": "the FDM reads the via effect 2 to 20 % too small at 1 mm and 1 to 9 % at 0.25 mm with eight laminate sub-gaps, and with the default sub-gaps",
+   "end": "1000 W/m2K, the 1 mm cell not measured;",
+   "new": "the FDM reads the via effect too small, 2.6 to 6.5 % at 200 and 13 to 23 % at 1000 W/m2K at 1 mm with the default sub-gaps (most of the latter the laminate at the edge, which the FVM shares: the FVM alone −7 to −13 % there); the 3D solid reads it too large, up to +25.8 % at 0.5 mm for a via 0.16 mm from the wall at 1000 W/m2K; the full lists are in `validation.md` 49, `research/independent-fem-extensions` 8.1 and `releases/2.8.0/audit/REVIEW_A3.md` 2, item 4;",
+   "point": [
+    [
+     "validation.md",
+     "49"
+    ]
+   ]
+  },
+  {
+   "sec": "2.6",
+   "label": "Barrel length: the shift of the five frozen boards",
+   "start": "Measured shift on the five frozen boards with vias: the steady maximum rises by 0.016 to 0.158 K (at most 0.26 % of the rise), the times to 63 % fall by up to 1.0 % (`validation.md` 34.1).",
+   "end": "the times to 63 % fall by up to 1.0 % (`validation.md` 34.1).",
+   "new": "Measured shift on the five frozen boards with vias: the steady maximum rises by at most 0.26 % of the rise and the times to 63 % fall by up to 1.0 % (`validation.md` 34.1).",
+   "point": [
+    [
+     "validation.md",
+     "34"
+    ]
+   ]
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the five points re-measured by the audit",
+   "start": "peak at 0.69 to 0.80 of the estimate and 0.91 to 1.03 of the law without the safety factor, inside the spread of the ladder.",
+   "end": "inside the spread of the ladder.",
+   "new": "peak at 0.69 to 0.80 of the estimate, inside the spread of the ladder (`validation.md` 26).",
+   "point": [
+    [
+     "validation.md",
+     "26"
+    ]
+   ]
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the peak of the via boards and the CO60 runs",
+   "start": "(106 runs on the plates and CO60, one process per run; the first fit, 0.40 on SuperLU's default mode, and why it was replaced are in `versions.md`)",
+   "end": "full copper 0.5 mm 0.66 GB (0.81).",
+   "new": "(106 runs on the plates and CO60, one process per run; the first fit and why it was replaced are in `versions.md`), and the gain is 0.10: the estimate is below the measurement in 7 of 85 via cases by at most 1.27 times (small CO60 boards that the law without vias already misses), against 13 of 85 by 1.33 with no term (`validation.md` 26; `research/memory-guard` README 14.12; the CO60 peaks and the first fit are in `validation-history.md`, 'Theory passages moved by the second simplification', 2.7).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "2.7",
+   "label": "Memory guard: the resident size of the process after runs",
+   "start": "(0.08 GB fresh, 0.67 GB after one 1 mm run",
+   "end": "so they are not counted again",
+   "new": "(0.08 GB fresh, 1.21 GB after a Power Calculator run at 0.7 mm, which makes no estimate), which made the same project `ok` or refused by the history alone; those pages are reused by the next solve, so they are not counted again (the other measurements: `validation-history.md`, 'Theory passages moved by the second simplification', 2.7)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "4",
+   "label": "3D solid limits: the part errors before and after the slab rule",
+   "start": "a 2 mm part reads, before (4 slabs, no face term) and now:",
+   "end": "where the earlier number was two errors cancelling).",
+   "new": "a 2 mm part on bare 3.2 mm reads +20.0 % before (4 slabs, no face term) and +3.9 % now, and over a pad of its size +27.3 -> +7.9 % (the other boards and part sizes are in `validation.md` 21.3 and in `validation-history.md`, 'Theory passages moved by the second simplification', 4).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "4",
+   "label": "3D solid limits: the error of the slabs alone by ratio",
+   "start": "(about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)",
+   "end": "(about +2 to +2.6 % at 0.1, +3 to +3.6 % at 0.13, +5 to +5.7 % at 0.2, bare and over a pad)",
+   "new": "(about +2 % at a ratio of 0.1 and +5 % at 0.2, bare and over a pad; `validation.md` 21.3 and `validation-history.md`, 'Theory passages moved by the second simplification', 4)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "5",
+   "label": "First ring: the part read cool on large boards",
+   "start": "(0.79 for a ring one radius wide, closed form, pure conduction; the drop measured",
+   "end": "against the FVM at 0.5 mm (Lumped cell 0.5 mm).",
+   "new": "(0.79 for a ring one radius wide, closed form, pure conduction), so the part read cool, more on a larger board: a 1 mm part on a uniform two-layer sheet, centred, −25.3 % on 200 x 150 mm against the FVM at 0.5 mm (Lumped cell 0.5 mm; the other boards and the drop measured on the FVM field are in `validation.md` 31 and `validation-history.md`, 'Theory passages moved by the second simplification', 5).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "5",
+   "label": "First ring: limits, the numbers before and after the images",
+   "start": "for a small square part the two nearly cancelled (1 mm part:",
+   "end": "+4 to +6 % for 6 x 2 mm at the 1 mm cell);",
+   "new": "for a small square part the two nearly cancelled (1 mm part: +1.3 to +4.6 % on the final tree of 2.8.0 from 30 x 20 to 200 x 150 mm), for a part of aspect ratio 3 they add (+2 to +6 % on the final tree; the values before the images and the cells are in `validation.md` 31 and `validation-history.md`, 'Theory passages moved by the second simplification', 5);",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "5",
+   "label": "First ring: limits, the side and corner errors before the images",
+   "start": "(on average -10 % at a side and -17 % at a corner at a gap of zero, up to -22 % against the FVM and up to -26 % against an independent 3D solver)",
+   "end": "(on average -10 % at a side and -17 % at a corner at a gap of zero, up to -22 % against the FVM and up to -26 % against an independent 3D solver)",
+   "new": "(on average -10 % at a side and -17 % at a corner at a gap of zero; the extremes are in `validation-history.md`, 'Theory passages moved by the second simplification', 5 and `validation.md` 35 and 53)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "5",
+   "label": "Near a side: the errors before the images",
+   "start": "-22.2 % at worst (against an independent 3D solver with side films a 10 mm part in a corner of a 3.2 mm board at 200 W/m²K reads -26.2 %,",
+   "end": "at a gap of about 30 mm.",
+   "new": "-22.2 % at worst (against an independent 3D solver with side films a 10 mm part in a corner of a 3.2 mm board at 200 W/m²K reads -26.2 %, `releases/2.8.0/audit/REVIEW_A4.md` 4.1), falling to the deficit of the rings far from any side at a gap of about 30 mm (the curve: `validation.md` 35.1).",
+   "point": [
+    [
+     "validation.md",
+     "35"
+    ]
+   ]
+  },
+  {
+   "sec": "6",
+   "label": "Local transient: the ranges of earlier trees",
+   "start": "The range -8.1 to +0.5 % written for 2.6.0 was measured",
+   "end": "(`docs/validation.md` 4.1).",
+   "new": "The range written for 2.6.0 and the smeared transient of 2.5.x (-66 % to +175 %) were measured before the physical slabs of the simple stack-up and the readout fix (`docs/validation.md` 4.1).",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
+  },
+  {
+   "sec": "6",
+   "label": "Local transient: the boards outside the study",
+   "start": "The review added boards outside it (FVM at 0.5 mm): two parts with vias under one",
+   "end": "the step curve up to 6.9 % of the steady resistance off.",
+   "new": "The review added boards outside it (FVM at 0.5 mm): the time to 63 % reads −0.5 to +4.2 % on the boards with vias or a heatsink (+10.3 % on a board of unlike layers with neither, which this coupling does not touch), but the peak of a square-wave profile run reads 5 to 7 % low on a four-layer 40 x 30 mm board with two overlapping parts, 25 vias and a 200 W/m²K heatsink, and the step curve of a part at the edge over partial copper (fill 0.3, `h_side` 50, vias at the edge) is up to 6.9 % of the steady resistance off (every board of the review: `validation.md` 4.1; the sentence as it stood: `validation-history.md`, 'Theory passages moved by the second simplification', 6).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "6",
+   "label": "Analytic limits: the common parameter and the small boards",
+   "start": "the common parameter alone, without the per-layer edge, read -8.6 to +5.8 %",
+   "end": "the laminate band",
+   "new": "the common parameter alone, without the per-layer edge, read cool and hot, up to 8.6 % against an FVM without the edge film in series and the laminate band; `validation.md` 4.1",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
+  },
+  {
+   "sec": "6",
+   "label": "Analytic limits: the warning's firing record",
+   "start": "(the measured range of the case is in the text; on the 54 boards of `validation.md` 4.1 it fires on 10 and on every one of the 5 with an error above 3 %, and on none of the 135 uniform boards)",
+   "end": "and on none of the 135 uniform boards)",
+   "new": "(the measured range of the case is in the text; on the 54 boards of `validation.md` 4.1 it fires on every one of the 5 with an error above 3 % and on none of the 135 uniform boards)",
+   "point": [
+    [
+     "validation.md",
+     "4"
+    ]
+   ]
+  },
+  {
+   "sec": "7",
+   "label": "Muzychka plates: the per-case numbers",
+   "start": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low (9.2 and 9.8 % of the independent solver's); case 1 (b)",
+   "end": "(`validation.md` 22.1, `research/muzychka-case2-analytic`).",
+   "new": "case 1 (a) (10 mm of `k` 10) 8.4 and 9.0 % of the paper's rise low; case 1 (b) (a 2 mm spreader of `k` 350 on it) within 0.2 % of the rise; case 2 (10 mm of `k` 150 at `h` 400) 2.9 to 5.5 K low (4.0 to 7.0 % of the rise), of which 0.84 K is the film acting on the node and the rest the through-thickness gradient (`validation.md` 22.1, `research/muzychka-case2-analytic`; the figures against the independent solver: `validation-history.md`, 'Theory passages moved by the second simplification', 7).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "7",
+   "label": "Seri Lee plate: the FDM and 3D solid digits",
+   "start": "(FDM 0.6650 / 1.2798 / 2.2680; re-run by the final review",
+   "end": "3D solid 0.6637 / 1.2796 / 2.2691, audit A1, not re-run)",
+   "new": "(FDM and 3D solid within 0.2 % of the FVM; re-run by the final review of 2.8.0 with the film term in the model, `releases/2.8.0/audit/scripts/study_lee_blocks.py fvm,fdm 0.5`: it moved the last digit; the 3D solid, audit A1, not re-run; the digits are in `validation-history.md`, 'Theory passages moved by the second simplification', 7)",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "8",
+   "label": "Default coefficients: the sizes and rises of the comparison",
+   "start": "13.6 / 10.1 at 20 K, 15.5 / 11.3 at 40 K (60 × 40 mm 13.2 to 17.0 / 10.2 to 12.6; 160 × 100 mm 11.6 to 14.8 / 8.8 to 10.7).",
+   "end": "(60 × 40 mm 13.2 to 17.0 / 10.2 to 12.6; 160 × 100 mm 11.6 to 14.8 / 8.8 to 10.7).",
+   "new": "13.6 / 10.1 at 20 K and 15.5 / 11.3 at 40 K (the 60 × 40 and 160 × 100 mm boards: `validation-history.md`, 'Theory passages moved by the second simplification', 8).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "8",
+   "label": "Default coefficients: the rise against the computed coefficients",
+   "start": "and against the computed coefficients the defaults read +0.4 % (example board), +7.2 % and +8.8 % (two hot single-part plates",
+   "end": "the hot side except on a one-layer pad (−2.7 %).",
+   "new": "and against the computed coefficients the defaults read +0.4 % (example board) to +8.8 % (a hot single-part plate at 130 to 140 K, where the computed coefficients have grown) of the rise, the hot side except on a one-layer pad (−2.7 %; the two plates: `validation-history.md`, 'Theory passages moved by the second simplification', 8).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "8",
+   "label": "Face-up law at high Ra: the effect of the change on the plate",
+   "start": "On an 800 × 800 mm two-layer plate with 1200 W in 64 parts",
+   "end": "and the deviation from the printed law there is 0.",
+   "new": "On an 800 × 800 mm two-layer plate with 1200 W in 64 parts (computed `h`, top-face `Ra` 3.4·10⁷) the change lowers the top convection coefficient from 7.05 to 6.61 W/m²K and raises the hottest rise by 1.1 % (the hot side). It replaced the constant `0.15` that was from memory (M; 7 % higher, a step of +6.4 % at 10⁷); the step is now −0.6 % and the deviation from the printed law there is 0 (the temperatures: `validation-history.md`, 'Theory passages moved by the second simplification', 8).",
+   "point": [],
+   "move": true
+  },
+  {
+   "sec": "10",
+   "label": "Profile limits table: vias under a part",
+   "start": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "end": "1.07 to 1.59 at 0.1 to 1 Hz on two layers, 1.14 to 2.04 on four; 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "new": "1.03 to 2.04 at 0.1 to 1 Hz (two and four layers; the 1.07 written before was the 0.1 Hz minimum of two layers); 1.00 to 1.27 at 10 Hz, within 2 % from 100 Hz",
+   "point": [
+    [
+     "validation.md",
+     "37"
+    ]
+   ]
+  },
+  {
+   "sec": "11",
+   "label": "Verification table: the layered idealisation row",
+   "start": "(+0.5 / −1.1 % at 1 / 0.5 mm) of the converged finite elements of the audit of 2.8.0, which also showed the table's finite-element column 1.1 to 2.4 % cold (the +2.9 % and 'within 1.2 % for pads of 20 mm and more' of the table are against that cold column; the 30 to 80 mm rows were not re-run)",
+   "end": "the 30 to 80 mm rows were not re-run)",
+   "new": "of the converged finite elements of the audit of 2.8.0, which also showed the table's finite-element column cold (the older percentages against it are superseded; the 30 to 80 mm rows were not re-run; `validation.md` 3.1)",
+   "point": [
+    [
+     "validation.md",
+     "3"
+    ]
+   ]
+  },
+  {
+   "sec": "11",
+   "label": "Verification table: the 3D solid row",
+   "start": "the 1 mm plan cell on a 10 mm part (the +8.0 % of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "end": "the 1 mm plan cell on a 10 mm part (the +8.0 % of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "new": "the 1 mm plan cell on a 10 mm part (the older figure of the table was a 4-slab solid against the cold reference); blocks within 0.2 %",
+   "point": [
+    [
+     "validation.md",
+     "3"
+    ]
+   ]
+  }
+ ]
+}

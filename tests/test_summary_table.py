@@ -70,7 +70,7 @@ def test_one_definition_feeds_the_window_the_text_and_the_markdown(sim):
 
 def test_the_surface_column_is_the_top_face_peak_or_n_a(sim):
     """!
-    @brief Tmax (surface) is the top-face peak of the FVM and the FDM and n/a for the Lumped and the Analytic; it is left out when no model has one.
+    @brief Tmax (surface) is the top-face peak of every model that has one (FVM, FDM, Analytic, 3D solid, FEM) and n/a for the Lumped; it is left out when no model has one.
     @param sim Simulation fixture.
     """
     rows = {r["model"]: r for r in sim.table()}
@@ -78,7 +78,7 @@ def test_the_surface_column_is_the_top_face_peak_or_n_a(sim):
     cols, cells, _ = sim.summary_grid(lambda k: k)          # the keys, to look the rows up
     i = [c.key for c in cols].index("t_max_surface_c")
     by = {r[0]: r[i] for r in cells}
-    assert by["lumped"] == "n/a" and by["analytic"] == "n/a" and by["fvm"] != "n/a"
+    assert by["lumped"] == "n/a" and by["analytic"] != "n/a" and by["fvm"] != "n/a"
     only = simulate(example_board(), SolverOptions(models=("lumped",), cell_mm=2.0))
     assert "t_max_surface_c" not in [c.key for c in only.summary_columns()] and "surface" not in only.to_text()
 
@@ -133,7 +133,7 @@ def test_nothing_is_cut_at_1200_x_800(qtbot, tmp_path, sim):
 
 def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
     """!
-    @brief The Components tables take the same fix as the Summary: columns as wide as their header or content, a horizontal scroll bar when they do not fit, only the last one stretches.
+    @brief The Components tables take the same fix as the Summary: columns as wide as their header or content, a horizontal scroll bar when they do not fit, no column stretches (the spare width stays empty, review of feature/surface-export-and-tags).
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     @param sim Simulation fixture.
@@ -145,8 +145,10 @@ def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
     rv = win.results
     for t in (rv.heater_table, rv.zone_table, rv.hot_table):
         head = t.horizontalHeader()
-        assert head.stretchLastSection() and head.sectionResizeMode(0) == head.ResizeMode.ResizeToContents
-        for c in range(t.columnCount() - 1):
+        assert not head.stretchLastSection() and head.sectionResizeMode(0) == head.ResizeMode.ResizeToContents
+        # The appended read-out column is as wide as its header or text, not the spare width of the window
+        assert head.sectionSize(t.columnCount() - 1) <= max(head.sectionSizeHint(t.columnCount() - 1), t.sizeHintForColumn(t.columnCount() - 1)) + 2
+        for c in range(t.columnCount()):
             assert head.sectionSize(c) >= head.sectionSizeHint(c), (t.columnCount(), c, head.sectionSize(c), head.sectionSizeHint(c))
             assert head.sectionSize(c) >= t.sizeHintForColumn(c), (c,)
     t = rv.heater_table                                 # 11 columns: either all fit or the scroll bar reaches the rest

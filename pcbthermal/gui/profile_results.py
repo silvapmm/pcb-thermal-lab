@@ -5,13 +5,12 @@
 @brief Results of the time simulation with power profiles: temperature versus time, peak map and the last window as frames.
 """
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from .. import plots
-from .results_view import _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
+from .results_view import CollapseSafeCanvas, _mpl_theme, _paint_figure, redraw_pending, redraw_when_shown
 from . import tips
 from ..numfmt import num
 
@@ -44,7 +43,7 @@ class ProfileResultsTab(QWidget):
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.fig = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas = CollapseSafeCanvas(self.fig)      # Blank instead of a Matplotlib warning while the canvas is too small (see results_view)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         bar = QHBoxLayout()
         for text, w in (("Model", self.model), ("Show", self.view)):

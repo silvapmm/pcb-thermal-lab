@@ -63,7 +63,8 @@ def test_the_fem_checkbox_is_off_by_default_and_exposed_like_the_3d_solid(win):
     assert box.text() == "Finite elements (FEM)"
     assert not box.isChecked() and box.isEnabled() and "fem" not in win.doc.options.models
     tip = box.toolTip()
-    assert "0.4 to 0.9 %" in tip and "no surface" in tip and "steady" in tip.lower() and "0.2 %" not in tip
+    # The measured numbers of the 2.9.0 comparison campaign (docs/validation.md 56.1, 14 plain boards, 1 mm); 2.8.0 quoted 0.4 to 0.9 %, which the campaign does not reproduce
+    assert "1.4 % below the FVM" in tip and "no surface" in tip and "steady" in tip.lower() and "0.2 %" not in tip
     assert tip.count(".") <= 8                                           # short: details are in the guide
     assert "fem" in panels.GUARDED_MODELS and "solid3d" in panels.GUARDED_MODELS
     assert "fem" in preferences.MODELS

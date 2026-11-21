@@ -1,0 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+# Documentation tools only (not needed to run the program): the PDF of the user manual,
+# .venv/bin/python -m tools.manual.build_manual_pdf
+reportlab>=4.0        # BSD licence; needs Pillow (already brought by Matplotlib) and charset-normalizer (MIT)

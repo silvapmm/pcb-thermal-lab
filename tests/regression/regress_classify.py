@@ -352,6 +352,11 @@ def classify_transients(rows, table):
             r["class"], r["rules"] = "identical", []
             continue
         if r["change"] is None:
+            # A time that only the newer run has (the FEM time simulation of 2.9.0): an addition, not a shift, when the table's `transients.added` list names the board and model
+            added = [e["id"] for e in t.get("added", []) if r["old"] is None and r["new"] is not None and scope_matches(e, r["board"], r["model"], 0.0, "t63")]
+            if added:
+                r["class"], r["rules"] = "expected", added
+                continue
             r["class"], r["rules"] = "unexplained", []                        # a run that failed or never reached 63 % in one set only
             continue
         hit = [e["id"] for e in t.get("must_not_move", []) if scope_matches(e, r["board"], r["model"], 0.0, "t63")]

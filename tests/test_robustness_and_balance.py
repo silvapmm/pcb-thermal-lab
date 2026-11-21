@@ -256,8 +256,47 @@ def test_transient_energy_balance(model, block):
     assert float(q.sum()) == pytest.approx(2.0)
     assert stored + lost == pytest.approx(put_in, rel=1e-9)
     assert stored > 0.0 and lost > 0.0 and stored < put_in                   # Neither side is trivial
-    frames = fvm.transient_from_network(net, 0.0, t_end, n_out=4, substeps=steps // 4, log_times=False).frames
+    # The old stepping of the library (implicit Euler, no Rannacher start, no split of the first stage) is the march above; the default is Crank-Nicolson and has its own test below
+    frames = fvm.transient_from_network(net, 0.0, t_end, n_out=4, substeps=steps // 4, log_times=False, theta_scheme=1.0, rannacher=False, first_stage_split=1).frames
     assert np.allclose(frames[-1], x.reshape(net.nl, net.ny, net.nx)[:net.n_board], rtol=0, atol=1e-8)   # The library stepper gives the same field
+
+
+@pytest.mark.parametrize("block", [False, True])
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_transient_energy_balance_default_scheme(model, block):
+    """!
+    @brief Stored energy plus the heat lost equals the energy put in for the DEFAULT stepping (Crank-Nicolson with the Rannacher start), and the program's field is that march.
+    @details Hand march: two implicit-Euler half steps for the first step (loss of each with the new field), then Crank-Nicolson steps whose loss is the trapezoid (mean of the
+             old and new field), the form for which the row sums of K close the account exactly. The scheme is linear and the loss vector is the row sum of K, so the residual is
+             round-off, not a truncation error: the tolerance 1e-9 relative to the energy put in is three orders above the round-off measured (1.6e-13 at most, measured on the four boards).
+    @param model "fvm" or "fdm".
+    @param block True for a board with a metal block, False for the ladder of laminate sub-gaps.
+    @return None.
+    """
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spla
+    p = _combined(False, block=block)
+    net = fvm.Network(p, 40, 30) if model == "fvm" else fdm.Network(p, 1.0)
+    t_end, steps = 2.0e3, 80
+    dt = t_end / steps
+    C, q, g_loss = net.C.ravel(), net.Q.ravel(), (net.g_amb - net.g_pin).ravel()
+    A = (sp.diags(C / dt) + 0.5 * net.K).tocsc()
+    B = (sp.diags(C / dt) - 0.5 * net.K).tocsr()
+    lu = spla.splu(A)
+    x, lost = np.zeros_like(q), 0.0
+    for _ in range(2):                                                        # Rannacher start: two Euler half steps of dt/2 (same matrix as the CN factor, q/2)
+        x = lu.solve(C / dt * x + 0.5 * q)
+        lost += 0.5 * dt * float(g_loss @ x)
+    for _ in range(steps - 1):
+        x_new = lu.solve(B @ x + q)
+        lost += dt * 0.5 * float(g_loss @ (x + x_new))                        # Trapezoid: the loss of Crank-Nicolson
+        x = x_new
+    stored, put_in = float(C @ x), float(q.sum()) * t_end
+    residual = abs(stored + lost - put_in) / put_in
+    assert residual < 1e-9, residual
+    assert stored > 0.0 and lost > 0.0 and stored < put_in
+    frames = fvm.transient_from_network(net, 0.0, t_end, n_out=4, substeps=steps // 4, log_times=False).frames   # Library defaults
+    assert np.allclose(frames[-1], x.reshape(net.nl, net.ny, net.nx)[:net.n_board], rtol=0, atol=1e-8)
 
 
 @pytest.mark.parametrize("model", ["fvm", "fdm"])

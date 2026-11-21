@@ -1,0 +1,600 @@
+{
+ "format": 1,
+ "baseline": "v2.8.0",
+ "target": "2.9.0",
+ "provisional": false,
+ "how_to_read": "Same reading as expected_shifts_2.8.0.json. Baseline: the tag v2.8.0 (the numbers of v2.8.0.json). Items N1 and N3 come from the two pending files of 2.9.0 that hold shifted records; the FEM times to 63 % and the surface read-out of the Analytic and the 3D solid are ADDITIONS (`added_metrics`, times only in the new set), not shifts. The two new harness boards (top_block_pad, thick_copper_gap) are in no frozen file and no pending file: their items are attributed by hand (N3 and N5 for the 3D solid, N1 for the FEM); FVM, Analytic and Lumped must not move on them. The numeric limits are 1.25 times the shifts of the run that made the table: the table does not predict the sizes, it holds the next version to them.",
+ "items": [
+  {
+   "id": "N1",
+   "title": "FEM part on an outer copper layer enters through its outer face",
+   "branch": "fix/fem-thin-copper-source",
+   "evidence": "releases/2.9.0/fem-thin-copper/README.md",
+   "moves": "FEM records of the boards whose part sits on copper: the column by 0.01 to 0.8 mK, drawn_ell by 0.1 to 1.5 K (2 to 0.5 mm); the surface of the FEM by up to the whole term q t / (2 k); no other model moves"
+  },
+  {
+   "id": "N2",
+   "title": "FEM time simulation: the time to 63 % of the FEM ADDED",
+   "branch": "feature/fem-transient",
+   "evidence": "releases/2.9.0/fem-transient/MEASURED.md; docs/theory.md 4b",
+   "moves": "none: the FEM times to 63 % exist only in the 2.9.0 run (the boards whose mesh at the response cell is at most the harness cap); they are additions, not shifts"
+  },
+  {
+   "id": "N3",
+   "title": "3D solid interface pad conducts across only (1e-3 W/mK in its plane)",
+   "branch": "fix/solid3d-pad-inplane",
+   "evidence": "releases/2.9.0/solid3d-pad-inplane/README.md",
+   "moves": "3D solid of the boards with a metal block (finned_block 0.002 K at most) and, by hand, top_block_pad (the hottest column 170.472 to 171.226 C at 2 mm, 170.662 to 171.439 C at 1 mm in the review of the stage-A bump); no other model moves"
+  },
+  {
+   "id": "N4",
+   "title": "Surface read-out of the Analytic and the 3D solid: ADDED metrics",
+   "branch": "feature/surface-readout-models",
+   "evidence": "releases/2.9.0/surface-readout-models/DESIGN.md; research/surface-readout-models README 4",
+   "moves": "none: the surface metrics are ADDED to the existing records of the Analytic and the 3D solid (a view); no old metric moves"
+  },
+  {
+   "id": "N5",
+   "title": "Copper slabs of the 3D solid (copper above 105 um is a slab of its own)",
+   "branch": "feature/solid3d-copper-slabs",
+   "evidence": "releases/2.9.0/solid3d-copper-slabs/README.md",
+   "moves": "3D solid of thick_copper_gap, by hand (the hottest column 172.846 to 173.367 C at 2 mm, 172.508 to 173.074 C at 1 mm in the review of the stage-A bump); the frozen boards have copper of 105 um or less and are not reached"
+  },
+  {
+   "id": "N0",
+   "title": "Items with no frozen record",
+   "branch": "text, GUI, calculator and documentation items of 2.9.0",
+   "evidence": "CHANGELOG 2.9.0",
+   "moves": "none: a shift attributed to them would be a defect"
+  },
+  {
+   "id": "L8",
+   "title": "Round-off",
+   "branch": "last bits of the sums (order of the operations)",
+   "evidence": "CLAUDE.md Decisions Log (symmetric LU)",
+   "moves": "at most 1e-8 K"
+  }
+ ],
+ "rules": [
+  {
+   "id": "R1",
+   "item": "N1",
+   "boards": [
+    "drawn_ell",
+    "drawn_inset_square",
+    "drawn_stripes_pad",
+    "example_board",
+    "example_cut_to_T",
+    "finned_block",
+    "hatched_copper",
+    "one_layer_full",
+    "one_layer_pad",
+    "part_across_outline",
+    "part_top_path",
+    "plate_lone_via",
+    "plate_pad",
+    "plate_uniform",
+    "plate_vias",
+    "profile_board",
+    "reference_board",
+    "t_outline",
+    "thick_copper_gap",
+    "top_block_pad",
+    "two_layer_partial"
+   ],
+   "models": [
+    "fem"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "example_board|fem|2": {
+     "abs_k": [
+      0,
+      0.001804
+     ]
+    },
+    "profile_board|fem|2": {
+     "abs_k": [
+      0,
+      0.001804
+     ]
+    },
+    "reference_board|fem|2": {
+     "abs_k": [
+      0,
+      0.000469
+     ]
+    },
+    "example_cut_to_T|fem|2": {
+     "abs_k": [
+      0,
+      0.001807
+     ]
+    },
+    "plate_uniform|fem|2": {
+     "abs_k": [
+      0,
+      0.002509
+     ]
+    },
+    "plate_uniform|fem|1": {
+     "abs_k": [
+      0,
+      0.002531
+     ]
+    },
+    "plate_pad|fem|2": {
+     "abs_k": [
+      0,
+      0.002495
+     ]
+    },
+    "plate_pad|fem|1": {
+     "abs_k": [
+      0,
+      0.002519
+     ]
+    },
+    "plate_vias|fem|2": {
+     "abs_k": [
+      0,
+      0.003227
+     ]
+    },
+    "plate_vias|fem|1": {
+     "abs_k": [
+      0,
+      0.003203
+     ]
+    },
+    "plate_lone_via|fem|2": {
+     "abs_k": [
+      0,
+      0.002654
+     ]
+    },
+    "plate_lone_via|fem|1": {
+     "abs_k": [
+      0,
+      0.002723
+     ]
+    },
+    "t_outline|fem|2": {
+     "abs_k": [
+      0,
+      0.000958
+     ]
+    },
+    "t_outline|fem|1": {
+     "abs_k": [
+      0,
+      0.000959
+     ]
+    },
+    "two_layer_partial|fem|2": {
+     "abs_k": [
+      0,
+      0.001442
+     ]
+    },
+    "two_layer_partial|fem|1": {
+     "abs_k": [
+      0,
+      0.001443
+     ]
+    },
+    "one_layer_full|fem|2": {
+     "abs_k": [
+      0,
+      0.000455
+     ]
+    },
+    "one_layer_full|fem|1": {
+     "abs_k": [
+      0,
+      0.00046
+     ]
+    },
+    "one_layer_pad|fem|2": {
+     "abs_k": [
+      0,
+      0.000458
+     ]
+    },
+    "one_layer_pad|fem|1": {
+     "abs_k": [
+      0,
+      0.000464
+     ]
+    },
+    "finned_block|fem|2": {
+     "abs_k": [
+      0,
+      0.001518
+     ],
+     "abs_w": [
+      0,
+      2.6367189293052817e-06
+     ]
+    },
+    "finned_block|fem|1": {
+     "abs_k": [
+      0,
+      0.001519
+     ],
+     "abs_w": [
+      0,
+      2.6397569635738805e-06
+     ]
+    },
+    "part_top_path|fem|2": {
+     "abs_k": [
+      0,
+      0.000938
+     ],
+     "abs_w": [
+      0,
+      1.940486036855482e-06
+     ]
+    },
+    "part_top_path|fem|1": {
+     "abs_k": [
+      0,
+      0.000899
+     ],
+     "abs_w": [
+      0,
+      1.9401908701865977e-06
+     ]
+    },
+    "hatched_copper|fem|2": {
+     "abs_k": [
+      0,
+      0.001575
+     ]
+    },
+    "hatched_copper|fem|1": {
+     "abs_k": [
+      0,
+      0.001575
+     ]
+    },
+    "part_across_outline|fem|2": {
+     "abs_k": [
+      0,
+      0.002675
+     ]
+    },
+    "part_across_outline|fem|1": {
+     "abs_k": [
+      0,
+      0.002686
+     ]
+    },
+    "part_across_outline|fem|0.5": {
+     "abs_k": [
+      0,
+      0.002686
+     ]
+    },
+    "drawn_inset_square|fem|2": {
+     "abs_k": [
+      0,
+      0.001676
+     ]
+    },
+    "drawn_inset_square|fem|1": {
+     "abs_k": [
+      0,
+      0.001903
+     ]
+    },
+    "drawn_inset_square|fem|0.5": {
+     "abs_k": [
+      0,
+      0.001921
+     ]
+    },
+    "drawn_stripes_pad|fem|2": {
+     "abs_k": [
+      0,
+      0.00176
+     ]
+    },
+    "drawn_stripes_pad|fem|1": {
+     "abs_k": [
+      0,
+      0.001987
+     ]
+    },
+    "drawn_stripes_pad|fem|0.5": {
+     "abs_k": [
+      0,
+      0.001985
+     ]
+    },
+    "drawn_ell|fem|2": {
+     "abs_k": [
+      0,
+      3.220649
+     ]
+    },
+    "drawn_ell|fem|1": {
+     "abs_k": [
+      0,
+      7.736321
+     ]
+    },
+    "drawn_ell|fem|0.5": {
+     "abs_k": [
+      0,
+      4.141877
+     ]
+    },
+    "thick_copper_gap|fem|2": {
+     "abs_k": [
+      0,
+      1e-06
+     ]
+    },
+    "thick_copper_gap|fem|1": {
+     "abs_k": [
+      0,
+      1e-06
+     ]
+    },
+    "top_block_pad|fem|2": {
+     "abs_k": [
+      0,
+      0.001357
+     ],
+     "abs_w": [
+      0,
+      1.7877139929511898e-06
+     ]
+    },
+    "top_block_pad|fem|1": {
+     "abs_k": [
+      0,
+      0.00137
+     ],
+     "abs_w": [
+      0,
+      1.7909221633471972e-06
+     ]
+    },
+    "top_block_pad|fem|0.5": {
+     "abs_k": [
+      0,
+      0.00137
+     ],
+     "abs_w": [
+      0,
+      1.791202742934539e-06
+     ]
+    }
+   }
+  },
+  {
+   "id": "R2",
+   "item": "N3",
+   "boards": [
+    "finned_block",
+    "top_block_pad"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "finned_block|solid3d|2": {
+     "abs_k": [
+      0,
+      0.002535
+     ]
+    },
+    "finned_block|solid3d|1": {
+     "abs_k": [
+      0,
+      0.002563
+     ]
+    },
+    "finned_block|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.00258
+     ]
+    },
+    "top_block_pad|solid3d|2": {
+     "abs_k": [
+      0,
+      0.942561
+     ]
+    },
+    "top_block_pad|solid3d|1": {
+     "abs_k": [
+      0,
+      0.971492
+     ]
+    },
+    "top_block_pad|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.979576
+     ]
+    }
+   }
+  },
+  {
+   "id": "R3",
+   "item": "N5",
+   "boards": [
+    "thick_copper_gap"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": [
+    0.5,
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    50
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "rel": [
+    0,
+    1
+   ],
+   "status": "quantified",
+   "note": "items from the pending files of the integration; limits = 1.25 x the shift of this run (floor 1e-6 K)",
+   "limits": {
+    "thick_copper_gap|solid3d|2": {
+     "abs_k": [
+      0,
+      0.651012
+     ],
+     "rel": [
+      0,
+      1.25
+     ]
+    },
+    "thick_copper_gap|solid3d|1": {
+     "abs_k": [
+      0,
+      0.70694
+     ],
+     "rel": [
+      0,
+      1.25
+     ]
+    },
+    "thick_copper_gap|solid3d|0.5": {
+     "abs_k": [
+      0,
+      0.729797
+     ],
+     "rel": [
+      0,
+      1.25
+     ]
+    }
+   }
+  },
+  {
+   "id": "R0",
+   "item": "L8",
+   "boards": "*",
+   "models": "*",
+   "cells": "*",
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    1e-08
+   ],
+   "abs_w": [
+    0,
+    1e-08
+   ],
+   "rel": [
+    0,
+    0
+   ],
+   "status": "derived",
+   "note": "round-off of the order of the sums"
+  }
+ ],
+ "must_not_move": [],
+ "added_metrics": [
+  {
+   "id": "A4",
+   "boards": "*",
+   "models": [
+    "analytic",
+    "solid3d"
+   ],
+   "cells": "*",
+   "metrics": [
+    "surface:*",
+    "part:*:t_max_surface",
+    "part:*:t_mean_surface"
+   ],
+   "note": "surface read-out of the Analytic and the 3D solid, added to the records (feature/surface-readout-models); never a rule on `status`: it would also excuse a failed run"
+  }
+ ],
+ "transients": {
+  "must_not_move": [],
+  "added": [
+   {
+    "id": "A2",
+    "boards": "*",
+    "models": [
+     "fem"
+    ],
+    "note": "time to 63 % of the FEM time simulation of 2.9.0 (feature/fem-transient): only in the new run, an addition"
+   }
+  ],
+  "may_move": [
+   {
+    "id": "T0",
+    "boards": "*",
+    "models": "*",
+    "direction": "any",
+    "rel_change": [
+     0,
+     1e-06
+    ],
+    "note": "round-off of the time to 63 %"
+   }
+  ]
+ },
+ "board_matrix": {}
+}

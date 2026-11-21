@@ -1,6 +1,6 @@
 # PCB Thermal Lab 2.8.0
 
-A version of confidence: measured, bounded and warned errors. (Draft; the date follows the maintainer's word at the release.)
+A version of confidence: measured, bounded and warned errors.
 
 ## Highlights
 

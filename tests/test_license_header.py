@@ -19,7 +19,7 @@ LINE1 = "Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved."
 LINE2 = "This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution."
 HEADER = ("#  " + LINE1, "#  " + LINE2)
 HTML_HEADER = ("<!--", "  " + LINE1, "  " + LINE2, "-->")
-FOLDERS = ("pcbthermal", "tests", "examples", "research", "releases", "tools")
+FOLDERS = ("pcbthermal", "tests", "examples", "research", "releases", "tools", "packaging")
 HASH_NAMES = {".gitignore", "Makefile"}
 HASH_SUFFIXES = {".sh", ".toml", ".yml", ".yaml", ".cfg", ".ini"}
 EXEMPT = {"tools/ocr/data/prompt.txt"}
@@ -64,7 +64,7 @@ def python_files():
     for folder in FOLDERS:
         for p in (ROOT / folder).rglob("*.py"):
             parts = set(p.relative_to(ROOT).parts)
-            if parts & {".venv", ".venv-research", "__pycache__", "out", "data", "pylib", "variant"}:
+            if parts & {".venv", ".venv-research", ".venv-build", "build", "dist", "__pycache__", "out", "data", "pylib", "variant"}:
                 continue
             out.append(p)
     return sorted(out)

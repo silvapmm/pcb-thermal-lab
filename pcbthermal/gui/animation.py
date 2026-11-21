@@ -56,18 +56,21 @@ class AnimationTab(QWidget):
         self.model.setAccessibleName("Model")
         for key in ("fvm", "fdm", "analytic"):
             self.model.addItem(model_full_label(key), key)
-        self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points.")
+        self.model.setToolTip("Model of the animation. Analytic: instant; FDM: the FVM time stepping on grid points; FEM (when ticked in the Models list): finite elements "
+                              "that resolve the thickness of the board, the one to believe in the first seconds, slower.")
         self.scheme = QComboBox()
         self.scheme.setAccessibleName("Scheme")
-        self.scheme.addItem("Implicit Euler (robust)", 1.0)
+        # Crank-Nicolson first, so it is the default of the box since 2.9.0 (it was implicit Euler: 0.7 to 1.9 % low after the first seconds, 12 to 17 % at the first frame)
         self.scheme.addItem("Crank-Nicolson (accurate)", 0.5)
+        self.scheme.addItem("Implicit Euler (robust)", 1.0)
         self.spacing = QComboBox()
         self.spacing.setAccessibleName("Spacing")
         self.spacing.addItem("Logarithmic time", True)
         self.spacing.addItem("Linear time", False)
         self.t_end.setToolTip("Length of the animated power step, s (preset: a few board time constants).")
         self.frames.setToolTip("Number of frames computed.")
-        self.scheme.setToolTip("Time stepping: implicit Euler is robust, Crank-Nicolson is more accurate.")
+        self.scheme.setToolTip("Time stepping. Crank-Nicolson (the default; the first frames in quarter steps, opened by two half steps) is second order: within 0.13 % of the peak rise after the "
+                               "first seconds. Implicit Euler is first order and always rises monotonically, but at the default frames it reads the peak 0.7 to 1.9 % low and its first frame 12 to 17 % low on the example board.")
         self.spacing.setToolTip("Frame spacing in time: logarithmic (early heating in detail) or linear.")
         self.compute = QPushButton("Compute")
         self.compute.setToolTip("Compute the response to the power switched on at t = 0.")
@@ -129,6 +132,22 @@ class AnimationTab(QWidget):
         self.fps.valueChanged.connect(lambda v: self.timer.setInterval(int(1000 / v)))
         self.display.changed.connect(lambda _what: self.redraw())       # A change of the shared display choice draws the frame again
 
+    def set_ticked_models(self, models):
+        """!
+        @brief Offer the comparison FEM in the model chooser while it is ticked in the Models list (the choice in force is kept).
+        @param models Model keys ticked in the options.
+        @return None.
+        """
+        have = self.model.findData("fem") >= 0
+        if ("fem" in models) == have:
+            return
+        current = self.model.currentData()
+        if have:
+            self.model.removeItem(self.model.findData("fem"))
+        else:
+            self.model.addItem(model_full_label("fem"), "fem")
+        self.model.setCurrentIndex(max(self.model.findData(current), 0))
+
     def _set_enabled(self, on):
         """!
         @brief Enable the playback controls only when a transient result exists.
@@ -188,7 +207,7 @@ class AnimationTab(QWidget):
         self.compute.setEnabled(True)
         self._set_enabled(True)
         tau = tr.time_constant()
-        text = (f"Steady Tmax {tr.steady_t_max:.1f} °C; the hottest point reaches 63 % at "
+        text = (f"Steady Tmax {tr.steady_t_max:.1f} °C (column); the hottest point reaches 63 % at "
                 f"{tau:.1f} s. {len(tr.times) - 1} frames up to {tr.times[-1]:.0f} s.")
         # Limits of the model met by this run (the Analytic with a heatsink): the animation has no Results summary, so they are shown here.
         # getattr: a result computed before the field existed has none

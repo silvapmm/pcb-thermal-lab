@@ -31,7 +31,7 @@ from .elided import clamp_to_screen
 from .calculator import PowerCalculator
 from .import_session import editor_part_values, reimport_summary, sync_add_heaters
 from .import_window import ImportBoardWindow
-from .help import AboutDialog, GuideWindow, open_guide_in_browser
+from .help import AboutDialog, GuideWindow, app_icon, open_guide_in_browser
 from .preferences import PreferencesDialog
 from .canvas import BoardView
 from . import compute
@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
         self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
-        self._checks_key = None                               # (models, cell) the live checks were last scheduled for
+        self._checks_key = None                               # (models, cell, FEM gap elements) the live checks were last scheduled for
         self.doc.state_changed.connect(self._on_options_changed)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
 
@@ -741,9 +741,7 @@ class MainWindow(QMainWindow):
         self.display_button.set_dot(self.display.active())
         self.display_popover.apply_theme(self.theme_name)
         self._refresh_display_context()
-        logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
-        if logo.exists():
-            self.setWindowIcon(QIcon(str(logo)))
+        self.setWindowIcon(app_icon())
 
     # ------------------------------------------------------------------ canvas glue
     def _set_tool(self, name):
@@ -1324,7 +1322,8 @@ class MainWindow(QMainWindow):
         """!
         @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
         """
-        key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
+        self.results.animation.set_ticked_models(self.doc.options.models)      # the FEM is a choice of the animation while it is ticked
+        key = (tuple(self.doc.options.models), self.doc.options.cell_mm, self.doc.options.fem_gap_elements)   # the FEM profile note reads the gap elements
         if key != self._checks_key:
             self._checks_key = key
             self._check_timer.start()
@@ -1337,7 +1336,8 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui"))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui",
+                                                  fem_gap_elements=self.doc.options.fem_gap_elements))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -1532,7 +1532,7 @@ class MainWindow(QMainWindow):
 
     def export_results(self):
         """!
-        @brief Save report, summary, CSV fields and figures to a folder; the temperature maps follow the Display choice (View, underlay, colour map).
+        @brief Save report, summary, CSV fields, the tables (hotspots, zones, parts), the surface read-out (CSV and maps, for every model that has one) and figures to a folder; the temperature maps follow the Display choice (View, underlay, colour map).
         """
         if self.sim is None:
             QMessageBox.information(self, "Export", "Run a simulation first.")
@@ -1540,7 +1540,7 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Export results to folder")
         if d:
             # The maps are written as the Display panel draws them: the same View, underlay (copper or image), opacity and colour map
-            files = self.sim.save(d, plots=True, view=self.display.map_view("temperature", self.theme_name), cmap=self.display.cmap)
+            files = self.sim.save(d, plots=True, view=self.display.map_view("temperature", self.theme_name), cmap=self.display.cmap, surface_files=True)
             self.statusBar().showMessage(f"{len(files)} files written to {d}")
 
     def export_report(self):
@@ -1754,6 +1754,7 @@ class MainWindow(QMainWindow):
         if d.saved:
             self.doc.options.memory_fraction = memory.default_fraction()       # The machine preference may have changed; the panel shows the new verdicts
             self.solver_panel.refresh()
+            self.results.refresh_report()                                       # The setting 'Summary table in the report text' applies to the result already shown
             self._show_defaults_state()
             self.inspector.rebuild()
             self.stackup_page.refresh()
@@ -1833,10 +1834,12 @@ class MainWindow(QMainWindow):
         problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0), laminate=self.doc.options.laminate_params())
         # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
-        if kwargs.get("model", "fvm") in ("fvm", "fdm"):
+        if kwargs.get("model", "fvm") == "fem":
+            kwargs.update(gap_elements=self.doc.options.fem_gap_elements, refine=float(self.doc.options.fem_refine), memory_fraction=self.doc.options.memory_fraction)
+        if kwargs.get("model", "fvm") in ("fvm", "fdm", "fem"):
             try:
                 memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT,
-                             laminate_params=self.doc.options.laminate_params())
+                             laminate_params=self.doc.options.laminate_params(), fem_params=self.doc.options.fem_params())
             except memory.MemoryGuardError as exc:
                 anim.computing_failed(str(exc))
                 return
@@ -1861,7 +1864,7 @@ class MainWindow(QMainWindow):
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
         self.tabs.setTabText(TAB_RESULTS, "Results (outdated)" if self._stale else "Results")
         ref = sim.reference
-        self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W"
+        self.solver_panel.set_running(False, f"Done: {tips.model_label(ref.model)}, Tmax {ref.t_max:.1f} °C (column), Rθ {ref.r_theta:.2f} K/W"
                                       + ("  (the design changed while it ran)" if self._stale else ""))
         self.tabs.setCurrentIndex(TAB_RESULTS)
         self._update_map_button()

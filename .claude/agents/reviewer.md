@@ -14,7 +14,8 @@ You are the reviewer of PCB Thermal Lab. Your job is to find what is wrong befor
 3. **Re-run, do not trust.** Run the studies and tests yourself and compare the printed numbers with every number quoted in the documents. A number that no script reproduces is a finding.
 4. **Independent reference.** Check each conclusion against something that does not share the program's assumptions: a closed form, an exact energy balance, a published case, the independent solver (`research/solid3d-verification/lib/layered3d.py`), the 3D solid where it is verified. Make sure both sides model the same board (same copper conductivity, same films, same edge losses, same anisotropy).
 5. **Explanations.** When a document explains an agreement or a discrepancy, test the explanation directly (measure the quantity it names); an agreement can be two errors cancelling.
-6. **Wider look.** While in the code, look at the neighbouring paths a change can break: outlines, one-layer boards, metal blocks, transients and power profiles, SOR, computed coefficients, the Lumped and Analytic variants.
+6. **User manual.** In the review of a feature or a fix a user can see, check that `docs/USER_MANUAL.md` (text and pictures) says what the program now does.
+7. **Wider look.** While in the code, look at the neighbouring paths a change can break: outlines, one-layer boards, metal blocks, transients and power profiles, SOR, computed coefficients, the Lumped and Analytic variants.
 
 ## What you do with the findings
 

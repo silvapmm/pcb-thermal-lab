@@ -128,6 +128,10 @@ class FemMesh:
     n_patches: int = 0
     n_rods: int = 0
     volume_board: float = 0.0         # Volume of the board slabs (elements of copper and gaps), m3
+    rho_c: Optional[np.ndarray] = None            # Volumetric heat capacity of every element (E,), J/m3K (the same array as `model.rho_c`)
+    heater_q: Optional[list] = None               # Per heater: (element ids, source density for 1 W in W/m3 per W) of its volumetric source, or None
+    heater_flux: Optional[list] = None            # Per heater: (face nodes (F, 4), flux for 1 W in W/m2 per W) of its face flux on an outer layer, or None
+    capacity_parts: Optional[dict] = None         # The capacity of the mesh by category in J/K (copper, laminate, blocks) and what is not counted (see build)
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
@@ -1124,12 +1128,48 @@ def _h_on_quads(h, plan, width, height, default):
     return a[iy, ix]
 
 
+def _capacity_inventory(model, elem_slab, elem_quad, zs, fill, via_frac, plan, rc_cu):
+    """!
+    @brief The heat capacity of the mesh by category, in J/K, and the copper of the via barrels that the program's models do not count.
+    @details Categories: `copper` (the fill share of the copper slabs, `f rho_cu cp_cu` times the volume), `laminate` (the rest of the board slabs: the dielectric gaps and the
+             laminate part of the copper slabs), `blocks` (the metal blocks), `pad` (always zero: the interface pad has no capacity), and `via_barrel_omitted`, an estimate of the
+             copper of the barrel rings and rods that is NOT in the sum (the barrel elements carry the capacity of the slab they replace, as the FVM and FDM do) so that the
+             inventory can say what is missing: `(rho c)_copper - (rho c)_element` times the volume of the barrel elements and of the rods. Parts: not modelled.
+    @param model femcore.Model with `rho_c` set.
+    @param elem_slab Slab index of every element (E,).
+    @param elem_quad Plan quad of every element (E,).
+    @param zs The z slabs (list of dict with kind, layer, region).
+    @param fill Copper fill per layer and plan quad (L, Q), dimensionless.
+    @param via_frac Copper area share of the rods per plan quad (Q,), dimensionless.
+    @param plan Plan (the tag of every quad: 2 is a barrel ring).
+    @param rc_cu Volumetric heat capacity of copper in J/m3K.
+    @return dict of floats in J/K: copper, laminate, blocks, pad, total, via_barrel_omitted.
+    """
+    vol = model.element_volumes()
+    cap = vol * model.rho_c
+    kind = np.array([sl["kind"] for sl in zs])[elem_slab]
+    region = np.array([sl["region"] for sl in zs])[elem_slab]
+    layer = np.array([sl.get("layer", 0) for sl in zs])[elem_slab]
+    is_cu = (kind == "cu") & (region == "board")
+    f = np.zeros(vol.size)
+    if is_cu.any():
+        f[is_cu] = fill[layer[is_cu], elem_quad[is_cu]]
+    copper_j = float((f * rc_cu * vol)[is_cu].sum())
+    board = region == "board"
+    blocks_j = float(cap[kind == "blk"].sum())
+    pad_j = float(cap[kind == "pad"].sum())
+    board_j = float(cap[board].sum())
+    barrel = board & (plan.tag[elem_quad] == 2)
+    omitted = float(((rc_cu - model.rho_c) * vol)[barrel].sum()) + float(((rc_cu - model.rho_c) * vol * via_frac[elem_quad])[board & ~barrel].sum())
+    return {"copper": copper_j, "laminate": board_j - copper_j, "blocks": blocks_j, "pad": pad_j, "total": float(cap.sum()), "via_barrel_omitted": omitted}
+
+
 def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 2.0, h_top=None, h_bottom=None) -> FemMesh:
     """!
     @brief Build the finite-element model of a problem, or refuse with the reason.
     @details Materials per element (the 3D solid's rule where the geometry is not resolved: a copper slab of fill f has kx = f k_cu + (1 - f) k_lam, kz likewise with the
-             through-thickness conductivity of the adjacent gaps), the barrel of a via as copper elements (a patch) or a rod added to kz (the others), the heaters as a volumetric
-             source in the copper slabs of their layer with the exact area under the polygon, the films on the top and bottom faces (`h_top`, `h_bottom`, plus the `h_extra`
+             through-thickness conductivity of the adjacent gaps), the barrel of a via as copper elements (a patch) or a rod added to kz (the others), the heaters as a face flux
+             through the outer face (a part on the top or the bottom layer, any thickness) or a volumetric source in the copper slabs of an interior layer, with the exact area under the polygon, the films on the top and bottom faces (`h_top`, `h_bottom`, plus the `h_extra`
              of a plain heatsink under its polygon, none under a block), the edge film on every wall of the outline in every board slab, and the blocks with their pad, exposed
              face and walls (the fin ratio on the exposed face only, `blocks.exposed_h`, `blocks.wall_h`). The temperatures are rises over the ambient.
     @param problem A Problem.
@@ -1151,8 +1191,10 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
     L = b.layers
     tc = np.asarray(b.copper_thickness, float)
     gaps = b.gap_thicknesses()
-    g_kz, g_kip, _ = b.gap_properties()
-    k_lam = b.layer_laminate()[0]
+    g_kz, g_kip, g_rc = b.gap_properties()
+    k_lam, rc_lam = b.layer_laminate()                            # in-plane k and volumetric heat capacity of the dielectric part of every layer node
+    rc_cu = m.rho_copper * m.cp_copper
+    rc_fr4 = m.rho_fr4 * m.cp_fr4
     kz_lam = np.array([float(np.dot([gaps[g] for g in a], [g_kz[g] for g in a]) / sum(gaps[g] for g in a)) if (a := [g for g in (l - 1, l) if 0 <= g < L - 1]) else m.k_fr4_through
                        for l in range(L)])
     warnings = list(lay.warnings)
@@ -1178,11 +1220,11 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
         warnings.append(f"{len(lay.rods)} of {len(lay.rods) + len(lay.windows)} vias are a rod of the barrel area spread over the elements under the drill (no room for a conforming barrel)")
 
     # --- Elements and materials, slab by slab (the elements of one slab are contiguous: `ranges[s]` is their first and last id)
-    elems, kx_l, kz_l, slab_of, quad_of, ranges = [], [], [], [], [], {}
+    elems, kx_l, kz_l, rc_l, slab_of, quad_of, ranges = [], [], [], [], [], [], {}
     cursor = 0
     barrel_vias = {w["via"]: _ring_radii(problem.vias[w["via"]], b.via_plating)[2] for w in lay.windows}
     for s, sl in enumerate(zs):
-        groups = []                                                # (quad ids, kx, kz) of the regions of this slab
+        groups = []                                                # (quad ids, kx, kz, rho c) of the regions of this slab
         if sl["region"] == "board":
             ids = lay.sets["board"]
             if sl["kind"] == "cu":
@@ -1190,13 +1232,18 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
                 fe = np.minimum(f + via_frac[ids], 1.0)
                 kx = f * kcu + (1.0 - f) * k_lam[sl["layer"]]
                 kz = fe * kcu + (1.0 - fe) * (kz_lam[sl["layer"]] if L > 1 else m.k_fr4_through)
+                # Heat capacity as the FVM counts it (`fvm.Network.C`): the copper of the fill and the laminate of the rest of the slab. The copper of a via barrel is NOT added
+                # (the FVM and FDM do not count it either, DESIGN.md 14.7): a barrel element carries the capacity of the slab it replaces, and the inventory names what is left out
+                rc = f * rc_cu + (1.0 - f) * rc_lam[sl["layer"]]
             else:
                 if sl["gap"] >= 0:
                     kx = np.full(ids.size, float(g_kip[sl["gap"]]))
                     kzb = float(g_kz[sl["gap"]])
+                    rc = np.full(ids.size, float(g_rc[sl["gap"]]))
                 else:
                     kx = np.full(ids.size, m.k_fr4_inplane)
                     kzb = m.k_fr4_through
+                    rc = np.full(ids.size, rc_fr4)                  # the laminate under the copper of a one-layer board
                 kz = via_frac[ids] * kcu + (1.0 - via_frac[ids]) * kzb
             # The barrel and the core of a patched via, over every board slab
             pt = plan.tag[ids]
@@ -1211,7 +1258,7 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
                         kf = kcu if kind == "solid" else problem.vias[w_via].fill_k
                         kx[sel] = kf
                         kz[sel] = kf
-            groups.append((ids, kx, kz))
+            groups.append((ids, kx, kz, rc))
         else:
             # A block or pad slab: every block of the face (the node z already holds its own thickness)
             for bk in [x for x in lay.blocks if x["face"] == sl["face"]]:
@@ -1219,9 +1266,13 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
                 # The pad conducts across only (K_PAD_INPLANE in the plane): it stands for a contact resistance, not a body that spreads heat
                 kk = K_PAD if sl["kind"] == "pad" else problem.heatsinks[bk["k"]].k
                 kp = K_PAD_INPLANE if sl["kind"] == "pad" else kk
-                groups.append((ids, np.full(ids.size, kp), np.full(ids.size, kk)))
+                # The interface pad has NO capacity: its thickness is the contact resistance times K_PAD, a numerical device with an invented conductivity, so any rho c would be an
+                # invented mass (DESIGN.md 14.2); the FVM has none either. The metal block carries the rho c of its material
+                rb = 0.0 if sl["kind"] == "pad" else float(problem.heatsinks[bk["k"]].rho_cp)
+                groups.append((ids, np.full(ids.size, kp), np.full(ids.size, kk), np.full(ids.size, rb)))
         first_id = cursor
-        for ids, kx, kz in groups:
+        for ids, kx, kz, rc in groups:
+            rc_l.append(rc)
             elems.append(np.hstack([nid[s][plan.quads[ids]], nid[s + 1][plan.quads[ids]]]))
             kx_l.append(kx)
             kz_l.append(kz)
@@ -1244,12 +1295,14 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
     model.k[:, 0] = np.concatenate(kx_l)
     model.k[:, 1] = model.k[:, 0]
     model.k[:, 2] = np.concatenate(kz_l)
+    model.rho_c[:] = np.concatenate(rc_l)
     elem_slab = np.concatenate(slab_of)
     elem_quad = np.concatenate(quad_of)
     copper_slabs = [[s for s, sl in enumerate(zs) if sl["kind"] == "cu" and sl["layer"] == l and sl["region"] == "board"] for l in range(L)]
 
-    # --- Heaters: a volumetric source in the copper slabs of the layer, exact area under the polygon
+    # --- Heaters: a face flux on an outer layer, a volumetric source in the copper slabs of an interior layer; exact area under the polygon
     heater_elems = []
+    heater_q, heater_flux = [], []                                 # the unit-power loads of every heater, for the transient (`femcore.Model.load_vector`)
     cu_total = {l: sum(zs[s]["dz"] for s in copper_slabs[l]) for l in range(L)}
     # element offsets by slab for the board
     for h in problem.heaters:
@@ -1266,11 +1319,12 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             tot = float(w.sum())
             warnings.append(f"the heater {h.name or ''} has no area on the board: its power goes to the nearest element")
         ids_all = []
-        # A thick outer copper layer (several slabs) takes the heat of a part through its face, as a prescribed flux over the footprint: the part sits on that face, and the
-        # surface read-out of a thick plate (case 2 of Muzychka, Culham and Yovanovich, docs/validation.md 55) is the point of the model. A thin layer (one slab) keeps the
-        # volumetric source: through 35 um the two differ by micro-kelvin, and the mesh and the frozen numbers of the boards of the harness do not change.
+        # A part on an OUTER copper layer (top or bottom, any thickness) injects its heat through the face, as a prescribed flux over the footprint: the part sits on that face,
+        # and the surface read-out (case 2 of Muzychka, Culham and Yovanovich, docs/validation.md 55) is the point of the model. Until 2.9.0 a layer of one slab (up to 105 um) kept
+        # a volumetric source: a single linear element through the copper then carries half of that load at its bottom node and the surface minus column term read about half
+        # of q t / 2k (0.50 on a one-dimensional board, 0.05 on a 4 mm part where the physical value is 0.67 to 1.00). An interior layer has no face to load: it keeps the source.
         slabs_l = copper_slabs[h.layer]
-        if len(slabs_l) > 1 and (h.layer == 0 or h.layer == L - 1):
+        if len(slabs_l) >= 1 and (h.layer == 0 or h.layer == L - 1):
             top = h.layer == 0
             a, c = ranges[slabs_l[0] if top else slabs_l[-1]]
             q_s = elem_quad[a:c]
@@ -1280,15 +1334,22 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             model.add_faces(nodes_f, flux=h.power * share_q[sel] / tot, label="source")
             ids_all.append(a + sel)
             heater_elems.append(np.concatenate(ids_all))
+            heater_q.append(None)
+            heater_flux.append((nodes_f, share_q[sel] / tot))
             continue
+        q_ids, q_val = [], []
         for s in slabs_l:
             a, c = ranges[s]
             ids_s = np.arange(a, c)
             q_s = elem_quad[a:c]
             share_q = w[q_s] / plan.area[q_s]
             model.q[ids_s] += h.power * share_q / (tot * cu_total[h.layer])
+            q_ids.append(ids_s[share_q > 0])
+            q_val.append(share_q[share_q > 0] / (tot * cu_total[h.layer]))
             ids_all.append(ids_s[share_q > 0])
         heater_elems.append(np.concatenate(ids_all) if ids_all else np.zeros(0, np.int64))
+        heater_q.append((np.concatenate(q_ids), np.concatenate(q_val)) if q_ids else (np.zeros(0, np.int64), np.zeros(0)))
+        heater_flux.append(None)
 
     # --- Films
     ht = _h_on_quads(h_top, plan, b.width, b.height, b.h_top)
@@ -1334,4 +1395,5 @@ def build(problem, cell_mm: float = 2.0, gap_elements: int = 6, refine: float = 
             model.add_faces(f, h=h_wall, label="block_top" if face == 0 else "block_bottom")
     vol = float(model.element_volumes()[np.isin(elem_slab, np.arange(lay.b0, lay.b1))].sum())
     return FemMesh(model=model, n_unknowns=lay.n_unknowns, n_elements=E, plan=plan, slabs=zs, planes=lay.n_planes, elem_slab=elem_slab, elem_quad=elem_quad,
-                   copper_slabs=copper_slabs, heater_elems=heater_elems, warnings=warnings, n_patches=len(lay.windows), n_rods=len(lay.rods), volume_board=vol)
+                   copper_slabs=copper_slabs, heater_elems=heater_elems, warnings=warnings, n_patches=len(lay.windows), n_rods=len(lay.rods), volume_board=vol,
+                   rho_c=model.rho_c, heater_q=heater_q, heater_flux=heater_flux, capacity_parts=_capacity_inventory(model, elem_slab, elem_quad, zs, fill, via_frac, plan, rc_cu))

@@ -43,6 +43,29 @@ def model_label(key):
     return MODEL_LABELS.get(key, key)
 
 
+def model_order(keys, reference=None):
+    """!
+    @brief The models in the order of the tables and charts that compare them: the reference first, the others in the program order (the order of MODEL_LABELS).
+    @param keys Model keys that have something to show.
+    @param reference Key of the reference model (None: none is moved to the front).
+    @return List of keys; a key the program does not know goes last, in the order given.
+    """
+    order = list(MODEL_LABELS)
+    rank = lambda k: order.index(k) if k in order else len(order)
+    rest = sorted((k for k in keys if k != reference), key=rank)           # sorted is stable: unknown keys keep their order
+    return ([reference] if reference in keys else []) + rest
+
+
+def model_color(key):
+    """!
+    @brief Colour of a model in the comparison charts: one fixed entry of the default matplotlib cycle per model, in the program order, whatever other models ran.
+    @param key Model key.
+    @return Colour name ("C0" to "C5"; "C6" for an unknown key).
+    """
+    order = list(MODEL_LABELS)
+    return f"C{order.index(key) if key in order else len(order)}"
+
+
 def model_full_label(key):
     """!
     @brief Full name of a model (the one of the Models box without its role words).
@@ -149,6 +172,10 @@ class TransientResult:
     ambient: float                               # Ambient temperature (degC)
     grid: str = "cells"                          # "cells" or "nodes": what the frames hold (nodes for the finite-difference model)
     warnings: List[str] = field(default_factory=list)   # Limits of the model met by this run (the Analytic with a heatsink); empty for the FVM and FDM
+    # Optional additions of a model that has more to say (the FEM): empty for the FVM, FDM and Analytic, never written to a project file. `arrays["T_surface"]` is reserved for the
+    # surface read-out of the transient, shape (len(times), 2, ny, nx) aligned with `times` (not filled by any model yet); `extras` holds numbers and series of the run
+    arrays: Dict[str, np.ndarray] = field(default_factory=dict)
+    extras: Dict[str, object] = field(default_factory=dict)
 
     def time_constant(self):
         """!

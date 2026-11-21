@@ -2,13 +2,13 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_frozen_numbers.py
-@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.6.0.json`) under one tolerance policy.
+@brief Compares a live run of the models on the regression boards with the numbers frozen at the release (the newest `data/v<version>.json`) under one tolerance policy.
 @details The frozen file is made at a release by `releases/regression-harness/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
          `tests/regression/data/v<version>.json`; the test reads the newest. Tolerance policy (the same for every record, `regress_frozen.py`): temperatures 1e-8 K, field
          checksums 1e-10 relative, heat balance 1e-9 W, unknown counts and skipped status exactly, time to 63 % 1e-6 relative. Defaults: the 2 mm cell, all boards and models, with
-         the times to 63 % (about 30 s). Environment variables:
+         the times to 63 % (about 2 minutes with the 22 boards of 2.9.0). Environment variables:
 
-         * `PCBT_FROZEN_CELLS`: comma-separated cell sizes in mm ("2" by default; "2,1,0.5" in the release procedure, about 2 minutes);
+         * `PCBT_FROZEN_CELLS`: comma-separated cell sizes in mm ("2" by default; "2,1,0.5" in the release procedure, about 4 minutes);
          * `PCBT_FROZEN_BOARDS`, `PCBT_FROZEN_MODELS`: comma-separated names (default all in the file);
          * `PCBT_FROZEN_TRANSIENTS`: "0" to leave out the times to 63 % (default "1");
          * `PCBT_FROZEN_EXACT`: "1" to demand equality of every float (only on the machine and libraries that froze the file);
@@ -168,22 +168,63 @@ def _board(boards_cache, name):
     return boards_cache[name]
 
 
-def test_no_record_or_time_is_in_two_pending_files():
+def pending_duplicates(files):
     """!
-    @brief A frozen record (or time to 63 %) that two decided changes move has ONE entry, in one pending file, regenerated with both changes in the tree.
-    @details The files are applied in name order and the last wins, so a record in two files would silently hold the number of whichever sorts later, which neither change
-             produced alone: the branch that moves a record already in a pending file regenerates it into its own file and removes it from the older one.
-    @return None.
+    @brief Every way a frozen record, a metric or a time to 63 % is claimed by two pending files (the rule 'one record in one file only').
+    @details A SHIFT file (classes moved, new) replaces whole records, so a record or a time in two shift files would silently hold the numbers of whichever sorts later,
+             which neither change produced alone: the branch that moves a record already in a pending file regenerates it into its own file and removes it from the older one.
+             A READ-OUT file ("new_readouts") only ADDS metrics that no frozen record holds; `with_pending` merges it after the shifts, and a metric the record already has keeps
+             its value. So a record may be in one shift file AND one read-out file (a moved column and a new surface: `finned_block|solid3d` in solid3d-pad-inplane.json and
+             surface-readout-models.json), but only with DISJOINT metrics, and the added metrics must be measured on a tree that holds the shift (make_pending.py run after the
+             shift is merged). A metric claimed twice (a read-out file and a shift file, or two read-out files) is refused: one of the two numbers would be dropped unseen.
+    @param files List of (file name, content of the pending file).
+    @return List of str, one per duplicate (empty when every claim is unique).
     """
-    seen = {}
-    for path in _pending_files():
-        pend = json.loads(path.read_text(encoding="utf-8"))
-        if pend.get("new_readouts"):                                  # it adds metrics to a record, it does not replace it
+    out, shift, added = [], {}, {}
+    for name, pend in files:
+        if pend.get("new_readouts"):
+            for key, rec in pend.get("records", {}).items():
+                for metric in rec.get("metrics", {}):
+                    if (key, metric) in added:
+                        out.append(f"metric {metric} of {key} is added by both {added[(key, metric)]} and {name}")
+                    added[(key, metric)] = name
             continue
         for kind in ("records", "transients"):
-            for key in pend.get(kind, {}):
-                assert (kind, key) not in seen, f"{kind[:-1]} {key} is in both {seen[(kind, key)]} and {path.name}"
-                seen[(kind, key)] = path.name
+            for key, rec in pend.get(kind, {}).items():
+                if (kind, key) in shift:
+                    out.append(f"{kind[:-1]} {key} is in both {shift[(kind, key)][0]} and {name}")
+                shift[(kind, key)] = (name, set(rec.get("metrics", {})) if kind == "records" else set())
+    for (key, metric), name in added.items():
+        owner = shift.get(("records", key))
+        if owner and metric in owner[1]:
+            out.append(f"metric {metric} of {key} is both shifted by {owner[0]} and added by {name}")
+    return out
+
+
+def test_no_record_or_time_is_in_two_pending_files():
+    """!
+    @brief A frozen record (or time to 63 %) that two decided changes move has ONE entry, in one pending file; a read-out file adds only metrics that no other file claims.
+    @return None.
+    """
+    files = [(p.name, json.loads(p.read_text(encoding="utf-8"))) for p in _pending_files()]
+    problems = pending_duplicates(files)
+    assert not problems, "; ".join(problems[:5])
+
+
+def test_the_duplicate_check_refuses_every_double_claim():
+    """!
+    @brief The check of the pending files fails on a record in two shift files, a time in two shift files, a metric added twice and a metric both shifted and added, and passes
+           a shifted record with disjoint added metrics (the designed case of a moved column and a new surface).
+    @return None.
+    """
+    moved = {"records": {"b|solid3d|1": {"class": "moved", "metrics": {"t_max": 50.0}}}, "transients": {"b|fvm": {"class": "moved", "t63": {"U": 3.0}}}}
+    surf = {"new_readouts": True, "records": {"b|solid3d|1": {"class": "added", "metrics": {"surface:top:t_max": 51.0}}}}
+    assert pending_duplicates([("a.json", moved), ("s.json", surf)]) == []
+    assert any("records" not in p and "record b|solid3d|1 is in both" in p for p in pending_duplicates([("a.json", moved), ("c.json", moved)]))
+    assert any("transient b|fvm is in both" in p for p in pending_duplicates([("a.json", moved), ("c.json", moved)]))
+    assert any("added by both" in p for p in pending_duplicates([("s.json", surf), ("t.json", surf)]))
+    clash = {"new_readouts": True, "records": {"b|solid3d|1": {"class": "added", "metrics": {"t_max": 49.0}}}}
+    assert any("both shifted by a.json and added by x.json" in p for p in pending_duplicates([("a.json", moved), ("x.json", clash)]))
 
 
 def test_pending_shifts_belong_to_the_frozen_release():
@@ -217,7 +258,61 @@ def test_pending_shifts_belong_to_the_frozen_release():
         assert set(pend.get("records", {})) - added <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
         assert set(pend.get("skipped", {})) <= set(data["records"]), f"{path.name}: skipped records that are not in {FROZEN_FILE.name}"
         assert not set(pend.get("skipped", {})) & set(pend.get("records", {})), f"{path.name}: a record cannot be both moved and skipped"
-        assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
+        problem = pending_time_problem(pend, data)
+        assert problem is None, f"{path.name}: {problem}"
+
+
+def pending_time_problem(pend, data):
+    """!
+    @brief The first thing wrong with the times to 63 % of a pending file, or None: a time record must be one the frozen file holds (a shift) or an ADDITION of a model listed in
+           the file's `new_models` (a new comparison model) or `new_time_models` (a model that gets a time simulation: `make_pending.py --new-times`) that the frozen file does not hold.
+    @param pend Content of the pending file.
+    @param data Content of the frozen file.
+    @return str or None.
+    """
+    new = set(pend.get("new_models", [])) | set(pend.get("new_time_models", []))
+    times = set(pend.get("transients", {}))
+    added = {k for k in times if k.split("|")[1] in new}
+    if added & set(data["transients"]):
+        return f"added times to 63 % that {FROZEN_FILE.name} already holds: {sorted(added & set(data['transients']))[:3]}"
+    extra = times - added - set(data["transients"])
+    if extra:
+        return f"times to 63 % that are not in {FROZEN_FILE.name} and are not those of a new model: {sorted(extra)[:3]}"
+    return None
+
+
+def test_a_pending_file_may_add_the_time_records_of_a_new_model_and_nothing_else():
+    """!
+    @brief The time records of a model listed in `new_models` or `new_time_models` are accepted as additions; a time record of a model that is not listed, or one the frozen file already holds, is refused.
+    @return None.
+    """
+    data = {"version": "9.9.9", "transients": {"a|fvm": {"class": "bit", "t63": {"U": 1.0}}}}
+    ok = {"new_models": ["fem"], "transients": {"a|fem": {"class": "new", "t63": {"U": 2.0}}}}
+    assert pending_time_problem(ok, data) is None
+    assert pending_time_problem({"transients": {"a|fem": {"class": "new", "t63": {}}}}, data) is not None           # the model is not in new_models
+    held = {"version": "9.9.9", "transients": {"a|fem": {"class": "bit", "t63": {"U": 1.0}}}}
+    assert pending_time_problem(ok, held) is not None                                                                  # a time the frozen file already holds is not an addition
+    assert pending_time_problem({"transients": {"a|fvm": {"class": "moved", "t63": {"U": 1.1}}}}, data) is None        # a shift of a frozen time stays valid
+    assert pending_time_problem({"new_time_models": ["fem"], "transients": {"a|fem": {"class": "new", "t63": {"U": 2.0}}}}, data) is None
+    assert with_pending_adds_times(ok, data) == {"a|fvm", "a|fem"}
+
+
+def with_pending_adds_times(pend, data):
+    """!
+    @brief The time keys that `with_pending` yields for a synthetic pending file (it needs the same base version).
+    @param pend Pending content without a base version.
+    @param data Frozen content with a version.
+    @return set of keys.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "x.json").write_text(json.dumps(dict(pend, base_version=data["version"])), encoding="utf-8")
+        old = globals()["PENDING_DIR"]
+        globals()["PENDING_DIR"] = Path(d)
+        try:
+            return set(with_pending({**data, "records": {}, "skipped": {}})["transients"])
+        finally:
+            globals()["PENDING_DIR"] = old
 
 
 def test_a_pending_skip_moves_the_record_out_of_the_checked_set(tmp_path, monkeypatch):

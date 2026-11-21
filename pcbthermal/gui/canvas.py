@@ -934,6 +934,17 @@ class BoardView(QGraphicsView):
         painter.setPen(QPen(QColor(colour), 1.7))
         painter.drawEllipse(point, 5.0, 5.0)
 
+    @staticmethod
+    def overlay_card_texts(card):
+        """!
+        @brief The two value lines of the card of the map on the board, each naming its read-out (the map on the board is the column read-out).
+        @param card The card data (`_overlay_card`: title, tmax and tmin in degC, None for a refused model).
+        @return List of str: "max .. °C (column)" and "min .. °C (column)", or an empty list for a refused model.
+        """
+        if card["tmax"] is None:
+            return []
+        return [f"max {num(round(card['tmax'], 1))} °C (column)", f"min {num(round(card['tmin'], 1))} °C (column)"]
+
     def _paint_overlay_card(self, painter):
         """!
         @brief Paint the card of the map on the board and the two rings on the hottest and the coolest point of the displayed layer.
@@ -958,7 +969,7 @@ class BoardView(QGraphicsView):
         refused = card["tmax"] is None
         lines = []
         if not refused:
-            lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C")]
+            lines = list(zip((c["bad"], c["heatsink"]), self.overlay_card_texts(card)))     # The map on the board is the column read-out: every number names it
         title = card["title"] + " \u25be"                # The small arrow says that the name opens the list of models
         w = max([fmb.horizontalAdvance(title)] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
         h = fmb.height() + 2 * pad - 2 + row * len(lines)

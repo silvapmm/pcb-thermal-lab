@@ -30,20 +30,33 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d
-from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
+from . import __version__, analytic, blocks, convection, copper, fdm, fem, femcore, fvm, laminate, lumped, memory, profiles, solid3d, thickness
+from .analysis import block_stats, part_split, heater_stats, hotspots, point_max as analysis_point_max, zone_stats
 from . import defaults
 from . import uicontext
 from .checks import ALERT, check_fin_channels, check_input, is_fem_left_out, check_low_rayleigh, check_lumped_zones, check_thick_plates, warn, warning_severity
 from .model import Problem
-from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult
+from .results import DISCLAIMER, MODEL_LABELS as RESULT_MODEL_LABELS, SteadyResult, model_order
 from .numfmt import num, signed_fixed
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d", "fem")   # Models off by default; the reference of the decisions is the first ticked of MODEL_NAMES + COMPARISON_MODELS (a main model when one runs)
 SKIPPABLE_MODELS = ("solid3d", "fem")           # Steady-state comparison models that may be left out of a run (too large, no mesh, no pyamg) when other models are ticked
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
-TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid and the FEM are steady state only)
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that can be the REFERENCE of the time decisions (the FEM runs in time but is never the reference; the 3D solid is steady only)
+TIME_RUN_MODELS = TIME_MODELS + ("fem",)         # Models that run the power profiles (the comparison FEM since 2.9.0, DESIGN.md 14.4)
+INTEGER_COUNT_KEYS = ("lumped_rings", "laminate_n_max", "fem_gap_elements")   # Counts of SolverOptions that a JSON file may hold as an integer-valued float
+
+
+def integer_count(value):
+    """!
+    @brief The count read from a JSON file: an integer-valued float (10.0, as some writers give it) becomes the int; anything else is returned as is.
+    @param value The value read (count, dimensionless).
+    @return int for an integer-valued float, otherwise the value unchanged (SolverOptions.validate then judges it).
+    """
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
 
 
 @dataclass
@@ -81,8 +94,13 @@ class SolverOptions:
             raise ValueError("cell_mm must be between 0.05 and 50")
         if self.linear_solver not in ("direct", "cg", "sor"):
             raise ValueError("linear_solver must be 'direct', 'cg' or 'sor'")
-        if self.lumped_rings < 3 or self.analytic_modes < 20:
-            raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
+        # The same rule as the Lumped entry points (lumped.check_rings): an integer count of at least 3, so a bad file is refused when it opens, not when it runs
+        try:
+            lumped.check_rings(self.lumped_rings)
+        except ValueError:
+            raise ValueError(f"lumped_rings must be an integer >= {lumped.RINGS_MIN}, got {self.lumped_rings!r}") from None
+        if self.analytic_modes < 20:
+            raise ValueError("analytic_modes must be >= 20")
         if self.ui not in uicontext.UIS:
             raise ValueError(f"ui must be one of {uicontext.UIS}")
         if self.steady_power not in ("average", "peak"):
@@ -159,11 +177,11 @@ class SolverOptions:
                 base = tuple(known.get("models", MODEL_NAMES))
                 known["models"] = ("fem",) if only else tuple(m for m in base if m != "fem") + ("fem",)
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
-        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
-        for key in ("laminate_n_max", "fem_gap_elements"):
-            n = known.get(key)
-            if isinstance(n, float) and n.is_integer():
-                known[key] = int(n)
+        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation). lumped_rings too: a file
+        # with 10.0 ran before the rings guard of 2.9.0 and must still run, as 10
+        for key in INTEGER_COUNT_KEYS:
+            if key in known:                                    # An absent key keeps the default of the dataclass
+                known[key] = integer_count(known[key])
         o = cls(**known)
         o.validate()
         return o
@@ -176,10 +194,13 @@ def surface_report_lines(res):
              that a thermocouple on the copper and the column agree there. On a patterned board the difference of the whole face includes the rise across the bare laminate under a
              source (the laminate face term), so it can be 1 to 4 K on 35 um copper; the line says so.
     @param res A SteadyResult.
-    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: LPTN, Analytic, 3D solid, transient).
+    @return List of strings, one per face that has a surface (empty for a model or a result without the arrays: the LPTN and the transient).
     """
     out = []
     for face, key, name in ((0, "t_max_surface_top", "top"), (1, "t_max_surface_bottom", "bottom")):
+        if "T_surface" in res.arrays and key not in res.extras and thickness.surface_na_reason(res, face):
+            out.append(f"Hottest surface ({name}): n/a ({thickness.surface_na_reason(res, face)})")      # The Analytic under a part over absent copper: the reason, never a number
+            continue
         if key not in res.extras or "T_surface" not in res.arrays:
             continue
         surf = float(res.extras[key])
@@ -189,8 +210,8 @@ def surface_report_lines(res):
         col = float(np.nanmax(res.T[layer]))
         rise = max(res.t_max - res.ambient, 1e-9)
         diff = surf - col
-        # The FEM resolves the surface with its elements; the FVM and FDM estimate it from the heat fluxes
-        how = "resolved by the finite elements" if res.model == "fem" else f"estimate{', upper side: a source is small against the plate (t/a above 0.5)' if flagged else ''}"
+        # The FEM resolves the surface with its elements, the 3D solid with copper slabs computes it, the others (FVM, FDM, Analytic, the 3D solid on one slab) estimate it from the heat fluxes
+        how = thickness.surface_how(res, flagged, face)
         patterned = "face_peak" in res.arrays and float(np.nanmax(res.arrays["face_peak"][layer])) > 0
         out.append(f"Hottest surface ({name}): {surf:.1f} °C ({how}; "
                    f"the column mean read-out of layer {layer + 1} peaks at {col:.1f} °C; the surface is {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 3)} % of the rise"
@@ -256,8 +277,9 @@ def _err_text(r, ref):
     return "reference" if r["model"] == ref else f"{r['error_vs_reference'] * 100:+.1f} %"
 
 
-SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM). "
-               "It is a view of the same solution, not another model; the LPTN, Analytic and 3D solid models have no surface read-out (n/a). The bottom face and the "
+SURFACE_TIP = ("Surface read-out: the hottest point of the TOP face of the copper (an estimate from the heat fluxes for the FVM and the FDM, resolved by the elements for the FEM; through copper up to 105 µm one element, so its small surface-column difference reads about a third low under a small part). "
+               "It is a view of the same solution, not another model; the LPTN has no surface read-out (n/a: it has no heat flux through the face, only a measured upper value for the "
+               "through-thickness term is in the part table), and the Analytic and the 3D solid give an estimate or a computed value as their row says in the report. The bottom face and the "
                "hottest mesh node of the FEM are in the report.")
 SUMMARY_COLUMNS = (
     SummaryColumn("model", "Model", "", "", lambda r, ref: r["model"], "The model; the reference model (FVM when it runs) is the one the errors are measured against.", left=True),
@@ -350,6 +372,164 @@ class Simulation:
                          "energy_balance": r.balance_error, "error_vs_reference": err,
                          "seconds": self.seconds.get(name, 0.0), "warnings": len(r.warnings)})
         return rows
+
+    def part_models(self):
+        """!
+        @brief Models that contribute a column to the parts table: the steady results with a field, the reference first and the others in the program order.
+        @details The program order is that of results.MODEL_LABELS (FVM, LPTN, Analytic, FDM, 3D solid, FEM); a model that was not run is simply absent. The profile (time)
+                 results never appear: the parts table is a steady-state one for every model (the FEM also runs in time since 2.9.0, in the profile tab).
+        @return List of model keys (empty when the reference has no field).
+        """
+        ref = self.reference
+        if ref.T is None:
+            return []
+        return model_order([k for k, r in self.results.items() if r.T is not None], ref.model)
+
+    def part_comparison(self):
+        """!
+        @brief The temperature under every part in every model: the one definition behind the Models tab, the report block and the CSV file.
+        @details Each value is that model's `analysis.heater_stats` row of the part (column read-out: the hottest point and the mean under the footprint, degC) computed with the
+                 power the model dissipated (`power_used`, which differs from the typed power with a power temperature coefficient). The reference column therefore equals
+                 the Components table by construction. A value that is not finite is None ("n/a" in the views). The LPTN has one node per part (two, the core and the rest, for a part over a group
+                 of vias, docs/theory.md 5.2): its part mean is that node painted under the part (the area mean of the two), and its part maximum the network's own peak of the
+                 part (`heater_peak`: the node plus the peak term plus the rise of the other parts at its centre, never below the drawn field; docs/theory.md 5). No model is run here and no number of a model changes.
+        @return dict: "reference" (key), "models" (keys, reference first), "parts" (one dict per part: name, layer (1-based), power_w (reference model, W), power_by_model {model: W},
+                "t_max" and "t_mean" {model: degC or None}, "t_max_delta" and "t_mean_delta" {model: K from the reference, None for the reference itself or without a value}),
+                "board" ({model: (t_max, t_mean)}, the whole-board numbers of the Summary, used by the chart).
+        """
+        models = self.part_models()
+        out = {"reference": models[0] if models else self.reference.model, "models": models, "parts": [], "board": {}}
+        if not models:
+            return out
+        stats = {m: heater_stats(self.results[m], self.problem, self.power_used.get(m)) for m in models}
+        out["board"] = {m: (float(self.results[m].t_max), float(self.results[m].t_mean)) for m in models}
+
+        def finite(v):
+            return float(v) if v is not None and np.isfinite(v) else None
+
+        for k in range(len(self.problem.heaters)):
+            part = {"name": stats[models[0]][k]["name"], "layer": stats[models[0]][k]["layer"], "power_w": stats[models[0]][k]["power_w"],
+                    "power_by_model": {m: stats[m][k]["power_w"] for m in models}, "t_max": {}, "t_mean": {}, "t_max_delta": {}, "t_mean_delta": {}}
+            for key in ("t_max", "t_mean"):
+                vals = {m: finite(stats[m][k][key]) for m in models}
+                part[key] = vals
+                ref_v = vals[models[0]]
+                part[key + "_delta"] = {m: (None if m == models[0] or vals[m] is None or ref_v is None else vals[m] - ref_v) for m in models}
+            out["parts"].append(part)
+        return out
+
+    def part_comparison_rows(self, cmp=None):
+        """!
+        @brief The parts table as flat rows, two per part (Tmax, then Tmean): the form of the CSV file and of the text block.
+        @param cmp The result of `part_comparison()` when the caller already has it (None: computed here; every part of every model is read again, which on a large board is not free).
+        @return List of dicts: part, layer, power_w (reference model, W), reading ("Tmax" or "Tmean", column), values {model: degC or None}, deltas {model: K from the reference or None}.
+        """
+        cmp = self.part_comparison() if cmp is None else cmp
+        rows = []
+        for part in cmp["parts"]:
+            for reading, key in (("Tmax", "t_max"), ("Tmean", "t_mean")):
+                rows.append({"part": part["name"], "layer": part["layer"], "power_w": part["power_w"], "reading": reading,
+                             "values": part[key], "deltas": part[key + "_delta"]})
+        return rows
+
+    def part_comparison_lines(self):
+        """!
+        @brief The text block "Parts by model" of the report (empty when there is no part or only one model).
+        @return List of strings.
+        """
+        cmp = self.part_comparison()
+        models = cmp["models"]
+        if not cmp["parts"] or len(models) < 2:
+            return []
+        label = lambda m: RESULT_MODEL_LABELS.get(m, m)
+        lines = [f"Parts by model (steady state, column read-out; hottest point and mean under each part, °C; difference from the reference {label(cmp['reference'])} in K):"]
+        for r in self.part_comparison_rows(cmp):
+            cells = []
+            for m in models:
+                v, d = r["values"][m], r["deltas"][m]
+                cells.append(f"{label(m)} {'n/a' if v is None else f'{v:.2f}'}" + (f" ({d:+.2f})" if d is not None else (" (reference)" if m == models[0] else "")))
+            # Worded "hottest point" and "mean", not Tmax and Tmean: those are the headers of the models table, which the on-screen report leaves out
+            lines.append(f"  {r['part']} ({r['power_w']:.2f} W) {'hottest point' if r['reading'] == 'Tmax' else 'mean'}: " + ", ".join(cells))
+        return lines
+
+    def write_statistics_csv(self, path_of):
+        """!
+        @brief Write the tables of the Components page of the reference model to CSV files: hotspots, zones and parts, each temperature under the name of its read-out.
+        @details One file per table, only when it has rows: `hotspots_<model>.csv`, `zones_<model>.csv`, `parts_<model>.csv` (<model> is the key of the reference model). Every
+                 temperature column names its read-out in the header, with its unit: `_column_c` (the layer mean through the copper), `_surface_c` (the outer face of the copper, where
+                 the model has one; blank otherwise) and `_point_c` (the hottest mesh node, the FEM only). In the hotspot and part files the surface and the point are the maxima over the hot
+                 area or the footprint (`T_max_surface_c`, `T_max_point_c`). `model` is the first column, `surface_kind` says how the surface
+                 was obtained (estimate, computed, resolved). The hotspot table is the one of the report: the same points, the same column values.
+        @param path_of Function name -> path that creates the file name in the output folder and records it (as the local `path` of `save`).
+        @return List of the paths written (empty without a reference field).
+        """
+        ref = self.reference
+        if ref.T is None:
+            return []
+        out = []
+        blank = lambda v, nd=4: "" if v is None else round(float(v), nd)
+        hs = hotspots(ref, self.options.hotspot_c)
+        if hs:
+            p = path_of(f"hotspots_{ref.model}.csv")
+            out.append(p)
+            with open(p, "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["model", "rank", "layer", "x_mm", "y_mm", "area_mm2", "T_max_column_c", "T_max_surface_c", "surface_kind", "T_max_point_c"])
+                for k, h in enumerate(hs):
+                    w.writerow([ref.model, k + 1, h["layer"], round(h["x_mm"], 4), round(h["y_mm"], 4), round(h["area_mm2"], 4), round(h["t_max"], 4),
+                                blank(h["t_surface"]), h["surface_kind"] or "", blank(h["t_point"])])
+        zs = zone_stats(ref, self.problem)
+        if zs:
+            p = path_of(f"zones_{ref.model}.csv")
+            out.append(p)
+            with open(p, "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["model", "zone", "layer", "T_mean_column_c", "T_max_column_c", "T_min_column_c", "T_mean_surface_c", "T_max_surface_c", "surface_kind"])
+                for z in zs:
+                    w.writerow([ref.model, z["name"], z["layer"], round(z["t_mean"], 4), round(z["t_max"], 4), round(z["t_min"], 4),
+                                blank(z["t_mean_surface"]), blank(z["t_max_surface"]), z["surface_kind"] or ""])
+        rows = self.heater_rows()
+        if rows:
+            p = path_of(f"parts_{ref.model}.csv")
+            out.append(p)
+            with open(p, "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["model", "part", "layer", "power_w", "T_mean_column_c", "T_max_column_c", "T_mean_surface_c", "T_max_surface_c", "surface_kind", "T_max_point_c",
+                            "T_junction_c", "margin_k", "power_limit_w"])
+                for h, pt in zip(rows, self.part_points()):
+                    kind = thickness.surface_kind(ref, 0 if h["layer"] == 1 else 1) if "t_max_surface" in h else ""
+                    w.writerow([ref.model, h["name"], h["layer"], round(h["power_w"], 6), round(h["t_mean"], 4), round(h["t_max"], 4),
+                                blank(h.get("t_mean_surface")), blank(h.get("t_max_surface")), kind, blank(pt),
+                                blank(h["t_junction"]), blank(h["margin_k"]), blank(h["p_limit_w"], 6)])
+        return out
+
+    def part_points(self):
+        """!
+        @brief The hottest mesh node under each part (the point read-out of the finite elements), for the parts table.
+        @return List, one entry per part of `heater_rows()` in order: degC, or None where the reference model has no point read-out (not the FEM) or the part is on an inner layer.
+        """
+        ref = self.reference
+        if ref.T is None:
+            return []
+        return [analysis_point_max(ref, h.polygon, h.layer, self.problem.board.outline) for h in self.problem.heaters]
+
+    def write_part_comparison_csv(self, path):
+        """!
+        @brief Write the parts table to a CSV file: part, layer, power, reading, one column per model (degC) and one difference column per non-reference model (K).
+        @param path Output file path.
+        @return Number of data rows written (0 when there is nothing to write; the file is then still written with its header).
+        """
+        cmp = self.part_comparison()
+        models = cmp["models"]
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["part", "layer", "power_w", "reading"] + [f"{m}_c" for m in models] + [f"{m}_minus_{models[0]}_k" for m in models[1:]])
+            rows = self.part_comparison_rows(cmp)
+            for r in rows:
+                w.writerow([r["part"], r["layer"], round(r["power_w"], 6), r["reading"]]
+                           + ["" if r["values"][m] is None else round(r["values"][m], 4) for m in models]
+                           + ["" if r["deltas"][m] is None else round(r["deltas"][m], 4) for m in models[1:]])
+        return len(rows)
 
     def summary_columns(self):
         """!
@@ -514,14 +694,22 @@ class Simulation:
             hs = hotspots(ref, self.options.hotspot_c)
             lines.append(f"Hotspots above {num(self.options.hotspot_c)} °C: {len(hs)}")
             for h in hs[:10]:
-                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} °C at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
-                             f"{h['area_mm2']:.1f} mm2")
+                # The temperature at the hot-spot point names its read-out (the column mean); the surface maximum and the hottest FEM node of the same hot area follow where the model has them
+                also = ""
+                if h["t_surface"] is not None:
+                    also += f"; surface max {h['t_surface']:.1f} °C ({h['surface_kind']})"
+                if h["t_point"] is not None:
+                    also += f"; hottest node {h['t_point']:.1f} °C (point)"
+                lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} °C (column) at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
+                             f"{h['area_mm2']:.1f} mm2{also}")
             surf_lines = surface_report_lines(ref)
             if surf_lines:
-                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM and FDM, resolved by the elements for the FEM)")
+                lines.append("Read-outs: column (layer mean, used for Tj, margins and comparisons); surface (outer face of the copper; an estimate from the heat fluxes for the FVM, FDM and Analytic, "
+                             "computed from the copper slabs or estimated from the links for the 3D solid, resolved by the elements for the FEM)")
                 lines += surf_lines
             else:
-                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here (steady FVM, FDM and FEM only)")
+                lines.append(f"Read-out: column mean (layer mean, used for Tj, margins and comparisons); the {RESULT_MODEL_LABELS.get(ref.model, ref.model)} model has no surface read-out here "
+                             "(steady FVM, FDM, Analytic, 3D solid and FEM have one)")
             for h in self.heater_rows():
                 extra = f", junction {h['t_junction']:.1f} °C" if h["t_junction"] is not None else ""
                 if h["t_ring"] is not None and h["theta"] > 0:
@@ -535,19 +723,24 @@ class Simulation:
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
                 if "t_max_surface" in h:
                     # Both read-outs exist (always, for the FVM and the FDM): every number names its own
-                    note = "resolved" if ref.model == "fem" else ("estimate, upper side" if h["surface_upper"] else "estimate")
+                    kind = thickness.surface_kind(ref, 0 if h["layer"] == 1 else 1)
+                    note = kind if (kind != "estimate" or not h["surface_upper"]) else "estimate, upper side"
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                                  f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} °C{extra}; "
                                  f"surface mean {h['t_mean_surface']:.1f}, surface max {h['t_max_surface']:.1f} °C ({note}; "
                                  f"surface minus column max {signed_fixed(h['t_max_surface'] - h['t_max'], 3)} K)")
                 else:
                     lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
-                                 f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} °C{extra}")
+                                 f"column mean {h['t_mean']:.1f}, column max {h['t_max']:.1f} °C{extra}")
+                    if "surface_bound_k" in h:
+                        lines.append("  " + thickness.lumped_surface_note(h["surface_bound_k"], h["layer"]))
+            lines += self.part_comparison_lines()
             for z in zone_stats(ref, self.problem):
-                lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
-                             f"max {z['t_max']:.1f}, min {z['t_min']:.1f} °C")
+                surf = (f"; surface mean {z['t_mean_surface']:.1f}, surface max {z['t_max_surface']:.1f} °C ({z['surface_kind']})" if z["t_max_surface"] is not None else "")
+                lines.append(f"Zone {z['name']} (layer {z['layer']}): column mean {z['t_mean']:.1f}, "
+                             f"column max {z['t_max']:.1f}, column min {z['t_min']:.1f} °C{surf}")
             for k in block_stats(ref, self.problem):
-                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} °C; "
+                lines.append(f"Metal block {k['name']} ({k['face']} face): block mean {k['t_mean']:.1f}, block max {k['t_max']:.1f} °C; "
                              f"{k['w_to_block']:.2f} W enter it through the interface, {k['w_to_air']:.2f} W leave by its surface")
         return "\n".join(lines) + "\n"
 
@@ -556,8 +749,8 @@ class Simulation:
         @brief JSON-ready summary of the whole simulation.
         @return Dict with options, table and per-model summaries.
         """
-        d = {"version": __version__, "disclaimer": DISCLAIMER, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
-             "models": {k: r.summary() for k, r in self.results.items()}}
+        d = {"version": __version__, "disclaimer": DISCLAIMER, "problem": self.problem.name, "options": self.options.to_dict(), "reference_model": self.reference.model,
+             "table": self.table(), "models": {k: r.summary() for k, r in self.results.items()}}
         if self.decisions:
             d["profile"] = {"reference": self.profile_reference, "error": self.profile_error,
                             "models": {k: r.summary() for k, r in self.profile_results.items()}}
@@ -565,13 +758,14 @@ class Simulation:
 
     def save(self, directory, plots=True, view=None, cmap="inferno", surface_files=False):
         """!
-        @brief Write summary.json, report.txt, one CSV per field and, optionally, the figures.
+        @brief Write summary.json, report.txt, one CSV per field, the tables of the reference model (hotspots, zones, parts: `write_statistics_csv`) and, optionally, the figures.
         @param directory Output directory (created if needed).
         @param plots If True, also write PNG figures (needs matplotlib).
         @param view Optional plots.MapView for the temperature maps (View, underlay such as the copper or the image, opacity: what the Display panel of the window says); None draws them as always.
         @param cmap Colour map name of the temperature maps.
         @param surface_files False (default): no surface files (the report and summary.json always carry the surface numbers); True: also surface_<model>.csv (and, with plots,
-               surface_<model>_top.png and _bottom.png) for every model that holds the surface read-out. On request only: the field_<model>.csv and fields_<model>.png stay the column.
+               surface_<model>_top.png and _bottom.png) for every model that holds the surface read-out (the first seven columns are the format of earlier versions, then model,
+               surface_kind and T_point_c are appended). On request only: the field_<model>.csv and fields_<model>.png stay the column.
         @return List of written file paths.
         """
         os.makedirs(directory, exist_ok=True)
@@ -589,27 +783,41 @@ class Simulation:
         for name, r in self.results.items():
             if r.T is None:
                 continue
+            # Sample positions of the field: cell centres for a cell field, the grid points (from 0) for a node field (the FDM); SteadyResult.coords() holds the rule
+            # (before 2.9.0 every model was written at cell centres, half a cell off for the FDM)
+            xs, ys = r.coords()
             with open(path(f"field_{name}.csv"), "w", newline="") as fh:
                 w = csv.writer(fh)
                 w.writerow(["layer", "x_mm", "y_mm", "T_c"])
                 for l in range(r.T.shape[0]):
                     for i in range(r.T.shape[1]):
                         for j in range(r.T.shape[2]):
-                            w.writerow([l + 1, round((j + 0.5) * r.dx * 1000, 4),
-                                        round((i + 0.5) * r.dy * 1000, 4), round(float(r.T[l, i, j]), 4)])
+                            w.writerow([l + 1, round(float(xs[j]) * 1000, 4),
+                                        round(float(ys[i]) * 1000, 4), round(float(r.T[l, i, j]), 4)])
+        # The tables of the Components page, beside the fields: new files, every temperature under its read-out name
+        self.write_statistics_csv(path)
         if surface_files:
             for name, r in self.results.items():
                 if r.T is None or "T_surface" not in r.arrays:
                     continue
                 with open(path(f"surface_{name}.csv"), "w", newline="") as fh:
                     w = csv.writer(fh)
-                    w.writerow(["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate"])
+                    # The first seven columns are the format of every earlier version (never reordered or renamed); the last three are appended: the model, how the surface was
+                    # obtained (estimate, computed, resolved) and the hottest mesh node of the cell (the FEM only, blank for the others)
+                    w.writerow(["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate", "model", "surface_kind", "T_point_c"])
+                    # Positions as in field_<model>.csv: cell centres for a cell field, the grid points for a node field (the FDM), from SteadyResult.coords()
+                    xs, ys = r.coords()
                     for face, tag, layer in ((0, "top", 0), (1, "bottom", r.T.shape[0] - 1)):
+                        kind = thickness.surface_kind(r, face)
                         for i in range(r.T.shape[1]):
                             for j in range(r.T.shape[2]):
                                 if np.isfinite(r.arrays["T_surface"][face, i, j]):
-                                    w.writerow([tag, round((j + 0.5) * r.dx * 1000, 4), round((i + 0.5) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
-                                                round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j])])
+                                    point = ""
+                                    if "T_point" in r.arrays and np.isfinite(r.arrays["T_point"][face, i, j]):
+                                        point = round(float(r.arrays["T_point"][face, i, j]), 4)
+                                    w.writerow([tag, round(float(xs[j]) * 1000, 4), round(float(ys[i]) * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
+                                                round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j]),
+                                                name, kind, point])
         for name, r in self.profile_results.items():
             if not r.resolved:
                 continue
@@ -619,6 +827,8 @@ class Simulation:
                 for k in range(len(r.times)):
                     w.writerow([round(float(r.times[k]), 6), round(float(r.t_max[k]), 4)] +
                                [round(float(r.t_heaters[j, k]), 4) for j in range(len(self.decisions))])
+        if len(self.part_models()) > 1 and self.problem.heaters:
+            self.write_part_comparison_csv(path("parts_by_model.csv"))
         if plots:
             from . import plots
             for name, r in self.profile_results.items():
@@ -635,7 +845,7 @@ class Simulation:
                             if np.isfinite(r.arrays["T_surface"][face]).any():
                                 plots.plot_surface(r, self.problem, path(f"surface_{name}_{tag}.png"), face, cmap=cmap)
             if len(self.results) > 1:
-                plots.plot_comparison(self.results, path("comparison.png"))
+                plots.plot_comparison(self.results, path("comparison.png"), self.reference.model)
             plots.plot_profiles(self.results, self.problem, path("profiles.png"))
         return written
 
@@ -1007,8 +1217,9 @@ def _solve_computed_h(problem, name, o):
     if problem.board.orientation == "horizontal" and not 1e2 <= info["bottom"]["rayleigh"] <= 1e9:
         # The face turned down uses a 1/5 law whose sources cover 40 to 8e3 (numerical strip), 10 to 1.25e8 (scattered experiments) and 1.25e5 to 1.25e8 on A/P
         # (Fujii-Imura); the 1e4 to 1e9 of Incropera's 0.52 is recalled, not confirmed. Boards sit at 1e2 to 5e6: a small board at a few kelvin falls below
-        res.warnings.append(f"the bottom-face (turned down) Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
-                            "where the law of the face turned down has published support; the coefficient is an extrapolation")
+        res.warnings.append(f"the bottom-face Rayleigh number {num(info['bottom']['rayleigh'], 2)} is outside 100.00 to 1.00E9, "
+                            "where the law of that face has published support (the 1/5 law of a face turned down; a board colder than the air uses the face-up law there); "
+                            "the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
@@ -1087,9 +1298,10 @@ def step_response(problem, model, options):
     """!
     @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
     @param problem A Problem with at least one heater.
-    @param model "fvm", "lumped" or "analytic".
+    @param model "fvm", "fdm", "fem", "lumped" or "analytic".
     @param options SolverOptions.
     @return profiles.StepResponse.
+    @throws ValueError For a model with no step response.
     """
     with laminate.using(*options.laminate_params()):
         return _step_response(problem, model, options)
@@ -1137,17 +1349,23 @@ def _step_response(problem, model, options):
     """!
     @brief Body of step_response(), run with the laminate numbers of the options in force.
     @param problem A Problem with at least one heater.
-    @param model "fvm", "fdm", "lumped" or "analytic".
+    @param model "fvm", "fdm", "fem", "lumped" or "analytic".
     @param options SolverOptions.
     @return profiles.StepResponse.
+    @throws ValueError For a model that has no step response (the 3D solid, an unknown key): it used to be answered by the Analytic without a word.
     """
     if model in ("fvm", "fdm"):
         cell = response_cell_mm(problem, model, options)
         return (profiles.step_response_fvm if model == "fvm" else profiles.step_response_fdm)(problem, cell_mm=cell)
+    if model == "fem":
+        cell = response_cell_mm(problem, model, options)
+        return profiles.step_response_fem(problem, cell_mm=cell, gap_elements=options.fem_gap_elements, refine=float(options.fem_refine), memory_fraction=options.memory_fraction)
     if model == "lumped":
         t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=lumped.cell_for(problem, options.cell_mm))
-    else:
+    elif model == "analytic":
         t, z, r = analytic.step_responses(problem, cell_mm=min(max(options.cell_mm, 0.5), 1.0), n_terms=options.analytic_modes)
+    else:
+        raise ValueError(f"no step response for the model {model!r}")
     return profiles.StepResponse(model, t, z, r)
 
 
@@ -1168,9 +1386,10 @@ def _run_profiles(sim, progress, start):
     left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
     if left_out:
         sim.problem_warnings.append(warn("time simulation not run for " + ", ".join(RESULT_MODEL_LABELS.get(m, m) for m in left_out) + " (no time simulation with a metal block or an outline)"))
-    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
+    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation; the FEM is never the reference
     if ref is None:
-        sim.profile_error = "select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = ("select the FVM or the FDM (or LPTN/Analytic on a rectangular board) for the time simulation: the FEM runs in time beside one of them but never "
+                             "decides, and the 3D solid is steady state only")
         return
     sim.profile_reference = ref
     if progress:
@@ -1181,11 +1400,13 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in usable:
-            if name in SKIPPABLE_MODELS:
-                continue
+            if name not in TIME_RUN_MODELS:
+                continue                                          # the 3D solid: steady state only
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
-            if name == "fvm":
+            if name == "fem":
+                _run_fem_profile(sim, p, o)                       # its own refusals: the other models' results stand
+            elif name == "fvm":
                 sim.profile_results[name] = profiles.run_fvm(p, sim.decisions, o.profile, o.cell_mm)
             elif name == "fdm":
                 sim.profile_results[name] = profiles.run_fdm(p, sim.decisions, o.profile, o.cell_mm)
@@ -1200,6 +1421,29 @@ def _run_profiles(sim, progress, start):
     sim.seconds["profile"] = time.time() - t0
 
 
+def _run_fem_profile(sim, p, o):
+    """!
+    @brief The power-profile run of the comparison FEM, with its own refusals: a refusal is a warning that names the FEM and leaves the other models' profiles in place.
+    @details The FEM can be refused by the memory guard, by a missing pyamg above the direct limit, by an outline it has no mesh for (a ValueError with the reason), by the work
+             limit of the time run (a ProfileError), fail in a step (conjugate gradients that do not converge, a RuntimeError) or be stopped by the user (a cancel is a cancel, not
+             a warning: it propagates).
+    @param sim Simulation being filled (profile_results, problem_warnings).
+    @param p The problem of the run (the effective one).
+    @param o SolverOptions.
+    @return None.
+    @throws femcore.FemCancelled If the user cancelled the run.
+    """
+    try:
+        sim.profile_results["fem"] = profiles.run_fem(p, sim.decisions, o.profile, o.cell_mm, gap_elements=o.fem_gap_elements, refine=float(o.fem_refine),
+                                                      memory_fraction=o.memory_fraction)
+    except femcore.FemCancelled:
+        raise
+    except (memory.MemoryGuardError, profiles.ProfileError, ValueError, RuntimeError) as exc:
+        # RuntimeError covers femcore.FemUnavailable (no pyamg) and conjugate gradients that do not converge in a step of the run (femcore.Stepper.solve): either way the FEM
+        # curve is missing and the other models' curves stand (review: a CG failure used to abort the profiles of every model)
+        sim.problem_warnings.append(warn(f"FEM: refused ({exc})"))
+
+
 def default_options():
     """!
     @brief The solver settings a new project starts with: the defaults of the program (defaults.json plus the user's file).
@@ -1211,7 +1455,8 @@ def default_options():
     for key, val in (("models", models), ("cell_mm", d.get("cell_mm")), ("linear_solver", d.get("linear_solver")), ("lumped_rings", d.get("lumped_rings")),
                      ("analytic_modes", d.get("analytic_modes")), ("hotspot_c", d.get("hotspot_c"))):
         if val is not None:
-            setattr(o, key, val)
+            # A hand-edited defaults file may hold 10.0 rings: the integer, as in a project file (otherwise validate() would drop every user value below)
+            setattr(o, key, integer_count(val) if key in INTEGER_COUNT_KEYS else val)
     try:
         o.validate()
     except ValueError:                                   # A bad user value: fall back to the built-in settings
@@ -1262,7 +1507,7 @@ def _simulate(problem, options, progress):
                                      factor=memory.PROFILE_FACTOR, refuse="return") if problem.has_profiles() else [])
     profile_refused = next((v for v in profile_verdicts if v.verdict == "refuse"), None)
     guard_warnings += [warn(v.message) for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
-    sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm)
+    sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm, fem_gap_elements=options.fem_gap_elements)
                      + guard_warnings)
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"

@@ -222,11 +222,14 @@ def test_the_export_writes_the_map_as_the_display_panel_draws_it(win, qtbot, tmp
     win.display.cmap = "viridis"
     seen = {}
     real_save = sim.save
-    monkeypatch.setattr(sim, "save", lambda d, plots=True, view=None, cmap="inferno": seen.update(view=view, cmap=cmap) or real_save(d, plots, view, cmap))
+    # The window's export also asks for the surface files (feature/surface-export-and-tags): the stub takes and records that keyword too
+    monkeypatch.setattr(sim, "save", lambda d, plots=True, view=None, cmap="inferno", surface_files=False: seen.update(view=view, cmap=cmap, surface_files=surface_files)
+                        or real_save(d, plots, view, cmap, surface_files=surface_files))
     out = tmp_path / "export"
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(out)))
     win.export_results()
-    assert seen["view"] is not None and seen["view"].show_copper and seen["view"].underlay == "copper" and seen["cmap"] == "viridis"
+    assert seen["view"] is not None and seen["view"].show_copper and seen["view"].underlay == "copper" and seen["cmap"] == "viridis" and seen["surface_files"] is True
+    assert (out / "surface_fvm.csv").exists()
     assert (out / "fields_fvm.png").stat().st_size > 1000
     plain = tmp_path / "plain"
     sim.save(str(plain))

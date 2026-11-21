@@ -33,7 +33,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
-from .femcore import FEM_DIRECT_MAX
+from .femcore import FEM_DIRECT_MAX, FEM_TRANSIENT_DIRECT_MAX
 from .results import MODEL_FULL
 
 log = logging.getLogger(__name__)
@@ -48,6 +48,29 @@ CEILING_3D = 2_000_000              # Unknowns of the 3D solid that no machine i
 SLOW_SECONDS = 30.0                 # Predicted solve time above which the verdict is "slow"
 TRANSIENT_FACTOR = 2.0              # Time simulation and animation: one factor of the matrix plus the previous stage while the next is built (measured 1.9, one-factor fix)
 PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measured)
+# The FEM transient is NOT two factors (one factor or one hierarchy is alive, femcore.Stepper): a factor per solver path, applied to the steady law of that path (DESIGN.md 14.3).
+# REFITTED from the measurements of `releases/2.9.0/fem-transient/scripts/measure_fem_transient_law.py` (15 fresh-process cases) and `measure_fem_transient_direct_limit.py`
+# (example board, five cells), tree ec15bdc0, see `releases/2.9.0/fem-transient/MEASURED.md`: the factor is the largest measured ratio of the growth over the steady law of the path
+# times 1.15. Direct: largest ratio 2.011 (example board 2 mm, 67 229 unknowns, a step response, 2.15 GB against 15.9 kB per unknown) times 1.15 = 2.31. CG: the ratio is taken
+# over the law the time run uses (`estimate_bytes` model "fem_time_cg": the CG law WITHOUT the floor of the steady estimate at the direct limit) on the sizes where a run can take
+# CG (above FEM_DIRECT_MAX): largest 1.10 (example board 1.6 mm, 106 122 unknowns, 0.90 GB) times 1.15 = 1.27 (review: the first refit, 1.22, took 1.065 over the floored steady law
+# and left 11 % on that case). The earlier 2.0 for the direct path UNDER-predicted the 2.15 GB case. The direct law holds up to FEM_TRANSIENT_DIRECT_MAX (`estimate_bytes` model "fem_time").
+FEM_TRANSIENT_FACTOR_CG = 1.27
+FEM_TRANSIENT_FACTOR_DIRECT = 2.31
+# Time of a FEM time simulation, from the same measurements (a model of the STEPPING: the build, 2 to 15 s, is the steady law's `TIME_LAWS["fem"]`). A run is a setup per stage (the
+# factorisation on the direct path, the AMG hierarchy on CG) plus a cost per step. Direct: the factorisation of 20 930 / 32 637 / 46 644 / 67 229 / 106 122 unknowns took 0.54 / 1.31 /
+# 3.09 / 7.31 / 10.95 s (superlinear fill), modelled as 7.31 s (n / 67 229)^1.7 (1.0 / 2.1 / 3.9 / 7.3 / 15.9 s: above every measured value); a step is 5 / 10 / 18 / 33 / 53 ms (0.25 to 0.5 us
+# per unknown), modelled as 5.7e-7 s per unknown. CG: the hierarchy is 0.06 to 0.16 s (neglected: 0.2 s per stage) and a step takes 1.15 / 1.84 / 2.41 / 3.16 / 4.24 s with 330 to 475
+# iterations (5.5e-5 to 4.0e-5 s per unknown), modelled as 6.0e-5 s per unknown. A profile run above FEM_RUN_SECONDS_MAX is refused with the ProfileError text (and the wall clock
+# stops it at twice that); the step response of an animation is only warned "slow" (SLOW_SECONDS). FEM_RUN_SECONDS_MAX stays 10 minutes (review): a project saved with the FEM ticked
+# also runs the FEM in its power profiles, inside Run simulation and without a progress of its own, so a longer run is refused rather than made to wait.
+FEM_SETUP_SECONDS_DIRECT_REF = 7.31         # factorisation at FEM_SETUP_REF_UNKNOWNS unknowns, s
+FEM_SETUP_REF_UNKNOWNS = 67229.0
+FEM_SETUP_EXPONENT_DIRECT = 1.7
+FEM_SETUP_SECONDS_CG = 0.2
+FEM_STEP_SECONDS_DIRECT = 5.7e-7
+FEM_STEP_SECONDS_CG = 6.0e-5
+FEM_RUN_SECONDS_MAX = 600.0
 SOR_BLOCK_SHARE = 0.25              # Share of the limit that ALL the dense SOR blocks together (the sum of 75 n^2) may take (sor_block_fits)
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
 VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
@@ -342,10 +365,27 @@ def estimate_bytes(model: str, unknowns: float, cells: float, base: Optional[flo
     @return Bytes.
     @throws KeyError If the model has no law (lumped, analytic).
     """
+    if model == "fem_time":
+        # A FEM time run (femcore.Stepper): the direct factor up to FEM_TRANSIENT_DIRECT_MAX with its own law, the conjugate gradients above it. The direct law is the steady direct
+        # bytes per unknown times FEM_TRANSIENT_FACTOR_DIRECT at EVERY size, the conservative top of the measured 15.3 to 29.3 kB per unknown (rising with the size: superlinear
+        # fill; 32 kB at the worst case, 36.7 kB here); measured 3.11 GB at 106 122 unknowns against 3.90 GB here. No floor against the steady law (the search for a cell does not bisect)
+        n = max(float(unknowns), 1.0)
+        b = baseline_bytes() if base is None else base
+        if n <= FEM_TRANSIENT_DIRECT_MAX:
+            return b + FEM_DIRECT_BYTES * n * FEM_TRANSIENT_FACTOR_DIRECT
+        return estimate_bytes("fem_time_cg", n, cells, b, 1.0, via_footprint_cells)
+    if model == "fem_time_cg":
+        # the conjugate-gradient time run, whatever the size (used above the direct limit, and below it when the direct factor does not fit the memory)
+        k1c, pc, ac, sc = CONTINUOUS["fem"]
+        nc = max(float(unknowns), 1.0)
+        tc = nc / max(float(cells), 1.0)
+        tc_eff = max(min(tc, float(cells) / tc), 1.0)
+        return (baseline_bytes() if base is None else base) + k1c * tc_eff ** ac * nc * (nc / N_REF) ** (pc - 1.0) * sc * FEM_TRANSIENT_FACTOR_CG * via_gain("fem", via_footprint_cells)
     k1, p, a, safety = CONTINUOUS[model]
     n = max(float(unknowns), 1.0)
     if model == "fem" and n <= FEM_DIRECT_MAX:
-        # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth
+        # Up to the direct-solve limit the FEM factorises (SuperLU): more bytes per unknown than the conjugate gradients, and the factor is the whole growth.
+        # (a time run has its own law, model "fem_time", with the direct factor up to femcore.FEM_TRANSIENT_DIRECT_MAX, which may be above this steady limit)
         return (baseline_bytes() if base is None else base) + FEM_DIRECT_BYTES * n * factor
     t = n / max(float(cells), 1.0)
     t_eff = max(min(t, float(cells) / t), 1.0)
@@ -792,10 +832,54 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
     return head + (f"; use a cell of {cell_fit:.1f} mm or more" if cell_fit else "; no cell up to 50 mm fits")
 
 
+def fem_time_law(unknowns: float, cells: float, base: Optional[float], limit: float) -> str:
+    """!
+    @brief The law of a FEM time run: "fem_time" (the direct factor) while it fits the memory limit, "fem_time_cg" when the mesh is above the transient direct limit or the direct factor
+           would not fit and the conjugate gradients (which take about a tenth of the bytes, at the price of the iterations at every step) would.
+    @details `fem._prepare_time` takes the same decision, so that the guard and the stepper agree: a mesh at or below the steady direct limit is always direct.
+    @param unknowns Unknowns of the mesh, count.
+    @param cells Plan cells, count.
+    @param base Resident bytes of the process (None: baseline_bytes()).
+    @param limit Limit in bytes left for the solve: the memory limit less the frames the run holds (the guard adds the frames to the estimate after the choice).
+    @return "fem_time" or "fem_time_cg".
+    """
+    n = float(unknowns)
+    if n <= FEM_DIRECT_MAX:
+        return "fem_time"
+    if n > FEM_TRANSIENT_DIRECT_MAX or estimate_bytes("fem_time", n, cells, base) > limit:
+        return "fem_time_cg"
+    return "fem_time"
+
+
+def fem_transient_factor(unknowns: float) -> float:
+    """!
+    @brief Multiplier of the steady law for a FEM time simulation, by the solver path the stepper will take for that many unknowns.
+    @param unknowns Unknowns of the FEM mesh, count.
+    @return float FEM_TRANSIENT_FACTOR_DIRECT up to FEM_TRANSIENT_DIRECT_MAX, otherwise FEM_TRANSIENT_FACTOR_CG.
+    """
+    return FEM_TRANSIENT_FACTOR_DIRECT if unknowns <= FEM_TRANSIENT_DIRECT_MAX else FEM_TRANSIENT_FACTOR_CG
+
+
+def fem_transient_seconds(unknowns: float, steps: float, stages: float = 1.0) -> float:
+    """!
+    @brief Predicted seconds of the time stepping of a FEM run (without the build): a setup per stage (factorisation or hierarchy) plus a cost per step, by solver path.
+    @details The numbers are the model fitted to the measured table (see the constants above and `releases/2.9.0/fem-transient/MEASURED.md`).
+    @param unknowns Unknowns of the FEM mesh, count.
+    @param steps Time steps of the run, count.
+    @param stages Matrices factored or hierarchies built, count (a power-step response has 10 stages and the steady solve; a profile run has the steady solve and one step matrix).
+    @return float Seconds.
+    """
+    n = float(unknowns)
+    if n <= FEM_TRANSIENT_DIRECT_MAX:
+        setup = FEM_SETUP_SECONDS_DIRECT_REF * (n / FEM_SETUP_REF_UNKNOWNS) ** FEM_SETUP_EXPONENT_DIRECT
+        return stages * setup + n * float(steps) * FEM_STEP_SECONDS_DIRECT
+    return stages * FEM_SETUP_SECONDS_CG + n * float(steps) * FEM_STEP_SECONDS_CG
+
+
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
           base: Optional[float] = None, n_diel=None, quiet: bool = False,
-          laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None) -> List[Verdict]:
+          laminate_params: Optional[Tuple[float, int]] = None, fem_params: Optional[Tuple[int, float]] = None, frames_bytes: float = 0.0) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
     @details The LPTN and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the LPTN) and the Analytic has its own guard of
@@ -818,15 +902,16 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param laminate_params Tuple (s_max in m, n_max) of the laminate rule the run will use (SolverOptions.laminate_params()), or None for the values in force: the sub-gaps add
                            node layers, so they change the unknowns that are counted.
     @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM mesh (SolverOptions.fem_gap_elements, fem_refine), or None for the defaults (6, 2).
+    @param frames_bytes Bytes of the output frames a FEM time run holds (n_out x layers x ny x nx float64), added to the FEM estimate and NOT multiplied by the time factor.
     @return List of Verdict, one per checked model. A problem that has no FEM mesh (a slanted outline, too many break lines) is a "refuse" verdict of the FEM whose message is the reason.
     @throws MemoryGuardError If refuse is "raise" and a model is refused.
     """
     from . import laminate
     with laminate.using(*(laminate_params or (None, None))):
-        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params)
+        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params, frames_bytes)
 
 
-def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params=None) -> List[Verdict]:
+def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet, fem_params=None, frames_bytes=0.0) -> List[Verdict]:
     """!
     @brief Body of check(), run with the laminate numbers in force.
     @param problem A Problem.
@@ -842,10 +927,12 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     @param n_diel Slabs across the dielectric gaps of the 3D solid: None (the rule of solid3d.slabs_per_gap), an int for every gap or a list per gap, count.
     @param quiet True: no log lines.
     @param fem_params Tuple (elements across a dielectric gap, refinement ratio) of the FEM, or None.
+    @param frames_bytes Bytes of the FEM output frames (see check).
     @return List of Verdict.
     """
     f = default_fraction() if fraction is None else fraction
     mult = factor if factor is not None else (TRANSIENT_FACTOR if transient else 1.0)
+    time_run = factor is not None or transient                                  # a time simulation or a profile run: the FEM has its own factor per solver path
     r = ram if ram is not None else ram_bytes()
     limit = limit_bytes(f, r)
     avail = available if available is not None else available_bytes()
@@ -863,14 +950,19 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
             out.append(Verdict(model, 0, 0.0, limit, "refuse", 0.0, None, str(exc), False, True))
             continue
         exact = model in ("solid3d", "fem")                                     # The 3D and FEM counts are exact and cheap; the layered ones sample the copper
-        if accepted is not None or estimate_bytes(model, n, cells, base, mult) <= limit:
+        # A FEM time run has its own law (direct factor above the steady limit, factor per path). The frames are added to the estimate below, so the path is chosen against the
+        # limit less the frames: a direct factor that fits only without them falls back to CG instead of refusing a run that CG would take (fem._check_transient does the same)
+        law = fem_time_law(n, cells, base, limit - frames_bytes) if (model == "fem" and time_run) else model
+        if accepted is not None or estimate_bytes(law, n, cells, base, 1.0 if law == "fem_time" else mult) <= limit:
             n, cells = count(cell_mm)                                           # The bound fits (or the caller sets a window): count exactly
             exact = True
         layered = model in ("fvm", "fdm")
         vc = via_cells(problem, cell_mm) if layered and exact else 0.0                   # The via term goes with the exact count; the bound stays a lower bound
         # The raster of a drawn layer with a cut cell is held beside the unknowns (FVM and FDM, exact count only; the search for the cell that fits adds it at every cell it tries)
         drawn = drawn_run_bytes(problem, cell_mm) if layered and exact else 0.0
-        est = estimate_bytes(model, n, cells, base + drawn, mult, vc)
+        law = fem_time_law(n, cells, base, limit - frames_bytes) if (model == "fem" and time_run) else model
+        m_mult = 1.0 if law.startswith("fem_time") else mult
+        est = estimate_bytes(law, n, cells, base + drawn, m_mult, vc) + (frames_bytes if model == "fem" else 0.0)
         secs = estimate_seconds(model, n, cells) * (mult if mult > 1.0 else 1.0)
         if model == "solid3d" and n > CEILING_3D:
             v, why = "refuse", "ceiling"
@@ -880,7 +972,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
         else:
             v = verdict(est, limit, secs)
             why = v
-        fit = (cell_that_fits(count, model, math.inf if accepted is not None else limit, cell_mm, base, mult, max_unknowns=accepted if accepted is not None else
+        fit = (cell_that_fits(count, law, math.inf if accepted is not None else limit, cell_mm, base, m_mult, max_unknowns=accepted if accepted is not None else
                               (CEILING_3D if model == "solid3d" else None), bound=bound,
                               vias=(lambda c, _p=problem: via_cells(_p, c)) if layered else None,
                               extra=(lambda c, _p=problem: drawn_run_bytes(_p, c)) if layered else None)

@@ -1,0 +1,7 @@
+Where the licence texts in this folder come from
+=================================================
+GPL-3.0.txt   byte-exact copy of the SPDX licence-list text "GPL-3.0-only":
+              https://raw.githubusercontent.com/spdx/license-list-data/main/text/GPL-3.0-only.txt
+              SHA-256 fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0 (34674 bytes)
+LGPL-3.0.txt  the GNU LGPL version 3 as published by the Free Software Foundation, https://www.gnu.org/licenses/lgpl-3.0.txt
+THIRD-PARTY-NOTICES.txt  made by the build from the Qt source tarballs attached to the release.

@@ -245,3 +245,15 @@ def test_tolerance_policy_on_the_heat_balance_is_not_relative_to_round_off():
     assert not F.compare(f, run)
     assert F.compare(f, run, exact=True)
     assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=1e-3)])
+
+
+def test_a_time_only_the_new_run_has_is_an_addition_only_when_the_table_names_it():
+    """!
+    @brief 2.9.0: the FEM time to 63 % exists only in the new run; it is expected when `transients.added` names the model, an alarm otherwise.
+    @return None.
+    """
+    rows = [{"board": "b", "model": "fem", "part": "U", "old": None, "new": 12.0, "change": None, "identical": False},
+            {"board": "b", "model": "fvm", "part": "U", "old": None, "new": 12.0, "change": None, "identical": False}]
+    table = {"transients": {"must_not_move": [], "may_move": [], "added": [{"id": "A2", "boards": "*", "models": ["fem"]}]}}
+    out = C.classify_transients(rows, table)
+    assert [r["class"] for r in out] == ["expected", "unexplained"]

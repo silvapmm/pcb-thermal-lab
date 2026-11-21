@@ -11,11 +11,14 @@ the GUI can embed the figure in a Qt canvas and the command line can save it to 
 
 import functools
 import math
+import re
+import warnings
 from dataclasses import dataclass, field as dc_field
 
+import matplotlib
 import numpy as np
-from matplotlib import ticker
-from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib import ticker, transforms
+from matplotlib.backends.backend_agg import FigureCanvasAgg, RendererAgg
 from matplotlib.cm import ScalarMappable
 from matplotlib import patheffects
 from matplotlib.colors import Normalize
@@ -23,10 +26,12 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.figure import Figure
 from scipy import ndimage
 
+from . import thickness
 from .analysis import extreme_points
+from .compare import readout_name
 from .geometry import points_in_polygon, zone_fill
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num, signed_fixed
-from .results import model_label, short_name
+from .results import model_color, model_label, model_order, short_name
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -115,6 +120,61 @@ def _with_engineering_ticks(draw):
         engineering_ticks(fig)
         return result
     return wrapper
+
+
+COLLAPSE_WARNING = "constrained_layout not applied because axes sizes collapsed to zero"   # Start of the Matplotlib message of a canvas too small for its decorations
+
+
+def draw_unless_collapsed(fig, draw):
+    """!
+    @brief Draw a constrained-layout figure; when the canvas is too small for the axes decorations (Matplotlib then warns and leaves the axes unplaced) draw it blank instead.
+    @details Matplotlib cannot lay out a figure whose decorations (titles, labels, an outside legend) take the whole canvas, as in a window dragged very small, and
+             warns at every paint. The draw is tried once with that one warning caught; when it fired, the axes and the legends are hidden for a second, blank draw
+             and the layout engine and visibility are restored, so the next draw (the canvas grew) lays the chart out as usual. At a size where the layout succeeds
+             nothing changes: the same draw, the same pixels. Every other warning is passed on untouched.
+    @note Only the collapse message gets a filter of its own ("always", so that every paint can tell, also under `-W error`); the other warnings meet the
+          filters in force where they are raised (module filters, "ignore", "error"), are only recorded here and are handed on unchanged.
+          Review: the first version set `simplefilter("always")` for every warning and re-raised the others with `warn_explicit`, which names the module
+          by its file path, so a filter on a module name (pytest's `filterwarnings`, `-W ...:module`) no longer applied: an ignored library warning was
+          shown and an "error" one was not raised.
+    @note `warnings.catch_warnings` changes process-wide state: call this from the GUI thread only (Qt paints there; the solvers run in a worker process).
+          Entering and leaving it also resets the "once per place" memory of the warnings module, so a "default" warning raised again anywhere in the
+          process after a guarded paint is shown again (measured: 3 times over 3 paints instead of 1). The program shows no Python warning to the user
+          (they go to stderr), so this is accepted; the cost is about 1 microsecond per paint.
+    @param fig Figure (its canvas is the one `draw` paints).
+    @param draw Callable with no argument that paints the figure (for example the canvas draw of the base class).
+    @return bool True when the canvas was too small and a blank figure was drawn.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.filterwarnings("always", message=re.escape(COLLAPSE_WARNING), category=UserWarning)   # Prepended: wins over the filters in force for this one message
+        draw()
+    collapsed = False
+    for w in caught:
+        if issubclass(w.category, UserWarning) and str(w.message).startswith(COLLAPSE_WARNING):
+            collapsed = True
+        else:
+            # Not ours: it already passed the filters in force where it was raised (else it would not be recorded), so it is shown as is, without a second
+            # filtering (warn_explicit would filter it again under its file path instead of its module name). _showwarnmsg is the hook warn() itself ends
+            # in; it honours a replaced showwarning and a recording catch_warnings (pytest)
+            show = getattr(warnings, "_showwarnmsg", None)
+            if show is not None:
+                show(w)
+            else:                                                       # A Python without the hook: filtered again (module filters may then miss it)
+                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source)
+    if not collapsed:
+        return False
+    hidden = [a for a in list(fig.axes) + list(fig.legends) if a.get_visible()]
+    engine = fig.get_layout_engine()
+    for a in hidden:
+        a.set_visible(False)
+    fig.set_layout_engine("none")                    # Nothing left to place: no layout, no warning
+    try:
+        draw()
+    finally:
+        for a in hidden:
+            a.set_visible(True)
+        fig.set_layout_engine(engine)
+    return True
 
 
 def new_figure(width=7.0, height=4.5):
@@ -677,7 +737,7 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     """!
     @brief Temperature of the outer face of the copper (the surface read-out), beside the layer mean (the column) that every other map shows.
     @param fig Target Figure (cleared first).
-    @param result A SteadyResult; every steady FVM and FDM result holds arrays["T_surface"] (no thickness threshold).
+    @param result A SteadyResult; every steady FVM, FDM, Analytic, 3D solid and FEM result holds arrays["T_surface"] (no thickness threshold).
     @param problem The Problem.
     @param face 0 for the top face of layer 1, 1 for the bottom face of the last layer.
     @param cmap Colormap name.
@@ -698,14 +758,63 @@ def draw_surface(fig, result, problem, face, cmap="inferno"):
     diff = float(np.nanmax(field)) - col
     # Thin copper: the difference is milli-kelvin and the title says so with enough digits to show it is present (decision: no hidden threshold);
     # two lines, because one line was cut at both sides in the exported 6.4 x 4.8 inch picture (review)
-    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + ("resolved" if result.model == "fem" else "estimate") + " (°C)",
-                    title=f"{model_label(result.model)} - surface ({tag}), {'resolved' if result.model == 'fem' else ('estimate, upper side' if upper else 'estimate')}   max {np.nanmax(field):.1f} °C\n"
+    ax = draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=layer, label="Surface temperature, " + thickness.surface_kind(result, face) + " (°C)",
+                    title=f"{model_label(result.model)} - surface ({tag}), {thickness.surface_kind(result, face) + (', upper side' if upper and thickness.surface_kind(result, face) == 'estimate' else '')}   max {np.nanmax(field):.1f} °C\n"
                           f"(column max {col:.1f} °C, {signed_fixed(diff, 3)} K, {signed_fixed(100 * diff / rise, 2)} % of the rise)")
     face_peak = result.arrays.get("face_peak")
     if face_peak is not None and float(np.nanmax(face_peak[layer])) > 0:
         # The trap of the patterned thin copper: over bare laminate under a source the surface includes the rise across the laminate, which the column node does not
         ax.text(0.01, 0.01, "difference includes the rise across bare laminate under a source (copper absent)", transform=ax.transAxes, fontsize=6,
                 color="white", va="bottom", zorder=7, bbox={"facecolor": "black", "alpha": 0.5, "pad": 1.5, "edgecolor": "none"})
+
+
+DIFFERENCE_CMAP = "RdBu_r"      # Diverging, centred on zero by symmetric limits: red where the model is above the reference, blue where it is below
+
+
+@_with_engineering_ticks
+def draw_difference(fig, diff, problem):
+    """!
+    @brief The Difference view: the field of (model - reference) in K, on the grid of the reference, with a diverging scale centred on zero.
+    @details The two ringed points are the largest (red) and the smallest (blue) difference; the title names both models and the read-out they share, and
+             quotes the maximum, the minimum and the RMS difference with their positions. The colour limits are symmetric (plus and minus the largest absolute
+             difference), so that white is zero whatever the data.
+    @param fig Target Figure (cleared first).
+    @param diff A `compare.DifferenceField`.
+    @param problem The Problem.
+    @return The axes.
+    """
+    ref_name, name = model_label(diff.reference), model_label(diff.model)
+    what = readout_name(diff.readout, diff.layer, diff.face)
+    lines = [f"{name} − {ref_name}, {what} (K)",
+             f"max {signed_fixed(diff.maximum, 2)} K at ({diff.where_max[0]:.1f}, {diff.where_max[1]:.1f}) mm",
+             f"min {signed_fixed(diff.minimum, 2)} K at ({diff.where_min[0]:.1f}, {diff.where_min[1]:.1f}) mm   RMS {diff.rms:.2f} K"]
+    if diff.resampled:
+        lines.append(f"({name} was interpolated onto the {ref_name} grid)")          # A copied or saved figure keeps the caveat
+    ax = draw_field(fig, diff.values, problem, diff.dx, diff.dy, cmap=DIFFERENCE_CMAP, vmin=-diff.limit, vmax=diff.limit, layer=diff.layer,
+                    label=f"{name} − {ref_name} (K)", title="", extremes=True)
+    # A figure title, centred on the figure: a title centred on the axes ran over the colour bar and its label in a canvas of 300 px and narrower
+    setattr(ax, _FIGURE_TITLE_ATTR, lines)
+    _fit_figure_title(fig, lines)
+    return ax
+
+
+_FIGURE_TITLE_ATTR = "_pcbt_figure_title"   # Attribute of the axes of a Difference figure that holds the title lines to fit again when the canvas changes size
+
+
+def _fit_figure_title(fig, lines):
+    """!
+    @brief Set the figure title (suptitle) of a Difference figure wrapped at its spaces to the width of the figure, in a size that shrinks in a very narrow figure.
+    @details The title is centred on the figure, so it cannot run over the colour bar; each line is wrapped to the figure width (a number and its unit stay
+             together, see `_wrapped`), and the constrained layout makes room for as many lines as result. `refit_texts` calls this again when the canvas is resized.
+    @param fig Figure (its constrained layout, if any, is run at the next draw).
+    @param lines The lines of the title (each is wrapped further only if it does not fit).
+    """
+    renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, "get_renderer") else RendererAgg(int(fig.get_figwidth() * fig.dpi), int(fig.get_figheight() * fig.dpi), fig.dpi)
+    logical = fig.get_figwidth() * fig.dpi / (getattr(fig.canvas, "device_pixel_ratio", 1.0) or 1.0)
+    size = 9 if logical >= NARROW_FIGURE_PX else 8 if logical >= 0.65 * NARROW_FIGURE_PX else 7
+    text = fig.suptitle("\n".join(lines), fontsize=size)
+    room = max(fig.get_figwidth() * fig.dpi - 8.0, 40.0)
+    text.set_text("\n".join(_wrapped(text, line, room, renderer) for line in lines))
 
 
 @_with_engineering_ticks
@@ -910,6 +1019,114 @@ def profile_has_strip(fig):
     return fig.get_figwidth() < INSET_MIN_WIDTH_IN
 
 
+NARROW_FIGURE_PX = 300.0     # Figures narrower than this (logical pixels) get a title centred on the figure and smaller type
+_FIT_ATTR = "_pcbt_text_fit"  # Attribute of an axes that holds the title lines and the y label to fit again when the canvas changes size (`refit_texts`)
+
+
+def _wrapped(artist, text, budget_px, renderer, vertical=False):
+    """!
+    @brief Break a text at its spaces into the fewest lines that each fit in a width.
+    @details A number and its unit ("40.0 mm)") are one word, so a unit never starts a line on its own; a text that fits whole costs one measurement.
+    @param artist Matplotlib Text whose font and rotation measure the text (its text is changed while measuring).
+    @param text One paragraph, no line breaks.
+    @param budget_px Largest extent of a line along the reading direction, in figure pixels.
+    @param renderer Renderer that measures the text.
+    @param vertical True for a rotated text (the extent that counts is its height).
+    @return str The text with "\\n" at the breaks; a word longer than the budget stays whole.
+    """
+    def extent(candidate):
+        artist.set_text(candidate)
+        box = artist.get_window_extent(renderer)
+        return box.height if vertical else box.width
+    if extent(text) <= budget_px:
+        return text                                     # The usual case in a wide figure: no word-by-word measuring
+    lines, line = [], ""
+    for word in re.split(r" (?!mm\b)", text):          # Review: the greedy break left "mm)" alone on a third line at 900 x 700
+        trial = f"{line} {word}" if line else word
+        if line and extent(trial) > budget_px:
+            lines.append(line.rstrip())                 # A run of spaces in the text ("mm   RMS") must not leave spaces at the end of a line, which shifts a centred line
+            line = word
+        else:
+            line = trial
+    lines.append(line)
+    return "\n".join(lines)
+
+
+def _fit_title_and_ylabel(fig, ax, title_lines, ylabel):
+    """!
+    @brief Set the title (one or two given lines) and the y label of a curves axes so that both lie inside the figure, wrapping them at their spaces where they would not.
+    @details The title is centred on the axes, not on the figure, and the label runs along the axes: the room is measured after a layout pass (constrained layout
+             when the figure has it) with a short stand-in label, because the real label must not move the axes while it is measured. The words are never changed.
+             When nothing has to be wrapped one pass is enough (the label is one line, as thick as the stand-in); otherwise the passes repeat until the texts
+             stop changing (at most three), since a wrapped label is thicker and moves the axes. In a figure narrower than NARROW_FIGURE_PX the title is centred
+             on the figure through a transform whose x is a figure fraction, so a later layout (the draw, a legend) cannot shift it off the figure.
+             Call it after everything else of the figure is drawn (legend, cut picture, tick format): they move the axes too. The texts are kept on the axes so that
+             `refit_texts` fits them again when the canvas changes size.
+    @param fig Figure of the axes.
+    @param ax Axes with the curves.
+    @param title_lines The lines of the title (the second one is a note); each is wrapped further only if it does not fit.
+    @param ylabel Y axis label.
+    """
+    setattr(ax, _FIT_ATTR, (list(title_lines), ylabel))
+    renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, "get_renderer") else RendererAgg(int(fig.get_figwidth() * fig.dpi), int(fig.get_figheight() * fig.dpi), fig.dpi)
+    ax.set_ylabel(ylabel.split(",")[0])                    # Short stand-in: the layout reserves the room of a label of this width
+    engine = fig.get_layout_engine()
+    width_px, height_px = fig.get_figwidth() * fig.dpi, fig.get_figheight() * fig.dpi
+    # The thresholds are logical pixels: a Qt canvas on a high-density screen has fig.dpi times its pixel ratio (the type grows with it, so the measures agree)
+    logical = width_px / (getattr(fig.canvas, "device_pixel_ratio", 1.0) or 1.0)
+    narrow = logical < NARROW_FIGURE_PX
+    size = 10 if not narrow else 9 if logical >= 0.65 * NARROW_FIGURE_PX else 8     # Smaller type in a narrow figure: fewer lines
+    ax.yaxis.label.set_fontsize(size if narrow else matplotlib.rcParams["axes.labelsize"])
+
+    def place_title(text):
+        # set_title resets the transform of the title (Axes._set_title_offset_trans), so the narrow one is put back after each call
+        ax.set_title(text, fontsize=size)
+        if narrow:
+            # Too little room for a title centred on the axes: centred on the figure (x a figure fraction, y the axes' own, as Matplotlib places titles)
+            ax.title.set_transform(transforms.blended_transform_factory(fig.transFigure, ax.transAxes) + ax.titleOffsetTrans)
+    place_title("\n".join(title_lines))
+    previous = None
+    for _ in range(3):
+        if engine is not None:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")            # A collapsed figure only warns that nothing was applied
+                engine.execute(fig)
+        box = ax.get_position()
+        centre = 0.5 * (box.x0 + box.x1) * width_px
+        # The title must fit on the nearer side of its centre: the figure's in a narrow figure, the axes' otherwise
+        room = width_px - 8.0 if narrow else 2.0 * (min(centre, width_px - centre) - 6.0)
+        title = "\n".join(_wrapped(ax.title, line, max(room, 40.0), renderer) for line in title_lines)
+        place_title(title)
+        middle = 0.5 * (box.y0 + box.y1) * height_px
+        room_y = 2.0 * (min(middle, height_px - middle) - 6.0)     # The label is centred on the axes along its height
+        label = _wrapped(ax.yaxis.label, ylabel, max(room_y, 40.0), renderer, vertical=True)
+        ax.set_ylabel(label)
+        if (title, label) == previous or (previous is None and "\n" not in label and title == "\n".join(title_lines)):
+            break                                          # Settled (or nothing wrapped: the axes do not move from the stand-in layout)
+        previous = (title, label)
+
+
+def refit_texts(fig):
+    """!
+    @brief Fit again the title and the y label of every axes of a figure drawn by `draw_profile`, and the title of a figure drawn by `draw_difference`, for the present size of its canvas.
+    @details The wrapping is measured for one size; a window resized after the draw kept the old wrapping and the title could be cut again (review: drawn at
+             1600 x 1000, then shrunk to 800 x 600, its left edge at -11 px). The Results tab calls this when its canvas is resized.
+    @param fig Figure.
+    @return bool True when the figure had texts to fit.
+    """
+    found = False
+    for ax in fig.axes:
+        spec = getattr(ax, _FIT_ATTR, None)
+        if spec is not None:
+            _fit_title_and_ylabel(fig, ax, *spec)
+            found = True
+        lines = getattr(ax, _FIGURE_TITLE_ATTR, None)
+        if lines is not None:                                  # The Difference figure's title
+            _fit_figure_title(fig, lines)
+            found = True
+    return found
+
+
 @_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, picture="map", underlay=None, map_alpha=0.7, cmap=CMAPS[0]):
     """!
@@ -966,18 +1183,20 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     if actual is None:
         actual = position_mm
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
-    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
-    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5)
-    where = f"{'y' if axis == 'x' else 'x'} = {actual:.1f} mm"
+    # The curve is the row or column of cells whose centre is nearest to the cut: say so when it is not where the slider is (the slider read 40.0, the title 39.5).
+    # The note is the second line of the title (one line of both was 450 px wide and was cut at both ends in a window of 1000 px or less)
+    title_lines = [f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {actual:.1f} mm"]
     if abs(actual - position_mm) >= 0.05:
-        where += f" (the cell centre nearest to {position_mm:.1f} mm)"
-    ax.set_title(f"Cut along {axis} at {where}", fontsize=10)
+        title_lines.append(f"(the cell centre nearest to {position_mm:.1f} mm)")
+    ax.set_title(title_lines[0], fontsize=10)
+    ax.set_ylabel(f"Layer {layer + 1} temperature, column mean (°C)")
     ax.grid(alpha=0.3)
     src, note = _cut_map_source(results, problem) if picture == "map" else (None, "")
     if picture == "off" or strip:
         ax.legend()
         if strip:
             _draw_cut_picture(tx, problem, layer, axis, actual, picture, underlay, src, cmap, map_alpha, note)
+        _finish_profile_texts(fig, ax, title_lines, layer)
         return
     # The inset covers a corner of the plot: the curves are drawn, so the limits (with a little headroom) are known; then the corner is chosen
     lo, hi = ax.get_ylim()
@@ -999,43 +1218,79 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None, pic
     others = [c for c in ("ur", "ll", "lr", "ul") if c != corner]
     load = {c: (lambda sh, rg: sh + (10.0 if rg else 0.0))(*_inset_load(ax, finite, peak, c)) for c in others}     # The legend must not hide the peak either
     ax.legend(loc=loc[min(others, key=lambda c: (load[c], others.index(c)))], fontsize=8)
+    _finish_profile_texts(fig, ax, title_lines, layer)
 
 
-def _legend_outside(fig, ax, **kw):
+def _finish_profile_texts(fig, ax, title_lines, layer):
+    """!
+    @brief Last step of `draw_profile`: the tick format of the program, then the title and the y label fitted to the figure.
+    @details The fit comes last because the legend, the cut picture and the tick labels all move the axes (review: fitted before them, the title of a figure of
+             200 x 140 px overhung the right edge by 16 px).
+    @param fig Figure.
+    @param ax Axes with the curves.
+    @param title_lines The lines of the title.
+    @param layer 0-based layer (named in the y label).
+    """
+    engineering_ticks(fig)
+    _fit_title_and_ylabel(fig, ax, title_lines, f"Layer {layer + 1} temperature, column mean (°C)")
+
+
+def _legend_outside(fig, ax, loc="outside right upper", **kw):
     """!
     @brief Put the legend of a bar chart beside the axes, so that it never covers a bar or a value label.
     @param fig Figure of the axes.
     @param ax Axes whose handles are listed.
+    @param loc Place of the legend with a constrained layout (default beside the axes at the top; the bar chart with a two-line title uses the lower right, away from the title).
     @param kw Extra keyword arguments of the legend (fontsize).
     """
     handles, labels = ax.get_legend_handles_labels()
     if fig.get_layout_engine() is not None:
-        fig.legend(handles, labels, loc="outside right upper", **kw)       # constrained layout leaves room for it
+        fig.legend(handles, labels, loc=loc, **kw)       # constrained layout leaves room for it
     else:
         ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0, **kw)
 
 
 @_with_engineering_ticks
-def draw_comparison(fig, results):
+def draw_comparison(fig, results, reference=None):
     """!
-    @brief Bar chart comparing the maximum and mean temperature of the models.
+    @brief Bar chart of the whole board in every model: two groups (Tmax of the column, Tmean of all layers) with one bar per model.
+    @details The bars follow the order of the parts table (the reference first, then the program order) and keep the colour of their model whatever other models ran.
+             The reference is hatched and outlined and named in the legend and in the two-line title; the values are written upright on the bars (they fit a narrow bar and
+             never meet the next one); the axis starts at zero (no cut axis). The hatch colour is set explicitly so that the chart reads on the light and the dark theme.
     @param fig Target Figure (cleared first).
     @param results Dict {model: SteadyResult}.
+    @param reference Key of the reference model (None: the FVM when it ran, else the first model).
     """
     fig.clear()
     ax = fig.add_subplot(111)
-    names = list(results)
-    x = np.arange(len(names))
-    ax.bar(x - 0.2, [results[n].t_max for n in names], 0.4, label="Tmax")
-    ax.bar(x + 0.2, [results[n].t_mean for n in names], 0.4, label="Tmean")
-    for k, n in enumerate(names):
-        ax.text(k - 0.2, results[n].t_max + 0.5, f"{results[n].t_max:.1f}", ha="center", fontsize=8)
-        ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
-    ax.set_xticks(x)
-    ax.set_xticklabels([model_label(n) for n in names])        # "LPTN", as the tables, not the key `lumped`
-    ax.set_ylabel(COLUMN_LABEL)
-    _legend_outside(fig, ax)
+    names = model_order(list(results), reference if reference in results else ("fvm" if "fvm" in results else next(iter(results), None)))
+    ref = names[0] if names else None
+    n = max(len(names), 1)
+    width = 0.8 / n
+    text = matplotlib.rcParams["text.color"]
+    top = max([float(results[m].t_max) for m in names] + [1.0])
+    for k, m in enumerate(names):
+        vals = [float(results[m].t_max), float(results[m].t_mean)]
+        label = f"{model_label(m)} (reference)" if m == ref else model_label(m)
+        bars = ax.bar(np.arange(2) + (k - (n - 1) / 2) * width, vals, width, color=model_color(m), label=label)
+        for b, v in zip(bars, vals):
+            if m == ref:
+                b.set_hatch("///")
+                b.set_edgecolor(text)
+                b.set_linewidth(1.0)
+                b.set_hatchcolor("white")                  # Explicit: the hatch would otherwise take the theme's text colour and vanish against the outline
+            tall = v > 0.12 * top                          # A short bar cannot hold the upright number: it goes above it
+            ax.text(b.get_x() + b.get_width() / 2, v - 0.015 * top if tall else v + 0.01 * top, f"{v:.1f}", rotation=90, ha="center", va="top" if tall else "bottom",
+                    fontsize=7, color="white" if tall else text, fontweight="bold" if m == ref else "normal",
+                    bbox=dict(boxstyle="square,pad=0.1", fc=model_color(m), ec="none") if (m == ref and tall) else None)   # A plain patch under the number of the hatched bar
+    ax.set_xticks(np.arange(2))
+    ax.set_xticklabels(["Tmax (column)", "Tmean (all layers)"], fontsize=9)
+    ax.set_ylabel("Temperature (°C)")                  # Both groups: the column maximum and the all-layer mean are named by the group labels
+    ax.set_ylim(0, top * 1.08)
+    ax.set_title(f"All models - the whole board\nreference {model_label(ref)} (hatched), column", fontsize=10)
     ax.grid(axis="y", alpha=0.3)
+    # Lower right, like the heater bars: the title has two lines and the upper right would sit on top of it
+    _legend_outside(fig, ax, loc="outside right lower", fontsize=8)
 
 
 @_with_engineering_ticks
@@ -1061,7 +1316,8 @@ def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=10)
     ax.grid(axis="y", alpha=0.3)
-    _legend_outside(fig, ax, fontsize=8)
+    # Lower right: the title may have two lines (it names the model) and the upper right would sit on top of it
+    _legend_outside(fig, ax, loc="outside right lower", fontsize=8)
 
 
 @_with_engineering_ticks
@@ -1277,14 +1533,15 @@ def plot_profiles(results, problem, path, picture="map", underlay=None, map_alph
     _save(fig, path)
 
 
-def plot_comparison(results, path):
+def plot_comparison(results, path, reference=None):
     """!
     @brief Save the model comparison bars.
     @param results Dict {model: SteadyResult}.
     @param path Output PNG path.
+    @param reference Key of the reference model (None: the FVM when it ran, else the first model).
     """
-    fig = new_figure(6, 4)
-    draw_comparison(fig, results)
+    fig = new_figure(7, 4)
+    draw_comparison(fig, results, reference)
     _save(fig, path)
 
 

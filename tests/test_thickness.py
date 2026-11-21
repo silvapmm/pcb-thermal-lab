@@ -92,9 +92,10 @@ def test_thin_copper_has_the_surface_tiny_but_present_and_nothing_else_moves(mon
         d = float(m.extras["t_max_surface_top"]) - float(np.nanmax(m.T[0]))
         print(f"thin copper {k}: surface top minus column max = {d * 1e3:.3f} mK")
         assert 0 < d < 0.02                                                    # tiny, but present (and positive on a heated face)
-    for k in ("lumped", "analytic"):
-        assert "T_surface" not in on.results[k].arrays
+    assert "T_surface" not in on.results["lumped"].arrays                       # the Lumped has no face flux: no surface, only a text
+    assert "T_surface" in on.results["analytic"].arrays                         # the Analytic reads one from its own field (rule F)
     monkeypatch.setattr(thickness, "attach", lambda *a, **k: None)
+    monkeypatch.setattr(thickness, "attach_field", lambda *a, **k: None)
     off = simulate(copy.deepcopy(p), SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
     for k in on.results:
         assert on.results[k].t_max == off.results[k].t_max and np.array_equal(on.results[k].T, off.results[k].T)
@@ -168,7 +169,8 @@ def test_surface_files_are_written_only_on_request(tmp_path):
     asked = {f.rsplit("/", 1)[-1] for f in sim.save(str(tmp_path / "b"), plots=True, surface_files=True)}
     assert {"surface_fvm.csv", "surface_fdm.csv", "surface_fvm_top.png", "surface_fvm_bottom.png"} <= asked
     head = (tmp_path / "b" / "surface_fvm.csv").read_text().splitlines()[0]
-    assert head == "face,x_mm,y_mm,T_surface_c,T_surface_mean_c,T_column_c,upper_estimate"
+    # The seven columns of every earlier version come first, unchanged; the model, the kind of the surface and the FEM node value are appended after them
+    assert head == "face,x_mm,y_mm,T_surface_c,T_surface_mean_c,T_column_c,upper_estimate,model,surface_kind,T_point_c"
 
 
 def test_every_map_names_its_read_out():
@@ -197,11 +199,13 @@ def test_the_cost_of_the_surface_is_milliseconds():
     assert m.arrays["T_surface"].nbytes < 1e6
 
 
-def test_lumped_analytic_and_the_solid_offer_no_surface():
+def test_only_the_lumped_offers_no_surface_the_analytic_and_the_solid_have_one():
     p = plate()
     r = simulate(p, SolverOptions(models=("lumped", "analytic", "solid3d"), cell_mm=2.0))
-    for m in r.results.values():
-        assert "T_surface" not in m.arrays
+    assert "T_surface" not in r.results["lumped"].arrays
+    for k in ("analytic", "solid3d"):
+        m = r.results[k]
+        assert m.arrays["T_surface"].shape[0] == 2 and np.isfinite(m.arrays["T_surface"][0]).any(), k
 
 
 def test_nothing_that_decides_a_number_reads_the_surface(monkeypatch):
@@ -251,6 +255,68 @@ def test_the_flag_marks_a_part_that_is_wide_against_the_plate_only():
     wide = simulate(plate(t_mm=10.0, src=(20, 20, 30, 30)), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]       # t / a = 1
     narrow = simulate(plate(t_mm=2.0, src=(10, 10, 40, 40), width=50.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]   # t / a = 0.07
     assert wide.arrays["T_surface_flag"][0].any() and not narrow.arrays["T_surface_flag"][0].any()
+
+
+# Measured against the independent 3D solver (releases/2.9.0/surface-flag, k 385 and 150 W/mK, bottom film 400, 0.5 mm cells): (t mm, b mm, c mm, parabola / true term at the
+# source centre). The term overshoots by more than 7 % exactly when the NARROW side b is thin against the plate, whatever the long side c is.
+FLAG_TABLE = [(1, 2, 20, 1.028), (1, 2, 10, 1.028), (1, 5, 10, 0.993), (1, 10, 10, 0.993), (2, 2, 20, 1.149), (2, 2, 10, 1.150), (2, 2, 40, 1.148), (2, 3, 10, 1.058),
+              (2, 4, 20, 1.021), (2, 5, 10, 1.006), (2, 5, 20, 1.006), (2, 10, 10, 0.994), (2, 10, 20, 0.994), (2, 20, 20, 0.994), (3, 5, 10, 1.043), (3, 4, 20, 1.075)]
+
+
+def test_source_width_is_the_narrow_side_capped_by_the_equivalent_side():
+    rect = lambda b, c: [(0, 0), (c, 0), (c, b), (0, b)]
+    assert thickness.source_width(rect(2e-3, 20e-3)) == pytest.approx(2e-3, rel=1e-9)             # elongated: the narrow side (sqrt(A) is 6.3 mm)
+    assert thickness.source_width(rect(10e-3, 10e-3)) == pytest.approx(10e-3, rel=1e-9)           # a square: its side, as before
+    th = 0.6
+    rot = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+    assert thickness.source_width(np.array(rect(2e-3, 20e-3)) @ rot.T) == pytest.approx(2e-3, rel=1e-9)   # orientation does not matter
+    disc = 5e-3 * np.array([(np.cos(a), np.sin(a)) for a in np.linspace(0, 2 * np.pi, 97)[:-1]])
+    assert thickness.source_width(disc) == pytest.approx(np.sqrt(thickness.polygon_area(disc)), rel=1e-12)   # capped: a disc is flagged as before
+    assert thickness.source_width([(0, 0), (1e-3, 0), (2e-3, 0)]) == 0.0                           # degenerate
+
+
+@pytest.mark.parametrize("t,b,c,ratio", FLAG_TABLE)
+def test_the_flag_follows_the_measured_overshoot_of_elongated_parts(t, b, c, ratio):
+    # A measured overshoot above 7 % must be flagged; the flag may be earlier (it is conservative) but never miss one
+    p = plate(t_mm=float(t), k=385.0, src=(25 - c / 2, 25 - b / 2, 25 + c / 2, 25 + b / 2), power=10.0)
+    r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
+    flagged = bool(r.arrays["T_surface_flag"][0].any())
+    if abs(t / b - thickness.UPPER_RATIO) > 1e-6:                    # exactly on the threshold the float rounding of the polygon decides
+        assert flagged == (t / b > thickness.UPPER_RATIO)
+    if ratio > 1.07:
+        assert flagged
+
+
+L_2MM = [(15, 15), (35, 15), (35, 17), (17, 17), (17, 35), (15, 35)]     # an L of 2 mm arms, 20 mm long, in mm: hull 8.7 mm wide, sqrt(A) 8.7 mm
+
+
+def test_source_width_finds_the_narrow_arm_of_a_concave_part():
+    # The hull bridges the notch of an L or a U (review: an L of 2 mm arms on 2 mm copper overshoots 1.19 times against an exact cosine series, with a hull 8.7 mm wide)
+    mm = lambda pts: np.asarray(pts, dtype=float) * 1e-3
+    assert thickness.source_width(mm(L_2MM)) == pytest.approx(2e-3, rel=1e-9)
+    assert thickness.source_width(mm(L_2MM)[::-1]) == pytest.approx(2e-3, rel=1e-9)                 # clockwise outline
+    u = [(0, 0), (20, 0), (20, 20), (18, 20), (18, 2), (2, 2), (2, 20), (0, 20)]
+    assert thickness.source_width(mm(u)) == pytest.approx(2e-3, rel=1e-9)
+    # A keyhole outline (two 4 x 4 pads joined by a slit of zero width): the chord across the gap and the zero-length one are ignored, the pad width is kept
+    keyhole = [(0, 0), (4, 0), (4, 2), (10, 2), (10, 0), (14, 0), (14, 4), (10, 4), (10, 2), (4, 2), (4, 4), (0, 4)]
+    assert thickness.source_width(mm(keyhole)) == pytest.approx(4e-3, rel=1e-9)
+    closed = np.vstack([mm(L_2MM), mm(L_2MM)[:1]])                                                   # a repeated closing vertex changes nothing
+    assert thickness.source_width(closed) == pytest.approx(2e-3, rel=1e-9)
+
+
+def test_a_thin_l_shaped_part_is_flagged():
+    # sqrt(A) and the hull width both give t/a 0.23 here; the arm gives 1 (the surface term of the FVM at 0.5 mm reads 1.19 times the exact series, releases/2.9.0/surface-flag study_exact_series.py)
+    p = Problem.new(50, 50, layers=1, thickness_mm=2.0002, copper_um=2000.0, ambient=25.0, h_top=1e-6, h_bottom=400.0, h_side=None, materials=Materials(k_copper=385.0))
+    p.add_full_copper()
+    p.add_heater(1, 10.0, polygon=L_2MM, name="L")
+    r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
+    assert r.arrays["T_surface_flag"][0].any()
+
+
+def test_an_elongated_part_is_flagged_by_its_narrow_side_and_a_square_part_is_unchanged():
+    long_ = simulate(plate(t_mm=2.0, k=385.0, src=(15, 24, 35, 26), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]     # 2 x 20: sqrt(A) 6.3, t/b 1
+    square = simulate(plate(t_mm=2.0, k=385.0, src=(20, 20, 30, 30), power=10.0), SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]   # 10 x 10: t/a 0.2
+    assert long_.arrays["T_surface_flag"][0].any() and not square.arrays["T_surface_flag"][0].any()
 
 
 def test_the_layer_box_lists_the_surface_only_with_it_and_only_in_temperature():
