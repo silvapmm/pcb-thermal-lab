@@ -14,11 +14,11 @@ SKIP=${SKIP:-$OUT}
 
 # peak_mb: the expected peak of the study in MB, from a "peak RSS x GB" line of an earlier log of it, else 1.5 GB
 peak_mb() { local v; v=$(grep -ho 'peak RSS [0-9.]*' $S/slog/tree/${f}__$b.log $S/slog_first_pass/tree/${f}__$b.log 2>/dev/null | awk '{print $3}' | sort -n | tail -1); [ -z "$v" ] && v=1.5; echo $v | awk '{printf "%d", $1*1000}'; }
-# guard: before each script. Wait while swap used > 2500 MB, free+inactive < 6 GB + the expected peak of the study, or the 1-minute load > 8 (the load counts other sessions);
+# guard: before each script. Wait while swap used > 2500 MB, free+inactive+speculative (speculative pages are free pages that vm_stat lists apart) < 6 GB + the expected peak of the study, or the 1-minute load > 8 (the load counts other sessions);
 # hard stop of the batch (exit 3, a STOPPED line in $OUT) at swap > 3000 MB; after 30 minutes of waiting it returns 1 (the caller defers the study to the end of the batch)
 guard() { local w0=$(date +%s); local pk=$(peak_mb); while true; do
     local sw=$(sysctl -n vm.swapusage | sed 's/.*used = \([0-9]*\).*/\1/'); local ld=$(uptime | sed 's/.*averages: \([0-9]*\).*/\1/')
-    local fi=$(vm_stat | awk '/Pages free|Pages inactive/{gsub("\\.","",$3); s+=$3} END{printf "%d", s*16384/1000000}')
+    local fi=$(vm_stat | awk '/Pages free|Pages inactive|Pages speculative/{gsub("\\.","",$3); s+=$3} END{printf "%d", s*16384/1000000}')
     if [ $sw -gt 3000 ]; then echo "STOPPED for memory before $f $b: swap=${sw}M" >> $OUT; exit 3; fi
     if [ $sw -gt 2500 ] || [ $fi -lt $((6000+pk)) ] || [ $ld -gt 8 ]; then
       if [ $(( $(date +%s)-w0 )) -gt 1800 ]; then return 1; fi
