@@ -1,6 +1,6 @@
 # Reviewer opinion: may the papers/ conversions or summaries go into git?
 
-Read-only opinion. I am an engineer reviewing practice, **not a lawyer**; this is not legal advice. Where a
+Read-only opinion. I am an engineer reviewing practice. Where a
 clause of a law or of a provider's terms is quoted from memory and was not re-read for this opinion, it says so.
 
 ## 0. What was looked at (not the papers themselves)
@@ -131,7 +131,6 @@ should have the same guard (section 9).
    `CC-BY-*` or `CC-BY-SA-*`, in one folder (for example `research/sources-open/`) with a `MANIFEST.json` (file, key,
    licence, attribution, source URL, SHA-256 of the source PDF, "machine conversion, modified, may contain errors"),
    the folder excluded from the MIT statement in `LICENSE` and `README.md`. Prefer the arXiv LaTeX source over OCR.
-5. Let a lawyer look before any commercial version or any bundle that ships third-party text.
 
 ## 9. Minimal enforcement (a test in the battery)
 

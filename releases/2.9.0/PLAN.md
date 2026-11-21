@@ -70,7 +70,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | e3a | CSV export of the difference statistics, surface CSV export, hotspot `T_point` (e3); next | `feature/surface-export-and-tags` | S to M |
 | e18a | Name the model on the Components tab and wherever a result table follows the reference model (e18); after e3 | `fix/results-name-the-model` | S |
 | e42 | Release-build items, the maintainer decides: GitHub build trial from `development` with the new icons (never tried); the real QtGui swap test per system; SHA-256 of the Qt source tarballs in the repository (`qt-sources.json`, as water-pump-simulator does); the README sentence about Qt sources (says Qt Project servers; now attached to each release); the A1 wording of `docs/versions.md` that allows a re-run on the same tag while the release is a draft, against the rule that a tag never moves | maintainer's decision | S |
-| e43 | The maintainer's decision about the CLAUDE.md line 'ask a lawyer before a commercial version' (he removed the lawyer from the plan) | maintainer's decision | S |
+| e43 | dropped | dropped | - |
 
 ### 1.2 NOT in 2.9.0, with the reason
 

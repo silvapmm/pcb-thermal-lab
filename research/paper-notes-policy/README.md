@@ -1,6 +1,6 @@
 # Paper notes in git: is it possible, and under what rules?
 
-**Research, not legal advice.** The authors are engineering agents reading public pages; nothing here replaces a lawyer. Branch `research/paper-notes-policy`; the notes plan that rested on its answer was closed. Nothing here is adopted: the rules of `INTEGRATION.md` enter the project only when the maintainer decides. The three pilot notes (removed from the tree on the maintainer's order, kept locally; they remain in the git history) and the checker were illustrations. Reviewed: section 6.
+**Research.** The authors are engineering agents reading public pages. Branch `research/paper-notes-policy`; the notes plan that rested on its answer was closed. Nothing here is adopted: the rules of `INTEGRATION.md` enter the project only when the maintainer decides. The three pilot notes (removed from the tree on the maintainer's order, kept locally; they remain in the git history) and the checker were illustrations. Reviewed: section 6.
 
 ## 1. The answer
 
@@ -111,11 +111,11 @@ Each note is 367 to 420 words with its header fields (`wc -w`), has no figure, n
 - **Machine notes.** Provider terms add no right over the source (2.4); a model that sees the whole paper tends to follow its order and phrases. Counter: the note is written from our verified findings (formulas, cases, page ids), not from a request "summarise this paper", and is reviewed.
 - **Public history.** The repository is public; published history is never rewritten (CLAUDE.md). A rightholder notice to GitHub would ask to remove a file or the repository; removing a file from history would require the forbidden rewrite, so a mistaken copy is costly for ever. This is the reason for a conservative template and a test that blocks the accident before the commit.
 - **Standards and vendors** are the strictest classes: JEDEC, IEEE, ISO/IEC say even small reproductions need permission; keep these notes to facts and ids.
-- **Not checked.** Per-paper licences, Portuguese art. 75 wording, EU quotation case law beyond summaries. A lawyer should look before any commercial version or distribution of a bundle.
+- **Not checked.** Per-paper licences, Portuguese art. 75 wording, EU quotation case law beyond summaries.
 
 ## 6. Review
 
-The independent review of the folder (the reviewer agent): the sources re-opened, the pilot notes compared with the page images, the studies and tests re-run, the folder tidied to the research layout. **Not legal advice**: the review checks that the documents say what their sources say, not what a court would decide.
+The independent review of the folder (the reviewer agent): the sources re-opened, the pilot notes compared with the page images, the studies and tests re-run, the folder tidied to the research layout. The review checks that the documents say what their sources say, not what a court would decide.
 
 ### 6.1 The legal and licence claims against their sources
 
@@ -146,4 +146,4 @@ The pages were rendered from the PDFs of the local library (never copied into th
 - Snippet or summary (S): Feist, Portuguese art. 75 and the 2023 reform, the CJEU case, JEDEC, IPC, Infineon, ROHM, Wiley/Springer TDM, Elmer and OpenFOAM licences, the IEEE rights page, the CC BY licence of Jaffer's journal version.
 - Memory (M): WCT and TRIPS idea/expression; the class of the keys outside the hand list (heuristic, about 20 % wrong).
 - Not obtained (N): the pages listed at the end of 2.2.
-- Not verified: the class counts outside the strict classes (20 % error in a sample of 30); the similarity thresholds on short pastes and on paraphrase; the per-paper licences of the bibliography; no lawyer has read any of this. The Yovanovich figure legends and Lienhard Example 6.5 rest on earlier image checks.
+- Not verified: the class counts outside the strict classes (20 % error in a sample of 30); the similarity thresholds on short pastes and on paraphrase; the per-paper licences of the bibliography. The Yovanovich figure legends and Lienhard Example 6.5 rest on earlier image checks.
