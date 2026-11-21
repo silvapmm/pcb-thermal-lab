@@ -776,6 +776,7 @@ The temperature map of one layer for one model (Figure 13).
 - **Hotspot contour**: draws the line of the Hotspot limit (Simulation settings).
 - **Auto range** or your own colour limits.
 - **Equiv. rect.**: only for the LPTN and Analytic on a board with an outline (section 4.6).
+- **Difference to**: the map of the model minus a reference model, in K (section 5.12).
 
 The hottest sample is marked with a **red ring** and the coolest with a **blue ring**. The title
 gives the two ringed values of the layer shown and the mean of that layer. Cells off a
@@ -1027,6 +1028,78 @@ row per warning with its dot and the label of its element, the first one opened.
 The complete list, with when each warning appears and what it means, is the *Glossary of the
 warnings* in the user guide (`F1`, section 19).
 
+### 5.12 The Difference view: how far apart two models are
+
+Two models never give the same map, and a gap between them is not always an error: it may be a
+difference of definition, of grid or of model. The **Difference to** box of the Temperature page
+(next to the **Model** box) draws the map of **model minus reference**, in kelvin, so that you see
+where and by how much two models disagree. It needs two or more models run, it is a *view* of
+results already solved (nothing is solved again and no number of any model changes), and it is
+for the steady state: the Animation and the power-profile frames have no Difference view in this
+version.
+
+**How to use it.**
+
+1. Run two or more models (for example the FVM and the LPTN) and open **Results - Temperature**.
+2. Choose the model to look at in **Model**, tick **Difference to** and choose the reference in
+   the box beside it. The reference starts as the **FVM**, the reference model of the program
+   (when the FVM itself is shown it starts as the first other model). A reference you chose stays
+   while it is possible; a reference you did not choose goes back to the FVM whenever you change
+   the model shown.
+3. The **Layer** box decides what is compared (Figure 28). A copper layer compares the **column
+   mean** of that layer in both models; **Surface (top)** or **Surface (bottom)** compares the
+   **surface read-out** of both (the FVM, FDM and FEM hold it); **All layers** and **All (2 ×
+   2)** show layer 1. Both models are always read with the **same** definition: the program
+   refuses a difference between two different read-outs.
+4. An item of the reference box that cannot be used is greyed out, and its tooltip says why: the
+   model shown itself; a model with no field; the LPTN, the Analytic or the 3D solid on the
+   Surface read-out (they have none); the LPTN or the Analytic on a board with an outline (they
+   solve a rectangle of the same area and stretch the field back, so a point of it is not a
+   point of the board); a metal block. When a choice cannot give a difference the line under
+   the controls says so, in the warning colour, and the temperature map is drawn instead.
+
+**What you see.** The colour scale is the diverging map red-blue, **centred on zero** and
+symmetric (white is zero, **red** where the model is hotter than the reference, **blue** where it
+is cooler); its ends are plus and minus the largest difference, so the scale changes with the
+pair. The **red ring** marks the largest difference and the **blue ring** the smallest. The
+**figure title** names both models and the read-out and gives the largest and the smallest
+difference with their positions and the RMS difference over the board; when a model was resampled
+onto the grid of the other (the FDM keeps its field on grid points, and two cell sizes are two
+grids) the title says *(FDM was interpolated onto the FVM grid)*, so the caveat travels with a
+copied or saved figure. The map keeps the grid of the reference. The Hotspot contour, Auto range
+and the two colour limits are hidden while the view is on (a hotspot is a temperature and the
+scale of a difference is set by the data).
+
+**The line under the controls.** One line, the verdict first: *Usual for the LPTN: hottest point
++1.4 K, +2.4 % of the rise (usual -5.4 to +8.4 %)*. It compares the difference of the two
+**hottest points** with what the validation measured for that pair, and turns to the warning
+colour of the theme, *Outside the usual range for the ...*, when it is outside. Hover it for the
+range, the number of cases, the cases that fall outside and the section of the validation
+document that holds them. A pair without a measured range has no line.
+
+| Model against the FVM | Usual difference of the hottest point (share of the rise above ambient) | Outside it | Source |
+| :-- | :-- | :-- | :-- |
+| FDM | 0.0 to -0.5 % (19 of 20 scenarios) | a copper edge across the heater, -1.3 % | validation section 2 |
+| Analytic | -1.8 to +0.3 % (18 of 20; -1.1 % on the example board) | a copper island around the heater, -5.1 %; a copper edge across the heater, -27.9 % | validation sections 1 and 2 |
+| LPTN | -5.4 to +8.4 % (19 of 20; +2.4 % on the example board) | a copper edge across the heater, -27.9 % | validation sections 1 and 2 |
+| 3D solid | -0.3 to +0.9 % (20 of 20); a comparison model of the program, not an independent reference | none | validation section 2 |
+| FEM | -2.7 to +0.3 % (16 boards of the suite, without the three drawn ones and the round outline) | none in the range | validation section 56.1 |
+
+Read the table with three limits in mind. (1) The ranges are for the **hottest point**, not for
+every point of the map: on the example board the LPTN's hottest point is +1.4 K from the FVM
+but its map reaches +8.7 K and -4.1 K around the heaters, and no document measures that. (2) They
+were measured with **1 mm cells**; at another cell the gap between the models can be larger or
+smaller, and the tooltip says so when the run's cell is not 1 mm. (3) Only the pairs with the FVM
+as the reference are documented; every other pair says nothing. The FEM row is the FVM against
+the FEM of validation 56.1 (-0.3 to +2.7 % of the FEM rise) written as the FEM minus the FVM in
+the share of the FVM rise.
+
+![The Difference view](images/results_difference.png)
+
+*Figure 28. Results - Temperature with Difference to FVM on the LPTN (example board, four models,
+1 mm cells): the map of LPTN minus FVM in K, the largest and smallest difference ringed, the
+title with both models and the read-out, and the verdict line under the controls.*
+
 ## 6. Settings reference
 
 Every field has a tooltip with the same information. Defaults are those of a new project with the
@@ -1053,7 +1126,7 @@ negligible on 35 to 105 µm copper).
 
 ![The Environment box in computed mode](images/environment_natural_form.png)
 
-*Figure 28. The Board settings dock with the heat transfer Computed on a vertical board: the
+*Figure 29. The Board settings dock with the heat transfer Computed on a vertical board: the
 orientation, the vertical natural convection form, the emissivities, the air speed and the
 multiplier.*
 
@@ -1083,7 +1156,7 @@ configuration folder (section 2.5) replaces them.
 
 ![The inner copper of the typical stack-up](images/stackup_inner_copper.png)
 
-*Figure 29. The Stack-up tab with the inner copper of the typical stack-up set to 1 oz.*
+*Figure 30. The Stack-up tab with the inner copper of the typical stack-up set to 1 oz.*
 
 ### 6.3 Elements (Properties dock)
 
@@ -1154,7 +1227,7 @@ conductivity matters most for a part on bare laminate.
 
 ### 6.6 Preferences
 
-**Edit - Preferences…** (`Ctrl+,`) edits what the program starts with (Figure 30). The list of
+**Edit - Preferences…** (`Ctrl+,`) edits what the program starts with (Figure 31). The list of
 sections on the left:
 
 | Section | What it holds |
@@ -1181,12 +1254,12 @@ settings belong to the machine and are never saved in project files.
 
 ![Preferences, the Via fills library](images/manual_preferences.png)
 
-*Figure 30. Edit - Preferences on its first section, the Via fills library. The line at the top
+*Figure 31. Edit - Preferences on its first section, the Via fills library. The line at the top
 names the user file and says whether it is in use.*
 
 ![Preferences, Solver and Gerber import](images/preferences_solver_gerber.png)
 
-*Figure 31. The Solver section (the memory limit) and the Gerber import section (the largest
+*Figure 32. The Solver section (the memory limit) and the Gerber import section (the largest
 file), one above the other.*
 
 **Reproducing a textbook case.** A new board has h top 10, h bottom 15 and edges that lose heat
@@ -1302,7 +1375,7 @@ routes are independent tabs: fill only one.
 
 ![The Power Calculator](images/calculator_design.png)
 
-*Figure 32. The Power Calculator, Route 1, with the Board description list and the terms of the
+*Figure 33. The Power Calculator, Route 1, with the Board description list and the terms of the
 band.*
 
 ### 8.1 Route 1: from the drawn board
@@ -1352,7 +1425,7 @@ files, the outline, ZIP sets); nothing is uploaded anywhere.
 
 ![Import, step 1](images/import_step1.png)
 
-*Figure 33. Step 1 on the RP2040 minimal design: every file with its function, the Board box with
+*Figure 34. Step 1 on the RP2040 minimal design: every file with its function, the Board box with
 the detected CAD tool, the copper preview.*
 
 - Choose a **folder**, a **ZIP archive** (read in memory, never extracted to disk) or files one by
@@ -1373,7 +1446,7 @@ the detected CAD tool, the copper preview.*
 
 ![Import, step 2](images/import_step2.png)
 
-*Figure 34. Step 2: the parts table, the preview with the designators and the holes, and the
+*Figure 35. Step 2: the parts table, the preview with the designators and the holes, and the
 RP2040 chip (a QFN) selected with Exposed pad or tab chosen; the pad outline is dashed.*
 
 - The paste layers, the placement (pick and place) file and an X3 component layer give a table of
@@ -1394,7 +1467,7 @@ RP2040 chip (a QFN) selected with Exposed pad or tab chosen; the pad outline is 
 
 ![Import, step 3](images/import_step3.png)
 
-*Figure 35. Step 3: the copper mapping, the pixel and the cell, the memory verdict and the
+*Figure 36. Step 3: the copper mapping, the pixel and the cell, the memory verdict and the
 warnings.*
 
 - The copper **mapping** is the flow-based faces (recommended). *Advanced* holds the older
@@ -1424,7 +1497,7 @@ When the open project already holds an import, the window first asks what to do:
 
 ![Re-import](images/import_reimport.png)
 
-*Figure 36. The re-import dialog: Replace, Update or Add files, and the table of what changed.*
+*Figure 37. The re-import dialog: Replace, Update or Add files, and the table of what changed.*
 
 A part that left the files is an **orphan**: kept with its power, not heating. The status bar
 gives the numbers of what was replaced, added, moved, orphaned and kept.
@@ -1442,7 +1515,7 @@ gives the numbers of what was replaced, added, moved, orphaned and kept.
 
 ![Temperature of the imported board](images/results_temperature_imported.png)
 
-*Figure 37. Results - Temperature of the imported RP2040 board (FVM).*
+*Figure 38. Results - Temperature of the imported RP2040 board (FVM).*
 
 Help us test your CAD tool: the README of the project says which CAD programs were tried and how
 to send a sample set.
@@ -1779,7 +1852,7 @@ first line of every report, and `--version`.
 
 ## Appendix A. Keyboard and mouse
 
-The same list is in **Help - Keyboard shortcuts** (Figure 38). On macOS, `Ctrl` is the Command
+The same list is in **Help - Keyboard shortcuts** (Figure 39). On macOS, `Ctrl` is the Command
 key (⌘).
 
 | Keys | Action |
@@ -1807,4 +1880,4 @@ key (⌘).
 
 ![The keyboard shortcuts window](images/manual_shortcuts.png)
 
-*Figure 38. Help - Keyboard shortcuts: the keys in two columns.*
+*Figure 39. Help - Keyboard shortcuts: the keys in two columns.*

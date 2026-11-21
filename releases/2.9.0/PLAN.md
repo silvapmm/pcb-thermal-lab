@@ -15,7 +15,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | Id | Item | Branch(es) | Size |
 | :-- | :-- | :-- | :-- |
 | a | FEM transient | `feature/fem-transient` | L |
-| b | Compare-differences views and trust hints | `feature/compare-differences` | M |
+| b (done on the branch: the Difference view of the Temperature tab and its reference box, stage 2, `releases/2.9.0/compare-differences/DESIGN.md`; not in it: the Models-tab and report differences table, the CLI table, `checks.trust_hint`) | Compare-differences views and trust hints | `feature/compare-differences` | M |
 | c (campaign run, reviewed GO and merged into `development`, `release/2.9.0-fem-campaign`, validations 56 and 57 in `releases/2.9.0/fem-campaign/README.md`; the text part `docs/fem-campaign-validation` waits for b) | Full comparison campaign, validation 56 and 57 | `release/2.9.0-fem-campaign`, then `docs/fem-campaign-validation` | L + M |
 | d | Curved and slanted outlines for the FEM | `research/fem-outline-projection`, then `feature/fem-outline-projection` | M + L |
 | e1 | Surface read-out in the Lumped (upper bound), Analytic, 3D solid and the transient | `research/surface-readout-models`, then `feature/surface-readout-models` | M + M |
