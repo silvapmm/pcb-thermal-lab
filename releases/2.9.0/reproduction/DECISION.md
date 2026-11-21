@@ -58,3 +58,38 @@ The classes of `compare_logs.py`: identical, numeric (same words, numbers differ
 5. **Text differences**: explained only when the new or changed lines are a warning, a label or a read-out listed in the CHANGELOG of 2.9.0 (the LPTN copper-coverage warning, the campaign warnings, the surface read-out added to the Analytic and the 3D solid, the read-out names on tables, the reference model named) AND every number common to both outputs is identical or explained by rules 2 to 4. A new error or traceback on the tree that v2.8.0 does not have is a defect candidate.
 
 For every shift the tester writes one row: script, class, rule applied, explained (item) or unexplained. It does not change code; an unexplained shift is reported to the main session, which sends it to the reviewer before the pass is closed. The pass closes with 0 unexplained shifts, or with each one turned into a fix or an accepted limit by the maintainer.
+
+## Decision 2: a reduced core after the memory incidents, run at one job, before the final-tree steps
+
+Asked by the main session after two memory incidents (swap 9.4 GB of 10 GB twice: two parallel jobs, one study at 6.3 GB; then `lumped-analytic-vias/study_arrays`, whose multiprocessing workers the parent-only RSS cap did not see). State at the decision: 49 of 258 scripts done (T 10 of 34, F 0 of 47, SB 0 of 132, S 23 of 23, sample 15 of 22), 0 shifts judged, `laminate-nodes/study_transient` not reproduced (memory, 6 GB cap); swap 2.05 of 3.07 GB, load 15.8 with no process of the pass running.
+
+**What the pass adds beyond the gate already green.** The whole battery (4555 passed) and the frozen numbers at three cells (431 passed: 17 boards, every model, steady and transient t63) already hold the program to its numbers on the boards of the harness. The pass adds only the boards and read-outs the harness does not have, and the paths 2.9.0 moved on purpose are where a wrong explanation would hide: transient frames with the new stepping (FVM, FDM), the FEM part through an outer face and the FEM transient, the 3D solid with a metal block and with copper slabs. Those are the core; the steady paths of the four main models are already checked bit-identical by the 38 S and sample scripts done (one module per folder nothing reaches) and by the frozen numbers.
+
+### 2.1 Scope: a core of about 42 scripts, the rest "not run in this pass"
+
+| part | scripts | rule |
+| :-- | --: | :-- |
+| T left | 19 | the 23 T scripts not yet run, minus the three that fork workers (`lumped-analytic-vias/study_arrays`, `lumped-analytic-vias/study_unit_cell`, `lumped-zones-adoption/study_profile`) and `memory-guard/study_memory_ladder` (a memory ladder by design); cap 600 s, with the old-stepping shim as decided in 4.2 |
+| F | 8 | one script per folder, the cheapest that prints a README table; the set must include at least one board with a part on an outer copper layer (pending `fem-thin-copper-source`, rule 4.3) and one FEM transient (pending `fem-transient`); cap 600 s |
+| SB | 8 | one script per folder, the cheapest that prints a README table; the set must include a top metal block, a bottom block (pending `solid3d-pad-inplane`, rule 4.4), copper above 105 um (copper slabs) and the `surface-readout-models` and `through-thickness-readout` folders (pending `surface-readout-models`); cap 300 s |
+| sample left | 7 | the 7 sampled folders not yet run (cheap; they close "all 75 folders touched"); cap 300 s |
+| **total** | **42** | |
+
+The tester picks the F and SB scripts by the rule before running, writes the list with the reason of each pick into the README, and times them from the folder's own record when it has one. A script of the core that fails a cap is "not reproduced (time)" or "not reproduced (memory)" with the README number it would have checked; it is not re-run without a cap in this pass.
+
+**Estimated time** at one job: T about 19 x 4 min (three runs each) = 75 min, F and SB about 16 x 3 min = 50 min, sample about 7 x 2 min = 15 min: **about 2 h 20 min**, plus the waits of the guard.
+
+**The rest is recorded, never as reproduced**: in the README, under "Not run in this pass", the 39 F, 124 SB and the 4 excluded T scripts, each line with its reason: "reduced scope after memory incidents (Decision 2): the paths are covered by the frozen numbers and by the core of its class" or "not reproduced: forks workers" or "not reproduced: memory". The final opinion quotes the count (about 42 run of 258 selected, 49 before, 91 in all) so nobody reads the pass as complete. The full subset is listed as an open item of 2.9.0 for a quiet machine after the release (the research folders are a record of their tree; a later shift found there is handled by rule 4 on the folder's own branch).
+
+### 2.2 Safety rules of the runner (`scripts/run_subset.sh`)
+
+1. **Workers**: no script that imports `multiprocessing`, `concurrent.futures` or a `Pool`, or passes `n_jobs`, is run in this pass. Measured with `grep -lE 'multiprocessing|ProcessPool|Pool\(|n_jobs|concurrent\.futures'` on the 258: `lumped-analytic-vias/study_arrays`, `lumped-analytic-vias/study_unit_cell`, `lumped-zones-adoption/study_profile`, `gap-subdivision/study_baseline_pads`, `gap-subdivision/study_gap_nodes`, `gerber-models/study_lumped_analytic`, `point-via-convergence/study_row_lone`, `point-via-convergence/study_unit_cell`. They go to the skip file with "not reproduced: forks workers".
+2. **Threads**: keep `OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 VECLIB_MAXIMUM_THREADS=2` and add `MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2`.
+3. **Memory cap of the process tree**: lower from 6 GB to **4 GB** (16 GB machine shared with other sessions; free + inactive about 11 GB). A script killed by it is "not reproduced (memory)".
+4. **Swap**: pause before a script while swap used > 2500 MB or free + inactive < 8 GB; hard stop (kill the running script, exit) at swap used > 3000 MB. Keep both.
+5. **Load**: the load average counts the other sessions of the machine, which the pass does not control (15.8 with nothing of ours running), and the current rule (hard stop at load > 8, also while a script runs) would stop the batch at once and throw away scripts half done. Load is therefore a **pause, not a kill**: before each script wait while the 1-minute load > 8; a running script is killed only by the memory rules (3 and 4) or the wall-clock cap. If the load stays above 8 for more than 30 min, the tester stops and reports: that is the maintainer's choice (close other sessions or wait), not the tester's.
+6. **One job**: no second job in this pass, whatever the measures say.
+
+### 2.3 Order with the final-tree steps
+
+The reproduction finishes first. The final opinion may be **drafted** while it runs (reading code and documents is light), but it is **given** only with the result of the pass in hand, because an unexplained shift is a defect and may change the tree. The final whole battery runs after the pass and after any fix it causes, never overlapping it (one heavy job at a time). If the tree does not change after b241b15e except for release documents, the battery still runs once on the final tree, as section 12 asks.
