@@ -179,6 +179,8 @@ Same order as `CLAUDE.md` 12 ('A release'), with the points that are specific:
 7. Only then: version bump, CHANGELOG, **refreeze** (`make_expected_shifts.py` written for 2.9.0: baseline `v2.8.0.json`; the items of this version: the 3D solid copper slabs, any adopted convection fix, the FEM transient and outline records as additions, the surface records of the FEM as additions; strict diff with 0 alarms; the item table is checked by hand on one record of each pending file, the failure mode noted in the 2.8.0 plan), merge to `main`, tag, push, GitHub release, with the maintainer's word.
 8. Remove the finished worktrees and `worktree-agent-*` branches; open the next version's studies (2.10: the corrections that the campaign asks for, A18, A30, A32/A40, B5 and the rest of 1.2).
 
+**Status of the release gate** (final battery recorded in `docs/versions.md`, batch 14): reproduction pass done (91 of 258 shifts linked, 0 unexplained); documentation review done (`releases/2.9.0/doc-review/README.md`); the reviewer's final opinion is in `releases/2.9.0/final-opinion/README.md` (go with conditions); the final whole battery is green (4560 passed, 12 skipped, 2 xfailed, 2 warnings). **Open**: the version bump commit; the refreeze with the two new harness boards (e33); the 32 pictures regenerated after the bump; the PDF manual; a GitHub build trial at the final commit and `check_release.py` on the three artifacts; the real Qt swap test (macOS here).
+
 ## 6. Decisions left to the maintainer
 
 | # | Decision | Recommendation and reason |
