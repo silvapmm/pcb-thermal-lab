@@ -46,7 +46,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
 
-![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (8) box of the Simulation settings, one closed row per warning with a severity dot and the label of its element at the end, and the first one opened](docs/images/editor_warnings.png)
+![The imported RP2040 board in the editor, with the copper drawn and the live Warnings (7) box of the Simulation settings, one closed row per warning with a severity dot and the label of its element at the end, and the first one opened](docs/images/editor_warnings.png)
 
 ![The imported board in the editor (light theme)](docs/images/editor_imported.png)
 

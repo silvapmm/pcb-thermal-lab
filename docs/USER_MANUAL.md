@@ -1009,7 +1009,7 @@ to do. A row you opened stays open when the list refreshes.
 
 ![The live warnings](images/editor_warnings.png)
 
-*Figure 27. The imported RP2040 board with the Warnings (8) box of the Simulation settings: one
+*Figure 27. The imported RP2040 board with the Warnings (7) box of the Simulation settings: one
 row per warning with its dot and the label of its element, the first one opened.*
 
 **The common warnings and what to do.**
