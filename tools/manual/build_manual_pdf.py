@@ -313,7 +313,9 @@ def _figure(path, caption, L):
             @param avail_h Height available in points.
             @return tuple (width, height) in points.
             """
-            cap_h = caption.wrap(avail_w, avail_h)[1] + caption.getSpaceAfter() if caption else 8
+            # The caption keeps its own spaces: spaceBefore under the picture, spaceAfter under the caption (before the text that follows,
+            # often the numbered list of an annotated picture, which otherwise sat flush under the caption)
+            cap_h = caption.wrap(avail_w, avail_h)[1] + caption.getSpaceBefore() + caption.getSpaceAfter() if caption else 8
             full_h = min(self.ih * avail_w / self.iw, 0.62 * L["frame_h"])
             room = avail_h - cap_h - 4
             self.img_h = room if full_h > room >= 0.38 * L["frame_h"] else full_h
@@ -342,7 +344,7 @@ def _figure(path, caption, L):
             self.canv.setLineWidth(0.5)
             self.canv.rect(x, y, self.img_w, self.img_h)
             if caption:
-                caption.drawOn(self.canv, 0, self.cap_h - caption.height - caption.getSpaceAfter())
+                caption.drawOn(self.canv, 0, caption.getSpaceAfter())
 
     return Figure()
 

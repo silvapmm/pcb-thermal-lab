@@ -16,9 +16,10 @@ short reference of the same material.
 
 All screenshots come from real runs of the program, made by `examples/make_screenshots.py`.
 The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi,
-BSD-3-Clause licence), imported from its Gerber files. The numbers in an annotated screenshot
-match the numbered list after it. Every window screenshot was taken with version 2.9.0 (the
-status bar shows it).
+BSD-3-Clause licence), imported from its Gerber files. Many screenshots carry **red numbered boxes**: each box marks a control or an area of the
+window, and the numbered list under the picture says what it is. The numbers in the picture and in the
+list come from the same source (`examples/make_manual_callouts.py`), so they always match. Every window screenshot was taken with version 2.9.0 (the
+status bar shows it where the picture keeps its right end).
 
 Features marked "since 2.9.0" are new in this version.
 
@@ -245,26 +246,27 @@ example."*
 
 ### 3.1 The window at a glance
 
-![The main window with the example board, its areas numbered](images/manual_window_tour.png)
+![The main window with the example board, its areas in red numbered boxes](images/manual_window_tour_callouts.png)
 
 *Figure 2. The main window with the 4-layer example board (File - Open example - Example 4-layer
-board) in the light theme, heater U1 selected. The numbers match the list below.*
+board) in the light theme, heater U1 selected. Red numbered boxes mark the areas explained in the
+list below the picture.*
 
-1. **Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in
-   the menu bar at the top of the screen.
-2. **Tool bar**: the drawing tools, polygon mode, the Layer box, the Map and Display buttons,
-   snap, fit, the grids and Run (section 3.3).
+1. **Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in the
+   menu bar at the top of the screen.
+2. **Tool bar**: the drawing tools, polygon mode, the Layer box, the Map and Display buttons, snap,
+   fit, the grids and Run (section 3.3).
 3. **Board settings** dock: size, board outline and environment (section 3.4).
-4. **Elements** dock: the list of every zone, heater, heatsink and via, with a filter field
-   (section 3.5).
+4. **Elements** dock: the list of every zone, heater, heatsink and via, with a filter field (section
+   3.5).
 5. **Main tabs**: Board, Stack-up, Power profile and Results (section 3.6).
 6. **The board** (Board tab): the drawing canvas with rulers along the top and left edges and a
    scale bar at the bottom left.
 7. **Simulation settings** dock: the Run button, the models to run, the settings and the live
    warnings (section 3.7).
 8. **Properties** dock: every field of the selected element (section 3.8).
-9. **Status bar**: what the selected tool does, the state of a run, messages; the version at
-   the right end.
+9. **Status bar**: what the selected tool does, the state of a run, messages; the version at the
+   right end.
 
 Every dock can be moved, resized, closed and reopened (View menu, at the bottom). The program
 remembers the size and place of the docks for the next start. The side panels scroll when the
@@ -288,7 +290,27 @@ On macOS, `Ctrl` in this manual is the Command key (⌘).
 
 ### 3.3 The tool bar
 
-From left to right:
+From left to right (the numbers of Figure 3 match the list under the picture):
+
+![The tool bar, enlarged, with its controls in red numbered boxes](images/manual_toolbar_callouts.png)
+
+*Figure 3. The tool bar (light theme, enlarged). The red numbers match the list below; the table
+after the list gives the keys.*
+
+1. **Drawing tools**: Select (`S`), Copper zone (`Z`), Heater (`H`), Heatsink (`C`), Via (`V`) and
+   Board outline (`O`).
+2. **Polygon mode** (`P`): draw polygons by clicking their corners instead of dragging rectangles.
+3. **Layer** box: the one layer choice of the program, for the drawing, the map on the board and
+   every Results map.
+4. **Map** (`T`): the temperature map on the board, after a run.
+5. **Display** (`D`): how every map is drawn (underlay, opacity, view, contours, colour map; section
+   5.9).
+6. **Snap**: the step that positions snap to.
+7. **Fit board** (`Ctrl+0`): zoom to the whole board.
+8. **Grid** (`G`) and **Solver grid** (`Shift+G`): the drawing grid and the cells the solver will
+   use.
+9. **Run** (`F5`): runs the selected models; while a calculation runs it reads Stop.
+
 
 | Control | Key | What it does |
 | :-- | :-- | :-- |
@@ -363,6 +385,25 @@ Below them, three boxes:
   unticked is greyed and marked *not ticked*. Section 6.4 lists every field.
 - **Warnings (N)**: the live input warnings, one closed row per warning (section 5.11).
 
+![The Simulation settings dock in red numbered boxes](images/manual_simulation_settings_callouts.png)
+
+*Figure 4. The Simulation settings dock after a run of the example board (all six models ticked,
+the Properties dock hidden so that the whole dock shows). The red numbers match the list below.*
+
+1. **Run simulation** (`F5`). It becomes **Stop** while any calculation runs.
+2. **Status line**: the result of the last run (for example the hottest point and Rθ), or why a run
+   was cancelled, failed or cannot start.
+3. **The three main models** (FVM, LPTN, Analytic), ticked by default.
+4. **The three cross-check models** (FDM, 3D solid, FEM), off by default (ticked here, for the
+   pictures of the Results pages); a thin line separates them from the main ones.
+5. **Cell size** and **Auto**: the solver cell in mm. Auto sets the cell from the heaters and
+   enlarges it to the smallest one that the memory limit accepts for the models ticked (section
+   4.9).
+6. **Hotspot limit**: the temperature above which an area is reported as a hotspot, in °C (100 °C
+   unless you change it).
+7. **Warnings (N)**: the live input warnings, one closed row each; click a row to read it (section
+   5.11).
+
 ### 3.8 The Properties dock
 
 The Properties dock shows every field of the selected element: name, layer, the values of its
@@ -408,7 +449,7 @@ builds on the previous.
    parts (U1, 4 W, and U2, 1.5 W), nine vias under U1 and a heatsink on the bottom (Figure 2).
 3. Leave the models as they are (FVM, LPTN and Analytic ticked) and the cell size at 1.00 mm.
 4. Press **Run simulation** (`F5`). The button turns red and reads Stop while the models run;
-   after a second or so the **Results** tab opens on its **Summary** page (Figure 3).
+   after a second or so the **Results** tab opens on its **Summary** page (Figure 5).
 5. Read the table. With version 2.9.0 at a 1 mm cell the example board gives:
 
 | Model | Tmax °C (column) | ΔT K | Rθ K/W | Error vs FVM (of ΔT) |
@@ -429,7 +470,7 @@ The three models agree within 2.4 % and the only warning is about the LPTN: the 
 
 ![The Summary page after the run of the example board](images/results_summary.png)
 
-*Figure 3. Results - Summary after the run of the example board: the table of the models with
+*Figure 5. Results - Summary after the run of the example board: the table of the models with
 two-line headers that name each read-out, the Warnings (1) box and the text report.*
 
 ### 4.2 Draw a board from scratch
@@ -439,7 +480,7 @@ two-line headers that name each read-out, the Warnings (1) box and the text repo
 
 ![The New board dialog](images/manual_new_board.png)
 
-*Figure 4. File - New board: width, height and copper layers.*
+*Figure 6. File - New board: width, height and copper layers.*
 
 2. Check the **Environment** box of the Board settings: Ambient 25.0 °C, Heat transfer *Typed by
    me*, h top 10, h bottom 15 and h edges 10 W/m²K (the shipped defaults of a new board).
@@ -488,7 +529,7 @@ Tips:
 1. Press **Via** (`V`) and click where the via is. A via joins every copper layer (a through
    via).
 2. In the Properties dock set the **Drill diameter** in mm and the **Fill**: Open, Epoxy resin,
-   Conductive paste or Copper (Figure 5). The fill fills in a typical conductivity, which you can
+   Conductive paste or Copper (Figure 7). The fill fills in a typical conductivity, which you can
    change for that via.
 3. To make an array, place one via, select it and press `Ctrl+D` to duplicate it, then move the
    copies with the arrow keys or type their X and Y.
@@ -504,7 +545,7 @@ the Warnings box says so.
 
 ![Properties of a via](images/manual_properties_via.png)
 
-*Figure 5. The Properties dock of a via of the example board: drill diameter, fill and its
+*Figure 7. The Properties dock of a via of the example board: drill diameter, fill and its
 conductivity, position.*
 
 ### 4.5 Add a heatsink or a metal block
@@ -512,7 +553,7 @@ conductivity, position.*
 1. Choose the outer layer where it sits (1 or the last layer) and press **Heatsink** (`C`).
    Drag its area.
 2. Choose the **Cooling model**:
-   - **Manual input: I give h or θSA** (Figure 6). In **Input as** choose *Heat transfer
+   - **Manual input: I give h or θSA** (Figure 8). In **Input as** choose *Heat transfer
      coefficient h (W/m²K)* and type the extra h, or *Heatsink resistance θSA (K/W)* and type
      the θSA of the datasheet. The other one is shown below as its equivalent:
      h = 1 / (θSA × area).
@@ -526,7 +567,7 @@ conductivity, position.*
 
 ![Properties of a heatsink](images/manual_properties_heatsink.png)
 
-*Figure 6. The Properties dock of the bottom heatsink of the example board: Manual input, an
+*Figure 8. The Properties dock of the bottom heatsink of the example board: Manual input, an
 extra h of 30 W/m²K, which is a θSA of 83.33 K/W over its 400 mm².*
 
 Typical interface resistances, K·cm²/W: good paste 0.33, default paste 0.5, soft gap pad 1.7,
@@ -547,11 +588,11 @@ By default the board is the whole width × height rectangle.
 
 ![A board with an L-shaped outline](images/outline.png)
 
-*Figure 7. The example board with an L-shaped outline drawn in the editor.*
+*Figure 9. The example board with an L-shaped outline drawn in the editor.*
 
 ![The temperature of the L-shaped board](images/outline_temperature.png)
 
-*Figure 8. The temperature map of the same board (FVM). Cells off the outline are blank.*
+*Figure 10. The temperature map of the same board (FVM). Cells off the outline are blank.*
 
 The FVM, FDM, 3D solid and FEM (straight-sided outlines) solve the real shape. The LPTN and
 Analytic models need a rectangle: on a board with an outline they run on a rectangle of the same
@@ -568,17 +609,28 @@ narrow arm. Keep the cell several times smaller than the narrowest neck of the b
    the dielectric: a **Laminate preset**, its conductivity **through** the board (FR-4 about
    0.3 W/mK) and **in-plane** (FR-4 about 0.9 W/mK).
 4. In the advanced stack-up each copper layer has its own thickness and each dielectric gap its
-   own thickness and material, in the table (Figure 9). **Load typical stack-up** loads the
+   own thickness and material, in the table (Figure 11). **Load typical stack-up** loads the
    typical build for the layer count; for 3 or more layers, **Inner copper of the typical
    stack-up** chooses 0.5 oz (15.2 µm, the default) or 1 oz (35 µm).
 5. Click a layer in the cross-section to see its thickness, conductivities, density and specific
    heat. **Units** chooses µm, mm or both; **Scale** chooses *Readable* (thin layers enlarged) or
    *True proportions*.
 
-![The advanced stack-up](images/stackup.png)
+![The advanced stack-up](images/manual_stackup_callouts.png)
 
-*Figure 9. The Stack-up tab in the advanced mode: 70 µm outer copper, a 0.1 mm FR-4 gap, a 1 mm
-metal-core dielectric and the layer table.*
+*Figure 11. The Stack-up tab in the advanced mode: 70 µm outer copper, a 0.1 mm FR-4 gap, a 1 mm
+metal-core dielectric and the layer table. The red numbers match the list below.*
+
+1. **Stack-up** list: Simple (equal layers, one FR-4) or Advanced (each layer on its own).
+2. **Load typical stack-up**: the typical build for the layer count.
+3. **Inner copper of the typical stack-up**: 0.5 oz (the default) or 1 oz, for 3 or more layers.
+4. **Units** (µm, mm or both) and **Scale** (Readable, with thin layers enlarged, or True
+   proportions).
+5. **Cross-section** of the board, drawn to the Scale chosen; click a layer to see its thickness,
+   conductivities, density and specific heat in the line under it.
+6. **Layer table** (advanced stack-up): the thickness of each copper layer and of each dielectric
+   gap, its material and its conductivities through and in the plane.
+7. **Materials**: the conductivity of copper and the via plating thickness.
 
 The typical stack-ups are starting points, not your fabricator's build: replace them with the
 numbers of your fabricator. Changing the number of copper layers loads the typical stack-up of
@@ -601,7 +653,7 @@ that count (undoable).
 
 ![The Models and Settings boxes with the FVM and FEM ticked](images/simulation_fem.png)
 
-*Figure 10. The Models and Settings boxes with the FVM and the FEM ticked: the line under the cell
+*Figure 12. The Models and Settings boxes with the FVM and the FEM ticked: the line under the cell
 size gives the unknowns and the memory of each model, and the two FEM boxes are enabled.*
 
 ### 4.9 Check the cell size
@@ -640,7 +692,7 @@ fraction of a cell). A part should be several cells wide.
 
 ![The Power profile tab](images/power_profile.png)
 
-*Figure 11. The Power profile tab of the profile example: U1 with a 100 Hz square wave (average
+*Figure 13. The Power profile tab of the profile example: U1 with a 100 Hz square wave (average
 + ripple) and U2 with a 20 s square wave (resolved), the plot of the powers and the table of the
 decisions.*
 
@@ -688,7 +740,7 @@ outline and the drill files; the paste layers and the placement file give the pa
 
 ![The imported board in the editor](images/editor_imported.png)
 
-*Figure 12. The imported RP2040 board in the editor: the copper of the top layer under the
+*Figure 14. The imported RP2040 board in the editor: the copper of the top layer under the
 elements, the vias, and a part selected.*
 
 ### 4.13 Save and reopen a project
@@ -739,7 +791,7 @@ peak) and its model.
 
 ### 5.1 Summary
 
-The Summary page (Figure 3) has three parts.
+The Summary page (Figure 5; Figure 15 numbers its parts) has three parts.
 
 **The table of the models**, one row per model, with two-line headers:
 
@@ -764,9 +816,25 @@ surfaces, each heater (column mean and max, junction, board ring, surface), the 
 and the zones. It ends with a line that points to the Warnings box. The saved report (**File -
 Export report (TXT)…**) keeps the table and every warning in full.
 
+![The Summary page in red numbered boxes](images/manual_results_summary_callouts.png)
+
+*Figure 15. Results - Summary of the example board with six models ticked (the three main models and
+the three cross-check models). The red numbers match the list below.*
+
+1. **Results pages.** Summary, Temperature, Gradients, Profiles, Components, Models, Animation and
+   Power profile (chapter 5). The page shown here is Summary; the other pictures of this chapter
+   show one page each.
+2. **Table of the models**: one row per model that ran, with Tmax (column and surface), Tmean, ΔT,
+   Rθ, the power, the energy balance, the error against the FVM and the time (the columns are listed
+   above).
+3. **Warnings (N)** box: the rows of the Simulation settings plus what only a run can know; click a
+   row to read it (section 5.11).
+4. **Text report** of the run: the reference model, the hotspots, the read-outs, the hottest
+   surfaces, each heater, the parts by model and the zones.
+
 ### 5.2 Temperature
 
-The temperature map of one layer for one model (Figure 13).
+The temperature map of one layer for one model (Figure 16).
 
 - **Model**: which model's map. The map on the board follows this choice.
 - **Layer**: the Layer box of the tool bar. Here it also offers **All layers** (side by side),
@@ -781,9 +849,21 @@ The hottest sample is marked with a **red ring** and the coolest with a **blue r
 gives the two ringed values of the layer shown and the mean of that layer. Cells off a
 non-rectangular board are blank.
 
-![The Temperature page](images/results_temperature.png)
+![The Temperature page](images/manual_results_temperature_callouts.png)
 
-*Figure 13. Results - Temperature of the example board (FVM, layer 1).*
+*Figure 16. Results - Temperature of the example board (FVM, layer 1). The red numbers match the list below.*
+
+1. **Layer** (tool bar): the copper layer shown. Here it also offers All layers, All (2 × 2),
+   Surface (top), Surface (bottom) and, when there is one, the Metal block.
+2. **Display** (tool bar): view (Current, Smooth, Terrain), underlay, contours and colour map of
+   every map (section 5.9).
+3. **Model**: which model's map is drawn. The map on the board follows this choice.
+4. **Difference to**: the map of the model minus a reference model, in K (section 5.12).
+5. **Hotspot contour**: draws the line of the Hotspot limit of the Simulation settings.
+6. **Auto range** or your own colour limits.
+7. **Plot tool bar**: home, back, forward, pan, zoom, subplots, customise and save the picture.
+8. **The map** with its colour bar. The hottest sample has a red ring, the coolest a blue ring; the
+   title gives both values and the mean of the layer.
 
 ### 5.3 Gradients
 
@@ -792,7 +872,7 @@ where heat is squeezed: a narrow neck of copper, the edge of a pour, the footpri
 
 ![The Gradients page](images/results_gradient.png)
 
-*Figure 14. Results - Gradients of the 4-layer example board, drawn with View Terrain and the
+*Figure 17. Results - Gradients of the 4-layer example board, drawn with View Terrain and the
 copper underlay; the contour step is picked by the program.*
 
 ### 5.4 Profiles
@@ -802,13 +882,20 @@ The temperature along a cut through the board, for every model that ran. Choose 
 plotted (in two lines when the cut asked is not on a cell centre: the position, then
 the note "the cell centre nearest to ..."; in a narrow window the lines break further and
 the title and the axis labels stay inside the chart). The **Cut overlay** box shows a small picture of the board with the cut line, inset in
-the corner with the fewest curve points (Figure 15). The picture is part of the figure, so it is
+the corner with the fewest curve points (Figure 18). The picture is part of the figure, so it is
 also in a saved PNG.
 
-![The Profiles page](images/results_profile_cut.png)
+![The Profiles page](images/manual_results_profile_callouts.png)
 
-*Figure 15. Results - Profiles: the temperature along a cut of the board and, in a corner, the
-cut overlay with the cut line over the map of the reference model.*
+*Figure 18. Results - Profiles: the temperature along a cut of the board and, in a corner, the
+cut overlay with the cut line over the map of the reference model. The red numbers match the list below.*
+
+1. **Along x** or **Along y**: the direction of the cut.
+2. **Cut** slider and the position of the cut (the row or column plotted).
+3. **Cut overlay**: a small picture of the board with the cut line, inset in the corner with the
+   fewest curve points; it is part of the figure and of a saved PNG.
+4. **The curves**: the temperature along the cut for every model that ran, with the cut overlay (the
+   cut line over the map of the reference model, since the Map button is on).
 
 ### 5.5 Components
 
@@ -828,10 +915,22 @@ on an inner layer) and, when the reference model is the FEM, *Node °C (point)*:
 node of that area, a node value and not a cell mean. Which points are found, and the column values, are the same
 with or without these columns. The card of the map on the board reads *max .. °C (column)*.
 
-![The Components page](images/results_components.png)
+![The Components page](images/manual_results_components_callouts.png)
 
-*Figure 16. Results - Components of the example board: heaters, zones (column read-out with the
-surface appended), the hotspot table and the chart of the parts.*
+*Figure 19. Results - Components of the example board: heaters, zones (column read-out with the
+surface appended), the hotspot table and the chart of the parts. The red numbers match the list below.*
+
+1. **Reference line**: names the model of every number of the page (the FVM when it ran, otherwise
+   the first model that ran).
+2. **Heaters**: power, mean and maximum board temperature under the part (column), the junction
+   temperature, the margin to Tj max, the power limit, the top-path power and the maximum on the
+   surface (an estimate on most models).
+3. **Zones**: Mean, Max and Min of the column read-out of each zone, and its Max on the surface (n/a
+   on an inner layer).
+4. **Hotspots**: Tmax (column) at the hot-spot point, its position, the area and Tmax on the surface
+   ('none above limit' when no area passes the Hotspot limit).
+5. **Chart of the parts**: the mean and the maximum board temperature under each heater (column) and
+   its junction temperature.
 
 ### 5.6 Models
 
@@ -842,9 +941,14 @@ decimals and the difference from the reference. Below the tables, a bar chart of
 board (Tmax column and Tmean all layers, one bar per model). The same numbers are in the text
 report and in `parts_by_model.csv`.
 
-![The Models page with the six models](images/results_models.png)
+![The Models page with the six models](images/manual_results_models_callouts.png)
 
-*Figure 17. Results - Models of the example board with the six models ticked.*
+*Figure 20. Results - Models of the example board with the six models ticked. The red numbers match the list below.*
+
+1. **Tmax** table: the hottest point under each part, °C (column); one row per part, one column per
+   model that ran, the reference first and in bold.
+2. **Tmean** table: the mean under each part, °C (column).
+3. **Bar chart of the whole board**: Tmax (column) and Tmean (all layers), one bar per model.
 
 The LPTN has one node per part (two for a part over a group of vias): read its column as a coarse
 model of the part, not as a map.
@@ -856,9 +960,20 @@ drawn with the Display choice (section 5.9; Terrain is drawn as Current in motio
 line under the controls says what to do, the state of the computation and any warning of the
 time model.
 
-![The Animation page](images/animation.png)
+![The Animation page](images/manual_results_animation_callouts.png)
 
-*Figure 18. Results - Animation of the example board, a frame at about half the duration.*
+*Figure 21. Results - Animation of the example board, a frame at about half the duration. The red numbers match the list below.*
+
+1. **Model** of the animation (FVM, FDM, Analytic and, while it is ticked, the FEM).
+2. **Duration** and the number of **Frames** (10 to 400).
+3. **Scheme** (Crank-Nicolson or Implicit Euler) and **Spacing** of the frames (logarithmic or
+   linear time).
+4. **Compute**: solves the response of the board to the powers switched on at t = 0.
+5. **Status line**: what to do, the state of the computation and any warning of the time model.
+6. **Play** and the time **slider**.
+7. **Speed** of the playback and **Export GIF…**.
+8. **The frame** at the time of the slider, drawn with the Display choice; the title gives the time
+   and the hottest value of the frame.
 
 ### 5.8 Power profile
 
@@ -870,24 +985,24 @@ The Summary and the report list every heater with a ripple and its height.
 
 ![The Power profile results](images/results_power_profile.png)
 
-*Figure 19. Results - Power profile of the profile example: temperature versus time.*
+*Figure 22. Results - Power profile of the profile example: temperature versus time.*
 
 ### 5.9 The map on the board and the Display control
 
 **The map on the board.** After a run, the **Map** button of the tool bar (`T`, or **View -
-Temperature map on the board**) paints the result over the board you are editing (Figure 20). A
+Temperature map on the board**) paints the result over the board you are editing (Figure 23). A
 card at the top left names the model (click it, or press `M`, to change the model) and gives the
 max and min of the layer shown, with a red and a blue ring on the board. The first edit of the
 design makes the result outdated: the map leaves the board until you run again.
 
 ![The temperature map on the board](images/editor_overlay.png)
 
-*Figure 20. The Map button (T): the map of the Temperature tab over the 4-layer example board,
+*Figure 23. The Map button (T): the map of the Temperature tab over the 4-layer example board,
 with the card, the colour bar beside the board and the Map and Display buttons.*
 
 **The Display control.** The **Display** button of the tool bar (`D`, or **View - Display
 settings…**) opens a small panel that sets how every map is drawn: the Temperature and Gradients
-pages, the Animation and the board (Figure 21). Nothing is solved again: only the drawing changes.
+pages, the Animation and the board (Figure 24). Nothing is solved again: only the drawing changes.
 
 | Control | Choices |
 | :-- | :-- |
@@ -899,17 +1014,17 @@ pages, the Animation and the board (Figure 21). Nothing is solved again: only th
 
 ![The Display panel](images/display_popover.png)
 
-*Figure 21. The Display panel opened from the Board tab: on the board Terrain and Contour are
+*Figure 24. The Display panel opened from the Board tab: on the board Terrain and Contour are
 greyed, and the note says why.*
 
 ![Views of the result maps](images/results_views.png)
 
-*Figure 22. Results - Temperature with Layer All (2 × 2), View Smooth and the copper underlay at
+*Figure 25. Results - Temperature with Layer All (2 × 2), View Smooth and the copper underlay at
 70 % opacity.*
 
 ![The Terrain view](images/results_terrain.png)
 
-*Figure 23. View Terrain on layer 1 with Contour every 5.0 K: every second line is thicker and
+*Figure 26. View Terrain on layer 1 with Contour every 5.0 K: every second line is thicker and
 labelled.*
 
 ### 5.10 Column mean and surface read-out
@@ -935,9 +1050,9 @@ Where you find the surface:
 
 1. The Layer box, on the Temperature page: **Surface (top)** and **Surface (bottom)**. The title
    gives the maximum and, on a second line, the column maximum with the difference in K and in %
-   of the rise (Figure 24).
+   of the rise (Figure 27).
 2. The Components page: the column *Max °C (surface, estimate)*; hover a cell for the difference
-   to the column (Figure 25).
+   to the column (Figure 28).
 3. The report and the command line: the lines *Read-outs:* and *Hottest surface (top)*.
 4. Files of the surface: `surface_<model>.csv`, written by Export results to a folder and, from
    the command line, only on request with `run --surface-files`.
@@ -961,18 +1076,18 @@ the column; the surface of a time simulation is n/a in this version. The full ex
 
 ![The surface read-out of thick copper](images/results_surface.png)
 
-*Figure 24. The Temperature page of a 4-layer board with 2 mm of outer copper (the example board
+*Figure 27. The Temperature page of a 4-layer board with 2 mm of outer copper (the example board
 at 400 W/m²K, 20 W on U1), Layer on Surface (top): the title says surface, estimate, and gives the
 column maximum with the difference.*
 
 ![The surface column of the Components table](images/results_surface_table.png)
 
-*Figure 25. The Components table of the same run: Mean and Max (column) and the one surface
+*Figure 28. The Components table of the same run: Mean and Max (column) and the one surface
 column (estimate). The junction, margin and power limit stay on the column.*
 
 ![The FEM surface](images/results_fem_surface.png)
 
-*Figure 26. The plate of case 2 of Muzychka, Culham and Yovanovich on the FEM, Layer on Surface
+*Figure 29. The plate of case 2 of Muzychka, Culham and Yovanovich on the FEM, Layer on Surface
 (top): the title says resolved.*
 
 ### 5.11 Warnings: how to read them
@@ -993,7 +1108,7 @@ what to do.
 - **On the command line**: printed under the table, with the options of the command line
   instead of the names of the controls.
 
-**How a row reads** (Figure 27). Each warning is one closed row with:
+**How a row reads** (Figure 30). Each warning is one closed row with:
 
 1. a **dot**: red for a *warning* (the model will not run, a part is off the board or heats
    nothing, a loop does not converge, the power runs away), amber for a *note* (a limit of a
@@ -1008,7 +1123,7 @@ to do. A row you opened stays open when the list refreshes.
 
 ![The live warnings](images/editor_warnings.png)
 
-*Figure 27. The imported RP2040 board with the Warnings (7) box of the Simulation settings: one
+*Figure 30. The imported RP2040 board with the Warnings (7) box of the Simulation settings: one
 row per warning with its dot and the label of its element, the first one opened.*
 
 **The common warnings and what to do.**
@@ -1057,7 +1172,7 @@ version.
    (when the FVM itself is shown, or cannot be compared, it starts as the first other model that can). A reference you chose stays
    while it is possible; a reference you did not choose goes back to the FVM whenever you change
    the model shown.
-3. The **Layer** box decides what is compared (Figure 28). A copper layer compares the **column
+3. The **Layer** box decides what is compared (Figure 31). A copper layer compares the **column
    mean** of that layer in both models; **Surface (top)** or **Surface (bottom)** compares the
    **surface read-out** of both (the FVM, FDM and FEM hold it); **All layers** and **All (2 ×
    2)** show layer 1. Both models are always read with the **same** definition: the program
@@ -1120,12 +1235,26 @@ when the run is not at the 1 mm cell of the ranges, where the line says *Not jud
 are in the header names (`max_k`, `max_x_mm`, ...). The command line has no Difference view, so
 `run` writes no such file.
 
-![The Difference view](images/results_difference.png)
+![The Difference view](images/manual_results_difference_callouts.png)
 
-*Figure 28. Results - Temperature with Difference to FVM on the LPTN (example board, four models,
+*Figure 31. Results - Temperature with Difference to FVM on the LPTN (example board, four models,
 1 mm cells): the map of LPTN minus FVM in K, the largest and smallest difference ringed, the
 title with both models and the read-out, the verdict line under the controls and the **Export
-statistics…** button.*
+statistics…** button. The red numbers match the list below.*
+
+1. **Layer**: decides what is compared. A copper layer compares the column mean of that layer in
+   both models; Surface (top) or Surface (bottom) compares the surface read-out.
+2. **Model**: the model to look at (here the LPTN).
+3. **Difference to** and its reference box (the FVM at the start). An item that cannot be used is
+   greyed and its tooltip says why.
+4. **Verdict line**: whether the difference of the hottest points is usual for this pair of models
+   (judged at the 1 mm cell of the validation); in the warning colour when the gap is outside the
+   usual range or a choice cannot give a difference.
+5. **Export statistics…**: writes the numbers of the view (largest and smallest difference with
+   their positions, mean, RMS, the verdict) to a small CSV file.
+6. **The difference map**: model minus reference in K, white at zero, red where the model is hotter,
+   blue where it is cooler; the red ring marks the largest difference and the blue ring the
+   smallest.
 
 ## 6. Settings reference
 
@@ -1153,7 +1282,7 @@ negligible on 35 to 105 µm copper).
 
 ![The Environment box in computed mode](images/environment_natural_form.png)
 
-*Figure 29. The Board settings dock with the heat transfer Computed on a vertical board: the
+*Figure 32. The Board settings dock with the heat transfer Computed on a vertical board: the
 orientation, the vertical natural convection form, the emissivities, the air speed and the
 multiplier.*
 
@@ -1183,7 +1312,7 @@ configuration folder (section 2.5) replaces them.
 
 ![The inner copper of the typical stack-up](images/stackup_inner_copper.png)
 
-*Figure 30. The Stack-up tab with the inner copper of the typical stack-up set to 1 oz.*
+*Figure 33. The Stack-up tab with the inner copper of the typical stack-up set to 1 oz.*
 
 ### 6.3 Elements (Properties dock)
 
@@ -1254,7 +1383,7 @@ conductivity matters most for a part on bare laminate.
 
 ### 6.6 Preferences
 
-**Edit - Preferences…** (`Ctrl+,`) edits what the program starts with (Figure 31). The list of
+**Edit - Preferences…** (`Ctrl+,`) edits what the program starts with (Figure 34). The list of
 sections on the left:
 
 | Section | What it holds |
@@ -1281,12 +1410,12 @@ settings belong to the machine and are never saved in project files.
 
 ![Preferences, the Via fills library](images/manual_preferences.png)
 
-*Figure 31. Edit - Preferences on its first section, the Via fills library. The line at the top
+*Figure 34. Edit - Preferences on its first section, the Via fills library. The line at the top
 names the user file and says whether it is in use.*
 
 ![Preferences, Solver and Gerber import](images/preferences_solver_gerber.png)
 
-*Figure 32. The Solver section (the memory limit) and the Gerber import section (the largest
+*Figure 35. The Solver section (the memory limit) and the Gerber import section (the largest
 file), one above the other.*
 
 **Reproducing a textbook case.** A new board has h top 10, h bottom 15 and edges that lose heat
@@ -1433,7 +1562,7 @@ routes are independent tabs: fill only one.
 
 ![The Power Calculator](images/calculator_design.png)
 
-*Figure 33. The Power Calculator, Route 1, with the Board description list and the terms of the
+*Figure 36. The Power Calculator, Route 1, with the Board description list and the terms of the
 band.*
 
 ### 8.1 Route 1: from the drawn board
@@ -1481,10 +1610,22 @@ files, the outline, ZIP sets); nothing is uploaded anywhere.
 
 ### 9.1 Step 1: files and layers
 
-![Import, step 1](images/import_step1.png)
+![Import, step 1](images/manual_import_step1_callouts.png)
 
-*Figure 34. Step 1 on the RP2040 minimal design: every file with its function, the Board box with
-the detected CAD tool, the copper preview.*
+*Figure 37. Step 1 on the RP2040 minimal design: every file with its function, the Board box with
+the detected CAD tool, the copper preview. The red numbers match the list below.*
+
+1. **Stepper**: the three steps, Files and layers, Parts and Model; click a step to go to it.
+2. **Source**: a folder, a ZIP archive (read in memory, never extracted to disk) or files one by
+   one; or type a path and press `Enter`.
+3. **Files**: every file with the function detected from its X2 attributes, its Excellon header or
+   its name; the function is a list you can change and the Use box leaves a file out.
+4. **CAD tool** that wrote the files; it only gives better defaults for the file-name rules.
+5. **Board** box: the copper layers and the typical stack-up for that count, the outline (size and
+   area) and the drills.
+6. **Preview** of the selected copper layer, the outline and the holes. The wheel zooms, a drag
+   pans, a double click shows the whole board.
+7. **Import now**, **Back** and **Next**: Import now imports with the defaults of the later steps.
 
 - Choose a **folder**, a **ZIP archive** (read in memory, never extracted to disk) or files one by
   one, or type a path and press `Enter`.
@@ -1502,10 +1643,22 @@ the detected CAD tool, the copper preview.*
 
 ### 9.2 Step 2: parts
 
-![Import, step 2](images/import_step2.png)
+![Import, step 2](images/manual_import_step2_callouts.png)
 
-*Figure 35. Step 2: the parts table, the preview with the designators and the holes, and the
-RP2040 chip (a QFN) selected with Exposed pad or tab chosen; the pad outline is dashed.*
+*Figure 38. Step 2: the parts table, the preview with the designators and the holes, and the
+RP2040 chip (a QFN) selected with Exposed pad or tab chosen; the pad outline is dashed. The red numbers match the list below.*
+
+1. **Count of parts** and how they were found (matched by position, paste only, placement only).
+2. **Parts table**: the Source column says how each part was found; tick **Heat source** and give a
+   **Power** in W, a **Tj max** and a **Role**.
+3. **Shape** of the heat source of the selected part: the exposed pad or tab, the convex hull of the
+   paste openings or the bounding box; the line under the choices says what was found for the part.
+4. **Make selected a heat source**, **All parts with a power** and **All matched parts**: tick the
+   parts in one step.
+5. **Preview** with the designators and the holes: white squares are matched paste openings, red
+   ones match no part; the pad outline of the selected part is dashed.
+6. **Matching findings**: a placement file that does not fit, parts matched by position, differences
+   between the X3 layer and the placement.
 
 - The paste layers, the placement (pick and place) file and an X3 component layer give a table of
   parts. The **Source** column says how each part was found: *X3 component layer (exact)*, *paste
@@ -1523,10 +1676,21 @@ RP2040 chip (a QFN) selected with Exposed pad or tab chosen; the pad outline is 
 
 ### 9.3 Step 3: model
 
-![Import, step 3](images/import_step3.png)
+![Import, step 3](images/manual_import_step3_callouts.png)
 
-*Figure 36. Step 3: the copper mapping, the pixel and the cell, the memory verdict and the
-warnings.*
+*Figure 39. Step 3: the copper mapping, the pixel and the cell, the memory verdict and the
+warnings. The red numbers match the list below.*
+
+1. **Copper mapping**: the flow-based faces (recommended); *Advanced* holds the older mappings, kept
+   for comparison.
+2. **Mask pixel** and **Cell size**, each with an **Auto** button (the pixel is the thinnest line of
+   the files and at most a tenth of the cell).
+3. **Memory verdict**: comes before anything is drawn.
+4. **Board** of the new project: the copper layers, **Vias up to** (the largest plated hole that is
+   a via) and the project name.
+5. **Warnings** (the import still runs): what the LPTN and Analytic do with imported copper, a
+   coarse cell or pixel, and where a Gerber job file disagrees with the file list.
+6. **Preview** of the solver grid of the cell chosen on the left.
 
 - The copper **mapping** is the flow-based faces (recommended). *Advanced* holds the older
   mappings, kept for comparison.
@@ -1555,7 +1719,7 @@ When the open project already holds an import, the window first asks what to do:
 
 ![Re-import](images/import_reimport.png)
 
-*Figure 37. The re-import dialog: Replace, Update or Add files, and the table of what changed.*
+*Figure 40. The re-import dialog: Replace, Update or Add files, and the table of what changed.*
 
 A part that left the files is an **orphan**: kept with its power, not heating. The status bar
 gives the numbers of what was replaced, added, moved, orphaned and kept.
@@ -1573,7 +1737,7 @@ gives the numbers of what was replaced, added, moved, orphaned and kept.
 
 ![Temperature of the imported board](images/results_temperature_imported.png)
 
-*Figure 38. Results - Temperature of the imported RP2040 board (FVM).*
+*Figure 41. Results - Temperature of the imported RP2040 board (FVM).*
 
 Help us test your CAD tool: the README of the project says which CAD programs were tried and how
 to send a sample set.
@@ -1911,7 +2075,7 @@ first line of every report, and `--version`.
 
 ## Appendix A. Keyboard and mouse
 
-The same list is in **Help - Keyboard shortcuts** (Figure 39). On macOS, `Ctrl` is the Command
+The same list is in **Help - Keyboard shortcuts** (Figure 42). On macOS, `Ctrl` is the Command
 key (⌘).
 
 | Keys | Action |
@@ -1939,4 +2103,4 @@ key (⌘).
 
 ![The keyboard shortcuts window](images/manual_shortcuts.png)
 
-*Figure 39. Help - Keyboard shortcuts: the keys in two columns.*
+*Figure 42. Help - Keyboard shortcuts: the keys in two columns.*
