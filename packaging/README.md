@@ -1,8 +1,6 @@
 # packaging: the downloadable packages
 
 How the packages of a release (`PCB-Thermal-Lab-<version>-windows-x64.zip`, `-linux-x64.tar.gz` (a tar.gz keeps the execute bits; never a zip on Linux), `-macos-arm64.zip`) are built, one folder each (onedir; never a single file), what is in them and what must be checked.
-Not legal advice (see CLAUDE.md section 5 for the rule).
-
 ## Build it here
 
 ```sh
