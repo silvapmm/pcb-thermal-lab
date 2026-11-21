@@ -616,13 +616,13 @@ def test_release_notes_have_a_first_run_section_with_the_checksums(tmp_path):
     info.write_text('{"qt": "6.12.0", "pyside": "6.12.0", "source_assets": ["qtbase-everywhere-src-6.12.0.tar.xz"]}', encoding="utf-8")
     out = tmp_path / "notes.md"
     changelog = ROOT / "CHANGELOG.md"
-    assert notes.main(["2.9.0rc1", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(log), "-o", str(out)]) == 0
+    assert notes.main(["2.9.0", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(log), "-o", str(out)]) == 0
     body = out.read_text(encoding="utf-8")
-    unreleased = notes.extract(changelog.read_text(encoding="utf-8"), "Unreleased")
-    assert body.startswith(unreleased) and body.index("## Qt and PySide source") < body.index("## First run") and d3 in body
+    released = notes.extract(changelog.read_text(encoding="utf-8"), "2.9.0")           # the section of the version just released (Unreleased is empty after the bump)
+    assert body.startswith(released) and body.index("## Qt and PySide source") < body.index("## First run") and d3 in body
     empty = tmp_path / "empty.txt"
     empty.write_text("nothing\n", encoding="utf-8")
-    assert notes.main(["2.9.0rc1", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(empty), "-o", str(out)]) == 1
+    assert notes.main(["2.9.0", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(empty), "-o", str(out)]) == 1
     assert "--sums files/SHA256SUMS.txt" in WORKFLOW.read_text(encoding="utf-8")
 
 

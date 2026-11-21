@@ -1,6 +1,6 @@
 # PCB Thermal Lab: User Manual
 
-Program version 2.8.0 · PMS Labs · MIT licence
+Program version 2.9.0 · PMS Labs · MIT licence
 
 This manual is for engineers and technicians who want to know how hot a printed circuit board
 and its parts will run. It explains how to install the program, walks through every window,
@@ -20,7 +20,7 @@ BSD-3-Clause licence), imported from its Gerber files. The numbers in an annotat
 match the numbered list after it. Some screenshots were taken with an earlier 2.x version (the
 status bar shows it); the controls they show are unchanged.
 
-Features marked "since 2.9.0" are in the development tree and come with the next release.
+Features marked "since 2.9.0" are new in this version.
 
 ## Contents
 
@@ -136,8 +136,7 @@ optional at run time) and pytest (the tests).
 
 ### 2.2 Ready-to-run packages
 
-Ready-to-run packages (no Python needed) come with version 2.9.0 (their build is in the
-development tree; no earlier version has them). A release that carries them attaches them to
+Ready-to-run packages (no Python needed) come with version 2.9.0 (no earlier version has them). A release that carries them attaches them to
 the release on the project's GitHub page (*Releases*), one per system:
 
 | System | Package |
@@ -204,7 +203,7 @@ steps above install it.
 .venv/bin/python -m pcbthermal --version
 ```
 
-prints `PCB Thermal Lab 2.8.0` (the version you installed). `.venv/bin/python -m pcbthermal gui
+prints `PCB Thermal Lab 2.9.0` (the version you installed). `.venv/bin/python -m pcbthermal gui
 --selftest` checks the installation without leaving a window open (imports, files, a solve and
 the energy balance). Then start the window:
 
@@ -410,7 +409,7 @@ builds on the previous.
 3. Leave the models as they are (FVM, LPTN and Analytic ticked) and the cell size at 1.00 mm.
 4. Press **Run simulation** (`F5`). The button turns red and reads Stop while the models run;
    after a second or so the **Results** tab opens on its **Summary** page (Figure 3).
-5. Read the table. With version 2.8.0 at a 1 mm cell the example board gives:
+5. Read the table. With version 2.9.0 at a 1 mm cell the example board gives:
 
 | Model | Tmax °C (column) | ΔT K | Rθ K/W | Error vs FVM (of ΔT) |
 | :-- | --: | --: | --: | --: |
@@ -1313,7 +1312,7 @@ user. The equations are in `docs/theory.md`; the measured errors in `docs/valida
 | Thick copper or plates, hollow vias under a part, the first seconds after a power step | **FEM** |
 
 **How far each model is from the finite elements.** Measured on the 20 boards of the test suite
-(the models of 2.9.0, measured on its development tree; `docs/validation.md` 56.1). The number is the **peak** (the hottest column rise above
+(the models of 2.9.0, measured on its development tree, commit `7886ac42`; `docs/validation.md` 56.1). The number is the **peak** (the hottest column rise above
 the ambient) of the model against the FEM at the same cell, in percent of the FEM rise. The FEM at
 one cell is not the truth: it reads below the converged value (4.6 % on the copper-window board at
 1 mm).
@@ -1684,7 +1683,7 @@ Every command is `python -m pcbthermal <command>` with the Python of the environ
 | `convergence config` | An FVM grid refinement study. |
 | `convert in out` | A legacy editor file to the native JSON; .pcbt.json to .pcbtz and back. |
 | `example [output]` | Write an example board (`--which` reference, example, profile or block). |
-| `--version` | Print the version (`PCB Thermal Lab 2.8.0`). |
+| `--version` | Print the version (`PCB Thermal Lab 2.9.0`). |
 
 `config` is a project file: .pcbt.json, .pcbtz or a legacy editor file.
 

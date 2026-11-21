@@ -147,7 +147,7 @@ Maintainer's rule (2026-10-21): **no commit without updating, in the same commit
 
 ## 11. Standing rules of the models and the numbers
 
-- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, off by default like the FDM and the 3D solid, which cross-check the three main models (checkbox `Finite elements (FEM)`), optional pyamg; it ships **steady** in 2.8.0 (`releases/2.8.0/fem-model/DESIGN.md`); the transient and the comparison campaign are in 2.9.0 (maintainer, 2026-11-15). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
+- **The FEM is a program model** (maintainer, 2.8.0, reversing the 2.7.0 decision): key `fem`, off by default like the FDM and the 3D solid, which cross-check the three main models (checkbox `Finite elements (FEM)`), optional pyamg; it is **steady and in time** since 2.9.0 (steady: `releases/2.8.0/fem-model/DESIGN.md`; the transient and the comparison campaign, validation 56 and 57: 2.9.0). The independent tool `research/independent-fem-edge` stays the comparison reference of the research.
 - **The surface read-out is a VIEW, never a mode**: it changes what is read from a solved field, not the solve.
 - **The theory is explicit and self-contained** (`docs/theory.md`): for every law, the formula, the constants, the range, the source and its reading status, the direction of the error, the warnings, and what is not modelled; it describes what is implemented, with a picture per section.
 - **Numbers name their tree and their reference**: every number of the theory and the validation says which tree (commit or version) and which reference it was measured against; **every number the user sees carries the name of its read-out** (peak, mean, node, surface, ...).
@@ -228,10 +228,10 @@ PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   
 
 **Current state of the battery**: the last whole battery gave 4560 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 2 warnings, final 2.9.0 (71 min; real-board environment proven loaded; frozen 431 passed; last full gate run: the 2.9.0 tree, compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
 
-## 15. Where to continue (after 2.8.0)
+## 15. Where to continue (after 2.9.0)
 
-- **2.8.0 is released** (tag `v2.8.0` at `465c037a`, GitHub release published and Latest, 2026-11-16). `main` holds the release plus one README-only commit; `development` is ahead (documents and research folders merged since, among them `research/muzychka-influence-coefficients`).
-- Next: **2.9.0**, `releases/2.9.0/PLAN.md` (the FEM transient is merged; the comparison campaign with validation 56 and 57, copper slabs in the 3D solid, FEM outlines, the surface in the other models), to start when the maintainer says; the non-blocking items of `releases/2.8.0/final-opinion/README.md` 3.2 and the maintainer's open list go there. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
+- **2.9.0 is prepared** on `release/2.9.0-bump` (version bump, CHANGELOG, harness boards; refreeze, pictures and manual PDF follow); the tag `v2.9.0` is NOT created until the maintainer decides. It holds the FEM in time, the Difference view, the comparison campaign (validation 56 and 57), copper slabs in the 3D solid, the surface read-out in the Analytic and the 3D solid, the exports named by read-out, the default Crank-Nicolson stepping, the packages and the user manual.
+- Next: **2.10**, from `docs/versions.md` 'Planned: what the 2.9.0 plan leaves for later' (list also in `releases/2.9.0/PLAN.md` after 1.2) (FEM outline projection, FEM on imported copper, the measured memory law, the version comparison, the transient surface rule, the aligned step), to start when the maintainer says. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
 
 ## 16. Maintaining This File
 
