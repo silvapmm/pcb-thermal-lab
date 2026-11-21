@@ -7,24 +7,26 @@
 S=$1; W=$2; LIST=$3; OUT=$4; shift 4
 R=/Volumes/SSD/PROJETOS/pcb-thermal-lab
 cd $R; eval "$(pcb-library/scripts/link_env.sh)"
-export QT_QPA_PLATFORM=offscreen MPLBACKEND=Agg OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 VECLIB_MAXIMUM_THREADS=2
+export QT_QPA_PLATFORM=offscreen MPLBACKEND=Agg OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 VECLIB_MAXIMUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
 mkdir -p $S/slog/tree $S/slog/base $S/slog/shim
 touch $OUT   # appended to: a script already in $OUT (or in $SKIP, a list of earlier tsv files) is not redone
 SKIP=${SKIP:-$OUT}
 
-# guard: before each script. Pause while swap used > 2500 MB or free+inactive < 8 GB (6 GB + the job peak) or load > 5; HARD STOP of the whole batch (exit 3, a STOPPED line in $OUT) at swap > 3000 MB or load > 8 (CLAUDE.md A10, coordinator decision)
-guard() { while true; do
+# guard: before each script. Pause while swap used > 2500 MB, free+inactive < 8 GB or the 1-minute load > 8 (the load counts other sessions); hard stop of the batch (exit 3, a STOPPED line in $OUT) at swap > 3000 MB; if the pause lasts more than 30 minutes the batch stops (exit 4, a STOPPED line)
+guard() { local w0=$(date +%s); while true; do
     local sw=$(sysctl -n vm.swapusage | sed 's/.*used = \([0-9]*\).*/\1/'); local ld=$(uptime | sed 's/.*averages: \([0-9]*\).*/\1/')
     local fi=$(vm_stat | awk '/Pages free|Pages inactive/{gsub("\\.","",$3); s+=$3} END{printf "%d", s*16384/1000000}')
-    if [ $sw -gt 3000 ] || [ $ld -gt 8 ]; then echo "STOPPED for memory or load before $f $b: swap=${sw}M load=$ld" >> $OUT; exit 3; fi
-    if [ $sw -gt 2500 ] || [ $fi -lt 8000 ] || [ $ld -gt 5 ]; then sleep 30; else break; fi
+    if [ $sw -gt 3000 ]; then echo "STOPPED for memory before $f $b: swap=${sw}M" >> $OUT; exit 3; fi
+    if [ $sw -gt 2500 ] || [ $fi -lt 8000 ] || [ $ld -gt 8 ]; then
+      if [ $(( $(date +%s)-w0 )) -gt 1800 ]; then echo "STOPPED after waiting 30 min before $f $b: swap=${sw}M load=$ld free+inactive=${fi}M" >> $OUT; exit 4; fi
+      sleep 30; else break; fi
   done; }
 # tree_rss <pid>: resident memory in KB of a process and all its descendants (a study that forks workers, multiprocessing, is counted whole)
 tree_rss() { local tot=0 r p; for p in $1 $(pgrep -P $1) $(for c in $(pgrep -P $1); do pgrep -P $c; done); do r=$(ps -o rss= -p $p 2>/dev/null | tr -d ' '); tot=$((tot + ${r:-0})); done; echo $tot; }
-# run_capped <seconds> <cmd...>: wall-clock cap (exit 124), 6 GB cap on the whole process tree (exit 137), and the hard stop of the batch while it runs (swap > 3000 MB or load > 8: kill, exit 138)
+# run_capped <seconds> <cmd...>: wall-clock cap (exit 124), 4 GB cap on the whole process tree (exit 137), and the hard stop of the batch while it runs (swap > 3000 MB: kill, exit 138); load never kills a script
 run_capped() { local cap=$1; shift; "$@" & local p=$!; local t0=$(date +%s); while kill -0 $p 2>/dev/null; do
     local rss=$(tree_rss $p); local sw=$(sysctl -n vm.swapusage | sed 's/.*used = \([0-9]*\).*/\1/'); local ld=$(uptime | sed 's/.*averages: \([0-9]*\).*/\1/')
-    local code=0; [ $rss -gt 6000000 ] && code=137; [ $sw -gt 3000 ] || [ $ld -gt 8 ] && code=138; [ $(( $(date +%s)-t0 )) -gt $cap ] && code=124
+    local code=0; [ $rss -gt 4000000 ] && code=137; [ $sw -gt 3000 ] && code=138; [ $(( $(date +%s)-t0 )) -gt $cap ] && code=124
     if [ $code -ne 0 ]; then pkill -P $p; for c in $(pgrep -P $p); do pkill -P $c; done; kill $p; wait $p 2>/dev/null; return $code; fi; sleep 2; done; wait $p; }
 
 while IFS=$'\t' read -r f n c; do
