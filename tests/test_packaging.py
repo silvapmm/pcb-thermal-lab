@@ -190,8 +190,12 @@ def test_replacing_qt_text_has_the_macos_facts_of_the_real_swap_test(tmp_path, m
     monkeypatch.setattr(build, "qt_versions", lambda: ("6.12.0", "6.12.0"))
     build.write_notice_files(tmp_path, False)
     text = " ".join((tmp_path / "REPLACING-QT.txt").read_text(encoding="utf-8").split())   # one line: the wrapping is not part of the claim
-    for must in ("pip needs Python 3.10 or newer", "system `python3` of macOS is 3.9", "Versions/A/<Name>", "QtGui.framework/Versions/A/QtGui",
-                 "no signature or with a signature that does not match its content", "missing code signature", "exit 137",
+    for must in ("These wheels are for Python 3.10 or newer", "pip looks for the wheels of the Python it runs on", "system `python3` of macOS is 3.9",
+                 "Versions/A/<Name>", "QtGui.framework/Versions/A/QtGui", "no signature or with a signature that does not match its content",
+                 # each failure is tied to its own case: the test saw 'missing code signature' for an unsigned file and exit 137 only for a signed file with changed bytes
+                 "with no signature the start fails with 'missing code signature'",
+                 "a signed file whose bytes were changed) the program is killed with no message (exit code 137)",
+                 "should be Python 3.13",
                  "may start without this step", "nested code is modified or invalid", "so always run the two commands",
                  'codesign --force --sign - "PCB Thermal Lab.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework"',
                  'codesign --force --deep --sign - "PCB Thermal Lab.app"', "also signs the binding .so files you replaced"):
