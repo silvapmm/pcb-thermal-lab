@@ -19,11 +19,14 @@ guard() { while true; do
     if [ $sw -gt 3000 ] || [ $ld -gt 8 ]; then echo "STOPPED for memory or load before $f $b: swap=${sw}M load=$ld" >> $OUT; exit 3; fi
     if [ $sw -gt 2500 ] || [ $fi -lt 8000 ] || [ $ld -gt 5 ]; then sleep 30; else break; fi
   done; }
-# run_capped <seconds> <v> <key> <cmd...>: run with a wall-clock cap and a 6 GB resident-memory cap (exit 124 time, 137 memory)
+# tree_rss <pid>: resident memory in KB of a process and all its descendants (a study that forks workers, multiprocessing, is counted whole)
+tree_rss() { local tot=0 r p; for p in $1 $(pgrep -P $1) $(for c in $(pgrep -P $1); do pgrep -P $c; done); do r=$(ps -o rss= -p $p 2>/dev/null | tr -d ' '); tot=$((tot + ${r:-0})); done; echo $tot; }
+# run_capped <seconds> <cmd...>: wall-clock cap (exit 124), 6 GB cap on the whole process tree (exit 137), and the hard stop of the batch while it runs (swap > 3000 MB or load > 8: kill, exit 138)
 run_capped() { local cap=$1; shift; "$@" & local p=$!; local t0=$(date +%s); while kill -0 $p 2>/dev/null; do
-    local rss=$(ps -o rss= -p $(pgrep -P $p | head -1) 2>/dev/null | tr -d ' '); [ -z "$rss" ] && rss=$(ps -o rss= -p $p | tr -d ' ')
-    if [ -n "$rss" ] && [ "$rss" -gt 6000000 ]; then pkill -P $p; kill $p; wait $p 2>/dev/null; return 137; fi
-    if [ $(( $(date +%s)-t0 )) -gt $cap ]; then pkill -P $p; kill $p; wait $p 2>/dev/null; return 124; fi; sleep 2; done; wait $p; }
+    local rss=$(tree_rss $p); local sw=$(sysctl -n vm.swapusage | sed 's/.*used = \([0-9]*\).*/\1/'); local ld=$(uptime | sed 's/.*averages: \([0-9]*\).*/\1/')
+    local code=0; [ $rss -gt 6000000 ] && code=137; [ $sw -gt 3000 ] || [ $ld -gt 8 ] && code=138; [ $(( $(date +%s)-t0 )) -gt $cap ] && code=124
+    if [ $code -ne 0 ]; then pkill -P $p; for c in $(pgrep -P $p); do pkill -P $c; done; kill $p; wait $p 2>/dev/null; return $code; fi; sleep 2; done; wait $p; }
+
 while IFS=$'\t' read -r f n c; do
   if [[ $# -gt 0 && " $* " != *" $c "* ]]; then continue; fi
   b=${n%.py}; sc=research/$f/scripts/$n
@@ -37,10 +40,11 @@ while IFS=$'\t' read -r f n c; do
     D=$S/tree; PP=$S/tree; [[ $v == base ]] && { D=$S/base; PP=$S/base; }
     [[ $v == shim ]] && PP=$W/releases/2.9.0/reproduction/scripts/old_stepping:$S/tree
     (cd $D; PYTHONPATH=$PP run_capped $TO nice -n 10 $py $sc > $S/slog/$v/${f}__$b.log 2>&1); echo $? > $S/slog/$v/${f}__$b.rc
-    if [[ $v == tree && $(cat $S/slog/tree/${f}__$b.rc) == 124 || $(cat $S/slog/tree/${f}__$b.rc) == 137 ]]; then
+    if [[ $v == tree && $(cat $S/slog/tree/${f}__$b.rc) == 124 || $(cat $S/slog/tree/${f}__$b.rc) == 138 || $(cat $S/slog/tree/${f}__$b.rc) == 137 ]]; then
       cp $S/slog/tree/${f}__$b.rc $S/slog/base/${f}__$b.rc; echo "(skipped)" > $S/slog/base/${f}__$b.log; break
     fi
   done
+  if [[ $(cat $S/slog/tree/${f}__$b.rc) == 138 ]]; then echo "STOPPED for memory or load during $f $b" >> $OUT; exit 3; fi
   echo "$f\t$b\t$c\t$(cat $S/slog/tree/${f}__$b.rc)\t$(cat $S/slog/base/${f}__$b.rc)\t$(( $(date +%s)-s0 ))s" >> $OUT
 done < $LIST
 echo DONE >> $OUT
