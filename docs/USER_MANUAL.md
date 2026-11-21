@@ -17,8 +17,8 @@ short reference of the same material.
 All screenshots come from real runs of the program, made by `examples/make_screenshots.py`.
 The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi,
 BSD-3-Clause licence), imported from its Gerber files. The numbers in an annotated screenshot
-match the numbered list after it. Some screenshots were taken with an earlier 2.x version (the
-status bar shows it); the controls they show are unchanged.
+match the numbered list after it. Every window screenshot was taken with version 2.9.0 (the
+status bar shows it).
 
 Features marked "since 2.9.0" are new in this version.
 
