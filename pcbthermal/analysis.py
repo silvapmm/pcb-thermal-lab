@@ -28,24 +28,46 @@ def _require_field(result):
 def hotspots(result, threshold):
     """!
     @brief Connected regions hotter than a threshold, per layer.
+    @details `t_max` is the column read-out (the layer mean through the copper) at the hot-spot point, the cell (node) of the region where that value peaks; x_mm and y_mm are
+             that point. The other read-outs of the SAME region are beside it, never instead of it, each the maximum over the region on the outer face of the copper (a hotspot on
+             the first or the last layer only): `t_surface` (the hottest surface value of the region, for a result that holds arrays["T_surface"]; None otherwise), its
+             `surface_kind` ("estimate", "computed", "resolved") and `t_point` (the hottest mesh node of the region, the point read-out of the FEM; None otherwise). A maximum, as
+             the zone and part tables give, so that the row never shows a surface or a node below the hottest one of the hotspot (review: the first version read the cell of the
+             column maximum only). Which points are found, and every `t_max`, are the same as without these keys.
     @param result A SteadyResult with a field.
     @param threshold Temperature limit in degC.
-    @return List of dicts sorted by temperature: layer (1-based), t_max, x_mm, y_mm, area_mm2, cells.
+    @return List of dicts sorted by temperature: layer (1-based), t_max (degC, column), x_mm, y_mm, area_mm2, cells, readout ("column"), t_surface (degC or None),
+            surface_kind (str or None), t_point (degC or None).
     """
     _require_field(result)
     out = []
     cell_area = result.dx * result.dy
     xs, ys = result.coords()
-    for l in range(result.T.shape[0]):
+    n_layers = result.T.shape[0]
+    arr = result.arrays
+    for l in range(n_layers):
         mask = result.T[l] > threshold
         labels, n = ndimage.label(mask)
+        # The outer faces only have a surface (a part on an inner layer has none: its temperature is continuous across the interface)
+        face = (0 if l == 0 else 1) if l in (0, n_layers - 1) else None
         for k in range(1, n + 1):
             region = labels == k
             vals = np.where(region, result.T[l], -np.inf)
             i, j = np.unravel_index(int(np.argmax(vals)), vals.shape)
-            out.append({"layer": l + 1, "t_max": float(vals[i, j]),
-                        "x_mm": xs[j] * 1000.0, "y_mm": ys[i] * 1000.0,
-                        "area_mm2": float(region.sum() * cell_area * 1e6), "cells": int(region.sum())})
+            row = {"layer": l + 1, "t_max": float(vals[i, j]),
+                   "x_mm": xs[j] * 1000.0, "y_mm": ys[i] * 1000.0,
+                   "area_mm2": float(region.sum() * cell_area * 1e6), "cells": int(region.sum()),
+                   "readout": "column", "t_surface": None, "surface_kind": None, "t_point": None}
+            # The surface and the node values are the maxima over the region (the finite ones: a cell with no surface, such as the Analytic over absent copper, is skipped)
+            for key, name in (("T_surface", "t_surface"), ("T_point", "t_point")):
+                if face is not None and key in arr:
+                    vals_k = np.asarray(arr[key][face])[region]
+                    vals_k = vals_k[np.isfinite(vals_k)]
+                    if vals_k.size:
+                        row[name] = float(vals_k.max())
+            if row["t_surface"] is not None:
+                row["surface_kind"] = thickness.surface_kind(result, face)
+            out.append(row)
     return sorted(out, key=lambda r: -r["t_max"])
 
 
@@ -206,17 +228,25 @@ def point_max(result, polygon, layer, outline=None):
 
 def zone_stats(result, problem):
     """!
-    @brief Mean, maximum and minimum temperature of every copper zone.
+    @brief Mean, maximum and minimum temperature of every copper zone (column read-out), with the surface beside it for a zone on an outer layer.
+    @details The column values are `_footprint_stats` as always. A zone on the first or the last layer of a result that holds the surface read-out also gets `t_mean_surface` and
+             `t_max_surface` (the outer face of the copper under the zone, `surface_stats`) and its `surface_kind`; they are None where there is none (inner layer, the LPTN, a
+             face that the model does not read out).
     @param result A SteadyResult with a field.
     @param problem The Problem that owns the zones.
-    @return List of dicts: name, layer (1-based), t_mean, t_max, t_min.
+    @return List of dicts: name, layer (1-based), t_mean, t_max, t_min (degC, column), t_mean_surface, t_max_surface (degC or None), surface_kind (str or None).
     """
     _require_field(result)
     rows = []
     for k, z in enumerate(problem.zones):
         mean, mx, mn = _footprint_stats(result, z.polygon, z.layer, problem.board.outline)
-        rows.append({"name": z.name or f"Zone {k + 1}", "layer": z.layer + 1,
-                     "t_mean": mean, "t_max": mx, "t_min": mn})
+        row = {"name": z.name or f"Zone {k + 1}", "layer": z.layer + 1,
+               "t_mean": mean, "t_max": mx, "t_min": mn, "t_mean_surface": None, "t_max_surface": None, "surface_kind": None}
+        surf = surface_stats(result, z.polygon, z.layer, problem.board.outline)
+        if surf is not None:
+            row["t_max_surface"], row["t_mean_surface"] = surf[0], surf[1]
+            row["surface_kind"] = thickness.surface_kind(result, 0 if z.layer == 0 else 1)
+        rows.append(row)
     return rows
 
 

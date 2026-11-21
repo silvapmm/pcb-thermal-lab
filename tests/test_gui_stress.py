@@ -2127,3 +2127,74 @@ def test_difference_view_every_pair_resize_layer_readouts_clear_and_themes(win, 
     for k, r in win.sim.results.items():
         if r.T is not None:
             assert np.array_equal(r.T, before[k]), k
+
+
+def test_every_export_after_a_run_for_each_model_layer_and_readout(win, qtbot, tmp_path, monkeypatch):
+    """!
+    @brief Every output of the exports after a run of every model, on the four-layer example board and on the block board: Export results to a folder (the surface CSV of every model that has one,
+           the hotspot, zone and part tables), the Difference statistics of every shown/reference pair at every Layer box read-out, and the tables of the Components page, with a clear in
+           between: nothing raises, the CSV files hold what the result objects hold, no field moves.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    @param tmp_path Fixture.
+    @param monkeypatch Fixture.
+    """
+    import csv
+    from pcbthermal import compare
+    from pcbthermal.gui import layerchoice
+    for n, board in enumerate((example_board(), example_block_board())):
+        load(win, board)
+        run(win, qtbot, models=MODELS_WITH_FEM, cell=3.0)
+        win.tabs.setCurrentIndex(TAB_RESULTS)
+        rv = win.results
+        t = rv.temp
+        rv.tabs.setCurrentWidget(t)
+        qtbot.wait(30)
+        before = {k: r.T.copy() for k, r in win.sim.results.items() if r.T is not None}
+        out = tmp_path / f"out{n}"
+        out.mkdir()
+        monkeypatch.setattr("pcbthermal.gui.main_window.QFileDialog.getExistingDirectory", lambda *a, **k: str(out))
+        win.export_results()
+        names = {p.name for p in out.iterdir()}
+        for key, r in win.sim.results.items():
+            if r.T is None:
+                continue
+            assert f"field_{key}.csv" in names
+            assert (f"surface_{key}.csv" in names) == ("T_surface" in r.arrays), key
+            if f"surface_{key}.csv" in names:
+                with open(out / f"surface_{key}.csv", newline="") as fh:
+                    rows = list(csv.reader(fh))
+                assert rows[0][:7] == ["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate"] and len(rows) > 1 and rows[1][7] == key
+        assert f"parts_{win.sim.reference.model}.csv" in names
+        keys = [k for k in MODELS_WITH_FEM if k in win.sim.results and win.sim.results[k].T is not None]
+        t.diff_on.setChecked(True)
+        written = 0
+        for shown in keys:
+            t.model.setCurrentIndex(t.model.findData(shown))
+            for ref in keys:
+                if ref == shown:
+                    continue
+                t.diff_ref.setCurrentIndex(t.diff_ref.findData(ref))
+                for data in (0, layerchoice.SURFACE_BASE, layerchoice.SURFACE_BASE + 1, layerchoice.BLOCK_BASE):
+                    i = win.layer_combo.findData(data)
+                    if i >= 0:
+                        win._pick_combo_entry(i)
+                    qtbot.wait(2)
+                    p = tmp_path / f"d{n}_{shown}_{ref}_{data}.csv"
+                    got = t.export_difference_statistics(str(p))
+                    # A pair or read-out that is refused (a note under the controls) has no Difference on view: nothing to write, and the button is hidden
+                    assert (got is not None) == t.diff_export.isVisibleTo(t)
+                    if got is not None:
+                        with open(p, newline="") as fh:
+                            rows = list(csv.reader(fh))
+                        assert rows[0] == compare.STATISTICS_HEADER and len(rows) == 2 and len(rows[1]) == len(rows[0])
+                        written += 1
+        assert written > 0
+        rv._fill_components()
+        win.toggle_theme()
+        rv._fill_components()
+        for k, r in win.sim.results.items():
+            if r.T is not None:
+                assert np.array_equal(r.T, before[k]), k
+        rv.clear()
+        assert t.export_difference_statistics(str(tmp_path / "gone.csv")) is None

@@ -403,3 +403,23 @@ def pathlib_root():
     """
     import pathlib
     return pathlib.Path(__file__).resolve().parent.parent
+
+
+def test_guide_pictures_equal_docs_images():
+    """!
+    @brief The pictures shipped beside the guide are byte-equal to their copies in docs/images.
+
+    A picture regenerated into docs/images but not copied to pcbthermal/help leaves a stale
+    image in the guide; the user manual and the guide must show the same screenshot.
+
+    @return None
+    """
+    html = GUIDE.read_text(encoding="utf-8")
+    images = GUIDE.parents[2] / "docs" / "images"
+    stale = []
+    for name in sorted(set(re.findall(r'<img src="([^"]+)"', html))):
+        twin = images / name
+        # Pictures that only the guide has (no twin) are not compared
+        if twin.exists() and twin.read_bytes() != (GUIDE.parent / name).read_bytes():
+            stale.append(name)
+    assert not stale, "stale in pcbthermal/help (copy from docs/images): %s" % stale

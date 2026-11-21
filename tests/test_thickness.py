@@ -169,7 +169,8 @@ def test_surface_files_are_written_only_on_request(tmp_path):
     asked = {f.rsplit("/", 1)[-1] for f in sim.save(str(tmp_path / "b"), plots=True, surface_files=True)}
     assert {"surface_fvm.csv", "surface_fdm.csv", "surface_fvm_top.png", "surface_fvm_bottom.png"} <= asked
     head = (tmp_path / "b" / "surface_fvm.csv").read_text().splitlines()[0]
-    assert head == "face,x_mm,y_mm,T_surface_c,T_surface_mean_c,T_column_c,upper_estimate"
+    # The seven columns of every earlier version come first, unchanged; the model, the kind of the surface and the FEM node value are appended after them
+    assert head == "face,x_mm,y_mm,T_surface_c,T_surface_mean_c,T_column_c,upper_estimate,model,surface_kind,T_point_c"
 
 
 def test_every_map_names_its_read_out():

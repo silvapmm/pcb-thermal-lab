@@ -133,7 +133,7 @@ def test_nothing_is_cut_at_1200_x_800(qtbot, tmp_path, sim):
 
 def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
     """!
-    @brief The Components tables take the same fix as the Summary: columns as wide as their header or content, a horizontal scroll bar when they do not fit, only the last one stretches.
+    @brief The Components tables take the same fix as the Summary: columns as wide as their header or content, a horizontal scroll bar when they do not fit, no column stretches (the spare width stays empty, review of feature/surface-export-and-tags).
     @param qtbot pytest-qt fixture.
     @param tmp_path Temporary folder.
     @param sim Simulation fixture.
@@ -145,8 +145,10 @@ def test_the_components_tables_are_not_cut_at_1200_x_800(qtbot, tmp_path, sim):
     rv = win.results
     for t in (rv.heater_table, rv.zone_table, rv.hot_table):
         head = t.horizontalHeader()
-        assert head.stretchLastSection() and head.sectionResizeMode(0) == head.ResizeMode.ResizeToContents
-        for c in range(t.columnCount() - 1):
+        assert not head.stretchLastSection() and head.sectionResizeMode(0) == head.ResizeMode.ResizeToContents
+        # The appended read-out column is as wide as its header or text, not the spare width of the window
+        assert head.sectionSize(t.columnCount() - 1) <= max(head.sectionSizeHint(t.columnCount() - 1), t.sizeHintForColumn(t.columnCount() - 1)) + 2
+        for c in range(t.columnCount()):
             assert head.sectionSize(c) >= head.sectionSizeHint(c), (t.columnCount(), c, head.sectionSize(c), head.sectionSizeHint(c))
             assert head.sectionSize(c) >= t.sizeHintForColumn(c), (c,)
     t = rv.heater_table                                 # 11 columns: either all fit or the scroll bar reaches the rest
