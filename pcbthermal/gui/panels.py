@@ -1586,7 +1586,7 @@ class SolverPanel(QWidget):
                            "2.4 % largest at a 1 mm cell, 0.21 and 0.51 % at 0.5 mm (10 of them).",
                 # (at most eight full stops, decimals included: the details are in the guide, tests/test_fem_gui.py)
                 "fem": off + "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap): steady state, animation and power profiles. On plain boards "
-                       "it reads 0.4 to 0.9 % below the FVM at the same cell (mostly the finite volumes' own error); thick copper has its surface resolved, a metal block is "
+                       "it reads between 0.3 % above and 1.4 % below the FVM at a 1 mm cell (14 plain boards; mostly the finite volumes' own error); thick copper has its surface resolved, a metal block is "
                        "its mean (no surface). In time it is the one to believe from about 0.3 s after a power step (the other models carry one node per layer) and it never "
                        "decides the profile regime; slower than the 3D solid, a time run can be refused for its size, and a large mesh is left out above the memory limit or "
                        "when it needs the package pyamg."}

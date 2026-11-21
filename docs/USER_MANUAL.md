@@ -1313,7 +1313,7 @@ user. The equations are in `docs/theory.md`; the measured errors in `docs/valida
 | Thick copper or plates, hollow vias under a part, the first seconds after a power step | **FEM** |
 
 **How far each model is from the finite elements.** Measured on the 20 boards of the test suite
-(program 2.8.0; `docs/validation.md` 56.1). The number is the **peak** (the hottest column rise above
+(the models of 2.9.0, measured on its development tree; `docs/validation.md` 56.1). The number is the **peak** (the hottest column rise above
 the ambient) of the model against the FEM at the same cell, in percent of the FEM rise. The FEM at
 one cell is not the truth: it reads below the converged value (4.6 % on the copper-window board at
 1 mm).
@@ -1422,7 +1422,8 @@ limit and 2.6 to 5.5 % low at 0.3 to 0.15 times it (two boards), and a 20 Hz wav
 purpose read its swing 22 % below an independent solver. A repeating wave over copper is not
 flagged: the program gives it the average or the closed-form ripple.
 
-On an ordinary board with 35 µm copper the FEM reads 0.4 to 0.9 % below the FVM at the same cell;
+On an ordinary board with 35 µm copper the FEM reads between 0.3 % above and 1.4 % below the FVM
+at a 1 mm cell and within 0.5 % at 0.5 mm (hottest column, 14 plain boards, `docs/validation.md` 56.1);
 with vias and a part only a few cells wide, halve the cell before reading a difference.
 
 ## 8. The Power Calculator
