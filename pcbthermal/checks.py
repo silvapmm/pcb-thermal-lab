@@ -374,7 +374,8 @@ def _check_input(problem, models, cell_mm, live=False):
     return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_lumped_near_edge(problem, models)
             + check_lumped_small_part(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm, PARTIAL_COPPER_BUDGET_S if live else None) + check_via_uncoupled(problem, models)
-            + check_fast_wave(problem) + check_fem(problem, models, cell_mm))
+            + check_fast_wave(problem) + check_fem(problem, models, cell_mm) + check_fem_profile(problem, models)
+            + check_lumped_copper_window(problem, models, cell_mm) + check_bare_corner(problem, models, cell_mm))
 
 
 def fem_needs_pyamg(problem, cell_mm, gap_elements=6, refine=2.0):
@@ -551,6 +552,161 @@ def check_fast_wave(problem):
                      "treats the board as infinite, so near a side it reads too low (against an independent 3D reference, 0.60 of the true swing at 0.1 Hz for a 5 mm part 1 mm from two sides, 0.88 at 1 Hz), and the "
                      "layered model is low there too. Take the swing as a lower estimate.",
                      f"{name}: a slow wave near a side of the board; the swing is a lower estimate.")
+    return out
+
+
+# The FEM profile note (docs/validation.md 57.2, docs/theory.md 4b): the default mesh cuts a gap into FEM_GAP_ELEMENTS elements with the first one FEM_GAP_FIRST_FRACTION of the gap
+# (femmesh.graded_gap, ratio 1.4); a stretch of the power profile shorter than 2 (first element)^2 / alpha is not followed by the mesh
+FEM_GAP_ELEMENTS = 6
+FEM_GAP_FIRST_FRACTION = float(femmesh.graded_gap(1.0, FEM_GAP_ELEMENTS)[0])
+
+
+def fem_profile_limit(problem, gap_elements=FEM_GAP_ELEMENTS):
+    """!
+    @brief The shortest stretch of a power profile that the gap mesh of the FEM follows: 2 (first gap element)^2 / alpha.
+    @details The first element of a dielectric gap (femmesh.graded_gap, ratio 1.4) is a fraction of the gap; alpha is the through-plane diffusivity of that gap (k_through / rho c).
+             The largest value over the gaps of the board is returned, because the coarsest first element limits the board (a 1.53 mm gap of FR-4 with 6 elements: 175 um, 0.17 s
+             of (first)^2 / alpha, so 0.35 s; docs/theory.md 4b gives 0.3 s for the stated rule).
+    @param problem A Problem.
+    @param gap_elements Elements across a gap, count (the program default is 6).
+    @return tuple (limit in s, first element in m of the limiting gap), or (0.0, 0.0) for a board without a gap (a one-layer board: not measured).
+    """
+    b = problem.board
+    gaps = b.gap_thicknesses()
+    if gaps.size == 0:
+        return 0.0, 0.0
+    k_through, _, rho_cp = b.gap_properties()
+    first = gaps * float(femmesh.graded_gap(1.0, gap_elements)[0])               # First element of every gap, m
+    limit = 2.0 * first ** 2 * rho_cp / np.maximum(k_through, 1e-12)               # 2 first^2 / alpha, s
+    i = int(np.argmax(limit))
+    return float(limit[i]), float(first[i])
+
+
+def check_fem_profile(problem, models):
+    """!
+    @brief Note, for the FEM only, on a power profile with a stretch shorter than the gap mesh follows (live; text only, no result depends on it).
+    @details The FEM resolves the thickness of the board in 6 elements per gap by default; the first element then sets the shortest time the mesh follows, 2 (first)^2 / alpha
+             (fem_profile_limit; the rule of docs/theory.md 4b for the first seconds of a step). On the plate of the campaign (2 layers, 60 mm, a 20 Hz wave of duty 0.3, cell 1 mm,
+             docs/validation.md 57.2) the default mesh read the swing of the part 4.90 K, 22 % below the 6.3 K of the independent axisymmetric solver (research/fast-wave-oscillation),
+             and 12 elements across a gap 6.07 K (3.6 % below it, 2.5 times the time); the FVM, FDM and Analytic read 0.75 K and the Lumped 1.26 K there. One board was measured.
+    @param problem A Problem.
+    @param models Iterable of model keys that will run.
+    @return List of warnings (CheckWarning, tagged with the heater), one per heater with a profile.
+    """
+    if "fem" not in set(models):
+        return []
+    limit, first = fem_profile_limit(problem)
+    out = []
+    if limit <= 0.0:
+        return out
+    for k, h in enumerate(problem.heaters):
+        w = h.profile
+        if w is None:
+            continue
+        square = getattr(w, "kind", "") == "square"
+        if square and (w.p_on <= w.p_off or not 0.0 < w.duty < 1.0):
+            continue                                                  # No swing of the power: nothing to follow
+        if not square and float(np.ptp(np.asarray(w.powers, dtype=float))) <= 0.0:
+            continue
+        stretch = w.shortest_feature()
+        if stretch >= limit:
+            continue
+        name = h.name or f"Heater {k + 1}"
+        _add(out, "heater", k,
+             f"{name}: its power profile has a stretch of {num(stretch, 3)} s, shorter than the {num(limit, 2)} s that the FEM mesh across the board follows "
+             f"(2 (first element)^2 / alpha, with a first element of {num(first * 1e6, 3)} µm across the gap and 6 elements across a gap, the default). "
+             "The swing of the part reads low: on a 20 Hz wave (duty 0.3) on a two-layer 60 mm plate the default mesh read 4.90 K, 22 % below the 6.3 K of an independent axisymmetric solver, "
+             "and 12 elements across a gap read 6.07 K (3.6 % below it, 2.5 times the run time); the layered models read 0.75 K there (a documented limit). "
+             "These numbers are those of that plate; on this board the rule says only that the mesh cannot follow the stretch. "
+             "Take the swing as a lower estimate, or raise the elements across a gap (FEM options), or use the closed form of the fast wave for the decision (one board measured; "
+             "docs/validation.md 57.2).",
+             f"{name}: a profile stretch shorter than the FEM mesh follows ({num(stretch, 3)} s < {num(limit, 2)} s); the swing reads low (22 % on a 20 Hz wave).")
+    return out
+
+
+# The copper-window warning of the LPTN: the criterion is the Analytic one (analytic.COPPER_SPREAD_WARN on the spread of the copper fill round the heaters)
+def check_lumped_copper_window(problem, models, cell_mm=1.0):
+    """!
+    @brief Warning, for the LPTN model, when the copper coverage varies round a part (a part over a copper window with bare laminate round it); live, text only.
+    @details The criterion is the one the Analytic model already uses (analytic._effective_sheet: the spread of the copper fill of the layers of the heaters, weighted by the
+             influence of the heaters, above analytic.COPPER_SPREAD_WARN). The LPTN carries a ring mean of the copper and has no copper edge outside the footprint: in the comparison campaign
+             (docs/validation.md 56.1, 56.1.2, the program of 7886ac42, hottest column, 1 mm) it read -11.4 and -6.7 % of the FEM peak on the two boards with a 20 mm copper window under
+             an 8 mm part on a 60 mm board (-15.5 and -10.7 % of the independent layered solver), -0.4 and -1.6 % on two boards with a milder variation (`two_layer_partial`, `part_top_path`)
+             and -9.1 to -33 % on the three drawn-copper boards (which also carry the edge-film warning); it was never hotter than the FEM there. Window sizes other than 20 mm were not measured.
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size in mm of the sampling grid (the one the Analytic model uses).
+    @return List with at most one warning.
+    """
+    if "lumped" not in set(models) or not problem.heaters:
+        return []
+    from . import analytic                                           # Local import: the Analytic model is only needed here, for its criterion
+    try:
+        spread = analytic._effective_sheet(problem, cell_mm)["copper_spread"]
+    except ValueError:
+        return []                                                    # Damaged imported copper: check_problem says so
+    if spread <= analytic.COPPER_SPREAD_WARN:
+        return []
+    out = []
+    _add(out, None, None,
+         f"copper coverage varies around the heaters (spread {spread:.2f}): the LPTN model reads the copper of each ring as a mean and does not see where the copper ends beyond the footprint of the part, "
+         "so a part over a window of copper with laminate and no copper round it reads too cool. In the comparison campaign (hottest column at a 1 mm cell, tree 7886ac42) it read 11.4 and 6.7 % below "
+         "the finite elements on a 8 mm part over a 20 mm window of a 60 mm board (2 layers and 1 layer; 15.5 and 10.7 % below an independent layered solver), 0.4 and 1.6 % below on two "
+         "boards with a milder variation, and 9 to 33 % below on three small boards of drawn copper; it was never hotter than the finite elements there. Other window sizes were not "
+         "measured. Use the FVM for this board.",
+         f"LPTN: copper coverage varies around the heaters (spread {spread:.2f}); the part was measured 7 to 15 % too cool on a copper window; use the FVM.")
+    return out
+
+
+BARE_CORNER_SHARE = (0.03, 0.5)          # Share of the footprint on bare laminate (fill below 0.25) that gives the warning: from a few percent up to the share the centre test of check_model_limits takes over
+BARE_CORNER_MAX_PIXELS = 500             # Pixels along the longer side of the board for the fine raster of the test
+
+
+def check_bare_corner(problem, models, cell_mm=1.0):
+    """!
+    @brief Warning, for the FVM, FDM, 3D solid and FEM, when a corner or a strip of a part's footprint is on bare laminate while its centre is on copper (live, text only).
+    @details The test of the centre in check_model_limits (fill below 0.5 under the central half) is silent when the centre is on copper; the drawn L of `research/drawn-ell-fvm-fdm`
+             (a 4 mm part with a 1.2 x 1.2 mm bare corner, 9 % of its footprint) has the hottest column of the part at that corner, a point of bare laminate beside copper whose value
+             does not converge in the cell (docs/validation.md 56.1.2). The share is measured on a fine raster (0.1 mm for a board under 30 mm, else the board over 500 pixels) of the
+             exact fill of the layer of the part (fill below 0.25 is bare; a smeared hatch, fill 0.5 to 0.7, is not); an imported layer is skipped (the gaps between pins would read as bare).
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size in mm (unused by the fine raster; kept for the shape of the other checks).
+    @return List of warnings (CheckWarning, tagged with the heater).
+    """
+    selected = [m for m in ("fvm", "fdm", "solid3d", "fem") if m in set(models)]
+    if not selected or not problem.heaters:
+        return []
+    b = problem.board
+    side = max(b.width, b.height) * 1e3
+    pix = 0.1 if side < 30.0 else max(0.1, side / BARE_CORNER_MAX_PIXELS)           # Pixel in mm
+    nx = max(int(round(b.width * 1e3 / pix)), 8)
+    ny = max(int(round(b.height * 1e3 / pix)), 8)
+    dx, dy = b.width / nx, b.height / ny
+    try:
+        imported = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 2)
+    except ValueError:
+        return []
+    names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid", "fem": "FEM"}
+    out = []
+    for k, h in enumerate(problem.heaters):
+        if h.layer in imported or polygon_area(h.polygon) <= 0:
+            continue
+        cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 2)
+        if cov.sum() <= 0:
+            continue
+        share = float(((fill[h.layer] < 0.25) * cov).sum() / cov.sum())
+        if not BARE_CORNER_SHARE[0] <= share <= BARE_CORNER_SHARE[1]:
+            continue
+        name = h.name or f"Heater {k + 1}"
+        _add(out, "heater", k,
+             f"{name}: {share * 100:.0f} % of the footprint is on bare laminate (a corner or a strip of the part beside copper on layer {h.layer + 1}); the hottest column of the part "
+             f"there is a point on the edge of the copper that does not converge in the cell in {', '.join(names[m] for m in selected)}. On the drawn L board of the campaign (a 4 mm "
+             "part with a 1.2 mm bare corner, 20 mm board, 200 W/m2K) the hottest column read, against the converged 105.2 K of an independent finite-element tool, at 2 / 1 / 0.5 mm: "
+             "FVM -36 / -6 / -17 %, FDM -29 / -36 / -17 %, 3D solid -41 / +8 / -4 % (no order in the cell), and the FEM -39 / -20 / -9 % (it rises monotonically but slowly); "
+             "the mean under the part agreed within 3 to 6 % at 1 mm. Read the mean of the part, not the hottest column, or refine at the corner (docs/validation.md 56.1.2).",
+             f"{name}: {share * 100:.0f} % of the part is on bare laminate beside copper; its hottest column does not converge in the cell (-41 to +8 % on the drawn L); read the part mean.")
     return out
 
 
