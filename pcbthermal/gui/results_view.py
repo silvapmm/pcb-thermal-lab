@@ -16,7 +16,7 @@ from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QFrame, QHeaderView, QLabel, QPlainTextEdit, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
-                               QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout, QWidget)
+                               QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, compare, defaults, plots, thickness
 from . import layerchoice
@@ -305,21 +305,17 @@ class PlotTab(QWidget):
         self.diff_on.setAccessibleName("Show the difference between the model and a reference model")
         self.diff_ref = QComboBox()
         self.diff_ref.setAccessibleName("Reference model of the difference")
-        self.diff_note = ElidedLabel("", max_lines=2)   # The peak difference, the interpolation note and the documented expected agreement; its width never sets the page width
-        self.diff_more = QToolButton()                  # Shows all of the note instead of its first two lines
-        self.diff_more.setText("More")
-        self.diff_more.setCheckable(True)
-        self.diff_more.setAccessibleName("Show the whole note of the difference")
-        self.diff_more.setToolTip("Show the whole note under the controls (the first two lines are shown by default; the tooltip of the note holds all of it).")
-        self.diff_row = QWidget()
-        row = QHBoxLayout(self.diff_row)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.diff_note, 1)
-        row.addWidget(self.diff_more, 0, Qt.AlignTop)
+        # One line, the verdict first: is the gap between the hottest points usual for this pair (documented range)? The range, the scenarios, the cases outside and the
+        # evidence are in its tooltip; the caveats of the figure are in the figure title. Its width never sets the page width (ElidedLabel).
+        self.diff_note = ElidedLabel("", max_lines=1)
+        self.diff_note.setAccessibleName("Whether the difference of the hottest points is usual for this pair of models")
+        self.diff_row = self.diff_note
+        self._ref_chosen = None                         # The reference the user picked (None: the default, `compare.default_reference`, follows the model shown)
         self.diff_row.setVisible(False)
         self._diff_tip = ("Draw the map of (Model minus the reference model) in K instead of the temperature: the same read-out for both models "
                                 "(the layer's column mean, or the surface when the toolbar Layer box shows one), a diverging scale centred on zero. "
-                                "Needs two or more models run. A difference between models is not always an error: read the note below the controls.")
+                                "Needs two or more models run. A difference between models is not always an error. The line below says whether the gap at the "
+                                "hottest point is usual for that pair (the user guide has the evidence).")
         self.diff_on.setToolTip(self._diff_tip)
         self.diff_ref.setToolTip("The model subtracted: the map shows Model minus this one. The FVM is the reference of the program; a model that has no field "
                                  "or no value of the read-out shown is greyed out, with the reason as its tip.")
@@ -378,8 +374,7 @@ class PlotTab(QWidget):
             self.display.changed.connect(lambda _what: redraw_when_shown(self, self.redraw))     # A change of the shared display choice draws the map again
         for w in (self.hot, self.auto, self.equiv, self.cut_overlay, self.diff_on):
             w.toggled.connect(self.redraw)
-        self.diff_ref.currentIndexChanged.connect(self.redraw)
-        self.diff_more.toggled.connect(self._on_more)
+        self.diff_ref.currentIndexChanged.connect(self._on_reference_changed)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
@@ -387,6 +382,8 @@ class PlotTab(QWidget):
             # The cut picture is an inset over the curves or a strip above them by the width of the canvas, so a resize that crosses that width draws the figure again
             self._thumb_strip = None
             self.canvas.mpl_connect("resize_event", self._on_canvas_resized)
+        elif kind == "temperature":
+            self.canvas.mpl_connect("resize_event", self._on_canvas_resized)      # The title of the Difference figure is wrapped for one width: fit it again
 
     def resizeEvent(self, e):
         """!
@@ -443,10 +440,14 @@ class PlotTab(QWidget):
 
     def _on_canvas_resized(self, _event):
         """!
-        @brief Draw the Profiles figure again when the canvas crossed the width between the inset picture over the curves and the strip above them; otherwise fit
+        @brief On the Temperature page fit the title of the Difference figure again to the new size. On the Profiles page draw the figure again when the canvas crossed the width between the inset picture over the curves and the strip above them; otherwise fit
                the title and the y label again to the new size (their wrapping is measured for one size, and a window shrunk after the draw cut them again).
         @param _event Matplotlib ResizeEvent (unused).
         """
+        if self.kind != "profile":
+            if self.sim is not None:
+                plots.refit_texts(self.fig)             # The Difference figure's title (any other map has nothing to fit: a no-op)
+            return
         strip = plots.profile_has_strip(self.fig)
         if self._thumb_strip is not None and strip != self._thumb_strip and self.sim is not None:
             self.redraw()
@@ -487,6 +488,7 @@ class PlotTab(QWidget):
         self.diff_ref.clear()
         for k, r in sim.results.items():                # Every model that ran, with or without a field: the ones that cannot be used are greyed out with the reason
             self.diff_ref.addItem(tips.model_label(k), k)
+        self._ref_chosen = None                         # A new simulation: no choice of the user yet
         self.diff_ref.setCurrentIndex(max(self.diff_ref.findData(compare.default_reference(sim.results, self.model.currentData()) or ""), 0))
         ref = sim.reference
         if self.kind == "temperature":
@@ -623,24 +625,26 @@ class PlotTab(QWidget):
                     reason = "this is the model shown"
                 item.setEnabled(reason is None)
                 item.setToolTip(reason or f"Show {tips.model_label(current)} minus {tips.model_label(key)}")
-            ref = self.diff_ref.currentData()
-            if ref == current or not (item_model.item(self.diff_ref.currentIndex()).isEnabled()):
-                better = compare.default_reference(sim.results, current)       # The FVM, else the first other model: moved silently, the title names the pair
-                if better is not None and item_model.item(self.diff_ref.findData(better)).isEnabled():
-                    self.diff_ref.setCurrentIndex(self.diff_ref.findData(better))
+            # The user's own choice stays while it is possible; a reference that the user did not choose is the default for the model now shown (the FVM, else the
+            # first other model with a field), whichever model was shown when the box was first filled: moved silently, the title names the pair
+            wanted = self._ref_chosen
+            if wanted is None or wanted == current or not item_model.item(self.diff_ref.findData(wanted)).isEnabled():
+                wanted = compare.default_reference(sim.results, current)
+            if wanted is not None and item_model.item(self.diff_ref.findData(wanted)).isEnabled():
+                self.diff_ref.setCurrentIndex(self.diff_ref.findData(wanted))
             return self.diff_ref.currentData()
         finally:
             self._updating = was
 
-    def _on_more(self, on):
+    def _on_reference_changed(self, _index):
         """!
-        @brief Show all of the Difference note or only its first two lines.
-        @param on True for all of it.
+        @brief The reference box changed: a change that is not the program's own (those run with `_updating` set) is the user's choice, kept until the model it names is the
+               model shown or becomes impossible.
+        @param _index New index (unused).
         """
-        self.diff_more.setText("Less" if on else "More")
-        self.diff_note.max_lines = 12 if on else 2
-        self.diff_note.updateGeometry()
-        self.diff_note.update()
+        if not self._updating:
+            self._ref_chosen = self.diff_ref.currentData()
+        self.redraw()
 
     def _difference(self):
         """!
@@ -660,18 +664,32 @@ class PlotTab(QWidget):
         if why is None and ref is not None and r is not None:
             why = compare.unavailable_reason(r, sim.results[ref], sim.problem, readout, layer, face)
         if why is not None or ref is None:
-            self.diff_note.setText("Difference not shown: " + (why or "no other model has a field") + ". The temperature map is drawn.")
-            self.diff_row.setVisible(True)
+            text = "Difference not shown: " + (why or "no other model has a field") + ". The temperature map is drawn."
+            self._set_difference_line(text, text, True)
             return None
         d = compare.difference_field(r, sim.results[ref], sim.problem, readout, layer, face)
-        lines = [f"Hottest points differ by {signed_fixed(d.peak_k, 2)} K ({signed_fixed(d.peak_pct, 1)} % of the rise of {tips.model_label(d.reference)})."]
+        caveat = ""
         if layer != self.layer_value and self.layer_value in (layerchoice.ALL_LAYERS, layerchoice.ALL_GRID):
-            lines.append(f"The Difference shows one layer at a time: layer {layer + 1} (choose another in the Layer box).")
-        lines += d.notes
-        lines += compare.expected_agreement(d.model, d.reference)
-        self.diff_note.setText(" ".join(lines))
-        self.diff_row.setVisible(True)
+            caveat = f"The Difference shows one layer at a time: layer {layer + 1} (choose another in the Layer box)."
+        agreement = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, 1000.0 * d.dx)
+        if agreement is not None:
+            tip = agreement.tooltip + ("\n" + caveat if caveat else "") + ("\n" + "; ".join(d.notes) if d.notes else "")
+            self._set_difference_line(agreement.line, tip, agreement.outside)
+        elif caveat:
+            self._set_difference_line(caveat, caveat, False)       # No documented range for the pair: no verdict, only the caveat of the layer
         return d
+
+    def _set_difference_line(self, line, tooltip, warn):
+        """!
+        @brief Show the one line under the Difference controls.
+        @param line The text of the line (the verdict first).
+        @param tooltip Its tooltip (the range, the cases, the evidence).
+        @param warn True for the warning colour of the theme (a gap outside the usual range, or a refusal).
+        """
+        self.diff_note.setText(line)
+        self.diff_note.setToolTip(tooltip)                         # setText of the label puts the line itself in the tooltip
+        self.diff_note.setStyleSheet(f"color: {th.colors(self.theme)['alert_note']};" if warn else "")
+        self.diff_row.setVisible(True)
 
     def redraw(self, *_):
         """!

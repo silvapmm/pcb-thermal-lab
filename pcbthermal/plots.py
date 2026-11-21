@@ -785,14 +785,36 @@ def draw_difference(fig, diff, problem):
     """
     ref_name, name = model_label(diff.reference), model_label(diff.model)
     what = readout_name(diff.readout, diff.layer, diff.face)
-    title = (f"{name} − {ref_name}, {what} (K)\n"
-             f"max {signed_fixed(diff.maximum, 2)} K at ({diff.where_max[0]:.1f}, {diff.where_max[1]:.1f}) mm\n"
-             f"min {signed_fixed(diff.minimum, 2)} K at ({diff.where_min[0]:.1f}, {diff.where_min[1]:.1f}) mm   RMS {diff.rms:.2f} K")
+    lines = [f"{name} − {ref_name}, {what} (K)",
+             f"max {signed_fixed(diff.maximum, 2)} K at ({diff.where_max[0]:.1f}, {diff.where_max[1]:.1f}) mm",
+             f"min {signed_fixed(diff.minimum, 2)} K at ({diff.where_min[0]:.1f}, {diff.where_min[1]:.1f}) mm   RMS {diff.rms:.2f} K"]
+    if diff.resampled:
+        lines.append(f"({name} was interpolated onto the {ref_name} grid)")          # A copied or saved figure keeps the caveat
     ax = draw_field(fig, diff.values, problem, diff.dx, diff.dy, cmap=DIFFERENCE_CMAP, vmin=-diff.limit, vmax=diff.limit, layer=diff.layer,
-                    label=f"{name} − {ref_name} (K)", title=title, extremes=True)
-    ax.title.set_fontsize(9)
-    ax.title.set_wrap(True)                                                 # A narrow canvas wraps the three lines at the figure edge instead of cutting them
+                    label=f"{name} − {ref_name} (K)", title="", extremes=True)
+    # A figure title, centred on the figure: a title centred on the axes ran over the colour bar and its label in a canvas of 300 px and narrower
+    setattr(ax, _FIGURE_TITLE_ATTR, lines)
+    _fit_figure_title(fig, lines)
     return ax
+
+
+_FIGURE_TITLE_ATTR = "_pcbt_figure_title"   # Attribute of the axes of a Difference figure that holds the title lines to fit again when the canvas changes size
+
+
+def _fit_figure_title(fig, lines):
+    """!
+    @brief Set the figure title (suptitle) of a Difference figure wrapped at its spaces to the width of the figure, in a size that shrinks in a very narrow figure.
+    @details The title is centred on the figure, so it cannot run over the colour bar; each line is wrapped to the figure width (a number and its unit stay
+             together, see `_wrapped`), and the constrained layout makes room for as many lines as result. `refit_texts` calls this again when the canvas is resized.
+    @param fig Figure (its constrained layout, if any, is run at the next draw).
+    @param lines The lines of the title (each is wrapped further only if it does not fit).
+    """
+    renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, "get_renderer") else RendererAgg(int(fig.get_figwidth() * fig.dpi), int(fig.get_figheight() * fig.dpi), fig.dpi)
+    logical = fig.get_figwidth() * fig.dpi / (getattr(fig.canvas, "device_pixel_ratio", 1.0) or 1.0)
+    size = 9 if logical >= NARROW_FIGURE_PX else 8 if logical >= 0.65 * NARROW_FIGURE_PX else 7
+    text = fig.suptitle("\n".join(lines), fontsize=size)
+    room = max(fig.get_figwidth() * fig.dpi - 8.0, 40.0)
+    text.set_text("\n".join(_wrapped(text, line, room, renderer) for line in lines))
 
 
 @_with_engineering_ticks
@@ -1086,7 +1108,7 @@ def _fit_title_and_ylabel(fig, ax, title_lines, ylabel):
 
 def refit_texts(fig):
     """!
-    @brief Fit again the title and the y label of every axes of a figure drawn by `draw_profile`, for the present size of its canvas.
+    @brief Fit again the title and the y label of every axes of a figure drawn by `draw_profile`, and the title of a figure drawn by `draw_difference`, for the present size of its canvas.
     @details The wrapping is measured for one size; a window resized after the draw kept the old wrapping and the title could be cut again (review: drawn at
              1600 x 1000, then shrunk to 800 x 600, its left edge at -11 px). The Results tab calls this when its canvas is resized.
     @param fig Figure.
@@ -1097,6 +1119,10 @@ def refit_texts(fig):
         spec = getattr(ax, _FIT_ATTR, None)
         if spec is not None:
             _fit_title_and_ylabel(fig, ax, *spec)
+            found = True
+        lines = getattr(ax, _FIGURE_TITLE_ATTR, None)
+        if lines is not None:                                  # The Difference figure's title
+            _fit_figure_title(fig, lines)
             found = True
     return found
 

@@ -2071,3 +2071,59 @@ def test_fem_animation_is_cancelled_in_the_middle_of_a_stage(win, qtbot):
     win.solver_panel.run.click()
     qtbot.waitUntil(lambda: _is_run(win), timeout=60000)
     assert win._anim_worker is not None and not win._anim_worker.isRunning()
+
+
+def test_difference_view_every_pair_resize_layer_readouts_clear_and_themes(win, qtbot):
+    """!
+    @brief The Difference view of the Temperature page through every pair of models, every Layer box read-out (a layer, All layers, All 2 x 2, a surface, a metal block),
+           window sizes large and small, a switch off and on, both themes and a clear: nothing raises, the line is one line, the figure holds a title when the map is a difference,
+           and the fields of every model are untouched.
+    @param win MainWindow fixture.
+    @param qtbot Fixture.
+    """
+    from pcbthermal.gui import layerchoice
+    win.resize(1200, 800)
+    load(win, example_board())
+    run(win, qtbot, models=ALL_MODELS, cell=3.0)
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    rv = win.results
+    rv.tabs.setCurrentWidget(rv.temp)
+    t = rv.temp
+    qtbot.wait(50)
+    before = {k: r.T.copy() for k, r in win.sim.results.items() if r.T is not None}
+    keys = [k for k in ALL_MODELS if k in win.sim.results and win.sim.results[k].T is not None]
+    assert len(keys) >= 4
+    t.diff_on.setChecked(True)
+    entries = [0, layerchoice.ALL_LAYERS, layerchoice.ALL_GRID, layerchoice.SURFACE_BASE, layerchoice.SURFACE_BASE + 1, layerchoice.BLOCK_BASE]
+    for shown in keys:
+        t.model.setCurrentIndex(t.model.findData(shown))
+        for ref in keys:
+            t.diff_ref.setCurrentIndex(t.diff_ref.findData(ref))
+            qtbot.wait(5)
+            assert t.diff_note.max_lines == 1 and "\n" not in t.diff_note.text()
+        for data in entries:
+            i = win.layer_combo.findData(data)
+            if i >= 0:
+                win._pick_combo_entry(i)
+            qtbot.wait(5)
+            assert t.diff_note.max_lines == 1 and "\n" not in t.diff_note.text()
+            assert (t.fig._suptitle is not None and " − " in t.fig._suptitle.get_text()) or not t.diff_note.isVisible() or t.diff_note.text().startswith(("Difference not shown", "The Difference shows"))
+    for w, h in ((1600, 1000), (900, 700), (1200, 800), (700, 600)):          # Large, then shrunk, as a user drags the window
+        win.resize(w, h)
+        qtbot.wait(30)
+        if t.fig._suptitle is not None and t.diff_on.isChecked() and " − " in t.fig._suptitle.get_text():
+            b = t.fig._suptitle.get_window_extent(t.fig.canvas.get_renderer())
+            assert b.x0 >= -0.5 and b.x1 <= t.fig.bbox.width + 0.5
+    for _ in range(2):
+        win.toggle_theme()
+        qtbot.wait(20)
+        t.diff_on.setChecked(False)
+        t.diff_on.setChecked(True)
+        qtbot.wait(20)
+    rv.clear()                                                       # A board change: no run belongs to it
+    win.toggle_theme()                                               # The covered page still repaints in the other theme without an error
+    qtbot.wait(20)
+    assert rv.sim is None
+    for k, r in win.sim.results.items():
+        if r.T is not None:
+            assert np.array_equal(r.T, before[k]), k

@@ -7,8 +7,8 @@
          fields are read with the SAME read-out (the column mean of a layer, or the surface of the outer copper) and mixing two read-outs is refused. Models on
          different grids (a cell field and a node field, or two cell sizes) are resampled onto the grid of the reference by bilinear interpolation on the sample
          positions (`resample`), exact for a linear field; the note says so. No GUI imports here: the module is tested without a window.
-         The expected-agreement statements (`expected_agreement`) are numbers taken from the tables of `docs/validation.md` sections 1 and 2 (the hottest point
-         of 20 scenarios against the FVM, which the Lumped and Analytic constants were fitted to); a pair without a documented measurement says nothing.
+         The expected-agreement line (`expected_agreement`) uses numbers taken from the tables of `docs/validation.md` sections 1 and 2 (the hottest point
+         of 20 scenarios against the FVM, which the Lumped and Analytic constants were fitted to) and 56.1 (the FEM); a pair without a documented measurement says nothing.
 """
 
 from dataclasses import dataclass, field as dc_field
@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from .numfmt import signed_fixed
 from .results import SteadyResult, model_label
 
 COLUMN = "column"                # Read-out: the mean of the layer's column (the headline of every model)
@@ -246,21 +247,34 @@ def readout_name(readout, layer, face=0):
 
 
 # What is documented about the size of the difference between two models. Every row: (model, reference) -> (what, evidence). The numbers are those of the
-# 20 scenarios of docs/validation.md section 2 (hottest point, share of the rise above ambient, the FVM as reference); tests/test_compare.py recomputes them
-# from that table, so a number here that the table does not hold fails. Pairs that are not here have no documented measurement and say nothing (the FEM waits
-# for the comparison campaign of 2.9.0).
+# 20 scenarios of docs/validation.md section 2 (hottest point, share of the rise above ambient, the FVM as reference), and for the FEM those of the 16 boards of
+# section 56.1 (1 mm cell, peak); tests/test_compare.py recomputes them from those tables, so a number here that a table does not hold fails. Pairs that are
+# not here have no documented measurement and say nothing.
 @dataclass(frozen=True)
 class Tip:
     """!
     @brief One documented statement about the expected size of a difference.
     """
-    text: str            # The sentence the view shows
+    text: str            # The sentence the tooltip shows (the model, what was measured and how many cases)
     evidence: str        # Where it comes from (a section of docs/validation.md)
-    lo: float            # Lowest value of the range quoted, percent of the rise
-    hi: float            # Highest value of the range quoted, percent of the rise
-    n: int               # Scenarios of the range
-    n_all: int           # Scenarios of the table
-    outliers: Tuple[Tuple[str, float], ...]   # (scenario, percent) that the range leaves out
+    lo: float            # Lowest value of the range quoted, percent of the rise of the reference
+    hi: float            # Highest value of the range quoted, percent of the rise of the reference
+    n: int               # Cases of the range
+    n_all: int           # Cases of the table
+    outliers: Tuple[Tuple[str, float], ...]   # (case, percent) that the range leaves out
+
+
+@dataclass(frozen=True)
+class Agreement:
+    """!
+    @brief What the Difference view says about the size of a difference: the verdict line, its tooltip and whether the gap is outside the usual range.
+    """
+    line: str            # One line, the verdict first (the label under the controls)
+    tooltip: str         # The range, the cases, the cases outside, the evidence and the sentence that the number is the hottest point
+    outside: bool        # True when the hottest-point difference is outside the usual range (the view draws the line in the warning colour)
+
+
+DOCUMENTED_CELL_MM = 1.0      # The cell of the tables the ranges come from (validation section 2 and 56.1 are at 1 mm)
 
 
 EXPECTED = {
@@ -272,20 +286,45 @@ EXPECTED = {
                            "sections 1 and 2", -5.4, 8.4, 19, 20, (("a copper edge across the heater", -27.9),)),
     ("solid3d", "fvm"): Tip("3D solid: the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} scenarios (a comparison model of the program, not an independent reference)",
                             "section 2", -0.3, 0.9, 20, 20, ()),
+    # Validation 56.1 gives the FVM against the FEM; the view subtracts the other way and as a share of the rise of the reference (the FVM), so the range is
+    # recomputed from the peaks of that table: (FEM / FVM - 1) over the 16 boards without a drawn feature and without the skipped round outline, 1 mm cell
+    ("fem", "fvm"): Tip("FEM: the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} boards of the suite at a 1 mm cell (the three drawn boards and the round outline, which the FEM does not run, are not in the range)",
+                        "section 56.1", -2.7, 0.3, 16, 16, ()),
 }
 
 
-def expected_agreement(model, reference):
+def _outcome(pct, tip):
     """!
-    @brief What the documents measured about the size of the difference of a pair of models (the confidence tip).
+    @brief Whether a hottest-point difference is inside the documented range of a pair.
+    @param pct Difference of the hottest points, percent of the rise of the reference.
+    @param tip The Tip of the pair.
+    @return True when the value as shown (one decimal) lies between the quoted lowest and highest.
+    """
+    return tip.lo <= round(float(pct), 1) <= tip.hi
+
+
+def expected_agreement(model, reference, peak_k, peak_pct, cell_mm=None):
+    """!
+    @brief What the documents measured about the size of the difference of a pair of models, set against the difference at hand (the verdict line).
     @param model Key of the model shown.
     @param reference Key of the reference.
-    @return List of sentences (empty when nothing is documented for the pair: then the view says nothing), the last one naming the evidence.
+    @param peak_k Tmax(model) - Tmax(reference), K (the hottest points).
+    @param peak_pct The same as a share of the rise of the reference, percent.
+    @param cell_mm Cell size of the run, mm (None: not stated); the ranges were measured with `DOCUMENTED_CELL_MM` cells and the tooltip says so when the run's cell differs.
+    @return Agreement (line, tooltip, outside), or None when nothing is documented for the pair: then the view says nothing.
     """
     tip = EXPECTED.get((model, reference))
     if tip is None:
-        return []
+        return None
+    outside = not _outcome(peak_pct, tip)
+    head = "Outside the usual range for the" if outside else "Usual for the"
+    line = (f"{head} {model_label(model)}: hottest point {signed_fixed(peak_k, 1)} K, {signed_fixed(peak_pct, 1)} % of the rise "
+            f"(usual {tip.lo:+.1f} to {tip.hi:+.1f} %)")
     body = tip.text.format(lo=tip.lo, hi=tip.hi, n=tip.n, n_all=tip.n_all)
     if tip.outliers:
         body += "; outside it: " + ", ".join(f"{what} {pct:+.1f} %" for what, pct in tip.outliers)
-    return [body, f"The ranges are for the hottest point, not for every point of the map (docs/validation.md, {tip.evidence})"]
+    tooltip = f"{line}.\n{body}.\nEvidence: docs/validation.md {tip.evidence}.\n"
+    if cell_mm is not None and abs(cell_mm - DOCUMENTED_CELL_MM) > 1e-6:
+        tooltip += (f"The ranges were measured with {DOCUMENTED_CELL_MM:g} mm cells; this run used {cell_mm:.3g} mm, where the gap between the models can be larger or smaller.\n")
+    tooltip += "Measured at the hottest point; the map can differ more around the parts."
+    return Agreement(line, tooltip, outside)

@@ -155,13 +155,31 @@ def _scenario_table():
     return cols
 
 
+def _fem_table():
+    """!
+    @brief The peak table of docs/validation.md 56.1 as {board: (FVM rise, FEM rise)} for the boards that have both (the FEM skips the round outline).
+    @return dict.
+    """
+    text = open(os.path.join(ROOT, "docs", "validation.md"), encoding="utf-8").read()
+    sec = text.split("### 56.1 Every board, every model (peak and part mean)", 1)[1].split("Part mean under the first part", 1)[0]
+    out = {}
+    for line in sec.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 7 and re.match(r"[-\d.]+ \(", cells[1]) and re.match(r"[\d.]+$", cells[6]):
+            out[cells[0]] = (float(cells[1].split()[0]), float(cells[6]))
+    return out
+
+
 def test_every_documented_range_is_what_the_validation_table_prints():
     """!
-    @brief The ranges of `compare.EXPECTED` are recomputed from the 20 scenarios of docs/validation.md section 2: the range, the count inside it and each outlier.
+    @brief The ranges of `compare.EXPECTED` are recomputed from the 20 scenarios of docs/validation.md section 2 (the FEM row: from the 16 boards of 56.1): the range,
+           the count inside it and each outlier.
     """
     cols = _scenario_table()
     for (model, ref), tip in compare.EXPECTED.items():
         assert ref == "fvm"
+        if model == "fem":
+            continue
         vals = cols[model]
         assert len(vals) == tip.n_all == 20
         outliers = {round(v, 1) for _what, v in tip.outliers}
@@ -172,9 +190,57 @@ def test_every_documented_range_is_what_the_validation_table_prints():
             assert any(abs(x - v) < 1e-9 for x in vals), (model, v)
 
 
-def test_a_pair_without_documented_evidence_says_nothing():
+def test_the_fem_row_is_what_validation_56_1_prints():
     """!
-    @brief The FEM and any pair whose reference is not the FVM have no statement: where the evidence is thin the view is silent.
+    @brief FEM - FVM, the view's convention (the share of the rise of the reference, the FVM): recomputed from the peaks of the 56.1 table on the boards without a drawn
+           feature (`drawn_*`) and with a FEM value, the range is -2.7 to +0.3 % on 16 boards; the validation text gives the FVM against the FEM as -0.3 to +2.7 %.
     """
-    assert compare.expected_agreement("fem", "fvm") == [] and compare.expected_agreement("lumped", "analytic") == []
-    assert compare.expected_agreement("lumped", "fvm")[-1].endswith("sections 1 and 2)")
+    rows = _fem_table()
+    boards = {b: v for b, v in rows.items() if not b.startswith("drawn_")}
+    shares = [100.0 * (fem / fvm - 1.0) for fvm, fem in boards.values()]
+    tip = compare.EXPECTED[("fem", "fvm")]
+    assert len(shares) == tip.n == tip.n_all == 16
+    assert (round(min(shares), 1), round(max(shares), 1)) == (tip.lo, tip.hi)
+    assert "section 56.1" in tip.evidence
+    text = open(os.path.join(ROOT, "docs", "validation.md"), encoding="utf-8").read()
+    assert "| without the three drawn boards | 1 | FVM | peak | 16 | 0.86 | 2.74 (one_layer_pad) | -0.3 to +2.7 |" in text   # The summary row the range converts
+
+
+def test_the_verdict_is_usual_inside_the_range_and_outside_it_says_so():
+    """!
+    @brief The line begins with the verdict; the flag is on only outside the documented range (judged on the value as shown, one decimal); the tooltip holds the range,
+           the cases, the cases outside, the evidence and the sentence that the number is the hottest point.
+    """
+    inside = compare.expected_agreement("lumped", "fvm", 1.4, 2.4)
+    assert inside.line == "Usual for the LPTN: hottest point +1.4 K, +2.4 % of the rise (usual -5.4 to +8.4 %)" and not inside.outside
+    assert "19 of 20 scenarios" in inside.tooltip and "a copper edge across the heater -27.9 %" in inside.tooltip
+    assert "docs/validation.md sections 1 and 2" in inside.tooltip and inside.tooltip.endswith("the map can differ more around the parts.")
+    assert not compare.expected_agreement("lumped", "fvm", 5.0, 8.4).outside and not compare.expected_agreement("lumped", "fvm", -3.0, -5.4).outside
+    out = compare.expected_agreement("lumped", "fvm", 17.0, 27.9)
+    assert out.outside and out.line.startswith("Outside the usual range for the LPTN: hottest point +17.0 K, +27.9 % of the rise")
+    assert compare.expected_agreement("lumped", "fvm", -3.0, -5.5).outside                 # Below the lowest of the range
+    fdm = compare.expected_agreement("fdm", "fvm", -0.1, -0.1)
+    assert fdm.line == "Usual for the FDM: hottest point -0.1 K, -0.1 % of the rise (usual -0.5 to +0.0 %)" and not fdm.outside
+    assert compare.expected_agreement("fdm", "fvm", 0.6, 0.5).outside
+    ana = compare.expected_agreement("analytic", "fvm", -0.7, -1.1)
+    assert ana.line.startswith("Usual for the Analytic: hottest point -0.7 K, -1.1 % of the rise (usual -1.8 to +0.3 %)")
+    fem = compare.expected_agreement("fem", "fvm", -1.0, -1.6)
+    assert fem.line == "Usual for the FEM: hottest point -1.0 K, -1.6 % of the rise (usual -2.7 to +0.3 %)" and not fem.outside and "section 56.1" in fem.tooltip
+
+
+def test_a_pair_without_documented_evidence_has_no_line():
+    """!
+    @brief Any pair whose reference is not the FVM, and a model that is not in the table, have no line: where the evidence is thin the view is silent.
+    """
+    assert compare.expected_agreement("lumped", "analytic", 1.0, 1.0) is None and compare.expected_agreement("fvm", "fvm", 0.0, 0.0) is None
+    assert compare.expected_agreement("fvm", "fem", 1.0, 1.0) is None
+    assert compare.expected_agreement("lumped", "fvm", 1.0, 1.0).tooltip.count("sections 1 and 2") == 1
+
+
+def test_the_tooltip_says_when_the_run_is_not_at_the_cell_of_the_tables():
+    """!
+    @brief The ranges were measured with 1 mm cells: a run at another cell gets that sentence in the tooltip, a run at 1 mm or one that does not say gets none.
+    """
+    assert "measured with 1 mm cells; this run used 2 mm" in compare.expected_agreement("fdm", "fvm", -0.9, -1.1, 2.0).tooltip
+    assert "measured with 1 mm cells" not in compare.expected_agreement("fdm", "fvm", -0.1, -0.1, 1.0).tooltip
+    assert "measured with 1 mm cells" not in compare.expected_agreement("fdm", "fvm", -0.1, -0.1).tooltip

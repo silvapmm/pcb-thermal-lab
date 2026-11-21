@@ -8,6 +8,7 @@ Usage: python examples/make_screenshots.py [output_folder]   (default: docs/imag
        python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences; light pictures plus the `_dark` pairs used by the help)
        python examples/make_screenshots.py --surface [output_folder]   (the surface read-out of thick copper: the map of Surface (top) and the Components table)
        python examples/make_screenshots.py --views <rp2040 gerber folder> [output_folder]   (the 2.5.1 views: layer grid, Smooth, Terrain, copper underlay, temperature on the board, background image, re-import warning)
+       python examples/make_screenshots.py --difference [output_folder]   (the Difference view: LPTN minus FVM on the example board, light theme)
        python examples/make_screenshots.py --manual [output_folder]   (the manual_*.png pictures of the user manual: numbered window, start window, dialogs)
 """
 
@@ -47,7 +48,7 @@ def _assert_neutral(path):
         raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
 
 
-FULL_COLOUR = ("editor", "simulation_", "results_summary")      # File-name prefixes saved without the 256-colour quantisation (the verdict and warning dots must stay distinct)
+FULL_COLOUR = ("editor", "simulation_", "results_summary", "results_difference")      # File-name prefixes saved without the 256-colour quantisation (the verdict and warning dots must stay distinct)
 
 
 def shrink(path, max_width=1400):
@@ -645,6 +646,39 @@ def main_fem(out_dir):
     return [path1, path2]
 
 
+def main_difference(out_dir):
+    """!
+    @brief Screenshot of the Difference view: the example board in four models at the 1 mm cell of the validation tables, LPTN minus FVM on the Temperature page, light theme.
+    @param out_dir Folder that receives results_difference.png (only this picture).
+    @return List of written file paths.
+    """
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots_difference.ini"), QSettings.IniFormat)
+    settings.setValue("theme", "light")                                         # The README picture is in the light theme
+    win = MainWindow(settings=settings)
+    win._load_problem(example_board(), "example-board")
+    win.resize(1600, 1000)
+    win.show()
+    app.processEvents()
+    win.resizeDocks([win.dock_board, win.dock_sim], [300, 330], Qt.Horizontal)
+    win.doc.set_options(models=("fvm", "lumped", "analytic", "fdm"), cell_mm=1.0)       # The Models box shows what ran
+    win._on_done(simulate(win.doc.problem, win.doc.options))
+    win.tabs.setCurrentIndex(TAB_RESULTS)
+    win.results.tabs.setCurrentWidget(win.results.temp)
+    temp = win.results.temp
+    temp.model.setCurrentIndex(temp.model.findData("lumped"))
+    temp.diff_on.setChecked(True)                                               # The reference is the FVM by default
+    app.processEvents()
+    path = os.path.join(out_dir, "results_difference.png")
+    win.grab().save(path)
+    shrink(path)
+    win.doc.stack.setClean()
+    win.close()
+    return [path]
+
+
 def _number_marks(pixmap, marks, radius=22):
     """!
     @brief Draw numbered round marks on a screenshot (the numbers of the legend that follows the figure in the user manual).
@@ -779,6 +813,10 @@ def main_manual(out_dir):
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--manual":
         for f in main_manual(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
+            print(f)
+        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] == "--difference":
+        for f in main_difference(sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
             print(f)
         sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "--fem":
