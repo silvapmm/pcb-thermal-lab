@@ -13,6 +13,20 @@ Platforms: the whole test battery runs on macOS only. The Windows and Linux evid
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
 
+## Documentation and downloads
+
+| | |
+| :-- | :-- |
+| **Download the program** | [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases): packages for Windows, macOS (Apple silicon) and Linux, no Python needed (see [Download](#download)) |
+| **User manual** | [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md): installation, a tour of the window with numbered screenshots, tutorials, every setting, the results, the command line. The PDF, [`PCB-Thermal-Lab-User-Manual.pdf`](https://github.com/silvapmm/pcb-thermal-lab/releases/latest/download/PCB-Thermal-Lab-User-Manual.pdf), is attached to each release |
+| **In the program** | **Help - User guide** (`F1`), the same text as [`pcbthermal/help/index.html`](pcbthermal/help/index.html) |
+| **What changed** | [`CHANGELOG.md`](CHANGELOG.md) (release notes), [`docs/versions.md`](docs/versions.md) (every version, how it was tested, what is planned) |
+| **How it works** | [`docs/models.md`](docs/models.md) (the models and which to use), [`docs/theory.md`](docs/theory.md) (every equation and approximation), [`docs/calculators.md`](docs/calculators.md) (the Power Calculator) |
+| **How far to trust it** | [`docs/validation.md`](docs/validation.md): the same scenarios in every model, against independent solutions |
+| **Examples** | [`examples/`](examples) (example boards, power profiles from CSV files in [`examples/csv_profiles`](examples/csv_profiles)) |
+| **Questions, bugs, files from your CAD tool** | [Issues](https://github.com/silvapmm/pcb-thermal-lab/issues) |
+| **Licence** | MIT, [`LICENSE`](LICENSE) (see "Author and license" below) |
+
 ## Features
 
 **Modelling**

@@ -13,6 +13,7 @@ import pytest
 
 import pcbthermal
 from tools.manual import build_manual_pdf as builder
+from tools.manual import callouts
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MANUAL = ROOT / "docs" / "USER_MANUAL.md"
@@ -52,6 +53,35 @@ def test_every_figure_exists_and_is_numbered_in_order():
     # Every 'Figure N' quoted in the text names a figure that exists
     quoted = {int(x) for x in re.findall(r"Figure (\d+)", _text())}
     assert quoted <= set(numbers)
+
+
+def test_every_annotated_picture_has_a_list_with_one_item_per_box():
+    # A picture made by tools/manual/callouts.py stores its number of boxes; the numbered list under its caption must have as many items,
+    # numbered 1, 2, 3, ... (the picture and the list come from one source, examples/make_manual_callouts.py, and must not drift apart)
+    lines = _text().splitlines()
+    checked = 0
+    for k, line in enumerate(lines):
+        m = re.match(r"^!\[[^\]]*\]\((images/[^)]+_callouts\.png)\)$", line.strip())
+        if not m:
+            continue
+        boxes = callouts.count_in_png(str(MANUAL.parent / m.group(1)))
+        assert boxes, f"{m.group(1)} carries no box count: draw it with tools/manual/callouts.py"
+        j = k + 1
+        while j < len(lines) and not lines[j].startswith("*Figure"):       # the caption, then a blank line, then the list
+            j += 1
+        while j < len(lines) and lines[j].strip():                          # the caption may take several lines
+            j += 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        numbers = []
+        while j < len(lines) and (re.match(r"^\d+\. ", lines[j]) or lines[j].startswith("   ")):
+            n = re.match(r"^(\d+)\. ", lines[j])
+            if n:
+                numbers.append(int(n.group(1)))
+            j += 1
+        assert numbers == list(range(1, boxes + 1)), f"{m.group(1)}: {boxes} boxes, list numbered {numbers}"
+        checked += 1
+    assert checked >= 10                                    # the tour, the tool bar, the Results pages, the settings, the stack-up and the import steps
 
 
 def test_manual_has_no_personal_path_and_the_readme_links_it():
