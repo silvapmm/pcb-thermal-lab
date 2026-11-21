@@ -19,7 +19,7 @@ The screenshots of an imported board show the RP2040 minimal design (Raspberry P
 BSD-3-Clause licence), imported from its Gerber files. Many screenshots carry **red numbered boxes**: each box marks a control or an area of the
 window, and the numbered list under the picture says what it is. The numbers in the picture and in the
 list come from the same source (`examples/make_manual_callouts.py`), so they always match. Every window screenshot was taken with version 2.9.0 (the
-status bar shows it).
+status bar shows it where the picture keeps its right end).
 
 Features marked "since 2.9.0" are new in this version.
 
@@ -923,9 +923,12 @@ surface appended), the hotspot table and the chart of the parts. The red numbers
 1. **Reference line**: names the model of every number of the page (the FVM when it ran, otherwise
    the first model that ran).
 2. **Heaters**: power, mean and maximum board temperature under the part (column), the junction
-   temperature, the margin to Tj max, the power limit and the top-path power.
-3. **Zones**: Mean, Max and Min of the column read-out of each zone.
-4. **Hotspots**: Tmax (column) at the hot-spot point, its position and the area.
+   temperature, the margin to Tj max, the power limit, the top-path power and the maximum on the
+   surface (an estimate on most models).
+3. **Zones**: Mean, Max and Min of the column read-out of each zone, and its Max on the surface (n/a
+   on an inner layer).
+4. **Hotspots**: Tmax (column) at the hot-spot point, its position, the area and Tmax on the surface
+   ('none above limit' when no area passes the Hotspot limit).
 5. **Chart of the parts**: the mean and the maximum board temperature under each heater (column) and
    its junction temperature.
 
@@ -1245,8 +1248,8 @@ statistics…** button. The red numbers match the list below.*
 3. **Difference to** and its reference box (the FVM at the start). An item that cannot be used is
    greyed and its tooltip says why.
 4. **Verdict line**: whether the difference of the hottest points is usual for this pair of models
-   (judged at the 1 mm cell of the validation); in the warning colour when a choice cannot give a
-   difference.
+   (judged at the 1 mm cell of the validation); in the warning colour when the gap is outside the
+   usual range or a choice cannot give a difference.
 5. **Export statistics…**: writes the numbers of the view (largest and smallest difference with
    their positions, mean, RMS, the verdict) to a small CSV file.
 6. **The difference map**: model minus reference in K, white at zero, red where the model is hotter,

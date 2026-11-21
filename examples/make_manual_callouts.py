@@ -68,6 +68,21 @@ def find(root, cls_name, text):
     raise LookupError(f"no {cls_name} with the text {text!r} under {root}")
 
 
+def group(root, title):
+    """!
+    @brief The visible group box of a widget whose title starts with `title` (the order of `findChildren` is not the order on the screen,
+           and a hidden group box can come first).
+    @param root Widget to search.
+    @param title Beginning of the title of the group box.
+    @return The QGroupBox.
+    @throws LookupError If none is found.
+    """
+    for w in root.findChildren(QGroupBox):
+        if w.isVisibleTo(root.window()) and w.title().startswith(title):
+            return w
+    raise LookupError(f"no group box titled {title!r} under {root}")
+
+
 def first(root, cls_name):
     """!
     @brief The first visible descendant of a widget whose Python class has the given name.
@@ -155,7 +170,7 @@ def scenes_main(app, win, save):
 
     # 1. The tour of the window (chapter 3.1): the same nine areas and the same list as before, now boxes
     save(win, "window_tour", [
-        Callout(win.menuBar(), "**Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in the menu bar at the top of the screen."),
+        Callout(win.menuBar(), "**Menu bar**: File, Edit, View, Simulation and Help (section 3.2). On macOS the menus are in the menu bar at the top of the screen.", badge_left=True),
         Callout(win.toolbar, "**Tool bar**: the drawing tools, polygon mode, the Layer box, the Map and Display buttons, snap, fit, the grids and Run (section 3.3)."),
         Callout(win.dock_board, "**Board settings** dock: size, board outline and environment (section 3.4)."),
         Callout(win.dock_elements, "**Elements** dock: the list of every zone, heater, heatsink and via, with a filter field (section 3.5)."),
@@ -180,7 +195,7 @@ def scenes_main(app, win, save):
         Callout(tool_widget(win, win.a_fit), "**Fit board** (`Ctrl+0`): zoom to the whole board."),
         Callout(tool_widget(win, win.a_grid, win.a_sgrid), "**Grid** (`G`) and **Solver grid** (`Shift+G`): the drawing grid and the cells the solver will use."),
         Callout(tool_widget(win, win.a_run), "**Run** (`F5`): runs the selected models; while a calculation runs it reads Stop."),
-    ], region=strip, zoom=1.6)
+    ], region=strip, zoom=1.6, pad_top=26)              # room above the strip: each badge sits over its own control
 
 
 def scenes_results(app, win, save):
@@ -238,7 +253,7 @@ def scenes_results(app, win, save):
         Callout(win.layer_combo, "**Layer**: decides what is compared. A copper layer compares the column mean of that layer in both models; Surface (top) or Surface (bottom) compares the surface read-out."),
         Callout(union(find(t, "QLabel", "Model"), t.model), "**Model**: the model to look at (here the LPTN)."),
         Callout(union(t.diff_on, t.diff_ref), "**Difference to** and its reference box (the FVM at the start). An item that cannot be used is greyed and its tooltip says why."),
-        Callout(t.diff_note, "**Verdict line**: whether the difference of the hottest points is usual for this pair of models (judged at the 1 mm cell of the validation); in the warning colour when a choice cannot give a difference."),
+        Callout(t.diff_note, "**Verdict line**: whether the difference of the hottest points is usual for this pair of models (judged at the 1 mm cell of the validation); in the warning colour when the gap is outside the usual range or a choice cannot give a difference."),
         Callout(t.diff_export, "**Export statistics…**: writes the numbers of the view (largest and smallest difference with their positions, mean, RMS, the verdict) to a small CSV file."),
         Callout(t.canvas, "**The difference map**: model minus reference in K, white at zero, red where the model is hotter, blue where it is cooler; the red ring marks the largest difference and the blue ring the smallest."),
     ])
@@ -263,9 +278,9 @@ def scenes_results(app, win, save):
     app.processEvents()
     save(win, "results_components", [
         Callout(res.reference_line, "**Reference line**: names the model of every number of the page (the FVM when it ran, otherwise the first model that ran)."),
-        Callout(res.heater_table, "**Heaters**: power, mean and maximum board temperature under the part (column), the junction temperature, the margin to Tj max, the power limit and the top-path power."),
-        Callout(res.zone_table, "**Zones**: Mean, Max and Min of the column read-out of each zone."),
-        Callout(res.hot_table, "**Hotspots**: Tmax (column) at the hot-spot point, its position and the area."),
+        Callout(res.heater_table, "**Heaters**: power, mean and maximum board temperature under the part (column), the junction temperature, the margin to Tj max, the power limit, the top-path power and the maximum on the surface (an estimate on most models)."),
+        Callout(res.zone_table, "**Zones**: Mean, Max and Min of the column read-out of each zone, and its Max on the surface (n/a on an inner layer)."),
+        Callout(res.hot_table, "**Hotspots**: Tmax (column) at the hot-spot point, its position, the area and Tmax on the surface ('none above limit' when no area passes the Hotspot limit)."),
         Callout(res.comp_canvas, "**Chart of the parts**: the mean and the maximum board temperature under each heater (column) and its junction temperature."),
     ])
 
@@ -316,7 +331,7 @@ def scene_settings(app, win, save):
     win.dock_sim.resize(win.dock_sim.width(), win.dock_sim.height())
     app.processEvents()
     save(win, "simulation_settings", [
-        Callout(sp.run, "**Run simulation** (`F5`). It becomes **Stop** while any calculation runs."),
+        Callout(sp.run, "**Run simulation** (`F5`). It becomes **Stop** while any calculation runs.", badge_inside=True),
         Callout(sp.status, "**Status line**: the result of the last run (for example the hottest point and Rθ), or why a run was cancelled, failed or cannot start."),
         Callout(union(find(sp, "QCheckBox", "Finite volume"), find(sp, "QCheckBox", "Thermal network"), find(sp, "QCheckBox", "Analytical")), "**The three main models** (FVM, LPTN, Analytic), ticked by default."),
         Callout(union(find(sp, "QCheckBox", "Finite difference"), find(sp, "QCheckBox", "3D solid"), find(sp, "QCheckBox", "Finite elements")), "**The three cross-check models** (FDM, 3D solid, FEM), off by default (ticked here, for the pictures of the Results pages); a thin line separates them from the main ones."),
@@ -351,11 +366,11 @@ def scenes_stackup(app, win, save):
         Callout(sp.mode, "**Stack-up** list: Simple (equal layers, one FR-4) or Advanced (each layer on its own)."),
         Callout(sp.typical, "**Load typical stack-up**: the typical build for the layer count."),
         Callout(sp.inner_oz, "**Inner copper of the typical stack-up**: 0.5 oz (the default) or 1 oz, for 3 or more layers."),
-        Callout(union(sp.unit, sp.scale), "**Units** (µm, mm or both) and **Scale** (Readable, with thin layers enlarged, or True proportions)."),
+        Callout(union(find(sp, "QLabel", "Units"), sp.unit, sp.scale), "**Units** (µm, mm or both) and **Scale** (Readable, with thin layers enlarged, or True proportions)."),
         Callout(sp.view, "**Cross-section** of the board, drawn to the Scale chosen; click a layer to see its thickness, conductivities, density and specific heat in the line under it."),
         Callout(first(sp, "StackupEditor"), "**Layer table** (advanced stack-up): the thickness of each copper layer and of each dielectric gap, its material and its conductivities through and in the plane."),
         Callout(win.board_panel.materials_box, "**Materials**: the conductivity of copper and the via plating thickness."),
-    ])
+    ], region=QRect(0, 0, win.dock_sim.x(), win.height()))    # as the Results pages: the Simulation settings dock has its own picture
 
 
 def scenes_import(app, board_dir, save):
@@ -391,13 +406,12 @@ def scenes_import(app, board_dir, save):
     dlg.page1.source.setText("rp2040/gerber")                # Display only: the path of the copy is a temporary folder of this machine
     app.processEvents()
     p1 = dlg.page1
-    boxes1 = p1.findChildren(QGroupBox)
     save(dlg, "import_step1", [
         Callout(dlg.stepper, "**Stepper**: the three steps, Files and layers, Parts and Model; click a step to go to it."),
         Callout(union(find(p1, "QLabel", "Folder, ZIP"), p1.source, find(p1, "QPushButton", "Folder"), find(p1, "QPushButton", "ZIP"), find(p1, "QPushButton", "Files")), "**Source**: a folder, a ZIP archive (read in memory, never extracted to disk) or files one by one; or type a path and press `Enter`."),
         Callout(p1.table, "**Files**: every file with the function detected from its X2 attributes, its Excellon header or its name; the function is a list you can change and the Use box leaves a file out."),
         Callout(union(p1.tool_label, p1.tool_pick), "**CAD tool** that wrote the files; it only gives better defaults for the file-name rules."),
-        Callout(boxes1[1], "**Board** box: the copper layers and the typical stack-up for that count, the outline (size and area) and the drills."),
+        Callout(group(p1, "Board"), "**Board** box: the copper layers and the typical stack-up for that count, the outline (size and area) and the drills."),
         Callout(union(p1.layer_pick, p1.preview), "**Preview** of the selected copper layer, the outline and the holes. The wheel zooms, a drag pans, a double click shows the whole board."),
         Callout(union(dlg.early_btn, dlg.back_btn, dlg.next_btn), "**Import now**, **Back** and **Next**: Import now imports with the defaults of the later steps."),
     ])
@@ -415,9 +429,9 @@ def scenes_import(app, board_dir, save):
             p2.table.scrollToItem(p2.table.item(r, 1))
     app.processEvents()
     save(dlg, "import_step2", [
-        Callout(p2.info, "**Count of parts** and how they were found (matched by position, paste only, placement only)."),
+        Callout(p2.info, "**Count of parts** and how they were found (matched by position, paste only, placement only).", badge_inside=True),
         Callout(p2.table, "**Parts table**: the Source column says how each part was found; tick **Heat source** and give a **Power** in W, a **Tj max** and a **Role**."),
-        Callout(p2.findChildren(QGroupBox)[0], "**Shape** of the heat source of the selected part: the exposed pad or tab, the convex hull of the paste openings or the bounding box; the line under the choices says what was found for the part."),
+        Callout(group(p2, "Shape of the heat source"), "**Shape** of the heat source of the selected part: the exposed pad or tab, the convex hull of the paste openings or the bounding box; the line under the choices says what was found for the part."),
         Callout(union(find(p2, "QPushButton", "Make selected"), find(p2, "QPushButton", "All parts with"), find(p2, "QPushButton", "All matched")), "**Make selected a heat source**, **All parts with a power** and **All matched parts**: tick the parts in one step."),
         Callout(union(p2.side, p2.preview), "**Preview** with the designators and the holes: white squares are matched paste openings, red ones match no part; the pad outline of the selected part is dashed."),
         Callout(p2.warn, "**Matching findings**: a placement file that does not fit, parts matched by position, differences between the X3 layer and the placement."),
@@ -426,12 +440,11 @@ def scenes_import(app, board_dir, save):
     dlg.go(2)
     p3 = dlg.page3
     app.processEvents()
-    boxes3 = p3.findChildren(QGroupBox)
     save(dlg, "import_step3", [
-        Callout(boxes3[0], "**Copper mapping**: the flow-based faces (recommended); *Advanced* holds the older mappings, kept for comparison."),
-        Callout(boxes3[1], "**Mask pixel** and **Cell size**, each with an **Auto** button (the pixel is the thinnest line of the files and at most a tenth of the cell)."),
+        Callout(group(p3, "Copper mapping"), "**Copper mapping**: the flow-based faces (recommended); *Advanced* holds the older mappings, kept for comparison."),
+        Callout(group(p3, "Pixel, cell and memory"), "**Mask pixel** and **Cell size**, each with an **Auto** button (the pixel is the thinnest line of the files and at most a tenth of the cell)."),
         Callout(p3.mem, "**Memory verdict**: comes before anything is drawn."),
-        Callout(boxes3[2], "**Board** of the new project: the copper layers, **Vias up to** (the largest plated hole that is a via) and the project name."),
+        Callout(group(p3, "Layers and vias"), "**Board** of the new project: the copper layers, **Vias up to** (the largest plated hole that is a via) and the project name."),
         Callout(lambda root: _warnings_rect(root, p3), "**Warnings** (the import still runs): what the LPTN and Analytic do with imported copper, a coarse cell or pixel, and where a Gerber job file disagrees with the file list."),
         Callout(p3.preview, "**Preview** of the solver grid of the cell chosen on the left."),
     ])
