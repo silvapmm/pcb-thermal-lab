@@ -123,15 +123,39 @@ def test_hotspot_rows_keep_every_column_value_and_add_the_siblings(sim):
             assert h["t_max"] == pytest.approx(float(r.T[l, i, j]), abs=1e-9)
             outer = l in (0, r.T.shape[0] - 1)
             face = 0 if l == 0 else 1
-            if outer and "T_surface" in r.arrays and np.isfinite(r.arrays["T_surface"][face, i, j]):
-                assert h["t_surface"] == pytest.approx(float(r.arrays["T_surface"][face, i, j]), abs=1e-12)
+            # The surface and the node are the maxima over the hot area (the connected region of the row), independently re-labelled here
+            from scipy import ndimage
+            lab, _n = ndimage.label(r.T[l] > 40.0)
+            region = lab == lab[i, j]
+            if outer and "T_surface" in r.arrays and np.isfinite(r.arrays["T_surface"][face][region]).any():
+                assert h["t_surface"] == pytest.approx(float(np.nanmax(np.where(region, r.arrays["T_surface"][face], np.nan))), abs=1e-12)
+                assert h["t_surface"] >= float(r.arrays["T_surface"][face, i, j]) - 1e-12 if np.isfinite(r.arrays["T_surface"][face, i, j]) else True
                 assert h["surface_kind"] == thickness.surface_kind(r, face)
             else:
                 assert h["t_surface"] is None and h["surface_kind"] is None
             if name == "fem" and outer:
-                assert h["t_point"] == pytest.approx(float(r.arrays["T_point"][face, i, j]), abs=1e-12)
+                assert h["t_point"] == pytest.approx(float(np.nanmax(np.where(region, r.arrays["T_point"][face], np.nan))), abs=1e-12)
             else:
                 assert h["t_point"] is None
+
+
+def test_hotspot_surface_and_node_are_the_hottest_of_the_area_not_of_one_cell(sim):
+    # Review: the first version read the surface and the node in the cell of the column maximum only; a hotter face elsewhere in the same hot area was then hidden behind a
+    # header that says Tmax. A copy of the FEM result gets a hotter surface and node in another cell of the area: the row must report them, and keep its column point.
+    import copy
+    from scipy import ndimage
+    r = copy.deepcopy(sim.results["fem"])
+    base = analysis.hotspots(r, 40.0)[0]
+    lab, _n = ndimage.label(r.T[0] > 40.0)
+    j0 = int(round(base["x_mm"] / 1000.0 / r.dx - 0.5))
+    i0 = int(round(base["y_mm"] / 1000.0 / r.dy - 0.5))
+    ii, jj = np.nonzero(lab == lab[i0, j0])
+    k = next(n for n in range(len(ii)) if (ii[n], jj[n]) != (i0, j0))
+    r.arrays["T_surface"][0, ii[k], jj[k]] = base["t_max"] + 7.0
+    r.arrays["T_point"][0, ii[k], jj[k]] = base["t_max"] + 9.0
+    row = analysis.hotspots(r, 40.0)[0]
+    assert row["t_surface"] == pytest.approx(base["t_max"] + 7.0) and row["t_point"] == pytest.approx(base["t_max"] + 9.0)
+    assert (row["x_mm"], row["y_mm"], row["t_max"]) == (base["x_mm"], base["y_mm"], base["t_max"])
 
 
 def test_hotspot_points_are_the_same_with_and_without_the_new_keys(sim):
@@ -163,7 +187,7 @@ def test_statistics_files(sim, tmp_path):
     sim.save(str(tmp_path), plots=False)
     ref = sim.reference.model
     head, rows = read(tmp_path / f"hotspots_{ref}.csv")
-    assert head == ["model", "rank", "layer", "x_mm", "y_mm", "area_mm2", "T_max_column_c", "T_surface_c", "surface_kind", "T_point_c"]
+    assert head == ["model", "rank", "layer", "x_mm", "y_mm", "area_mm2", "T_max_column_c", "T_max_surface_c", "surface_kind", "T_max_point_c"]
     hs = analysis.hotspots(sim.reference, sim.options.hotspot_c)
     assert len(rows) == len(hs)
     assert float(rows[0][6]) == pytest.approx(hs[0]["t_max"], abs=1e-4)
@@ -201,11 +225,20 @@ def test_difference_statistics_csv(sim, tmp_path):
     assert float(row["max_k"]) == pytest.approx(d.maximum, abs=1e-6) and float(row["min_k"]) == pytest.approx(d.minimum, abs=1e-6)
     assert float(row["rms_k"]) == pytest.approx(d.rms, abs=1e-6) and float(row["mean_k"]) == pytest.approx(d.mean, abs=1e-6)
     assert (float(row["max_x_mm"]), float(row["max_y_mm"])) == pytest.approx(d.where_max, abs=1e-3)
-    assert row["verdict"] == ag.line and int(row["outside_usual_range"]) == int(ag.outside) and float(row["cell_mm"]) == 2.0
-    # An independent recomputation of the numbers from the two fields (the FDM is resampled onto the FVM grid, so compare on the reference points through the library's own sampler)
-    a, b = compare.sample(sim.results["fdm"], compare.COLUMN, 0), compare.sample(sim.results["fvm"], compare.COLUMN, 0)
-    diff, _ = compare.subtract(a, b)
-    assert np.sqrt(np.nanmean(diff ** 2)) == pytest.approx(float(row["rms_k"]), abs=1e-6)
+    # At 2 mm (not the documented 1 mm cell) the view gives no verdict: the line says 'Not judged' and the flag is blank, never a 0 that would read as 'usual' (review)
+    assert row["verdict"] == ag.line and row["verdict"].startswith("Not judged") and row["outside_usual_range"] == "" and float(row["cell_mm"]) == 2.0
+    # An independent recomputation (review: the first version went through the library's own sampler): the FDM node field interpolated bilinearly by SciPy onto the FVM cell centres
+    from scipy.interpolate import RegularGridInterpolator
+    fd, fv = sim.results["fdm"], sim.results["fvm"]
+    xn, yn = fd.coords()
+    xc, yc = fv.coords()
+    Y, X = np.meshgrid(yc, xc, indexing="ij")
+    diff = RegularGridInterpolator((yn, xn), fd.T[0])(np.stack([Y.ravel(), X.ravel()], -1)).reshape(Y.shape) - fv.T[0]
+    assert np.sqrt(np.mean(diff ** 2)) == pytest.approx(float(row["rms_k"]), abs=1e-6)
+    assert float(diff.max()) == pytest.approx(float(row["max_k"]), abs=1e-6) and float(diff.mean()) == pytest.approx(float(row["mean_k"]), abs=1e-6)
+    # At the documented cell the flag is given
+    row1 = compare.statistics_row(d, 1.0, compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, 1.0))
+    assert row1[compare.STATISTICS_HEADER.index("outside_usual_range")] in (0, 1)
 
 
 def test_difference_statistics_surface_and_no_verdict(sim, tmp_path):

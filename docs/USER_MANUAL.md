@@ -824,9 +824,9 @@ Every temperature names its read-out in the header. The zone table is the column
 (*Mean*, *Max*, *Min*) with *Max °C (surface)* appended for the models that have a surface (a
 zone on an inner layer reads *n/a*: it has no outer face). The hotspot table gives *Tmax °C
 (column)* at the hot-spot point, the cell where the column maximum of the area sits, then its
-position and area, then *Tmax °C (surface)* **at the same point** (*n/a* on an inner layer) and,
-when the reference model is the FEM, *Node °C (point)*: the hottest mesh node inside that cell,
-a node value and not a cell mean. Which points are found, and the column values, are the same
+position and area, then *Tmax °C (surface)*, the hottest surface value of the same hot area (*n/a*
+on an inner layer) and, when the reference model is the FEM, *Node °C (point)*: the hottest mesh
+node of that area, a node value and not a cell mean. Which points are found, and the column values, are the same
 with or without these columns. The card of the map on the board reads *max .. °C (column)*.
 
 ![The Components page](images/results_components.png)
@@ -1116,7 +1116,8 @@ Difference is on view) writes the numbers of the view to a small CSV file: one r
 models, the read-out, the layer, the face, the cell of the run, whether a model was interpolated,
 the largest and the smallest difference with their positions (mm), the mean and the RMS (K), the
 difference of the hottest points (K and % of the rise of the reference), the verdict line and
-whether it is outside the usual range (blank when the pair has no documented range). The units
+whether it is outside the usual range (1 or 0; blank when the pair has no documented range and
+when the run is not at the 1 mm cell of the ranges, where the line says *Not judged*). The units
 are in the header names (`max_k`, `max_x_mm`, ...). The command line has no Difference view, so
 `run` writes no such file.
 
@@ -1653,8 +1654,8 @@ Examples: `examples/csv_profiles/profiles/`.
 | :-- | :-- |
 | `report.txt` | The text report: the disclaimer, the table of the models, the read-outs, each heater and zone, every warning in full. |
 | `summary.json` | The machine-readable summary (the version of the program, the models, the parts, the warnings). |
-| `field_<model>.csv` | The temperature field of each model (the column read-out: `layer,x_mm,y_mm,T_c`). |
-| `hotspots_<model>.csv`, `zones_<model>.csv`, `parts_<model>.csv` | The tables of the Components page of the reference model (`<model>` is its key). Every temperature column names its read-out and unit: `T_max_column_c`, `T_surface_c`, `T_point_c` (FEM node); a blank where the model has no such read-out; `surface_kind` says estimate, computed or resolved. |
+| `field_<model>.csv` | The temperature field of each model (the column read-out: `layer,x_mm,y_mm,T_c`). Known defect: the FDM is a field of grid points, but its `x_mm`, `y_mm` here (and in `surface_fdm.csv`) are written as cell centres, half a cell too far; subtract half a cell for the FDM until it is corrected. |
+| `hotspots_<model>.csv`, `zones_<model>.csv`, `parts_<model>.csv` | The tables of the Components page of the reference model (`<model>` is its key). Every temperature column names its read-out and unit: `T_max_column_c`, `T_max_surface_c`, `T_max_point_c` (the hottest FEM node; the surface and the node are the maxima over the hot area or the footprint); a blank where the model has no such read-out; `surface_kind` says estimate, computed or resolved. |
 | `fields_<model>.png` | The maps of each model. |
 | `comparison.png`, `profiles.png` | The comparison of the models and the profiles along a cut. |
 | `parts_by_model.csv` | The part rows of each model, when two or more models ran. |

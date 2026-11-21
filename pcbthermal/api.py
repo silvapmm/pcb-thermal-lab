@@ -457,7 +457,8 @@ class Simulation:
         @brief Write the tables of the Components page of the reference model to CSV files: hotspots, zones and parts, each temperature under the name of its read-out.
         @details One file per table, only when it has rows: `hotspots_<model>.csv`, `zones_<model>.csv`, `parts_<model>.csv` (<model> is the key of the reference model). Every
                  temperature column names its read-out in the header, with its unit: `_column_c` (the layer mean through the copper), `_surface_c` (the outer face of the copper, where
-                 the model has one; blank otherwise) and `_point_c` (the hottest mesh node of the cell, the FEM only). `model` is the first column, `surface_kind` says how the surface
+                 the model has one; blank otherwise) and `_point_c` (the hottest mesh node, the FEM only). In the hotspot and part files the surface and the point are the maxima over the hot
+                 area or the footprint (`T_max_surface_c`, `T_max_point_c`). `model` is the first column, `surface_kind` says how the surface
                  was obtained (estimate, computed, resolved). The hotspot table is the one of the report: the same points, the same column values.
         @param path_of Function name -> path that creates the file name in the output folder and records it (as the local `path` of `save`).
         @return List of the paths written (empty without a reference field).
@@ -473,7 +474,7 @@ class Simulation:
             out.append(p)
             with open(p, "w", newline="", encoding="utf-8") as fh:
                 w = csv.writer(fh)
-                w.writerow(["model", "rank", "layer", "x_mm", "y_mm", "area_mm2", "T_max_column_c", "T_surface_c", "surface_kind", "T_point_c"])
+                w.writerow(["model", "rank", "layer", "x_mm", "y_mm", "area_mm2", "T_max_column_c", "T_max_surface_c", "surface_kind", "T_max_point_c"])
                 for k, h in enumerate(hs):
                     w.writerow([ref.model, k + 1, h["layer"], round(h["x_mm"], 4), round(h["y_mm"], 4), round(h["area_mm2"], 4), round(h["t_max"], 4),
                                 blank(h["t_surface"]), h["surface_kind"] or "", blank(h["t_point"])])
@@ -493,7 +494,7 @@ class Simulation:
             out.append(p)
             with open(p, "w", newline="", encoding="utf-8") as fh:
                 w = csv.writer(fh)
-                w.writerow(["model", "part", "layer", "power_w", "T_mean_column_c", "T_max_column_c", "T_mean_surface_c", "T_max_surface_c", "surface_kind", "T_point_c",
+                w.writerow(["model", "part", "layer", "power_w", "T_mean_column_c", "T_max_column_c", "T_mean_surface_c", "T_max_surface_c", "surface_kind", "T_max_point_c",
                             "T_junction_c", "margin_k", "power_limit_w"])
                 for h, pt in zip(rows, self.part_points()):
                     kind = thickness.surface_kind(ref, 0 if h["layer"] == 1 else 1) if "t_max_surface" in h else ""
@@ -693,10 +694,10 @@ class Simulation:
             hs = hotspots(ref, self.options.hotspot_c)
             lines.append(f"Hotspots above {num(self.options.hotspot_c)} °C: {len(hs)}")
             for h in hs[:10]:
-                # The temperature at the hot-spot point names its read-out (the column mean); the surface and the FEM node value of the same cell follow where the model has them
+                # The temperature at the hot-spot point names its read-out (the column mean); the surface maximum and the hottest FEM node of the same hot area follow where the model has them
                 also = ""
                 if h["t_surface"] is not None:
-                    also += f"; surface {h['t_surface']:.1f} °C ({h['surface_kind']}) at the same point"
+                    also += f"; surface max {h['t_surface']:.1f} °C ({h['surface_kind']})"
                 if h["t_point"] is not None:
                     also += f"; hottest node {h['t_point']:.1f} °C (point)"
                 lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} °C (column) at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "

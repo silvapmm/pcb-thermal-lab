@@ -75,11 +75,12 @@ def _table(headers):
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
-    # Columns as wide as their header or text (at least MIN_SECTION px), only the last one stretches; a narrow window gets a horizontal scroll bar, never a cut header
+    # Columns as wide as their header or text (at least MIN_SECTION px); a narrow window gets a horizontal scroll bar, never a cut header. No column stretches (review: the
+    # appended read-out columns, such as 'Max °C (surface)', took the whole spare width and looked like the main column of the table); the spare width stays empty on the right
     head = t.horizontalHeader()
     head.setMinimumSectionSize(MIN_SECTION)
     head.setSectionResizeMode(QHeaderView.ResizeToContents)
-    head.setStretchLastSection(True)
+    head.setStretchLastSection(False)
     t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     t.setAlternatingRowColors(True)
@@ -1443,11 +1444,11 @@ class ResultsView(QWidget):
         self.hot_table.horizontalHeaderItem(2).setToolTip(tips.COLUMN_TABLE_TIP)
         c = 6
         if has_surface:
-            self.hot_table.horizontalHeaderItem(c).setToolTip("The surface read-out of the outer face of the copper at the SAME point (the cell of the column maximum), °C; n/a for a hotspot on an "
+            self.hot_table.horizontalHeaderItem(c).setToolTip("The hottest surface read-out (outer face of the copper) of the SAME hot area, °C; n/a for a hotspot on an "
                                                               "inner layer. " + tips.SURFACE_MAX_TIP)
             c += 1
         if has_point:
-            self.hot_table.horizontalHeaderItem(c).setToolTip("Point read-out (FEM): the hottest mesh node inside the cell of the hotspot, °C, on the outer face; a node value, not a cell mean. "
+            self.hot_table.horizontalHeaderItem(c).setToolTip("Point read-out (FEM): the hottest mesh node of the hot area, °C, on the outer face; a node value, not a cell mean. "
                                                               "n/a on an inner layer.")
         hrows = []
         for k, h in enumerate(hs):

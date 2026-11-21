@@ -70,7 +70,7 @@ def test_export_results_writes_surface_and_tables(win, tmp_path, monkeypatch):
     assert {"field_fvm.csv", "hotspots_fvm.csv", "parts_fvm.csv", "report.txt", "summary.json"} <= names
     with open(out / "hotspots_fvm.csv", newline="") as fh:
         head = next(csv.reader(fh))
-    assert "T_max_column_c" in head and "T_surface_c" in head
+    assert "T_max_column_c" in head and "T_max_surface_c" in head
 
 
 def test_components_tables_carry_the_surface_beside_the_column(win):
@@ -98,10 +98,14 @@ def test_a_fem_reference_adds_the_point_column(win, sim):
 
 
 def test_the_card_of_the_map_names_the_readout(win):
-    # The card paints "max .. °C (column)": checked on the text the painter is given, through the card data
+    # The card paints "max .. °C (column)": the texts the painter is given (review: the first version only checked that it paints)
     win.a_overlay.setChecked(True)
     card = win.canvas._overlay_card
     assert card is not None and card["tmax"] is not None
+    texts = win.canvas.overlay_card_texts(card)
+    assert len(texts) == 2 and texts[0].startswith("max ") and texts[1].startswith("min ") and all(t.endswith("°C (column)") for t in texts)
+    assert texts[0].split()[1] == f"{round(card['tmax'], 1):.1f}" or texts[0].split()[1].replace(",", ".") == f"{round(card['tmax'], 1):g}"
+    assert win.canvas.overlay_card_texts({"title": "x", "tmax": None, "tmin": None}) == []
     win.canvas.viewport().grab()                                      # painting with the new text does not raise
 
 

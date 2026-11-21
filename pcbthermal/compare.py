@@ -257,7 +257,8 @@ def statistics_row(d, cell_mm=None, agreement=None):
     @details Each number is the one the view and its title show, from the same `DifferenceField`: the largest and the smallest difference with their positions, the mean and the
              RMS over the finite samples, and the difference of the hottest points (`peak_k`, percent of the rise of the reference). `readout` names the read-out of both fields
              ("layer 1, column mean" or "surface (top)"); `verdict` is the line of the view ("Usual for the FDM: ...", or "Not judged at 2 mm cells: ...") and is blank when nothing is
-             documented for the pair. Units are in the header names (K, mm).
+             documented for the pair. `outside_usual_range` is 1 or 0 only when a verdict was given (a documented pair at the documented cell); it is blank for a pair with nothing
+             documented and for a run at another cell ('Not judged'), where a 0 would read as 'usual' (review). Units are in the header names (K, mm).
     @param d DifferenceField.
     @param cell_mm Cell of the run in mm (the option of the simulation), or None when not stated (blank).
     @param agreement Agreement of `expected_agreement` for the pair, or None.
@@ -267,7 +268,7 @@ def statistics_row(d, cell_mm=None, agreement=None):
     return [model_label(d.model), model_label(d.reference), readout_name(d.readout, d.layer, d.face), d.layer + 1, face, "" if cell_mm is None else round(float(cell_mm), 6),
             int(d.resampled), round(d.maximum, 6), round(d.where_max[0], 4), round(d.where_max[1], 4), round(d.minimum, 6), round(d.where_min[0], 4), round(d.where_min[1], 4),
             round(d.mean, 6), round(d.rms, 6), round(d.peak_k, 6), round(d.peak_pct, 4), "" if agreement is None else agreement.line,
-            "" if agreement is None else int(agreement.outside)]
+            "" if agreement is None or not at_documented_cell(cell_mm) else int(agreement.outside)]
 
 
 def write_statistics_csv(path, d, cell_mm=None, agreement=None):

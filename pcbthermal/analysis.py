@@ -28,10 +28,12 @@ def _require_field(result):
 def hotspots(result, threshold):
     """!
     @brief Connected regions hotter than a threshold, per layer.
-    @details `t_max` is the column read-out (the layer mean through the copper) at the hot-spot point, the cell (node) of the region where that value peaks. The other read-outs of
-             the SAME point are beside it, never instead of it: `t_surface` (the outer face of the copper in that cell, for a hotspot on the first or the last layer of a result that
-             holds arrays["T_surface"]; None otherwise), its `surface_kind` ("estimate", "computed", "resolved") and `t_point` (the hottest mesh node inside that cell, the FEM only;
-             None otherwise). Which points are found, and every `t_max`, are the same as without these keys.
+    @details `t_max` is the column read-out (the layer mean through the copper) at the hot-spot point, the cell (node) of the region where that value peaks; x_mm and y_mm are
+             that point. The other read-outs of the SAME region are beside it, never instead of it, each the maximum over the region on the outer face of the copper (a hotspot on
+             the first or the last layer only): `t_surface` (the hottest surface value of the region, for a result that holds arrays["T_surface"]; None otherwise), its
+             `surface_kind` ("estimate", "computed", "resolved") and `t_point` (the hottest mesh node of the region, the point read-out of the FEM; None otherwise). A maximum, as
+             the zone and part tables give, so that the row never shows a surface or a node below the hottest one of the hotspot (review: the first version read the cell of the
+             column maximum only). Which points are found, and every `t_max`, are the same as without these keys.
     @param result A SteadyResult with a field.
     @param threshold Temperature limit in degC.
     @return List of dicts sorted by temperature: layer (1-based), t_max (degC, column), x_mm, y_mm, area_mm2, cells, readout ("column"), t_surface (degC or None),
@@ -56,11 +58,15 @@ def hotspots(result, threshold):
                    "x_mm": xs[j] * 1000.0, "y_mm": ys[i] * 1000.0,
                    "area_mm2": float(region.sum() * cell_area * 1e6), "cells": int(region.sum()),
                    "readout": "column", "t_surface": None, "surface_kind": None, "t_point": None}
-            if face is not None and "T_surface" in arr and np.isfinite(arr["T_surface"][face, i, j]):
-                row["t_surface"] = float(arr["T_surface"][face, i, j])
+            # The surface and the node values are the maxima over the region (the finite ones: a cell with no surface, such as the Analytic over absent copper, is skipped)
+            for key, name in (("T_surface", "t_surface"), ("T_point", "t_point")):
+                if face is not None and key in arr:
+                    vals_k = np.asarray(arr[key][face])[region]
+                    vals_k = vals_k[np.isfinite(vals_k)]
+                    if vals_k.size:
+                        row[name] = float(vals_k.max())
+            if row["t_surface"] is not None:
                 row["surface_kind"] = thickness.surface_kind(result, face)
-            if face is not None and "T_point" in arr and np.isfinite(arr["T_point"][face, i, j]):
-                row["t_point"] = float(arr["T_point"][face, i, j])
             out.append(row)
     return sorted(out, key=lambda r: -r["t_max"])
 
