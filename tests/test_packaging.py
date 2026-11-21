@@ -182,6 +182,22 @@ def test_source_offer_names_the_attached_tarballs_and_the_second_contact(tmp_pat
         assert "silva.pmm@gmail.com" in (tmp_path / "NOTICE.txt").read_text(encoding="utf-8")
 
 
+def test_replacing_qt_text_has_the_macos_facts_of_the_real_swap_test(tmp_path, monkeypatch):
+    """REPLACING-QT.txt says what a real library swap on macOS arm64 (2.9.0 trial package) showed: pip needs Python 3.10 or newer (the system python3 is 3.9), the file inside
+    a framework is Versions/A/<Name>, Apple silicon refuses a library with no or a non-matching signature, the wheel's own signature may start without re-signing but breaks the
+    seal, so both codesign commands are always run, and the --deep one signs the replaced binding .so files too."""
+    build = load("build")
+    monkeypatch.setattr(build, "qt_versions", lambda: ("6.12.0", "6.12.0"))
+    build.write_notice_files(tmp_path, False)
+    text = " ".join((tmp_path / "REPLACING-QT.txt").read_text(encoding="utf-8").split())   # one line: the wrapping is not part of the claim
+    for must in ("pip needs Python 3.10 or newer", "system `python3` of macOS is 3.9", "Versions/A/<Name>", "QtGui.framework/Versions/A/QtGui",
+                 "no signature or with a signature that does not match its content", "missing code signature", "exit 137",
+                 "may start without this step", "nested code is modified or invalid", "so always run the two commands",
+                 'codesign --force --sign - "PCB Thermal Lab.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework"',
+                 'codesign --force --deep --sign - "PCB Thermal Lab.app"', "also signs the binding .so files you replaced"):
+        assert must in text, must
+
+
 EXECUTABLES = {"windows-x64": "PCB-Thermal-Lab.exe", "linux-x64": "PCB-Thermal-Lab", "macos-arm64": "PCB Thermal Lab.app/Contents/MacOS/PCB-Thermal-Lab"}
 
 

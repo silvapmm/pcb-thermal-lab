@@ -445,18 +445,22 @@ The Qt and PySide libraries are ordinary files of this package (it is a folder, 
 with a modified or newer interface-compatible build and run the program with it. To do so:
 
 1. Build or obtain Qt {minor}.x (and PySide6 {pyside} if you replace the Python bindings) for your system, from the source in SOURCE-OFFER.txt or from the
-   official PyPI wheels (for example `pip download PySide6_Essentials=={pyside} --no-deps`, then unzip the wheel).
+   official PyPI wheels (for example `pip download PySide6_Essentials=={pyside} --no-deps`, then unzip the wheel). pip needs Python 3.10 or newer for these
+   wheels: the system `python3` of macOS is 3.9 and finds no {minor} wheel, so use a newer Python.
 2. Find the file to replace.
      Windows: the folder `_internal\\PySide6` (Qt6Core.dll, Qt6Gui.dll, Qt6Widgets.dll, the plug-ins) next to the program.
      Linux:   the folder `_internal/PySide6/Qt/lib` (libQt6Core.so.6 and the others) and `_internal/PySide6/Qt/plugins`.
      macOS:   `PCB Thermal Lab.app/Contents/Frameworks/PySide6/Qt/lib` (QtCore.framework, QtGui.framework, QtWidgets.framework).
+              Inside each .framework the file to replace is `Versions/A/<Name>`, for example `QtGui.framework/Versions/A/QtGui`.
    The binding modules (QtCore, QtGui and QtWidgets files with PySide6 in the folder name, and shiboken6) are files too and are replaced the same way.
 3. Copy your file over it. It must be built from the same Qt version series ({minor}.x), for the same system and processor, and, for the Python bindings, for the
    same Python (CPython 3.13).
-4. macOS only: the libraries of this package are signed ad hoc (no developer identity), and Apple silicon refuses a library that is not signed. After the
-   copy run, in a terminal:
+4. macOS only: the libraries of this package are signed ad hoc (no developer identity). Apple silicon refuses a library with no signature or with a signature
+   that does not match its content (the program then reports 'missing code signature' or is killed with exit 137 and no message). A file copied from the
+   official wheel carries its own ad hoc signature and may start without this step, but the signature seal of the app is then broken (`codesign --verify
+   --deep` says 'nested code is modified or invalid'), so always run the two commands. After the copy run, in a terminal:
      codesign --force --sign - "PCB Thermal Lab.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework"      (the one you replaced)
-     codesign --force --deep --sign - "PCB Thermal Lab.app"
+     codesign --force --deep --sign - "PCB Thermal Lab.app"      (this one also signs the binding .so files you replaced)
    (A quarantined download also needs the step of the README Download section.)
 5. Start the program and open Help - About: the line under the version shows the Qt version that is loaded now. `PCB-Thermal-Lab --selftest` checks the start.
 
