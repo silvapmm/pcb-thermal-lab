@@ -13,7 +13,7 @@
             module or library that must not be shipped (GPL-3-only modules, FFmpeg, QtPdf, WebEngine, TLS plug-ins, GNU Readline: `FORBIDDEN`); the spec also drops
             the unused plug-ins (`UNUSED_PLUGINS`) and, on Linux, the libraries that nothing kept links any more (`unreferenced_libraries`);
          4. assembles `PCB-Thermal-Lab-<version>-<os>-<arch>/` (the program, `LICENSE`, `licenses/`, `SOURCE-OFFER.txt`, `BUILD-INFO.txt`), lists the native
-            libraries without a licence notice (`check_notices`: a release build STOPS when there is one, a trial build warns), archives it
+            libraries without a licence notice (`check_notices`: a build with `--release`, which the workflow passes on every run, STOPS when there is one; a local build without it warns), archives it
             (`.zip` on Windows and macOS, `.tar.gz` on Linux, which keeps the execute bits) and writes `SHA256SUMS.txt` and `BUILD-RESULT.json`;
          5. with `--selftest`, extracts the archive and runs `--selftest` of the program from it.
          Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, `FILES.txt` (the file list, native libraries outside Qt first) and `qt-source/`, the exact Qt and PySide source that the release
@@ -408,7 +408,7 @@ def write_notice_files(staging, release):
     """!
     @brief Write NOTICE.txt (LGPL 4(a)), SOURCE-OFFER.txt and REPLACING-QT.txt of the package.
     @param staging Staging folder.
-    @param release True for the build of a tag, False for a trial build (both carry the same contact; SECOND_CONTACT may never be empty).
+    @param release True with `--release` (every workflow build), False for a local build without it (both write the same text; SECOND_CONTACT may never be empty).
     @throws ValueError If SECOND_CONTACT is empty.
     """
     pyside, qt = qt_versions()
@@ -690,9 +690,9 @@ def check_qt_modules(folder, release):
 
 def check_notices(folder, release):
     """!
-    @brief Stop a release build whose package holds a native library without its licence notice; a trial build only reports them.
+    @brief Stop a build whose package holds a native library without its licence notice (the workflow passes release=True in every build; a local build may report only).
     @param folder The assembled package folder.
-    @param release True for the build of a tag.
+    @param release True to stop, False to only print a warning.
     @return list of str, the libraries without a notice.
     @throws SystemExit In a release build, when the list is not empty.
     """
@@ -825,7 +825,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Build the downloadable package of PCB Thermal Lab for this system.")
     ap.add_argument("--reuse-venv", action="store_true", help="keep packaging/.venv-build if it exists (default: make it again)")
     ap.add_argument("--selftest", action="store_true", help="unpack the archive and run --selftest of the program from it (exit code 1 when it fails)")
-    ap.add_argument("--release", action="store_true", help="the build of a release tag (the contact of the written offer, SECOND_CONTACT, is checked before anything is built)")
+    ap.add_argument("--release", action="store_true", help="enforce the checks: stop on a Qt module not on ALLOWED_QT_MODULES and on a native library without a licence notice (the workflow passes it on every run, trials included; without it they only warn)")
     args = ap.parse_args(argv)
     if not SECOND_CONTACT:
         raise SystemExit("error: SECOND_CONTACT in packaging/build.py is empty: a build needs a contact for the written offer that does not depend on GitHub")
