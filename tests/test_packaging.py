@@ -11,6 +11,8 @@ import re
 
 import pytest
 
+import pcbthermal
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PKG = ROOT / "packaging"
 WORKFLOW = ROOT / ".github" / "workflows" / "build-release.yml"
@@ -616,13 +618,14 @@ def test_release_notes_have_a_first_run_section_with_the_checksums(tmp_path):
     info.write_text('{"qt": "6.12.0", "pyside": "6.12.0", "source_assets": ["qtbase-everywhere-src-6.12.0.tar.xz"]}', encoding="utf-8")
     out = tmp_path / "notes.md"
     changelog = ROOT / "CHANGELOG.md"
-    assert notes.main(["2.9.0", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(log), "-o", str(out)]) == 0
+    version = pcbthermal.__version__                                                   # the version of the tree: after the bump its section exists and Unreleased is empty
+    assert notes.main([version, "--changelog", str(changelog), "--build-result", str(info), "--sums", str(log), "-o", str(out)]) == 0
     body = out.read_text(encoding="utf-8")
-    released = notes.extract(changelog.read_text(encoding="utf-8"), "2.9.0")           # the section of the version just released (Unreleased is empty after the bump)
-    assert body.startswith(released) and body.index("## Qt and PySide source") < body.index("## First run") and d3 in body
+    released = notes.extract(changelog.read_text(encoding="utf-8"), version)
+    assert released.strip() and body.startswith(released) and body.index("## Qt and PySide source") < body.index("## First run") and d3 in body
     empty = tmp_path / "empty.txt"
     empty.write_text("nothing\n", encoding="utf-8")
-    assert notes.main(["2.9.0", "--changelog", str(changelog), "--build-result", str(info), "--sums", str(empty), "-o", str(out)]) == 1
+    assert notes.main([version, "--changelog", str(changelog), "--build-result", str(info), "--sums", str(empty), "-o", str(out)]) == 1
     assert "--sums files/SHA256SUMS.txt" in WORKFLOW.read_text(encoding="utf-8")
 
 

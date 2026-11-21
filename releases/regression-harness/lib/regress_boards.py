@@ -47,7 +47,7 @@ DESCRIPTIONS = {
     "part_across_outline": "40 x 40 mm, outline edge at x = 37.3 mm (between the cell edges at 2, 1 and 0.5 mm), a part across the edge",
     "drawn_inset_square": "20 x 20 mm, 2 layers, copper 1.2 mm inside the wall on both layers (edges between the cell edges), 4 mm part, edge film 200 W/m2K (drawn copper)",
     "drawn_stripes_pad": "20 x 20 mm, 2 layers, top copper in 1.2 mm stripes every 2.4 mm plus a 7.2 mm pad, bottom 1.2 mm inside the wall, 4 mm part, 200 W/m2K (drawn copper)",
-    "thick_copper_gap": "60 x 40 mm, 2 layers of 420 um copper (above the 105 um limit of the 3D solid copper slabs), bottom copper cut by a 20 mm bare gap under the 12 mm part",
+    "thick_copper_gap": "40 x 30 mm, 2 layers of 420 um copper (above the 105 um limit of the 3D solid copper slabs), 2 W on an 8 mm part half over a 10 mm bare gap in the top copper",
     "top_block_pad": "40 x 30 mm, 2 layers full copper, 3 W on an 8 mm part under a 5 mm aluminium block on the TOP face (interface pad 5e-3 m2K/W, no fins), insulated edges",
     "drawn_ell": "20 x 20 mm, 2 layers, top copper an L (the inset square without an 8 mm corner), bottom 1.2 mm inside the wall, 4 mm part, 200 W/m2K (drawn copper)",
 }
@@ -232,17 +232,21 @@ def _drawn(name):
 
 def _thick_copper_gap():
     """!
-    @brief Two layers of 420 um copper (thick enough for the copper slabs of the 3D solid) with the bottom copper cut by a bare gap under the part.
-    @details The top layer is full copper; the bottom copper is two rectangles with a 20 mm strip of bare laminate between them (x 20 to 40 mm) under the 12 mm part
-             (x 24 to 36 mm), so the heat of the part has to leave through a layer with absent copper below it. All edges lie on multiples of 2 mm, so that the heated
-             area and the copper are the same at the cells of the suite. The board thickness grows with the copper so that the laminate gap stays 1.6 mm.
+    @brief Two layers of 420 um copper (thick enough for the copper slabs of the 3D solid) with a part half over the top copper and half over a bare gap in it.
+    @details The case of the reviews of `feature/solid3d-copper-slabs` and `feature/surface-readout-models`: a part over absent copper on its own (outer) layer, where
+             the face term `q t / (2 k)` of the half copper layer of laminate applies (FVM, FDM, 3D solid; the Analytic face is n/a there) and where the 3D solid's
+             thick-copper rule was found 17.4 K too cool before its review; the other half of the part sits on 420 um copper, where its heat enters the outer copper slab.
+             The top copper is two rectangles with a 10 mm bare gap (x 16 to 26 mm) and the 8 mm part covers x 12 to 20 mm; the bottom copper is full. The board is
+             40 x 30 mm so that the 3D solid runs at every cell of the suite (96 000 unknowns at 0.5 mm). All edges lie on multiples of 2 mm, so that the heated area
+             and the copper are the same at the cells of the suite. The board thickness grows with the copper so that the laminate gap stays 1.53 mm, as on the
+             1.6 mm boards of 35 um.
     @return Problem.
     """
-    p = _new(60, 40, 2, 1.6 + 2 * (420.0 - 35.0) * 1.0e-3, 420.0, "thick_copper_gap", h_top=10.0, h_bottom=15.0, h_side=10.0)
-    p.add_zone(1, rect=(0, 0, 60, 40))
-    p.add_zone(2, rect=(0, 0, 20, 40))
-    p.add_zone(2, rect=(40, 0, 60, 40))
-    p.add_heater(1, 4.0, rect=(24, 14, 36, 26), name="U")
+    p = _new(40, 30, 2, 1.6 + 2 * (420.0 - 35.0) * 1.0e-3, 420.0, "thick_copper_gap", h_top=10.0, h_bottom=15.0, h_side=10.0)
+    p.add_zone(1, rect=(0, 0, 16, 30))
+    p.add_zone(1, rect=(26, 0, 40, 30))
+    p.add_zone(2, rect=(0, 0, 40, 30))
+    p.add_heater(1, 2.0, rect=(12, 10, 20, 18), name="U")
     return p
 
 

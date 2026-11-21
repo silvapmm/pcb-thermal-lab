@@ -28,6 +28,26 @@ def test_changelog_and_readme_mention_the_version():
     assert pcbthermal.__version__ in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
+def test_release_date_is_the_same_in_every_document():
+    """!
+    @brief The release date of the current version is written in four places and they agree (docs/versions.md A1, step 7: the date is the day of the tag).
+    @return None.
+    """
+    v = re.escape(pcbthermal.__version__)
+    places = {
+        "CHANGELOG.md heading": (ROOT / "CHANGELOG.md", rf"^## \[{v}\] - (\d{{4}}-\d{{2}}-\d{{2}})$"),
+        "README.md version line": (ROOT / "README.md", rf"^- \*\*{v}\*\* \((\d{{4}}-\d{{2}}-\d{{2}})\)"),
+        "docs/versions.md summary": (ROOT / "docs" / "versions.md", rf"^## Summary of the current version \({v}, (\d{{4}}-\d{{2}}-\d{{2}})\)$"),
+        "docs/versions.md heading": (ROOT / "docs" / "versions.md", rf"^## {v} - (\d{{4}}-\d{{2}}-\d{{2}}):"),
+    }
+    dates = {}
+    for where, (path, pattern) in places.items():
+        found = re.search(pattern, path.read_text(encoding="utf-8"), flags=re.MULTILINE)
+        assert found, f"{where} must give the release date of {pcbthermal.__version__} as YYYY-MM-DD"
+        dates[where] = found.group(1)
+    assert len(set(dates.values())) == 1, f"the release date differs between the documents: {dates} (set all four to the day of the tag)"
+
+
 def _badge(name):
     """!
     @brief Read one shields.io badge of the README: its image URL.
