@@ -783,14 +783,17 @@ class Simulation:
         for name, r in self.results.items():
             if r.T is None:
                 continue
+            # Sample positions of the field: cell centres for a cell field, the grid points (from 0) for a node field (the FDM); SteadyResult.coords() holds the rule
+            # (before 2.9.0 every model was written at cell centres, half a cell off for the FDM)
+            xs, ys = r.coords()
             with open(path(f"field_{name}.csv"), "w", newline="") as fh:
                 w = csv.writer(fh)
                 w.writerow(["layer", "x_mm", "y_mm", "T_c"])
                 for l in range(r.T.shape[0]):
                     for i in range(r.T.shape[1]):
                         for j in range(r.T.shape[2]):
-                            w.writerow([l + 1, round((j + 0.5) * r.dx * 1000, 4),
-                                        round((i + 0.5) * r.dy * 1000, 4), round(float(r.T[l, i, j]), 4)])
+                            w.writerow([l + 1, round(float(xs[j]) * 1000, 4),
+                                        round(float(ys[i]) * 1000, 4), round(float(r.T[l, i, j]), 4)])
         # The tables of the Components page, beside the fields: new files, every temperature under its read-out name
         self.write_statistics_csv(path)
         if surface_files:
@@ -802,9 +805,8 @@ class Simulation:
                     # The first seven columns are the format of every earlier version (never reordered or renamed); the last three are appended: the model, how the surface was
                     # obtained (estimate, computed, resolved) and the hottest mesh node of the cell (the FEM only, blank for the others)
                     w.writerow(["face", "x_mm", "y_mm", "T_surface_c", "T_surface_mean_c", "T_column_c", "upper_estimate", "model", "surface_kind", "T_point_c"])
-                    # Positions as in every earlier version and in field_<model>.csv (cell centres): a node field (the FDM) has its samples at the grid points, so its x_mm and y_mm
-                    # here are half a cell off. Kept on purpose (a format must not move); reported to the maintainer as a defect of both files
-                    off = 0.5
+                    # Positions as in field_<model>.csv: cell centres for a cell field, the grid points for a node field (the FDM), from SteadyResult.coords()
+                    xs, ys = r.coords()
                     for face, tag, layer in ((0, "top", 0), (1, "bottom", r.T.shape[0] - 1)):
                         kind = thickness.surface_kind(r, face)
                         for i in range(r.T.shape[1]):
@@ -813,7 +815,7 @@ class Simulation:
                                     point = ""
                                     if "T_point" in r.arrays and np.isfinite(r.arrays["T_point"][face, i, j]):
                                         point = round(float(r.arrays["T_point"][face, i, j]), 4)
-                                    w.writerow([tag, round((j + off) * r.dx * 1000, 4), round((i + off) * r.dy * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
+                                    w.writerow([tag, round(float(xs[j]) * 1000, 4), round(float(ys[i]) * 1000, 4), round(float(r.arrays["T_surface"][face, i, j]), 4),
                                                 round(float(r.arrays["T_surface_mean"][face, i, j]), 4), round(float(r.T[layer, i, j]), 4), int(r.arrays["T_surface_flag"][face, i, j]),
                                                 name, kind, point])
         for name, r in self.profile_results.items():
