@@ -299,7 +299,7 @@ The sparse solvers of SciPy must not run in two threads at once (the application
 
 Board canvas with zoom/pan, grid snap, polygons, vias, heatsinks, undo/redo, background photo, dark and light themes; docks for the board, environment (typed or computed `h`), materials, element tree, models and settings,
 live input checks and the property inspector; tabs **Board**, **Power profile** (heater list, constant / square wave / table with CSV import and export, decision table, run settings) and **Results** (summary, temperature,
-gradients, profiles, components, model comparison, step-power animation, power-profile results). The temperature of the last run can be painted on the board (key T). The version is shown in the title bar, status bar and About box.
+gradients, profiles, components, model comparison, step-power animation, power-profile results). The Temperature tab also draws the **Difference** of two steady models (`compare.py`: model minus reference read with the same definition, bilinear resampling onto the grid of the reference when the grids differ, the verdict against the ranges of `compare.EXPECTED`; display only, no solver is run). The temperature of the last run can be painted on the board (key T). The version is shown in the title bar, status bar and About box.
 
 ### 8.1 Project files (`pcbthermal/project.py`, `model.py`)
 
