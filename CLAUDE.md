@@ -226,7 +226,7 @@ PCBT_COMPAT_V271=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests
 PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   # release gate: key values
 ```
 
-**Current state of the battery**: the last whole battery gave 4543 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 2 warnings, batch 12 (71 min; real-board environment proven loaded; frozen 431 passed; last full gate run: the release tree of 2.8.0, compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
+**Current state of the battery**: the last whole battery gave 4555 passed, 12 skipped (8 gates + 4 pypdfium2 missing), 2 xfailed, 2 warnings, batch 13 (74 min; real-board environment proven loaded; frozen 431 passed; last full gate run: the release tree of 2.8.0, compat 5 + 17, secrets 4, published 14 + 1 xfailed). Known flakes under load: `tests/test_gui_stress.py::test_live_checks_stress_many_vias_and_option_changes` and the live-check timing test (both pass alone). History: `docs/versions.md` ('How each version was tested').
 
 ## 15. Where to continue (after 2.8.0)
 

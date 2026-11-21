@@ -3,7 +3,7 @@
 <img src="ico/png/pcb-board_128.png" alt="PCB Thermal Lab icon" width="96" align="right">
 
 [![Version](https://img.shields.io/badge/version-2.8.0-4f46e5)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-4543%20passed-2da44e)](tests)
+[![Tests](https://img.shields.io/badge/tests-4555%20passed-2da44e)](tests)
 ![Python](https://img.shields.io/badge/python-3.13-3776ab)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20(tested)%20%7C%20Windows%20%7C%20Linux%20(CI%20self--test)-555)
