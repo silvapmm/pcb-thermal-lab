@@ -319,6 +319,10 @@ def _tile_grid(W, H, lam):
     return ntx, nty, W / ntx, H / nty
 
 
+# Spread of the copper fill round the heaters above which the copper-coverage warning is given (the Analytic model in its run, the LPTN in checks.check_lumped_copper_window)
+COPPER_SPREAD_WARN = 0.25
+
+
 def _effective_sheet(problem, cell_mm):
     """!
     @brief Effective sheet properties of the uniform multilayer board seen by the heaters.
@@ -327,7 +331,7 @@ def _effective_sheet(problem, cell_mm):
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @return Dict with b, m (board and materials), W, H, L, slab, nx, ny, dx, dy, xs, ys, tc, power, warnings,
-            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), beta_l (1/m, the edge
+            fill, S, lam, copper_spread (largest spread of the fill round the heaters, the trigger of the copper-coverage warning), h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), beta_l (1/m, the edge
             parameter of each layer, h_eff s_l / S_l), edge_mismatch (largest |beta_l - beta| / beta), h_eff, d_diel, d_barrel (barrel length of a via over each gap) and g_diel.
     """
     problem.validate()
@@ -364,6 +368,7 @@ def _effective_sheet(problem, cell_mm):
     centres = [(polygon_centroid(h.polygon), np.sqrt(polygon_area(h.polygon) / np.pi), h.power, h.layer)
                for h in problem.heaters if h.power > 0]
     fill = fill_mean.copy()
+    copper_spread = 0.0                                           # Largest spread of the copper fill round the heaters (the trigger of the warning below; checks.py reads it for the LPTN)
     if centres:
         # A layer that carries a heater loses heat vertically within a few millimetres, so the copper that matters
         # is much closer than the stack length: use the layer's own length sqrt(S / (h + n_neighbours * g)).
@@ -388,9 +393,10 @@ def _effective_sheet(problem, cell_mm):
                 w_cu = _influence(centres, xs, ys, dx, lam_cu)
                 f_cu = (fill_map[l] * w_cu).sum() / w_cu.sum()
                 spread[l] = max(spread[l], float(np.sqrt(((fill_map[l] - f_cu) ** 2 * w_cu).sum() / w_cu.sum())))
-        if spread.max() > 0.25:
+        copper_spread = float(spread.max())
+        if copper_spread > COPPER_SPREAD_WARN:
             warnings.append(
-                f"copper coverage varies around the heaters (spread {spread.max():.2f}): the Analytic model spreads the copper of each layer "
+                f"copper coverage varies around the heaters (spread {copper_spread:.2f}): the Analytic model spreads the copper of each layer "
                 "into one uniform sheet and has no copper edge; on a part over a copper pad or a window it was measured between 76 % too cool "
                 "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
                 "differed by up to 1.8 times. Use the FVM result for this board.")
@@ -432,7 +438,7 @@ def _effective_sheet(problem, cell_mm):
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
             "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "beta_l": beta_l, "edge_mismatch": edge_mismatch, "h_eff": h_eff, "d_diel": d_diel, "d_barrel": d_barrel, "g_diel": g_diel, "k_lam": k_lam,
-            "rho_cp_lam": rho_cp_lam, "h_top_eff": h_top_eff, "h_bottom_eff": h_bottom_eff}
+            "rho_cp_lam": rho_cp_lam, "h_top_eff": h_top_eff, "h_bottom_eff": h_bottom_eff, "copper_spread": copper_spread}
 
 
 def _heater_unit_sources(problem, bx, by):
