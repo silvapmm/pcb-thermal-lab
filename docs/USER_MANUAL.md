@@ -831,8 +831,8 @@ with or without these columns. The card of the map on the board reads *max .. °
 
 ![The Components page](images/results_components.png)
 
-*Figure 16. Results - Components of the example board: heaters, zones and the chart of the
-parts.*
+*Figure 16. Results - Components of the example board: heaters, zones (column read-out with the
+surface appended), the hotspot table and the chart of the parts.*
 
 ### 5.6 Models
 
@@ -1124,7 +1124,8 @@ are in the header names (`max_k`, `max_x_mm`, ...). The command line has no Diff
 
 *Figure 28. Results - Temperature with Difference to FVM on the LPTN (example board, four models,
 1 mm cells): the map of LPTN minus FVM in K, the largest and smallest difference ringed, the
-title with both models and the read-out, and the verdict line under the controls.*
+title with both models and the read-out, the verdict line under the controls and the **Export
+statistics…** button.*
 
 ## 6. Settings reference
 
