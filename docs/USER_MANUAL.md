@@ -351,7 +351,7 @@ At the top, always in sight:
 
 - the **Run simulation** button (`F5`). It becomes **Stop** while any calculation runs;
 - a thin progress bar while a run is going;
-- the **status line**: "Done: FVM, Tmax 85.5 °C, Rθ 10.99 K/W" after a run, "Cancelled." or
+- the **status line**: "Done: FVM, Tmax 85.5 °C (column), Rθ 10.99 K/W" after a run, "Cancelled." or
   "Failed." with the cause, or "Cannot run:" with the reason and the cell to use when a model
   would be refused.
 
