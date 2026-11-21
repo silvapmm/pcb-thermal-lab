@@ -1044,7 +1044,7 @@ def _wrapped(artist, text, budget_px, renderer, vertical=False):
     for word in re.split(r" (?!mm\b)", text):          # Review: the greedy break left "mm)" alone on a third line at 900 x 700
         trial = f"{line} {word}" if line else word
         if line and extent(trial) > budget_px:
-            lines.append(line)
+            lines.append(line.rstrip())                 # A run of spaces in the text ("mm   RMS") must not leave spaces at the end of a line, which shifts a centred line
             line = word
         else:
             line = trial

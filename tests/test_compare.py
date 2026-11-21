@@ -192,15 +192,21 @@ def test_every_documented_range_is_what_the_validation_table_prints():
 
 def test_the_fem_row_is_what_validation_56_1_prints():
     """!
-    @brief FEM - FVM, the view's convention (the share of the rise of the reference, the FVM): recomputed from the peaks of the 56.1 table on the boards without a drawn
-           feature (`drawn_*`) and with a FEM value, the range is -2.7 to +0.3 % on 16 boards; the validation text gives the FVM against the FEM as -0.3 to +2.7 %.
+    @brief FEM - FVM, the view's convention (the share of the rise of the reference, the FVM): recomputed from the peaks (rises) of the 56.1 table on the 19 boards with a
+           FEM value, the range is -2.7 to +0.3 % on 18 boards and the L of drawn copper is the one case outside; the validation text gives the FVM against the FEM
+           (share of the FEM rise) as -0.3 to +2.7 % without the drawn boards, the same boards with the sign and the denominator converted.
     """
     rows = _fem_table()
-    boards = {b: v for b, v in rows.items() if not b.startswith("drawn_")}
-    shares = [100.0 * (fem / fvm - 1.0) for fvm, fem in boards.values()]
+    shares = {b: 100.0 * (fem / fvm - 1.0) for b, (fvm, fem) in rows.items()}
     tip = compare.EXPECTED[("fem", "fvm")]
-    assert len(shares) == tip.n == tip.n_all == 16
-    assert (round(min(shares), 1), round(max(shares), 1)) == (tip.lo, tip.hi)
+    assert len(shares) == tip.n_all == 19
+    outliers = {round(v, 1) for _what, v in tip.outliers}
+    inside = [v for v in shares.values() if round(v, 1) not in outliers]
+    assert len(inside) == tip.n == 18
+    assert (round(min(inside), 1), round(max(inside), 1)) == (tip.lo, tip.hi)
+    assert round(shares["drawn_ell"], 1) == tip.outliers[0][1] == -15.1
+    plain = [v for b, v in shares.items() if not b.startswith("drawn_")]
+    assert (round(min(plain), 1), round(max(plain), 1)) == (tip.lo, tip.hi)           # The same range as the 16 boards of the summary row below
     assert "section 56.1" in tip.evidence
     text = open(os.path.join(ROOT, "docs", "validation.md"), encoding="utf-8").read()
     assert "| without the three drawn boards | 1 | FVM | peak | 16 | 0.86 | 2.74 (one_layer_pad) | -0.3 to +2.7 |" in text   # The summary row the range converts
@@ -220,7 +226,7 @@ def test_the_verdict_is_usual_inside_the_range_and_outside_it_says_so():
     assert out.outside and out.line.startswith("Outside the usual range for the LPTN: hottest point +17.0 K, +27.9 % of the rise")
     assert compare.expected_agreement("lumped", "fvm", -3.0, -5.5).outside                 # Below the lowest of the range
     fdm = compare.expected_agreement("fdm", "fvm", -0.1, -0.1)
-    assert fdm.line == "Usual for the FDM: hottest point -0.1 K, -0.1 % of the rise (usual -0.5 to +0.0 %)" and not fdm.outside
+    assert fdm.line == "Usual for the FDM: hottest point -0.1 K, -0.1 % of the rise (usual -0.5 to 0.0 %)" and not fdm.outside
     assert compare.expected_agreement("fdm", "fvm", 0.6, 0.5).outside
     ana = compare.expected_agreement("analytic", "fvm", -0.7, -1.1)
     assert ana.line.startswith("Usual for the Analytic: hottest point -0.7 K, -1.1 % of the rise (usual -1.8 to +0.3 %)")
@@ -237,10 +243,30 @@ def test_a_pair_without_documented_evidence_has_no_line():
     assert compare.expected_agreement("lumped", "fvm", 1.0, 1.0).tooltip.count("sections 1 and 2") == 1
 
 
-def test_the_tooltip_says_when_the_run_is_not_at_the_cell_of_the_tables():
+def test_a_run_at_another_cell_gets_no_verdict():
     """!
-    @brief The ranges were measured with 1 mm cells: a run at another cell gets that sentence in the tooltip, a run at 1 mm or one that does not say gets none.
+    @brief The ranges were measured with 1 mm cells and the gap between two models moves with the cell (FDM - FVM on the example board: -1.1 % of the rise at 2 mm,
+           outside the 1 mm range). A run at another cell gets no verdict and never the warning flag: the line says it is not judged and names the cell of the range;
+           a run at 1 mm (to 1 %) or one that does not state its cell is judged.
     """
-    assert "measured with 1 mm cells; this run used 2 mm" in compare.expected_agreement("fdm", "fvm", -0.9, -1.1, 2.0).tooltip
+    coarse = compare.expected_agreement("fdm", "fvm", -0.7, -1.1, 2.0)
+    assert not coarse.outside and coarse.line == "Not judged at 2 mm cells: FDM hottest point -0.7 K, -1.1 % of the rise (usual -0.5 to 0.0 % at 1 mm)"
+    assert "measured with 1 mm cells; this run used 2 mm" in coarse.tooltip and "no verdict" in coarse.tooltip
+    assert not compare.expected_agreement("lumped", "fvm", 17.0, 27.9, 0.5).outside                       # Not even a large gap is flagged at another cell
+    assert compare.expected_agreement("lumped", "fvm", 17.0, 27.9, 1.0).outside
+    assert compare.expected_agreement("lumped", "fvm", 17.0, 27.9, 1.005).outside                     # A cell of 1 mm written with round-off is 1 mm
+    assert compare.expected_agreement("fdm", "fvm", -0.1, -0.1, 1.0).line.startswith("Usual for the FDM")
     assert "measured with 1 mm cells" not in compare.expected_agreement("fdm", "fvm", -0.1, -0.1, 1.0).tooltip
     assert "measured with 1 mm cells" not in compare.expected_agreement("fdm", "fvm", -0.1, -0.1).tooltip
+
+
+def test_the_fdm_and_fvm_at_2_mm_give_the_gap_that_motivates_the_rule(sim):
+    """!
+    @brief The example board at 2 mm (the module fixture): the FDM's hottest point is outside the 1 mm range of the FDM against the FVM, and the view says 'not judged'
+           rather than 'outside'. Guards the measurement quoted in the docstring of `expected_agreement` and in the user guide.
+    @param sim Simulation fixture (2 mm cells).
+    """
+    d = compare.difference_field(sim.results["fdm"], sim.results["fvm"], sim.problem)
+    assert round(d.peak_pct, 1) == -1.1
+    a = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, 1000.0 * d.dx)
+    assert not a.outside and a.line.startswith("Not judged at 2 mm cells")

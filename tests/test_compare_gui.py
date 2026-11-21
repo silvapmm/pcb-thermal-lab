@@ -314,6 +314,8 @@ def test_the_title_is_wrapped_to_the_figure_not_to_the_axes(sim):
     assert narrow._suptitle.get_text().count("\n") > wide._suptitle.get_text().count("\n")
     r = narrow.canvas.get_renderer()
     assert narrow._suptitle.get_window_extent(r).width <= narrow.bbox.width - 4
+    lines = narrow._suptitle.get_text().split("\n")
+    assert all(line == line.rstrip() for line in lines), lines                      # "mm   RMS" broken at its spaces leaves no space at the end of a centred line
 
 
 def test_the_view_moves_no_number_of_any_model(win, qtbot, sim):
@@ -337,3 +339,59 @@ def test_the_view_moves_no_number_of_any_model(win, qtbot, sim):
         T, tmax, tmin, tmean, arrays = before[k]
         assert np.array_equal(r.T, T) and (r.t_max, r.t_min, r.t_mean) == (tmax, tmin, tmean), k
         assert set(r.arrays) == set(arrays) and all(np.array_equal(r.arrays[a], arrays[a], equal_nan=True) for a in arrays), k
+
+
+def test_a_run_at_2_mm_gets_no_verdict_and_no_warning_colour(qtbot, tmp_path):
+    """!
+    @brief The FDM against the FVM on the example board at 2 mm is -1.1 % of the rise, outside the 1 mm range: the line says it is not judged at that cell, in the normal
+           colour (a false alarm at a coarse cell is worse than no verdict), and its tooltip says why.
+    @param qtbot Fixture.
+    @param tmp_path Fixture.
+    """
+    st = QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat)
+    st.setValue("theme", "light")
+    w = MainWindow(Document(), st)
+    qtbot.addWidget(w)
+    w._load_problem(example_board(), "ex")
+    w.resize(1200, 800)
+    w.show()
+    w._on_done(simulate(example_board(), SolverOptions(models=("fvm", "fdm"), cell_mm=2.0)))
+    w.tabs.setCurrentIndex(TAB_RESULTS)
+    w.results.tabs.setCurrentWidget(w.results.temp)
+    t = w.results.temp
+    _show(t, "fdm")
+    t.diff_on.setChecked(True)
+    qtbot.wait(30)
+    assert t.diff_ref.currentData() == "fvm"
+    assert t.diff_note.text() == "Not judged at 2 mm cells: FDM hottest point -0.7 K, -1.1 % of the rise (usual -0.5 to 0.0 % at 1 mm)", t.diff_note.text()
+    assert t.diff_note.styleSheet() == "" and "no verdict" in t.diff_note.toolTip()
+
+
+def test_on_an_outline_board_the_refusal_names_the_outline_and_the_fvm_gets_a_usable_reference(qtbot, tmp_path):
+    """!
+    @brief A T-shaped board: the LPTN shown is refused against the FVM because it solved a rectangle of the same area (review: it kept the LPTN as its own reference and
+           said 'the model and the reference are the same'); the FVM shown takes the first usable reference (the FDM), not the refused LPTN.
+    @param qtbot Fixture.
+    @param tmp_path Fixture.
+    """
+    p = example_board()
+    p.set_outline([[0, 80], [0, 50], [35, 50], [35, 0], [65, 0], [65, 50], [100, 50], [100, 80]])
+    st = QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat)
+    st.setValue("theme", "light")
+    w = MainWindow(Document(), st)
+    qtbot.addWidget(w)
+    w._load_problem(p, "t")
+    w.resize(1200, 800)
+    w.show()
+    w._on_done(simulate(p, SolverOptions(models=("fvm", "lumped", "fdm"), cell_mm=2.0)))
+    w.tabs.setCurrentIndex(TAB_RESULTS)
+    w.results.tabs.setCurrentWidget(w.results.temp)
+    t = w.results.temp
+    t.diff_on.setChecked(True)
+    _show(t, "lumped")
+    qtbot.wait(30)
+    assert t.diff_ref.currentData() == "fvm"
+    assert t.diff_note.text().startswith("Difference not shown: LPTN solved this outline board on a rectangle"), t.diff_note.text()
+    _show(t, "fvm")
+    qtbot.wait(30)
+    assert t.diff_ref.currentData() == "fdm" and t.fig._suptitle is not None and "FVM − FDM" in t.fig._suptitle.get_text()

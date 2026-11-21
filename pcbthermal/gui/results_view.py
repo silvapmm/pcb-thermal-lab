@@ -630,7 +630,15 @@ class PlotTab(QWidget):
             wanted = self._ref_chosen
             if wanted is None or wanted == current or not item_model.item(self.diff_ref.findData(wanted)).isEnabled():
                 wanted = compare.default_reference(sim.results, current)
-            if wanted is not None and item_model.item(self.diff_ref.findData(wanted)).isEnabled():
+            enabled = lambda key: key is not None and self.diff_ref.findData(key) >= 0 and item_model.item(self.diff_ref.findData(key)).isEnabled()
+            if not enabled(wanted):
+                # The default cannot be used (an outline board refuses the LPTN and the Analytic against the FVM, a model without a surface ...): the first usable
+                # reference in the order of the box; with none, the default itself, so that the refusal names the real reason and never 'the same model' (review:
+                # the LPTN shown on an outline board kept the LPTN as its reference)
+                usable_refs = [self.diff_ref.itemData(i) for i in range(self.diff_ref.count()) if enabled(self.diff_ref.itemData(i))]
+                fallback = compare.default_reference(sim.results, current)
+                wanted = usable_refs[0] if usable_refs else fallback
+            if wanted is not None and self.diff_ref.findData(wanted) >= 0:
                 self.diff_ref.setCurrentIndex(self.diff_ref.findData(wanted))
             return self.diff_ref.currentData()
         finally:
@@ -671,7 +679,10 @@ class PlotTab(QWidget):
         caveat = ""
         if layer != self.layer_value and self.layer_value in (layerchoice.ALL_LAYERS, layerchoice.ALL_GRID):
             caveat = f"The Difference shows one layer at a time: layer {layer + 1} (choose another in the Layer box)."
-        agreement = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, 1000.0 * d.dx)
+        # The cell the user ran (the option, not the spacing of the grid, which round(width / cell) moves off it on a board that is not a whole number of cells)
+        opts = getattr(sim, "options", None)
+        cell = float(opts.cell_mm) if opts is not None else 1000.0 * d.dx
+        agreement = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, cell)
         if agreement is not None:
             tip = agreement.tooltip + ("\n" + caveat if caveat else "") + ("\n" + "; ".join(d.notes) if d.notes else "")
             self._set_difference_line(agreement.line, tip, agreement.outside)

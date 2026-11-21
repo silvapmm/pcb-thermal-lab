@@ -1043,7 +1043,7 @@ version.
 1. Run two or more models (for example the FVM and the LPTN) and open **Results - Temperature**.
 2. Choose the model to look at in **Model**, tick **Difference to** and choose the reference in
    the box beside it. The reference starts as the **FVM**, the reference model of the program
-   (when the FVM itself is shown it starts as the first other model). A reference you chose stays
+   (when the FVM itself is shown, or cannot be compared, it starts as the first other model that can). A reference you chose stays
    while it is possible; a reference you did not choose goes back to the FVM whenever you change
    the model shown.
 3. The **Layer** box decides what is compared (Figure 28). A copper layer compares the **column
@@ -1079,20 +1079,23 @@ document that holds them. A pair without a measured range has no line.
 
 | Model against the FVM | Usual difference of the hottest point (share of the rise above ambient) | Outside it | Source |
 | :-- | :-- | :-- | :-- |
-| FDM | 0.0 to -0.5 % (19 of 20 scenarios) | a copper edge across the heater, -1.3 % | validation section 2 |
+| FDM | -0.5 to 0.0 % (19 of 20 scenarios) | a copper edge across the heater, -1.3 % | validation section 2 |
 | Analytic | -1.8 to +0.3 % (18 of 20; -1.1 % on the example board) | a copper island around the heater, -5.1 %; a copper edge across the heater, -27.9 % | validation sections 1 and 2 |
 | LPTN | -5.4 to +8.4 % (19 of 20; +2.4 % on the example board) | a copper edge across the heater, -27.9 % | validation sections 1 and 2 |
 | 3D solid | -0.3 to +0.9 % (20 of 20); a comparison model of the program, not an independent reference | none | validation section 2 |
-| FEM | -2.7 to +0.3 % (16 boards of the suite, without the three drawn ones and the round outline) | none in the range | validation section 56.1 |
+| FEM | -2.7 to +0.3 % (18 of the 19 boards of the suite it runs; it does not run the round outline) | an L of drawn copper, -15.1 % | validation section 56.1 |
 
 Read the table with three limits in mind. (1) The ranges are for the **hottest point**, not for
 every point of the map: on the example board the LPTN's hottest point is +1.4 K from the FVM
 but its map reaches +8.7 K and -4.1 K around the heaters, and no document measures that. (2) They
-were measured with **1 mm cells**; at another cell the gap between the models can be larger or
-smaller, and the tooltip says so when the run's cell is not 1 mm. (3) Only the pairs with the FVM
-as the reference are documented; every other pair says nothing. The FEM row is the FVM against
-the FEM of validation 56.1 (-0.3 to +2.7 % of the FEM rise) written as the FEM minus the FVM in
-the share of the FVM rise.
+were measured with **1 mm cells**, and the gap between two models moves with the cell (the FDM
+against the FVM on the example board is -0.1 % at 1 mm and -1.1 % at 2 mm): a run at another cell
+gets **no verdict**, the line reads *Not judged at 2 mm cells: FDM hottest point -0.7 K, -1.1 % of
+the rise (usual -0.5 to 0.0 % at 1 mm)* in the normal colour, and its tooltip says why; run at 1 mm
+for a verdict. (3) Only the pairs with the FVM
+as the reference are documented; every other pair says nothing. The FEM row is converted from the
+peaks of validation 56.1, which gives the FVM against the FEM in the share of the FEM rise, into
+the FEM minus the FVM in the share of the FVM rise.
 
 ![The Difference view](images/results_difference.png)
 

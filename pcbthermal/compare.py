@@ -247,8 +247,8 @@ def readout_name(readout, layer, face=0):
 
 
 # What is documented about the size of the difference between two models. Every row: (model, reference) -> (what, evidence). The numbers are those of the
-# 20 scenarios of docs/validation.md section 2 (hottest point, share of the rise above ambient, the FVM as reference), and for the FEM those of the 16 boards of
-# section 56.1 (1 mm cell, peak); tests/test_compare.py recomputes them from those tables, so a number here that a table does not hold fails. Pairs that are
+# 20 scenarios of docs/validation.md section 2 (hottest point, share of the rise above ambient, the FVM as reference), and for the FEM those of the 19 boards of
+# section 56.1 with a FEM value (1 mm cell, peak); tests/test_compare.py recomputes them from those tables, so a number here that a table does not hold fails. Pairs that are
 # not here have no documented measurement and say nothing.
 @dataclass(frozen=True)
 class Tip:
@@ -271,7 +271,7 @@ class Agreement:
     """
     line: str            # One line, the verdict first (the label under the controls)
     tooltip: str         # The range, the cases, the cases outside, the evidence and the sentence that the number is the hottest point
-    outside: bool        # True when the hottest-point difference is outside the usual range (the view draws the line in the warning colour)
+    outside: bool        # True when the hottest-point difference is outside the usual range (the view draws the line in the warning colour); never at another cell
 
 
 DOCUMENTED_CELL_MM = 1.0      # The cell of the tables the ranges come from (validation section 2 and 56.1 are at 1 mm)
@@ -280,17 +280,27 @@ DOCUMENTED_CELL_MM = 1.0      # The cell of the tables the ranges come from (val
 EXPECTED = {
     ("fdm", "fvm"): Tip("FDM: the hottest point is 0.5 % of the rise below the FVM or closer in {n} of {n_all} scenarios",
                         "section 2", -0.5, 0.0, 19, 20, (("a copper edge across the heater", -1.3),)),
-    ("analytic", "fvm"): Tip("Analytic: a series with local corrections; the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} scenarios (-1.1 % on the example board)",
+    ("analytic", "fvm"): Tip("Analytic: a series with local corrections; the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (-1.1 % on the example board)",
                              "sections 1 and 2", -1.8, 0.3, 18, 20, (("a copper island around the heater", -5.1), ("a copper edge across the heater", -27.9))),
-    ("lumped", "fvm"): Tip("LPTN: the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} scenarios (+2.4 % on the example board)",
+    ("lumped", "fvm"): Tip("LPTN: the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (+2.4 % on the example board)",
                            "sections 1 and 2", -5.4, 8.4, 19, 20, (("a copper edge across the heater", -27.9),)),
-    ("solid3d", "fvm"): Tip("3D solid: the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} scenarios (a comparison model of the program, not an independent reference)",
+    ("solid3d", "fvm"): Tip("3D solid: the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (a comparison model of the program, not an independent reference)",
                             "section 2", -0.3, 0.9, 20, 20, ()),
     # Validation 56.1 gives the FVM against the FEM; the view subtracts the other way and as a share of the rise of the reference (the FVM), so the range is
-    # recomputed from the peaks of that table: (FEM / FVM - 1) over the 16 boards without a drawn feature and without the skipped round outline, 1 mm cell
-    ("fem", "fvm"): Tip("FEM: the hottest point is {lo:+.1f} to {hi:+.1f} % of the rise from the FVM in {n} of {n_all} boards of the suite at a 1 mm cell (the three drawn boards and the round outline, which the FEM does not run, are not in the range)",
-                        "section 56.1", -2.7, 0.3, 16, 16, ()),
+    # recomputed from the peaks (rises) of that table: (FEM / FVM - 1) over the 19 boards with a FEM value (the FEM skips the round outline), 1 mm cell; the L of
+    # drawn copper is the one case outside (the drawn inset square and stripes are inside the range)
+    ("fem", "fvm"): Tip("FEM: the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} boards of the suite at a 1 mm cell (the round outline, which the FEM does not run, is not counted)",
+                        "section 56.1", -2.7, 0.3, 18, 19, (("an L of drawn copper", -15.1),)),
 }
+
+
+def _pct(value):
+    """!
+    @brief Write one end of a documented range: signed with one decimal, and a zero without a sign ("-0.5 to 0.0 %", not "-0.5 to +0.0 %").
+    @param value Percent.
+    @return str.
+    """
+    return "0.0" if round(float(value), 1) == 0.0 else f"{float(value):+.1f}"
 
 
 def _outcome(pct, tip):
@@ -303,28 +313,46 @@ def _outcome(pct, tip):
     return tip.lo <= round(float(pct), 1) <= tip.hi
 
 
+def at_documented_cell(cell_mm):
+    """!
+    @brief Whether a run was made at the cell of the tables the ranges come from (`DOCUMENTED_CELL_MM`, to 1 % of it).
+    @param cell_mm Cell of the run, mm, or None when not stated (a caller of the library that does not say is judged as at the documented cell).
+    @return bool.
+    """
+    return cell_mm is None or abs(float(cell_mm) - DOCUMENTED_CELL_MM) <= 0.01 * DOCUMENTED_CELL_MM
+
+
 def expected_agreement(model, reference, peak_k, peak_pct, cell_mm=None):
     """!
     @brief What the documents measured about the size of the difference of a pair of models, set against the difference at hand (the verdict line).
+    @details The ranges were measured with `DOCUMENTED_CELL_MM` cells, and the gap between two models moves with the cell (the FDM against the FVM on the example
+             board is -0.1 % of the rise at 1 mm and -1.1 % at 2 mm). A run at another cell therefore gets NO verdict: the line gives the gap and the range with the cell
+             it was measured at, in the normal colour, so that a coarse or fine cell never raises a false alarm (nor a false 'usual').
     @param model Key of the model shown.
     @param reference Key of the reference.
     @param peak_k Tmax(model) - Tmax(reference), K (the hottest points).
     @param peak_pct The same as a share of the rise of the reference, percent.
-    @param cell_mm Cell size of the run, mm (None: not stated); the ranges were measured with `DOCUMENTED_CELL_MM` cells and the tooltip says so when the run's cell differs.
+    @param cell_mm Cell size of the run, mm (None: not stated, judged as at the documented cell).
     @return Agreement (line, tooltip, outside), or None when nothing is documented for the pair: then the view says nothing.
     """
     tip = EXPECTED.get((model, reference))
     if tip is None:
         return None
-    outside = not _outcome(peak_pct, tip)
-    head = "Outside the usual range for the" if outside else "Usual for the"
-    line = (f"{head} {model_label(model)}: hottest point {signed_fixed(peak_k, 1)} K, {signed_fixed(peak_pct, 1)} % of the rise "
-            f"(usual {tip.lo:+.1f} to {tip.hi:+.1f} %)")
-    body = tip.text.format(lo=tip.lo, hi=tip.hi, n=tip.n, n_all=tip.n_all)
+    rng = f"{_pct(tip.lo)} to {_pct(tip.hi)} %"
+    gap = f"hottest point {signed_fixed(peak_k, 1)} K, {signed_fixed(peak_pct, 1)} % of the rise"
+    if at_documented_cell(cell_mm):
+        outside = not _outcome(peak_pct, tip)
+        head = "Outside the usual range for the" if outside else "Usual for the"
+        line = f"{head} {model_label(model)}: {gap} (usual {rng})"
+    else:
+        outside = False
+        line = f"Not judged at {float(cell_mm):.3g} mm cells: {model_label(model)} {gap} (usual {rng} at {DOCUMENTED_CELL_MM:g} mm)"
+    body = tip.text.format(lo=_pct(tip.lo), hi=_pct(tip.hi), n=tip.n, n_all=tip.n_all)
     if tip.outliers:
         body += "; outside it: " + ", ".join(f"{what} {pct:+.1f} %" for what, pct in tip.outliers)
     tooltip = f"{line}.\n{body}.\nEvidence: docs/validation.md {tip.evidence}.\n"
-    if cell_mm is not None and abs(cell_mm - DOCUMENTED_CELL_MM) > 1e-6:
-        tooltip += (f"The ranges were measured with {DOCUMENTED_CELL_MM:g} mm cells; this run used {cell_mm:.3g} mm, where the gap between the models can be larger or smaller.\n")
+    if not at_documented_cell(cell_mm):
+        tooltip += (f"The ranges were measured with {DOCUMENTED_CELL_MM:g} mm cells; this run used {float(cell_mm):.3g} mm, where the gap between the models can be larger "
+                    f"or smaller, so no verdict is given. Run at {DOCUMENTED_CELL_MM:g} mm for one.\n")
     tooltip += "Measured at the hottest point; the map can differ more around the parts."
     return Agreement(line, tooltip, outside)
