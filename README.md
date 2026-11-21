@@ -18,7 +18,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 | | |
 | :-- | :-- |
 | **Download the program** | [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases): packages for Windows, macOS (Apple silicon) and Linux, no Python needed (see [Download](#download)) |
-| **User manual** | [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md): installation, a tour of the window with numbered screenshots, tutorials, every setting, the results, the command line. The PDF, [`PCB-Thermal-Lab-User-Manual.pdf`](https://github.com/silvapmm/pcb-thermal-lab/releases/latest/download/PCB-Thermal-Lab-User-Manual.pdf), is attached to each release from 2.9.0 on |
+| **User manual** | Markdown: [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) (installation, a tour of the window with numbered screenshots, tutorials, every setting, the results, the command line). PDF: [latest release](https://github.com/silvapmm/pcb-thermal-lab/releases/latest/download/PCB-Thermal-Lab-User-Manual.pdf) or [this version, 2.9.0](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/PCB-Thermal-Lab-User-Manual.pdf) (attached to each release from 2.9.0 on) |
 | **In the program** | **Help - User guide** (`F1`), the same text as [`pcbthermal/help/index.html`](pcbthermal/help/index.html) |
 | **What changed** | [`CHANGELOG.md`](CHANGELOG.md) (release notes), [`docs/versions.md`](docs/versions.md) (every version, how it was tested, what is planned) |
 | **How it works** | [`docs/models.md`](docs/models.md) (the models and which to use), [`docs/theory.md`](docs/theory.md) (every equation and approximation), [`docs/calculators.md`](docs/calculators.md) (the Power Calculator) |
@@ -126,7 +126,15 @@ Rule of thumb: run them all (`--model compare`); if they agree within about 5 % 
 
 ## Download
 
-The packages of each release are on the [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases): `PCB-Thermal-Lab-<version>-windows-x64.zip`, `PCB-Thermal-Lab-<version>-linux-x64.tar.gz` and `PCB-Thermal-Lab-<version>-macos-arm64.zip` (Apple silicon only), with `SHA256SUMS.txt` and the exact Qt and PySide source (the packages use Qt under the LGPL-3.0). Unzip and run; nothing is installed and Python is not needed. They are **not signed**, so the first start asks for a confirmation:
+The packages of each release are on the [Releases page](https://github.com/silvapmm/pcb-thermal-lab/releases/latest) (the newest one), each with `SHA256SUMS.txt` and the exact Qt and PySide source (the packages use Qt under the LGPL-3.0). Unzip and run; nothing is installed and Python is not needed. Direct links of version 2.9.0:
+
+| System | Package (2.9.0) | Requirement | First start |
+| :-- | :-- | :-- | :-- |
+| Windows x64 | [`PCB-Thermal-Lab-2.9.0-windows-x64.zip`](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/PCB-Thermal-Lab-2.9.0-windows-x64.zip) | 64-bit Windows | SmartScreen, see below |
+| Linux x64 | [`PCB-Thermal-Lab-2.9.0-linux-x64.tar.gz`](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/PCB-Thermal-Lab-2.9.0-linux-x64.tar.gz) | glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+) | system libraries, see below |
+| macOS Apple silicon | [`PCB-Thermal-Lab-2.9.0-macos-arm64.zip`](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/PCB-Thermal-Lab-2.9.0-macos-arm64.zip) | macOS 14 or newer, Apple silicon only | Gatekeeper, **Open Anyway** (below) |
+
+Checksums of every package: [`SHA256SUMS.txt`](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/SHA256SUMS.txt). The user manual as a PDF: [PCB-Thermal-Lab-User-Manual.pdf](https://github.com/silvapmm/pcb-thermal-lab/releases/download/v2.9.0/PCB-Thermal-Lab-User-Manual.pdf) (Markdown: [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)). The packages are **not signed**, so the first start asks for a confirmation:
 
 - **Windows**: SmartScreen says "Windows protected your PC": More info, Run anyway. Do not unpack into a very deep folder.
 - **macOS** (macOS 14 or newer: the PySide6 6.12 wheel is built for macOS 14): Gatekeeper blocks the first start ("Apple could not verify ..."): click Done, then open System Settings, Privacy & Security, and under Security click **Open Anyway** for PCB Thermal Lab (the button stays for about an hour after the blocked start), confirm with your login password and click Open. Since macOS 15 (Sequoia) the old right click, Open no longer bypasses Gatekeeper. Or, in a terminal, once: `xattr -dr com.apple.quarantine "PCB Thermal Lab.app"`.
