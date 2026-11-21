@@ -1075,7 +1075,9 @@ scale of a difference is set by the data).
 **hottest points** with what the validation measured for that pair, and turns to the warning
 colour of the theme, *Outside the usual range for the ...*, when it is outside. Hover it for the
 range, the number of cases, the cases that fall outside and the section of the validation
-document that holds them. A pair without a measured range has no line.
+document that holds them; outside the range it also quotes the range of the same pair on the 17
+boards of the comparison campaign (validation 56.1: copper only under a pad, via plates, outlines),
+where larger gaps are documented. A pair without a measured range has no line.
 
 | Model against the FVM | Usual difference of the hottest point (share of the rise above ambient) | Outside it | Source |
 | :-- | :-- | :-- | :-- |

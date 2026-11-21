@@ -262,6 +262,9 @@ class Tip:
     n: int               # Cases of the range
     n_all: int           # Cases of the table
     outliers: Tuple[Tuple[str, float], ...]   # (case, percent) that the range leaves out
+    # Range (lowest, highest percent) of the same pair over the 17 boards of validation 56.1 without drawn copper (1 mm, the FVM rise), quoted in the tooltip when the
+    # gap is outside the usual range: boards with copper only under a pad, via plates and outlines give larger gaps there. None: nothing more is documented.
+    campaign: Optional[Tuple[float, float]] = None
 
 
 @dataclass(frozen=True)
@@ -279,13 +282,13 @@ DOCUMENTED_CELL_MM = 1.0      # The cell of the tables the ranges come from (val
 
 EXPECTED = {
     ("fdm", "fvm"): Tip("FDM: the hottest point is 0.5 % of the rise below the FVM or closer in {n} of {n_all} scenarios",
-                        "section 2", -0.5, 0.0, 19, 20, (("a copper edge across the heater", -1.3),)),
+                        "section 2", -0.5, 0.0, 19, 20, (("a copper edge across the heater", -1.3),), (-3.5, 1.5)),
     ("analytic", "fvm"): Tip("Analytic: a series with local corrections; the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (-1.1 % on the example board)",
-                             "sections 1 and 2", -1.8, 0.3, 18, 20, (("a copper island around the heater", -5.1), ("a copper edge across the heater", -27.9))),
+                             "sections 1 and 2", -1.8, 0.3, 18, 20, (("a copper island around the heater", -5.1), ("a copper edge across the heater", -27.9)), (-55.5, 0.2)),
     ("lumped", "fvm"): Tip("LPTN: the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (+2.4 % on the example board)",
-                           "sections 1 and 2", -5.4, 8.4, 19, 20, (("a copper edge across the heater", -27.9),)),
+                           "sections 1 and 2", -5.4, 8.4, 19, 20, (("a copper edge across the heater", -27.9),), (-31.6, 4.1)),
     ("solid3d", "fvm"): Tip("3D solid: the hottest point is {lo} to {hi} % of the rise from the FVM in {n} of {n_all} scenarios (a comparison model of the program, not an independent reference)",
-                            "section 2", -0.3, 0.9, 20, 20, ()),
+                            "section 2", -0.3, 0.9, 20, 20, (), (-0.3, 2.2)),
     # Validation 56.1 gives the FVM against the FEM; the view subtracts the other way and as a share of the rise of the reference (the FVM), so the range is
     # recomputed from the peaks (rises) of that table: (FEM / FVM - 1) over the 19 boards with a FEM value (the FEM skips the round outline), 1 mm cell; the L of
     # drawn copper is the one case outside (the drawn inset square and stripes are inside the range)
@@ -351,6 +354,11 @@ def expected_agreement(model, reference, peak_k, peak_pct, cell_mm=None):
     if tip.outliers:
         body += "; outside it: " + ", ".join(f"{what} {pct:+.1f} %" for what, pct in tip.outliers)
     tooltip = f"{line}.\n{body}.\nEvidence: docs/validation.md {tip.evidence}.\n"
+    if outside and tip.campaign is not None:
+        # Outside the usual range is a fact about the 20 scenarios; the campaign measured the pair on boards that the scenarios do not hold, and the user needs to know
+        # that a larger gap is documented there (no board class is detected: the sentence is the evidence, the reader judges whether the board is of that kind)
+        tooltip += (f"On the 17 boards of the comparison campaign (validation 56.1, 1 mm; copper only under a pad, via plates, outlines) the {model_label(model)} is "
+                    f"{_pct(tip.campaign[0])} to {_pct(tip.campaign[1])} % of the FVM rise: a gap of that size is documented there, not necessarily an error of the run.\n")
     if not at_documented_cell(cell_mm):
         tooltip += (f"The ranges were measured with {DOCUMENTED_CELL_MM:g} mm cells; this run used {float(cell_mm):.3g} mm, where the gap between the models can be larger "
                     f"or smaller, so no verdict is given. Run at {DOCUMENTED_CELL_MM:g} mm for one.\n")

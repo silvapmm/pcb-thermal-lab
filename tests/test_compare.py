@@ -270,3 +270,34 @@ def test_the_fdm_and_fvm_at_2_mm_give_the_gap_that_motivates_the_rule(sim):
     assert round(d.peak_pct, 1) == -1.1
     a = compare.expected_agreement(d.model, d.reference, d.peak_k, d.peak_pct, 1000.0 * d.dx)
     assert not a.outside and a.line.startswith("Not judged at 2 mm cells")
+
+
+def test_the_campaign_ranges_of_the_tooltip_are_what_validation_56_1_prints():
+    """!
+    @brief The second range of each pair (quoted in the tooltip outside the usual range) is (model / FVM - 1) over the 17 boards of the 56.1 peak table without drawn copper
+           (the round outline included: every model but the FEM runs it); the FEM row, already from 56.1, has none.
+    """
+    text = open(os.path.join(ROOT, "docs", "validation.md"), encoding="utf-8").read()
+    sec = text.split("### 56.1 Every board, every model (peak and part mean)", 1)[1].split("Part mean under the first part", 1)[0]
+    cols = {"fdm": 2, "lumped": 3, "analytic": 4, "solid3d": 5}
+    shares = {k: [] for k in cols}
+    for line in sec.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 7 and re.match(r"[-\d.]+ \(", cells[1]) and not cells[0].startswith("drawn_"):
+            fvm = float(cells[1].split()[0])
+            for k, j in cols.items():
+                shares[k].append(100.0 * (float(cells[j].split()[0]) / fvm - 1.0))
+    for k in cols:
+        assert len(shares[k]) == 17
+        assert (round(min(shares[k]), 1), round(max(shares[k]), 1)) == compare.EXPECTED[(k, "fvm")].campaign, k
+    assert compare.EXPECTED[("fem", "fvm")].campaign is None
+
+
+def test_outside_the_usual_range_the_tooltip_quotes_the_campaign_and_inside_it_does_not():
+    """!
+    @brief The FDM against the FVM at +1.5 % (a via plate of the campaign) is outside the 20-scenario range: the line says so, the tooltip adds the campaign range
+           -3.5 to +1.5 %; inside the range the sentence is absent.
+    """
+    out = compare.expected_agreement("fdm", "fvm", 1.6, 1.5, 1.0)
+    assert out.outside and "comparison campaign" in out.tooltip and "-3.5 to +1.5 % of the FVM rise" in out.tooltip
+    assert "comparison campaign" not in compare.expected_agreement("fdm", "fvm", -0.1, -0.1, 1.0).tooltip
