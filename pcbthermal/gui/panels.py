@@ -1573,16 +1573,17 @@ class SolverPanel(QWidget):
         self.cb = {k: QCheckBox(model_full_label(k) + (", reference" if k == "fvm" else "")) for k in ("fvm", "lumped", "analytic", "fdm", "solid3d", "fem")}
         off = "Off by default; a cross-check of the three models above. "
         tips = {"fvm": "Reference model: any geometry, exact energy balance. Use it for final answers and when a warning appears. Cost grows with the cells. Against the finite elements "
-                       "(hottest column, 14 plain boards): 0.6 % mean, 1.4 % largest at a 1 mm cell, 0.15 and 0.46 % at 0.5 mm; the hottest column of a drawn L corner does not converge in the cell (up to 18 %).",
+                       "(hottest column, 14 plain boards): 0.60 % mean, 1.4 % largest at a 1 mm cell, 0.15 and 0.46 % at 0.5 mm (10 of them); the hottest column of a drawn L corner does not converge "
+                       "in the cell (6 to 36 % below the converged value).",
                 "lumped": "Fast network (milliseconds). Against the finite elements (hottest column, 1 mm cell): +0.9 to +4.6 % on nine plain boards, 7 to 11 % low on a part over a copper "
-                          "window with bare laminate round it, 10 to 31 % low on an outline (warned). Weak where a copper edge crosses a heater and for thin heaters.",
+                          "window with bare laminate round it, 10 and 31 % low on two outlines (warned). Weak where a copper edge crosses a heater and for thin heaters.",
                 "analytic": "Closed-form series (instant). Against the finite elements (hottest column, 1 mm cell): -0.5 to +1.2 % on nine plain boards, 31 to 54 % low on a part "
                             "over a copper window with bare laminate round it (warned). Unreliable where a copper edge crosses a heater.",
                 "solid3d": off + "The board as a real 3D solid (slabs for every layer and gap; copper above 105 µm as several). Steady state only; slower and larger (example board: 15 s, 3.5 GB). "
-                           "Skipped above the memory limit. Against the finite elements (hottest column, 14 plain boards): 0.9 % mean, 2.2 % largest above at a 1 mm cell, 0.3 and 0.8 % at 0.5 mm; "
+                           "Skipped above the memory limit. Against the finite elements (hottest column, 14 plain boards): 0.93 % mean, 2.2 % largest above at a 1 mm cell, 0.30 and 0.77 % at 0.5 mm (8 of them); "
                            "4.5 to 4.8 % above on a copper window at 1 mm.",
-                "fdm": off + "Node-centred finite differences of the same model (steady, animation, profiles). Against the finite elements (hottest column, 14 plain boards): 0.6 % mean, "
-                           "2.4 % largest at a 1 mm cell, 0.2 and 0.5 % at 0.5 mm.",
+                "fdm": off + "Node-centred finite differences of the same model (steady, animation, profiles). Against the finite elements (hottest column, 14 plain boards): 0.62 % mean, "
+                           "2.4 % largest at a 1 mm cell, 0.21 and 0.51 % at 0.5 mm (10 of them).",
                 # (at most eight full stops, decimals included: the details are in the guide, tests/test_fem_gui.py)
                 "fem": off + "The board as a 3D solid of finite elements (hexahedra through every copper layer and gap): steady state, animation and power profiles. On plain boards "
                        "it reads 0.4 to 0.9 % below the FVM at the same cell (mostly the finite volumes' own error); thick copper has its surface resolved, a metal block is "

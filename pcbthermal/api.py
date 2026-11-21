@@ -1424,7 +1424,7 @@ def _simulate(problem, options, progress):
                                      factor=memory.PROFILE_FACTOR, refuse="return") if problem.has_profiles() else [])
     profile_refused = next((v for v in profile_verdicts if v.verdict == "refuse"), None)
     guard_warnings += [warn(v.message) for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
-    sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm)
+    sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm, fem_gap_elements=options.fem_gap_elements)
                      + guard_warnings)
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"

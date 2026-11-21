@@ -1010,8 +1010,8 @@ row per warning with its dot and the label of its element, the first one opened.
 | Centre of the part sits on bare laminate | Live | Use the 3D solid for the final value. |
 | Part is small against the sub-layer of laminate | Live | Reduce *Laminate sub-gap* or raise *Laminate sub-gaps*. |
 | Copper coverage varies around the heaters (LPTN, Analytic) | Live | Use the FVM (the Analytic spreads each layer into one sheet; the LPTN reads a mean and does not see the copper edge: 7 to 11 % low on a copper window). |
-| Part on bare laminate beside copper (a corner of the footprint) | Live | Read the mean of the part, not the hottest column (it does not converge in the cell). |
-| A profile stretch shorter than the FEM mesh follows | Live (FEM) | Take the swing as a lower estimate, or raise *FEM gap elements*. |
+| Part on bare laminate beside copper (a corner of the footprint) | Live | Read the mean of the part, not the hottest column (it can converge slowly or not at all with the cell). |
+| A profile stretch shorter than the FEM mesh follows | Live (FEM) | Take the peak and the swing as a lower estimate, or raise *FEM gap elements*. |
 | Vias in the LPTN model; can read this part too cool, unsafe for a design | Live | Use the FVM for via design. |
 | Copper over only part of its footprint (via) | Live | Use a finer cell, or compare with the 3D solid. |
 | Via touches no copper on a layer | Live | Draw the pad or plane if the via is connected there. |
@@ -1219,7 +1219,7 @@ the ambient) of the model against the FEM at the same cell, in percent of the FE
 one cell is not the truth: it reads below the converged value (4.6 % on the copper-window board at
 1 mm).
 
-| Model | Plain boards (14), 1 mm: mean, largest | 0.5 mm: mean, largest | Far off |
+| Model | Plain boards (14), 1 mm: mean, largest | 0.5 mm (10 of them; 8 for the 3D solid): mean, largest | Far off |
 | :-- | :-- | :-- | :-- |
 | FVM | 0.60, 1.4 % | 0.15, 0.46 % | the drawn L corner: +17.8 % (does not converge in the cell) |
 | FDM | 0.62, 2.4 % | 0.21, 0.51 % | the drawn L corner: -20.3 % |
@@ -1315,10 +1315,13 @@ default mesh it is the model to believe from about 0.3 s after a power step. Kee
 Crank-Nicolson, the default, to read the first seconds (with implicit Euler its first frames carry a few
 percent of error). The FEM never decides the regime of a power profile and cannot run alone in
 the Power profile tab. A profile run predicted to take more than 10 minutes is refused before it
-starts. The FEM warns when a stretch of a power profile is shorter than the mesh across the board
-follows (2 times the square of the first element across a gap over the diffusivity: about 0.35 s on
-a 1.6 mm board): on a 20 Hz wave on a two-layer plate the default mesh read the swing 4.90 K, 22 %
-below the 6.3 K of an independent solver (12 elements across a gap: 6.07 K); one board was measured.
+starts. The FEM warns when a profile it steps in time (a one-shot profile, or a repeating wave on
+a part without copper under it) has a stretch shorter than the mesh across the board follows (2
+times the square of the first element across a gap over the diffusivity: about 0.35 s on a 1.6 mm
+board with the default 6 *FEM gap elements*): a single pulse read its peak 0.6 to 1.0 % low at that
+limit and 2.6 to 5.5 % low at 0.3 to 0.15 times it (two boards), and a 20 Hz wave resolved on
+purpose read its swing 22 % below an independent solver. A repeating wave over copper is not
+flagged: the program gives it the average or the closed-form ripple.
 
 On an ordinary board with 35 µm copper the FEM reads 0.4 to 0.9 % below the FVM at the same cell;
 with vias and a part only a few cells wide, halve the cell before reading a difference.

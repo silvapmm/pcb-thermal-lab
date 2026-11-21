@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
         self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
-        self._checks_key = None                               # (models, cell) the live checks were last scheduled for
+        self._checks_key = None                               # (models, cell, FEM gap elements) the live checks were last scheduled for
         self.doc.state_changed.connect(self._on_options_changed)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
 
@@ -1323,7 +1323,7 @@ class MainWindow(QMainWindow):
         @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
         """
         self.results.animation.set_ticked_models(self.doc.options.models)      # the FEM is a choice of the animation while it is ticked
-        key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
+        key = (tuple(self.doc.options.models), self.doc.options.cell_mm, self.doc.options.fem_gap_elements)   # the FEM profile note reads the gap elements
         if key != self._checks_key:
             self._checks_key = key
             self._check_timer.start()
@@ -1336,7 +1336,8 @@ class MainWindow(QMainWindow):
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui"))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5), live=True, ui="gui",
+                                                  fem_gap_elements=self.doc.options.fem_gap_elements))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 

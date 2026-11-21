@@ -8,6 +8,7 @@ No defect was found in the models (README sections 1 to 5), so nothing here need
 * **Proposal.** Add a second test: the share of the footprint on bare laminate (fill below the existing threshold) above a few percent, with a text that says the board maximum of the part (not the mean) reads low and that the heater mean is reliable. Alternatively, extend the existing text of the centre test to "the hottest cell of the part".
 * **Impact.** Warnings only; no number moves; no pending file. Needs a test on `drawn_ell`, `hatched_copper` and a part wholly on copper (silent), and the text in the user guide and the tooltip rules of CLAUDE.md section 10. Not measured on the 17 boards of the frozen set: which of them would start to warn was **not** counted here.
 * **Decision for the maintainer**: whether the read-out deserves a warning, since the part rows already carry the "bare-laminate" statements of the laminate rule.
+* **Status: implemented** by `fix/campaign-warnings-and-trust-hints` as `checks.check_bare_corner` (3 to 50 % of the footprint on bare laminate with the centre on copper; FVM, FDM, 3D solid and FEM; of the 20 boards of the frozen suite only `drawn_ell` warns, `hatched_copper` and the parts wholly on copper are silent, `tests/test_campaign_warnings.py`). The text says the hottest column can converge slowly or not at all with the cell and that the part mean is the read-out to use.
 
 ## P2 (documentation): say that the board maximum of a part over a copper edge is not mesh-converged
 
