@@ -20,7 +20,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | d | Curved and slanted outlines for the FEM | `research/fem-outline-projection`, then `feature/fem-outline-projection` | M + L |
 | e1 | Surface read-out in the Lumped (upper bound), Analytic, 3D solid and the transient | `research/surface-readout-models`, then `feature/surface-readout-models` | M + M |
 | e2 (done, merged into `development`) | Copper slabs in the 3D solid | `feature/solid3d-copper-slabs` | S to M |
-| e3 | Export of the surface CSV, '(column)' tags on zone and hotspot tables, hotspot map `T_point` | `feature/surface-export-and-tags` | S to M |
+| e3 (done on `feature/surface-export-and-tags`, awaiting the reviewer) | Export of the surface CSV, '(column)' tags on zone and hotspot tables, hotspot map `T_point` | `feature/surface-export-and-tags` | S to M |
 | e4 (done, merged with the FEM transient) | FEM frozen records store the surface too; FEM time record: pending file generated, refreeze at the release | `feature/fem-transient` | S |
 | e5 | Convection under the source on the same face (about 0.17 K in a 1 mm case) | `research/convection-under-source`, then a fix only if the study says so | S + S |
 | e6 | FEM on imported Gerber copper (not verified today) | `research/fem-imported-copper`, then text or a fix | M + S |
@@ -67,7 +67,7 @@ Sources read for this plan (in full unless said): `releases/2.8.0/fem-model/DESI
 | Power-profile run, implicit Euler with a fixed step (planned) | The sample right after a power edge has the one-implicit-step error (10.9 K low of a 50.6 K swing on the profile example board; peak, minimum and swing are fine): proposal in `docs/theory.md` 10, decide later (extras / 2.10) | later | S |
 | Campaign branch corrections (done on `release/2.9.0-fem-campaign`: theory 4b and the test docstring and assertion) | The campaign branch must correct `docs/theory.md` 4b (36.611 reproduced against the remembered 36.60) and the test docstring in `tests/test_fem_transient_closed_forms.py` | with the campaign | S |
 | e37 | User manual: Portuguese version not requested; kept as an option | optional | S |
-| e3a | CSV export of the difference statistics, surface CSV export, hotspot `T_point` (e3); next | `feature/surface-export-and-tags` | S to M |
+| e3a (done on `feature/surface-export-and-tags`, awaiting the reviewer) | CSV export of the difference statistics, surface CSV export, hotspot `T_point` (e3); next | `feature/surface-export-and-tags` | S to M |
 | e18a | Name the model on the Components tab and wherever a result table follows the reference model (e18); after e3 | `fix/results-name-the-model` | S |
 | e42 | Release-build items, the maintainer decides: GitHub build trial from `development` with the new icons (never tried); the real QtGui swap test per system; SHA-256 of the Qt source tarballs in the repository (`qt-sources.json`, as water-pump-simulator does); the README sentence about Qt sources (says Qt Project servers; now attached to each release); the A1 wording of `docs/versions.md` that allows a re-run on the same tag while the release is a draft, against the rule that a tag never moves | maintainer's decision | S |
 | e43 | The maintainer's decision about the CLAUDE.md line 'ask a lawyer before a commercial version' (he removed the lawyer from the plan) | maintainer's decision | S |

@@ -14,8 +14,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-                               QFrame, QHeaderView, QLabel, QPlainTextEdit, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
+                               QFrame, QHeaderView, QLabel, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import analysis, compare, defaults, plots, thickness
@@ -310,6 +310,13 @@ class PlotTab(QWidget):
         self.diff_note = ElidedLabel("", max_lines=1)
         self.diff_note.setAccessibleName("Whether the difference of the hottest points is usual for this pair of models")
         self.diff_row = self.diff_note
+        # Writes the statistics of the Difference on view (largest, smallest, mean, RMS, where, models, read-out, cell, verdict line) as a small CSV; shown with the view only
+        self.diff_export = QPushButton("Export statistics…")
+        self.diff_export.setAccessibleName("Export the statistics of the Difference view to a CSV file")
+        self.diff_export.setToolTip("Write the statistics of the Difference on view to a small CSV file: the largest and the smallest difference with their positions (mm), the mean and the "
+                                    "RMS (K), the difference of the hottest points, the two models, the read-out, the cell and the verdict line. One row, the units are in the header.")
+        self.diff_export.setVisible(False)
+        self._diff_last = None                          # (DifferenceField, cell in mm, Agreement or None) of the view on screen, what the export writes
         self._ref_chosen = None                         # The reference the user picked (None: the default, `compare.default_reference`, follows the model shown)
         self.diff_row.setVisible(False)
         self._diff_tip = ("Draw the map of (Model minus the reference model) in K instead of the temperature: the same read-out for both models "
@@ -336,6 +343,7 @@ class PlotTab(QWidget):
             if kind == "temperature":
                 controls.addWidget(self.diff_on)
                 controls.addWidget(self.diff_ref)
+                controls.addWidget(self.diff_export)
                 controls.addWidget(self.hot)
                 controls.addWidget(self.auto)
                 controls.addWidget(self.vmin)
@@ -375,6 +383,7 @@ class PlotTab(QWidget):
         for w in (self.hot, self.auto, self.equiv, self.cut_overlay, self.diff_on):
             w.toggled.connect(self.redraw)
         self.diff_ref.currentIndexChanged.connect(self._on_reference_changed)
+        self.diff_export.clicked.connect(lambda: self.export_difference_statistics())
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
         self.pos.valueChanged.connect(self.redraw)
@@ -478,6 +487,7 @@ class PlotTab(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
+        self._diff_last = None                          # A new run: the statistics of the Difference of the old one are not exportable (the redraw sets them again)
         self.display.clear_cache()                      # The copper pictures belong to the problem of the simulation
         self._updating = True
         have = [k for k, r in sim.results.items() if r.T is not None]
@@ -661,6 +671,8 @@ class PlotTab(QWidget):
         """
         ref = self._refresh_difference_controls()
         self.diff_row.setVisible(False)
+        self.diff_export.setVisible(False)             # Back on only when a Difference is drawn (below)
+        self._diff_last = None
         on = self.diff_on.isEnabled() and self.diff_on.isChecked()
         # The scale of a difference is symmetric and set by the data, and a hotspot contour is a temperature: those controls are hidden while the view is on
         for w in (self.hot, self.auto, self.vmin, self.vmax):
@@ -688,7 +700,24 @@ class PlotTab(QWidget):
             self._set_difference_line(agreement.line, tip, agreement.outside)
         elif caveat:
             self._set_difference_line(caveat, caveat, False)       # No documented range for the pair: no verdict, only the caveat of the layer
+        self._diff_last = (d, cell, agreement)
+        self.diff_export.setVisible(True)
         return d
+
+    def export_difference_statistics(self, path=None):
+        """!
+        @brief Write the statistics of the Difference on view to a CSV file (`compare.write_statistics_csv`): one row, the units in the header names.
+        @param path Output file path; None asks with a save dialog (tests pass a path).
+        @return The path written, or None when no Difference is on view or the dialog was cancelled.
+        """
+        if self._diff_last is None:
+            return None
+        d, cell, agreement = self._diff_last
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Export Difference statistics", f"difference_{d.model}_minus_{d.reference}.csv", "CSV files (*.csv)")
+            if not path:
+                return None
+        return compare.write_statistics_csv(path, d, cell, agreement)
 
     def _set_difference_line(self, line, tooltip, warn):
         """!
@@ -1234,6 +1263,9 @@ class ResultsView(QWidget):
         """
         self.sim = None
         self.reference_line.setVisible(False)       # No run, no reference model to name
+        # The covered Temperature page keeps its old figure: the Difference it showed must not be exportable (nor its button shown) for a board it does not belong to
+        self.temp._diff_last = None
+        self.temp.diff_export.setVisible(False)
         self.compare.clear_results()
         for cover in self._covers:
             cover.setText(self.CLEARED_NOTE)
@@ -1377,17 +1409,55 @@ class ResultsView(QWidget):
         t = self.heater_table
         t.setMinimumHeight(t.horizontalHeader().sizeHint().height() + min(max(t.rowCount(), 1), 2) * t.verticalHeader().defaultSectionSize()
                            + t.horizontalScrollBar().sizeHint().height() + 2 * t.frameWidth() + 2)
+        # The zone and hotspot tables: column values as always; the surface (and, for the FEM, the hottest node) of the same area or point is APPENDED, never in place of them
         zones = analysis.zone_stats(ref, sim.problem)
-        _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
-                                 f"{z['t_min']:.1f}"] for z in zones])
+        has_surface = "T_surface" in ref.arrays
+        zheads = ["Zone", "Layer", "Mean °C\n(column)", "Max °C\n(column)", "Min °C\n(column)"] + (["Max °C\n(surface)"] if has_surface else [])
+        self.zone_table.setColumnCount(len(zheads))
+        self.zone_table.setHorizontalHeaderLabels(zheads)
+        for c in (2, 3, 4):
+            self.zone_table.horizontalHeaderItem(c).setToolTip(tips.COLUMN_TABLE_TIP)
+        if has_surface:
+            self.zone_table.horizontalHeaderItem(5).setToolTip(tips.SURFACE_MAX_TIP)
+        zrows = []
+        for z in zones:
+            row = [z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}", f"{z['t_min']:.1f}"]
+            if has_surface:
+                row.append("n/a" if z["t_max_surface"] is None else f"{z['t_max_surface']:.1f}")
+            zrows.append(row)
+        _fill(self.zone_table, zrows)
+        if has_surface:
+            for r, z in enumerate(zones):
+                outer = z["layer"] in (1, sim.problem.board.layers)       # No value on an outer face: the model reads none there (the Analytic over absent copper); an inner layer has no face
+                self.zone_table.item(r, 5).setToolTip(("No surface value under this zone." if outer else "Inner copper layer: no outer face, the surface is the column.") if z["t_max_surface"] is None else
+                                                      f"Surface ({z['surface_kind']}) of the outer face under the zone: mean {z['t_mean_surface']:.3f} °C, max {z['t_max_surface']:.3f} °C. " + tips.SURFACE_TRAP_TIP)
         blocks_ = analysis.block_stats(ref, sim.problem)
         self.block_table.setVisible(bool(blocks_))
         _fill(self.block_table, [[k["name"], k["face"], f"{k['t_mean']:.1f}", f"{k['t_max']:.1f}", f"{k['w_to_block']:.2f}",
                                   f"{k['w_to_air']:.2f}"] for k in blocks_])
-        hs = analysis.hotspots(ref, sim.options.hotspot_c)
-        _fill(self.hot_table, [[f"#{k + 1}", str(h["layer"]), f"{h['t_max']:.1f}", f"{h['x_mm']:.1f}",
-                                f"{h['y_mm']:.1f}", f"{h['area_mm2']:.1f}"] for k, h in enumerate(hs[:50])]
-              or [["none above limit", "", "", "", "", ""]])
+        hs = analysis.hotspots(ref, sim.options.hotspot_c)[:50]
+        has_point = "T_point" in ref.arrays
+        hheads = (["Hotspot", "Layer", "Tmax °C\n(column)", "x mm", "y mm", "Area mm²"] + (["Tmax °C\n(surface)"] if has_surface else []) + (["Node °C\n(point)"] if has_point else []))
+        self.hot_table.setColumnCount(len(hheads))
+        self.hot_table.setHorizontalHeaderLabels(hheads)
+        self.hot_table.horizontalHeaderItem(2).setToolTip(tips.COLUMN_TABLE_TIP)
+        c = 6
+        if has_surface:
+            self.hot_table.horizontalHeaderItem(c).setToolTip("The surface read-out of the outer face of the copper at the SAME point (the cell of the column maximum), °C; n/a for a hotspot on an "
+                                                              "inner layer. " + tips.SURFACE_MAX_TIP)
+            c += 1
+        if has_point:
+            self.hot_table.horizontalHeaderItem(c).setToolTip("Point read-out (FEM): the hottest mesh node inside the cell of the hotspot, °C, on the outer face; a node value, not a cell mean. "
+                                                              "n/a on an inner layer.")
+        hrows = []
+        for k, h in enumerate(hs):
+            row = [f"#{k + 1}", str(h["layer"]), f"{h['t_max']:.1f}", f"{h['x_mm']:.1f}", f"{h['y_mm']:.1f}", f"{h['area_mm2']:.1f}"]
+            if has_surface:
+                row.append("n/a" if h["t_surface"] is None else f"{h['t_surface']:.1f}")
+            if has_point:
+                row.append("n/a" if h["t_point"] is None else f"{h['t_point']:.1f}")
+            hrows.append(row)
+        _fill(self.hot_table, hrows or [["none above limit"] + [""] * (len(hheads) - 1)])
 
     def _draw_components(self):
         """!

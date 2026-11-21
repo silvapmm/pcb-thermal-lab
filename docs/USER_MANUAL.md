@@ -220,7 +220,7 @@ board on the command line:
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --out output
 ```
 
-It prints a table of the three main models and writes 11 files to the `output` folder (section
+It prints a table of the three main models and writes 13 files to the `output` folder (section
 4.1 gives the numbers to expect). The test battery (`.venv/bin/python -m pytest -q tests`) runs
 for about 50 minutes; it is for developers, not needed to use the program.
 
@@ -710,8 +710,8 @@ complete. When a save changes the format on disk, the old file is first copied t
 
 After a run, the **File** menu offers:
 
-- **Export results to a folder…**: maps, tables, CSV fields, figures, the report and the JSON
-  summary;
+- **Export results to a folder…**: maps, tables (hotspots, zones, parts), CSV fields, the surface
+  read-out (CSV and maps) of the models that have one, figures, the report and the JSON summary;
 - **Export report (TXT)…**: the text report with the table of the models and every warning in
   full;
 - **Export summary (JSON)…**: the machine-readable summary.
@@ -819,6 +819,15 @@ margin to Tj max, the **power limit** (the power that brings the part to its lim
 board) and the top-path power; then the zones, the hotspots and the metal block. All values come
 from the reference model (the FVM when it ran, otherwise the first model that ran); the line
 above the tables names it.
+
+Every temperature names its read-out in the header. The zone table is the column read-out
+(*Mean*, *Max*, *Min*) with *Max °C (surface)* appended for the models that have a surface (a
+zone on an inner layer reads *n/a*: it has no outer face). The hotspot table gives *Tmax °C
+(column)* at the hot-spot point, the cell where the column maximum of the area sits, then its
+position and area, then *Tmax °C (surface)* **at the same point** (*n/a* on an inner layer) and,
+when the reference model is the FEM, *Node °C (point)*: the hottest mesh node inside that cell,
+a node value and not a cell mean. Which points are found, and the column values, are the same
+with or without these columns. The card of the map on the board reads *max .. °C (column)*.
 
 ![The Components page](images/results_components.png)
 
@@ -931,7 +940,8 @@ Where you find the surface:
 2. The Components page: the column *Max °C (surface, estimate)*; hover a cell for the difference
    to the column (Figure 25).
 3. The report and the command line: the lines *Read-outs:* and *Hottest surface (top)*.
-4. Files of the surface, only on request: `run --surface-files`.
+4. Files of the surface: `surface_<model>.csv`, written by Export results to a folder and, from
+   the command line, only on request with `run --surface-files`.
 
 On 35 µm copper the two differ by milli-kelvin and the difference is written out (for example
 +0.001 K). On a thick plate or a metal core it can be several kelvin. **If your result differs
@@ -1100,6 +1110,15 @@ for a verdict. (3) Only the pairs with the FVM
 as the reference are documented; every other pair says nothing. The FEM row is converted from the
 peaks of validation 56.1, which gives the FVM against the FEM in the share of the FEM rise, into
 the FEM minus the FVM in the share of the FVM rise.
+
+**Export statistics.** The **Export statistics…** button beside the reference box (shown while a
+Difference is on view) writes the numbers of the view to a small CSV file: one row with the two
+models, the read-out, the layer, the face, the cell of the run, whether a model was interpolated,
+the largest and the smallest difference with their positions (mm), the mean and the RMS (K), the
+difference of the hottest points (K and % of the rise of the reference), the verdict line and
+whether it is outside the usual range (blank when the pair has no documented range). The units
+are in the header names (`max_k`, `max_x_mm`, ...). The command line has no Difference view, so
+`run` writes no such file.
 
 ![The Difference view](images/results_difference.png)
 
@@ -1627,19 +1646,20 @@ Examples: `examples/csv_profiles/profiles/`.
 
 ### 10.5 Exported results
 
-**File - Export results to a folder…** and the `run` command write the same files:
+**File - Export results to a folder…** and the `run` command write the same files, except that the window also writes the surface files (last rows):
 
 | File | Contents |
 | :-- | :-- |
 | `report.txt` | The text report: the disclaimer, the table of the models, the read-outs, each heater and zone, every warning in full. |
 | `summary.json` | The machine-readable summary (the version of the program, the models, the parts, the warnings). |
-| `field_<model>.csv` | The temperature field of each model. |
+| `field_<model>.csv` | The temperature field of each model (the column read-out: `layer,x_mm,y_mm,T_c`). |
+| `hotspots_<model>.csv`, `zones_<model>.csv`, `parts_<model>.csv` | The tables of the Components page of the reference model (`<model>` is its key). Every temperature column names its read-out and unit: `T_max_column_c`, `T_surface_c`, `T_point_c` (FEM node); a blank where the model has no such read-out; `surface_kind` says estimate, computed or resolved. |
 | `fields_<model>.png` | The maps of each model. |
 | `comparison.png`, `profiles.png` | The comparison of the models and the profiles along a cut. |
 | `parts_by_model.csv` | The part rows of each model, when two or more models ran. |
-| `surface_<model>.csv` and the surface pictures | Only with `run --surface-files`. |
+| `surface_<model>.csv` and the surface pictures | Written by **Export results to a folder…** for every model that has a surface (FVM, FDM, Analytic, 3D solid, FEM), and by `run` only with `--surface-files`. Columns: `face`, `x_mm`, `y_mm`, `T_surface_c`, `T_surface_mean_c`, `T_column_c`, `upper_estimate` (as in every earlier version), then `model`, `surface_kind`, `T_point_c` (the FEM node value, blank for the others). |
 
-The `run` command of the example board writes 11 files (three models). From the window, the maps
+The `run` command of the example board writes 13 files (three models; the hotspot table only when some area is above the Hotspot limit). From the window, the maps
 are drawn with the Display choice (view, underlay, colour map) and the status bar gives the
 number of files written. Every report, the JSON
 summary and the command-line output start with the disclaimer line of section 1.3.

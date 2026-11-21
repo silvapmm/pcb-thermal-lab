@@ -11,6 +11,7 @@
          of 20 scenarios against the FVM, which the Lumped and Analytic constants were fitted to) and 56.1 (the FEM); a pair without a documented measurement says nothing.
 """
 
+import csv
 from dataclasses import dataclass, field as dc_field
 from typing import List, Optional, Tuple
 
@@ -244,6 +245,45 @@ def readout_name(readout, layer, face=0):
     if readout == SURFACE:
         return f"surface ({'top' if face == 0 else 'bottom'})"
     return f"layer {layer + 1}, column mean"
+
+
+STATISTICS_HEADER = ["model", "reference", "readout", "layer", "face", "cell_mm", "interpolated", "max_k", "max_x_mm", "max_y_mm", "min_k", "min_x_mm", "min_y_mm",
+                     "mean_k", "rms_k", "peak_k", "peak_pct_of_rise", "verdict", "outside_usual_range"]
+
+
+def statistics_row(d, cell_mm=None, agreement=None):
+    """!
+    @brief The statistics of a Difference view as one CSV row (the values of `STATISTICS_HEADER`).
+    @details Each number is the one the view and its title show, from the same `DifferenceField`: the largest and the smallest difference with their positions, the mean and the
+             RMS over the finite samples, and the difference of the hottest points (`peak_k`, percent of the rise of the reference). `readout` names the read-out of both fields
+             ("layer 1, column mean" or "surface (top)"); `verdict` is the line of the view ("Usual for the FDM: ...", or "Not judged at 2 mm cells: ...") and is blank when nothing is
+             documented for the pair. Units are in the header names (K, mm).
+    @param d DifferenceField.
+    @param cell_mm Cell of the run in mm (the option of the simulation), or None when not stated (blank).
+    @param agreement Agreement of `expected_agreement` for the pair, or None.
+    @return List of values, in the order of `STATISTICS_HEADER`.
+    """
+    face = ("top" if d.face == 0 else "bottom") if d.readout == SURFACE else ""
+    return [model_label(d.model), model_label(d.reference), readout_name(d.readout, d.layer, d.face), d.layer + 1, face, "" if cell_mm is None else round(float(cell_mm), 6),
+            int(d.resampled), round(d.maximum, 6), round(d.where_max[0], 4), round(d.where_max[1], 4), round(d.minimum, 6), round(d.where_min[0], 4), round(d.where_min[1], 4),
+            round(d.mean, 6), round(d.rms, 6), round(d.peak_k, 6), round(d.peak_pct, 4), "" if agreement is None else agreement.line,
+            "" if agreement is None else int(agreement.outside)]
+
+
+def write_statistics_csv(path, d, cell_mm=None, agreement=None):
+    """!
+    @brief Write the statistics of a Difference view to a small CSV file: a header and one row.
+    @param path Output file path.
+    @param d DifferenceField.
+    @param cell_mm Cell of the run in mm, or None.
+    @param agreement Agreement of `expected_agreement` for the pair, or None.
+    @return The path.
+    """
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(STATISTICS_HEADER)
+        w.writerow(statistics_row(d, cell_mm, agreement))
+    return path
 
 
 # What is documented about the size of the difference between two models. Every row: (model, reference) -> (what, evidence). The numbers are those of the

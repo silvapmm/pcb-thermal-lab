@@ -958,7 +958,7 @@ class BoardView(QGraphicsView):
         refused = card["tmax"] is None
         lines = []
         if not refused:
-            lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C")]
+            lines = [(c["bad"], f"max {num(round(card['tmax'], 1))} °C (column)"), (c["heatsink"], f"min {num(round(card['tmin'], 1))} °C (column)")]     # The map on the board is the column read-out: every number names it
         title = card["title"] + " \u25be"                # The small arrow says that the name opens the list of models
         w = max([fmb.horizontalAdvance(title)] + [fm.horizontalAdvance(t) + 16 for _col, t in lines]) + 2 * pad
         h = fmb.height() + 2 * pad - 2 + row * len(lines)
