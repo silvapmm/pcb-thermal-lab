@@ -2,13 +2,13 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_frozen_numbers.py
-@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.6.0.json`) under one tolerance policy.
+@brief Compares a live run of the models on the regression boards with the numbers frozen at the release (the newest `data/v<version>.json`) under one tolerance policy.
 @details The frozen file is made at a release by `releases/regression-harness/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
          `tests/regression/data/v<version>.json`; the test reads the newest. Tolerance policy (the same for every record, `regress_frozen.py`): temperatures 1e-8 K, field
          checksums 1e-10 relative, heat balance 1e-9 W, unknown counts and skipped status exactly, time to 63 % 1e-6 relative. Defaults: the 2 mm cell, all boards and models, with
-         the times to 63 % (about 30 s). Environment variables:
+         the times to 63 % (about 2 minutes with the 22 boards of 2.9.0). Environment variables:
 
-         * `PCBT_FROZEN_CELLS`: comma-separated cell sizes in mm ("2" by default; "2,1,0.5" in the release procedure, about 2 minutes);
+         * `PCBT_FROZEN_CELLS`: comma-separated cell sizes in mm ("2" by default; "2,1,0.5" in the release procedure, about 4 minutes);
          * `PCBT_FROZEN_BOARDS`, `PCBT_FROZEN_MODELS`: comma-separated names (default all in the file);
          * `PCBT_FROZEN_TRANSIENTS`: "0" to leave out the times to 63 % (default "1");
          * `PCBT_FROZEN_EXACT`: "1" to demand equality of every float (only on the machine and libraries that froze the file);
