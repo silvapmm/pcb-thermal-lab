@@ -191,8 +191,8 @@ def cmd_transient(args):
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
         tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
-    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C, "
-          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C")
+    print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} °C (column), "
+          f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} °C (column)")
     for w in tr.warnings:
         print(f"Warning: {w}")                                            # Limits of the model met by the run (the Analytic with a heatsink), as `run` prints its warnings
     os.makedirs(args.out, exist_ok=True)

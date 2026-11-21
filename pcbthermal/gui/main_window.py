@@ -1864,7 +1864,7 @@ class MainWindow(QMainWindow):
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
         self.tabs.setTabText(TAB_RESULTS, "Results (outdated)" if self._stale else "Results")
         ref = sim.reference
-        self.solver_panel.set_running(False, f"Done: {tips.model_label(ref.model)}, Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W"
+        self.solver_panel.set_running(False, f"Done: {tips.model_label(ref.model)}, Tmax {ref.t_max:.1f} °C (column), Rθ {ref.r_theta:.2f} K/W"
                                       + ("  (the design changed while it ran)" if self._stale else ""))
         self.tabs.setCurrentIndex(TAB_RESULTS)
         self._update_map_button()

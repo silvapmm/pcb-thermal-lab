@@ -207,7 +207,7 @@ class AnimationTab(QWidget):
         self.compute.setEnabled(True)
         self._set_enabled(True)
         tau = tr.time_constant()
-        text = (f"Steady Tmax {tr.steady_t_max:.1f} °C; the hottest point reaches 63 % at "
+        text = (f"Steady Tmax {tr.steady_t_max:.1f} °C (column); the hottest point reaches 63 % at "
                 f"{tau:.1f} s. {len(tr.times) - 1} frames up to {tr.times[-1]:.0f} s.")
         # Limits of the model met by this run (the Analytic with a heatsink): the animation has no Results summary, so they are shown here.
         # getattr: a result computed before the field existed has none
