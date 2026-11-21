@@ -1009,7 +1009,9 @@ row per warning with its dot and the label of its element, the first one opened.
 | Memory: red verdict, Run greyed | Live | Use the cell the message names, or raise the memory limit in Preferences if the machine can take it. |
 | Centre of the part sits on bare laminate | Live | Use the 3D solid for the final value. |
 | Part is small against the sub-layer of laminate | Live | Reduce *Laminate sub-gap* or raise *Laminate sub-gaps*. |
-| Copper coverage varies around the heaters | Live | Use the FVM (the Analytic spreads each layer into one sheet). |
+| Copper coverage varies around the heaters (LPTN, Analytic) | Live | Use the FVM (the Analytic spreads each layer into one sheet; the LPTN reads a mean and does not see the copper edge: 7 to 11 % low on a copper window). |
+| Part on bare laminate beside copper (a corner of the footprint) | Live | Read the mean of the part, not the hottest column (it does not converge in the cell). |
+| A profile stretch shorter than the FEM mesh follows | Live (FEM) | Take the swing as a lower estimate, or raise *FEM gap elements*. |
 | Vias in the LPTN model; can read this part too cool, unsafe for a design | Live | Use the FVM for via design. |
 | Copper over only part of its footprint (via) | Live | Use a finer cell, or compare with the 3D solid. |
 | Via touches no copper on a layer | Live | Draw the pad or plane if the via is connected there. |
@@ -1211,6 +1213,28 @@ user. The equations are in `docs/theory.md`; the measured errors in `docs/valida
 | A check of the "one node per layer" idea on your board (small pads, copper edges, thick blocks) | **3D solid** |
 | Thick copper or plates, hollow vias under a part, the first seconds after a power step | **FEM** |
 
+**How far each model is from the finite elements.** Measured on the 20 boards of the test suite
+(program 2.8.0; `docs/validation.md` 56.1). The number is the **peak** (the hottest column rise above
+the ambient) of the model against the FEM at the same cell, in percent of the FEM rise. The FEM at
+one cell is not the truth: it reads below the converged value (4.6 % on the copper-window board at
+1 mm).
+
+| Model | Plain boards (14), 1 mm: mean, largest | 0.5 mm: mean, largest | Far off |
+| :-- | :-- | :-- | :-- |
+| FVM | 0.60, 1.4 % | 0.15, 0.46 % | the drawn L corner: +17.8 % (does not converge in the cell) |
+| FDM | 0.62, 2.4 % | 0.21, 0.51 % | the drawn L corner: -20.3 % |
+| 3D solid | 0.93, 2.2 % (above) | 0.30, 0.77 % | copper window +4.8 and +4.5 % (its own cell error); drawn L +35.4 % |
+| LPTN | +0.9 to +4.6 % on nine boards | not tabulated | copper window -11.4 and -6.7 %; outline -31.5 and -10.5 %; drawn copper -9 to -33 % |
+| Analytic | -0.5 to +1.2 % on nine boards | not tabulated | copper window -54.4 and -31.4 %; two boards with milder copper variation -7.3 and -9.4 % |
+
+The plain boards are those without a drawn corner and without a copper window round a pad. The 1 %
+holds at 0.5 mm and not always at 1 mm (the FDM on the board with a 4 x 4 via array +2.4 %, the 3D
+solid on the example board +2.2 %). The mean under the part agrees better than the peak (largest
+1.4, 1.2 and 1.6 % for the FVM, FDM and 3D solid at 1 mm). On the drawn L (a 4 mm part with a
+1.2 mm bare corner) the peak of the FVM, FDM, 3D solid and FEM is a point on a copper edge and
+does not converge in the cell (-41 to +8 % of the converged 105.2 K at 2, 1 and 0.5 mm); read the
+mean of the part. The same numbers are in the tooltips of the Models box and in the warnings.
+
 ### 7.2 What each model can do
 
 | | FVM | FDM | LPTN | Analytic | 3D solid | FEM |
@@ -1244,7 +1268,9 @@ A small network of resistances per heater, built from the real footprint and out
 around each heater; several heaters heat each other. A part over a dense group of vias has its
 footprint in two zones (core and rest). It is the fastest model (about 10 ms) and the one for
 sweeps. It is weak with a copper edge across the heater, corners, thin heaters, vias (wide
-errors, warned) and imported copper (too cool, warned). Use the FVM for via design.
+errors, warned) and imported copper (too cool, warned). It also reads too cool where copper covers
+only a window round the part (11.4 and 6.7 % below the finite elements on a 20 mm window under an
+8 mm part, warned since 2.9.0). Use the FVM for via design.
 
 ### 7.6 Analytic: Fourier series
 
@@ -1289,7 +1315,10 @@ default mesh it is the model to believe from about 0.3 s after a power step. Kee
 Crank-Nicolson, the default, to read the first seconds (with implicit Euler its first frames carry a few
 percent of error). The FEM never decides the regime of a power profile and cannot run alone in
 the Power profile tab. A profile run predicted to take more than 10 minutes is refused before it
-starts.
+starts. The FEM warns when a stretch of a power profile is shorter than the mesh across the board
+follows (2 times the square of the first element across a gap over the diffusivity: about 0.35 s on
+a 1.6 mm board): on a 20 Hz wave on a two-layer plate the default mesh read the swing 4.90 K, 22 %
+below the 6.3 K of an independent solver (12 elements across a gap: 6.07 K); one board was measured.
 
 On an ordinary board with 35 µm copper the FEM reads 0.4 to 0.9 % below the FVM at the same cell;
 with vias and a part only a few cells wide, halve the cell before reading a difference.
