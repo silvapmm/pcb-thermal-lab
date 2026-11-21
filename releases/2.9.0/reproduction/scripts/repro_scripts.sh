@@ -1,4 +1,6 @@
 #!/bin/zsh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 # usage: repro_scripts.sh <tag> <folder-glob>   (runs tree then baseline per script, one at a time)
 S=/private/tmp/claude-501/-Volumes-SSD-PROJETOS-pcb-thermal-lab/4c68d1f4-0ccc-466a-9ac6-5ee052402f79/scratchpad
 R=/Volumes/SSD/PROJETOS/pcb-thermal-lab

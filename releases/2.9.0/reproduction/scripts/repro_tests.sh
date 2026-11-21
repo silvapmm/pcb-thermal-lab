@@ -1,4 +1,6 @@
 #!/bin/zsh
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 cd /Volumes/SSD/PROJETOS/pcb-thermal-lab
 eval "$(pcb-library/scripts/link_env.sh)"
 export QT_QPA_PLATFORM=offscreen
