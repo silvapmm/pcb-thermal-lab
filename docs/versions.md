@@ -9,7 +9,7 @@ What was implemented in every version (with the module where it lives and how it
 * **Models**: the finite-element model runs in time (animation, step responses, power profiles; steady and time since 2.9.0, key `fem`, off by default); every model is put against it in the comparison campaign (validation 56 and 57; the FEM reproduces the published NAFEMS T3 transient to 0.01 K, a case read in open documents that quote it, the NAFEMS publication itself not obtained); copper slabs in the 3D solid; the surface read-out in the Analytic and the 3D solid; the default stepping of the animation is Crank-Nicolson with a damped start. Two corrections move numbers on purpose: the power of a part enters the FEM through its face at every copper thickness, and the interface pad of a metal block in the 3D solid conducts across only (0.002 K on the frozen boards).
 * **Interface**: the Difference view of the Temperature tab with a verdict from the measured ranges, the exports and tables named by their read-out, the Models tab part by part, three new warnings, the user manual, a new icon and the downloadable packages.
 * **Release state**: 2.9.0 is prepared from `development` (the tag is created only when the maintainer decides); the numbers moved on purpose are frozen in `tests/regression/data/v2.9.0.json` at the refreeze of this release (367 records at 2, 1 and 0.5 mm, 94 times to 63 %, 29 skipped, 22 boards; the four pending files are folded and deleted; the reproduction pass, the documentation review and the final opinion are in `releases/2.9.0/`).
-* **Next**: 2.10, from 'Planned: what the 2.9.0 plan leaves for later' (the FEM on slanted or curved outlines and on imported copper, the measured memory law, the version comparison, the surface of a time simulation, the step aligned with a wave edge, the Portuguese manual); every version is listed newest first after this summary.
+* **Next**: 2.10, from 'Next: 2.10 and 2.11' (Planned) (the FEM on slanted or curved outlines and on imported copper, the measured memory law, the version comparison, the surface of a time simulation, the step aligned with a wave edge, the Portuguese manual); every version is listed newest first after this summary.
 
 ---
 
@@ -464,9 +464,35 @@ What we want to **implement** in the program, each item once, with the evidence 
 
 There is no separate 2.6.1 release (maintainer's decision): everything below, the fixes included, is released with 2.7.0, which is to be stable and close to final; the five small bug fixes (keyboard and mouse window, window growth after an import, replace-import of another board, the board size of an imported board, Add files of another board) are released only with it.
 
-### Planned: what the 2.9.0 plan leaves for later
+### Next: 2.10 and 2.11 (maintainer's roadmap after 2.9.0)
 
-**The plan of 2.9.0 is `releases/2.9.0/PLAN.md`** (every row has its status there). Everything it put in 2.9.0 is implemented and recorded under 2.9.0 above, except these items, which are **not in 2.9.0** and go to 2.10 unless the maintainer says otherwise: the projection of slanted and curved outlines in the FEM (d; the FEM keeps refusing them), the FEM on imported Gerber copper (e6), the memory law against measured peaks (e7), the regeneration of `docs/version-comparison.md` with every version (e15; the document stays marked stale), the surface read-out of a time simulation in the FVM and FDM (e23; a time simulation says n/a), the time step aligned with a wave edge in `plan_run` (e29), the refit of the CG per-step cost (e31), the steady FEM direct limit (e32), the FEM step-response time estimate by stages (e42), the FEM reading the openings of a mean-fill layer (e43), the first sample after a power edge of the implicit-Euler power-profile run (`docs/theory.md` 10) and a Portuguese manual (e37, not requested). The two boards of the regression harness of e33 (`thick_copper_gap` and `top_block_pad`) are in the board list (22 boards); they are frozen at the refreeze of 2.9.0. The release-build items left to the maintainer (the real QtGui swap test per system, the SHA-256 of the Qt source tarballs in the repository, a build trial from `development`) are PLAN row e42b. Not in the plan at all and still open: the 2.8.0 list below (what is not done of it) and the lists after it. Low items of the reviewer's final opinion of 2.9.0 (`releases/2.9.0/final-opinion/README.md`), for 2.10: (1) the results map title, the Animation/GIF map title and the transient chart legend say 'Tmax' without '(column)'; (2) an old problem, the 'layer N' map title shows the Tmax/Tmin/Tmean of the whole board (example board, layer 4: 85.3 °C, while the layer maximum is 61.9 °C), a `fix/` branch; (3) program texts: 'W/m2K' to 'W/m²K' in the new warning texts, the Animation help omits the FEM, the FEM hard-codes 0.5 instead of the FVM constant.
+2.9.0 is released. What it left (the rows of `releases/2.9.0/PLAN.md` under 'what the 2.9.0 plan leaves for later' and the low items of the reviewer's final opinion, `releases/2.9.0/final-opinion/README.md`) is ordered here, each item once; sizes S (hours), M (a day or two), L (more). **2.10** is polishing and verification on real machines and moves no model number; **2.11** is models and numbers, each item through the normal flow (executor, reviewer, maintainer) with a pending file and a refreeze. What we want to investigate before some of these is in `research/ROADMAP.md` (section 6).
+
+**2.10: small and safe**
+
+| # | Item | Size | Evidence |
+| :-- | :-- | :-- | :-- |
+| A1 | `(column)` on the three titles that still lack it (the results map title, the Animation and GIF map title, the legend `steady Tmax` of the transient chart), and the `layer N` map title, which shows the Tmax, Tmin and Tmean of the whole board (example board, layer 4: 85.3 C, while that layer's maximum is 61.9 C); a `fix/` branch, may move a picture | S-M | final opinion of 2.9.0, low items 1 and 2 |
+| A2 | `W/m2K` to `W/m²K` in the new warning texts; the Animation help omits the FEM; the FEM hard-codes 0.5 instead of the FVM constant | S | final opinion of 2.9.0, low item 3 |
+| A3 | the package build refuses absolute symbolic links (today only broken ones); repeat the trial build | S | `packaging/`, PLAN row e42b |
+| B1 | the real library-swap test of `REPLACING-QT.txt` on Windows and on Linux, and a look at the packages on those systems (real machines; macOS was done in 2.9.0) | M | PLAN row e42b |
+| B2 | state the minimum Windows version in the README Download table (today only '64-bit Windows') | S | README, Download |
+| B3 | keep the SHA-256 of the Qt source tarballs in the repository (`qt-sources.json`) | S | PLAN row e42b |
+| B4 | confine Claude Code to the project folder (permissions and sandbox in `.claude/settings.json`) after a tested proposal; infrastructure, not part of the program | S | the settings suggestion the maintainer received |
+
+**2.11: models and numbers**
+
+| # | Item | Size | Evidence |
+| :-- | :-- | :-- | :-- |
+| C1 | the power-profile run (implicit Euler, fixed step): the sample right after a power edge has the one-implicit-step error (10.9 K low of a 50.6 K swing on the profile example board; the peak, the minimum and the swing are fine); moves profile numbers | S-M | `docs/theory.md` 10 |
+| C2 | the time step aligned with a wave edge in `plan_run` (the FVM, FDM and FEM profiles lose 1.7 to 2.9 % of the swing at 20 Hz for unaligned edges) | M | PLAN row e29 |
+| C3 | the transient surface rule: the surface read-out of the time-stepped frames in the FVM and FDM (today n/a); the FEM step-response time estimate by stages (PLAN row e42) goes with it | M-L | PLAN row e23 |
+| C4 | the two optional FEM items: the refit of the CG per-step cost (6e-5 s per unknown per step, about 2.4 times the measurement at 276 000 unknowns) and the steady FEM direct limit | S each | PLAN rows e31 and e32 |
+| C5 | the FEM reading the openings of a mean-fill layer (campaign proposal 6) | S-M | PLAN row e43 |
+| C6 | the 'usual agreement' ranges of the Difference view are measured at 1 mm cells only: measure other cells (after the investigation E3 of `research/ROADMAP.md`) | M | Difference view, 2.9.0 |
+| D | the five extras decided later: the projection of slanted and curved outlines in the FEM (the FEM keeps refusing them), the FEM on imported Gerber copper (e6), the memory law against measured peaks (e7; after E4), the regeneration of `docs/version-comparison.md` with every version (e15; the document stays marked stale), a Portuguese user manual (e37, not requested) | as in the PLAN | PLAN rows d, e6, e7, e15, e37 |
+
+The two boards of the regression harness of e33 (`thick_copper_gap` and `top_block_pad`) were frozen at the refreeze of 2.9.0. Not in the plan at all and still open: the 2.8.0 list below (what is not done of it) and the lists after it.
 
 ### Planned: 2.7.0 (closed)
 
