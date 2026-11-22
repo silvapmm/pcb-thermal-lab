@@ -5,7 +5,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
-## [2.9.0] - 2026-11-21
+## [2.9.0] - 2026-11-22
 
 **2.9.0 in short**: a version of features and of comparison. The finite-element model runs in time (animation, step responses, power profiles); every model is put against it in a comparison campaign (validation 56 and 57; the FEM reproduces the published NAFEMS T3 transient to 0.01 K, a case read in open documents that quote it, the NAFEMS publication itself not obtained) and the Difference view of the Temperature tab draws one model minus another with a verdict from those measured ranges; the 3D solid gets copper slabs and the Analytic and the 3D solid a surface read-out; the exports name every temperature by its read-out; the animation steps in Crank-Nicolson with a damped start; three new warnings; the Models tab compares the parts in every model; a user manual, a new icon and downloadable packages. Corrections that move numbers on purpose: the power of a part enters the FEM through its face at every copper thickness, and the interface pad of a metal block in the 3D solid conducts across only (0.002 K on the frozen boards). Not in 2.9.0: the FEM on slanted or curved outlines and on imported copper, the measured memory law, the version comparison, the surface of a time simulation, the step aligned with a wave edge and the Portuguese manual (see `docs/versions.md` 'Planned').
 
