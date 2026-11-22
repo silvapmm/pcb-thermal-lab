@@ -478,7 +478,6 @@ There is no separate 2.6.1 release (maintainer's decision): everything below, th
 | B1 | the real library-swap test of `REPLACING-QT.txt` on Windows and on Linux, and a look at the packages on those systems (real machines; macOS was done in 2.9.0) | M | PLAN row e42b |
 | B2 | state the minimum Windows version in the README Download table (today only '64-bit Windows') | S | README, Download |
 | B3 | keep the SHA-256 of the Qt source tarballs in the repository (`qt-sources.json`) | S | PLAN row e42b |
-| B4 | confine Claude Code to the project folder (permissions and sandbox in `.claude/settings.json`) after a tested proposal; infrastructure, not part of the program | S | the settings suggestion the maintainer received |
 
 **2.11: models and numbers**
 
@@ -740,7 +739,7 @@ Moved word for word; the detailed map is `docs/models.md`, 'Appendix: module map
 
 ### A9. Agent worktrees and the branches Claude deletes (was section 6)
 
-- **Agent worktrees**: an agent with an isolated worktree gets an automatic local branch `worktree-agent-<id>` in `.claude/worktrees/` (never pushed, no work of its own); it creates its real branch from `development` inside it (`worktree.baseRef` is `head`). After the work is merged, Claude removes the worktree (`git worktree remove`, without `--force`; a worktree with untracked files is looked at first), checks `git rev-list --count development..<branch>` is 0 and deletes the `worktree-agent-*` branch (`git branch -D`; if a commit exists only on it, report and do not delete). These are the only branches Claude deletes, besides the throwaway ones: throwaway `tmp/<name>` branches and their worktrees (merge checks, prototypes) are deleted by Claude without asking as soon as their work is on a real branch or on development (check `git rev-list --count development..<branch>` first; a tmp branch with unique work is reported, never deleted). Maintainer, 2026-11-16.
+- **Agent worktrees**: an agent with an isolated worktree gets an automatic local branch `worktree-agent-<id>` in `.claude/worktrees/` (never pushed, no work of its own); it creates its real branch from `development` inside it (`worktree.baseRef` is `head`). After the work is merged, Claude removes the worktree (`git worktree remove`; `--force` only under `.claude/worktrees/`, after the agent finished, when every modified or untracked file is already a git object of the repository and git-ignored data is copied elsewhere, the rule of `autoMode.allow`), checks `git rev-list --count development..<branch>` is 0 and deletes the `worktree-agent-*` branch (`git branch -D`; if a commit exists only on it, report and do not delete). These are the only branches Claude deletes, besides the throwaway ones: throwaway `tmp/<name>` branches and their worktrees (merge checks, prototypes) are deleted by Claude without asking as soon as their work is on a real branch or on development (check `git rev-list --count development..<branch>` first; a tmp branch with unique work is reported, never deleted). Maintainer, 2026-11-16.
 
 ### A10. Parallelism follows the load of the PC (was section 12)
 
