@@ -68,6 +68,9 @@ a.binaries = [b for b in a.binaries if not packaging_build.FORBIDDEN.search(b[0]
 a.datas = [d for d in a.datas if not packaging_build.FORBIDDEN.search(d[0].replace("\\", "/"))]
 # The plug-ins the program never loads (VNC, TUIO touch: they bring QtNetwork)
 a.binaries = [b for b in a.binaries if not packaging_build.UNUSED_PLUGINS.search(b[0].replace("\\", "/"))]
+# QtNetwork: collected only for those plug-ins, linked by nothing that stays (and on Linux its top-level symlink would be left dangling): drop every entry of it, symlinks too
+a.binaries = [b for b in a.binaries if not packaging_build.UNUSED_QT_LIBRARIES.search(b[0].replace("\\", "/"))]
+a.datas = [d for d in a.datas if not packaging_build.UNUSED_QT_LIBRARIES.search(d[0].replace("\\", "/"))]
 # Linux: what was collected only for a binary dropped above (the GTK 3 theme brought GTK, cairo, Pango, GdkPixbuf, ATK and their dependencies from the build machine)
 # is linked by nothing that stays: drop it, so the package carries no library it does not use (and no licence it does not need)
 if sys.platform.startswith("linux"):

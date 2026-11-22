@@ -13,7 +13,7 @@
             module or library that must not be shipped (GPL-3-only modules, FFmpeg, QtPdf, WebEngine, TLS plug-ins, GNU Readline: `FORBIDDEN`); the spec also drops
             the unused plug-ins (`UNUSED_PLUGINS`) and, on Linux, the libraries that nothing kept links any more (`unreferenced_libraries`);
          4. assembles `PCB-Thermal-Lab-<version>-<os>-<arch>/` (the program, `LICENSE`, `licenses/`, `SOURCE-OFFER.txt`, `BUILD-INFO.txt`), lists the native
-            libraries without a licence notice (`check_notices`: a release build STOPS when there is one, a trial build warns), archives it
+            libraries without a licence notice (`check_notices`: a build with `--release`, which the workflow passes on every run, STOPS when there is one; a local build without it warns), archives it
             (`.zip` on Windows and macOS, `.tar.gz` on Linux, which keeps the execute bits) and writes `SHA256SUMS.txt` and `BUILD-RESULT.json`;
          5. with `--selftest`, extracts the archive and runs `--selftest` of the program from it.
          Outputs are in `packaging/dist/` (the archive, `SHA256SUMS.txt`, `BUILD-RESULT.json`, `FILES.txt` (the file list, native libraries outside Qt first) and `qt-source/`, the exact Qt and PySide source that the release
@@ -78,12 +78,22 @@ FORBIDDEN = re.compile(r"Qt6?(WebEngine|Pdf|Multimedia|Graphs|Charts|DataVisuali
 # plug-ins) and the Linux platform support (DBus, XcbQpa, Wayland client). Every other Qt module is either GPL-3-only or an add-on the program never imports, so a file of
 # one that is not on this list is reported (a release build stops); FORBIDDEN names the known GPL-3-only ones, this list catches the ones a new Qt version adds.
 ALLOWED_QT_MODULES = frozenset({"Core", "Gui", "Widgets", "Svg", "DBus", "XcbQpa", "WaylandClient", "WaylandEglClientHwIntegration", "WlShellIntegration",
-                                "EglFSDeviceIntegration", "EglFsKmsSupport", "EglFsKmsGbmSupport"})
+                                "EglFSDeviceIntegration", "EglFsKmsSupport", "EglFsKmsGbmSupport",
+                                # OpenGL (QtOpenGL): linked by the EGL platform plug-ins on Linux (eglfs, minimalegl, the Wayland graphics integrations). Licence read in
+                                # the qtbase 6.12.0 source (src/opengl/qopenglbuffer.cpp): SPDX "LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only";
+                                # https://doc.qt.io/qt-6/qtopengl-index.html (LGPL-3.0); in qtbase, so the attached source covers it
+                                "OpenGL"})
+# The allowed Qt modules that need another Qt module at run time (read with objdump -p, NEEDED, on the Linux package): the second must be on ALLOWED_QT_MODULES too,
+# or the list would allow a library while refusing what it cannot start without (tests/test_packaging.py checks it)
+QT_MODULE_NEEDS = {"EglFSDeviceIntegration": ("OpenGL",), "EglFsKmsSupport": ("OpenGL",), "WaylandEglClientHwIntegration": ("OpenGL",)}
 # A file that is a Qt module: libQt6Core.so.6, Qt6Core.dll, QtCore.abi3.so, QtCore.pyi, QtCore.framework/QtCore (macOS)
 QT_MODULE_FILE = re.compile(r"(?:lib)?Qt6?([A-Z][A-Za-z0-9]*?)(?:6)?(?:\.abi3)?(?:\.(?:so|dll|dylib|pyd|pyi|framework)(?:\.\d+)*)?")
 # Qt plug-ins the program never loads and that would bring a library with them: the VNC platform and the TUIO touch input (both link QtNetwork, and through it Kerberos
 # on Linux). Not forbidden (their source is attached), only left out; the spec drops them before the unreferenced libraries are pruned.
 UNUSED_PLUGINS = re.compile(r"(^|/)(libqvnc\.so|qvnc\.dll|libqvnc\.dylib|libqtuiotouchplugin\.(so|dylib)|qtuiotouchplugin\.dll)$", re.IGNORECASE)
+# QtNetwork: nothing in the program or in a kept plug-in links it (checked with otool -L, objdump -p and the DLL imports on the 2.9.0 trial packages); PyInstaller collected it only as a
+# dependency of the VNC and TUIO plug-ins dropped above, and on Linux left a dangling symlink. The spec drops every file of it, so the package ships no Qt module it does not use.
+UNUSED_QT_LIBRARIES = re.compile(r"(^|/)(Qt6Network\.dll|libQt6Network\.so(\.\d+)*|QtNetwork\.framework(/.*)?|QtNetwork)$")
 # Native libraries whose licence notice is in the package without a file of their own in packaging/licenses/_system (see uncovered_native_libraries):
 # the Qt wheel's (licenses/Qt, and ICU through SYSTEM_NOTICES), a Python wheel's vendored folder (numpy.libs, scipy.libs, pillow.libs, PIL/.dylibs: listed in the
 # wheel's own licence file), CPython itself and the libraries CPython's notices cover (libffi, expat, zlib, mpdec), and the Microsoft C/C++ run-time that the CPython
@@ -398,7 +408,7 @@ def write_notice_files(staging, release):
     """!
     @brief Write NOTICE.txt (LGPL 4(a)), SOURCE-OFFER.txt and REPLACING-QT.txt of the package.
     @param staging Staging folder.
-    @param release True for the build of a tag, False for a trial build (both carry the same contact; SECOND_CONTACT may never be empty).
+    @param release True with `--release` (every workflow build), False for a local build without it (both write the same text; SECOND_CONTACT may never be empty).
     @throws ValueError If SECOND_CONTACT is empty.
     """
     pyside, qt = qt_versions()
@@ -640,11 +650,32 @@ def unexpected_qt_modules(paths):
     return sorted(found)
 
 
+def broken_symlinks(folder):
+    """!
+    @brief The symbolic links of a package whose target does not exist (a library pruned while its link stayed).
+    @param folder The assembled package folder.
+    @return list of str, the relative paths (sorted).
+    """
+    return sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_symlink() and not p.exists())
+
+
+def check_symlinks(folder):
+    """!
+    @brief Stop a build (trial or release) whose package holds a broken symbolic link.
+    @param folder The assembled package folder.
+    @return None.
+    @throws SystemExit When a link points to nothing.
+    """
+    broken = broken_symlinks(folder)
+    if broken:
+        raise SystemExit("error: broken symbolic links in the package: " + ", ".join(broken))
+
+
 def check_qt_modules(folder, release):
     """!
-    @brief Stop a release build whose package holds a Qt module that is not on ALLOWED_QT_MODULES; a trial build only reports it.
+    @brief Stop a build whose package holds a Qt module that is not on ALLOWED_QT_MODULES (the workflow passes release=True in every build; a local build may report only).
     @param folder The assembled package folder.
-    @param release True for the build of a tag.
+    @param release True to stop, False to only print a warning.
     @return list of str, the unexpected modules.
     @throws SystemExit In a release build, when the list is not empty.
     """
@@ -659,9 +690,9 @@ def check_qt_modules(folder, release):
 
 def check_notices(folder, release):
     """!
-    @brief Stop a release build whose package holds a native library without its licence notice; a trial build only reports them.
+    @brief Stop a build whose package holds a native library without its licence notice (the workflow passes release=True in every build; a local build may report only).
     @param folder The assembled package folder.
-    @param release True for the build of a tag.
+    @param release True to stop, False to only print a warning.
     @return list of str, the libraries without a notice.
     @throws SystemExit In a release build, when the list is not empty.
     """
@@ -794,7 +825,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Build the downloadable package of PCB Thermal Lab for this system.")
     ap.add_argument("--reuse-venv", action="store_true", help="keep packaging/.venv-build if it exists (default: make it again)")
     ap.add_argument("--selftest", action="store_true", help="unpack the archive and run --selftest of the program from it (exit code 1 when it fails)")
-    ap.add_argument("--release", action="store_true", help="the build of a release tag (the contact of the written offer, SECOND_CONTACT, is checked before anything is built)")
+    ap.add_argument("--release", action="store_true", help="enforce the checks: stop on a Qt module not on ALLOWED_QT_MODULES and on a native library without a licence notice (the workflow passes it on every run, trials included; without it they only warn)")
     args = ap.parse_args(argv)
     if not SECOND_CONTACT:
         raise SystemExit("error: SECOND_CONTACT in packaging/build.py is empty: a build needs a contact for the written offer that does not depend on GitHub")
@@ -819,6 +850,7 @@ def main(argv=None):
     folder, exe = assemble(built)
     check_shipped(folder)
     check_qt_modules(folder, args.release)
+    check_symlinks(folder)
     uncovered = check_notices(folder, args.release)
     out = archive(folder)
     DIST.mkdir(exist_ok=True)
