@@ -230,8 +230,8 @@ PCBT_SCAN_KEY_VALUES=1 .venv/bin/python -m pytest -q tests/test_no_secrets.py   
 
 ## 15. Where to continue (after 2.9.0)
 
-- **2.9.0 is prepared** on `release/2.9.0-bump` (version bump, CHANGELOG, harness boards; refreeze, pictures and manual PDF follow); the tag `v2.9.0` is NOT created until the maintainer decides. It holds the FEM in time, the Difference view, the comparison campaign (validation 56 and 57), copper slabs in the 3D solid, the surface read-out in the Analytic and the 3D solid, the exports named by read-out, the default Crank-Nicolson stepping, the packages and the user manual.
-- Next: **2.10**, from `docs/versions.md` 'Planned: what the 2.9.0 plan leaves for later' (list also in `releases/2.9.0/PLAN.md` after 1.2) (FEM outline projection, FEM on imported copper, the measured memory law, the version comparison, the transient surface rule, the aligned step), to start when the maintainer says. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
+- **2.9.0 is released** (tag `v2.9.0` on `main` at `99a7a896`, 2026-11-22, GitHub release published and Latest): the FEM in time, the Difference view, the comparison campaign, copper slabs in the 3D solid, the surface read-out in the Analytic and the 3D solid, the packages and the user manual.
+- Next: **2.10** (polishing, real-machine checks) then **2.11** (models and numbers): `docs/versions.md` 'Next: 2.10 and 2.11'; research items in `research/ROADMAP.md` section 6; to start when the maintainer says. Dropped: vector copper and the BOM role; electro-thermal coupling: a wish, no version.
 
 ## 16. Maintaining This File
 
